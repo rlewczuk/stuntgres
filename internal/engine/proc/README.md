@@ -41,8 +41,12 @@ For user declarations, `parser.CreateFunction.StandardReturn` propagates to
 atomic body. Native dump preserves these forms and Restore reconstructs them.
 
 Declaration usages admit pseudo signature identities separately from executable
-values. Result-safety and language-admission validators have separate DDL ordering;
-stored-definition validation composes both checks without executing a body.
+values. Catalog result-safety checks are unconditional; language admission follows
+DDL replacement authority and compatibility. `ValidatePLSignature` owns PL
+pseudotype and trigger/event formal restrictions for genuine validators and
+reached compilation. Stored source-only PL definitions retain catalog safety
+without claiming language validation; checked PL programs and SQL declarations
+retain their language signature checks without executing a body.
 `InvocationSignature` retains concrete input/result usages on checked calls.
 `ValidFor` checks the declaration's family relationships and every derived output
 member's label, ordinal and complete usage, including descriptor generations.

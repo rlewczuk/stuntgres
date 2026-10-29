@@ -44,6 +44,8 @@ func bindingDuplicate(claim BindingClaim) error {
 	}
 	var table, constraint, detail string
 	switch key.ClassID {
+	case ids.LanguageClassID:
+		table, constraint, detail = "pg_language", "pg_language_name_index", fmt.Sprintf("Key (lanname)=(%s) already exists.", key.Name)
 	case ids.SubscriptionClassID:
 		table, constraint, detail = "pg_subscription", "pg_subscription_subname_index", fmt.Sprintf("Key (subdbid, subname)=(%d, %s) already exists.", key.Namespace.ObjectID, key.Name)
 	case ids.NamespaceClassID:

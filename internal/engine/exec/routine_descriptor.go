@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,11 +67,21 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 		if !exists || (catalog.LanguageProvider{}).Validate(view, language) != nil {
 			return nil, fmt.Errorf("stuntgres: invalid routine language authority")
 		}
-		if current.SQL.PL != nil {
+		kind, err := catalog.ResolveLanguageExecution(view, language)
+		if err != nil {
+			return nil, err
+		}
+		if current.SQL.Kind == proc.PLpgSQLBody {
+			if kind != catalog.PLpgSQLLanguage {
+				return nil, fmt.Errorf("stuntgres: incompatible PL language capability")
+			}
 			handler, exists := view.Get(language.Call).(*catalog.Procedure)
 			if !exists || handler.PLHandler != catalog.PLCallHandler || catalog.ValidatePLHandler(view, handler) != nil {
 				return nil, fmt.Errorf("stuntgres: invalid PL call handler authority")
 			}
+		}
+		if current.SQL.Kind == proc.SQLBody && kind != catalog.SQLLanguage {
+			return nil, fmt.Errorf("stuntgres: incompatible SQL language capability")
 		}
 	}
 	return current, nil

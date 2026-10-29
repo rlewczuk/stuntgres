@@ -289,14 +289,15 @@ nontransactional.
   CREATE/DROP ACCESS METHOD, CREATE/ALTER/DROP OPERATOR FAMILY and OPERATOR CLASS,
   shipped function creation, routine identity ALTER/DROP, aggregate creation,
   operator CREATE/ALTER/DROP, CREATE/ALTER/DROP COLLATION and CONVERSION, and
-  CREATE/DROP CAST use the existing transaction journal, as do generic
-  table/type/domain/database/large-object OWNER and REASSIGN/DROP OWNED. Definition utilities
+  CREATE/DROP CAST and CREATE/ALTER/DROP LANGUAGE use the existing transaction
+  journal, as do generic table/type/domain/database/large-object OWNER and
+  REASSIGN/DROP OWNED. Definition utilities
   keep quiet Describe; Execute consumes current private providers and authority,
   with the existing Finish, savepoint and retained-message lifecycle. Feature-specific
   view/materialized OWNER is AlterView; collation/conversion OWNER is included.
-  CreateFunction admits only non-procedure declarations; procedure creation and
-  language lifecycle keep their separate admission. Unrelated utility exclusions
-  retain their independent policies. Collation/conversion/cast Describe is
+  CreateFunction admits only non-procedure declarations; procedure creation keeps
+  its separate admission. Unrelated utility exclusions retain their independent
+  policies. Collation/conversion/cast Describe is
   syntax-only: lookup, authorization, locks, provider checks and notices belong
   to Execute. Execute's collation preparation can reject or skip before catalog
   ShareRowExclusive admission; protected cross-encoding/provider/insertion work

@@ -72,7 +72,7 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 		if s.Kind == "domain" {
 			return DescribeOperation
 		}
-	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return DescribeOperation
 	case *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		// Analysis is effect-free even inside an explicit transaction.

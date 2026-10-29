@@ -67,11 +67,13 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   validates catalog/role/session predecessors without a relation lock or byte copy;
   `ExecuteOwned` (REASSIGN and DROP OWNED) pins every ownership root and
   policy survivor in one canonical order before staging and publishes one
-  ownership stage, with DROP OWNED's cascade notice after it. After shared
-  subscription object admission, it recaptures current authorization and rebuilds
-  the still-empty stage, retaining the admitted role/root identities. A peer
-  ALTER's committed fields therefore survive REASSIGN without a stale candidate,
-  command retry or suppressed publication conflict.
+  ownership stage, with DROP OWNED's cascade notice after it. After language or
+  shared subscription object admission, it recaptures current authorization and
+  rebuilds the still-empty stage, retaining the admitted role/root identities.
+  Language roots additionally retain their exact descriptor predecessors.
+  Subscription peers' committed fields survive REASSIGN without a stale candidate,
+  command retry or suppressed publication conflict. Ordinary publication acquires
+  the shared definition-dependency, role, retirement and global-name admissions.
 - `ExecuteCreateDatabase` builds the target from the private `template1`
   seed that `Engine.Factory` constructs once per cluster, rechecks the owner
   and registers the target in one publication.

@@ -120,6 +120,10 @@ single-statement limit of driver calls) belong to callers.
   Embedded PL SQL retains full INSERT VALUES expression trees and original
   statement boundaries; it does not replay cells through the ordinary SQL
   input-only scalar frontier. Ordinary SQL parsing and prewalk remain unchanged.
+  Explicit CREATE LANGUAGE retains independent optional INLINE/VALIDATOR names;
+  no-HANDLER forms lower directly to CREATE EXTENSION (OR REPLACE means
+  IF NOT EXISTS). ALTER LANGUAGE retains global rename/owner identities and
+  DROP retains the complete name list and dependency mode.
   Timing words require keyword identity: quoted `"before"`/`"after"` are names,
   not timing syntax, and cannot install definitions.
   ALTER/DROP retain positioned table-local trigger identities and explicit

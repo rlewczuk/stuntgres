@@ -92,3 +92,47 @@ func TestRoutineExternalHandlerSyntax(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutineLanguageLifecycleSyntax(t *testing.T) {
+	for _, prefix := range []string{"", "PROCEDURAL "} {
+		statements, err := Parse(`ALTER ` + prefix + `LANGUAGE "Old Name" RENAME TO "New Name"`)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(statements, err)
+		}
+		rename, ok := statements[0].(*AlterLanguage)
+		if !ok || rename.Name.Text != "Old Name" || rename.Target.Text != "New Name" || rename.Action != "rename" {
+			t.Fatal("global rename lost decoded identity", statements)
+		}
+		statements, err = Parse("ALTER " + prefix + "LANGUAGE l OWNER TO CURRENT_USER")
+		if err != nil || len(statements) != 1 {
+			t.Fatal(statements, err)
+		}
+		owner := statements[0].(*AlterLanguage)
+		if owner.Action != "owner" || !owner.OwnerIdentity || owner.Target.Text != "current_user" {
+			t.Fatal("owner identity became a literal role name", owner)
+		}
+		statements, err = Parse(`DROP ` + prefix + `LANGUAGE IF EXISTS "Mixed Language",folded CASCADE`)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(statements, err)
+		}
+		drop, ok := statements[0].(*DropLanguage)
+		if !ok || !drop.IfExists || drop.Mode != DropCascade || len(drop.Names) != 2 || drop.Names[0].Text != "Mixed Language" || drop.Names[1].Text != "folded" {
+			t.Fatal("drop lost complete global target set", statements)
+		}
+	}
+	for _, source := range []string{"CREATE LANGUAGE unaccent", "CREATE OR REPLACE TRUSTED PROCEDURAL LANGUAGE unaccent"} {
+		statements, err := Parse(source)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(statements, err)
+		}
+		extension, ok := statements[0].(*CreateExtension)
+		if !ok || extension.Name.Text != "unaccent" || extension.IfNotExists != strings.Contains(source, "REPLACE") {
+			t.Fatal("legacy declaration failed extension normalization", statements)
+		}
+	}
+	for _, source := range []string{"ALTER LANGUAGE l RENAME TO n trailing", "ALTER LANGUAGE l OWNER TO r trailing", "DROP LANGUAGE l CASCADE trailing", "CREATE LANGUAGE l HANDLER h VALIDATOR v INLINE i"} {
+		if _, err := Parse(source); err == nil {
+			t.Fatal("accepted trailing or reordered language clauses", source)
+		}
+	}
+}

@@ -336,6 +336,12 @@ func (s *dumpScript) unchangedSeedInstallation(item replayInstallation) bool {
 				return false
 			}
 		}
+		if language, ok := current.(*catalog.Language); ok {
+			released, ok := original.(*catalog.Language)
+			if !ok || language.Procedural != released.Procedural || language.Trusted != released.Trusted || language.Call != released.Call || language.Inline != released.Inline || language.Validator != released.Validator {
+				return false
+			}
+		}
 		owner, acl, _ := access.DescriptorACL(current)
 		// Historical declaration owners are rendering facts in their original
 		// role domain, not current authority. The actual bootstrap baseline is

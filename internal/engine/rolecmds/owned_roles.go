@@ -65,28 +65,37 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 			return core.Result{}, err
 		}
 	}
-	subscriptionLocked := false
-	for _, address := range roots {
-		if address.ClassID != ids.SubscriptionClassID {
-			continue
+	objectLocked := false
+	// Global roots use the same class/address order as definition mutations.
+	// OwnedRoots already orders object IDs within each class.
+	for _, class := range [...]ids.OID{ids.LanguageClassID, ids.SubscriptionClassID} {
+		for _, address := range roots {
+			if address.ClassID != class {
+				continue
+			}
+			ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+			if err = scope.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+				return core.Result{}, err
+			}
+			objectLocked = true
 		}
-		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
-		if err = scope.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
-			return core.Result{}, err
-		}
-		subscriptionLocked = true
 	}
 	e.Mu.Lock()
-	if subscriptionLocked {
-		// Object admission may have waited for a peer database's ALTER.
-		// Select current authority before deriving any ownership candidate;
-		// retain the admitted identities rather than retrying the command.
+	if objectLocked {
+		// Admission may have waited for a peer ALTER. Reauthorize the same
+		// root set before staging; language definitions retain their captured
+		// predecessors rather than silently adopting changed execution routes.
 		fresh, failure := e.AuthorizationLocked(scope.Op)
 		if failure != nil {
 			return fail(failure)
 		}
 		if fresh.Catalog.Epoch() != stage.Base.Epoch() {
 			return fail(ids.ErrCatalogReplaced)
+		}
+		for _, address := range roots {
+			if address.ClassID == ids.LanguageClassID && fresh.Catalog.Get(address) != stage.Base.Get(address) {
+				return fail(ids.ErrCatalogReplaced)
+			}
 		}
 		current, failure := role.PlanOwned(fresh.View, stmt, func(address ids.ObjectAddress) string {
 			path, _ := fresh.ReferencePath()
@@ -102,6 +111,11 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 		auth, plan = fresh, current
 		stage = core.OwnershipStage(e, auth, scope.Op)
 		stage.DependencyPath, _ = core.ReferencePath(auth)
+		if !reassign {
+			for _, address := range roots {
+				stage.MarkDrop(address, catalog.DropProvenance{Original: true})
+			}
+		}
 	}
 	err = role.StageOwned(RoleHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, plan)
 	e.Mu.Unlock()

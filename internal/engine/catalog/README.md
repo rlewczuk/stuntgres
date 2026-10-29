@@ -75,12 +75,16 @@ private frames, not catalog authority.
   Generated constructors instead derive their signatures from their owning
   type generation. None of this metadata grants execution authority; installed
   providers retain exact manifest identity validation.
-- **Languages.** Real owner/ACL/trust and distinct call/inline/validator procedure
-  capabilities are validated by `LanguageProvider`; PL installation OIDs are
-  allocated, not universal constants. `Procedure.DeclarationDependencies` stores
-  replay-only type/collation and `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
-- **DML trigger capability.** `SupportsDMLTrigger` selects checked zero-input PL
-  DML programs or the three builtin declarations identified by `BuiltinDMLTrigger`.
+- **Languages.** `LanguageProvider` validates current global identity, owner,
+  trust, optional inline/validator routes and genuine call capability independently
+  of public spelling. `ResolveLanguageExecution` classifies SQL from its released
+  nonprocedural identity and PL from real handlers; names confer no execution
+  authority. Installed origin and mutable extension membership remain independent.
+  PL installation OIDs are allocated, not universal constants.
+  `Procedure.DeclarationDependencies` stores replay-only type/collation and
+  `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
+- **DML trigger capability.** `SupportsDMLTrigger` selects zero-input PL
+  declarations, including deferred source, or the three genuine builtin declarations.
   This structural predicate is not permission or provider authority: DDL/stored
   owners retain ordinary provider validation and firing validates the current
   routine carrier before dispatch. Literal trigger arguments carry no activation

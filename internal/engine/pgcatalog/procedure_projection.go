@@ -107,13 +107,25 @@ func procedureRow(in Input, d *catalog.Procedure) ([]sqltype.Value, error) {
 		return nil, fmt.Errorf("stuntgres: missing routine display language")
 	}
 	languageAddress := d.Language
-	if languageAddress == (ids.ObjectAddress{}) && language != "" {
-		languageAddress = view.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: language})
+	if languageAddress == (ids.ObjectAddress{}) {
+		// Native declaration display names are released labels, not lookup
+		// keys: those fixed global identities survive ALTER LANGUAGE RENAME.
+		switch d.Display.Language {
+		case catalog.InternalRoutineLanguage:
+			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 12}
+		case catalog.CRoutineLanguage:
+			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 13}
+		case catalog.SQLRoutineLanguage:
+			languageAddress = ids.ObjectAddress{ClassID: ids.LanguageClassID, ObjectID: 14}
+		}
 	}
 	if language != "" {
 		owned, ok := view.Get(languageAddress).(*catalog.Language)
-		if !ok || owned.Name() != language {
+		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing routine declaration language")
+		}
+		if err := (catalog.LanguageProvider{}).Validate(view, owned); err != nil {
+			return nil, err
 		}
 	} else if languageAddress != (ids.ObjectAddress{}) {
 		return nil, fmt.Errorf("stuntgres: native routine has SQL language")

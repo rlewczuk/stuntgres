@@ -77,6 +77,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - Keep the comparison wire matrix pipelined: one server fixture, a fresh session
   per left source, and each pair's cells sent as one pipeline of Sync-terminated
   groups whose responses are checked in order.
+- Notice-backpressure scenarios renew the shared admin socket's existing 20s
+  deadline per simple/extended subtest, rather than bounding their combined age.
+  The victim socket, backpressure observation and rollback assertions stay bounded.
 - Native wire cancellation keys are not `pg_locks` PIDs; identify native waiters
   by relation and mode, or by a captured XID.
 - Server fixtures that mutate builtin ACLs restart the native child with dumps

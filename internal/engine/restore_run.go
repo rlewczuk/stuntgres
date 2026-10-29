@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -39,6 +40,8 @@ type restoreRun struct {
 	domainDefaultPairs      map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
 	triggerClones           []stored.PositionedTriggerClone
 	triggerClonePairs       map[*parser.CreateTrigger]stored.TriggerCloneReplay
+	plChecked               []routine.PositionedPLChecked
+	plCheckedPairs          map[*parser.CreateFunction]routine.PLCheckedReplay
 	triggerCloneCaptures    []viewcmds.RestoredTriggerClone
 	foreignKeyModes         []stored.PositionedForeignKeyMode
 	foreignKeySnapshotValid bool
@@ -97,6 +100,7 @@ type restoreStatement struct {
 	ownerPair                          table.RestoredInheritedOwner
 	typeOwnerPair                      typedef.RestoredTypeOwner
 	statisticsOwnerPair                ddl.RestoredStatisticsOwner
+	plChecked                          *core.PLCheckedReplayCapture
 }
 
 // startCaptures allocates the capture maps once the restore session is
@@ -141,6 +145,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 	if err != nil {
 		return err
 	}
+	r.plCheckedPairs, err = routine.PairPLChecked(r.source, r.statements, r.plChecked)
+	if err != nil {
+		return err
+	}
 	r.foreignKeySnapshotValid, err = stored.ValidateForeignKeyModeFooter(r.source, r.foreignKeyModes)
 	if err != nil {
 		return err
@@ -168,6 +176,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 	end := func() {
 		core.OperationReplay(op).StagingEffects = false
 		core.OperationReplay(op).SQLBodies = false
+		core.OperationReplay(op).PLChecked = nil
 		core.OperationReplay(op).DefaultReplay = false
 		core.OperationReplay(op).LargeObjectAuthority = false
 		core.OperationReplay(op).PartitionAttach = false
@@ -200,6 +209,7 @@ func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error 
 // execute runs one admitted statement on the stage, then clears the
 // per-statement replay flags, closes any rows and detaches the notices.
 func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
+	defer func() { core.OperationReplay(op).PLChecked = nil }()
 	var err error
 	var result core.Result
 	if domain, ok := stmt.(*parser.CreateDomain); ok {

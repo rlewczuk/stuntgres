@@ -28,8 +28,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	if err = admitFunctionLanguage(h, auth, s); err != nil {
+	language, execution, err := admitFunctionLanguage(h, auth, s)
+	if err != nil {
 		return err
+	}
+	bodyKind := proc.SQLBody
+	if execution == catalog.PLpgSQLLanguage {
+		bodyKind = proc.PLpgSQLBody
 	}
 	arguments := s.Arguments
 	if s.TableResult != nil {
@@ -52,7 +57,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
-		if s.Language.Text != "sql" && !s.Procedure && typ != nil && typ.BaseType().IsComposite() && !(result && s.Language.Text == "plpgsql" && s.Result.Setof) {
+		if bodyKind != proc.SQLBody && !s.Procedure && typ != nil && typ.BaseType().IsComposite() && !(result && bodyKind == proc.PLpgSQLBody && s.Result.Setof) {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
 		if !ok || !typ.Concrete() && !sqltype.IsPseudo(typ.ID()) {
@@ -137,16 +142,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		}
 	}
 	layout.Result, layout.ReturnsSet, layout.TableResult = result, s.Result.Setof, s.TableResult != nil
-	if err = checkRoutineBodyForm(s); err != nil {
-		return err
-	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
 	d.Parallel, d.Cost = 'u', 100
 	if layout.ReturnsSet {
 		d.Rows = 1000
 	}
-	d.Language = h.AccessView(auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.LanguageClassID, Name: s.Language.Text})
+	d.Language = language.Address()
 	if s.Procedure {
 		d.RoutineKind = catalog.ProcedureRoutine
 	}
@@ -189,33 +191,23 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = h.ValidateRoutineConfiguration(d); err != nil {
 		return err
 	}
-	if err = proc.ValidatePseudoLanguageSignature(inputs, outputs, formals, s.Language.Text, s.Standard != nil); err != nil {
-		return err
-	}
-	if s.Language.Text == "plpgsql" {
-		for _, formal := range formals {
-			if formal.Usage.Type.ID() == 4538 {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "PL/pgSQL functions cannot accept type anycompatiblemultirange", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
+	// Language validation follows replacement authority and compatibility.
+	// Catalog result safety above remains unconditional.
+	if bodyKind == proc.PLpgSQLBody {
+		if language.Validator != (ids.ObjectAddress{}) {
+			if err = proc.ValidatePLSignature(inputs, outputs, formals, name, s.Procedure); err != nil {
+				return err
 			}
 		}
-	}
-	// Language/compiler contracts follow the existing identity's authority and
-	// compatibility checks, just like validation of its replacement body.
-	if !s.Procedure && result.Type.ID() == 3838 {
-		if s.Language.Text != "plpgsql" {
-			return sqlError("42P13", "SQL functions cannot return type event_trigger")
-		}
-		if len(s.Arguments) != 0 {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "event trigger functions cannot have declared arguments", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
-		}
-	}
-	if !s.Procedure && result.Type.ID() == 2279 && s.Language.Text == "plpgsql" && len(s.Arguments) != 0 {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "trigger functions cannot have declared arguments", Hint: "The arguments of the trigger can be accessed through TG_NARGS and TG_ARGV instead.", Context: fmt.Sprintf("compilation of PL/pgSQL function %q near line 1", name)}
+	} else if err = proc.ValidatePseudoLanguageSignature(inputs, outputs, formals, bodyKind, s.Standard != nil); err != nil {
+		return err
 	}
 	var definition *proc.Definition
-	if s.Language.Text == "plpgsql" {
+	if bodyKind == proc.PLpgSQLBody {
 		var syntax *parser.PLBlock
-		syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
+		if language.Validator != (ids.ObjectAddress{}) {
+			syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
+		}
 		invocation := proc.OrdinaryInvocation
 		if result.Type.ID() == 2279 {
 			invocation = proc.DMLTriggerInvocation
@@ -227,7 +219,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	} else {
 		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
 	}
-	if err != nil && s.Language.Text == "plpgsql" {
+	if err != nil && bodyKind == proc.PLpgSQLBody {
 		return parser.PLBodyError(err, s.BodyPos)
 	}
 	if err != nil {
@@ -244,7 +236,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	}
 	d.SQL = definition
 	d.Display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage, Source: definition.Source}
-	if s.Language.Text == "plpgsql" {
+	if bodyKind == proc.PLpgSQLBody {
 		d.Display.Language = catalog.PLpgSQLRoutineLanguage
 	}
 	if s.Standard != nil {

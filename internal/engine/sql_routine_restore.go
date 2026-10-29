@@ -31,6 +31,12 @@ func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *sessio
 		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil {
 			auth.State.CurrentUser = d.Owner
 			if d.SQL.Kind == proc.PLpgSQLBody {
+				// A source-only declaration deliberately has no CREATE validator
+				// result. Replay must preserve that state, including malformed
+				// source; only reached invocation may compile it.
+				if d.SQL.PL == nil {
+					continue
+				}
 				if err := e.CompilePLRoutineLocked(op, auth, d); err != nil {
 					return err
 				}

@@ -15,6 +15,9 @@ renderers. It never invokes the target or checks its EXECUTE privilege. Actual
 Procedure descriptors are authoritative; release identity aliases do not create
 catalog objects. Public CREATE OR REPLACE output is independent of native dump
 SQL, while both consume the same retained declaration and wrapper metadata.
+Language presentation uses the actual descriptor address from that same snapshot;
+native internal/C/SQL declarations resolve their fixed language identities.
+Renames and aliases never require a display-label match or target compilation.
 Body presentation carries the querying statement's captured temporary-owner
 authority, never the stored routine's principal. Qualified own-session TEMP
 sources use `pg_temp`; foreign or absent temporary authority retains physical
@@ -221,6 +224,18 @@ jobs and native callbacks do not open a journal through this SQL seam. Ordinary
 SQL validators restore as routines, without destination native tokens.
 
 Routine command policy is invocation-local and carries no cached actor.
+PL CREATE validation and invocation compilation are distinct: an absent language
+validator leaves immutable source/formals uncompiled, with language signature
+checks deferred but catalog result safety retained. `CompilePLRoutineLocked`
+enforces the genuine PL signature contract before parsing any reached source.
+`PreparePLRoutineLocked` checks cancellation and compiles into private
+declaration/program backing without publishing or caching it in the catalog.
+Ordinary calls and trigger frame creation use current language capabilities,
+never mutable names or captured USAGE.
+Immediate row triggers validate identity and current capability before WHEN,
+but prepare private PL code only after a true condition. WHEN evaluates unlocked;
+the firing path reacquires the engine mutex and revalidates current executable
+authority before compilation, then unlocks before frame construction/invocation.
 Reached SQL and PL commands classify their analyzed executable binding before
 opening producers, including writable CTEs and stored-source row marks.
 Stable/immutable bodies borrow the calling query's coherent roots and private

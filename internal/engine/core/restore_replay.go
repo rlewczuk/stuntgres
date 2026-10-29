@@ -28,6 +28,7 @@ type restoreReplay struct {
 	PartitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
 	DomainReplay           *DomainReplayCapture        // Exact private native INSERT's immutable captured cells.
 	DomainDefault          *DomainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
+	PLChecked              *PLCheckedReplayCapture     // Exact paired CREATE only, before its staged publication.
 }
 
 func (*restoreReplay) ReplaySlot() {}
@@ -62,4 +63,12 @@ func CheckRestoreEffect(op *session.Operation) error {
 type DomainDefaultReplayCapture struct {
 	Statement *parser.CreateDomain
 	Record    typedef.DomainDefaultSnapshot
+}
+
+// PLCheckedReplayCapture leases genuine checked compilation, never permission to
+// skip validation. Restore pairs this statement with its immediate owner transfer.
+type PLCheckedReplayCapture struct {
+	Statement *parser.CreateFunction
+	Owner     authorization.PrincipalRef
+	Consumed  bool
 }

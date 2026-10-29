@@ -352,11 +352,14 @@ func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 	}
 	statements = append(statements, configurationStatements...)
 	s.providerStatements = statements
+	if err := s.prepareLanguageReplay(); err != nil {
+		return err
+	}
 	return s.prepareInstallationReplay(ctx)
 }
 
 func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) error {
-	if len(s.providerStatements) == 0 && len(s.installationStatements) == 0 {
+	if len(s.providerStatements) == 0 && len(s.installationStatements) == 0 && len(s.languageStatements) == 0 {
 		return nil
 	}
 	if err := w.setOwner("postgres"); err != nil {
@@ -366,6 +369,9 @@ func emitDumpProviderReplay(ctx context.Context, s *dumpScript, w *dumpWriter) e
 		return err
 	}
 	if err := emitDumpLines(w, s.installationStatements); err != nil {
+		return err
+	}
+	if err := emitDumpLines(w, s.languageStatements); err != nil {
 		return err
 	}
 	if err := emitDumpLines(w, s.installationACLStatements); err != nil {

@@ -562,7 +562,7 @@ package parser
 %type <alterConfiguration> configuration_alter_head
 %type <identifiers> configuration_tokens
 %type <stmt> create_function create_aggregate drop_routine alter_routine
-%type <stmt> create_language
+%type <stmt> create_language alter_language drop_language
 %type <createLanguage> language_head language_flags
 %type <objectName> language_inline language_validator
 %type <routineAS> routine_as
@@ -1044,6 +1044,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | alter_parser | drop_parser
  | alter_operator | drop_operator
  | drop_routine | alter_routine
+ | alter_language | drop_language
  | create_cast | drop_cast
  | alter_operator_family | drop_operator_family
  | alter_operator_class | drop_operator_class
@@ -2015,9 +2016,15 @@ language_head: CREATE LANGUAGE name {$$=&CreateLanguage{Name:Identifier{Text:$3.
  | CREATE language_flags LANGUAGE name {$$=$2;$$.Name=Identifier{Text:$4.text,Pos:$4.pos};$$.Pos=$1.pos}
  | CREATE OR replace_word LANGUAGE name {$$=&CreateLanguage{Name:Identifier{Text:$5.text,Pos:$5.pos},Replace:true,Pos:$1.pos}}
  | CREATE OR replace_word language_flags LANGUAGE name {$$=$4;$$.Name=Identifier{Text:$6.text,Pos:$6.pos};$$.Replace=true;$$.Pos=$1.pos} ;
-create_language: language_head FDW_HANDLER relation_name language_inline language_validator {$$=$1;$1.Handler=$3;$1.Inline=$4;$1.Validator=$5} ;
+create_language: language_head FDW_HANDLER relation_name language_inline language_validator {$1.Handler=$3;$1.Inline=$4;$1.Validator=$5;$$=$1}
+ | language_head {$$=&CreateExtension{Name:$1.Name,IfNotExists:$1.Replace,Pos:$1.Pos}} ;
 language_inline: /* empty */ {$$=ObjectName{}} | LANGUAGE_INLINE relation_name {$$=$2} ;
 language_validator: /* empty */ {$$=ObjectName{}} | FDW_VALIDATOR relation_name {$$=$2} ;
+language_keyword: LANGUAGE | LANGUAGE_PROCEDURAL LANGUAGE ;
+alter_language: ALTER language_keyword name RENAME TO name {$$=&AlterLanguage{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER language_keyword name OWNER TO schema_owner {$$=&AlterLanguage{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}} ;
+drop_language: DROP language_keyword view_names drop_mode {$$=&DropLanguage{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP language_keyword IF EXISTS view_names drop_mode {$$=&DropLanguage{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 do_statement: DO STRING {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:"plpgsql"},Pos:$1.pos}}
  | DO LANGUAGE name STRING {$$=&Do{Body:$4.text,BodyPos:routineBodyPosition($4),Language:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
  | DO STRING LANGUAGE name {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}} ;

@@ -202,6 +202,9 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 				}
 			}
 		}
+		if failure == nil {
+			d, failure = e.PreparePLRoutineLocked(s.Op, current, d)
+		}
 		e.Mu.Unlock()
 		if failure != nil {
 			return failure

@@ -68,41 +68,66 @@ func (LanguageProvider) ClassID() ids.OID { return ids.LanguageClassID }
 func (LanguageProvider) Validate(v Read, descriptor Descriptor) error {
 	d, ok := descriptor.(*Language)
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid language descriptor authority") }
-	if !ok || d == nil || v.State() == nil || v.Get(d.Address()) != d || d.Address().ClassID != ids.LanguageClassID || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
+	if !ok || d == nil || v.State() == nil || v.Get(d.Address()) != d || d.Address().ClassID != ids.LanguageClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Name() == "" || d.Revision() == 0 || v.NameAddress(DescriptorNameKey(d)) != d.Address() {
 		return invalid()
 	}
 	if v.Owner() == nil || v.Owner().Principals == nil || d.Owner.ID() == 0 || d.Owner != v.Owner().Principals.Principal(d.Owner.ID()) {
 		return invalid()
 	}
-	switch d.Name() {
-	case "internal", "c", "sql":
-		oid, validator := ids.OID(12), ids.OID(2246)
-		if d.Name() == "c" {
-			oid, validator = 13, 2247
+	if !d.Procedural {
+		validator := ids.OID(0)
+		switch d.Address().ObjectID {
+		case 12:
+			validator = 2246
+		case 13:
+			validator = 2247
+		case 14:
+			validator = 2248
 		}
-		if d.Name() == "sql" {
-			oid, validator = 14, 2248
-		}
-		if d.Address().ObjectID != oid || d.Procedural || d.Trusted != (d.Name() == "sql") || d.Call != (ids.ObjectAddress{}) || d.Inline != (ids.ObjectAddress{}) || d.Validator != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: validator}) {
+		if d.Origin != nil || validator == 0 || d.Trusted != (d.Address().ObjectID == 14) || d.Call != (ids.ObjectAddress{}) || d.Inline != (ids.ObjectAddress{}) || d.Validator != (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: validator}) {
 			return invalid()
 		}
-	case "plpgsql":
-		if !d.Procedural || !d.Trusted || !d.Origin.Valid(d.Address()) || d.Origin.Installation.Provider != "plpgsql" || d.Origin.Declaration != 3 || v.Owner().Extensions["plpgsql"] != d.Origin.Installation.Implementation {
-			return invalid()
-		}
-		for _, route := range []struct {
-			ref  ids.ObjectAddress
-			kind PLHandler
-		}{{d.Call, PLCallHandler}, {d.Inline, PLInlineHandler}, {d.Validator, PLValidator}} {
-			handler, ok := v.Get(route.ref).(*Procedure)
-			if !ok || handler.PLHandler != route.kind || ValidatePLHandler(v, handler) != nil {
-				return invalid()
-			}
-		}
-	default:
+		return ValidateExtensionMembership(v, d)
+	}
+	if d.Origin != nil && (!d.Origin.Valid(d.Address()) || d.Origin.Installation.Provider != "plpgsql" || d.Origin.Declaration != 3 || v.Owner().Extensions["plpgsql"] != d.Origin.Installation.Implementation) {
 		return invalid()
 	}
+	for _, route := range []struct {
+		ref  ids.ObjectAddress
+		kind PLHandler
+	}{{d.Call, PLCallHandler}, {d.Inline, PLInlineHandler}, {d.Validator, PLValidator}} {
+		if route.ref == (ids.ObjectAddress{}) && route.kind != PLCallHandler {
+			continue
+		}
+		handler, ok := v.Get(route.ref).(*Procedure)
+		if !ok || handler.PLHandler != route.kind || ValidatePLHandler(v, handler) != nil {
+			return invalid()
+		}
+	}
 	return ValidateExtensionMembership(v, d)
+}
+
+type LanguageExecution uint8
+
+const (
+	ExternalLanguage LanguageExecution = iota
+	SQLLanguage
+	PLpgSQLLanguage
+)
+
+// ResolveLanguageExecution derives execution only from current genuine identity
+// and handler capabilities. Public names never select an interpreter.
+func ResolveLanguageExecution(v Read, d *Language) (LanguageExecution, error) {
+	if err := (LanguageProvider{}).Validate(v, d); err != nil {
+		return ExternalLanguage, err
+	}
+	if d.Procedural {
+		return PLpgSQLLanguage, nil
+	}
+	if d.Address().ObjectID == 14 {
+		return SQLLanguage, nil
+	}
+	return ExternalLanguage, nil
 }
 
 func ValidatePLHandler(v Read, d *Procedure) error {

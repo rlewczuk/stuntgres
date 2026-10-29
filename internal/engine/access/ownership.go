@@ -108,6 +108,8 @@ func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(
 	switch t := d.(type) {
 	case *catalog.Subscription:
 		return true
+	case *catalog.Language:
+		return t.Address().ObjectID < 12 || t.Address().ObjectID > 14
 	case *catalog.ForeignObject:
 		return t.Address().ClassID != ids.ForeignMappingClassID || t.MappedRole != (authorization.PrincipalRef{})
 	case *catalog.Namespace:

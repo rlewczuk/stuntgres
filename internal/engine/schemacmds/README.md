@@ -3,7 +3,7 @@
 The schema-object statement executors
 ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE,
 ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGURATION, TEXT SEARCH TEMPLATE and TEXT SEARCH DICTIONARY; CREATE
-LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
+LANGUAGE and ALTER/DROP LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
 class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
 TABLESPACE; LOAD; CREATE, ALTER and DROP EXTENSION; the
@@ -69,9 +69,10 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   stage with the cascade notice. CREATE SCHEMA rejects partition elements
   with 0A000 first. `ExecuteSQLRoutineDDL` (CREATE FUNCTION, PROCEDURE,
   AGGREGATE) runs through it.
-  Routine retirement retains the captured SQL-root drop provenance across
-  grant-time candidate recapture after the epoch, identity and authorization
-  fences; dependency-closure roots are not promoted to explicit SQL targets.
+  Routine/language retirement retains captured SQL-root drop provenance across
+  grant-time candidate recapture after epoch, identity and authorization fences;
+  dependency-closure roots are not promoted to explicit SQL targets. Global
+  language identities use ordinary definition-object locks, not relation aliases.
 - `StageDictionaryDetached` captures dictionary inputs and authority under
   `Engine.Mu`, compiles real shipped resources with it released, then calls
   `CompleteDictionaryLocked` under the mutex. Completion fences captured
@@ -123,6 +124,14 @@ return.
 Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`.
 The private SQL-body directive defers catalog-dependent quoted SQL analysis to
 invocation; checked standard bodies and PL compilation retain their validation.
+`RoutineHost.BindSQLRoutine` also consumes an exact private Restore checked-PL
+lease when a previously checked declaration's final validator is absent.
+The root pairs the full CREATE header with the immediate actual owner transfer;
+the bind host validates the exact body coordinates and current language, then
+compiles under the resolved target principal before publishing the fresh stage.
+This rebuilds real programs and declaration dependencies without changing normal
+CREATE validation, globally compiling deferred siblings or borrowing a validator
+name. Restore clears the lease on every execution outcome.
 
 ## Hosts
 

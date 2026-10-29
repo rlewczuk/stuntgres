@@ -19,6 +19,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "extension: owner records", Decode: decodeRestoreExtensionOwners},
 	{Name: "view: materialized snapshot records", Decode: decodeRestoreMaterializedSnapshot},
 	{Name: "trigger: retained clone records", Decode: decodeRestoreTriggerClone},
+	{Name: "routine: checked PL admission records", Decode: decodeRestorePLChecked},
 	{Name: "trigger: foreign key mode records", Decode: decodeRestoreForeignKeyMode},
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
@@ -84,6 +85,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "partition: CHECK replay", Prepare: prepareRestorePartitionCheck},
 	{Name: "partition: USING INDEX replay", Prepare: prepareRestorePartitionUsingIndex},
 	{Name: "partition: UNIQUE replay", Prepare: prepareRestorePartitionUnique},
+	{Name: "routine: checked PL admission", Prepare: prepareRestorePLChecked},
 
 	// After execution.
 	{Name: "comparison bound definition", After: afterRestoreComparisonContext},
@@ -104,9 +106,11 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "inheritance: generation capture", After: afterRestoreGeneration},
 	{Name: "table: attribute definition capture", After: afterRestoreAttributeDefinition},
 	{Name: "trigger: retained clone capture", After: afterRestoreTriggerClone},
+	{Name: "routine: checked PL admission consumed", After: afterRestorePLChecked},
 
 	// After the last statement.
 	{Name: "comparison context closure", Finish: finishRestoreComparisonContext},
+	{Name: "routine: checked PL admission closure", Finish: finishRestorePLChecked},
 	{Name: "table: attribute retirements", Finish: finishRestoreAttributeRetirements},
 	{Name: "table: physical NOT NULL boundary at end", Finish: finishRestorePhysicalBoundary},
 	{Name: "table: foreign keys", Finish: finishRestoreForeignKeys},

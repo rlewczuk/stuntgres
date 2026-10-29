@@ -54,7 +54,7 @@ func (EventTriggerProvider) Validate(v Read, descriptor Descriptor) error {
 		return invalid()
 	}
 	f, ok := v.Get(d.Function.Address).(*Procedure)
-	if !ok || f.RoutineKind != FunctionRoutine || f.Result != 3838 || f.SQL == nil || f.SQL.Kind != proc.PLpgSQLBody || f.SQL.Invocation != proc.EventTriggerInvocation || f.SQL.Result.Type == nil || f.SQL.Result.Type.ID() != 3838 || len(f.SQL.Formals) != 0 || len(f.SQL.Inputs) != 0 || f.SQL.PL == nil || f.SQL.PL.Invocation != proc.EventTriggerInvocation {
+	if !ok || f.RoutineKind != FunctionRoutine || f.Result != 3838 || f.SQL == nil || f.SQL.Kind != proc.PLpgSQLBody || f.SQL.Invocation != proc.EventTriggerInvocation || f.SQL.Result.Type == nil || f.SQL.Result.Type.ID() != 3838 || len(f.SQL.Formals) != 0 || len(f.SQL.Inputs) != 0 || f.SQL.PL != nil && f.SQL.PL.Invocation != proc.EventTriggerInvocation {
 		return invalid()
 	}
 	switch d.Event {

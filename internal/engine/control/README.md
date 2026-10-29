@@ -94,12 +94,39 @@ ACL semantics without reapplying the destination's restricted seed. Untyped
 catalog updates do not acquire this replay capability.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.
-Unchanged bootstrap declarations need no replay; changed handler parallel/cost
-metadata follows installation identity replay, not builtin-provider collection.
-Changed retained language owners and raw ACLs replay through bounded catalog
-repairs. Restore compiles PL declarations on CREATE, preserves lazy expression
-binding, and remaps declaration source addresses once without converting replay
-prerequisites into hard edges.
+Unchanged bootstrap definitions need no replay; changed handler metadata and
+language identity/trust/routes use the existing installation replay. Global
+bootstrap names are parked collision-free before final identities and aliases
+are declared with destination-qualified handlers. Language owners and raw ACLs
+use the existing bounded repairs. Genuine source-only PL declarations retain
+their admission even when a validator was added before capture. Each such routine
+is serialized between real same-language replacements omitting then restoring
+the validator, through the shared `routine.LanguageDumpStatement` serializer.
+Its privileged declaration runs under authenticated `DEFAULT`, restoring the
+final routes before routine ownership transfer or any following consumer; the
+routine owner need not own the language. Replacement preserves language identity,
+owner/ACL, membership and installation provenance while rebuilding handler edges.
+Restore remaps source addresses once without converting replay prerequisites
+into hard edges.
+The final routine replay pass recompiles checked PL programs, but never turns
+source-only declarations into validated programs; malformed deferred bodies
+remain deferred until reached invocation.
+Checked PL declarations captured after validator removal carry a bounded native
+admission record, paired strictly with their exact CREATE header and following
+owner transfer. Restore recompiles their real source under that owner at the
+ordinary fresh staged bind frontier, before later consumers. No record bypasses
+validation or compiles genuinely source-only siblings. Before retiring missing
+installed handlers, placement checks all released call/inline/validator routes.
+If any destination seed route references a missing handler, it first reconciles
+the surviving installed language's complete current routes at its actual/parked
+name, after handler identity placement and before any missing-handler DROP.
+This removes stale seed edges without cascading away genuine language origin.
+Absent source languages are never recreated by this prelude. Final route/name
+replay, actual handler retirement and strict installed owner/membership validation
+remain unchanged; no retired handler is resurrected.
+Central Restore admission accepts language lifecycle ASTs and passes them to the
+ordinary authority/dependency executor; emitted identity replay is not a separate
+catalog-write bypass.
 Row-trigger definitions are post-data SQL groups, after their functions/tables
 and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;

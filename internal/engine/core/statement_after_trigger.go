@@ -276,6 +276,9 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 			_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
 		}
 	}
+	if err == nil && catalog.BuiltinDMLTrigger(d) == 0 {
+		d, err = e.PreparePLRoutineLocked(s.Op, auth, d)
+	}
 	e.Mu.Unlock()
 	if err != nil {
 		return err

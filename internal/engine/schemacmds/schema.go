@@ -121,7 +121,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 		}
 	}
 	defer e.DiscardCatalogStage(stage)
-	if _, droppingRoutine := stmt.(*parser.DropRoutine); droppingRoutine {
+	switch stmt.(type) {
+	case *parser.DropRoutine, *parser.DropLanguage:
 		if err := acquireRoutineRetirementRoots(scope, stage); err != nil {
 			return core.Result{}, err
 		}
@@ -174,6 +175,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	domainMode := parser.DropCascade
 	cascade := false
 	switch s := stmt.(type) {
+	case *parser.DropLanguage:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropAccessMethod:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropTemplate:
@@ -508,7 +511,17 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 			return nil, err
 		}
 	case *parser.CreateLanguage:
-		return nil, routine.RejectCreateLanguage(host, auth)
+		if err = routine.StageCreateLanguage(routineHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterLanguage:
+		if err = routine.StageAlterLanguage(routineHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropLanguage:
+		if err = routine.StageDropLanguage(routineHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.AlterRoutine:
 		if err = routine.StageAlterRoutine(routineHost, auth, s); err != nil {
 			return nil, err

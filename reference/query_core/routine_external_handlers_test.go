@@ -1,31 +1,34 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
 
 const externalCustomHandler = " HANDLER pg_catalog.plpgsql_call_handler INLINE pg_catalog.plpgsql_inline_handler VALIDATOR pg_catalog.plpgsql_validator"
 
-func externalHandlerBoundary(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name string) {
+func externalHandlerRegistration(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name string) {
 	t.Helper()
 	q := "CREATE LANGUAGE " + name + externalCustomHandler
-	if b.PG {
-		routineExec(t, p, b, c, q)
-		// Languages are database-wide; the fixture's public reset cannot clean
-		// them. Callers drop any dependent functions before this deferred drop.
-		t.Cleanup(func() {
-			if _, err := b.DB.ExecContext(p.Ctx, "DROP LANGUAGE "+name); err != nil {
-				t.Error(err)
-			}
-		})
-	} else {
-		externalLanguageError(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("0A000", "custom procedural language handlers are unsupported in embedded mode"), false)
-	}
+	routineExec(t, p, b, c, q)
+	// Languages are database-wide; schema reset cannot clean them. Explicit
+	// function retirement is asserted by callers; CASCADE also cleans failures.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := b.DB.ExecContext(ctx, "DROP LANGUAGE "+name+" CASCADE"); err != nil {
+			t.Error(err)
+		}
+	})
+	externalLanguageError(t, p, b, c, q, fixture.ControlsReferenceDiagnostic("42710", fmt.Sprintf("language %q already exists", name)), false)
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT l.lanispl,l.lanpltrusted,h.proname,i.proname,v.proname FROM pg_language l JOIN pg_proc h ON h.oid=l.lanplcallfoid JOIN pg_proc i ON i.oid=l.laninline JOIN pg_proc v ON v.oid=l.lanvalidator WHERE l.lanname=$1", []string{"lanispl", "lanpltrusted", "proname", "proname", "proname"}, []string{"BOOL", "BOOL", "NAME", "NAME", "NAME"}, [][]any{{true, false, "plpgsql_call_handler", "plpgsql_inline_handler", "plpgsql_validator"}}, name))
 }
 
 func TestReferenceRoutineExternalLanguagesHandlerDeclarations(t *testing.T) {
@@ -47,20 +50,14 @@ func TestReferenceRoutineExternalLanguagesHandlerDeclarations(t *testing.T) {
 		}
 		routineExec(t, p, b, c, "RESET SESSION AUTHORIZATION")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT lanname FROM pg_catalog.pg_language WHERE lanname='ext_handler_denied'", []string{"lanname"}, []string{"NAME"}, nil))
-		externalHandlerBoundary(t, p, b, c, "ext_custom")
+		externalHandlerRegistration(t, p, b, c, "ext_custom")
 		q := "CREATE FUNCTION ext_custom_value(integer) RETURNS integer LANGUAGE ext_custom AS $$BEGIN RETURN $1+1; END$$"
-		if b.PG {
-			routineExec(t, p, b, c, q)
-			routineValue(t, p, b, c, "SELECT ext_custom_value(4) AS v", "v", "INT4", int64(5))
-			routineExec(t, p, b, c, "DROP FUNCTION ext_custom_value(integer)")
-			// Replacement/flags exercise the same real handler, not a fake
-			// native language registration.
-			routineExec(t, p, b, c, "CREATE OR REPLACE TRUSTED PROCEDURAL LANGUAGE ext_custom"+externalCustomHandler)
-		} else {
-			externalLanguageMissing(t, p, b, c, q, "ext_custom")
-			externalLanguageMissingCall(t, p, b, c, "ext_custom_value")
-			externalLanguageError(t, p, b, c, "CREATE OR REPLACE TRUSTED PROCEDURAL LANGUAGE ext_custom"+externalCustomHandler, fixture.ControlsReferenceDiagnostic("0A000", "custom procedural language handlers are unsupported in embedded mode"), false)
-		}
+		routineExec(t, p, b, c, q)
+		routineValue(t, p, b, c, "SELECT ext_custom_value(4) AS v", "v", "INT4", int64(5))
+		routineExec(t, p, b, c, "DROP FUNCTION ext_custom_value(integer)")
+		externalLanguageMissingCall(t, p, b, c, "ext_custom_value")
+		// Replacement/flags select the same genuine implemented handlers.
+		routineExec(t, p, b, c, "CREATE OR REPLACE TRUSTED PROCEDURAL LANGUAGE ext_custom"+externalCustomHandler)
 		for _, q := range []string{
 			"CREATE LANGUAGE ext_bad HANDLER pg_catalog.plpgsql_call_handler trailing",
 			"CREATE LANGUAGE ext_bad HANDLER pg_catalog.plpgsql_call_handler VALIDATOR pg_catalog.plpgsql_validator INLINE pg_catalog.plpgsql_inline_handler",

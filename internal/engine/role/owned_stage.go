@@ -59,7 +59,7 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 			if err == nil {
 				err = access.OwnershipDatabaseCreate(view, auth)
 			}
-		case *catalog.Statistics, *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary, *catalog.TSConfiguration:
+		case *catalog.Statistics, *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.Language, *catalog.TSDictionary, *catalog.TSConfiguration:
 			err = view.Check(auth, access.Requirement{Object: stage.BaseRef(a), OwnerOnly: true})
 			if err == nil {
 				err = access.OwnershipEligibility(view, auth, target, d.Namespace())

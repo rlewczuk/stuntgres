@@ -35,5 +35,5 @@ func BuiltinDMLTrigger(d *Procedure) ids.OID {
 // SupportsDMLTrigger is shared by installation, stored validation and firing.
 // It describes body capability, not permission or current catalog authority.
 func SupportsDMLTrigger(d *Procedure) bool {
-	return BuiltinDMLTrigger(d) != 0 || d != nil && d.RoutineKind == FunctionRoutine && d.Result == 2279 && d.Signature == "" && d.SQL != nil && d.SQL.Invocation == proc.DMLTriggerInvocation && d.SQL.PL != nil && len(d.SQL.Inputs) == 0
+	return BuiltinDMLTrigger(d) != 0 || d != nil && d.RoutineKind == FunctionRoutine && d.Result == 2279 && d.Signature == "" && d.SQL != nil && d.SQL.Kind == proc.PLpgSQLBody && d.SQL.Invocation == proc.DMLTriggerInvocation && len(d.SQL.Inputs) == 0
 }

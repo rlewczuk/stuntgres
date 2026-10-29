@@ -92,13 +92,27 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	if !ok {
 		return dump.Statement{}, fmt.Errorf("missing SQL routine namespace")
 	}
+	language, ok := view.Get(d.Language).(*catalog.Language)
+	if !ok || (catalog.LanguageProvider{}).Validate(view, language) != nil {
+		return dump.Statement{}, fmt.Errorf("missing routine language authority")
+	}
+	// Current validator presence is not the declaration's admission history.
+	// Replay a genuine source-only declaration with its original no-validator
+	// admission, then restore the final routes before the next declaration.
+	validatorWindow := d.SQL.Kind == proc.PLpgSQLBody && d.SQL.PL == nil && d.SQL.PLSyntax == nil && language.Validator != (ids.ObjectAddress{})
+	checkedReplay := d.SQL.Kind == proc.PLpgSQLBody && d.SQL.PL != nil && language.Validator == (ids.ObjectAddress{})
+	if checkedReplay {
+		if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {
+			return dump.Statement{}, err
+		}
+	}
 	var sql strings.Builder
 	kind := "FUNCTION"
 	if d.RoutineKind == catalog.ProcedureRoutine {
 		kind = "PROCEDURE"
 	}
 	qualified := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(d.Name())
-	privileged := !owner.Superuser
+	privileged := !owner.Superuser || validatorWindow || checkedReplay
 	var ownership strings.Builder
 	if privileged {
 		ownership.WriteString("ALTER " + kind + " " + qualified + "(")
@@ -113,6 +127,15 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			ownership.WriteString(name)
 		}
 		ownership.WriteString(") OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n")
+	}
+	if validatorWindow {
+		deferred := *language
+		deferred.Validator = ids.ObjectAddress{}
+		statement, err := LanguageDumpStatement(view, &deferred, true)
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString(statement)
 	}
 	sql.WriteString("CREATE " + kind + " " + qualified + "(")
 	written := 0
@@ -242,15 +265,15 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			sql.WriteString(dump.CommentLiteral(value))
 		}
 	}
-	language, ok := view.Get(d.Language).(*catalog.Language)
-	if !ok || (catalog.LanguageProvider{}).Validate(view, language) != nil {
-		return dump.Statement{}, fmt.Errorf("missing routine language authority")
-	}
 	languageName := catalog.QuoteIdentifier(language.Name())
 	if language.Name() == "sql" {
 		languageName = "SQL"
 	}
 	sql.WriteString(" LANGUAGE " + languageName + " ")
+	header := ""
+	if checkedReplay {
+		header = sql.String()
+	}
 	if d.SQL.Standard {
 		if d.SQLBody == nil {
 			return dump.Statement{}, fmt.Errorf("missing checked SQL-standard routine body")
@@ -280,5 +303,20 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	} else {
 		sql.WriteString("AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
 	}
-	return dump.Statement{Owner: owner.Name, SQL: sql.String(), FollowingSQL: ownership.String(), PrivilegedCreation: privileged}, nil
+	if validatorWindow {
+		statement, err := LanguageDumpStatement(view, language, true)
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString(statement)
+	}
+	declaration := sql.String()
+	if checkedReplay {
+		comment, err := (PLCheckedReplay{Header: header, Owner: owner.Name}).Comment()
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		declaration = comment + declaration
+	}
+	return dump.Statement{Owner: owner.Name, SQL: declaration, FollowingSQL: ownership.String(), PrivilegedCreation: privileged}, nil
 }

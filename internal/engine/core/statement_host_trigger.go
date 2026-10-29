@@ -151,6 +151,29 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 			}
 			continue
 		}
+		// WHEN runs unlocked and may reach SQL. Refresh executable authority
+		// before private compilation, but never compile a skipped row.
+		e.Mu.Lock()
+		current, err = s.RoutineAuthorizationLocked()
+		if err == nil {
+			if current.Ref(p.Procedure.Address) != p.Procedure {
+				err = fmt.Errorf("stuntgres: stale trigger function identity")
+			} else {
+				d, _ = current.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
+				if !catalog.SupportsDMLTrigger(d) || catalog.BuiltinDMLTrigger(d) != 0 {
+					err = fmt.Errorf("stuntgres: invalid installed trigger function")
+				} else {
+					_, err = exec.ValidateRoutineDescriptor(current.Catalog, current.Roles, d)
+				}
+			}
+		}
+		if err == nil {
+			d, err = e.PreparePLRoutineLocked(s.Op, current, d)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			return result, err
+		}
 		rel, err := plTriggerRelation(read, relation)
 		if err != nil {
 			return result, err

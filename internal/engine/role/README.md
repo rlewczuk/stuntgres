@@ -88,6 +88,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   owner privileges and the recipient SET path are independent, with no namespace
   CREATE requirement. `StageOwnership` rewrites owner/ACL descriptors and reciprocal
   members without replacing immutable type, storage or sparse large-object content.
+  Language transfer uses the same immutable descriptor/ACL rewrite, preserving
+  handler identities, installation origin and current extension membership.
+  Bulk language eligibility has no namespace CREATE requirement; DROP OWNED
+  retains the shared intrinsic-pin, extension-member and dependency protections.
 - **Owned staging** (`owned_stage.go`): `StageOwned` stages REASSIGN
   OWNED's eligibility checks, owners and provider expressions, or DROP
   OWNED's removals, over `StageHost`; `OwnedDependentsError` rewords DROP

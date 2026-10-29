@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 )
 
-// Routine DROP has only captured identity roots at this point. Hold those
+// Routine and language DROP have only captured identity roots at this point. Hold those
 // objects before discovering dependents, then use grant-time metadata without
 // resolving the original names again or repeating conditional notices.
 func acquireRoutineRetirementRoots(s *core.StatementScope, stage *core.CatalogStage) error {
@@ -18,7 +18,8 @@ func acquireRoutineRetirementRoots(s *core.StatementScope, stage *core.CatalogSt
 	addresses := append(scratch[:0], stage.DomainTargets...)
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
 	for _, address := range addresses {
-		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessExclusive); err != nil {
+		resource := lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}
+		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}

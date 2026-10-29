@@ -76,6 +76,11 @@ func TestStatementPhases(t *testing.T) {
 	if _, ddl := EventCommand(call); ddl || TransactionalSchemaUtility(&parser.CreateFunction{Procedure: true}) {
 		t.Fatal("CALL expanded DDL admission")
 	}
+	for _, stmt := range []parser.Statement{&parser.CreateLanguage{}, &parser.AlterLanguage{}, &parser.DropLanguage{}} {
+		if !TransactionalSchemaUtility(stmt) {
+			t.Fatalf("%T missing from the transactional definition journal", stmt)
+		}
+	}
 	if !SnapshotStatement(&parser.Select{}) || SnapshotStatement(&parser.CreateTable{}) {
 		t.Fatal("snapshot statements")
 	}

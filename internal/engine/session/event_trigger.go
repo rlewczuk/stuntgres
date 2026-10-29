@@ -93,7 +93,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 	case *parser.Subscription:
 		return "", false
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger,
-		*parser.CreateLanguage, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.CreateRole, *parser.AlterRole, *parser.DropRole,
+		*parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.CreateRole, *parser.AlterRole, *parser.DropRole,
 		*parser.RenameRole, *parser.AlterRoleSettings, *parser.AlterDatabaseSettings,
 		*parser.RoleMembership, *parser.ReassignOwned,
 		*parser.Call, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Select, *parser.Copy,

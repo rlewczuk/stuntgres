@@ -28,6 +28,10 @@ func TestReferenceClientEncodingNoticeBackpressure(t *testing.T) {
 			clientEncodingCommand(t, admin, "CREATE TABLE ce_notice_public(v int)", "CREATE TABLE")
 			for _, extended := range []bool{false, true} {
 				t.Run(fmt.Sprintf("extended_%t", extended), func(t *testing.T) {
+					// This admin spans subtests; bound this scenario, not its total age.
+					if err := admin.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+						t.Fatal(err)
+					}
 					clientEncodingCommand(t, admin, "TRUNCATE ce_notice_public", "TRUNCATE TABLE")
 					w := serverAuthenticated(t, dsn)
 					tcp := w.Conn.(*net.TCPConn)

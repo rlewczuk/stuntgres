@@ -1,6 +1,7 @@
 package schemacmds
 
 import (
+	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
@@ -118,6 +119,28 @@ func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input
 	auth := core.DDLAuthorityOf(a)
 	auth.Definition = h.Op.Definition
 	if d.SQL.Kind == proc.PLpgSQLBody {
+		language, ok := auth.Catalog.Get(d.Language).(*catalog.Language)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing routine language")
+		}
+		if capture := core.OperationReplayOrZero(h.Op).PLChecked; capture != nil {
+			s := capture.Statement
+			if s == nil || capture.Consumed || d.SQL.Position != s.BodyPos || d.SQL.Source != s.Body || d.Name() != s.Name.Parts[len(s.Name.Parts)-1].Text || language.Validator != (ids.ObjectAddress{}) {
+				return fmt.Errorf("stuntgres: mismatched checked PL replay lease")
+			}
+			if _, err := auth.Roles.Descriptor(capture.Owner); err != nil {
+				return err
+			}
+			auth.State.CurrentUser = capture.Owner
+			if err := h.E.CompilePLRoutineLocked(h.Op, auth, d); err != nil {
+				return err
+			}
+			capture.Consumed = true
+			return nil
+		}
+		if language.Validator == (ids.ObjectAddress{}) {
+			return nil
+		}
 		return h.E.CompilePLRoutineLocked(h.Op, auth, d)
 	}
 	_, _, err := BindSQLRoutineLocked(h.E, h.Op, auth, d, input, nil)

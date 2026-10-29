@@ -51,9 +51,15 @@ frame before traversing occurrences; detached replacement syntax has no authorit
 
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;
-declared pseudo signatures pass the same determinability and language checks as
-creation, separately from concrete invocation validation. No activation values or
-evaluated PL expressions enter stored payloads.
+declared pseudo signatures always pass catalog determinability and INTERNAL safety
+checks, separately from concrete invocation validation. SQL declarations and
+checked PL programs also pass language signature validation. No activation values
+or evaluated PL expressions enter stored payloads.
+Source-only PL definitions have neither syntax nor executable program; compiled
+definitions have both. Provider validation admits source-only signatures without
+language validation even if a validator was subsequently added. Current language
+capability is rechecked independently of captured labels.
+Remap/reownership preserve that distinction and never retain invocation frames.
 
 `RoutineProgram.DefinitionSQL` presents SQL-standard routine bodies under captured
 catalog/path/output authority, using metadata validation rather than executable

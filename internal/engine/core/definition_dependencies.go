@@ -56,6 +56,17 @@ func visitDefinitionProviders(view catalog.Read, d catalog.Descriptor, visit fun
 	var family, left, right, method, implementation, sort ids.OID
 	var owner ids.ObjectAddress
 	switch d := d.(type) {
+	case *catalog.Language:
+		if d.Procedural {
+			for _, handler := range [...]ids.ObjectAddress{d.Call, d.Inline, d.Validator} {
+				if handler != (ids.ObjectAddress{}) {
+					if err := visit(handler); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
 	case *catalog.AccessMethod:
 		return procedure(d.Handler)
 	case *catalog.OperatorFamily:
@@ -83,7 +94,9 @@ func visitDefinitionProviders(view catalog.Read, d catalog.Descriptor, visit fun
 			implementation = op.Function
 		}
 	case *catalog.Relation:
-		if err := methodProvider(d.TableMethod); err != nil { return err }
+		if err := methodProvider(d.TableMethod); err != nil {
+			return err
+		}
 		if d.SQLIndex == nil {
 			return nil
 		}

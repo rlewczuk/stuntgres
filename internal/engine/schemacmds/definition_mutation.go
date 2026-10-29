@@ -37,11 +37,12 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	switch stmt.(type) {
 	case *parser.Subscription:
 		alter = stmt.(*parser.Subscription).Action != "create" && stmt.(*parser.Subscription).Action != "drop"
-	case *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
+	case *parser.AlterLanguage, *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
 	case *parser.Subscription:
+	case *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage:
 	case *parser.DropStatistics, *parser.AlterStatisticsTarget:
 	case *parser.AlterParser, *parser.DropParser:
 	case *parser.AlterTemplate, *parser.DropTemplate, *parser.AlterConfiguration, *parser.DropConfiguration, *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,

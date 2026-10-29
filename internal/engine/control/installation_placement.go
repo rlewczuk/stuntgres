@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 )
 
 // installationPlacement retains rendering facts after a real absent cube
@@ -115,6 +116,11 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 		if err != nil {
 			return err
 		}
+		if _, ok := current.(*catalog.Language); ok {
+			if name := s.languageReplayNames[d.Address()]; name != "" {
+				s.installationStatements = append(s.installationStatements, replayAlter(sql)+" RENAME TO "+catalog.QuoteIdentifier(name)+";\n")
+			}
+		}
 		if d.Namespace() != (ids.ObjectAddress{}) {
 			ns := s.CatalogView.MustNamespace(current.Namespace()).Name()
 			if d.Name() != current.Name() {
@@ -154,6 +160,38 @@ func (s *dumpScript) placeInstallation(schedule *installationSchedule, placement
 			return err
 		}
 		s.installationStatements = append(s.installationStatements, statements...)
+	}
+	// Reconcile a surviving installed language before retiring any handler
+	// referenced by its destination seed routes. Otherwise cascading retirement
+	// could destroy its genuine installed identity before final name replay.
+	for _, declaration := range recipe.Declarations {
+		released, ok := declaration.(*catalog.Language)
+		if !ok {
+			continue
+		}
+		current, ok := s.CatalogView.Get(released.Address()).(*catalog.Language)
+		if !ok {
+			continue
+		}
+		missingHandler := false
+		for _, route := range [...]ids.ObjectAddress{released.Call, released.Inline, released.Validator} {
+			if route != (ids.ObjectAddress{}) && s.CatalogView.Get(route) == nil {
+				missingHandler = true
+				break
+			}
+		}
+		if !missingHandler {
+			continue
+		}
+		language := *current
+		if parked := s.languageReplayNames[current.Address()]; parked != "" {
+			language.ObjectName = parked
+		}
+		statement, err := routine.LanguageDumpStatement(s.CatalogView, &language, true)
+		if err != nil {
+			return err
+		}
+		s.installationStatements = append(s.installationStatements, statement)
 	}
 	retiredMissing := false
 	if placement.receiverCleanup && item.ext != nil {

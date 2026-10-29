@@ -31,7 +31,7 @@ type CreateFunction struct {
 	Attributes      []RoutineAttribute
 	Replace         bool
 	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
-	StandardReturn  bool // True only for the top-level SQL-standard RETURN form.
+	StandardReturn  bool        // True only for the top-level SQL-standard RETURN form.
 	Pos             Position
 }
 
@@ -89,8 +89,8 @@ type routineAS struct {
 	HasSymbol bool
 }
 
-// CreateLanguage admits explicit handler syntax, not interpreter provisioning.
-// Names retain their source positions even though native execution rejects it.
+// CreateLanguage registers explicit handler identities. Legacy declarations
+// without a handler lower directly to CreateExtension.
 type CreateLanguage struct {
 	Name       Identifier
 	Handler    ObjectName
@@ -103,6 +103,25 @@ type CreateLanguage struct {
 }
 
 func (*CreateLanguage) statement() {}
+
+type AlterLanguage struct {
+	Name          Identifier
+	Action        string
+	Target        Identifier
+	OwnerIdentity bool
+	Pos           Position
+}
+
+func (*AlterLanguage) statement() {}
+
+type DropLanguage struct {
+	Names    []Identifier
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropLanguage) statement() {}
 
 // BodyPos is the position immediately preceding the decoded body. Keep the
 // actual quote delimiter width, rather than assuming every body uses $$.

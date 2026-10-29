@@ -17,6 +17,18 @@ import (
 // pseudo-interface. The caller owns routine admission, depth and root operation;
 // this entry publishes the routine's diagnostic identity around the walk.
 func (s *StatementScope) invokePLRoutine(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, values *[]sqltype.Value) (sqltype.Value, error) {
+	if d.SQL.PL == nil {
+		e := s.Engine()
+		e.Mu.Lock()
+		auth, err := s.RoutineAuthorizationLocked()
+		if err == nil {
+			d, err = e.PreparePLRoutineLocked(s.Op, auth, d)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	}
 	identity, err := s.plDiagnosticIdentityFor(d, read)
 	if err != nil {
 		return sqltype.Value{}, err

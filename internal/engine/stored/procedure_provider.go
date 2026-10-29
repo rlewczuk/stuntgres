@@ -130,14 +130,25 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if !validLanguage || (catalog.LanguageProvider{}).Validate(v, language) != nil {
 		return invalid()
 	}
+	execution, err := catalog.ResolveLanguageExecution(v, language)
+	if err != nil {
+		return invalid()
+	}
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		// The checked lexical name belongs to the immutable definition, not
 		// the descriptor's current public label after a routine ALTER.
-		if language.Name() != "plpgsql" || d.SQL.Standard || len(d.SQL.Statements) != 0 || d.SQL.PL == nil || d.SQL.PLSyntax == nil || d.SQL.PL.Function != d.SQL.Name || d.SQL.PL.FormalCount != len(d.SQL.Formals) || d.SQL.PL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) {
+		if execution != catalog.PLpgSQLLanguage || d.SQL.Standard || len(d.SQL.Statements) != 0 || (d.SQL.PL == nil) != (d.SQL.PLSyntax == nil) {
 			return invalid()
 		}
-		if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {
-			return err
+		if d.SQL.PL != nil && (d.SQL.PL.Function != d.SQL.Name || d.SQL.PL.FormalCount != len(d.SQL.Formals) || d.SQL.PL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine)) {
+			return invalid()
+		}
+		if d.SQL.PL != nil {
+			if err := d.SQL.PL.ValidateDefinition(d.SQL); err != nil {
+				return err
+			}
+		} else if len(d.DeclarationDependencies) != 0 {
+			return invalid()
 		}
 		seen := make(map[ids.ObjectAddress]bool, len(d.DeclarationDependencies))
 		for _, dependency := range d.DeclarationDependencies {
@@ -171,7 +182,11 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 				return invalid()
 			}
 		}
-		for _, variable := range d.SQL.PL.Variables {
+		var variables []proc.PLVariable
+		if d.SQL.PL != nil {
+			variables = d.SQL.PL.Variables
+		}
+		for _, variable := range variables {
 			if variable.Record {
 				continue
 			}
@@ -186,7 +201,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 				return err
 			}
 		}
-	} else if d.SQL.Kind != proc.SQLBody || language.Name() != "sql" || d.SQL.PL != nil || d.SQL.PLSyntax != nil || len(d.DeclarationDependencies) != 0 {
+	} else if d.SQL.Kind != proc.SQLBody || execution != catalog.SQLLanguage || d.SQL.PL != nil || d.SQL.PLSyntax != nil || len(d.DeclarationDependencies) != 0 {
 		return invalid()
 	}
 	result := d.SQL.Result.Type
@@ -200,7 +215,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 			return invalid()
 		}
 	}
-	if (d.SQL.Invocation == proc.DMLTriggerInvocation) != (result.ID() == 2279) || (d.SQL.Invocation == proc.EventTriggerInvocation) != (result.ID() == 3838) || d.SQL.Invocation != proc.OrdinaryInvocation && (d.SQL.Kind != proc.PLpgSQLBody || len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
+	if (d.SQL.Invocation == proc.DMLTriggerInvocation) != (result.ID() == 2279) || (d.SQL.Invocation == proc.EventTriggerInvocation) != (result.ID() == 3838) || d.SQL.Invocation != proc.OrdinaryInvocation && (d.SQL.Kind != proc.PLpgSQLBody || d.SQL.PL != nil && len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
 	}
 	layout := &proc.Definition{Procedure: d.SQL.Procedure}
@@ -220,7 +235,18 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	for _, slot := range d.SQL.OutputFormals {
 		outputs = append(outputs, d.SQL.Formals[slot].Usage)
 	}
-	if err := proc.ValidatePseudoSignature(d.SQL.Inputs, outputs, d.SQL.Formals, language.Name(), d.SQL.Standard); err != nil {
+	if err := proc.ValidatePseudoResultSafety(d.SQL.Inputs, outputs); err != nil {
+		return err
+	}
+	if d.SQL.Kind == proc.PLpgSQLBody {
+		// Current validator presence cannot establish historical validation.
+		// Source-only declarations remain valid after language replacement.
+		if d.SQL.PL != nil {
+			if err := proc.ValidatePLSignature(d.SQL.Inputs, outputs, d.SQL.Formals, d.SQL.Name, d.SQL.Procedure); err != nil {
+				return err
+			}
+		}
+	} else if err := proc.ValidatePseudoLanguageSignature(d.SQL.Inputs, outputs, d.SQL.Formals, d.SQL.Kind, d.SQL.Standard); err != nil {
 		return err
 	}
 	for _, formal := range d.SQL.Formals {

@@ -140,6 +140,8 @@ func TestEventTriggerClassification(t *testing.T) {
 	check(&parser.CreateIndex{Concurrent: parser.Position{Character: 1}}, "", false)
 	check(&parser.RefreshMaterializedView{Concurrent: parser.Position{Character: 1}}, "REFRESH MATERIALIZED VIEW", true)
 	check(&parser.CreateLanguage{}, "", false)
+	check(&parser.AlterLanguage{}, "", false)
+	check(&parser.DropLanguage{}, "", false)
 	for _, kind := range []parser.CommentKind{parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentForeignTable} {
 		check(&parser.Comment{Kind: kind}, "COMMENT", true)
 	}

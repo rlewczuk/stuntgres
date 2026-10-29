@@ -62,6 +62,11 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 		next.Owner, next.ObjectRevision = target, revision
 		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
 		return stage.Replace(&next)
+	case *catalog.Language:
+		next := *old
+		next.Owner, next.ObjectRevision = target, revision
+		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
+		return stage.Replace(&next)
 	case *catalog.TSConfiguration:
 		next := *old
 		next.Owner, next.ObjectRevision = target, revision

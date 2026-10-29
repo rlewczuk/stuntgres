@@ -91,7 +91,15 @@ func TestReferenceRoutineExternalLanguagesAtomicity(t *testing.T) {
 			}
 			unchanged()
 		}
-		externalHandlerBoundary(t, p, b, c, "ext_atomic_custom")
+		externalHandlerRegistration(t, p, b, c, "ext_atomic_custom")
+		externalLanguageDataCheck(t, p, b, c)
+		if !b.PG {
+			registered := externalLanguageDump(t, p)
+			if bytes.Equal(before, registered) {
+				t.Fatal("successful language registration was absent from native Dump")
+			}
+			before = registered
+		}
 		unchanged()
 		externalLanguageMissing(t, p, b, c, "CREATE PROCEDURE ext_rejected_proc(integer) LANGUAGE ext_absent AS $$INSERT INTO ext_sentinel VALUES (99)$$", "ext_absent")
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT proname FROM pg_catalog.pg_proc WHERE proname='ext_rejected_proc'", []string{"proname"}, []string{"NAME"}, nil))
@@ -166,16 +174,12 @@ func TestReferenceRoutineExternalLanguagesFeatureSmoke(t *testing.T) {
 			externalLanguageCapability(t, p, b, c, q, "internal")
 			externalLanguageMissingCall(t, p, b, c, "ext_smoke_internal")
 		}
-		externalHandlerBoundary(t, p, b, c, "ext_smoke_custom")
+		externalHandlerRegistration(t, p, b, c, "ext_smoke_custom")
 		q = "CREATE FUNCTION ext_smoke_custom_fn(integer) RETURNS integer LANGUAGE ext_smoke_custom AS $$BEGIN RETURN $1+1; END$$"
-		if b.PG {
-			routineExec(t, p, b, c, q)
-			routineValue(t, p, b, c, "SELECT ext_smoke_custom_fn(4) AS v", "v", "INT4", int64(5))
-			routineExec(t, p, b, c, "DROP FUNCTION ext_smoke_custom_fn(integer)")
-		} else {
-			externalLanguageMissing(t, p, b, c, q, "ext_smoke_custom")
-			externalLanguageMissingCall(t, p, b, c, "ext_smoke_custom_fn")
-		}
+		routineExec(t, p, b, c, q)
+		routineValue(t, p, b, c, "SELECT ext_smoke_custom_fn(4) AS v", "v", "INT4", int64(5))
+		routineExec(t, p, b, c, "DROP FUNCTION ext_smoke_custom_fn(integer)")
+		externalLanguageMissingCall(t, p, b, c, "ext_smoke_custom_fn")
 		externalLanguageDataCheck(t, p, b, c)
 		externalLanguageRoundtrip(t, p, b, c)
 	})

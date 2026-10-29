@@ -68,7 +68,7 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		}
 	case *catalog.Language:
 		language := d.(*catalog.Language)
-		if !language.Procedural {
+		if language.Address().ObjectID >= 12 && language.Address().ObjectID <= 14 {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
 		if err := (catalog.LanguageProvider{}).Validate(base, language); err != nil {

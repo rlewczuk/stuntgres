@@ -65,7 +65,15 @@ func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input 
 		private.SQL = definition
 		auth, err := s.RoutineAuthorizationLocked()
 		if err == nil {
-			err = e.CompilePLRoutineLocked(s.Op, auth, &private)
+			if d.SQL.PL == nil {
+				var executable *catalog.Procedure
+				executable, err = e.PreparePLRoutineLocked(s.Op, auth, &private)
+				if err == nil {
+					private = *executable
+				}
+			} else {
+				err = e.CompilePLRoutineLocked(s.Op, auth, &private)
+			}
 		}
 		if err != nil {
 			e.Mu.Unlock()

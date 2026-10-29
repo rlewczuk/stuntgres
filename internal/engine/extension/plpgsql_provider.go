@@ -76,7 +76,7 @@ func (p *PLpgSQLProvider) validateRecipe(v catalog.Read, e *catalog.Extension) e
 	for i, a := range e.Members {
 		if i == 3 {
 			language, ok := v.Get(a).(*catalog.Language)
-			if !ok || language.Name() != "plpgsql" {
+			if !ok || !language.Origin.Valid(a) || language.Origin.Installation.Provider != "plpgsql" || language.Origin.Declaration != 3 {
 				return InvalidProviderDescriptor()
 			}
 			if err := (catalog.LanguageProvider{}).Validate(v, language); err != nil {

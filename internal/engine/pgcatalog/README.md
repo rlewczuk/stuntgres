@@ -203,8 +203,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   from immutable canonical declaration owners, not public names or execution
   admission. Configuration is a typed nullable, ordered one-based TEXT array.
   Metadata-only routines retain descriptor-owned released declarations without
-  callable providers. SQL-backed routines require an actual language descriptor;
-  native Go callbacks retain their native-only language0 sentinel.
+  callable providers. SQL-backed routines require an actual language descriptor
+  and project its address independently of its current label; native released
+  internal/C/SQL declarations use fixed language identities, not name lookup.
+  Native Go callbacks retain their native-only language0 sentinel.
   Builtin/provider set capability remains intrinsic; estimates consume canonical
   positive `Procedure.Rows` overrides, otherwise retaining genuine released or
   installed defaults. Scalar estimates remain zero.

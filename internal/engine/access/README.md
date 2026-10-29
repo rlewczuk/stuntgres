@@ -10,6 +10,9 @@ Language descriptors use the ordinary owner/ACL/class-mask and paired role
 authority. Trusted default PUBLIC USAGE is distinct from explicit empty ACL;
 DO/CREATE admission checks USAGE while an existing call checks routine EXECUTE.
 Language ACL entries participate in the same principal dependencies and cleanup.
+Bulk ownership roots include ordinary and genuinely installed procedural languages;
+only intrinsic language identities 12–14 are excluded. Extension membership
+remains an independent retirement restriction, not a root-classification rule.
 No parallel language-permission table or cached grant decision exists.
 
 

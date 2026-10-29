@@ -80,6 +80,13 @@ func ObjectGrantRequest(h Host, auth ddl.Authority, s *parser.ObjectGrant) (Gran
 			return GrantRequest{}, err
 		}
 	}
+	if s.Kind == "language" {
+		for _, target := range req.targets {
+			if language, ok := target.(*catalog.Language); ok && !language.Trusted {
+				return GrantRequest{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("language %q is not trusted", language.Name()), Detail: "GRANT and REVOKE are not allowed on untrusted languages, because only superusers can use untrusted languages."}
+			}
+		}
+	}
 	req.grantees = make([]authorization.ACLGrantee, len(s.Grantees))
 	for i, spec := range s.Grantees {
 		if spec.Public {

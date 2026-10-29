@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
+	return class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -30,6 +30,18 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 	addresses := scratch[:0]
 	for _, descriptor := range stage.Descriptors() {
 		switch d := descriptor.(type) {
+		case *catalog.Language:
+			if d.Procedural {
+				for _, handler := range [...]ids.ObjectAddress{d.Call, d.Inline, d.Validator} {
+					if handler != (ids.ObjectAddress{}) {
+						addresses = append(addresses, handler)
+					}
+				}
+			}
+		case *catalog.Procedure:
+			if d.SQL != nil {
+				addresses = append(addresses, d.Language)
+			}
 		case *catalog.EventTrigger:
 			addresses = append(addresses, d.Function.Address)
 		case *catalog.Cast:

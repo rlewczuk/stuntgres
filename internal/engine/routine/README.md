@@ -32,8 +32,18 @@ and typed support operation for immutable sort/window transport.
 SQL and PL declarations share formal/default/staging authority. DO and CREATE
 check language USAGE; calls check EXECUTE, not language USAGE again. Dump renders
 the actual language and orders real declaration prerequisites before PL source.
-PL/pgSQL admits RETURNS trigger only for zero-formal trigger functions, never as
-a scalar-storable pseudotype. Trigger installation checks function EXECUTE;
+Language lifecycle uses the same global descriptor and immutable staged
+publication as grants and routine admission. Explicit registration resolves exact
+handler signatures before checking implemented capability; replacement retains
+address, owner, ACL and extension origin/membership. Rename changes no execution
+authority. DROP contributes the complete target set to the shared dependency
+closure. Legacy declarations without HANDLER lower to ordinary CREATE EXTENSION.
+An omitted validator preserves source-only PL declarations, including signatures
+whose language validation is deferred; CREATE still enforces catalog polymorphic
+result determinability and INTERNAL input safety. Reached execution requires
+current call capability and privately validates and compiles through core.
+PL validation admits RETURNS trigger only for zero-formal trigger functions,
+never as a scalar-storable pseudotype. Trigger installation checks function EXECUTE;
 the admitted trigger entry does not recheck it at firing. Ordinary calls and
 helper calls retain their normal effective-actor EXECUTE checks.
 The executable `pg_trigger_depth` declaration carries its stable, strict,
@@ -397,6 +407,30 @@ package or the engine.
   after final identity/owner reconciliation, preserving NULL/empty arrays,
   delegated named grantors and grant options. Declarations do not render GRANT
   approximations or copy source principal/object identities.
+  `language_dump.go` owns the shared real language-route serializer used by
+  initial language replay and individual source-only PL declarations. When the
+  current language has acquired a validator, a genuinely nil-program/nil-syntax
+  declaration gets a narrow omit-validator/restore-validator replacement pair.
+  The pair and routine CREATE execute under the existing privileged `DEFAULT`
+  protocol, followed by actual routine ownership transfer. The final routes are
+  restored before the next declaration, so checked siblings retain normal
+  validation and deferred valid bodies remain source-only. No blanket body
+  setting bypasses PL signature checks or changes ordinary CREATE admission.
+  Conversely, a genuinely checked PL program captured after validator removal
+  emits a strict `stuntgres-pl-checked-v1` admission record. Its complete CREATE
+  header (not body) and actual owner bind to that exact following declaration
+  and immediate matching ALTER OWNER. Native Restore leases genuine owner
+  compilation at the fresh staged bind frontier, rebuilding checked syntax,
+  program and local-type dependencies before publication or later consumers.
+  The record asserts no validity and carries no executable payload: malformed
+  source still fails the real compiler. Missing, duplicate, orphan, mismatched
+  and unconsumed metadata cannot acquire or leak this per-statement lease.
+  Input-signature pairing uses the existing standalone type parser to normalize
+  unquoted, unqualified declaration aliases: CREATE retains `integer`, while
+  ALTER's routine-identity syntax already stores `int4`. Quoted/qualified type
+  identities and the complete emitted CREATE-header match remain exact.
+  Final language routes and optional-handler retirement are unchanged; checked
+  reconstruction needs the actual call capability, not a validator label.
 
 ## IF EXISTS suppression
 

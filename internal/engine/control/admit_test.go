@@ -33,3 +33,30 @@ func TestRestoreAdmitsInsertTargetIndirection(t *testing.T) {
 		}
 	}
 }
+
+func TestRestoreLanguageDDLAdmission(t *testing.T) {
+	hooks := []Hook[struct{}]{{Name: "schema objects", Admit: AdmitSchemaObject[struct{}]}}
+	for _, sql := range []string{
+		"CREATE TRUSTED LANGUAGE replay_language HANDLER pg_catalog.plpgsql_call_handler",
+		"CREATE OR REPLACE TRUSTED LANGUAGE replay_language HANDLER pg_catalog.plpgsql_call_handler INLINE pg_catalog.plpgsql_inline_handler VALIDATOR pg_catalog.plpgsql_validator",
+		"ALTER LANGUAGE sql RENAME TO replay_sql",
+		"ALTER LANGUAGE replay_language OWNER TO CURRENT_USER",
+		"DROP LANGUAGE replay_language CASCADE",
+	} {
+		statements, err := parser.Parse(sql)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(sql, statements, err)
+		}
+		answer, err := runAdmit(hooks, struct{}{}, nil, statements[0])
+		if err != nil || answer != Admitted {
+			t.Fatal("supported language lifecycle bypassed central restore admission", sql, answer, err)
+		}
+	}
+	statements, err := parser.Parse("DO $$BEGIN END$$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer, err := runAdmit(hooks, struct{}{}, nil, statements[0]); err == nil || answer != NotHandled {
+		t.Fatal("language admission authorized runtime execution", answer, err)
+	}
+}

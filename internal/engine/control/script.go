@@ -54,6 +54,8 @@ type dumpScript struct {
 	providerStatements                        []string
 	extensionMetadata                         map[ids.OID]string
 	installationStatements                    []string
+	languageReplayNames                       map[ids.ObjectAddress]string
+	languageStatements                        []string
 	installationTypeReplay                    *installationTypeReplay
 	typeReplayEpilogues                       map[ids.OID]string
 	rangeCreations                            map[ids.OID]*rangeReplayCreation
@@ -284,8 +286,12 @@ func (s *dumpScript) addDeclarationEdges(ctx context.Context) error {
 		}
 		if relation.TableMethod != 0 {
 			method, ok := s.CatalogView.AccessMethod(relation.TableMethod)
-			if !ok { return fmt.Errorf("stuntgres: missing table method declaration") }
-			if !catalog.AccessMethodSeeded(method) { columns = append(columns, method.Address().ObjectID) }
+			if !ok {
+				return fmt.Errorf("stuntgres: missing table method declaration")
+			}
+			if !catalog.AccessMethodSeeded(method) {
+				columns = append(columns, method.Address().ObjectID)
+			}
 		}
 		s.Graph[event] = dump.DeclarationEvents(columns)
 		if inline, ok := s.InlinePredecessors[id]; ok {

@@ -18,17 +18,24 @@ import (
 
 func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure) error {
 	language, ok := auth.Catalog.Get(d.Language).(*catalog.Language)
-	if !ok || language.Name() != "plpgsql" {
+	if !ok {
 		return fmt.Errorf("stuntgres: PL routine has no language authority")
 	}
 	if err := (catalog.LanguageProvider{}).Validate(auth.Catalog, language); err != nil {
 		return err
 	}
-	validator, ok := auth.Catalog.Get(language.Validator).(*catalog.Procedure)
-	if !ok || validator.PLHandler != catalog.PLValidator {
-		return fmt.Errorf("stuntgres: missing PL validator capability")
+	kind, err := catalog.ResolveLanguageExecution(auth.Catalog, language)
+	if err != nil {
+		return err
 	}
-	if err := catalog.ValidatePLHandler(auth.Catalog, validator); err != nil {
+	if kind != catalog.PLpgSQLLanguage {
+		return fmt.Errorf("stuntgres: PL routine has no call capability")
+	}
+	outputs := []sqltype.Usage{d.SQL.Result}
+	for _, slot := range d.SQL.OutputFormals {
+		outputs = append(outputs, d.SQL.Formals[slot].Usage)
+	}
+	if err := proc.ValidatePLSignature(d.SQL.Inputs, outputs, d.SQL.Formals, d.SQL.Name, d.RoutineKind == catalog.ProcedureRoutine); err != nil {
 		return err
 	}
 	raw := d.SQL.PLSyntax
