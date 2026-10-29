@@ -30,7 +30,7 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 }
 
 func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleRendering, sourceRoots ...plan.Node) (string, error) {
-	r := Deparser{View: view, ShowImplicit: true, Path: action.policy.Path, Output: action.policy.Output, NonstandardStrings: action.policy.NonstandardStrings}
+	r := Deparser{View: view, Pretty: action.policy.Pretty, ShowImplicit: true, Path: action.policy.Path, Output: action.policy.Output, NonstandardStrings: action.policy.NonstandardStrings}
 	r.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
 		if column.Scope == 1 && column.Frame == 1 && len(sourceRoots) != 0 {
 			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root plan.Node, expr expr.Expr) (string, error) {

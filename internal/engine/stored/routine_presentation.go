@@ -53,13 +53,17 @@ func (v *QueryRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.Vie
 }
 
 func (r Deparser) sqlRoutineName(d *catalog.Procedure) (string, error) {
-	namespace, ok := r.View.Namespace(d.Namespace())
+	return r.routineIdentityName(catalog.RoutineIdentity{ID: d.Address().ObjectID, Namespace: d.Namespace().ObjectID, Name: d.Name(), Signature: d.Signature})
+}
+
+func (r Deparser) routineIdentityName(d catalog.RoutineIdentity) (string, error) {
+	namespace, ok := r.View.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: d.Namespace})
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 	}
-	selected, count := regobj.SelectExactRoutine(r.View, analyze.NamespaceSelection{Path: r.Path}, d.Name(), d.Signature)
-	name := r.Identifier(d.Name())
-	if count == 1 && selected.ID == d.Address().ObjectID {
+	selected, count := regobj.SelectExactRoutine(r.View, analyze.NamespaceSelection{Path: r.Path}, d.Name, d.Signature)
+	name := r.Identifier(d.Name)
+	if count == 1 && selected.ID == d.ID {
 		return name, nil
 	}
 	return r.Identifier(namespace.Name()) + "." + name, nil

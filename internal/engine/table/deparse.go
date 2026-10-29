@@ -30,6 +30,8 @@ type DeparseInputs struct {
 	Database string
 	// Temporary is the session's TEMP namespace; only index deparse reads it.
 	Temporary func() ids.ObjectAddress
+	// TemporaryOwner aliases existing own-TEMP identities without creating a namespace.
+	TemporaryOwner ids.SessionToken
 	// ResolveRelation resolves a TEXT relation name as a utility lookup.
 	ResolveRelation func(parser.ObjectName) (ids.ObjectRef, error)
 	// BuiltinViewDefinition renders explicitly owned default or pretty fragments
@@ -53,7 +55,11 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 		}
 	}
 	renderer := stored.Deparser{View: view, Pretty: pretty, Path: in.Path,
-		Output: in.Output, NonstandardStrings: in.NonstandardStrings}
+		Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}
+	switch signature {
+	case functions.DeparseTrigger, functions.DeparseTriggerPretty, functions.DeparseRule, functions.DeparseRulePretty:
+		return deparseRewrite(c, in, signature, values, result, renderer)
+	}
 	idx := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
 		idx = 0

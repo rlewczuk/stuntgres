@@ -24,6 +24,7 @@ type Deparser struct {
 	Path               []ids.ObjectAddress
 	Output             sqltype.OutputEnvironment
 	NonstandardStrings bool
+	TemporaryOwner     ids.SessionToken
 	ShowImplicit       bool
 	// RoutineDeclaration presents retained default metadata, not current
 	// executable admission. Only routine-default/list consumers enable it.
@@ -46,6 +47,14 @@ func (r Deparser) Attribute(relation *catalog.Relation, attr int32) (string, err
 		text = catalog.QuoteIdentifier(text)
 	}
 	return text, err
+}
+
+// RelationName resolves visibility independently for each referenced relation.
+func (r Deparser) RelationName(relation *catalog.Relation, qualified bool) (string, error) {
+	if relation == nil || r.View.Get(relation.Address()) != relation {
+		return "", ids.ErrCatalogReplaced
+	}
+	return (ruleRendering{policy: Presentation{Deparse: true, Path: r.Path, Output: r.Output}, temporaryOwner: r.TemporaryOwner}).relation(r.View, ids.ObjectRef{Address: relation.Address()}, qualified)
 }
 
 func (r Deparser) typeSQL(u sqltype.Usage) (string, error) {

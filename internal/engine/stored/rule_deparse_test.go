@@ -2,6 +2,7 @@ package stored
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -46,6 +47,7 @@ func TestRuleDefinitionPresentation(t *testing.T) {
 	}
 	check(Presentation{}, ids.SessionToken{}, "CREATE RULE r AS\n    ON INSERT TO capture.source DO  INSERT INTO capture.target (v)\n  VALUES (new.v);")
 	check(Presentation{Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{}, "CREATE RULE r AS\n    ON INSERT TO capture.source DO  INSERT INTO target (v)\n  VALUES (new.v);")
+	check(Presentation{Pretty: true, Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{}, "CREATE RULE r AS\n    ON INSERT TO source DO  INSERT INTO target (v)\n  VALUES (new.v);")
 	check(Presentation{Path: []ids.ObjectAddress{target.Namespace()}, Output: sqltype.OutputEnvironment{QuoteAllIdentifiers: true}}, ids.SessionToken{}, "CREATE RULE \"r\" AS\n    ON INSERT TO \"capture\".\"source\" DO  INSERT INTO \"target\" (\"v\")\n  VALUES (\"new\".\"v\");")
 	// Publish current names in a new catalog without modifying frozen captures.
 	next := catalog.CloneState(read.State())
@@ -96,5 +98,33 @@ func TestRuleDefinitionReplaySeparation(t *testing.T) {
 	display, err = RuleDefinitionSQL(ctx, read, event, rule, Presentation{}, ids.SessionToken{})
 	if err != nil || display != "CREATE RULE qualified AS\n    ON UPDATE TO capture.source\n   WHERE true DO NOTHING;" {
 		t.Fatal("condition display", display, err)
+	}
+}
+
+func TestRuleDefinitionPrettyBackingAndCancel(t *testing.T) {
+	read, event, target, action := ruleDisplayFixture(t)
+	rule := NewRule(RuleParts{Name: "r", Event: "INSERT", Instead: true, Mode: catalog.RuleDisabled, Actions: []RuleAction{action}})
+	actions := rule.actions
+	expressions := action.binding.Expressions
+	targets := action.binding.Targets
+	syntax := action.syntax
+	for _, pretty := range []bool{true, false, true} {
+		targetName := "capture.source"
+		if pretty {
+			targetName = "source"
+		}
+		want := "CREATE RULE r AS\n    ON INSERT TO " + targetName + " DO INSTEAD  INSERT INTO target (v)\n  VALUES (new.v);"
+		got, err := RuleDefinitionSQL(t.Context(), read, event, rule, Presentation{Pretty: pretty, Path: []ids.ObjectAddress{target.Namespace()}}, ids.SessionToken{})
+		if err != nil || got != want {
+			t.Fatal("pretty rule", got, err, want)
+		}
+		if rule.mode != catalog.RuleDisabled || &rule.actions[0] != &actions[0] || rule.actions[0].syntax != syntax || &rule.actions[0].binding.Targets[0] != &targets[0] || &rule.actions[0].binding.Expressions[0][0] != &expressions[0][0] || targets[0] != 0 || len(expressions[0]) != 1 {
+			t.Fatal("presentation replaced or changed frozen action backing")
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if got, err := RuleDefinitionSQL(ctx, read, event, rule, Presentation{Pretty: true}, ids.SessionToken{}); !errors.Is(err, context.Canceled) || got != "" {
+		t.Fatal("canceled rule published definition", got, err)
 	}
 }

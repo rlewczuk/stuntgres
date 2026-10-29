@@ -538,10 +538,18 @@ host methods.
   Public display of a sole noncorrelated aliased table uses current relation/
   attribute names, unqualified columns and only nonredundant column aliases.
   Correlation-participating frames retain lexical qualification; local keys use
-  the actual emitted alias, never a relation name hidden by it. Portable replay
-  keeps its qualified positional hygiene bridge. Consequently the exact
-  PostgreSQL canonical definition of an emitted replay can retain a table alias
-  absent from the original definition; canonical display is not dump SQL.
+  the actual emitted alias, never a relation name hidden by it. Ordinary view
+  dumps retain executable positional bridge aliases and unique column labels;
+  policy replay's logical naming is not an ordinary-view replay authority.
+  Rule introspection reconstructs the current stored SELECT using the same
+  authority as view display. Native Restore retains canonical executable
+  definitions and metadata, not original source alias spellings; subsequent
+  introspection may legitimately show the replay's synthetic aliases.
+  Actual `_RETURN` SELECT display carries `Presentation.TemporaryOwner` from
+  the querying request, not the stored owner. Source visibility is checked
+  before qualification; hidden own-TEMP sources use `pg_temp`, while foreign
+  or zero-owner requests retain physical namespaces, including quote-all.
+  Naming neither allocates a TEMP namespace nor changes executable replay.
 - **Rule and policy dumps.** `RuleDumpGroups`/`RuleActionSQL`,
   `PolicyDumpGroups` and `RowSecurityDumpGroups`.
 - **Rule display.** `RuleDefinitionSQL` reconstructs current event, attribute
@@ -552,6 +560,11 @@ host methods.
   names. Ordinary aggregate/window routine names use display identifier quoting,
   including `quote_all_identifiers`; SQL/JSON aggregate grammar remains syntax,
   and unqualified replay call spelling does not depend on display settings.
+  Pretty action expressions receive the same reduced-parenthesis policy as
+  their containing rule; default display and native replay are unchanged.
+  Trigger function names resolve current routine identities against the captured
+  path independently of target naming. RI trigger functions use the release
+  identity inventory, not a fabricated executable Procedure payload.
   SELECT, FROM and USING use shared frozen namespace/slot presentation,
   including current source names and retained aliases. Mutation declarations
   and target-column references share one request-local retained target alias;
@@ -582,6 +595,9 @@ host methods.
   columns and sibling-query names are not reservations. Request-local indentation
   propagates through derived queries, sublinks, INSERT sources and CTE/set bodies
   without SQL-text patching or reduced-parenthesis pretty mode.
+  `view_rule_presentation.go` owns structural continuation indentation and the
+  derived/CTE source-alias helpers shared by rule display and policy
+  logical-source rendering.
   Finalized parent name facts also cross modifying-CTE renderer boundaries,
   independently of each frozen view's frame numbering. Targets, event OLD/NEW
   and EXCLUDED use their allocated namespace facts without changing executable
@@ -832,6 +848,23 @@ member must agree. This does not grant arbitrary operator providers.
 Independent source-literal retagging requires an explicit scalar translation on
 an unpublished candidate. Publication clears that temporary authority; mapping
 type descriptors alone does not authorize cross-ID scalar values.
+
+Trigger/rule introspection is display, not native replay. `TriggerDefinitionSQL`
+shares nonexecuting WHEN, current routine naming and argument quoting with the
+information-schema visitor, while retaining that visitor's separate disclosure
+policy. Display emits canonical INSERT/DELETE/UPDATE/TRUNCATE order, stable
+UPDATE OF attributes and current identities, but no mode/ownership/clone replay
+annotations or final semicolon. FK display consumes shared validated logical RI
+facts; FROM visibility is independent of the event target in both formats.
+`RuleDefinitionSQL` carries pretty through frozen conditions/actions; pg_rules
+explicitly requests default format. `SelectRuleDefinitionSQL` preserves the owned
+SELECT body's leading space and adds the rule's one terminal semicolon.
+Default event targets are qualified; pretty targets and trigger function names
+resolve their own captured-path visibility. Rendering does not evaluate WHEN or
+actions or replace frozen query/binding backing. Native Dump keeps its own
+post-data replay, modes, dependencies and clone policy; saved rows are not fired
+through the saved definitions on Restore, and views remain CREATE VIEW rather
+than duplicate `_RETURN` declarations.
 
 ## Invariants
 

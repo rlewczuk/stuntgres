@@ -22,6 +22,10 @@ const (
 	DeparseViewOIDPretty
 	DeparseViewWrap
 	DeparseSerialSequence
+	DeparseTrigger
+	DeparseTriggerPretty
+	DeparseRule
+	DeparseRulePretty
 )
 
 type deparseSignatureDefinition struct {
@@ -42,6 +46,10 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 	{"pg_get_viewdef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
 	{"pg_get_viewdef", []sqltype.ID{sqltype.Oid, sqltype.Int4}},
 	{"pg_get_serial_sequence", []sqltype.ID{sqltype.Text, sqltype.Text}},
+	{"pg_get_triggerdef", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_triggerdef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
+	{"pg_get_ruledef", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_ruledef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
 }
 
 type Deparse struct {

@@ -94,6 +94,17 @@ outside-trigger protocol error with complete ERROR severity diagnostics; install
 firing belongs to the core trigger owner. Rebuild, rendering, scalar-source and
 stored capture use ordinary recipes.
 
+`Deparse` also owns `pg_get_triggerdef(oid [, boolean])` and
+`pg_get_ruledef(oid [, boolean])`, all returning nullable TEXT. The shared typed
+signature resolver analyzes every child before strict NULL evaluation, preserving
+ordinary overload/coercion diagnostics. Missing or wrong-class identities return
+typed TEXT NULL. These STABLE calls never fold or cache definition text: each
+execution borrows the statement catalog, path, quoting and string policies.
+Omitted and false pretty selectors agree; true enables visibility-qualified
+event targets and reduced expression parentheses without changing stored state.
+The existing children/rebuild, routine capture and snapshot-demand protocols
+apply to all four signatures.
+
 `SessionEndpoint` retains a zero-child stable typed recipe and ordinary routine
 provenance, never socket state or authority. In-process sessions have no transport
 endpoints: address leaves return typed INET NULL and port leaves typed INT4 NULL.

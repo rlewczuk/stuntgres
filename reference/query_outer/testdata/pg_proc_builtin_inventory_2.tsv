@@ -192,6 +192,7 @@
 1544	polygon	11	14	1	0	0	0	f	false	false	true	false	i	s	1	0	604	718	\N	\N	\N	false	\N		\N	true	\N
 1545	npoints	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	602	\N	\N	\N	false	\N	path_npoints	\N	false	\N
 1556	npoints	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	604	\N	\N	\N	false	\N	poly_npoints	\N	false	\N
+1573	pg_get_ruledef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_ruledef	\N	false	\N
 1574	nextval	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	nextval_oid	\N	false	\N
 1575	currval	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	currval_oid	\N	false	\N
 1576	setval	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	20	2205 20	\N	\N	\N	false	\N	setval_oid	\N	false	\N
@@ -250,6 +251,7 @@
 1659	bpcharregexne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	textregexne	\N	false	\N
 1660	bpchariclike	11	12	1	0	0	1025	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticlike	\N	false	\N
 1661	bpcharicnlike	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1042 25	\N	\N	\N	false	\N	texticnlike	\N	false	\N
+1662	pg_get_triggerdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_triggerdef	\N	false	\N
 1665	pg_get_serial_sequence	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	25 25	\N	\N	\N	false	\N	pg_get_serial_sequence	\N	false	\N
 1666	varbiteq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	biteq	\N	false	\N
 1667	varbitne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1562 1562	\N	\N	\N	false	\N	bitne	\N	false	\N

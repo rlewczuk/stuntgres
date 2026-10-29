@@ -127,6 +127,7 @@
 2465	asinh	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dasinh	\N	false	\N
 2466	acosh	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dacosh	\N	false	\N
 2467	atanh	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	datanh	\N	false	\N
+2504	pg_get_ruledef	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	26 16	\N	\N	\N	false	\N	pg_get_ruledef_ext	\N	false	\N
 2505	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	2	0	25	25 16	\N	\N	\N	false	\N	pg_get_viewdef_name_ext	\N	false	\N
 2506	pg_get_viewdef	11	12	1	0	0	0	f	false	false	true	false	s	r	2	0	25	26 16	\N	\N	\N	false	\N	pg_get_viewdef_ext	\N	false	\N
 2507	pg_get_indexdef	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	25	26 23 16	\N	\N	\N	false	\N	pg_get_indexdef_ext	\N	false	\N
@@ -213,6 +214,7 @@
 2727	stddev_pop	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
 2728	stddev_pop	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	701	701	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
 2729	stddev_pop	11	12	1	0	0	0	a	false	false	false	false	i	s	1	0	1700	1700	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
+2730	pg_get_triggerdef	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	26 16	\N	\N	\N	false	\N	pg_get_triggerdef_ext	\N	false	\N
 2731	asind	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dasind	\N	false	\N
 2732	acosd	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	dacosd	\N	false	\N
 2733	atand	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	701	701	\N	\N	\N	false	\N	datand	\N	false	\N

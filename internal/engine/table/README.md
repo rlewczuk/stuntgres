@@ -280,7 +280,8 @@ call live here.
   in fixed order), `RecomputeRemappedGenerations`, `Stage.DefinitionProviders`
   (OID-ordered provider lock requests the root takes and rechecks under
   `Engine.Mu`), `Deparse` (`pg_get_constraintdef`, `pg_get_expr`,
-  `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`),
+  `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`,
+  `pg_get_triggerdef`, `pg_get_ruledef`),
   `ValidateSelectedDomainRows`, `Target`/`AdmitTarget` (each statement kind
   belongs to exactly one `TargetEntry`, so entry order cannot change a result;
   non-relation ownership, including numeric large-object ownership, admits no
@@ -295,6 +296,18 @@ call live here.
   format requires explicitly owned pretty fragments. Ordinary nonviews return
   NULL. Stored-view rendering retains its own pretty/wrap presentation path;
   builtin callbacks do not claim wrap-width support.
+  Trigger/rule inquiries dispatch by their own object class before relation-OID
+  lookup. Trigger inventory includes immutable user/partition-clone payloads and
+  all FK-owned RI identities; projection and display share validated RI slot,
+  function, event and timing facts. Rule inventory includes ordinary DML rules,
+  real view/materialized-view `_RETURN` payloads and explicitly advertised
+  bootstrap return rules. A bootstrap rule uses the captured default/pretty body
+  callback, never executable view admission. Missing advertised body authority
+  is an invariant error, not missing-object NULL.
+  `TemporaryOwner` captures only the existing session token: qualified own-TEMP
+  targets use `pg_temp`, foreign-session TEMP retains its actual namespace,
+  and pretty first honors relation visibility. Naming never calls the lazy
+  namespace-creating `Temporary` callback.
 
 ## Hosts
 

@@ -109,7 +109,7 @@ func TestDeparseMissingObjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, signature := range []functions.DeparseSignature{functions.DeparseConstraint, functions.DeparseIndex} {
+	for _, signature := range []functions.DeparseSignature{functions.DeparseConstraint, functions.DeparseIndex, functions.DeparseTrigger, functions.DeparseRule} {
 		got, err := Deparse(c, f.in, signature, [3]sqltype.Value{missing}, f.text)
 		if err != nil || !got.IsNull() {
 			t.Errorf("signature %v: %v %v, want NULL", signature, got, err)

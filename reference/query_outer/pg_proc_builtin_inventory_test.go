@@ -20,6 +20,8 @@ import (
 // access-method, BRIN, shared-memory, generic-file, control-data, runtime-information, session-activity, session-endpoint, trigger-depth, trigger-builtin and settings/options descriptor owners. The existing 1719
 // information_schema fact approach is reused, not mistaken for complete membership.
 // The fourteen parser/vector/DDL-receiver and twelve RI supplements are included.
+// The four pg_get_ruledef/pg_get_triggerdef executable overloads use the same
+// independent released facts, including pg_proc.h's parallel-safe default.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -120,9 +122,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1919 actual primary + 100 other fixed owners + 26 metadata supplements.
-	if len(facts) != 2045 {
-		t.Fatalf("released represented overloads: got %d, want 2045", len(facts))
+	// 1923 actual primary + 100 other fixed owners + 26 metadata supplements.
+	if len(facts) != 2049 {
+		t.Fatalf("released represented overloads: got %d, want 2049", len(facts))
 	}
 	return facts
 }

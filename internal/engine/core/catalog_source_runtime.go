@@ -364,6 +364,8 @@ func (r EngineCatalogRuntime) IndexVectors(ctx context.Context, view catalog.Rea
 	return values, facts.IndImmediate, err
 }
 func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
+	presentation := r.presentation
+	presentation.Pretty = false
 	for _, rule := range stored.RulesOf(relation) {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -371,7 +373,7 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 		if rule.Name == "_RETURN" {
 			continue
 		}
-		definition, err := stored.RuleDefinitionSQL(ctx, view, relation, rule, r.presentation, r.temporary)
+		definition, err := stored.RuleDefinitionSQL(ctx, view, relation, rule, presentation, r.temporary)
 		if err != nil {
 			return err
 		}

@@ -56,6 +56,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   ReadOnly checks complete direct/prepared55000 diagnostics and unchanged state.
   Run the selected family both natively and with `REFERENCE=1`; owner barriers
   supplement, never replace, these public active-work witnesses.
+- Bootstrap trigger/rule deparse inventory:
+  `RUN='^TestReferenceDeparseRewriteBootstrapReturnRules$'` checks both advertised
+  progress-view `_RETURN` identities through all overloads, exact independent
+  default/pretty bodies, captured naming and identifier quoting. The CREATE
+  INDEX pretty body uses released reduced cast/concatenation parentheses; it is
+  not default text with different whitespace. Run both native and `REFERENCE=1`.
+  User trigger/rule and real view/materialized-rule cases live in
+  [reference/views](../views/README.md#testing).
 
 `TestReferencePGShadowPreparedAuthorization` retains a credential statement
 prepared by an ordinary reader through denial, administrator-granted

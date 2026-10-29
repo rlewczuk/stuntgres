@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -132,71 +131,9 @@ func capturePGTrigger(in Input) ([][]sqltype.Value, error) {
 // inferred from absent implementation machinery or executable user payloads.
 func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqltype.Value, error) {
 	constraint := fact.Constraint
-	for _, oid := range constraint.TriggerOIDs {
-		if oid == 0 {
-			return nil, fmt.Errorf("stuntgres: incomplete foreign-key trigger identity")
-		}
-	}
-	owner, ownerOK := in.Catalog.Relation(fact.Owner)
-	parent, parentOK := in.Catalog.Relation(constraint.Target)
-	index, indexOK := in.Catalog.Relation(constraint.Index)
-	if !ownerOK || !parentOK || !indexOK || owner.RelationKind != catalog.TableRelation || parent.RelationKind != catalog.TableRelation || constraint.OID == 0 || len(constraint.Attributes) == 0 || len(constraint.Attributes) != len(constraint.Referenced) || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !index.SQLIndex.Unique || !index.SQLIndex.Valid || !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Predicate != nil || len(index.SQLIndex.Keys) != len(constraint.Referenced) {
-		return nil, fmt.Errorf("stuntgres: invalid foreign-key trigger provenance")
-	}
-	for i, attribute := range constraint.Attributes {
-		matched := false
-		for _, key := range index.SQLIndex.Keys {
-			number, simple := in.Runtime.IndexSimpleAttribute(parent.Address(), key)
-			if simple && number == constraint.Referenced[i] {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return nil, fmt.Errorf("stuntgres: foreign-key trigger index authority mismatch")
-		}
-		if !owner.HasAttribute(attribute) || !parent.HasAttribute(constraint.Referenced[i]) {
-			return nil, fmt.Errorf("stuntgres: missing foreign-key trigger attribute")
-		}
-	}
-	if fact.Slot < 0 || fact.Slot >= len(constraint.TriggerOIDs) || fact.OID != constraint.TriggerOIDs[fact.Slot] || fact.Relation != fact.Owner && fact.Relation != constraint.Target {
-		return nil, fmt.Errorf("stuntgres: invalid foreign-key trigger identity")
-	}
-	var function ids.OID
-	flags := int64(17)
-	opposite := constraint.Target.ObjectID
-	timing := constraint.Deferrable
-	switch fact.Slot {
-	case 0, 1:
-		opposite = fact.Owner.ObjectID
-		action := constraint.UpdateAction
-		if fact.Slot == 0 {
-			flags, action = 9, constraint.DeleteAction
-		}
-		timing = timing && action == parser.ForeignKeyNoAction
-		switch action {
-		case parser.ForeignKeyNoAction:
-			function = 1654
-		case parser.ForeignKeyRestrict:
-			function = 1648
-		case parser.ForeignKeyCascade:
-			function = 1646
-		case parser.ForeignKeySetNull:
-			function = 1650
-		case parser.ForeignKeySetDefault:
-			function = 1652
-		default:
-			return nil, fmt.Errorf("stuntgres: invalid foreign-key trigger action")
-		}
-		if fact.Slot == 1 {
-			function++
-		}
-	case 2:
-		flags, function = 5, 1644
-	case 3:
-		function = 1645
-	default:
-		return nil, fmt.Errorf("stuntgres: invalid foreign-key trigger slot")
+	attributes, err := fact.Attributes(in.Catalog, in.Runtime.IndexSimpleAttribute)
+	if err != nil {
+		return nil, err
 	}
 	row := make([]sqltype.Value, 19)
 	for i := range row {
@@ -205,7 +142,7 @@ func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqlty
 	for _, cell := range [...]struct {
 		index int
 		oid   ids.OID
-	}{{0, fact.OID}, {1, fact.Relation.ObjectID}, {2, 0}, {4, function}, {8, opposite}, {9, constraint.Index.ObjectID}, {10, constraint.OID}} {
+	}{{0, fact.OID}, {1, fact.Relation.ObjectID}, {2, 0}, {4, attributes.Function}, {8, attributes.Opposite.ObjectID}, {9, constraint.Index.ObjectID}, {10, constraint.OID}} {
 		value, err := sqltype.OIDValue(in.Source.Columns[cell.index].Usage.Type, uint32(cell.oid))
 		if err != nil {
 			return nil, err
@@ -215,10 +152,9 @@ func foreignKeyTriggerRow(in Input, fact catalog.ForeignKeyTriggerFact) ([]sqlty
 	row[3] = sqltype.String(in.Source.Columns[3].Usage.Type, fact.Name)
 	row[6] = sqltype.String(in.Source.Columns[6].Usage.Type, fact.Mode.String())
 	row[7] = sqltype.Boolean(in.Source.Columns[7].Usage.Type, true)
-	row[11] = sqltype.Boolean(in.Source.Columns[11].Usage.Type, timing)
-	row[12] = sqltype.Boolean(in.Source.Columns[12].Usage.Type, timing && constraint.InitiallyDeferred)
-	var err error
-	row[5], err = sqltype.Integer(in.Source.Columns[5].Usage.Type, flags)
+	row[11] = sqltype.Boolean(in.Source.Columns[11].Usage.Type, attributes.Deferrable)
+	row[12] = sqltype.Boolean(in.Source.Columns[12].Usage.Type, attributes.InitiallyDeferred)
+	row[5], err = sqltype.Integer(in.Source.Columns[5].Usage.Type, attributes.Flags)
 	if err != nil {
 		return nil, err
 	}

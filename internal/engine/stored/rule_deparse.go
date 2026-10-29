@@ -110,18 +110,18 @@ func (a ruleRendering) relation(view catalog.Read, ref ids.ObjectRef, qualified 
 	return a.policy.identifier(schema) + "." + name, nil
 }
 
-// RuleDefinitionSQL presents current identities as the one-argument
-// pg_get_ruledef does. It does not serialize replay SQL or execute the rule.
+// RuleDefinitionSQL presents current identities with the requested display policy.
+// It does not serialize replay SQL or execute the rule.
 func RuleDefinitionSQL(ctx context.Context, view catalog.Read, relation *catalog.Relation, rule Rule, presentation Presentation, temporaryOwner ids.SessionToken) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	presentation.Deparse = true
-	presentation.Pretty = false
 	presentation.Wrap = 0
 	presentation.Rule = true
+	presentation.TemporaryOwner = temporaryOwner
 	render := ruleRendering{policy: presentation, temporaryOwner: temporaryOwner}
-	target, err := render.relation(view, ids.ObjectRef{Address: relation.Address()}, true)
+	target, err := render.relation(view, ids.ObjectRef{Address: relation.Address()}, !presentation.Pretty)
 	if err != nil {
 		return "", err
 	}

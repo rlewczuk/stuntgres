@@ -30,6 +30,7 @@ type Presentation struct {
 	Columns            []catalog.Column
 	Output             sqltype.OutputEnvironment
 	NonstandardStrings bool
+	TemporaryOwner     ids.SessionToken // Querying session, never the stored view's owner.
 }
 
 func (p Presentation) identifier(name string) string {
@@ -37,6 +38,20 @@ func (p Presentation) identifier(name string) string {
 		return catalog.QuoteIdentifier(name)
 	}
 	return (Deparser{Output: p.Output}).Identifier(name)
+}
+
+func (p Presentation) sourceRelationName(view catalog.Read, relation *catalog.Relation) (string, error) {
+	if !p.Deparse {
+		name := RelationDiagnosticNameAt(view, relation, p.Path)
+		if p.Output.QuoteAllIdentifiers {
+			name = p.identifier(relation.Name())
+			if !relationVisibleAt(view, relation, p.Path) {
+				name = p.identifier(view.Get(relation.Namespace()).Name()) + "." + name
+			}
+		}
+		return name, nil
+	}
+	return (Deparser{View: view, Path: p.Path, Output: p.Output, TemporaryOwner: p.TemporaryOwner}).RelationName(relation, false)
 }
 
 func (v *View) SelectSQL(ctx context.Context, catalog catalog.Read, presentation Presentation) (string, error) {

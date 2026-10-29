@@ -65,6 +65,10 @@ The four zero-input control-data functions retain scalar RECORD results and
 their exact ordered OUT types/names (18/4/5/12 members for
 checkpoint/system/recovery/init), without inventing input or set-returning slots.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
+The rule and trigger definition functions add four independently released
+`REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
+stable, parallel-safe defaults and internal implementation names. Membership
+and complete direct/prepared property batches migrate together.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
 `proceduresHeld` with declaration-owned output metadata checked before iteration.

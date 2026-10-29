@@ -17,9 +17,15 @@ func createIndexProgressViewParts(pretty bool) []builtinViewPart {
 	field("d", "datname")
 	text(",\n    ")
 	field("s", "relid")
-	text(",\n    (")
+	text(",\n    ")
+	if !pretty {
+		text("(")
+	}
 	field("s", "param7")
-	text(")::")
+	if !pretty {
+		text(")")
+	}
+	text("::")
 	p = append(p, viewType("oid"))
 	text(" AS ")
 	ident("index_relid")
@@ -42,21 +48,41 @@ func createIndexProgressViewParts(pretty bool) []builtinViewPart {
 	for i, label := range phases {
 		text("            WHEN " + strconv.Itoa(i) + " THEN ")
 		if i == 2 {
-			text("('building index'::")
+			if !pretty {
+				text("(")
+			}
+			text("'building index'::")
 			p = append(p, viewType("text"))
-			text(" || COALESCE((': '::")
+			text(" || COALESCE(")
+			if !pretty {
+				text("(")
+			}
+			text("': '::")
 			p = append(p, viewType("text"))
 			text(" || ")
 			p = append(p, viewRoutine("pg_indexam_progress_phasename", "26,20"))
-			text("((")
+			text("(")
+			if !pretty {
+				text("(")
+			}
 			field("s", "param9")
-			text(")::")
+			if !pretty {
+				text(")")
+			}
+			text("::")
 			p = append(p, viewType("oid"))
 			text(", ")
 			field("s", "param11")
-			text(")), ''::")
+			text(")")
+			if !pretty {
+				text(")")
+			}
+			text(", ''::")
 			p = append(p, viewType("text"))
-			text("))")
+			text(")")
+			if !pretty {
+				text(")")
+			}
 		} else {
 			text("'" + label + "'::")
 			p = append(p, viewType("text"))

@@ -27,10 +27,11 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 func (s *StatementScope) deparseInputs() table.DeparseInputs {
 	auth := s.Inquiry.deparseAuth
 	in := table.DeparseInputs{
-		Catalog:   s.Inquiry.CommentCatalog,
-		Path:      s.Inquiry.DeparsePath,
-		Output:    s.Output,
-		Temporary: func() ids.ObjectAddress { return temporaryNamespace(auth) },
+		Catalog:        s.Inquiry.CommentCatalog,
+		Path:           s.Inquiry.DeparsePath,
+		Output:         s.Output,
+		TemporaryOwner: CatalogSourceTemporaryOwner(auth),
+		Temporary:      func() ids.ObjectAddress { return temporaryNamespace(auth) },
 		ResolveRelation: func(name parser.ObjectName) (ids.ObjectRef, error) {
 			return resolveRelationSnapshot(auth, name, true)
 		},

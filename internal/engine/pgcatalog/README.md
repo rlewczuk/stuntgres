@@ -976,17 +976,22 @@ column and relation aliases remain identifier-only annotations. Its structural
 update and insert flags are NO; this does not change rule visitation or DDL.
 `SummaryViewDefinition` supplies canonical default metadata;
 `BuiltinViewDefinition` selects explicit default or pretty fragments and formats
-their occurrences using captured naming and identifier formatters. UDT and COPY
-progress inquiries own both released forms; absent pretty fragments never become a synthesized
-definition. The same runtime authority renders `pg_views` and `views` in default
+their occurrences using captured naming and identifier formatters. UDT, COPY
+and CREATE INDEX progress inquiries own both released forms; absent pretty
+fragments never become a synthesized definition. The same runtime authority
+renders `pg_views` and `views` in default
 format and serves the boolean `pg_get_viewdef` presentation selector.
-COPY progress's builtin entry also declares a native `_RETURN` identity, stamped
-into its immutable relation descriptor during bootstrap. Rewrite projection,
-object-name/address lookup and dependency ownership use `ReturnRuleOID`; the
+COPY and CREATE INDEX progress are the two builtin entries declaring native
+`_RETURN` identities, stamped into immutable relation descriptors during bootstrap.
+Rewrite projection, object-name/address lookup and dependency ownership use `ReturnRuleOID`; the
 rule has an internal edge to its view. Released backing catalog/routine references
 are bootstrap-pinned, not fabricated dependency objects or executable payloads.
 Return-rule ownership is collected before ordinary catalog-row dependency
 suppression; the existing pinned-object policy still filters backing references.
+`pg_get_ruledef` wraps those same owned SELECT bodies without changing leading
+space, wrapping or body parentheses; this display authority grants no stored-view
+execution. The CREATE INDEX pretty fragments omit the default form's redundant
+cast and concatenation parentheses, as independently observed on PostgreSQL 18.6.
 Routine occurrences capture their original OID from the existing released
 identity registry. Represented targets use the current name, namespace and
 signature from that same captured catalog before exact-signature qualification;

@@ -170,6 +170,12 @@ package or the engine.
   The three type inquiries (1081, 1619, 6315) use `CatalogRoutineProvider`,
   with released formal/result, stable/strict and display facts in the same
   inventories; the ANY formal remains distinct from its concrete invocation.
+  The trigger/rule deparsers use that same provider and executable inventory:
+  `pg_get_ruledef(oid)` / `(oid, boolean)` (1573/2504) and
+  `pg_get_triggerdef(oid)` / `(oid, boolean)` (1662/2730), all strict STABLE
+  TEXT functions with released internal-language display sources. Typed binding,
+  seeded procedure descriptors and retained routine references share these
+  declarations; lookup-only catalog identities do not authorize successful calls.
   Fixed OUT type IDs and complete formal names live on those same declaration
   rows as immutable `catalog.RoutineOutputs`, checked against the sole input
   signature. VARIADIC retains the existing declared signature and element/ANY

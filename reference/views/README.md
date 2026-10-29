@@ -84,5 +84,22 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   (wire coverage lives in [sessions](../sessions/README.md#testing)).
 - Materialized views (create, refresh, ALTER, extensions): `RUN='^TestReferenceMaterialized'`
 - Deparse (`pg_get_constraintdef`, `pg_get_viewdef`, ...): `RUN='^TestReferenceDeparse'`
+- Trigger/rule introspection: `RUN='^TestReferenceDeparseRewrite'` covers all four
+  signatures, direct/prepared TEXT metadata, strict NULL/missing identities,
+  full diagnostics, current names, pretty clauses, user/clone/FK triggers,
+  ordinary and real `_RETURN` rules, returned-definition replay, nonexecution
+  and native two-round persistence. Bootstrap `_RETURN` coverage lives in
+  `reference/catalog_privileges` under the same prefix. Run selected definitions
+  in both native and `REFERENCE=1` modes; native controls do not replace the
+  shared PostgreSQL expectations.
+  Hidden-function visibility explicitly selects `pg_catalog` on each backend,
+  independent of fixture schema ACLs. Roundtrip `_RETURN` witnesses distinguish
+  original definitions from canonical reconstructed definitions after native
+  Restore, including legitimate synthetic aliases. Ordinary executable dumps
+  keep positional bridge aliases and unique labels; introspection adds no
+  serialized state and does not change `pg_get_viewdef` or query execution.
+  `TestReferenceDeparseRewriteTemporaryNames` includes a TEMP view selecting
+  from a TEMP table hidden by a public decoy: all overloads and held statements
+  follow current path visibility, including quote-all `pg_temp` source names.
 
 Engine units: `make check RUN='^Test(Rule|ViewWrite|ViewCheck|Materialized|TemporaryView|CreateTemporaryView|TransactionalSchemaAdmission|TransactionalMaterializedRefresh|CatalogSourceEmptyMaterializedRows)'`.

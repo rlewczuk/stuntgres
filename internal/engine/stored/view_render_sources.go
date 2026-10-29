@@ -605,12 +605,9 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			frozen[c.Attribute] = c
 		}
 		if v.simple {
-			name := RelationDiagnosticNameAt(catalogView, d, v.Presentation.Path)
-			if v.Presentation.Output.QuoteAllIdentifiers {
-				name = v.Presentation.identifier(d.Name())
-				if !relationVisibleAt(catalogView, d, v.Presentation.Path) {
-					name = v.Presentation.identifier(catalogView.Get(d.Namespace()).Name()) + "." + name
-				}
+			name, err := v.Presentation.sourceRelationName(catalogView, d)
+			if err != nil {
+				return viewRenderFrom{}, err
 			}
 			if leaf.Only {
 				name = "ONLY " + name
@@ -638,13 +635,12 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if v.Presentation.Deparse || v.policyReplaySources {
 			if v.policyReplaySources {
 				from.relation = catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
-			} else if v.Presentation.Output.QuoteAllIdentifiers {
-				from.relation = v.Presentation.identifier(d.Name())
-				if !relationVisibleAt(catalogView, d, v.Presentation.Path) {
-					from.relation = v.Presentation.identifier(catalogView.Get(d.Namespace()).Name()) + "." + from.relation
-				}
 			} else {
-				from.relation = RelationDiagnosticNameAt(catalogView, d, v.Presentation.Path)
+				var err error
+				from.relation, err = v.Presentation.sourceRelationName(catalogView, d)
+				if err != nil {
+					return viewRenderFrom{}, err
+				}
 			}
 			if leaf.Only {
 				from.relation = "ONLY " + from.relation
