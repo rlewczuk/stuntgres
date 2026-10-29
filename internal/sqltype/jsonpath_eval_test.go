@@ -153,7 +153,6 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 	}
 	for _, tc := range []struct{ path, code string }{
 		{`$v`, `42704`}, {`exists($v)`, `42704`}, {`$v==1`, `42704`},
-		{`exists($.double())`, `0A000`}, {`$.double()>0`, `0A000`},
 		{`$[2147483648]`, `22033`}, {`$[$v]`, `42704`},
 	} {
 		for _, silent := range []bool{false, true} {
@@ -168,6 +167,14 @@ func TestJSONPathNavigateSuppression(t *testing.T) {
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(tc.path, silent, err)
+			}
+		}
+	}
+	for _, path := range []string{`exists($.double())`, `$.double()>0`} {
+		for _, silent := range []bool{false, true} {
+			got, err := p.Evaluate(context.Background(), navigateValues(t, types, `[1]`, path, `{}`, silent), JSONPathEnvironment{})
+			if err != nil || got.text != `[true]` {
+				t.Fatal("supported numeric method", path, silent, got.text, err)
 			}
 		}
 	}

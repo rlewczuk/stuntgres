@@ -25,12 +25,12 @@ func TestReferenceJSONBPathOpsSuppression(t *testing.T) {
 func TestReferenceJSONBPathOpsCapabilityBoundary(t *testing.T) {
 	jsonbPathOpsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		for _, tc := range []struct {
-			doc, path, message string
+			doc, path          string
 			exists, match      any
 		}{
-			{`1`, `$ / 0`, ``, nil, nil},
-			{`[1,2]`, `$.size()`, ``, true, nil},
-			{`[1,2]`, `$.double()`, `stuntgres: JSONPath scalar methods are unsupported`, true, nil},
+			{`1`, `$ / 0`, nil, nil},
+			{`[1,2]`, `$.size()`, true, nil},
+			{`[1,2]`, `$.double()`, true, nil},
 		} {
 			for i, op := range jsonbPathOps {
 				t.Run(op+"/"+tc.path, func(t *testing.T) {
@@ -39,9 +39,6 @@ func TestReferenceJSONBPathOpsCapabilityBoundary(t *testing.T) {
 						want = tc.match
 					}
 					s := jsonbPathOpsOne(jsonbPathOpsSQL(op), want, tc.doc, tc.path)
-					if !b.PG && tc.message != "" {
-						s = jsonpathNavigateError(s.Query, "0A000", tc.message, tc.doc, tc.path)
-					}
 					fixture.JSONPathNavigateBoth(t, p, b, c, s)
 				})
 			}

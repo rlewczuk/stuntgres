@@ -1,6 +1,7 @@
 package sqltype
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -16,12 +17,29 @@ func (e *jsonpathExecutor) numericMethod(n *jsonpathNode, input *jsonbNode) (*js
 	if err := e.ctx.Err(); err != nil {
 		return nil, err
 	}
+	switch n.text {
+	case "abs", "floor", "ceiling":
+		if input.kind != jsonbNumber {
+			return nil, jsonpathStructure("22036", "jsonpath item method ."+n.text+"() can only be applied to a numeric value")
+		}
+		v := input.number.value()
+		if n.text == "abs" {
+			v.negative = false
+		} else {
+			var err error
+			v, err = numericCeilFloor(e.ctx, v, n.text == "ceiling")
+			if err != nil {
+				return nil, err
+			}
+		}
+		return jsonpathNumericResult(v).jsonbNode, e.ctx.Err()
+	}
 	if input.kind != jsonbNumber && input.kind != jsonbString {
 		return nil, jsonpathStructure("22036", "jsonpath item method ."+n.text+"() can only be applied to a string or numeric value")
 	}
 	var v Value
 	var err error
-	if n.text != "decimal" {
+	if n.text == "integer" || n.text == "bigint" {
 		d := &jsonpathIntegerDescriptors[0]
 		if n.text == "bigint" {
 			d = &jsonpathIntegerDescriptors[1]
@@ -42,6 +60,31 @@ func (e *jsonpathExecutor) numericMethod(n *jsonpathNode, input *jsonbNode) (*js
 		}
 		return jsonpathNumericResult(normalizeNumeric(v)).jsonbNode, e.ctx.Err()
 	}
+	if n.text == "double" {
+		source := input.text
+		if input.kind == jsonbNumber {
+			var b strings.Builder
+			if err := appendNumericOutput(e.ctx, &b, input.number.value()); err != nil {
+				return nil, err
+			}
+			source = b.String()
+		}
+		v, err = jsonpathDoubleInput(e.ctx, source)
+		if err != nil {
+			return nil, e.invalidNumericMethod(n.text, input)
+		}
+		if math.IsNaN(v.floating) || math.IsInf(v.floating, 0) {
+			return nil, jsonpathStructure("22036", "NaN or Infinity is not allowed for jsonpath item method .double()")
+		}
+		if input.kind == jsonbNumber {
+			return input, e.ctx.Err()
+		}
+		v, err = numericCoercion(e.ctx, v, jsonpathNumericDescriptor.Usage())
+		if err != nil {
+			return nil, err
+		}
+		return jsonpathNumericResult(v).jsonbNode, e.ctx.Err()
+	}
 	if input.kind == jsonbString {
 		v, err = jsonpathNumericDescriptor.numericInput(input.text, -1)
 		if err != nil {
@@ -54,7 +97,13 @@ func (e *jsonpathExecutor) numericMethod(n *jsonpathNode, input *jsonbNode) (*js
 		return nil, err
 	}
 	if v.special != numericFinite {
-		return nil, jsonpathStructure("22036", "NaN or Infinity is not allowed for jsonpath item method .decimal()")
+		return nil, jsonpathStructure("22036", "NaN or Infinity is not allowed for jsonpath item method ."+n.text+"()")
+	}
+	if n.text == "number" {
+		if input.kind == jsonbNumber {
+			return input, nil
+		}
+		return jsonpathNumericResult(v).jsonbNode, nil
 	}
 	if n.left != nil {
 		var modifiers [2]int32
@@ -110,9 +159,12 @@ func (e *jsonpathExecutor) invalidNumericMethod(method string, input *jsonbNode)
 	b.WriteString(`" of jsonpath item method .`)
 	b.WriteString(method)
 	b.WriteString(`() is invalid for type `)
-	if method == "decimal" {
+	switch method {
+	case "decimal", "number":
 		b.WriteString("numeric")
-	} else {
+	case "double":
+		b.WriteString("double precision")
+	default:
 		b.WriteString(method)
 	}
 	return jsonpathStructure("22036", b.String())

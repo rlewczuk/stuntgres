@@ -35,6 +35,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses `fixture.Main(m
   lexical versus numeric conversions, retained decimal scale and typmod demand.
   Full diagnostics, prefix suppression, held inputs and persistent recipes use
   the same shared fixture contracts as the other item methods.
+- Numeric item methods assert exact abs/floor/ceiling, unconstrained number,
+  and double's numeric identity versus string 15-digit conversion. Encoded
+  strings, full diagnostics, sequence prefixes and retained recipes share the
+  same public driver, metadata, cancellation and replay contracts.
 - Native controls retain old output, replay actual stored recipes on the same
   and fresh Driver and PostgreSQL, then exercise future writes. Failed/canceled
   Restore leaves the prior dump unchanged.
@@ -51,5 +55,6 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `jsonb_path_exists`/`match`/`query`/`query_first`: `RUN='^TestReferenceJSONPathQuery'`
 - JSONPath item methods: `RUN='^TestReferenceJSONPathMethods'`
 - JSONPath integer/bigint/decimal methods: `RUN='^TestReferenceJSONPathIntegerDecimal'`
+- JSONPath numeric methods: `RUN='^TestReferenceJSONPathNumericMethods'`
 - JSONPath temporal methods: `RUN='^TestReferenceJSONPathDatetime'`
 - JSONPath arithmetic: `RUN='^TestReferenceJSONPathArithmetic'`

@@ -29,9 +29,13 @@ func TestSQLJSONQueryPlan(t *testing.T) {
 	if diagnostic, ok := err.(*sqlstate.Error); !ok || diagnostic.Code != "42704" {
 		t.Fatalf("ordinary variable error: %v", err)
 	}
-	_, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$.double()`), nil, JSONPathEnvironment{}, OutputEnvironment{})
-	if diagnostic, ok := err.(*sqlstate.Error); !ok || diagnostic.Code != "0A000" {
-		t.Fatalf("unsupported error: %v", err)
+	outcome, err = p.Evaluate(ctx, document, jsonbSetUnitInput(t, types[JSONPath], `$.double()`), nil, JSONPathEnvironment{}, OutputEnvironment{})
+	if err != nil || outcome.Error == nil || outcome.Value.Type() != nil {
+		t.Fatalf("numeric method wrong-kind must be recoverable without output: %+v %v", outcome, err)
+	}
+	outcome, err = p.Evaluate(ctx, jsonbSetUnitInput(t, types[JSONB], `9007199254740993`), jsonbSetUnitInput(t, types[JSONPath], `$.double()`), nil, JSONPathEnvironment{}, OutputEnvironment{})
+	if err != nil || outcome.Error != nil || outcome.Value.text != `[9007199254740993]` {
+		t.Fatalf("numeric double must retain exact input: %+v %v", outcome, err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()

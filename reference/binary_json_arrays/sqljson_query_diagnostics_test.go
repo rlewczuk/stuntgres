@@ -92,15 +92,8 @@ func TestReferenceSQLJSONQueryDiagnostics(t *testing.T) {
 				d = fixture.ControlsReferenceDiagnostic("22P02", `invalid input syntax for type boolean: "bad"`)
 				fixture.SQLJSONDiagnostic(t, p, b, c, `SELECT `+fn+`(doc,path::jsonpath PASSING binding::boolean AS unused) AS v FROM sqjq_runtime_inputs WHERE id=4`, d, false)
 			})
-			// Native capability errors must escape selected error suppression. PG
-			// executes this same demanded path and has its independent value.
-			t.Run(fn+" demanded unsupported", func(t *testing.T) {
+			t.Run(fn+" demanded numeric method", func(t *testing.T) {
 				q := `SELECT ` + fn + `($1::jsonb,$2::jsonpath) AS v`
-				if !b.PG {
-					d := fixture.ControlsReferenceDiagnostic("0A000", "stuntgres: JSONPath scalar methods are unsupported")
-					fixture.SQLJSONDiagnostic(t, p, b, c, q, d, false, `2`, `$.double()`)
-					return
-				}
 				typ, want := "TEXT", any("2")
 				if fn == "JSON_QUERY" {
 					typ = "JSONB"

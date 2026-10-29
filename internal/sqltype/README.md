@@ -624,6 +624,11 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   descriptor authority. One-level lax unwrapping, demanded typmod validation
   and suppressible conversion errors share the walker, including silent
   invalid-typmod handling; syntax and context errors remain outside suppression.
+  Abs, ceiling and floor use exact decimal kernels; number retains unconstrained
+  numeric input and scale. Double validates numeric operands without changing
+  their digits, while string operands use Float8 rounding and 15-digit numeric
+  coercion. Its private hex/extended-NaN adapter does not alter SQL float input.
+  Arithmetic overflow remains an ordinary numeric error, not a silent conversion.
   Temporal methods share the formatting compiler and field reader with explicit
   SQL versus JSONPath compiler modes. Strict compilation validates unquoted
   separators while preserving quoted literals. Compiler failures return through
