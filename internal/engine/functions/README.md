@@ -395,6 +395,15 @@ default-config constant. Execution borrows one coherent parser/dictionary
 capture; ordinary folding owns immutable explicit results without a conversion
 cache or notice replay.
 
+`FTS` owns the four selected `@@` signatures and their actual `ts_match_vq`,
+`ts_match_qv`, `ts_match_tt` and `ts_match_tq` routine identities. Typed pairs
+are immutable; text pairs are stable and borrow `FTSConversionRuntime` only
+after written-order evaluation and strict NULL handling. Documents use vector
+conversion, text queries use plain conversion, and omitted configuration stays
+live at execution. Rebuild and substitution retain checked descriptor authority,
+written operands and operator/function qualification without synthetic
+constructor children or retained statement/configuration state.
+
 `VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
 Named-input binding and applicability share slot assignment and ordinary
 coercion; supplied inputs evaluate once in canonical formal order. The

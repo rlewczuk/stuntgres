@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/sqltype"
 )
 
@@ -50,6 +51,47 @@ func (e FTS) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
+	if e.Plan.Operation() == sqltype.FTSMatchTT || e.Plan.Operation() == sqltype.FTSMatchTQ {
+		null, err := e.Plan.MatchInputs(ctx, values)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if null {
+			return sqltype.Null(e.Usage.Type), nil
+		}
+		runtime, ok := c.(FTSConversionRuntime)
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: text search conversion lacks statement authority")
+		}
+		target, err := e.Plan.MatchConversionTarget(0)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		document, err := values[0].Text()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		vector, err := runtime.ConvertTextSearch(fts.VectorConversion, false, sqltype.Value{}, document, target)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		query := values[1]
+		if e.Plan.Operation() == sqltype.FTSMatchTT {
+			target, err = e.Plan.MatchConversionTarget(1)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			text, err := query.Text()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+			query, err = runtime.ConvertTextSearch(fts.PlainConversion, false, sqltype.Value{}, text, target)
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
+		return e.Plan.EvaluateNormalizedMatch(ctx, vector, query)
+	}
 	return e.Plan.Evaluate(ctx, values)
 }
 func (e FTS) Children() []expr.Expr { return e.Args[:e.Plan.Operation().Arity()] }
@@ -68,10 +110,15 @@ func (e FTS) Validate() error {
 	}
 	return nil
 }
-func (e FTS) ValidateStoredProvider() error        { return e.Validate() }
-func (e FTS) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
-func (e FTS) PreflightFold() expr.Preflight        { return expr.PreflightNullOrEvaluate }
-func (e FTS) LooksLikeFunction() bool              { return e.Function }
+func (e FTS) ValidateStoredProvider() error { return e.Validate() }
+func (e FTS) IntrinsicVolatility() expr.Volatility {
+	if e.Plan.Operation() == sqltype.FTSMatchTT || e.Plan.Operation() == sqltype.FTSMatchTQ {
+		return expr.Stable
+	}
+	return expr.Immutable
+}
+func (e FTS) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
+func (e FTS) LooksLikeFunction() bool       { return e.Function }
 func (e FTS) Render() (expr.Rendering, error) {
 	if err := e.Validate(); err != nil {
 		return expr.Rendering{}, err
@@ -117,9 +164,7 @@ func (e FTS) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error)
 	if err := checkChildren("FTS", children, e.Plan.Operation().Arity()); err != nil {
 		return nil, err
 	}
-	e.Info = info
-	copy(e.Args[:], children)
-	return e, nil
+	return e.Rebuild(info, children)
 }
 func (FTS) ClosureTransparent() {}
 func (e FTS) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {

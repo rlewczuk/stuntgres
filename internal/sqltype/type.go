@@ -170,6 +170,7 @@ type Descriptor struct {
 	pathInt                             *Descriptor
 	ftsBoolean, ftsDistance, ftsText    *Descriptor
 	ftsChar, ftsTextArray, ftsCharArray *Descriptor
+	ftsVector, ftsQuery                 *Descriptor
 	lookupOnly                          bool
 	catalogNullOwner                    *Descriptor // Self on authentic restricted catalog result descriptors.
 	queryNullOwner                      *Descriptor // Self only on canonical query-only pseudo NULL identities.
@@ -485,6 +486,16 @@ func buildBuiltins() []*Descriptor {
 		case 1002:
 			vector.ftsCharArray = d
 		}
+	}
+	var query *Descriptor
+	for _, d := range types {
+		if d.id == TSQuery {
+			query = d
+		}
+	}
+	for _, d := range []*Descriptor{vector, query, ftsText} {
+		d.ftsVector, d.ftsQuery = vector, query
+		d.ftsBoolean, d.ftsText = networkBoolean, ftsText
 	}
 	return types
 }

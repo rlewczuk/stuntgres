@@ -16,12 +16,18 @@ const (
 	FTSContains
 	FTSContained
 	FTSConcat
+	FTSMatchVQ
+	FTSMatchQV
+	FTSMatchTT
+	FTSMatchTQ
 )
 
 var ftsOperations = [...]struct{ name, routine string }{
 	{"&&", "tsquery_and"}, {"||", "tsquery_or"}, {"!!", "tsquery_not"},
 	{"<->", "tsquery_phrase"}, {"tsquery_phrase", "tsquery_phrase"},
 	{"@>", "tsq_mcontains"}, {"<@", "tsq_mcontained"}, {"||", "tsvector_concat"},
+	{"@@", "ts_match_vq"}, {"@@", "ts_match_qv"},
+	{"@@", "ts_match_tt"}, {"@@", "ts_match_tq"},
 }
 
 func FTSKind(name string, arity int, vector bool) (FTSOperator, bool) {
@@ -30,7 +36,7 @@ func FTSKind(name string, arity int, vector bool) (FTSOperator, bool) {
 	}
 	for i, o := range ftsOperations {
 		op := FTSOperator(i)
-		if (name == o.name || name == o.routine) && arity == op.Arity() {
+		if (name == o.name && name != "@@" || name == o.routine) && arity == op.Arity() {
 			return op, true
 		}
 	}
@@ -58,6 +64,25 @@ func (o FTSOperator) Arity() int {
 	return 2
 }
 func (o FTSOperator) Formal(i int) ID {
+	switch o {
+	case FTSMatchVQ:
+		if i == 0 {
+			return TSVector
+		}
+		return TSQuery
+	case FTSMatchQV:
+		if i == 0 {
+			return TSQuery
+		}
+		return TSVector
+	case FTSMatchTT:
+		return Text
+	case FTSMatchTQ:
+		if i == 0 {
+			return Text
+		}
+		return TSQuery
+	}
 	if o == FTSConcat {
 		return TSVector
 	}
@@ -70,16 +95,17 @@ func (o FTSOperator) ResultID() ID {
 	if o == FTSConcat {
 		return TSVector
 	}
-	if o == FTSContains || o == FTSContained {
+	if o == FTSContains || o == FTSContained || o >= FTSMatchVQ && o <= FTSMatchTQ {
 		return Bool
 	}
 	return TSQuery
 }
 
 type FTSPlan struct {
-	operation FTSOperator
-	inputs    [3]*Descriptor
-	result    *Descriptor
+	operation     FTSOperator
+	inputs        [3]*Descriptor
+	result        *Descriptor
+	vector, query *Descriptor
 }
 
 func BindFTS(op FTSOperator, result Usage, args [3]Usage) (FTSPlan, error) {
@@ -100,7 +126,22 @@ func BindFTS(op FTSOperator, result Usage, args [3]Usage) (FTSPlan, error) {
 		p.inputs[i] = arg.Type
 	}
 	source := p.inputs[0]
-	if op.Arity() > 1 && source != p.inputs[1] {
+	if op >= FTSMatchVQ && op <= FTSMatchTQ {
+		p.vector, p.query = source.ftsVector, source.ftsQuery
+		if p.vector == nil || p.query == nil {
+			return FTSPlan{}, fmt.Errorf("missing FTS match authority")
+		}
+		expected := p.query
+		switch op.Formal(1) {
+		case TSVector:
+			expected = p.vector
+		case Text:
+			expected = source.ftsText
+		}
+		if p.inputs[1] != expected {
+			return FTSPlan{}, fmt.Errorf("foreign FTS operand authority")
+		}
+	} else if op.Arity() > 1 && source != p.inputs[1] {
 		return FTSPlan{}, fmt.Errorf("foreign FTS operand authority")
 	}
 	expected := source
@@ -127,7 +168,7 @@ func (p FTSPlan) Evaluate(ctx context.Context, values [3]Value) (Value, error) {
 		}
 	}
 	for i, v := range values[:p.operation.Arity()] {
-		if i < 2 && !v.null && !v.validFTS() {
+		if i < 2 && p.operation.Formal(i) != Text && !v.null && !v.validFTS() {
 			return Value{}, fmt.Errorf("invalid FTS payload")
 		}
 	}
@@ -135,6 +176,9 @@ func (p FTSPlan) Evaluate(ctx context.Context, values [3]Value) (Value, error) {
 		if v.null {
 			return Null(p.result), nil
 		}
+	}
+	if p.operation == FTSMatchTT || p.operation == FTSMatchTQ {
+		return Value{}, fmt.Errorf("FTS text match requires checked conversion")
 	}
 	result := Value{typ: p.result}
 	var err error
@@ -158,9 +202,71 @@ func (p FTSPlan) Evaluate(ctx context.Context, values [3]Value) (Value, error) {
 		result.boolean, err = b.Contains(ctx, a)
 	case FTSConcat:
 		result.ftsVector, err = values[0].ftsVector.Concat(ctx, values[1].ftsVector)
+	case FTSMatchVQ:
+		result.boolean, err = values[0].ftsVector.Match(ctx, values[1].ftsQuery)
+	case FTSMatchQV:
+		result.boolean, err = values[1].ftsVector.Match(ctx, values[0].ftsQuery)
 	}
 	if err != nil {
 		return Value{}, err
 	}
 	return result, nil
+}
+
+// MatchConversionTarget exposes only the normalized descriptor checked at bind.
+func (p FTSPlan) MatchConversionTarget(operand int) (*Descriptor, error) {
+	if p.result == nil || (p.operation != FTSMatchTT && p.operation != FTSMatchTQ) ||
+		operand < 0 || operand > 1 || operand == 1 && p.operation != FTSMatchTT {
+		return nil, fmt.Errorf("invalid FTS match conversion target")
+	}
+	if operand == 0 {
+		return p.vector, nil
+	}
+	return p.query, nil
+}
+
+// EvaluateNormalizedMatch accepts no text and never relaxes original-input checks.
+func (p FTSPlan) EvaluateNormalizedMatch(ctx context.Context, vector, query Value) (Value, error) {
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	if p.result == nil || (p.operation != FTSMatchTT && p.operation != FTSMatchTQ) ||
+		vector.typ != p.vector || query.typ != p.query || !vector.null && !vector.validFTS() || !query.null && !query.validFTS() {
+		return Value{}, fmt.Errorf("invalid normalized FTS match operands")
+	}
+	if vector.null || query.null {
+		return Null(p.result), nil
+	}
+	ok, err := vector.ftsVector.Match(ctx, query.ftsQuery)
+	if err != nil {
+		return Value{}, err
+	}
+	return Value{typ: p.result, boolean: ok}, nil
+}
+
+// MatchInputs validates original text-overload values before acquiring runtime.
+func (p FTSPlan) MatchInputs(ctx context.Context, values [3]Value) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if p.result == nil || (p.operation != FTSMatchTT && p.operation != FTSMatchTQ) {
+		return false, fmt.Errorf("invalid FTS text match plan")
+	}
+	null := false
+	for i, v := range values[:2] {
+		if v.typ != p.inputs[i] || v.typ == nil {
+			return false, fmt.Errorf("invalid FTS text match operand")
+		}
+		if !v.null {
+			if p.operation.Formal(i) == Text {
+				if _, err := v.Text(); err != nil {
+					return false, err
+				}
+			} else if !v.validFTS() {
+				return false, fmt.Errorf("invalid FTS match payload")
+			}
+		}
+		null = null || v.null
+	}
+	return null, nil
 }

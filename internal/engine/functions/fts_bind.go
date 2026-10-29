@@ -59,6 +59,9 @@ func bindFTS(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	var args [3]expr.Expr
 	var formals [3]sqltype.ID
 	properties := expr.Properties{Volatility: expr.Immutable}
+	if op == sqltype.FTSMatchTT || op == sqltype.FTSMatchTQ {
+		properties.Volatility = expr.Stable
+	}
 	for i, arg := range operands {
 		formals[i] = op.Formal(i)
 		args[i], err = b.CoerceArgument(arg, CoercionRequest{Intent: ConditionalArgument, Target: b.Type(formals[i]).Usage(), Label: name})

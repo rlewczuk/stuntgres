@@ -137,6 +137,9 @@ COPY test in reference/dml.
 - `multirange(anyrange)`, `unnest(anymultirange)`: `RUN='^TestReferenceRangeMore'`
 - Text search types: `RUN='^TestReferenceFTSTypes'`
 - Text search operators: `RUN='^TestReferenceFTSOps'`
+- Text search matching: `RUN='^TestReferenceFTSMatch'`; typed positional/Boolean
+  matrices and text conversions share direct, fresh-prepared and held routes,
+  with live default configuration on one borrowed session.
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - Text search configuration debugging: `RUN='^TestReferenceFTSDebug'`.
   Shared inspection helpers assert fixed record metadata, original parser tokens,

@@ -341,15 +341,12 @@ func TestReferencePGOperatorBoundaries(t *testing.T) {
 			oid       int64
 			signature string
 		}{{517, "<->(point,point)"}, {664, "<(text,text)"}, {2314, "~<~(text,text)"}, {2315, "~<=~(text,text)"}, {2317, "~>=~(text,text)"}, {2318, "~>~(text,text)"}, {2988, "=(record,record)"}, {3636, "@@(tsvector,tsquery)"}} {
-			// Executable POINT, TEXT (including pattern), and RECORD controls
-			// remain distinct from identity-only cases.
+			// Executable POINT, TEXT (including pattern), RECORD and FTS
+			// controls publish the same released identity on both backends.
 			q := fmt.Sprintf("SELECT '%s'::regoperator::oid AS identity FROM operator_catalog_seed", tc.signature)
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"identity"}, []string{"OID"}, [][]any{{tc.oid}}))
 			q = fmt.Sprintf("SELECT oid FROM pg_operator WHERE oid=%d", tc.oid)
-			var want [][]any
-			if b.PG || tc.oid == 517 || tc.oid == 664 || tc.oid == 2314 || tc.oid == 2315 || tc.oid == 2317 || tc.oid == 2318 || tc.oid == 2988 {
-				want = [][]any{{tc.oid}}
-			}
+			want := [][]any{{tc.oid}}
 			fixture.PgDescriptionRows(t, p, b, fixture.Select(q, []string{"oid"}, []string{"OID"}, want))
 		}
 		providers := fixture.Select(

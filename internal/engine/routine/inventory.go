@@ -230,6 +230,10 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{1475, ids.PGCatalogNamespaceOID, "polygon", "23,718"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider, nil},
 	{catalog.RoutineIdentity{1544, ids.PGCatalogNamespaceOID, "polygon", "718"}, catalog.FunctionRoutine, 604, true, expr.Immutable, 's', false, 0, 0, functions.GeometryConversionRoutineProvider, nil},
 	// Selected REL_18_6 text-search routines; adjacent FTS remains lookup-only.
+	{catalog.RoutineIdentity{3634, ids.PGCatalogNamespaceOID, "ts_match_vq", "3614,3615"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
+	{catalog.RoutineIdentity{3635, ids.PGCatalogNamespaceOID, "ts_match_qv", "3615,3614"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
+	{catalog.RoutineIdentity{3760, ids.PGCatalogNamespaceOID, "ts_match_tt", "25,25"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
+	{catalog.RoutineIdentity{3761, ids.PGCatalogNamespaceOID, "ts_match_tq", "25,3615"}, catalog.FunctionRoutine, 16, true, expr.Stable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3625, ids.PGCatalogNamespaceOID, "tsvector_concat", "3614,3614"}, catalog.FunctionRoutine, 3614, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3669, ids.PGCatalogNamespaceOID, "tsquery_and", "3615,3615"}, catalog.FunctionRoutine, 3615, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	{catalog.RoutineIdentity{3670, ids.PGCatalogNamespaceOID, "tsquery_or", "3615,3615"}, catalog.FunctionRoutine, 3615, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},

@@ -570,6 +570,11 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   leaf payloads without reparsing canonical text. `LexicalArray` projects rich
   dictionary recognition/spelling into checked TEXT[] once at the SQL boundary;
   prefix/variant metadata remains internal and unrecognized differs from empty.
+- `FTSPlan` checks the four match signatures against same-generation vector,
+  query, text and Boolean companions before strict NULL handling. Typed matching
+  consumes immutable payloads directly. Text matching exposes only checked
+  per-operand conversion targets and a checked normalized-match entry; ordinary
+  evaluation never reinterprets text as a vector or query.
 - `FTSQueryPlan` checks source/result descriptor authority for query inspection
   and direct rewriting. `FTSRewriteRules` bridges actual typed SQL rule cells
   into one leaf-owned workspace, distinguishing skipped NULL rows from empty

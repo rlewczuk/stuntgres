@@ -125,3 +125,127 @@ func TestFTSOpsTypedPlan(t *testing.T) {
 		t.Fatal("invalid operation accepted")
 	}
 }
+
+func TestFTSMatchTypedPlan(t *testing.T) {
+	types, foreign := map[ID]*Descriptor{}, map[ID]*Descriptor{}
+	for _, d := range Builtins() {
+		types[d.id] = d
+	}
+	for _, d := range Builtins() {
+		foreign[d.id] = d
+	}
+	input := func(d *Descriptor, text string) Value {
+		v, err := d.Input(t.Context(), text, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	for op := FTSMatchVQ; op <= FTSMatchTQ; op++ {
+		usages := [3]Usage{types[op.Formal(0)].Usage(), types[op.Formal(1)].Usage()}
+		p, err := BindFTS(op, types[Bool].Usage(), usages)
+		if err != nil {
+			t.Fatal(op, err)
+		}
+		values := [3]Value{input(usages[0].Type, "cat"), input(usages[1].Type, "cat")}
+		for i := range 2 {
+			wrong := usages
+			wrong[i] = foreign[op.Formal(i)].Usage()
+			if _, err := BindFTS(op, types[Bool].Usage(), wrong); err == nil {
+				t.Fatal("foreign input accepted", op, i)
+			}
+			wrongValues := values
+			wrongValues[i] = Null(foreign[op.Formal(i)])
+			if _, err := p.Evaluate(t.Context(), wrongValues); err == nil {
+				t.Fatal("foreign NULL accepted", op, i)
+			}
+		}
+		if _, err := BindFTS(op, foreign[Bool].Usage(), usages); err == nil {
+			t.Fatal("foreign result", op)
+		}
+		if op == FTSMatchTT || op == FTSMatchTQ {
+			if _, err := p.Evaluate(t.Context(), values); err == nil {
+				t.Fatal("text reinterpreted", op)
+			}
+			if null, err := p.MatchInputs(t.Context(), values); err != nil || null {
+				t.Fatal(null, err)
+			}
+			vector, err := p.MatchConversionTarget(0)
+			if err != nil || vector != types[TSVector] {
+				t.Fatal(vector, err)
+			}
+			if op == FTSMatchTT {
+				query, err := p.MatchConversionTarget(1)
+				if err != nil || query != types[TSQuery] {
+					t.Fatal(query, err)
+				}
+			} else if _, err := p.MatchConversionTarget(1); err == nil {
+				t.Fatal("typed query conversion admitted")
+			}
+			if _, err := p.MatchConversionTarget(2); err == nil {
+				t.Fatal("extra conversion target")
+			}
+			v, q := input(types[TSVector], "cat"), input(types[TSQuery], "cat")
+			result, err := p.EvaluateNormalizedMatch(t.Context(), v, q)
+			if err != nil || result.Type() != types[Bool] || !result.boolean {
+				t.Fatal(result, err)
+			}
+			for _, pair := range [][2]Value{
+				{input(foreign[TSVector], "cat"), q}, {v, input(foreign[TSQuery], "cat")},
+				{Null(foreign[TSVector]), q}, {v, Value{typ: types[TSQuery]}},
+				{Value{}, q}, {String(types[Text], "cat"), q},
+			} {
+				if _, err := p.EvaluateNormalizedMatch(t.Context(), pair[0], pair[1]); err == nil {
+					t.Fatal("normalized authority/payload accepted", op)
+				}
+			}
+		} else {
+			result, err := p.Evaluate(t.Context(), values)
+			if err != nil || !result.boolean {
+				t.Fatal(result, err)
+			}
+			bad := values
+			bad[0] = Value{typ: usages[0].Type}
+			if _, err := p.Evaluate(t.Context(), bad); err == nil {
+				t.Fatal("invalid payload")
+			}
+		}
+		for i := range 2 {
+			nullable := values
+			nullable[i] = Null(usages[i].Type)
+			result, err := p.Evaluate(t.Context(), nullable)
+			if err != nil || !result.IsNull() || result.Type() != types[Bool] {
+				t.Fatal("strict NULL", op, i, result, err)
+			}
+			if op == FTSMatchTT || op == FTSMatchTQ {
+				if null, err := p.MatchInputs(t.Context(), nullable); err != nil || !null {
+					t.Fatal(null, err)
+				}
+			}
+		}
+		zero := values
+		zero[0] = Value{}
+		if _, err := p.Evaluate(t.Context(), zero); err == nil {
+			t.Fatal("zero operand", op)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := p.Evaluate(ctx, values); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		if op == FTSMatchTT || op == FTSMatchTQ {
+			if _, err := p.MatchInputs(ctx, values); !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			if _, err := p.EvaluateNormalizedMatch(ctx, input(types[TSVector], "cat"), input(types[TSQuery], "cat")); !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+		}
+	}
+	if _, ok := FTSKind("@@", 2, false); ok {
+		t.Fatal("spelling selected mixed signature")
+	}
+	if _, ok := FTSKind("@@@", 2, false); ok {
+		t.Fatal("deprecated operator activated")
+	}
+}

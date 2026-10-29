@@ -712,13 +712,17 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{3521, 16, "b", false, false, 3520, 3518, 3513, 337, 398},
 	{3552, 16, "b", false, false, 3552, 0, 3551, 3560, 3561},
 	{3585, 16, "b", false, false, 0, 0, 4267, 4243, 108},
-	// Selected REL_18_6 FTS algebra, without adjacent matching/comparison providers.
+	// Selected REL_18_6 FTS algebra and matching, without comparison providers.
 	{3633, 3614, "b", false, false, 0, 0, 3625, 0, 0},
+	{3636, 16, "b", false, false, 3637, 0, 3634, 3686, 3687},
+	{3637, 16, "b", false, false, 3636, 0, 3635, 3686, 3687},
 	{3680, 3615, "b", false, false, 0, 0, 3669, 0, 0},
 	{3681, 3615, "b", false, false, 0, 0, 3670, 0, 0},
 	{3682, 3615, "l", false, false, 0, 0, 3671, 0, 0},
 	{3693, 16, "b", false, false, 3694, 0, 3691, 5040, 5041},
 	{3694, 16, "b", false, false, 3693, 0, 3692, 5040, 5041},
+	{3762, 16, "b", false, false, 0, 0, 3760, 5040, 5041},
+	{3763, 16, "b", false, false, 0, 0, 3761, 5040, 5041},
 	{3825, 701, "b", false, false, 0, 0, 3822, 0, 0},
 	{3877, 16, "b", false, false, 0, 0, 3696, 3437, 3438},
 	{3882, 16, "b", true, true, 3882, 3883, 3855, 101, 105},

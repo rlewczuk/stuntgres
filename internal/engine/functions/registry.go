@@ -56,7 +56,7 @@ var definitions = [...]Definition{
 	{Names: statisticsIONames, ExactSpelling: true, SharedGates: true, Bind: bindStatisticsIO},
 	{Names: []string{"ordered_set_transition_multi", "rank_final", "dense_rank_final", "percent_rank_final", "cume_dist_final"}, ExactSpelling: true, SharedGates: true, Bind: bindAggregateContextSupport},
 	{Names: []string{"int4larger"}, ExactSpelling: true, SharedGates: true, Bind: bindInt4Larger},
-	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},
+	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained", "ts_match_vq", "ts_match_qv", "ts_match_tt", "ts_match_tq"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},
 	{Names: []string{"numnode", "querytree", "ts_rewrite"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSQuery},
 	{Names: []string{"setweight", "strip", "ts_delete", "ts_filter", "tsvector_to_array"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSVector},
 	{Names: []string{"ts_parse", "ts_token_type"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSParser, NamedCall: namedFTSParser},

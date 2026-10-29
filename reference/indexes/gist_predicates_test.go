@@ -36,25 +36,8 @@ func TestReferenceGiSTRangeNetworkTextSearch(t *testing.T) {
 		run(fixture.Exec("UPDATE gist_predicates SET m='{[4,6)}' WHERE id=5", 1))
 		run(fixture.Exec("DELETE FROM gist_predicates WHERE id=2", 1))
 		classRoutes(t, p, b, conn, fixture.Select("SELECT id FROM gist_predicates WHERE m && '[4,6)'::int4range ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(4)}, {int64(5)}}))
-		// The owning scalar match operation is not supplied by GiST admission.
-		const missing = "SELECT id FROM gist_predicates WHERE v @@ 'a'::tsquery ORDER BY id"
-		if b.PG {
-			classRoutes(t, p, b, conn, fixture.Select(missing, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(5)}}))
-		} else {
-			rows, err := conn.QueryContext(p.Ctx, missing)
-			if rows != nil {
-				rows.Close()
-			}
-			if err == nil || err.Error() != "stuntgres: invalid comparison operator" {
-				t.Fatal("missing owning match operator boundary", err)
-			}
-			stmt, err := conn.PrepareContext(p.Ctx, missing)
-			if stmt != nil {
-				stmt.Close()
-			}
-			if err == nil || err.Error() != "stuntgres: invalid comparison operator" {
-				t.Fatal("missing prepared owning match boundary", err)
-			}
-		}
+		// Scalar matching remains correct independently of GiST admission.
+		const matched = "SELECT id FROM gist_predicates WHERE v @@ 'a'::tsquery ORDER BY id"
+		classRoutes(t, p, b, conn, fixture.Select(matched, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(5)}}))
 	})
 }

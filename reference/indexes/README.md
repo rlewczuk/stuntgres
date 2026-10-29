@@ -98,7 +98,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   and `TestTransactionalIndexLocks`/`TestTransactionalIndexReplacementFences`.
 - Hash indexes: `RUN='^TestReferenceHashIndex'`
 - BRIN min/max indexes, diagnostics and controls (including callable/partial CREATE-plus-ALTER replay and later writes): `RUN='^TestReferenceBrinIndex'`
-- GiST classes, exact predicates, options and lifecycle: `RUN='^TestReferenceGiST'`
+- GiST classes, exact predicates, options and lifecycle: `RUN='^TestReferenceGiST'`.
+  Text-search predicate rows assert scalar match behavior independently of index use.
 - SP-GiST classes, exact predicates, bytewise text providers and lifecycle: `RUN='^TestReferenceSPGiST'`
 - Partial indexes: `RUN='^TestReferencePartialIndex'`
 - Concurrent indexes: `RUN='^TestReferenceConcurrentIndex'`

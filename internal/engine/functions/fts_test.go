@@ -148,7 +148,7 @@ func TestFTSOpsProviderLifecycle(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"} {
+	for _, name := range []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained", "ts_match_vq", "ts_match_qv", "ts_match_tt", "ts_match_tq"} {
 		definition, ok := Lookup(name)
 		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
 			t.Fatal("genuine routine binder", name)
@@ -159,7 +159,7 @@ func TestFTSOpsProviderLifecycle(t *testing.T) {
 			t.Fatal("text search conversion binder", name)
 		}
 	}
-	for _, name := range []string{"tsquery_cmp", "tsvector_cmp", "ts_match_vq"} {
+	for _, name := range []string{"tsquery_cmp", "tsvector_cmp"} {
 		if _, ok := Lookup(name); ok {
 			t.Fatal("adjacent routine claimed", name)
 		}

@@ -63,13 +63,14 @@ func cloneBuiltins() []*Descriptor {
 // descriptorPointers lists d's fields that point to descriptors of the same
 // generation. A new such field must be added here; TestBuiltinsCopyTemplate
 // checks that a copy points only into itself.
-func (d *Descriptor) descriptorPointers() [28]**Descriptor {
-	return [28]**Descriptor{
+func (d *Descriptor) descriptorPointers() [30]**Descriptor {
+	return [30]**Descriptor{
 		&d.base.Type, &d.element, &d.rangeSubtype, &d.rangeBoolean, &d.multirangeRange,
 		&d.multirangeCompanion, &d.networkCIDR, &d.networkMasklen, &d.networkBoolean,
 		&d.geometryPoint, &d.circleBoolean, &d.circleFloat, &d.pointBoolean, &d.pointFloat,
 		&d.polygonBoolean, &d.polygonPoint, &d.polygonInt, &d.pathInt, &d.ftsBoolean,
 		&d.ftsDistance, &d.ftsText, &d.ftsChar, &d.ftsTextArray, &d.ftsCharArray,
+		&d.ftsVector, &d.ftsQuery,
 		&d.catalogNullOwner, &d.queryNullOwner, &d.polymorphicOwner,
 		&d.statisticsProducerOwner,
 	}

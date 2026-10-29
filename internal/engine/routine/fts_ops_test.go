@@ -62,7 +62,7 @@ func TestFTSOpsRoutineDeclarations(t *testing.T) {
 			t.Fatal("missing operator identity", tc)
 		}
 	}
-	for _, oid := range []ids.OID{3622, 3634, 3635, 3668} {
+	for _, oid := range []ids.OID{3622, 3668} {
 		if BuiltinRoutine(oid) != nil {
 			t.Fatal("adjacent routine promoted", oid)
 		}
@@ -85,6 +85,49 @@ func TestFTSQueryFunctionsRoutineDeclarations(t *testing.T) {
 		identity := catalog.RoutineIdentity{ID: tc.oid, Namespace: ids.PGCatalogNamespaceOID, Name: tc.name, Signature: catalog.ProcedureSignature(tc.signature)}
 		if got == nil || got.Identity != identity || got.Result != tc.result || got.Kind != catalog.FunctionRoutine || !got.Strict || got.Volatility != tc.volatility || got.Parallel != tc.parallel || got.ReturnsSet || got.Defaults != 0 || got.Variadic != 0 || got.Providers != functions.FTSQueryRoutineProvider {
 			t.Fatalf("query function declaration %d = %+v", tc.oid, got)
+		}
+	}
+}
+
+func TestFTSMatchRoutineDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		oid, operator, left, right, commutator, restriction, join ids.OID
+		name, signature                                           string
+		volatility                                                expr.Volatility
+		cost                                                      float32
+	}{
+		{3634, 3636, 3614, 3615, 3637, 3686, 3687, "ts_match_vq", "3614,3615", expr.Immutable, 1},
+		{3635, 3637, 3615, 3614, 3636, 3686, 3687, "ts_match_qv", "3615,3614", expr.Immutable, 1},
+		{3760, 3762, 25, 25, 0, 5040, 5041, "ts_match_tt", "25,25", expr.Stable, 100},
+		{3761, 3763, 25, 3615, 0, 5040, 5041, "ts_match_tq", "25,3615", expr.Stable, 100},
+	} {
+		r := BuiltinRoutine(tc.oid)
+		want := catalog.RoutineIdentity{ID: tc.oid, Namespace: ids.PGCatalogNamespaceOID, Name: tc.name, Signature: catalog.ProcedureSignature(tc.signature)}
+		if r == nil || r.Identity != want || r.Result != 16 || r.Kind != catalog.FunctionRoutine || !r.Strict ||
+			r.Volatility != tc.volatility || r.Parallel != 's' || r.ReturnsSet || r.Defaults != 0 || r.Variadic != 0 ||
+			r.Providers != functions.OperatorRoutineProvider || BuiltinRoutineCost(r) != tc.cost {
+			t.Fatal(tc, r)
+		}
+		if selected := OperatorRoutine("@@", tc.left, tc.right); selected != r {
+			t.Fatal("selected routine authority", tc, selected)
+		}
+		found := false
+		for _, d := range BuiltinOperatorDescriptors(authorization.PrincipalRef{}) {
+			if d.Address().ObjectID != tc.operator {
+				continue
+			}
+			found = true
+			if d.Function != tc.oid || d.Left != tc.left || d.Right != tc.right || d.Result != 16 ||
+				d.Commutator != tc.commutator || d.Restriction != tc.restriction || d.Join != tc.join ||
+				d.Negator != 0 || d.Hash || d.Merge {
+				t.Fatal(tc, d)
+			}
+		}
+		if !found {
+			t.Fatal("missing selected operator", tc)
+		}
+		if OperatorRoutine("@@@", tc.left, tc.right) != nil {
+			t.Fatal("deprecated operator activated", tc)
 		}
 	}
 }

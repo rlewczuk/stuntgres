@@ -124,6 +124,23 @@ consumes an already converted internal byte and emits hard operation errors.
 Selector scans, transformations and extraction check cancellation at bounded
 intervals; no partial values or execution context escape an operation.
 
+`Vector.Match` reads immutable vector entries and query arenas directly using an
+iterative, short-circuit Boolean evaluator. It consumes the canonical arena's
+value nodes and right-child unary nodes without translating their layout.
+Phrase subtrees merge match ends with wide widths and finite/complement sets.
+Generated ends retain released uint16 storage and parent fourteen-bit position
+extraction, separately from width arithmetic, without saturation or reordering.
+An empty positional intersection retains its calculated width through NOT;
+early AND/phrase failures have no calculated parent width, and OR clears failed
+child widths before alignment. Stripped positions remain internal uncertainty,
+resolved to false at the outer phrase boundary. Prefix candidates
+filter weights before merging positions. Scratch belongs to one invocation,
+never vector storage or a cache; searches, traversal, sorting and merges check
+cancellation without mutating inputs. Merge checkpoints count iterations,
+independent of one- or two-cursor advancement; completed merges and matches
+check cancellation before publishing results. SQL strict NULL and configured
+text conversion belong to callers.
+
 ## Query inspection and rewriting
 
 `NodeCount` reads the immutable arena length. `IndexableTree` reduces NOT

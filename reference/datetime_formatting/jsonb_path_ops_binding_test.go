@@ -44,22 +44,7 @@ func TestReferenceJSONBPathOpsBinding(t *testing.T) {
 		fixture.JSONPathNavigateBoth(t, p, b, c, jsonbPathOpsOne(`SELECT $1 @? $2 AS changed`, true, `true`, `$`))
 		fixture.JSONPathNavigateBoth(t, p, b, c, jsonbPathOpsOne(`SELECT $1 @@ $2::jsonpath AS changed`, false, `false`, `$`))
 		for _, q := range []string{`SELECT 'cat' @@ 'cat' AS changed`, `SELECT 'cat'::text @@ 'cat' AS changed`} {
-			if b.PG {
-				fixture.JSONPathNavigateBoth(t, p, b, c, jsonbPathOpsOne(q, true))
-				continue
-			}
-			rows, err := c.QueryContext(p.Ctx, q)
-			if rows != nil {
-				rows.Close()
-				t.Fatal("unsupported text search published rows")
-			}
-			fixture.TransactionOrdinary(t, err, "stuntgres: invalid comparison operator")
-			stmt, err := c.PrepareContext(p.Ctx, q)
-			if stmt != nil {
-				stmt.Close()
-				t.Fatal("unsupported text search prepared")
-			}
-			fixture.TransactionOrdinary(t, err, "stuntgres: invalid comparison operator")
+			fixture.JSONPathNavigateBoth(t, p, b, c, jsonbPathOpsOne(q, true))
 		}
 		// Explicit path ordering masks only the matching unqualified signature.
 		run(fixture.Exec(`CREATE OPERATOR public.@? (LEFTARG=jsonb,RIGHTARG=jsonpath,PROCEDURE=pg_catalog.jsonb_path_match_opr)`, 0))

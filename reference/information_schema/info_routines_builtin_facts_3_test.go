@@ -561,4 +561,8 @@ var irBuiltinFacts3 = []irBuiltinFact{
 	{6428, "uuidv4", "gen_random_uuid", "INTERNAL", "INVOKER"},
 	{6429, "uuidv7", "uuidv7", "INTERNAL", "INVOKER"},
 	{6430, "uuidv7", "uuidv7_interval", "INTERNAL", "INVOKER"},
+	{3634, "ts_match_vq", "ts_match_vq", "INTERNAL", "INVOKER"},
+	{3635, "ts_match_qv", "ts_match_qv", "INTERNAL", "INVOKER"},
+	{3760, "ts_match_tt", "ts_match_tt", "INTERNAL", "INVOKER"},
+	{3761, "ts_match_tq", "ts_match_tq", "INTERNAL", "INVOKER"},
 }

@@ -537,3 +537,7 @@
 4214	jsonb_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	3	0	3614	3734 3802 3802	\N	\N	\N	false	\N	jsonb_to_tsvector_byid	\N	false	\N
 4215	json_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	3614	114 3802	\N	\N	\N	false	\N	json_to_tsvector	\N	false	\N
 4216	json_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	3	0	3614	3734 114 3802	\N	\N	\N	false	\N	json_to_tsvector_byid	\N	false	\N
+3634	ts_match_vq	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	3614 3615	\N	\N	\N	false	\N	ts_match_vq	\N	false	\N
+3635	ts_match_qv	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	3615 3614	\N	\N	\N	false	\N	ts_match_qv	\N	false	\N
+3760	ts_match_tt	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	16	25 25	\N	\N	\N	false	\N	ts_match_tt	\N	false	\N
+3761	ts_match_tq	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	16	25 3615	\N	\N	\N	false	\N	ts_match_tq	\N	false	\N
