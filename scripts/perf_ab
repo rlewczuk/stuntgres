@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Compare test-binary CPU of two source trees, package by package.
+#
+# Usage: scripts/perf_ab BASE_TREE NEW_TREE OUT_DIR ROUNDS PACKAGE...
+#   e.g. scripts/perf_ab ~/ab/base ~/ab/new ~/ab/out 2 reference/extensions reference/roles
+#
+# Make the trees with `git archive REV | tar -x -C DIR` (for a remote host:
+# `git archive REV | ssh HOST tar -x -C DIR`; uncommitted work:
+# `git ls-files -z | tar --null -T - -c | ssh HOST tar -x -C DIR`).
+# Each package's test binary is built in both trees, then every round runs the
+# base and new binaries of each package side by side, so both sides see the same
+# host load; packages also run concurrently. Most reference packages are
+# serial, so the two sides rarely compete for cores. user+sys CPU and wall
+# seconds per run go to OUT_DIR/ab.log; the summary prints each side's values and
+# the mean CPU change. Single runs swing with load: compare only rounds run
+# together and keep the tests unchanged between the trees when timing
+# production code.
+set -u
+if [ $# -lt 5 ]; then
+  sed -n '2,17p' "$0"
+  exit 2
+fi
+base=$(realpath "$1") new=$(realpath "$2") out=$(realpath -m "$3") rounds=$4
+shift 4
+mkdir -p "$out/bin"
+: > "$out/ab.log"
+for side in base new; do
+  tree=$base
+  [ $side = new ] && tree=$new
+  for p in "$@"; do
+    n=$(echo "$p" | tr / _)
+    (cd "$tree" && go test -c -o "$out/bin/$side-$n.test" "./$p") || exit 1
+  done
+done
+uptime
+for r in $(seq 1 "$rounds"); do
+  for p in "$@"; do
+    n=$(echo "$p" | tr / _)
+    for side in base new; do
+      tree=$base
+      [ $side = new ] && tree=$new
+      (cd "$tree/$p" && /usr/bin/time -f "$r $side %U %S %e $n" -a -o "$out/ab.log" \
+        "$out/bin/$side-$n.test" -test.count=1 > "$out/out-$side-$n.log" 2>&1 || echo "FAIL $side $n (see $out/out-$side-$n.log)") &
+    done
+  done
+  wait
+done
+uptime
+python3 - "$out/ab.log" <<'EOF'
+import sys, collections
+cpu, wall = collections.defaultdict(list), collections.defaultdict(list)
+for line in open(sys.argv[1]):
+    p = line.split()
+    if len(p) == 6:
+        cpu[(p[5], p[1])].append(float(p[2]) + float(p[3]))
+        wall[(p[5], p[1])].append(float(p[4]))
+fmt = lambda xs: " ".join(f"{x:6.1f}" for x in xs)
+for pkg in sorted({k[0] for k in cpu}):
+    b, n = cpu[(pkg, "base")], cpu[(pkg, "new")]
+    change = 100 * (sum(n) / len(n) / (sum(b) / len(b)) - 1) if b and n else float("nan")
+    print(f"{pkg:34} cpu base {fmt(b)} new {fmt(n)} ({change:+.1f}%)  wall base {fmt(wall[(pkg, 'base')])} new {fmt(wall[(pkg, 'new')])}")
+EOF

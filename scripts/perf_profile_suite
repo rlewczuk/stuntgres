@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Profile the quick test suite (or some packages) one test binary at a time.
+#
+# Usage: scripts/perf_profile_suite OUT_DIR [PACKAGE...]   (default ./...)
+#
+# Run from the repository root on the test host (for example through the
+# remote-run skill). It runs `make generate`, then
+# `go test -count=1 -timeout=0 -json -exec WRAPPER PACKAGE...`. The wrapper
+# records, per test binary, its start time (OUT_DIR/times.starts) and
+# `/usr/bin/time` wall/user/sys seconds and max RSS (OUT_DIR/times), and writes
+# its CPU profile to OUT_DIR/prof/<hash>.cpu. MEMPROFILE=1 adds allocation
+# profiles (<hash>.mem); they add profiler lock overhead, so leave them out of
+# timing runs. Afterwards the CPU profiles are merged into
+# OUT_DIR/merged.cpu.pb.gz with flat/cumulative top tables beside it.
+#
+# Summarize with scripts/perf_suite_report OUT_DIR. On a saturated host the
+# suite's wall time is about total test-binary CPU / cores plus the tail of the
+# last packages, so read both the CPU totals and the package end times.
+set -u
+if [ $# -lt 1 ]; then
+  sed -n '2,20p' "$0"
+  exit 2
+fi
+out=$(realpath -m "$1")
+shift
+[ $# -eq 0 ] && set -- ./...
+rm -rf "$out"
+mkdir -p "$out/prof"
+cat > "$out/exec-wrapper" <<'EOF'
+#!/usr/bin/env bash
+id=$(printf %s "$PWD" | md5sum | cut -c1-12)
+echo "$(date +%s.%N) $PWD" >> "$PERF_OUT/times.starts"
+extra=()
+[ "${MEMPROFILE:-0}" = 1 ] && extra=(-test.memprofile="$PERF_OUT/prof/$id.mem")
+exec /usr/bin/time -a -o "$PERF_OUT/times" -f "%e %U %S %M $PWD" "$1" \
+  -test.cpuprofile="$PERF_OUT/prof/$id.cpu" "${extra[@]}" "${@:2}"
+EOF
+chmod +x "$out/exec-wrapper"
+uptime
+go version
+/usr/bin/time -f '%e s wall %U user generate' make generate > "$out/generate.log" 2>&1
+tail -1 "$out/generate.log"
+PERF_OUT=$out /usr/bin/time -o "$out/total.time" -f 'TOTAL %e s wall %U user %S sys' \
+  go test -count=1 -timeout=0 -json -exec "$out/exec-wrapper" "$@" > "$out/run.json" 2> "$out/stderr.log"
+status=$?
+echo "go test exit=$status"
+cat "$out/total.time"
+uptime
+grep -h '"Action":"fail"' "$out/run.json" | grep -v '"Test"' | head -20
+go tool pprof -proto "$out"/prof/*.cpu > "$out/merged.cpu.pb.gz" 2>/dev/null
+go tool pprof -top -nodecount=250 "$out/merged.cpu.pb.gz" > "$out/cpu.flat.txt" 2>/dev/null
+go tool pprof -top -cum -nodecount=400 "$out/merged.cpu.pb.gz" > "$out/cpu.cum.txt" 2>/dev/null
+echo "$(ls "$out/prof" | wc -l) profiles in $out/prof"
+exit $status

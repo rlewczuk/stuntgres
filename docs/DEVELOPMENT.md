@@ -74,3 +74,23 @@ in tests.
 and nonblank code lines split into production, tests and totals (Python 3 and Git;
 read-only). Tests are `*_test.go`, Python test files and sources under
 `reference/`, `smoke/` or `tests/`; documentation and data are excluded.
+
+## Performance tools
+
+Tools for finding what makes the quick suite slow; each script's header
+documents its arguments. Run Go-building steps on the test host (for example
+through the remote-run skill); `python3 -m unittest scripts/tests/test_perf_tools.py`
+tests the Python tools.
+
+- `scripts/perf_profile_suite OUT [PKG...]` runs the suite (default `./...`) with a
+  CPU profile, wall/CPU/RSS and start time per test binary and merges the profiles.
+- `scripts/perf_suite_report OUT [PKG_SUFFIX...]` prints packages by wall time with
+  CPU and start/end, the latest-ending binaries (the tail), total CPU and, for the
+  named packages, per-test times. On a saturated host the suite takes about total
+  CPU / cores; a long serial package at the end can dominate instead.
+- `scripts/perf_ab BASE NEW OUT ROUNDS PKG...` compares the CPU of two trees' test
+  binaries, base and new side by side per round. Single quickcheck timings follow
+  host load; prove a change with alternating runs of unchanged tests.
+- `scripts/perf_steplog install|remove|subset|same` installs a temporary
+  `fixture.RunStep`/SQL logger (never commit it) and proves that a test dedupe
+  keeps every step (`subset`) or that a refactor changes none (`same`).

@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Summarize a scripts/perf_profile_suite run: slow packages, the tail, slow tests.
+
+Usage: scripts/perf_suite_report OUT_DIR [--top N] [PACKAGE_SUFFIX ...]
+
+Reads OUT_DIR/run.json (go test -json), OUT_DIR/times and OUT_DIR/times.starts.
+Prints packages by wall time with test-binary CPU, max RSS, start and end
+(seconds after the first binary started) and the CPU profile path; then the
+latest-ending binaries, which form the suite's tail; then the total
+test-binary CPU. For each PACKAGE_SUFFIX (for example reference/extensions) it
+also prints the leaf-time histogram, top-level tests with their leaf counts and
+the slowest leaves, which shows matrix explosions and tests that wait on timers
+(wall far above CPU). Profiles open with `go tool pprof -top -cum PROFILE`.
+Importable with importlib.machinery.SourceFileLoader despite having no suffix.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+from collections import defaultdict
+
+
+def read_run(path):
+    """Return ({package: (elapsed, action)}, {package: {test: elapsed}})."""
+    packages, tests = {}, defaultdict(dict)
+    with open(path) as f:
+        for line in f:
+            if not line.startswith("{"):
+                continue
+            event = json.loads(line)
+            if event.get("Action") not in ("pass", "fail", "skip"):
+                continue
+            package = event.get("Package", "")
+            if "Test" in event:
+                tests[package][event["Test"]] = event.get("Elapsed", 0.0)
+            else:
+                packages[package] = (event.get("Elapsed", 0.0), event["Action"])
+    return packages, tests
+
+
+def read_times(path):
+    """Return {directory: (wall, user, sys, maxrss_kb)} and {directory: start}."""
+    times, starts = {}, {}
+    with open(path) as f:
+        for line in f:
+            parts = line.split(None, 4)
+            if len(parts) == 5 and parts[0][0].isdigit():
+                wall, user, system, rss, directory = parts
+                times[directory.strip()] = (float(wall), float(user), float(system), int(rss))
+    if os.path.exists(path + ".starts"):
+        with open(path + ".starts") as f:
+            for line in f:
+                stamp, directory = line.split(None, 1)
+                starts[directory.strip()] = float(stamp)
+    return times, starts
+
+
+def package_dirs(packages, directories):
+    """Map import paths to binary directories by the module-relative suffix."""
+    module = min(packages, key=len).split("/")[0] if packages else ""
+    root = None
+    for package in packages:
+        rel = package[len(module) + 1:] if package.startswith(module + "/") else None
+        for d in directories:
+            if rel and d.endswith("/" + rel):
+                root = d[: -len(rel) - 1]
+                break
+        if root:
+            break
+    result = {}
+    for package in packages:
+        rel = package[len(module) + 1:] if package != module else ""
+        d = os.path.join(root, rel) if root and rel else root
+        if d in directories:
+            result[package] = d
+    return result
+
+
+def tests_report(package, tests, top):
+    names = set(tests)
+    parents = set()
+    for name in names:
+        i = name.rfind("/")
+        while i > 0:
+            parents.add(name[:i])
+            i = name.rfind("/", 0, i)
+    leaves = {n: e for n, e in tests.items() if n not in parents}
+    level = {n: e for n, e in tests.items() if "/" not in n}
+    print(f"\n== {package}: {len(level)} top-level, {len(leaves)} leaves, top-level sum {sum(level.values()):.1f} s")
+    for lo, hi in ((0.0, 0.01), (0.01, 0.05), (0.05, 0.2), (0.2, 1.0), (1.0, 1e9)):
+        chosen = [e for e in leaves.values() if lo <= e < hi]
+        print(f"   leaves [{lo:g},{hi:g}) s: {len(chosen):6} sum {sum(chosen):7.1f} s")
+    print("   top-level tests (elapsed, leaves, leaf time >= 50 ms):")
+    for name, elapsed in sorted(level.items(), key=lambda x: -x[1])[:top]:
+        mine = [v for leaf, v in leaves.items() if leaf == name or leaf.startswith(name + "/")]
+        print(f"   {elapsed:8.2f} {len(mine):5} {sum(v for v in mine if v >= 0.05):8.2f}  {name}")
+    print("   slowest leaves:")
+    for name, elapsed in sorted(leaves.items(), key=lambda x: -x[1])[:top]:
+        print(f"   {elapsed:8.3f} {name}")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("out_dir")
+    parser.add_argument("packages", nargs="*", help="package suffixes for per-test detail")
+    parser.add_argument("--top", type=int, default=30)
+    args = parser.parse_args(argv)
+    packages, tests = read_run(os.path.join(args.out_dir, "run.json"))
+    times, starts = read_times(os.path.join(args.out_dir, "times"))
+    dirs = package_dirs(packages, times)
+    t0 = min(starts.values()) if starts else 0.0
+    print("== packages by wall: elapsed action | binary wall user+sys cpu/wall maxRSS MB | start end | profile")
+    for package, (elapsed, action) in sorted(packages.items(), key=lambda x: -x[1][0])[:args.top]:
+        d = dirs.get(package)
+        if d not in times:
+            print(f"{elapsed:8.1f} {action:4} {package}")
+            continue
+        wall, user, system, rss = times[d]
+        start = starts.get(d, t0) - t0
+        profile = os.path.join(args.out_dir, "prof", hashlib.md5(d.encode()).hexdigest()[:12] + ".cpu")
+        print(f"{elapsed:8.1f} {action:4} {package:50} {wall:7.1f} {user + system:8.1f} {(user + system) / wall if wall else 0:5.1f} "
+              f"{rss / 1024:7.0f} | {start:6.1f} {start + wall:6.1f} | {profile}")
+    print("\n== latest-ending binaries: end wall cpu directory")
+    ends = sorted(((starts.get(d, t0) - t0 + v[0], v[0], v[1] + v[2], d) for d, v in times.items()), reverse=True)
+    for end, wall, cpu, d in ends[:12]:
+        print(f"{end:7.1f} {wall:7.1f} {cpu:8.1f} {d}")
+    print(f"\ntotal CPU of test binaries: {sum(v[1] + v[2] for v in times.values()):.0f} s over {len(times)} binaries")
+    for suffix in args.packages:
+        for package in sorted(tests):
+            if package.endswith(suffix):
+                tests_report(package, tests[package], args.top)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

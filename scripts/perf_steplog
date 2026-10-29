@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""Prove that a reference-test dedupe or refactor keeps every assertion.
+
+A temporary logger in reference/fixture records, in execution order, every
+fixture.RunStep call (top-level test path, executor type, the whole Step with
+its expected rows and diagnostics) and every SQL statement that goes through
+the recording interceptor (tagged with the last RunStep test path). Compare
+logs of the same tests before and after a change, or of two tests that should
+overlap:
+
+  scripts/perf_steplog install            # from the repository root
+  STEPLOG=/tmp/log.txt go test -count=1 -run '^(TestA|TestB)$' ./reference/pkg/
+  scripts/perf_steplog remove             # never commit the logger
+  scripts/perf_steplog subset /tmp/log.txt TestA TestB
+  scripts/perf_steplog same /tmp/before.txt /tmp/after.txt TestB
+
+`subset` checks, for each second-level subtest family of SUBJECT, that its
+events form an ordered subsequence of the same family under SUPERSET, so a
+SUBJECT family may be removed when SUPERSET runs it with extra phases.
+Deferred cleanup statements carry the label of the last RunStep, which can
+differ between the two tests; they are listed as unmatched rather than
+hidden, and --ignore REGEX skips SQL events that match it.
+`same` checks that TEST's events are identical in two logs (a pure refactor).
+Importable with importlib.machinery.SourceFileLoader despite having no suffix.
+"""
+
+import argparse
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+LOGGER = "reference/fixture/zz_steplog_tmp.go"
+FIXTURE = "reference/fixture/fixture.go"
+RUNSTEP = ("func RunStep(t *testing.T, ctx context.Context, db Executor, recorder *Recorder, s Step) Observed {\n"
+           "\tt.Helper()\n")
+BEGIN = "func referenceBegin(ctx context.Context, query string, args []driver.NamedValue) (*Recorder, *Operation) {\n"
+RUNSTEP_HOOK = "\tstepLogRun(t, db, s)\n"
+BEGIN_HOOK = "\tstepLogSQL(query, args)\n"
+
+LOGGER_SOURCE = '''package fixture
+
+// TEMPORARY step logger installed by scripts/perf_steplog: never commit.
+
+import (
+	"fmt"
+	"os"
+	"regexp"
+	"strings"
+	"sync"
+	"testing"
+)
+
+var (
+	stepLogMu   sync.Mutex
+	stepLogOut  *os.File
+	stepLogTest string
+	stepLogAddr = regexp.MustCompile(`0x[0-9a-f]{6,}`)
+)
+
+func stepLogWrite(line string) {
+	path := os.Getenv("STEPLOG")
+	if path == "" {
+		return
+	}
+	stepLogMu.Lock()
+	defer stepLogMu.Unlock()
+	if stepLogOut == nil {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			panic(err)
+		}
+		stepLogOut = f
+	}
+	fmt.Fprintln(stepLogOut, strings.ReplaceAll(line, "\\n", `\\n`))
+}
+
+func stepLogRun(t *testing.T, db Executor, s Step) {
+	stepLogMu.Lock()
+	stepLogTest = t.Name()
+	stepLogMu.Unlock()
+	d, pd := "", ""
+	if s.Diagnostic != nil {
+		d = fmt.Sprintf("%#v", *s.Diagnostic)
+	}
+	if s.PostgresDiagnostic != nil {
+		pd = fmt.Sprintf("%#v", *s.PostgresDiagnostic)
+	}
+	funcs := fmt.Sprint(s.CheckMetadata != nil, s.CheckRaw != nil, s.CheckScan != nil)
+	c := s
+	c.Diagnostic, c.PostgresDiagnostic, c.CheckMetadata, c.CheckRaw, c.CheckScan = nil, nil, nil, nil, nil
+	stepLogWrite(stepLogAddr.ReplaceAllString(fmt.Sprintf("R\\t%s\\t%T\\t%#v\\t%s\\t%s\\t%s", t.Name(), db, c, d, pd, funcs), "0xADDR"))
+}
+
+func stepLogSQL(query string, args any) {
+	stepLogMu.Lock()
+	test := stepLogTest
+	stepLogMu.Unlock()
+	stepLogWrite(stepLogAddr.ReplaceAllString(fmt.Sprintf("Q\\t%s\\t%q\\t%#v", test, query, args), "0xADDR"))
+}
+'''
+
+
+def install(root):
+    fixture = root / FIXTURE
+    src = fixture.read_text()
+    if RUNSTEP_HOOK in src or (root / LOGGER).exists():
+        sys.exit("step logger already installed")
+    if src.count(RUNSTEP) != 1 or src.count(BEGIN) != 1:
+        sys.exit("fixture.go hook points changed; update scripts/perf_steplog")
+    src = src.replace(RUNSTEP, RUNSTEP + RUNSTEP_HOOK).replace(BEGIN, BEGIN + BEGIN_HOOK)
+    fixture.write_text(src)
+    (root / LOGGER).write_text(LOGGER_SOURCE)
+    print("installed; run tests with STEPLOG=<file>, then `perf_steplog remove`")
+
+
+def remove(root):
+    fixture = root / FIXTURE
+    src = fixture.read_text().replace(RUNSTEP_HOOK, "").replace(BEGIN_HOOK, "")
+    fixture.write_text(src)
+    (root / LOGGER).unlink(missing_ok=True)
+    print("removed")
+
+
+def read_events(path, top):
+    """Return {family: [(kind, subtest path, payload)]} for top-level test top."""
+    families = defaultdict(list)
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            kind, test, payload = line.rstrip("\n").split("\t", 2)
+            parts = test.split("/")
+            if parts[0] != top:
+                continue
+            family = parts[1] if len(parts) > 1 else ""
+            families[family].append((kind, "/".join(parts[2:]), payload))
+    return families
+
+
+def ordered_unmatched(subject, superset):
+    """Subject events missing from an in-order scan of superset."""
+    j, missing = 0, []
+    for event in subject:
+        k = j
+        while k < len(superset) and superset[k] != event:
+            k += 1
+        if k == len(superset):
+            missing.append(event)
+        else:
+            j = k + 1
+    return missing
+
+
+def subset(args):
+    ignore = re.compile(args.ignore) if args.ignore else None
+    keep = lambda events: [e for e in events if not (ignore and e[0] == "Q" and ignore.search(e[2]))]
+    subject, superset = read_events(args.log, args.subject), read_events(args.log, args.superset)
+    status = 0
+    for family in sorted(subject):
+        mine, theirs = keep(subject[family]), keep(superset.get(family, []))
+        missing = ordered_unmatched(mine, theirs) if theirs else mine
+        steps = sum(1 for e in mine if e[0] == "R")
+        verdict = "SUBSET" if not missing else "UNMATCHED"
+        print(f"{verdict:9} {family or '(top)':45} {len(mine):6} events ({steps} steps) superset {len(theirs):6} unmatched {len(missing)}")
+        for e in missing[:args.show]:
+            print(f"    {e[0]} {e[1]} {e[2][:200]}")
+        status |= bool(missing)
+    return status
+
+
+def same(args):
+    a, b = read_events(args.before, args.test), read_events(args.after, args.test)
+    if a == b:
+        print(f"IDENTICAL {sum(len(v) for v in a.values())} events")
+        return 0
+    for family in sorted(set(a) | set(b)):
+        if a.get(family) != b.get(family):
+            print(f"DIFFERENT {family}: {len(a.get(family, []))} vs {len(b.get(family, []))} events")
+    return 1
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("install", "remove"):
+        p = sub.add_parser(name)
+        p.add_argument("--root", type=Path, default=Path("."))
+    p = sub.add_parser("subset")
+    p.add_argument("log")
+    p.add_argument("subject")
+    p.add_argument("superset")
+    p.add_argument("--ignore", help="skip SQL events matching this regex")
+    p.add_argument("--show", type=int, default=12)
+    p = sub.add_parser("same")
+    p.add_argument("before")
+    p.add_argument("after")
+    p.add_argument("test")
+    args = parser.parse_args(argv)
+    if args.command == "install":
+        return install(args.root)
+    if args.command == "remove":
+        return remove(args.root)
+    return subset(args) if args.command == "subset" else same(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
