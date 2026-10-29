@@ -161,6 +161,6 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Text-search mappings: `RUN='^TestReferencePGTSConfigMap'`; private ownership:
   `RUN='^TestPGTSConfigMap(Capture|Ownership)$'`.
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`
-- Visibility inquiries: `RUN='^TestReferenceVisibilityInquiry'`, `RUN='^TestReferenceBooleanCall'`
+- Visibility inquiries: `RUN='^TestReferenceVisibility(Inquiry|Execution)'`, `RUN='^TestReferenceBooleanCall'`
 - Search-path object visibility: `RUN='^TestReferenceSearchVisibility'`
 - Catalog smoke scenarios migrated from the root package: `RUN='^TestReferenceSmoke'`

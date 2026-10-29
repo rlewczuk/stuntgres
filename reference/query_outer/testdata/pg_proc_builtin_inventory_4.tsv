@@ -45,6 +45,7 @@
 3822	cash_div_cash	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	790 790	\N	\N	\N	false	\N	cash_div_cash	\N	false	\N
 3823	numeric	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	1700	790	\N	\N	\N	false	\N	cash_numeric	\N	false	\N
 3824	money	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	790	1700	\N	\N	\N	false	\N	numeric_cash	\N	false	\N
+3829	pg_opfamily_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_opfamily_is_visible	\N	false	\N
 3839	pg_identify_object	11	12	1	0	0	0	f	false	false	true	false	s	s	3	0	2249	26 26 23	{26,26,23,25,25,25,25}	{i,i,i,o,o,o,o}	{classid,objid,objsubid,type,schema,name,identity}	false	\N	pg_identify_object	\N	false	\N
 3846	make_date	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1082	23 23 23	\N	\N	{year,month,day}	false	\N	make_date	\N	false	\N
 3847	make_time	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1083	23 23 701	\N	\N	{hour,min,sec}	false	\N	make_time	\N	false	\N

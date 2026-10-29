@@ -461,6 +461,9 @@
 2078	set_config	11	12	1	0	0	0	f	false	false	false	false	v	u	3	0	25	25 25 16	\N	\N	\N	false	\N	set_config_by_name	\N	false	\N
 2079	pg_table_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_table_is_visible	\N	false	\N
 2080	pg_type_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_type_is_visible	\N	false	\N
+2081	pg_function_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_function_is_visible	\N	false	\N
+2082	pg_operator_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_operator_is_visible	\N	false	\N
+2083	pg_opclass_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_opclass_is_visible	\N	false	\N
 2085	substr	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	17	17 23 23	\N	\N	\N	false	\N	bytea_substr	\N	false	\N
 2086	substr	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	17	17 23	\N	\N	\N	false	\N	bytea_substr_no_len	\N	false	\N
 2087	replace	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	25	25 25 25	\N	\N	\N	false	\N	replace_text	\N	false	\N

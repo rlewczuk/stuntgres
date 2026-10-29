@@ -835,7 +835,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 					return err
 				}
 				return children(r.Args, node.(expr.Composite).Children())
-			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations":
+			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations", "pg_function_is_visible", "pg_operator_is_visible", "pg_opclass_is_visible", "pg_opfamily_is_visible":
 				structure, err := functions.BindVisibilityInquiryStructure(b, r)
 				if err != nil {
 					return err

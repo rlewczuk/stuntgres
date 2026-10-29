@@ -154,8 +154,13 @@ import it.
   `CollationCandidate`,
   `SelectCollation`, `VisibleCollation`, and `VisibilityInquiry`, which answers
   the `pg_*_is_visible` and collation-version inquiries over the statement's
-  visibility snapshot (catalog, relation path, TEMP-filtered path). These are
-  name-visibility rules, not MVCC visibility.
+  visibility snapshot (catalog, relation path, TEMP-filtered path). Function
+  visibility selects the exact input signature through `RoutineIdentityByOID`
+  and `SelectExactRoutine`, including lookup-only release and aggregate-helper
+  identities without executable descriptors. Operators use ordered operand keys;
+  classes and families use access-method-qualified descriptor keys. All four use
+  the captured TEMP-free path, without target permission checks or live session
+  lookup. These are name-visibility rules, not MVCC visibility.
   The explicit-reader variant uses the same exact descriptor name/signature key
   over unpublished definitions and is never retained in a formatting cache.
 - **`aclitem` I/O** (`aclitem_*.go`, `acl_empty.go`): `ACLItemInput`,

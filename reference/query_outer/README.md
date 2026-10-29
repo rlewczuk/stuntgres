@@ -70,6 +70,9 @@ The two input-validity declarations add released OIDs6210/6211 with exact
 strict/STABLE/parallel-safe scalar metadata. Only error-info has named inputs
 and four TEXT OUT fields; the boolean formals are unnamed. Membership and all
 28 direct/prepared property assertions include both records.
+The four function/operator/opclass/opfamily visibility inquiries retain released
+OIDs 2081/2082/2083/3829, strict STABLE parallel-safe OID-to-BOOL signatures and
+cost 10 in the exact inventory and all projected metadata fields.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 The rule and trigger definition functions add four independently released
 `REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
@@ -89,7 +92,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2069 rows, all backed
+supplements. The complete released inventory contains 2073 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. The encoding
 conversion and keyword routines retain independent release facts for OIDs
 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.

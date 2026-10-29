@@ -330,6 +330,12 @@ binding or execution authority; the selected descriptor and manifest are require
 - It reaches the engine only through `Binder` at bind time and through
   `expr.Context` plus the capability interfaces asserted from it at evaluation
   time. `expr.Context` does not grow per family.
+  `VisibilityInquiry` carries the typed OID-to-BOOL table, type, collation,
+  conversion, function, operator, operator-class and operator-family inquiries.
+  Its ordinary expression protocol preserves strict typed NULLs, STABLE
+  properties, cost 10, nonfolding, routine provenance and captured-path demand
+  through reconstruction and stored replay; evaluation borrows the statement
+  inquiry runtime rather than retaining catalog or session authority.
   JSONPath functions, operators and SQL/JSON consumers pass the current captured
   input through `JSONPathEnvironment`. Precision warnings borrow the current
   statement's `FunctionJSONPathNotice` capability; neither plans nor parsed paths

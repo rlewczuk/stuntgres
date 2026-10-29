@@ -3,6 +3,7 @@ package regobj
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -12,9 +13,17 @@ import (
 
 // VisibilityInquiry answers the pg_*_is_visible and collation-version
 // inquiries for oid over the statement's visibility snapshot: its catalog,
-// the relation path and the non-TEMP path for collations, conversions, text
-// search objects and statistics. pg_import_system_collations is answered by the caller.
+// the relation path and the TEMP-filtered path for all other object kinds.
+// pg_import_system_collations is answered by the caller.
 func VisibilityInquiry(view catalog.Read, relations, others []ids.ObjectAddress, kind functions.VisibilityInquiryKind, oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if kind == functions.FunctionVisibility {
+		identity, exists := RoutineIdentityByOID(view, ids.OID(oid))
+		if !exists {
+			return sqltype.Null(result), nil
+		}
+		selected, count := SelectExactRoutine(view, analyze.NamespaceSelection{Path: others}, identity.Name, identity.Signature)
+		return sqltype.Boolean(result, count == 1 && selected.ID == identity.ID), nil
+	}
 	d, exists := view.Descriptor(ids.ObjectAddress{ClassID: kind.Class(), ObjectID: ids.OID(oid)})
 	if !exists {
 		if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
@@ -43,11 +52,7 @@ func VisibilityInquiry(view catalog.Read, relations, others []ids.ObjectAddress,
 		return sqltype.String(result, *version), nil
 	}
 	path := relations
-	switch kind {
-	case functions.CollationVisibility, functions.ConversionVisibility,
-		functions.TSConfigVisibility, functions.TSDictionaryVisibility,
-		functions.TSParserVisibility, functions.TSTemplateVisibility,
-		functions.StatisticsObjectVisibility:
+	if kind != functions.TableVisibility && kind != functions.TypeVisibility {
 		path = others
 	}
 	visible := false

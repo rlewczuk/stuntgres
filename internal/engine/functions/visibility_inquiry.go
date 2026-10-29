@@ -24,6 +24,10 @@ const (
 	TSParserVisibility
 	TSTemplateVisibility
 	StatisticsObjectVisibility
+	FunctionVisibility
+	OperatorVisibility
+	OpclassVisibility
+	OpfamilyVisibility
 )
 
 func (k VisibilityInquiryKind) name() string {
@@ -52,6 +56,14 @@ func (k VisibilityInquiryKind) name() string {
 		return "pg_ts_template_is_visible"
 	case StatisticsObjectVisibility:
 		return "pg_statistics_obj_is_visible"
+	case FunctionVisibility:
+		return "pg_function_is_visible"
+	case OperatorVisibility:
+		return "pg_operator_is_visible"
+	case OpclassVisibility:
+		return "pg_opclass_is_visible"
+	case OpfamilyVisibility:
+		return "pg_opfamily_is_visible"
 	}
 	return ""
 }
@@ -79,6 +91,14 @@ func (k VisibilityInquiryKind) Class() ids.OID {
 		return ids.TSTemplateClassID
 	case StatisticsObjectVisibility:
 		return ids.StatisticExtClassID
+	case FunctionVisibility:
+		return ids.ProcedureClassID
+	case OperatorVisibility:
+		return ids.OperatorClassID
+	case OpclassVisibility:
+		return ids.OperatorClassCatalogID
+	case OpfamilyVisibility:
+		return ids.OperatorFamilyClassID
 	}
 	return 0
 }
@@ -189,6 +209,14 @@ func BindVisibilityInquiryStructure(b Binder, raw parser.FunctionExpr) (Visibili
 		kind = TSTemplateVisibility
 	case "pg_statistics_obj_is_visible":
 		kind = StatisticsObjectVisibility
+	case "pg_function_is_visible":
+		kind = FunctionVisibility
+	case "pg_operator_is_visible":
+		kind = OperatorVisibility
+	case "pg_opclass_is_visible":
+		kind = OpclassVisibility
+	case "pg_opfamily_is_visible":
+		kind = OpfamilyVisibility
 	default:
 		return VisibilityInquiry{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}
