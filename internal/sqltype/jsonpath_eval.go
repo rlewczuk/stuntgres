@@ -231,7 +231,7 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input jsonpathItem, scope js
 			continue
 		}
 		// Only the first level is automatically unwrapped by each relevant operation.
-		if !e.strict && w.unwrap && v.itemKind() == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter" || n.kind == "method" && (n.text == "boolean" || n.text == "string" || n.text == "keyvalue" || jsonpathDatetimeMethod(n.text))) {
+		if !e.strict && w.unwrap && v.itemKind() == jsonbArray && (n.kind == "key" || n.kind == "anykey" || n.kind == "filter" || n.kind == "method" && (n.text == "boolean" || n.text == "string" || n.text == "keyvalue" || n.text == "integer" || n.text == "bigint" || n.text == "decimal" || jsonpathDatetimeMethod(n.text))) {
 			stack = append(stack, jsonpathWork{path: n, node: v, scope: s, children: true})
 			continue
 		}
@@ -390,7 +390,7 @@ func (e *jsonpathExecutor) walk(path *jsonpathNode, input jsonpathItem, scope js
 				structural = jsonpathStructure("22039", "jsonpath item method .size() can only be applied to an array")
 				break
 			}
-			result, err := e.scalarMethod(n.text, v.jsonbNode)
+			result, err := e.scalarMethod(n, v.jsonbNode)
 			if err != nil {
 				return false, err
 			}

@@ -49,8 +49,10 @@ var jsonpathMethodBooleanStrings = [...]jsonbNode{
 	{kind: jsonbString, text: "true"},
 }
 
-func (e *jsonpathExecutor) scalarMethod(name string, v *jsonbNode) (*jsonbNode, error) {
-	switch name {
+func (e *jsonpathExecutor) scalarMethod(n *jsonpathNode, v *jsonbNode) (*jsonbNode, error) {
+	switch n.text {
+	case "integer", "bigint", "decimal":
+		return e.numericMethod(n, v)
 	case "type":
 		return &jsonpathMethodTypes[v.kind], nil
 	case "size":

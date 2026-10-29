@@ -609,6 +609,12 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   operands materialize before emission. Invocation-local results and only
   operation-origin numeric failures use the walker's existing consumer and
   suppressible-error channels; input errors and cancellation retain identity.
+  Integer and bigint item methods reuse exact numeric rounding and lexical
+  integer input; decimal methods retain parsed precision/scale arguments and
+  reuse NUMERIC input and modifier sizing. Their finite JSON results own no
+  descriptor authority. One-level lax unwrapping, demanded typmod validation
+  and suppressible conversion errors share the walker, including silent
+  invalid-typmod handling; syntax and context errors remain outside suppression.
   Temporal methods share the formatting compiler and field reader with explicit
   SQL versus JSONPath compiler modes. Strict compilation validates unquoted
   separators while preserving quoted literals. Compiler failures return through
@@ -775,7 +781,7 @@ match engine tests of the same mechanism):
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|CoordinateScalarOwnership|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
-- Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
+- Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps|JSONPath)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
 - Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Installed hstore codecs, typed comparison/hash, index captures and conversions: `RUN='^TestHstore'`.
