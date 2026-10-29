@@ -11,6 +11,11 @@ func CollationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress
 	return collationDisplayName(view, id, path, catalog.Identifier)
 }
 
+// CollationName applies this deparser's path and identifier quoting policy.
+func (r Deparser) CollationName(id uint32) string {
+	return collationDisplayName(r.View, id, r.Path, r.Identifier)
+}
+
 func collationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress, identifier func(string) string) string {
 	if view.State() == nil {
 		return identifier(typedef.CollationName(view, id))

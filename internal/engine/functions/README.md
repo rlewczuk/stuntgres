@@ -209,6 +209,15 @@ Input/output retain immutable declaration volatility; send is STABLE and never
 planning-folded. Receive has released STABLE catalog metadata but no callable
 INTERNAL-argument provider.
 
+`Deparse` retains a checked signature, immutable operands and selected routine
+provenance for the catalog definition inquiries, including the two one-OID
+partition inquiries. Calls return known nullable TEXT in SELECT and remain
+STABLE and unfolded. Strict NULL eliminates catalog demand without suppressing
+operand analysis; non-NULL execution uses ordinary live routine admission.
+Core dispatches partition presentation to its owner over the same captured
+inquiry catalog. Capture, reconstruction, retagging and stored replay share the
+ordinary typed node; no definition text or catalog authority is retained.
+
 `SizeInquiry` binds the nine strict, VOLATILE, scalar BIGINT declarations:
 `pg_database_size(name|oid)`, `pg_tablespace_size(name|oid)`,
 `pg_relation_size(regclass)` and `(regclass,text)`, and
@@ -979,7 +988,7 @@ trigger owner; SQL values, diagnostics and controls stay in `reference/`.
 make check RUN='^Test(LookupClaimsRegisteredNames|DefinitionsAreWellFormed|AggregateDefinitionsAreWellFormed|Lookup(Aggregate|WindowFunction)ClaimsRegisteredNames)$'  # registries
 make check RUN='^Test(AggregateProviderRemap|(Sum|Avg|Count|Extrema|AnyValue|MoneySum|IntervalSum|IntervalAvg|StringAggregate|BooleanAggregate|RangeAggregate)Provider|(Bitwise|Statistical|Array)Aggregate)'  # aggregate providers
 make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|Slice|String|Timezone)|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|GroupIdentity|GroupLeaf|SubstituteKeepsTheProvider|FunctionSyntax|ClosureTransparency|Render|CaptureOperands|ResultNullability)'  # node protocol and hooks
-make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall)'  # runtime-capability nodes
+make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall|DeparsePartition)'  # runtime-capability nodes
 make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|AccessInquiryEvaluates)'  # ACL functions
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -23,6 +24,8 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 	switch signature {
 	case functions.DeparseFunction, functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments, functions.DeparseFunctionResult:
 		return scope.deparseRoutine(c, signature, values[0], result)
+	case functions.DeparsePartitionConstraint, functions.DeparsePartitionKey:
+		return partition.Deparse(c, scope.deparseInputs(), signature, values, result)
 	}
 	return table.Deparse(c, scope.deparseInputs(), signature, values, result)
 }

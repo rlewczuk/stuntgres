@@ -33,6 +33,8 @@ func TestResultNullabilityCatalogInquiry(t *testing.T) {
 		{"trigger_pretty", Deparse{Signature: DeparseTriggerPretty}, true, true, false, false},
 		{"rule", Deparse{Signature: DeparseRule}, true, true, false, false},
 		{"rule_pretty", Deparse{Signature: DeparseRulePretty}, true, true, false, false},
+		{"partition_constraint", Deparse{Signature: DeparsePartitionConstraint}, true, true, false, false},
+		{"partition_key", Deparse{Signature: DeparsePartitionKey}, true, true, false, false},
 		{"access_method_property", IndexProperty{Kind: AccessMethodProperty}, true, true, false, false},
 		{"index_property", IndexProperty{Kind: WholeIndexProperty}, true, true, false, false},
 		{"index_column_property", IndexProperty{Kind: IndexColumnProperty}, true, true, false, false},

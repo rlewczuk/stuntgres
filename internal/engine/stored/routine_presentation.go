@@ -1,11 +1,13 @@
 package stored
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
@@ -78,6 +80,70 @@ func (r Deparser) routineIdentityName(d catalog.RoutineIdentity) (string, error)
 		return name, nil
 	}
 	return r.Identifier(namespace.Name()) + "." + name, nil
+}
+
+// VariadicRoutineName presents a known variadic identity using the actual
+// argument types. Expanded formals are presentation metadata, not an executable
+// declaration or permission to call a lookup-only builtin.
+func (r Deparser) VariadicRoutineName(ctx context.Context, identity catalog.RoutineIdentity, fixed []sqltype.Usage, element sqltype.Usage, args []expr.Expr) (string, error) {
+	if len(args) < len(fixed) || element.Type == nil {
+		return "", fmt.Errorf("stuntgres: invalid variadic routine presentation")
+	}
+	namespace, ok := r.View.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.Namespace})
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
+	}
+	path := analyze.NamespaceSelection{Path: r.Path}
+	if r.Path == nil {
+		path.Qualified = namespace.Address()
+	}
+	qualified := r.Identifier(namespace.Name()) + "." + r.Identifier(identity.Name)
+	selected, count := regobj.SelectExactRoutine(r.View, path, identity.Name, identity.Signature)
+	if count != 1 || selected.ID != identity.ID {
+		return qualified, nil
+	}
+	formals := make([]sqltype.Usage, len(args))
+	copy(formals, fixed)
+	for i := len(fixed); i < len(formals); i++ {
+		formals[i] = element
+	}
+	operands := make([]analyze.ComparisonOperand, len(args))
+	for i, arg := range args {
+		operands[i] = analyze.ComparisonOperand{Node: arg}
+	}
+	raw := parser.FunctionExpr{Args: make([]parser.Expr, len(args))}
+	var candidates []analyze.SQLCallable
+	for i := range path.Count() {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		ns := path.At(i)
+		current, exists := r.View.Namespace(ns)
+		if !exists || current.Temporary != (ids.SessionToken{}) {
+			continue
+		}
+		if ns.ObjectID == identity.Namespace {
+			candidates = analyze.AppendSQLCallable(candidates, analyze.SQLCallable{Inputs: formals, Variadic: true, Path: i})
+		}
+		for d := range catalog.DefinitionProceduresNamedAt(r.View, nil, ns, identity.Name) {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			if d.Address().ObjectID == identity.ID {
+				continue
+			}
+			candidate, valid := analyze.SQLCallableShape(r.View, nil, d, raw)
+			if valid {
+				candidate.Path = i
+				candidates = analyze.AppendSQLCallable(candidates, candidate)
+			}
+		}
+	}
+	candidates = analyze.SelectSQLCallables(r.View, candidates, operands, nil)
+	if len(candidates) == 1 && candidates[0].Procedure == nil {
+		return r.Identifier(identity.Name), nil
+	}
+	return qualified, nil
 }
 
 func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.AggregateExpr) (*catalog.Procedure, error) {

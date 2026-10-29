@@ -45,6 +45,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - RANGE partitions: `RUN='^TestReferenceRangePartition'`
 - <a id="list-partition-definitions"></a>LIST partitions: `RUN='^TestReferenceListPartition'`
 - HASH partitions: `RUN='^TestReferenceHashPartition'`
+- Partition definition introspection: `RUN='^TestReferenceDeparsePartition'`
 - Partition DML routing: `RUN='^TestReferencePartitionRouting'`
 - ATTACH PARTITION: `RUN='^TestReferencePartitionAttach'`
 - DETACH PARTITION: `RUN='^TestReferencePartitionDetach'`

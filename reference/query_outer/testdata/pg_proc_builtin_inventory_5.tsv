@@ -7,3 +7,5 @@
 1686	pg_get_keywords	11	12	10	500	0	0	f	false	false	true	true	s	s	0	0	2249		{25,18,16,25,25}	{o,o,o,o,o}	{word,catcode,barelabel,catdesc,baredesc}	false	\N	pg_get_keywords	\N	false	\N
 6210	pg_input_is_valid	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	25 25	\N	\N	\N	false	\N	pg_input_is_valid	\N	false	\N
 6211	pg_input_error_info	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2249	25 25	{25,25,25,25,25,25}	{i,i,o,o,o,o}	{value,type_name,message,detail,hint,sql_error_code}	false	\N	pg_input_error_info	\N	false	\N
+3352	pg_get_partkeydef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partkeydef	\N	false	\N
+3408	pg_get_partition_constraintdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partition_constraintdef	\N	false	\N

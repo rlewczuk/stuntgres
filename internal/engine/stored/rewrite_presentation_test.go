@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 func TestRewriteRoutineIdentityPresentation(t *testing.T) {
@@ -107,5 +108,36 @@ func TestRewriteSelectSourceTemporaryNaming(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDeparseTypeGrammarSpelling(t *testing.T) {
+	read, _, _, _ := routineCaptureFixture(t)
+	for _, tc := range []struct {
+		id              sqltype.ID
+		ordinary, quoted string
+	}{
+		{sqltype.JSON, "json", "json"},
+		{sqltype.JSONB, "jsonb", `"jsonb"`},
+		{sqltype.Oid, "oid", `"oid"`},
+		{sqltype.Text, "text", `"text"`},
+		{sqltype.Int4, "integer", "integer"},
+	} {
+		typ, ok := read.LookupType(tc.id)
+		if !ok {
+			t.Fatal("missing fixture type", tc.id)
+		}
+		for _, quoteAll := range []bool{false, true} {
+			renderer := Deparser{View: read}
+			renderer.Output.QuoteAllIdentifiers = quoteAll
+			want := tc.ordinary
+			if quoteAll {
+				want = tc.quoted
+			}
+			got, err := renderer.typeSQL(typ.Usage())
+			if err != nil || got != want {
+				t.Fatalf("type %d quote-all=%v: got %q, %v; want %q", tc.id, quoteAll, got, err, want)
+			}
+		}
 	}
 }

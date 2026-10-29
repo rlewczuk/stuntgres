@@ -577,6 +577,13 @@ host methods.
   Scalar-array presentation exposes selected-operator input casts; homogeneous
   implicit IN-item conversions render around their common-type array, without
   changing the executable items or the scalar replay path.
+  Builtin identifier-type annotations preserve captured type-name visibility and
+  identifier quoting; SQL grammar type names such as json remain grammar text.
+  Nondefault literal collations are typed constant annotations with captured
+  visibility/quoting; explicit COLLATE expressions retain their own grouping.
+  `VariadicRoutineName` reuses callable shape and overload
+  ranking against actual arguments for nonexecuting identity presentation;
+  released metadata never becomes an executable routine descriptor.
   `QueryRenderer` and `Presentation` (`view_deparse*.go`,
   `view_render_sources.go`, `sqljson_deparse.go`): whole queries,
   `View.SelectSQL`, `ViewDefinitionSQL` (`pg_get_viewdef`) and `PolicySQL`.

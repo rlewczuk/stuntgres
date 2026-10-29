@@ -69,10 +69,23 @@ func (r Deparser) typeSQL(u sqltype.Usage) (string, error) {
 	}
 	if !u.Type.IsUserDefined() && !u.Type.IsDomain() {
 		text, err := analyze.PGType(u)
-		if err == nil && r.Output.QuoteAllIdentifiers {
+		if err == nil {
 			switch u.Type.ID() {
-			case sqltype.Text, sqltype.Name, sqltype.Bytea, sqltype.Oid, sqltype.Regclass, sqltype.Regtype, sqltype.UUID, sqltype.JSON, sqltype.JSONB:
-				text = r.Identifier(text)
+			// SQL grammar names such as json and integer retain PGType's
+			// spelling; only catalog identifier types use visibility/quoting.
+			case sqltype.Text, sqltype.Name, sqltype.Bytea, sqltype.Oid, sqltype.Regclass, sqltype.Regtype, sqltype.UUID, sqltype.JSONB:
+				name := text
+				text = r.Identifier(name)
+				for _, namespace := range r.Path {
+					address, found := r.View.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: name})
+					if !found {
+						continue
+					}
+					if address.ObjectID != ids.OID(u.Type.ID()) {
+						text = r.Identifier("pg_catalog") + "." + text
+					}
+					break
+				}
 			}
 		}
 		return text, err
@@ -128,6 +141,18 @@ func pgLiteralSimple(n plan.LiteralExpr, rendered string) bool {
 }
 
 func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, error) {
+	text, err := r.literal(ctx, n)
+	if err != nil {
+		return "", err
+	}
+	u := n.ResultUsage()
+	if u.Collation.ID != 0 && u.Collation.ID != u.Type.Usage().Collation.ID {
+		text += " COLLATE " + r.CollationName(u.Collation.ID)
+	}
+	return text, nil
+}
+
+func (r Deparser) literal(ctx context.Context, n plan.LiteralExpr) (string, error) {
 	u := n.ResultUsage()
 	v := n.Value
 	if n.UnknownInput != nil {
@@ -533,7 +558,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if err != nil {
 			return "", err
 		}
-		text += " COLLATE " + CollationDisplayName(r.View, n.Usage.Collation.ID, r.Path)
+		text += " COLLATE " + r.CollationName(n.Usage.Collation.ID)
 		if r.Pretty && parent.functionArgument {
 			return text, nil
 		}

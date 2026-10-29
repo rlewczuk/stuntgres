@@ -75,6 +75,8 @@ The rule and trigger definition functions add four independently released
 `REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
 stable, parallel-safe defaults and internal implementation names. Membership
 and complete direct/prepared property batches migrate together.
+The two one-OID partition inquiries retain released records 3352/3408, including
+strict/STABLE/parallel-safe scalar TEXT metadata and unnamed input formals.
 The four one-OID routine declaration inquiries add independent released records
 2098/2162/2165/2232. `TestReferenceRoutineDeparse` covers typed signatures,
 defaults versus identity arguments, modes/results, builtin/aggregate distinctions,
@@ -87,7 +89,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2058 rows, all backed
+supplements. The complete released inventory contains 2069 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. The encoding
 conversion and keyword routines retain independent release facts for OIDs
 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.

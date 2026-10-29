@@ -768,6 +768,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	1384: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 1},
 	1385: {Language: catalog.InternalRoutineLanguage, Source: "time_part"},
 	1387: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_constraintdef"},
+	3352: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_partkeydef"},
+	3408: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_partition_constraintdef"},
 	1390: {Language: catalog.InternalRoutineLanguage, Source: "interval_finite"},
 	1394: {Language: catalog.InternalRoutineLanguage, Source: "float4abs"},
 	1395: {Language: catalog.InternalRoutineLanguage, Source: "float8abs"},

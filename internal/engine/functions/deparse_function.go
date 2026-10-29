@@ -30,6 +30,8 @@ const (
 	DeparseFunctionArguments
 	DeparseFunctionIdentityArguments
 	DeparseFunctionResult
+	DeparsePartitionConstraint
+	DeparsePartitionKey
 )
 
 type deparseSignatureDefinition struct {
@@ -58,6 +60,8 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 	{"pg_get_function_arguments", []sqltype.ID{sqltype.Oid}},
 	{"pg_get_function_identity_arguments", []sqltype.ID{sqltype.Oid}},
 	{"pg_get_function_result", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_partition_constraintdef", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_partkeydef", []sqltype.ID{sqltype.Oid}},
 }
 
 type Deparse struct {

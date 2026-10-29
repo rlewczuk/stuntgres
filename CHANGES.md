@@ -32,6 +32,13 @@
   PUBLIC mappings, instead of exposing internal storage keys.
   Bundled extension staging does not fabricate external SQL-script commands.
 
+- Add `pg_get_partkeydef(oid)` and `pg_get_partition_constraintdef(oid)` with
+  typed TEXT/NULL results, current-name partition keys and inherited effective
+  bounds over captured catalogs, including native Dump/Restore replay. HASH
+  predicates preserve function/type identity under shadowing and identifier quoting
+  while retaining SQL grammar type spellings. Collated bounds preserve typed
+  constant annotations and captured collation-name quoting.
+
 - Add the PostgreSQL 18 six-column read-only `pg_stat_progress_basebackup`
   catalog view and released definition display. Its validated producer is
   genuinely empty: no physical backup workers or native logical Dump progress

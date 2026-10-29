@@ -73,6 +73,19 @@ it. It never builds a binder.
   Descriptor validation enforces the single-pending/no-DEFAULT invariant from
   either side of the edge, including a stage replacing only the child while its
   parent's descriptor remains unchanged.
+- **Definition presentation** (`deparse*.go`): `Deparse` reconstructs partition
+  keys and root-first effective qualifications from the inquiry's captured
+  catalog and presentation settings. Canonical membership includes pending
+  detach edges; an empty local DEFAULT contribution does not erase ancestors.
+  Stored definition expressions and stable attributes are remapped into the
+  queried relation's current layout without mutating source recipes. Family
+  operator identity is catalog-owned; ordering kernels are demanded only for
+  actual bound comparisons. Bound constants retain effective collation in their
+  typed Usage; the shared literal renderer presents its visibility-aware annotation
+  without inventing an explicit COLLATE expression. HASH uses the released predicate identity with
+  argument-aware captured visibility and typed OID literal presentation, without
+  granting that predicate executable support. Rendering runs unlocked and retains
+  no cache.
 
 ## Host and lock contract
 
@@ -200,6 +213,7 @@ with `RACE=1`. Public SQL lives in
 ```sh
 make check RUN='^TestPartitionPruning'
 make check RUN='^TestPartitionInfo'
+make check RUN='^TestDeparsePartition'
 make check RUN='^Test(Partition|RangePartition|HashPartition|ListPartition)'
 make check RUN='^TestReference(Range|Hash|List)?Partition'
 ```
