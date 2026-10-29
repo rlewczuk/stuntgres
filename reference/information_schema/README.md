@@ -33,6 +33,8 @@ with nullable synchronization position and PUBLIC visibility from table SELECT.
 Database-local `pg_publication` contributes all ten ordered real-table columns,
 including the internal CHAR generated-column policy, with PUBLIC visibility from
 table SELECT.
+Database-local `pg_publication_namespace` contributes three ordered OID real-table
+columns (`oid`, `pnpubid`, `pnnspid`), with PUBLIC visibility from table SELECT.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

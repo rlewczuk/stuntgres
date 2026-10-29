@@ -202,6 +202,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   names on subscriptions and ordinary tables never become publication rows.
   Reads neither create definitions nor imply replication transport or contact
   publishers. Index presence is metadata, not a fabricated physical index.
+- `pg_publication_namespace` (6237) is a real database-local catalog with three
+  nonnullable owned OID fields: `oid`, `pnpubid`, `pnnspid`. Capture authenticates
+  paired catalog/role roots and backing-engine ownership, including private
+  transaction roots. Current SELECT admission governs direct and held reads,
+  even when empty. Its explicit owner/PUBLIC ACL has no column grants. Population
+  contains only actual implemented schema-publication memberships, currently
+  none; ordinary schema/table DDL and subscription names never infer edges.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

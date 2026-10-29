@@ -45,7 +45,7 @@ func (e *Engine) initializeCatalogSources() error {
 				d.Security.ColumnACL[attribute] = acl
 			}
 		}
-		if spec.OID == pgcatalog.SubscriptionRelOID || spec.OID == pgcatalog.PublicationOID {
+		if spec.OID == pgcatalog.SubscriptionRelOID || spec.OID == pgcatalog.PublicationOID || spec.OID == pgcatalog.PublicationNamespaceOID {
 			d.Security.ACL = authorization.MaterializeRelationACL(authorization.ACLValue{}, d.Owner)
 			d.Security.ACL.Entries = append(d.Security.ACL.Entries, authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege})
 			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {

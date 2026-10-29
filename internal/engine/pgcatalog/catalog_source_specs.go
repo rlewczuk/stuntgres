@@ -104,6 +104,11 @@ var Specs = [...]Spec{
 		{"pubviaroot", sqltype.Bool, false, 0, 0, -1},
 		{"pubgencols", sqltype.Char, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(PublicationOID), true, false, "stuntgres: missing catalog source type"},
+	{PublicationNamespaceOID, ids.PGCatalogNamespaceOID, "pg_publication_namespace", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"pnpubid", sqltype.Oid, false, 0, 0, -1},
+		{"pnnspid", sqltype.Oid, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(PublicationNamespaceOID), true, false, "stuntgres: missing catalog source type"},
 	{SubscriptionOID, ids.PGCatalogNamespaceOID, "pg_subscription", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"subdbid", sqltype.Oid, false, 0, 0, -1},

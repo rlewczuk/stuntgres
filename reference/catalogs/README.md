@@ -92,6 +92,12 @@ controls roundtrip a real sentinel while preserving captured metadata without
 creating mappings. Select this family with
 `make check RUN='^TestReferencePGSubscriptionRel'` (add `REFERENCE=1`).
 
+Publication-namespace scenarios assert the exact three-OID database-local catalog,
+reciprocal types, stored ACLs, current held-statement admission, transactional
+catalog/ACL roots and native replacement. Ordinary schema/table DDL never creates
+publication memberships. Select with
+`make check RUN='^TestReferencePGPublicationNamespace'` (add `REFERENCE=1`).
+
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.
