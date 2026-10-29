@@ -197,6 +197,25 @@ func (p *parser) attribute(facts *namespaceValue,tokenized bool) bool {
  cached:=false
  readStart:=p.i
  for p.i<len(p.s)&&p.byte()!=quote&&p.poll() {
+  // Plain ASCII changes nothing but the cursor, the counted size and captured
+  // values, so a run of it advances in one step (see plainAttributeRun).
+  if !p.haltedInput&&!p.stopped&&!(tokenized&&fast&&(leading||trailing))&&(normalization==nil||!normalization.pending) {
+   limit:=p.nextPoll-p.i-1
+   if tokenized {limit=min(limit,4095-normalization.work)}
+   if tokenized&&fast {limit=min(limit,maxText-(p.i-fastStart))}else{limit=min(limit,maxText-size)}
+   if !fast&&p.fragmentInput&&p.effective==Content {limit=min(limit,len(p.s)-250-p.i)}
+   if k:=p.plainAttributeRun(quote,tokenized,limit);k>0 {
+    for range k {
+     at:=p.i
+     p.i++;p.column++
+     if tokenized {normalization.work++;normalization.size++}else{size++}
+     if facts!=nil {p.namespaceAppend(facts,rune(p.s[at]),at,at+1);if p.err!=nil{return false}}
+    }
+    if tokenized {size=normalization.size}
+    if !fast {readStart=p.i;current,width=rune(p.s[p.i]),1;cached=true}
+    continue
+   }
+  }
   if p.byte()=='<' {p.event("XML_ERR_LT_IN_ATTRIBUTE","Unescaped '<' not allowed in attributes values");return true}
   leadingSpace:=tokenized&&fast&&leading&&space(p.byte())
   if tokenized&&fast {
@@ -272,6 +291,26 @@ func (p *parser) attribute(facts *namespaceValue,tokenized bool) bool {
  return true
 }
 
+
+// plainAttributeRun returns how many bytes from p.i an AttValue loop may take
+// in one step, at most limit: printable ASCII other than the quote, '<' and
+// '&' (and space when tokenized, which normalization handles). Each such byte
+// is its own character, an XML Char and its own scalar; it leaves the fast
+// path, leading and trailing state, line and diagnostics unchanged. The run's
+// last byte is never taken: its iteration reads the character after the run
+// with that read's own checks. The caller's limit keeps each skipped poll,
+// normalization work check, near-end GROW and length check unobservable.
+func (p *parser) plainAttributeRun(quote byte,tokenized bool,limit int) int {
+ low:=byte(0x20);if tokenized {low=0x21}
+ end:=min(len(p.s),p.i+limit+1)
+ j:=p.i
+ for j<end {
+  c:=p.s[j]
+  if c<low||c>0x7e||c==quote||c=='<'||c=='&' {break}
+  j++
+ }
+ return j-p.i-1
+}
 
 // The fragment callback changes from Nop to EOF on the first near-end GROW.
 // Subsequent GROW checks curBase/curEnd; document string input has no callback.
