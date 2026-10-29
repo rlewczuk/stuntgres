@@ -50,3 +50,20 @@ func TestReplacementCapacityLocked(t *testing.T) {
 		}
 	}
 }
+
+func TestPreserveUnchangedRelations(t *testing.T) {
+	a, b, removed, created := ids.ObjectAddress{ObjectID: 1}, ids.ObjectAddress{ObjectID: 2}, ids.ObjectAddress{ObjectID: 3}, ids.ObjectAddress{ObjectID: 4}
+	oldA, oldB, oldRemoved := &Relation{}, &Relation{}, &Relation{}
+	liveA, liveB := &Relation{}, &Relation{}
+	replacement, initial := &Relation{}, &Relation{}
+	previous := map[ids.ObjectAddress]*Relation{a: oldA, b: oldB, removed: oldRemoved}
+	live := map[ids.ObjectAddress]*Relation{a: liveA, b: liveB, removed: oldRemoved}
+	prepared := map[ids.ObjectAddress]*Relation{a: oldA, b: replacement, created: initial}
+	PreserveUnchangedRelations(prepared, previous, live)
+	if len(prepared) != 3 || prepared[a] != liveA || prepared[b] != replacement || prepared[created] != initial || prepared[removed] != nil {
+		t.Fatal("reconciliation replaced private stores or resurrected a removal")
+	}
+	if previous[a] != oldA || previous[b] != oldB || live[a] != liveA || live[b] != liveB || live[removed] != oldRemoved {
+		t.Fatal("reconciliation mutated captured or published maps")
+	}
+}

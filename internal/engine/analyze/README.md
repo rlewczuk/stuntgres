@@ -420,6 +420,16 @@ library, and never the root engine or `session`. The engine, the root driver
   A real executable use upgrades the same identity regardless of collection
   order; merging binder manifests preserves that purpose. Ordinary analysis
   still checks the complete manifest, separately from retained-fold invalidation.
+  Text-search captures additionally observe current template/helper and logical
+  normalizer inputs while preserving the original alias occurrence identity.
+  Alias input does not initialize a dictionary; missing or denied normalizers
+  invalidate a prior successful executable observation. When initialization is
+  required, acquisition supplies the unpositioned semantic error; observation
+  never invents a positioned regdictionary input error or invalidates a still
+  current session initialization merely because namespace ACLs changed.
+  These remain operand observations, not a reason to replace an accepted
+  all-literal thesaurus fold. Reanalysis refreshes current semantic inputs while
+  the independent fold publication retains its original owned value/backing.
 - **Frozen syntax keys.** Every capture writer and reader keys an occurrence by
   the node's own `Pos` (a postfix cast's `::`), never `SourcePosition`.
 - **Column visibility.** Every row consumer installs its namespace explicitly.

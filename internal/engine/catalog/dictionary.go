@@ -19,13 +19,14 @@ func (d *TSDictionary) Pinned() bool {
 	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
 }
 func (d *TSTemplate) Pinned() bool {
-	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
+	return d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730}) || d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3742})
 }
 
 func InstallBuiltinDictionaries(state *State, owner authorization.PrincipalRef, runtime DictionaryRuntime) {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	template := &TSTemplate{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "simple", Init: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}, Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726}}
 	installSeedDescriptor(state, template)
+	installSeedDescriptor(state, &TSTemplate{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3742}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "thesaurus", Init: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3740}, Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3741}})
 	installSeedDescriptor(state, &TSDictionary{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "simple", Owner: owner, Template: template.Address(), Runtime: runtime})
 	installSeedDescriptor(state, &TSTemplate{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "synonym", Init: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3728}, Lexize: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3729}})
 }

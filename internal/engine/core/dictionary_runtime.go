@@ -1,9 +1,6 @@
 package core
 
 import (
-	"fmt"
-
-	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -17,25 +14,11 @@ func (h *statementHost) LexizeDictionary(value sqltype.Value, text string, resul
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	e := s.Engine()
-	e.Mu.Lock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
-	d, ok := read.TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)})
-	if ok {
-		err = (extension.CatalogProvider{Class: ids.TSDictionaryClassID}).Validate(read, d)
-	}
-	e.Mu.Unlock()
-	if !ok {
-		return sqltype.Value{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search dictionary %d", oid))
-	}
+	runtime, err := h.acquireDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	lexemes, err := d.Runtime.Lexize(s.Op.Context(), text)
+	lexemes, err := runtime.Lexize(s.Op.Context(), text)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

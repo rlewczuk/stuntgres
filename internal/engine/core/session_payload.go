@@ -14,11 +14,12 @@ import (
 // Session.payload before the session is shared; the slot never changes.
 // Each field keeps the lock discipline it had as a Session field.
 type sessionPayload struct {
-	Cursors       *cursorRegistry
-	PreparedSQL   *PreparedRegistry
-	sqlRoutines   map[ids.ObjectAddress]sqlRoutineAnalysis
-	Sequences     sequence.SessionMemory
-	notifications session.NotificationListener
+	Cursors        *cursorRegistry
+	PreparedSQL    *PreparedRegistry
+	sqlRoutines    map[ids.ObjectAddress]sqlRoutineAnalysis
+	Sequences      sequence.SessionMemory
+	notifications  session.NotificationListener
+	thesaurusMemos map[ids.ObjectAddress]thesaurusMemo // Engine.Mu; this session's successful initializations.
 }
 
 func (*sessionPayload) PayloadSlot() {}

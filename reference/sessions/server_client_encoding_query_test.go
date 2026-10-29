@@ -63,3 +63,43 @@ func TestReferenceClientEncodingQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestReferenceClientEncodingQueryLifecycle(t *testing.T) {
+	f := fixture.NewServerFixture(t)
+	for _, b := range f.Backends() {
+		t.Run(b.Name, func(t *testing.T) {
+			owner := serverAuthenticated(t, f.DSNFor(b))
+			clientEncodingCommand(t, owner, "CREATE TABLE ce_query_lifecycle(v text)", "CREATE TABLE")
+			peer := serverAuthenticated(t, f.DSNFor(b))
+			for _, c := range []struct{ encoding, raw, unicode string }{
+				{"SJIS", "\x82\xa0", "あ"},
+				{"SJIS", "\x8f\xdb", "象"},
+				{"EUC_JP", "\xa4\xa2", "あ"},
+				{"EUC_JP", "\xbe\xdd", "象"},
+			} {
+				t.Run(c.encoding+"_"+c.unicode, func(t *testing.T) {
+					w := serverAuthenticated(t, f.DSNFor(b))
+					clientEncodingCommand(t, w, "SET client_encoding='"+c.encoding+"'", "SET")
+					// Decode the whole message before SET changes output to UTF8:
+					// a symmetric input/output conversion cannot mask bad decoding.
+					decoded := w.query(t, "SET client_encoding='UTF8'; SELECT '"+c.raw+"'::text AS v")
+					serverWantCode(t, decoded, "")
+					clientEncodingRow(t, decoded, []string{"v"}, []uint32{25}, []int16{0}, []byte(c.unicode))
+					serverWantCompletions(t, decoded, "SET", "SELECT 1")
+					clientEncodingCommand(t, w, "SET client_encoding='"+c.encoding+"'", "SET")
+					clientEncodingCommand(t, w, "CREATE TEMP TABLE ce_lifecycle_temp(v text)", "CREATE TABLE")
+					clientEncodingCommand(t, w, "INSERT INTO ce_lifecycle_temp VALUES('"+c.raw+"')", "INSERT 0 1")
+					clientEncodingCommand(t, w, "TRUNCATE ce_query_lifecycle; INSERT INTO ce_query_lifecycle VALUES('"+c.raw+"')", "TRUNCATE TABLE", "INSERT 0 1")
+					serverScalar(t, peer, "SELECT v FROM ce_query_lifecycle", c.unicode)
+					fresh := serverAuthenticated(t, f.DSNFor(b))
+					serverScalar(t, fresh, "SELECT v FROM ce_query_lifecycle", c.unicode)
+					fresh.Close()
+					clientEncodingCommand(t, w, "SET client_encoding='UTF8'", "SET")
+					serverScalar(t, w, "SELECT v FROM ce_lifecycle_temp", c.unicode)
+					serverScalar(t, w, "SELECT v FROM ce_query_lifecycle", c.unicode)
+					w.Close()
+				})
+			}
+		})
+	}
+}

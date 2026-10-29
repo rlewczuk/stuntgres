@@ -2,6 +2,7 @@ package extension
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
@@ -22,9 +23,22 @@ func DictionaryDumpStatement(view catalog.Read, roles authorization.Read, d *cat
 	qualified := func(object catalog.Descriptor) string {
 		return catalog.QuoteIdentifier(view.MustNamespace(object.Namespace()).Name()) + "." + catalog.QuoteIdentifier(object.Name())
 	}
+	options := d.Options
+	normalizer, err := ThesaurusReplayNormalizer(view, d)
+	if err != nil {
+		return dump.Statement{}, err
+	}
+	if normalizer != nil {
+		options = slices.Clone(options)
+		for i := range options {
+			if options[i].Name == "dictionary" {
+				options[i].Value = qualified(normalizer)
+			}
+		}
+	}
 	text := "CREATE TEXT SEARCH DICTIONARY " + qualified(d) + " (TEMPLATE = " + qualified(template)
-	if len(d.Options) > 0 {
-		text += ", " + catalog.DictionaryOptionsText(d.Options)
+	if len(options) > 0 {
+		text += ", " + catalog.DictionaryOptionsText(options)
 	}
 	return dump.Statement{
 		Owner:              owner.Name,

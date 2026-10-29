@@ -82,7 +82,11 @@ func (r TextSearchInput) resolveConfig(ctx context.Context, text string, trigger
 				for _, dependency := range d.Dependencies() {
 					if dependency.ClassID == ids.TSDictionaryClassID {
 						if dictionary, ok := a.View.Catalog.TSDictionary(dependency); ok {
-							*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: a.View.Ref(dependency), Revision: dictionary.Revision()})
+							dependencies, err := r.ObserveDictionary(ctx, dictionary)
+							if err != nil {
+								return 0, err
+							}
+							*r.resolved = append(*r.resolved, dependencies...)
 						}
 					}
 				}
@@ -107,8 +111,11 @@ func (r TextSearchInput) ResolveRegdictionary(ctx context.Context, text string) 
 		address := a.View.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: parts[len(parts)-1].Text})
 		if d, ok := a.View.Catalog.TSDictionary(address); ok {
 			if r.resolved != nil {
-				ref := a.View.Ref(d.Address())
-				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
+				dependencies, err := r.ObserveDictionary(ctx, d)
+				if err != nil {
+					return 0, err
+				}
+				*r.resolved = append(*r.resolved, dependencies...)
 			}
 			return uint32(d.Address().ObjectID), nil
 		}

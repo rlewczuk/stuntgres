@@ -51,6 +51,17 @@ func (p Publication) CandidateRelations(committed map[ids.ObjectAddress]*Relatio
 	return relations
 }
 
+// PreserveUnchangedRelations reconciles borrowed heaps at final publication,
+// under Engine.mu. A detached candidate owns only its new/replacement stores;
+// other heap incarnations may have changed without replacing the catalog root.
+func PreserveUnchangedRelations(prepared, previous, live map[ids.ObjectAddress]*Relation) {
+	for address, relation := range prepared {
+		if relation == previous[address] {
+			prepared[address] = live[address]
+		}
+	}
+}
+
 // StampPublishedBirth stamps every row of a privately built store as born at
 // the publication's commit frontier by fullXID, unfrozen, and records the
 // births in the store's maintenance facts.

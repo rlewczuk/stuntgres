@@ -14,8 +14,7 @@ import (
 )
 
 type DictionaryHost interface {
-	ddl.Host
-	AddDomainBase(catalog.Descriptor)
+	ddl.ConfigurationHost
 }
 
 func dictionaryLookup(h DictionaryHost, auth ddl.Authority, name parser.ObjectName, class ids.OID) (catalog.Descriptor, error) {
@@ -93,7 +92,7 @@ func StageCreateDictionary(h DictionaryHost, auth ddl.Authority, s *parser.Creat
 	if err != nil {
 		return err
 	}
-	runtime, err := initializeDictionary(h, tmpl, options)
+	runtime, err := initializeDictionary(h, auth, tmpl, options)
 	if err != nil {
 		return err
 	}
@@ -104,6 +103,9 @@ func StageCreateDictionary(h DictionaryHost, auth ddl.Authority, s *parser.Creat
 	}
 	view := h.AccessView(auth)
 	d := &catalog.TSDictionary{ObjectAddress: ids.ObjectAddress{ClassID: ids.TSDictionaryClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Template: tmpl.Address(), Owner: view.State.CurrentUser, Options: options, Runtime: runtime}
+	if prepared, ok := h.(preparedDictionaryHost); ok && prepared.preparation.Thesaurus != nil {
+		d.NormalizerNamespace = prepared.preparation.Thesaurus.Normalizer.Namespace()
+	}
 	if h.Stage().LookupName(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_ts_dict_dictname_index"`, Detail: fmt.Sprintf("Key (dictname, dictnamespace)=(%s, %d) already exists.", d.Name(), ns.Address.ObjectID), Schema: "pg_catalog", Table: "pg_ts_dict", Constraint: "pg_ts_dict_dictname_index"}
 	}
@@ -141,9 +143,12 @@ func StageAlterDictionary(h DictionaryHost, auth ddl.Authority, s *parser.AlterD
 		if !ok {
 			return InvalidProviderDescriptor()
 		}
-		next.Runtime, err = initializeDictionary(h, tmpl, next.Options)
+		next.Runtime, err = initializeDictionary(h, auth, tmpl, next.Options)
 		if err != nil {
 			return err
+		}
+		if prepared, ok := h.(preparedDictionaryHost); ok && prepared.preparation.Thesaurus != nil {
+			next.NormalizerNamespace = prepared.preparation.Thesaurus.Normalizer.Namespace()
 		}
 		h.AddDomainBase(tmpl)
 	case "rename":

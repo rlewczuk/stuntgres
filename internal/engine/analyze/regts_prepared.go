@@ -1,11 +1,32 @@
 package analyze
 
 import (
+	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
+
+type dictionaryObserver interface {
+	ObserveDictionary(context.Context, *catalog.TSDictionary) ([]catalog.ExpressionDependency, error)
+}
+
+func (b *Binder) captureDictionaryInputs(dictionary *catalog.TSDictionary) error {
+	if observer, ok := b.Input.RegTS.(dictionaryObserver); ok {
+		dependencies, err := observer.ObserveDictionary(b.Ctx, dictionary)
+		if err != nil {
+			return err
+		}
+		for _, dependency := range dependencies {
+			b.captureDependency(dependency.Ref, dependency.Revision, catalog.OperandDependency)
+		}
+	} else {
+		read := b.BindingCatalog()
+		b.captureDependency(read.Domain().Ref(read.Epoch(), dictionary.Address()), dictionary.Revision(), catalog.OperandDependency)
+	}
+	return nil
+}
 
 // Text-search captures reuse the existing occurrence-keyed analysis cell.
 func (b *Binder) RegTSConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
@@ -31,14 +52,22 @@ func (b *Binder) RegTSConstant(text string, usage sqltype.Usage, pos parser.Posi
 					for _, mapping := range config.Mappings {
 						for _, address := range mapping.Dictionaries {
 							if dictionary, ok := read.TSDictionary(address); ok {
-								b.captureDependency(read.Domain().Ref(read.Epoch(), address), dictionary.Revision(), catalog.OperandDependency)
+								if err := b.captureDictionaryInputs(dictionary); err != nil {
+									return sqltype.Value{}, err
+								}
 							}
 						}
 					}
 				}
 			} else {
-				for _, dependency := range c.Operands {
-					b.captureDependency(dependency.Ref, dependency.Revision, catalog.OperandDependency)
+				oid, err := value.RegTSOID()
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				if dictionary, ok := b.BindingCatalog().TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)}); ok {
+					if err := b.captureDictionaryInputs(dictionary); err != nil {
+						return sqltype.Value{}, err
+					}
 				}
 			}
 			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, c)

@@ -260,7 +260,7 @@ private frames, not catalog authority.
   install steps write a state still in its bulk load, before the store is shared:
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
-  `InstallBuiltinDictionaries` (simple dictionary/runtime and simple/synonym templates),
+  `InstallBuiltinDictionaries` (simple dictionary/runtime and simple/synonym/thesaurus templates),
   `InstallBuiltinTSConfigurations` (simple's genuine nineteen token mappings),
   `Store.InstallBuiltinLanguagesLocked` (the real nonrelocatable `plpgsql` 1.0
   extension, its global language and three allocated C handlers with creation-owned
@@ -319,6 +319,10 @@ private frames, not catalog authority.
   rather than independent CREATE declarations.
   This follows [REL_18_6 initdb setup_depend](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/initdb/initdb.c):
   `pg_stop_making_pinned_objects()` precedes loading `snowball_create.sql`.
+  `PhraseDictionaryRuntime` adds only invocation-private typed matcher construction.
+  The scalar interface remains the whole-token boundary for `ts_lexize`.
+  Thesaurus logical-normalizer lookup is not a pg_depend edge; accepted lookup
+  namespace provenance exists solely for host-authorized portable replay.
   Templates are ownerless identities with mandatory LEXIZE and optional INIT;
   absent INIT is the zero address, never a synthetic dependency. Namespace and
   nonzero callback links are NORMAL dependencies. Public relabeling preserves

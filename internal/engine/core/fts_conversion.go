@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
@@ -13,9 +14,10 @@ import (
 	"stuntgres/internal/workadmission"
 )
 
-// ConvertTextSearch captures one catalog generation, including the live default
-// when omitted. Engine.Mu precedes the effective settings mutex. All parser,
-// dictionary and notice callbacks run after releasing catalog authority.
+// ConvertTextSearch captures immutable metadata, including the live default
+// when omitted. Engine.Mu precedes the effective settings mutex. Parser,
+// dictionary and notice callbacks run detached; runtime demand follows the
+// actual ordered chain, never every mapping or a category prewarm.
 func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	if err := ctx.Err(); err != nil {
@@ -46,12 +48,11 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 	}
 	var captured textSearchCapture
 	if err == nil {
-		captured, err = captureTextSearch(read, oid)
+		captured, err = captureTextSearch(ctx, read, oid)
 	}
 	e.Mu.Unlock()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
+	if err != nil { return sqltype.Value{}, err }
+	capture := captured.acquisition
 	walk := func(input string, emit func(fts.LexicalPosition)) error {
 		position := 0
 		return captured.walk(ctx, s, input, &position, emit)
@@ -75,7 +76,14 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.TSVectorValue(result, vector)
+		value, err := sqltype.TSVectorValue(result, vector)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if err := capture.accept(ctx, h); err != nil {
+			return sqltype.Value{}, err
+		}
+		return value, nil
 	}
 	query, parsed, err := fts.ConvertQuery(ctx, kind, text, normalize)
 	if err != nil {
@@ -88,7 +96,14 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 		}
 		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 	}
-	return sqltype.TSQueryValue(result, query)
+	value, err = sqltype.TSQueryValue(result, query)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := capture.accept(ctx, h); err != nil {
+		return sqltype.Value{}, err
+	}
+	return value, nil
 }
 
 // textSearchCapture owns one immutable configuration generation. Capturing
@@ -96,10 +111,10 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 type textSearchCapture struct {
 	config       *catalog.TSConfiguration
 	parser       fts.ParserRuntime
-	dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
+	acquisition *tsAcquisition
 }
 
-func captureTextSearch(read catalog.Read, oid uint32) (textSearchCapture, error) {
+func captureTextSearch(ctx context.Context, read catalog.Read, oid uint32) (textSearchCapture, error) {
 	config, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
 	if !ok {
 		return textSearchCapture{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
@@ -111,65 +126,102 @@ func captureTextSearch(read catalog.Read, oid uint32) (textSearchCapture, error)
 	if err != nil {
 		return textSearchCapture{}, err
 	}
-	dictionaries := make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
-	for _, mapping := range config.Mappings {
-		for _, address := range mapping.Dictionaries {
-			if _, exists := dictionaries[address]; !exists {
-				dictionaries[address] = read.MustTSDictionary(address).Runtime
-			}
-		}
-	}
-	return textSearchCapture{config: config, parser: parser, dictionaries: dictionaries}, nil
+	return textSearchCapture{config: config, parser: parser, acquisition: newTSAcquisition(ctx, read, config)}, nil
 }
 
-func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, text string, position *int, emit func(fts.LexicalPosition)) error {
+func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input string, position *int, emit func(fts.LexicalPosition)) error {
+	parser, config, capture, h := c.parser, c.config, c.acquisition, s.WriteHost()
 	noticeLong := func() {
 		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
 	}
-	lexize := func(token fts.DocumentToken) (fts.LexicalResult, error) {
-		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
-			return fts.LexicalResult{}, err
-		}
+	tokens, err := parser.Parse(ctx, input)
+	if err != nil { return err }
+	// Lookahead can revisit a suffix after an earlier completion. Token
+	// cursors scan forward, so one high-water mark prevents notice replay.
+	lastLongToken := -1
+	for head := 0; head < len(tokens); {
+		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil { return err }
+		token := tokens[head]
 		if len(token.Text) >= 2047 {
-			noticeLong()
-			return fts.LexicalResult{}, nil
+			if head > lastLongToken {
+				noticeLong()
+				lastLongToken = head
+			}
+			head++
+			continue
 		}
-		input := token.Text
-		for _, address := range c.config.Mapping(token.ID) {
-			if err := ctx.Err(); err != nil {
-				return fts.LexicalResult{}, err
+		word := token.Text
+		nextHead := head + 1
+		for _, address := range config.Mapping(token.ID) {
+			if err := ctx.Err(); err != nil { return err }
+			dictionary, err := capture.dictionary(h, address)
+			if err != nil { return err }
+			if phrase, ok := dictionary.(catalog.PhraseDictionaryRuntime); ok {
+				matcher := phrase.NewMatcher()
+				words, more, err := matcher.Step(ctx, word, false)
+				if err != nil { return err }
+				saved, consumed := words, head+1
+				continued := more
+				for cursor := head+1; more; cursor++ {
+					if cursor == len(tokens) {
+						_, _, err = matcher.Step(ctx, "", true)
+						if err != nil { return err }
+						break
+					}
+					continuation := tokens[cursor]
+					if len(continuation.Text) >= 2047 {
+						if cursor > lastLongToken {
+							noticeLong()
+							lastLongToken = cursor
+						}
+						continue
+					}
+					mapping := config.Mapping(continuation.ID)
+					if len(mapping) == 0 { continue }
+					if !slices.Contains(mapping, address) { saved = nil; break }
+					words, more, err = matcher.Step(ctx, continuation.Text, false)
+					if err != nil { return err }
+					if words != nil { saved, consumed = words, cursor+1 }
+				}
+				matcher.Reset()
+				if saved == nil {
+					if continued { word = token.Text }
+					continue
+				}
+				nextHead = consumed
+				*position++
+				lexemes := make([]fts.Lexeme, 0, len(saved))
+				for _, replacement := range saved {
+					if replacement.AddPosition {
+						emit(fts.LexicalPosition{Position: *position, Lexemes: lexemes})
+						*position++
+						// Query normalization can retain previously emitted slices.
+						lexemes = lexemes[len(lexemes):len(lexemes):cap(lexemes)]
+					}
+					if len(replacement.Text) > 2047 { noticeLong(); continue }
+					lexemes = append(lexemes, fts.Lexeme{Text: replacement.Text, Prefix: replacement.Prefix, Variant: replacement.Variant})
+				}
+				emit(fts.LexicalPosition{Position: *position, Lexemes: lexemes})
+				break
 			}
-			dictionary := c.dictionaries[address]
-			lexical, err := dictionary.Lexize(ctx, input)
-			if err != nil {
-				return fts.LexicalResult{}, err
-			}
-			if !lexical.Recognized {
-				continue
-			}
+			lexical, err := dictionary.Lexize(ctx, word)
+			if err != nil { return err }
+			if !lexical.Recognized { continue }
 			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
-				input = lexical.Lexemes[0].Text
+				word = lexical.Lexemes[0].Text
 				continue
 			}
 			words := lexical.Lexemes[:0]
-			for _, word := range lexical.Lexemes {
-				if err := ctx.Err(); err != nil {
-					return fts.LexicalResult{}, err
-				}
-				if len(word.Text) > 2047 {
-					noticeLong()
-					continue
-				}
-				words = append(words, word)
+			for _, lexeme := range lexical.Lexemes {
+				if err := ctx.Err(); err != nil { return err }
+				if len(lexeme.Text) > 2047 { noticeLong(); continue }
+				words = append(words, lexeme)
 			}
-			lexical.Lexemes = words
-			return lexical, nil
+			*position++
+			emit(fts.LexicalPosition{Position: *position, Lexemes: words})
+			break
 		}
-		return fts.LexicalResult{}, nil
+		head = nextHead
 	}
-	tokens, err := c.parser.Parse(ctx, text)
-	if err != nil {
-		return err
-	}
-	return fts.NormalizeTokens(ctx, tokens, position, lexize, emit)
+	return ctx.Err()
 }

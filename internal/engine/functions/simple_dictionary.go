@@ -21,7 +21,11 @@ import (
 // Portions Copyright (c) 1994, Regents of the University of California.
 // PostgreSQL License: https://www.postgresql.org/about/licence/
 //
-//go:embed english.stop unaccent.rules synonym_sample.syn
+// thesaurus_sample.ths is verbatim PostgreSQL REL_18_6
+// src/backend/tsearch/dicts/thesaurus_sample.ths, under the same license above.
+// stuntgres_thes_*.ths are project-owned deterministic dictionary resources.
+//
+//go:embed english.stop unaccent.rules synonym_sample.syn *.ths
 var dictionaryResources embed.FS
 
 var englishWords struct {

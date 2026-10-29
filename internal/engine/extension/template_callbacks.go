@@ -61,7 +61,8 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 	}
 	simple := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726})
 	synonym := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3728}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3729})
-	if simple || synonym {
+	thesaurus := d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3740}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3741})
+	if simple || synonym || thesaurus {
 		for _, p := range [2]*catalog.Procedure{init, lexize} {
 			if p.Builtin == nil || p.Builtin.Identity.ID != p.Address().ObjectID || p.Builtin.Identity.Signature != p.Signature || p.Builtin.Result != 2281 || p.Result != 2281 || p.Implementation != nil || p.SQL != nil || p.Foreign != nil {
 				return 0
@@ -72,6 +73,9 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 		}
 		if synonym {
 			return 4
+		}
+		if thesaurus {
+			return 5
 		}
 		return 1
 	}

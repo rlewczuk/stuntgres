@@ -29,7 +29,7 @@ func (s *dumpScript) templateProviderReplays() ([]providerReplay, error) {
 	for _, fixed := range []struct {
 		oid  ids.OID
 		name string
-	}{{3727, "simple"}, {3730, "synonym"}} {
+	}{{3727, "simple"}, {3730, "synonym"}, {3742, "thesaurus"}} {
 		seed, ok := s.CatalogView.TSTemplate(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: fixed.oid})
 		if !ok {
 			return nil, extension.InvalidProviderDescriptor()

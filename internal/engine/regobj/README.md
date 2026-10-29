@@ -8,7 +8,7 @@ object identity and the catalog inquiries over them.
 
 Layer L11 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
 imports `access`, `analyze`, `authorization`, `catalog`, `dump`, `exec`, `expr`,
-`functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`,
+`extension`, `functions`, `ids`, `pgcatalog`, `plan`, `routine`, `session`, `typedef`,
 `parser`, `sqlstate`, `sqltype` and the standard library, never the engine,
 `stored` or an upper feature. Only the upper features, `stored` and the engine
 import it.
@@ -47,9 +47,9 @@ import it.
   and collation path callbacks, read only when the constants need them. The
   callbacks are a separate parameter so they do not escape with the
   environment.
-  REGCONFIG occurrences retain their original immutable typed OID and operand
-  provenance separately from current configuration/dictionary observations.
-  Reanalysis projects only eligible configurations into a private input slice;
+  REGCONFIG and REGDICTIONARY occurrences retain their original immutable typed
+  OID and operand provenance separately from current executable observations.
+  Reanalysis projects eligible text-search aliases into a private input slice;
   other aliases retain their ordinary retirement policy. Eligibility requires
   the same domain, epoch, role, database, effective path and existing namespace
   generation, with current source-qualified namespace authority. Configuration
@@ -58,6 +58,12 @@ import it.
   namespace publication retires source captures even if the effective path is
   unchanged. An absent original has no current dependencies and remains an
   actual typed value for the runtime's missing-object diagnostic.
+  `TextSearchInput.ObserveDictionary` records actual template/helpers and the
+  currently resolved thesaurus logical-normalizer inputs without initializing
+  an alias. The normalizer is re-resolved separately from the original operand;
+  missing/denied inputs invalidate successful analysis observations. Actual
+  initialization supplies unpositioned semantic diagnostics; an unchanged
+  session-initialized dictionary retains its own independent permission lifetime.
 - **reg\* input helpers** (`regclass_input.go`, `regrole_input.go`,
   `regoperator_groups.go`, `regproc_lookup.go`): `ClassNumeric`,
   `ClassQualifiedName`, `RoleInput`, `AccessRoleID` (the role argument of the

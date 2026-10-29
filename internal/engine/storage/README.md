@@ -55,7 +55,9 @@ and never the engine.
   stage's planned heap replacement `RowShape`, whose `Matches` fences store,
   generation and row count and `MatchesWithEnds` also the deletion ends;
   `Publication` (initial tables, row shapes, refreshed store) and its
-  `CandidateRelations`, the relation map a catalog candidate installs;
+  `CandidateRelations`, the detached relation-map candidate, and
+  `PreserveUnchangedRelations`, which refreshes its borrowed heap pointers under
+  Engine.mu at final installation without changing owned replacements/removals;
   `Relation.StampPublishedBirth` and `CountPublishedInserts` for privately
   built stores; and `Store.ReplacementCapacityLocked`, the identity and
   commit-sequence capacity check of a catalog replacement.

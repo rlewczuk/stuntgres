@@ -152,5 +152,25 @@ COPY test in reference/dml.
   warmed immutable all-constant results. Native control phases exercise actual
   emitted SQL, same/fresh Driver replacement, retained readers, current owner/
   dictionary edges, seed reset/replay and exact retained temporary-class collisions.
+- Thesaurus scenarios: `RUN='^TestReferenceThesaurus'`; shared setup owns the
+  pinned connection and real dictionary/configuration DDL. Phrase/rule tables
+  specify independent vectors and use direct and retained/fresh prepared routes.
+  Fixture resources, not synthetic SQL normalizers, supply rule ordering,
+  normalization and malformed input.
+  Exact data diagnostics retain physical-line Context and independent English
+  fields; prepared lifetimes distinguish operand identity from logical normalizer
+  refresh. Boundary/reset/filter, authority, cancellation and native replay cases
+  share public assertions, with explicit native-only replacement phases.
+  Prepared cases distinguish retained all-literal folds from fresh literals and
+  runtime parameters: normalizer rejection fails only current acquisition, while
+  accepted constants retain their original typed results across option changes.
+  Authority cases also distinguish initialized same-physical-session calls from
+  new physical connections after source namespace revocation, then invalidate
+  executable inputs and assert rejection/regrant recovery on both lifetimes.
+  Controls distinguish a retired producer's accepted replay namespace from a
+  consumer's different same-name normalizer, exercise current recreated identity
+  ordering, replay actual emitted SQL, and reject new unauthorized destination
+  sessions. Combined malformed-resource diagnostics precede later option/source
+  errors and retain the complete physical-file Context without publication.
 - UUID (excluding `uuid-ossp`): `RUN='^TestReferenceUUID([A-NP-Z]|Or)'`
 - <a id="uuid-extraction-selected-proof"></a>UUID extraction: `RUN='^TestReferenceUUIDExtract'`

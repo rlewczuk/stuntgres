@@ -742,7 +742,26 @@ publication and lock-manager tickets stay in the engine.
   Strict NULL-or-evaluate preflight uses the shared immutable typed-fold owner:
   warmed all-constant calls may reuse their accepted result across dictionary
   option revisions, while runtime-token calls invoke current dictionary state.
+  This includes thesaurus calls: accepted all-literal lexemes/vectors retain
+  their typed values across normalizer and dictionary option revisions. Fresh
+  calls and parameterized invocations independently acquire current state and
+  can fail initialization while an older accepted constant remains valid.
   The node retains no dictionary-result cache or statement authority.
+  The same embedded resource owner ships the verbatim REL_18_6
+  `thesaurus_sample.ths` and project-owned `stuntgres_thes_*.ths` inputs.
+  Reference fixture copies remain byte-identical; their provisioning and
+  provenance are owned by `reference/fixture/README.md`.
+  `ReadThesaurusRules` validates complete physical resource syntax into immutable
+  `ThesaurusRules`, independently of option/source validation and normalization.
+  `CompileThesaurusDictionary` consumes that parsed input once to construct the
+  normalized trie from the catalog-free rich scalar protocol; rejected normalization
+  cannot mutate parsed backing. `expr.PhraseMatcher` cursors belong to individual
+  invocations; replacements preserve relative positions and prefix/variant metadata
+  without SQL descriptors or rendered-array transport. Execution initialization
+  belongs to the actual demanded dictionary chain, not configuration capture.
+  Sample stopwords use a dedicated key, RHS literal markers bypass normalization,
+  and later normalized duplicates replace terminals. Resource-reader errors retain
+  physical lines; compilation and matching observe cancellation before publication.
 - **Text-search query utilities**: `FTSQuery` binds owner-checked INT4, TEXT
   and TSQUERY results. Inspection and direct rewriting are immutable;
   SQL-based rewriting is intrinsically volatile and only demands
@@ -905,8 +924,9 @@ Native ordered support state, tuple ownership and cancellation units use
 
 Live trigger-depth leaf, provenance and executable catalog units use
 `RUN='^TestTriggerDepth'`; public SQL scenarios stay in `reference/`.
-Builtin DML recipe provenance and continuous-source normalization units use
-`RUN='^TestTriggerBuiltins'`; SQL values, diagnostics and controls stay in `reference/`.
+Builtin DML recipe provenance units use `RUN='^TestTriggerBuiltins'`.
+Continuous-source normalization and cancellation belong to core's composed
+trigger owner; SQL values, diagnostics and controls stay in `reference/`.
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
   (contexts), so they implement only what the code under test calls; any other

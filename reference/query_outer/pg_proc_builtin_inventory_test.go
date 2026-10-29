@@ -124,9 +124,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1958 primary descriptors + 100 other fixed descriptor owners.
-	if len(facts) != 2058 {
-		t.Fatalf("released represented overloads: got %d, want 2058", len(facts))
+	if len(facts) != 2060 {
+		t.Fatalf("released represented overloads: got %d, want 2060", len(facts))
 	}
 	return facts
 }

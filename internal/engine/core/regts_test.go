@@ -295,8 +295,23 @@ func TestRegTSPreparedCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(b.Prepared.RegtypeConstants) != 3 || len(b.Prepared.RegtypeConstants[0].Operands) != 1 || len(b.Prepared.RegtypeConstants[1].Operands) != 0 || len(b.Prepared.RegtypeConstants[2].Operands) != 0 || b.Prepared.RegtypeConstants[0].Operator == b.Prepared.RegtypeConstants[1].Operator {
+	if len(b.Prepared.RegtypeConstants) != 3 || len(b.Prepared.RegtypeConstants[0].Operands) != 4 || len(b.Prepared.RegtypeConstants[1].Operands) != 0 || len(b.Prepared.RegtypeConstants[2].Operands) != 0 || b.Prepared.RegtypeConstants[0].Operator == b.Prepared.RegtypeConstants[1].Operator {
 		t.Fatal("alias/occurrence/dependency capture", b.Prepared.RegtypeConstants)
+	}
+	dictionaryOID, err := b.Prepared.RegtypeConstants[0].Value.RegTSOID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := auth.Catalog.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(dictionaryOID)})
+	template, ok := auth.Catalog.TSTemplate(selected.Template)
+	if !ok {
+		t.Fatal("missing selected template")
+	}
+	for i, address := range []ids.ObjectAddress{selected.Address(), template.Address(), template.Init, template.Lexize} {
+		operand := b.Prepared.RegtypeConstants[0].Operands[i]
+		if operand.Ref.Address != address || operand.Revision != auth.Catalog.Get(address).Revision() {
+			t.Fatal("actual dictionary executable observation", i, operand)
+		}
 	}
 	cell := &regobj.Analysis{Constants: append([]analyze.RegtypeConstant(nil), b.Prepared.RegtypeConstants...)}
 	expected := core.Description{Regtypes: cell}

@@ -201,7 +201,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Fixed pinned templates retain their independent DROP veto; its object
   description uses the current dependency search path, not input qualification.
   Definition validity is separate from native dictionary execution. Compilation
-  admits only the genuine stock-simple/synonym pairs, authenticated bootstrap
+  admits only the genuine stock-simple/synonym/thesaurus pairs, authenticated bootstrap
   Snowball helpers, or a currently authenticated unaccent installation's helper pair.
   Intrinsic callback/template/dictionary capability does not require empty or
   matching current extension membership or a live installation header. Each
@@ -220,7 +220,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   completion rechecks current namespace/template/revision and role authority.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
-  Ordered immutable options and genuine simple/synonym/unaccent/Snowball runtime state publish in
+  Ordered immutable options and genuine simple/synonym/unaccent/Snowball/thesaurus runtime state publish in
   the existing catalog journal. ALTER removes matching options before appending
   supplied replacements. Standalone dictionaries depend on their real namespace
   and template, without fabricated extension membership. `DictionaryDumpStatement`
@@ -240,6 +240,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Installed dictionaries retain genuine provider origin and template/helper links
   across independent membership, name and schema changes. V3 import checks final
   symbolic labels against the actual reconstructed immutable declaration.
+  Thesaurus preparation resolves decoded logical Dictionary options using current
+  caller namespace authority, captures the selected scalar normalizer, compiles
+  outside the mutex and re-resolves/rechecks on completion. The normalizer is a
+  compiler input, never a permanent OID binding or an invented SQL dependency.
+  Logical normalizer lookup uses the existing semantic utility source policy,
+  including during Restore: privileged destination creation never grants USAGE
+  on an existing source namespace.
+  Capture preserves an accepted DictFile acquisition point separately from later
+  option/source errors. Detached resource reading includes complete syntax
+  validation before those deferred diagnostics. The immutable parsed rules are
+  then normalized once using the accepted scalar input; no second parse or file
+  I/O occurs under Mu.
+  Host-authorized Dump qualifies its current same-name logical source; unqualified
+  options use the accepted initialization namespace solely as replay provenance.
+  That namespace remaps independently on import and never redirects SQL lookup.
   The one-argument unaccent function independently resolves literal `unaccent` in
   its current function schema at execution; the original member slot is provider
   provenance, not a permanent default-dictionary binding.

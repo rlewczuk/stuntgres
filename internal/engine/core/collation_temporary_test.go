@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"sync"
 	"time"
 
 	"stuntgres/internal/engine"
@@ -15,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 )
 
 func collationPrivateSession(t *testing.T, e *core.Engine) *session.Session {
@@ -167,4 +169,101 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 		t.Fatal("exhausted cleanup lost projected surviving rows", got)
 	}
 	enginetest.LockEmpty(t, e)
+}
+
+// The context is installed only after validation. The genuine index rebuild's
+// first detached cancellation check is after the heap-map candidate is copied.
+// Locked admission/final checks cannot stop here or run a peer under Engine.Mu.
+type temporaryPublicationContext struct {
+	context.Context
+	engine *core.Engine
+	once sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (c *temporaryPublicationContext) Err() error {
+	if err := c.Context.Err(); err != nil { return err }
+	if c.engine.Mu.TryLock() {
+		c.engine.Mu.Unlock()
+		c.once.Do(func() {
+			close(c.entered)
+			select {
+			case <-c.release:
+			case <-c.Context.Done():
+			}
+		})
+	}
+	return c.Context.Err()
+}
+
+func TestClientEncodingTemporaryPublication(t *testing.T) {
+	// A real TEMP provider's retirement removes a generated survivor column.
+	// Its real remaining expression index supplies the detached-build boundary;
+	// the independently committed encoded-text table has no index/dependency.
+	e, _, provider, _, _ := temporaryProjectionFixture(t)
+	peer := sessionStart(t, e, nil)
+	sessionSQL(t, peer, "CREATE TABLE ce_cleanup_storage(v TEXT)")
+	sessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('象')")
+	address := enginetest.RoleTableRef(t, e, "ce_cleanup_storage").Address
+	base := e.CatalogRead()
+	oldStore := e.Storage.Relations[address]
+	stage := e.BeginCatalogStage(base)
+	core.SetStageTerminalCleanup(stage, true)
+	defer e.DiscardCatalogStage(stage)
+	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil { t.Fatal(err) }
+	if err := core.StageExpressionDependencies(t.Context(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil { t.Fatal(err) }
+	prepared, err := e.ValidateCatalogStage(t.Context(), stage)
+	if err != nil { t.Fatal(err) }
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	barrier := &temporaryPublicationContext{Context: ctx, engine: e, entered: make(chan struct{}), release: make(chan struct{})}
+	core.SetPreparedCatalogPublicationCtx(prepared, barrier)
+	done := make(chan error, 1)
+	joined := false
+	defer func() {
+		cancel()
+		select { case <-barrier.release: default: close(barrier.release) }
+		if !joined {
+			select { case <-done: case <-time.After(5*time.Second): t.Error("maintenance publication did not stop") }
+		}
+	}()
+	go func() {
+		_, err := e.PublishPreparedCatalog(nil, nil, prepared, core.PublicationToken{Epoch: base.Epoch()})
+		done <- err
+	}()
+	select {
+	case <-barrier.entered:
+	case err := <-done:
+		joined = true
+		t.Fatal("maintenance did not reach detached index rebuild", err)
+	case <-ctx.Done():
+		t.Fatal("maintenance did not reach detached index rebuild", ctx.Err())
+	}
+	sessionSQL(t, peer, "TRUNCATE ce_cleanup_storage")
+	sessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('あ')")
+	current := e.Storage.Relations[address]
+	if current == oldStore || e.CatalogRead().State() != base.State() || len(current.Versions) != 1 || len(oldStore.Versions) != 1 {
+		t.Fatal("peer did not replace the actual heap without catalog replacement")
+	}
+	newText, newErr := current.Versions[0].Values[0].Text()
+	oldText, oldErr := oldStore.Versions[0].Values[0].Text()
+	if newErr != nil || oldErr != nil || newText != "あ" || oldText != "象" {
+		t.Fatal("missing distinguishing committed heap backing", newText, oldText, newErr, oldErr)
+	}
+	close(barrier.release)
+	select {
+	case err := <-done:
+		joined = true
+		if err != nil { t.Fatal("maintenance publication failed", err) }
+	case <-ctx.Done():
+		t.Fatal("maintenance publication did not finish", ctx.Err())
+	}
+	if e.Storage.Relations[address] != current {
+		t.Fatal("maintenance reinstalled the retired encoded-text heap")
+	}
+	result := sessionSQL(t, peer, "SELECT v FROM ce_cleanup_storage")
+	if got := enginetest.Tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"あ"}}) {
+		t.Fatal("maintenance lost the successful peer write", got)
+	}
 }

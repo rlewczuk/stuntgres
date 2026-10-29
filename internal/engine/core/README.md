@@ -464,16 +464,48 @@ cursors rewind to hold the entire result under their existing cursor semantics.
 Ordinary open cursors close; held loop storage belongs to loop cleanup.
 
 
-Text-search conversion captures a real configuration, its checked immutable
-parser capability and distinct dictionary runtimes from one private catalog
-generation under `Engine.Mu`, then releases it before tokenization, lexization
-or notice callbacks. Omitted configuration reads the operation's effective
+Text-search conversion captures immutable configuration, checked parser capability
+and catalog metadata under `Engine.Mu`, then releases it before tokenization,
+resource compilation, lexization or notice callbacks. Capture does not initialize
+mapped dictionaries. Omitted configuration reads the operation's effective
 `default_text_search_config` at execution, with Engine-before-settings lock order.
 Mapping changes publish through ordinary schema stages and definition locks.
 Generic folds retain immutable explicit vector/query results and their first
 execution notices are not replayed. Stable omitted forms and runtime arguments
-consume current defaults/mappings without local caches. Rich lexical metadata
+consume current defaults/mappings without local result caches. Rich lexical metadata
 stays internal; only `ts_lexize` projects TEXT[] at its checked SQL boundary.
+Runtime acquisition occurs only when the actual ordered token chain consults a
+dictionary; invocation-local reuse avoids repeated acquisition. Empty input,
+unused categories and dictionaries after recognizing nonfilters (including
+stopwords) create no initialization receipts. Phrase continuation tests mapping
+membership without acquiring that category's other dictionaries. Detached demand
+and final result acceptance fence the captured configuration, parser and consulted
+executable inputs; mismatch returns ordinary `ErrCatalogReplaced`, without retrying
+callbacks or notices. Newly initialized receipts remain invocation-private until
+the complete result passes currentness and cancellation checks, so rejected
+conversions publish neither a vector/query prefix nor a prefix of new receipts.
+Thesaurus initialization belongs to the physical session's `sessionPayload`, with
+at most one successful immutable runtime per current dictionary definition.
+Namespace USAGE authorizes initialization/reinitialization, not each unchanged
+invocation: ACL-only revocation leaves that session's runtime usable, while new
+sessions independently authorize initialization. Receipts check exact executable
+inputs, catalog domain/epoch, effective role/path and logical source identity.
+Changed executable inputs require new resolution/authorization and detached
+compilation followed by a current-input recheck; failed refresh cannot return
+stale state. Errors are never installed or transferred between sessions.
+The conversion chain owns head/continuation cursors and private phrase matchers,
+saved longest completion, dictionary resume positions and suffix replay. Unmapped
+categories are skipped; a mapped incompatible category discards saved completion.
+Continuation searches the whole next mapping and bypasses its earlier filters.
+Oversized parser tokens emit their notice on first encounter, including phrase
+lookahead. A per-walk token-index high-water mark prevents duplicate notices
+when a saved completion replays a suffix; skipped tokens demand no dictionary.
+Unsuccessful multiword continuation resumes the remaining head chain with the
+original token; immediate nonrecognition retains preceding filter transformations.
+Accepted all-literal thesaurus lexemes/vectors preserve their original typed
+folds across normalizer and own-option revisions; fresh calls and runtime-token
+invocations acquire current compiler inputs. Operand reanalysis and accepted
+fold ownership remain separate, including when fresh initialization fails.
 The prepared identifier owner keeps original REGCONFIG occurrence provenance
 separate from current operand observations. Operand-only reanalysis carries an
 attempt-private eligible input projection through the existing binder transport;
@@ -1162,6 +1194,9 @@ SQL cursor and protocol demand use the current request's context, and retained
 executor evaluations clear their scoped contexts between pulls. Full-text vector
 conversion receives the actual evaluator context through the host interface;
 only catalog capture is locked, never token dispatch or the admission callback.
+Builtin vector triggers activate their own local normalization context after
+metadata admission. They use the effective invocation context, not the operation's
+inert source context, and retain the cumulative position across separate fields.
 Each protocol Execute activates its pull context once and reuses it for that
 request's row loop; later Execute requests obtain their own current capability.
 
@@ -1679,6 +1714,16 @@ Producers, the OID registry and descriptor specs live in
   definition-retirement locks belong only to an execution scope's real ticket.
   Direct validated publication still enforces captured identity, epoch and
   incoming-dependency fences without manufacturing a transaction for preparation.
+  Detached relation-map candidates own only their new or replacement heaps.
+  After all publication fences succeed, the locked install reconciles unchanged
+  heaps with the current storage map, just as it preserves unchanged index roots.
+  A peer TRUNCATE can replace a heap without changing the catalog root; neither
+  that heap nor subsequent committed inserts may be restored from preparation.
+  This also applies to physical-session retirement: the transaction resource
+  cleans TEMP tables while retaining their namespace pair, then runner
+  `EndMaintenance` calls `endTemporaryCollations`. Its namespace/dependency
+  candidate uses the ordinary detached publication path, even for an empty
+  table-only namespace. Cleanup keeps the same fences and publication semantics.
 - Every engine seeds the same built-in catalog in one bulk load (`NewEngine`'s
   `BeginBulkLoad` … `FinishSeedLocked`) through the
   [`catalog`](../catalog/README.md) seed steps. Core keeps their order, the
@@ -2162,7 +2207,7 @@ make check RUN='^TestSnapshot'                        # binding, retained comman
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
-make check RUN='^TestDictionary'                      # dictionary providers, publication, remap and retained typed ownership
+make check RUN='^Test(Dictionary|Thesaurus)'           # dictionary demand, providers, publication, remap and retained typed ownership
 make check RUN='^TestTemplate'                        # exact callbacks, capability, manifest, closure, publication and remap
 make check RUN='^TestSnowball'                        # English seed authority, publication fences and accepted backing
 make check RUN='^TestLqueryProvider'                   # installed scalar authority, staged publication and import

@@ -234,6 +234,12 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		if d.Implementation != nil && (!installed || UnaccentDictionaryProviderOf(d) != StockUnaccent || d.Origin.Declaration != 5 || installation.Implementation != StockUnaccent || !catalog.SameInstallation(template, installation)) {
 			return InvalidProviderDescriptor()
 		}
+	} else if dictionaryCapability(v, template) == 5 {
+		runtime, ok := d.Runtime.(*functions.ThesaurusDictionary)
+		resource, _, err := thesaurusOptions(d.Options)
+		if !ok || err != nil || !runtime.Configured(resource) || d.Implementation != nil {
+			return InvalidProviderDescriptor()
+		}
 	} else {
 		return InvalidProviderDescriptor()
 	}

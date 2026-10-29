@@ -39,6 +39,11 @@ imports only `ids`, `parser`, `sqlstate`, `sqltype` and the standard library.
   that may select a builtin routine declaration.
 - **Positioned errors**: `ErrorAt` (a zero position leaves it unpositioned) and
   `WithPosition`.
+- **`PhraseMatcher`/`PhraseLexeme`**: the typed optional dictionary continuation
+  boundary shared by immutable kernels and the conversion owner. Each cursor is
+  invocation-private; returned replacement words carry relative position flags
+  and dictionary prefix/variant metadata, not rendered SQL arrays, catalog
+  identities or lookup authority.
 
 ## `Context`
 

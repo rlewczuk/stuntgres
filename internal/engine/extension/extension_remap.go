@@ -344,7 +344,8 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.Extension = address(n.Extension)
 		n.Origin = origin(d.Origin)
 		n.Template = address(n.Template)
-		if n.ObjectAddress == d.ObjectAddress && n.ObjectNamespace == d.ObjectNamespace && n.Extension == d.Extension && n.Origin == d.Origin && n.Template == d.Template {
+		n.NormalizerNamespace = address(n.NormalizerNamespace)
+		if n.ObjectAddress == d.ObjectAddress && n.ObjectNamespace == d.ObjectNamespace && n.Extension == d.Extension && n.Origin == d.Origin && n.Template == d.Template && n.NormalizerNamespace == d.NormalizerNamespace {
 			return d
 		}
 		return &n

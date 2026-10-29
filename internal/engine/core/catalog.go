@@ -835,6 +835,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			sharedRoots = e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 		}
 		if err == nil {
+			storage.PreserveUnchangedRelations(relations, currentStorage, e.Storage.Relations)
 			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.

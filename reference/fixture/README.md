@@ -61,6 +61,25 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   non-owner access to it grant USAGE explicitly (or use `WithPublicSchemaOwner`).
 - Prepared-transaction scenarios clean their own GIDs before schema teardown.
 
+### Text-search data resources
+
+`thesaurus_resources.go` embeds `tsearch_data/*.ths` and copies each real file
+through the existing container's `WithFiles` setup, before startup, to
+`/usr/share/postgresql/18/tsearch_data/` with mode 0644. No host installation or
+second server is used. `thesaurus_sample.ths` is the verbatim PostgreSQL
+REL_18_6 `src/backend/tsearch/dicts/thesaurus_sample.ths` under the PostgreSQL
+license (provenance is retained beside the embed declaration).
+`stuntgres_thes_*.ths` are project-owned deterministic rule and malformed-data
+inputs. Each fixture copy must remain byte-identical to its production resource
+in `internal/engine/functions/`; neither side derives rules from SQL results.
+`stuntgres_thes_placeholder.ths` contains only a one-stopword-placeholder rule,
+so zero/one/two-stopword tests cannot accidentally pass via the stock fixture's
+separate zero-placeholder rule. The comments and colon-RHS files are accepted
+reader inputs; bad_end and empty_rhs retain genuine physical-line diagnostics.
+The unrecognized-substitute fixture uses `? : alpha` with genuine simple
+English stopwords and Accept=false to reach replacement normalization.
+
+
 ## Startup options
 
 `fixture.Main(m, opts...)` applies options before eager startup; native scenario

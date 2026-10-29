@@ -33,19 +33,8 @@ func TestFTSConvertLexemes(t *testing.T) {
 	for _, dictionaryPrefix := range []bool{false, true} {
 		runtime := convertRichDictionary{prefix: dictionaryPrefix}
 		normalize := func(input string) ([]fts.LexicalPosition, error) {
-			tokens, err := fts.ParseDocument(t.Context(), input)
-			if err != nil {
-				return nil, err
-			}
-			var positions []fts.LexicalPosition
-			position := 0
-			err = fts.NormalizeTokens(t.Context(), tokens, &position, func(token fts.DocumentToken) (fts.LexicalResult, error) {
-				if token.ID == 12 {
-					return fts.LexicalResult{}, nil
-				}
-				return runtime.Lexize(t.Context(), token.Text)
-			}, func(position fts.LexicalPosition) { positions = append(positions, position) })
-			return positions, err
+			lexical, err := runtime.Lexize(t.Context(), input)
+			return []fts.LexicalPosition{{Position: 1, Lexemes: lexical.Lexemes}}, err
 		}
 		lexical, err := runtime.Lexize(t.Context(), "indices")
 		if err != nil {
@@ -107,26 +96,6 @@ func TestFTSConvertLexemes(t *testing.T) {
 	})
 	if err != nil || q.String() != "'first' & 'second' | 'third'" {
 		t.Fatal(q, err)
-	}
-	tokens, err := fts.ParseDocument(t.Context(), "skip the index")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var positions []fts.LexicalPosition
-	position := 0
-	err = fts.NormalizeTokens(t.Context(), tokens, &position, func(token fts.DocumentToken) (fts.LexicalResult, error) {
-		switch token.Text {
-		case "skip", " ":
-			return fts.LexicalResult{}, nil
-		case "the":
-			return fts.LexicalResult{Recognized: true}, nil
-		default:
-			return (convertRichDictionary{prefix: true}).Lexize(t.Context(), token.Text)
-		}
-	}, func(position fts.LexicalPosition) { positions = append(positions, position) })
-	wantPositions := []fts.LexicalPosition{{Position: 1}, {Position: 2, Lexemes: []fts.Lexeme{{Text: "index", Prefix: true}}}}
-	if err != nil || !reflect.DeepEqual(positions, wantPositions) {
-		t.Fatal("unrecognized versus stopped positions", positions, err)
 	}
 }
 

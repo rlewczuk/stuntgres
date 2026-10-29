@@ -76,6 +76,16 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   template relabels replay without duplicate CREATE or invented ownership.
   Restore remaps template/dictionary links together and recompiles admitted real
   dictionary resources rather than copying initialized execution state.
+  Thesaurus logical normalizers precede their consumers as replay-only edges,
+  without changing SQL dependency or DROP behavior. Dump resolves qualified
+  Dictionary options in its committed snapshot; an unqualified option uses its
+  accepted initialization namespace as host-control replay provenance, never an
+  arbitrary borrowed session's path. Emitted options qualify the current same-name
+  target, including a recreated identity, without mutating source catalog text.
+  Restore recompiles destination-owned resources and private matcher state.
+  Replay provenance survives producer-session retirement and does not redirect
+  runtime caller lookup. Imported dictionaries initialize under destination
+  session permissions; source session initialization success is never imported.
 - Native collected extended statistics retain their stale construction state,
   including joint MCV population/marginal counts and true NULL markers, in strict
   typed comments. Restore remints current type, enum-member and nested array

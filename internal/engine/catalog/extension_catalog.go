@@ -144,6 +144,11 @@ type DictionaryRuntime interface {
 	Filtering() bool
 }
 
+type PhraseDictionaryRuntime interface {
+	DictionaryRuntime
+	NewMatcher() expr.PhraseMatcher
+}
+
 type TSDictionary struct {
 	ObjectAddress, ObjectNamespace, Extension, Template ids.ObjectAddress
 	Origin                                              *InstalledOrigin
@@ -154,6 +159,9 @@ type TSDictionary struct {
 	Options                                             []DictionaryOption
 	Runtime                                             DictionaryRuntime
 	english                                             bool
+	// Accepted lookup namespace for host-authorized unqualified logical replay.
+	// This is not a SQL dependency or an execution-time binding.
+	NormalizerNamespace ids.ObjectAddress
 }
 
 func (d *TSDictionary) Address() ids.ObjectAddress { return d.ObjectAddress }

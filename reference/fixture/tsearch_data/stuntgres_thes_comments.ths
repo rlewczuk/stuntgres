@@ -1,0 +1,5 @@
+# physical line 1
+
+alpha : *ok
+# physical line 4
+beta : gamma : delta

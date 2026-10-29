@@ -240,6 +240,11 @@ database identity while retaining other databases' committed subscriptions.
   administrator. Restore executes the emitted SQL, recompiles real resources,
   and remaps dictionary/template links and stored regdictionary references,
   defaults and views.
+  Thesaurus normalizers add replay-only predecessors, not SQL dependencies.
+  The committed host-authorized snapshot resolves current logical names and emits
+  qualified Dictionary values without changing stored option spelling. Unqualified
+  options carry only their accepted lookup namespace as replay provenance; import
+  remaps it, and execution always performs independent current-caller lookup.
 - **Statistics** (`statistics.go`) serialize canonical named declarations after
   all ordinary graph phases, in qualified-name order. This includes completed
   input attribute history and unrelated row events, so reminted OIDs cannot move

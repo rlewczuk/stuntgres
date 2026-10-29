@@ -89,7 +89,7 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 	dictionaryProcedures := routine.BuiltinProcedures(owner)
 	for i := range dictionaryProcedures {
 		procedure := &dictionaryProcedures[i]
-		if procedure.Address().ObjectID != 3725 && procedure.Address().ObjectID != 3726 && procedure.Address().ObjectID != 3728 && procedure.Address().ObjectID != 3729 {
+		if procedure.Address().ObjectID != 3725 && procedure.Address().ObjectID != 3726 && procedure.Address().ObjectID != 3728 && procedure.Address().ObjectID != 3729 && procedure.Address().ObjectID != 3740 && procedure.Address().ObjectID != 3741 {
 			continue
 		}
 		state.SetDescriptor(procedure.Address(), procedure)

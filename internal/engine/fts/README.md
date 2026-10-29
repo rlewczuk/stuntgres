@@ -24,11 +24,11 @@ let generated NOT chains exceed 32 nodes without exceeding the per-frame parser
 limit on replay. `String` stays canonical. Lossless text is computed only when
 needed by SQLLiteral, never for SELECT, with no extra cache.
 
-`NormalizeTokens` streams recognized lexical results through a caller-owned
-position counter. Recognized empty stopwords advance it, including trailing
-stops; unrecognized tokens do not. Scalar document consumers initialize zero,
-while multi-source trigger consumers retain one counter across separate parses.
-No joined source buffer, rendered-vector reparse or catalog lookup is involved.
+The composed normalization owner in core streams recognized lexical results
+through a caller-owned position counter. Recognized empty stopwords advance it,
+including trailing stops; unrecognized tokens do not. Scalar document consumers
+initialize zero, while multi-source trigger consumers retain one counter across
+separate parses, without joining source buffers or reparsing rendered vectors.
 
 `ConvertQuery` reuses strict operand grammar with a borrowed document-normalizer
 callback, or builds plain, phrase and forgiving web modes directly into the same
@@ -43,9 +43,9 @@ contextual OR uses input-cursor boundaries and lookahead rather than token equal
 lexemes, prefix and variant grouping. Query expansion combines source and
 dictionary prefixes, ANDs one variant and ORs alternatives. No dictionary
 registration, synonym resource or configuration authority belongs here.
-`NormalizeTokens` shares recognized-token position assignment between vector
-streaming and query expansion; its borrowed lexical callback owns dictionary
-selection/filtering and notices, never the resulting arena.
+Recognized-token position assignment and dictionary-chain continuation belong to
+the composed conversion owner in core. This leaf consumes rich lexical positions
+without selecting dictionaries, initializing runtimes or emitting notices.
 
 ### Document tokenization
 

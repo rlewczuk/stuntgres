@@ -73,7 +73,7 @@ func builtinTriggerProtocol(suppress bool, p stored.TriggerParts, event stored.T
 }
 
 func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Relation, args []string, event stored.TriggerEvent, next []sqltype.Value, targets []int32) error {
-	ctx := s.Op.Context()
+	ctx := s.executionContext()
 	e := s.Engine()
 	e.Mu.Lock()
 	auth, err := s.namespaceAuthorizationLocked(e)
@@ -133,7 +133,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 		e.Mu.Lock()
-		captured, err = captureTextSearch(read, oid)
+		captured, err = captureTextSearch(ctx, read, oid)
 		e.Mu.Unlock()
 		if err != nil {
 			return err
@@ -148,6 +148,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			}
 		}
 	}
+	ctx = s.activateWork(ctx)
 	position := 0
 	var builder fts.VectorBuilder
 	for _, name := range args[2:] {
@@ -175,7 +176,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 		if captured.config == nil {
 			e.Mu.Lock()
-			captured, err = captureTextSearch(read, oid)
+			captured, err = captureTextSearch(ctx, read, oid)
 			e.Mu.Unlock()
 			if err != nil {
 				return err
@@ -195,6 +196,9 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 	}
 	if !rebuild {
+		if captured.acquisition != nil {
+			return captured.acquisition.accept(ctx, s.WriteHost())
+		}
 		return nil
 	}
 	vector, err := builder.Finish(ctx)
@@ -211,6 +215,11 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 	value, err = value.DomainValue(relation.Columns[destination].Usage.Type)
 	if err != nil {
 		return err
+	}
+	if captured.acquisition != nil {
+		if err := captured.acquisition.accept(ctx, s.WriteHost()); err != nil {
+			return err
+		}
 	}
 	next[destination] = value
 	return nil

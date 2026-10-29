@@ -360,6 +360,19 @@ func collectTextSearchDump(_ context.Context, c *dumpCollection, _ ids.ObjectAdd
 		if oid != 0 {
 			c.Graph[event] = []dump.Event{{OID: oid}}
 		}
+		normalizer, err := extension.ThesaurusReplayNormalizer(c.CatalogView, d)
+		if err != nil {
+			return err
+		}
+		if normalizer != nil {
+			oid, err := predecessor(c.CatalogView, normalizer.Address(), d.Address())
+			if err != nil {
+				return err
+			}
+			if oid != 0 {
+				c.Graph[event] = append(c.Graph[event], dump.Event{OID: oid})
+			}
+		}
 	}
 	return nil
 }

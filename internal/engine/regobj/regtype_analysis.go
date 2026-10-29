@@ -1,6 +1,7 @@
 package regobj
 
 import (
+	"context"
 	"slices"
 
 	"stuntgres/internal/engine/access"
@@ -68,7 +69,11 @@ func NewAnalysis(o Observation, paths LookupPaths, constants []analyze.RegtypeCo
 	for _, constant := range constants {
 		if configConstant(constant) {
 			cell.namespace = o.View.Catalog.State().NamespaceGeneration()
-			cell.configs = append(cell.configs, observeConfig(o, constant))
+			observation, err := observeConfig(o, constant)
+			if err != nil {
+				return nil, err
+			}
+			cell.configs = append(cell.configs, observation)
 		}
 		if constant.Operator != 0 || constant.Value.Type() == nil || constant.Value.Type().ContainsRegtype() || constant.Value.Type().ContainsOperatorAlias() || constant.Value.Type().ContainsRegproc() {
 			cell.types = true
@@ -136,16 +141,33 @@ func (a *Analysis) ForReanalysis(o Observation, paths LookupPaths) (*Analysis, e
 }
 
 func configConstant(c analyze.RegtypeConstant) bool {
-	return c.Operator == sqltype.Regconfig && c.Value.Type() != nil && c.Value.Type().ID() == sqltype.Regconfig
+	return (c.Operator == sqltype.Regconfig || c.Operator == sqltype.Regdictionary) && c.Value.Type() != nil && c.Value.Type().ID() == c.Operator
 }
 
-func observeConfig(o Observation, c analyze.RegtypeConstant) configObservation {
+func observeConfig(o Observation, c analyze.RegtypeConstant) (configObservation, error) {
 	var current configObservation
 	oid, err := c.Value.RegTSOID()
 	if err != nil {
-		return current
+		return current, err
 	}
 	read := o.View.Catalog
+	var path []ids.ObjectAddress
+	var temporary ids.ObjectAddress
+	if o.Environment != nil {
+		path, err = o.Environment.ReferencePath()
+		if err != nil {
+			return current, err
+		}
+		temporary = o.Environment.TemporaryNamespace()
+	}
+	resolver := NewTextSearchInput(InputCapture{Authority: Authority{View: o.View, Environment: o.Environment}, Path: path, Database: o.Database, Temporary: temporary})
+	if c.Operator == sqltype.Regdictionary {
+		if dictionary, ok := read.TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)}); ok {
+			current.present = true
+			current.operands, err = resolver.ObserveDictionary(context.Background(), dictionary)
+		}
+		return current, err
+	}
 	address := ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)}
 	if config, ok := read.TSConfiguration(address); ok {
 		current.present = true
@@ -159,12 +181,16 @@ func observeConfig(o Observation, c analyze.RegtypeConstant) configObservation {
 					continue
 				}
 				if dictionary, ok := read.TSDictionary(address); ok {
-					current.operands = append(current.operands, catalog.ExpressionDependency{Ref: o.View.Ref(address), Revision: dictionary.Revision()})
+					dependencies, err := resolver.ObserveDictionary(context.Background(), dictionary)
+					if err != nil {
+						return current, err
+					}
+					current.operands = append(current.operands, dependencies...)
 				}
 			}
 		}
 	}
-	return current
+	return current, nil
 }
 
 func qualifiedAllowed(o Observation, constant analyze.RegtypeConstant) (bool, error) {
@@ -223,19 +249,12 @@ func (a *Analysis) Valid(o Observation, paths LookupPaths) (bool, error) {
 			}
 			current := a.configs[configIndex]
 			configIndex++
-			oid, err := constant.Value.RegTSOID()
+			fresh, err := observeConfig(o, constant)
 			if err != nil {
 				return false, err
 			}
-			_, present := view.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
-			if present != current.present {
+			if fresh.present != current.present || !slices.Equal(fresh.operands, current.operands) {
 				return false, nil
-			}
-			for _, operand := range current.operands {
-				d := view.Get(operand.Ref.Address)
-				if d == nil || d.Revision() != operand.Revision {
-					return false, nil
-				}
 			}
 			if allowed, err := qualifiedAllowed(o, constant); !allowed || err != nil {
 				return false, err

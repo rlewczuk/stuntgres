@@ -19,6 +19,7 @@ type DictionaryPreparation struct {
 	Options   []catalog.DictionaryOption
 	Runtime   catalog.DictionaryRuntime
 	View      catalog.Read
+	Thesaurus *ThesaurusInput
 }
 
 func dictionaryCreateInputs(h DictionaryHost, auth ddl.Authority, s *parser.CreateDictionary) (*catalog.TSTemplate, []catalog.DictionaryOption, error) {
@@ -88,6 +89,13 @@ func PrepareDictionary(h DictionaryHost, auth ddl.Authority, stmt parser.Stateme
 		p.Template = template
 		p.Options = MergeDictionaryOptions(p.Original.Options, dictionaryOptions(s.Options))
 	}
+	if p.Template != nil {
+		var err error
+		p.Thesaurus, err = CaptureThesaurusInput(h, auth, p.Template, p.Options)
+		if err != nil {
+			return p, err
+		}
+	}
 	return p, nil
 }
 func (p *DictionaryPreparation) Compile(ctx context.Context) error {
@@ -95,10 +103,24 @@ func (p *DictionaryPreparation) Compile(ctx context.Context) error {
 		return ctx.Err()
 	}
 	var err error
+	if p.Thesaurus != nil {
+		p.Runtime, err = p.Thesaurus.Compile(ctx)
+		return err
+	}
 	p.Runtime, err = CompileDictionary(ctx, p.View, p.Template, p.Options)
 	return err
 }
 func (p *DictionaryPreparation) Current(view catalog.Read) bool {
+	if !p.Thesaurus.Current(view) {
+		return false
+	}
+	if p.Thesaurus != nil {
+		for _, address := range [2]ids.ObjectAddress{p.Thesaurus.Template.Init, p.Thesaurus.Template.Lexize} {
+			if view.Get(address) != p.View.Get(address) {
+				return false
+			}
+		}
+	}
 	if p.Template != nil {
 		if err := (CatalogProvider{Class: ids.TSTemplateClassID}).Validate(view, p.Template); err != nil {
 			return false
@@ -123,11 +145,28 @@ type preparedDictionaryHost struct {
 func (p *DictionaryPreparation) Host(h DictionaryHost) DictionaryHost {
 	return preparedDictionaryHost{h, p}
 }
-func initializeDictionary(h DictionaryHost, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
+func initializeDictionary(h DictionaryHost, auth ddl.Authority, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
 	if prepared, ok := h.(preparedDictionaryHost); ok {
 		p := prepared.preparation
 		if p.Template != template || p.Runtime == nil || !slices.Equal(p.Options, options) {
 			return nil, ids.ErrCatalogReplaced
+		}
+		if p.Thesaurus != nil {
+			current, err := CaptureThesaurusInput(h, auth, template, options)
+			if err != nil {
+				return nil, err
+			}
+			if current.SourceError != nil {
+				return nil, current.SourceError
+			}
+			if current.Normalizer != p.Thesaurus.Normalizer || !p.Thesaurus.Current(h.StageRead()) {
+				return nil, ids.ErrCatalogReplaced
+			}
+			for _, descriptor := range []catalog.Descriptor{p.Thesaurus.Normalizer, p.Thesaurus.Template, p.View.Get(p.Thesaurus.Normalizer.Namespace()), p.View.Get(p.Thesaurus.Template.Init), p.View.Get(p.Thesaurus.Template.Lexize)} {
+				if descriptor != nil {
+					h.AddDomainBase(descriptor)
+				}
+			}
 		}
 		return p.Runtime, h.Context().Err()
 	}

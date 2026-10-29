@@ -61,6 +61,7 @@ func referenceStart() error {
 		testcontainers.WithCmdArgs(args...),
 		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}),
 	}
+	options = append(options, testcontainers.WithFiles(thesaurusOracleFiles()...))
 	if legacyCryptoProvider {
 		const path = "/tmp/stuntgres-openssl.cnf"
 		const config = `openssl_conf = openssl_init
