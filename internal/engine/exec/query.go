@@ -701,7 +701,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			// identity reads keep the post-join filter order.
 			_, function := join.Right.(*plan.FunctionFromNode)
 			if function || !retainsQueryIdentity(state) {
-				if restricted := plan.InnerJoinRestriction(join, n.Predicate); restricted != nil {
+				if restricted := plan.JoinRestriction(join, n.Predicate); restricted != nil {
 					// Keep canonical/view literal paths intact. Only this
 					// execution filters left rows before the join. EPQ instead
 					// retains its captured, identity-keyed topology even after

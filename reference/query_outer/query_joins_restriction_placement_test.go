@@ -65,6 +65,19 @@ func TestReferenceQueryJoinsWhereRestrictionPlacement(t *testing.T) {
 				ids("SELECT l.id FROM restrict_l l JOIN restrict_r r ON r.id = l.id WHERE l.id = 3 OR l.d = 0 ORDER BY l.id", 3)
 				ids("SELECT l.id FROM restrict_l l JOIN restrict_r r ON true WHERE r.id = 4 ORDER BY l.id", 1, 2, 3)
 				ids("SELECT l.id FROM restrict_l l LEFT JOIN restrict_r r ON r.id = l.id WHERE r.id IS NULL", 2)
+
+				// The preserved input of a LEFT JOIN owns its conditions too, also
+				// through nested outer joins; the nullable input keeps its own.
+				lateral := [][]any{{int64(1), int64(10)}, {int64(3), int64(2)}}
+				step(fixture.Select("SELECT l.id, s.v FROM restrict_l l LEFT JOIN LATERAL generate_series(10 / l.d, 10 / l.d) s(v) ON true WHERE l.d <> 0 ORDER BY l.id",
+					[]string{"id", "v"}, []string{"INT4", "INT4"}, lateral))
+				step(fixture.Select("SELECT l.id, s.v FROM restrict_l l LEFT JOIN LATERAL generate_series(10 / l.d, 10 / l.d) s(v) ON true LEFT JOIN restrict_r r ON r.id = l.id WHERE l.d <> 0 AND (r.id IS NULL OR r.tag <> 'none') ORDER BY l.id",
+					[]string{"id", "v"}, []string{"INT4", "INT4"}, lateral))
+				step(fixture.Select("SELECT l.id, r.tag, r2.tag AS next FROM restrict_l l LEFT JOIN restrict_r r ON r.id = l.id LEFT JOIN restrict_r r2 ON r2.id = r.id + 1 WHERE l.d > 0 ORDER BY l.id",
+					[]string{"id", "tag", "next"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "one", nil}, {int64(3), "three", "four"}}))
+				ids("SELECT l.id FROM restrict_l l LEFT JOIN restrict_r r ON r.id = l.id WHERE l.d <> 0 AND (r.id IS NULL OR r.tag = 'three')", 3)
+				ids("SELECT l.id FROM restrict_l l LEFT JOIN restrict_r r ON r.id = l.id AND l.d > 1 WHERE l.id >= 1 AND COALESCE(r.tag, 'none') = 'none' ORDER BY l.id", 1, 2)
+				ids("SELECT r.id FROM restrict_l l RIGHT JOIN restrict_r r ON r.id = l.id WHERE l.id IS NULL", 4)
 			}
 		})
 	}

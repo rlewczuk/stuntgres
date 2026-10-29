@@ -159,11 +159,11 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `ExpressionUsesCompositeField` (the field dependency test of composite ALTER)
   (`expression_walk.go`); `RewriteQueryExpressions`, `VisitExecutableQuery`,
   `VisitCTEQuery`, `QueryInputs` and `QueryExpressions` (`query_walk.go`);
-  `InnerJoinRestriction`, `PartitionJoinConjuncts`, `JoinLeftRestriction` and
+  `JoinRestriction`, `PartitionJoinConjuncts`, `JoinLeftRestriction` and
   `JoinExpressionSides` (`join_restriction.go`): execution moves WHERE
-  conditions that read only an inner join's left input into a filter on that
-  input, in a copy whose `ScanOwner` keeps the canonical join's foreign-scan
-  identity.
+  conditions that read only the left input of an inner or LEFT join into a
+  filter on that input, in a copy whose `ScanOwner` keeps the canonical join's
+  foreign-scan identity.
 - **Copy-on-change mappers** (`expression_map.go`): `MapRow`, `MapRowAnalysis`
   (with composite expansions), `MapRowComparisonExpansions` and
   `MapScalarArrayChildren`, shared by binding, preflight, retag and view

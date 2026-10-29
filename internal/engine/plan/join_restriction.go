@@ -7,17 +7,19 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// InnerJoinRestriction moves the WHERE conditions that read only the left
-// input of an inner join below the join, as PostgreSQL evaluates a condition
+// JoinRestriction moves the WHERE conditions that read only the left input
+// of an inner or LEFT join below the join, as PostgreSQL evaluates a condition
 // on one relation at that relation's scan: rows it rejects are never paired,
-// and a correlated right input never runs for them. Conditions that are
-// volatile, read the right input or another frame, or have an unsupported
-// form stay in a residual filter above the join. The result is an
-// execution-private copy: the canonical and view trees are unchanged, and
-// ScanOwner keeps the original join's foreign-scan identity. Nil declines.
-func InnerJoinRestriction(root Node, predicate expr.Expr) Node {
+// and a correlated right input never runs for them. A LEFT join never
+// NULL-extends its left columns, so each output row passes such a condition
+// exactly when its left row does. Conditions that are volatile, read the
+// right input or another frame, or have an unsupported form stay in a
+// residual filter above the join. The result is an execution-private copy:
+// the canonical and view trees are unchanged, and ScanOwner keeps the
+// original join's foreign-scan identity. Nil declines.
+func JoinRestriction(root Node, predicate expr.Expr) Node {
 	join, ok := root.(*JoinNode)
-	if !ok || join.Kind != parser.JoinInner || len(join.Merges) != 0 {
+	if !ok || join.Kind != parser.JoinInner && join.Kind != parser.JoinLeft || len(join.Merges) != 0 {
 		return nil
 	}
 	before, after := PartitionJoinConjuncts(join, predicate)
