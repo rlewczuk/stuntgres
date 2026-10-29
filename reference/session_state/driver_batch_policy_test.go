@@ -130,10 +130,10 @@ func TestReferenceDriverBatchPolicyCreation(t *testing.T) {
 						if oid != 0 && got != oid {
 							t.Fatal("promotion changed policy OID", oid, got)
 						}
-						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual,with_check FROM pg_policies WHERE tablename='policy_t' AND policyname='renamed'", []string{"qual", "with_check"}, []string{"TEXT", "TEXT"}, [][]any{{"(nextval('batch_policy_seq'::regclass) > 0)", "(id > 0)"}}))
 					} else {
 						batchPolicyDefinition(t, p, "renamed", "batch_policy_target", "nextval('public.batch_policy_seq')>0", "policy_t.id>0")
 					}
+					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual,with_check FROM pg_policies WHERE tablename='policy_t' AND policyname='renamed'", []string{"qual", "with_check"}, []string{"TEXT", "TEXT"}, [][]any{{"(nextval('batch_policy_seq'::regclass) > 0)", "(id > 0)"}}))
 					batchExec(t, p, b, peer, "ALTER POLICY renamed ON policy_t", 0)
 					fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT last_value,is_called FROM batch_policy_seq", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(41), false}}))
 					w := batchDiag("2BP01", `role "batch_policy_target" cannot be dropped because some objects depend on it`)
@@ -225,10 +225,10 @@ func TestReferenceDriverBatchPolicyAlterDrop(t *testing.T) {
 							if batchPolicyOID(t, p, peer, "renamed", "batch_policy_new") != oid {
 								t.Fatal("ALTER/rename changed OID")
 							}
-							fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual,with_check FROM pg_policies WHERE tablename='policy_t' AND policyname='renamed'", []string{"qual", "with_check"}, []string{"TEXT", "TEXT"}, [][]any{{"(id > 1)", "allowed"}}))
 						} else {
 							batchPolicyDefinition(t, p, "renamed", "batch_policy_new", "policy_t.id>1", "policy_t.allowed")
 						}
+						fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual,with_check FROM pg_policies WHERE tablename='policy_t' AND policyname='renamed'", []string{"qual", "with_check"}, []string{"TEXT", "TEXT"}, [][]any{{"(id > 1)", "allowed"}}))
 						batchExec(t, p, b, a, "DROP POLICY renamed ON policy_t; DROP ROLE batch_policy_new", 0)
 					} else {
 						batchPolicyMissing(t, p, peer, "p")

@@ -135,6 +135,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 // capture check; only the error names them apart.
 var sharedCaptureNames = map[ids.OID]string{
 	ids.PolicyClassID:                            "pg_policy",
+	pgcatalog.PoliciesOID:                        "pg_policies",
 	ids.TriggerClassID:                           "pg_trigger",
 	pgcatalog.StatisticExtDataOID:                "pg_statistic_ext_data",
 	pgcatalog.SubscriptionOID:                    "pg_subscription",
@@ -420,6 +421,27 @@ func (r EngineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression
 }
 func (r EngineCatalogRuntime) PolicyTree(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, payload catalog.PolicyPayload) (sqltype.Value, error) {
 	return stored.PolicyTree(ctx, view, relation, typ, payload)
+}
+func (r EngineCatalogRuntime) PolicyDisplay(ctx context.Context, view catalog.Read, relation *catalog.Relation, payload catalog.PolicyPayload) (string, error) {
+	typ, ok := view.LookupType(sqltype.PgNodeTree)
+	if !ok || payload == nil {
+		return "", fmt.Errorf("stuntgres: missing policy display payload or type")
+	}
+	tree, err := stored.PolicyTree(ctx, view, relation, typ, payload)
+	if err != nil {
+		return "", err
+	}
+	value, err := tree.Tree()
+	if err != nil {
+		return "", err
+	}
+	carrier, ok := value.(stored.PolicyCarrier)
+	if !ok {
+		return "", fmt.Errorf("stuntgres: foreign policy display carrier")
+	}
+	presentation := r.presentation
+	presentation.Pretty = false
+	return stored.PolicyDisplay(ctx, view, relation, carrier, presentation)
 }
 func (r EngineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
 	bound, err := table.BindForeignKeyComparison(view, child, parent, index, key)

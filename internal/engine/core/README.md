@@ -1552,6 +1552,15 @@ Producers, the OID registry and descriptor specs live in
   actor with and without namespace USAGE, including retained deparse inputs
   after an ACL/session change. Public metadata/deparse does not confer provider
   execution rights or replace the policy's immutable presentation.
+  `pg_policies` uses the same paired inquiry roots plus captured path, output and
+  string settings. Its producer and `PolicyDisplay` bridge run after releasing
+  `Engine.Mu`; the bridge validates the genuine stored carrier before rendering.
+  Ordinary view SELECT admission (PUBLIC by default) protects access, while
+  target privileges affect qualification rather than row inclusion. Role arrays
+  are sorted distinct NAME[]; absent USING/CHECK remain independent NULLs.
+  Each execution recaptures authority; detached rows retain their earlier values.
+  `TestCatalogSourcePGPolicies` covers actual dispatch, unlocked output,
+  caller qualification and rejected capture without condition execution.
 
 ## Catalog writes and built-in seed
 

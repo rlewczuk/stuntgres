@@ -75,9 +75,7 @@ func TestReferenceRoleOwnershipExtensionReassign(t *testing.T) {
 		ownershipHotel(s, "SELECT v FROM own_provider_view")
 		s.Run(fixture.Exec("INSERT INTO own_provider_consumer(id) VALUES(9)", 1))
 		ownershipSelect(s, "SELECT id,v FROM own_provider_consumer ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "Hotel"}, {int64(9), "Hotel"}})
-		if s.Backend.PG {
-			ownershipSelect(s, "SELECT policyname FROM pg_policies WHERE tablename='own_provider_consumer'", []string{"policyname"}, []string{"NAME"}, [][]any{{"own_provider_policy"}})
-		}
+		ownershipSelect(s, "SELECT policyname FROM pg_policies WHERE tablename='own_provider_consumer'", []string{"policyname"}, []string{"NAME"}, [][]any{{"own_provider_policy"}})
 		s.Exec("ALTER TABLE own_provider_consumer ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY")
 		s.Actor("own_reader")
 		ownershipPolicyRows(s, "SELECT id FROM own_provider_consumer ORDER BY id", []string{"id"}, [][]any{{int64(7)}, {int64(9)}})

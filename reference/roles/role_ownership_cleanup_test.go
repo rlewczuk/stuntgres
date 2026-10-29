@@ -57,9 +57,7 @@ func TestReferenceRoleOwnershipCleanup(t *testing.T) {
 		s.Flags("own_middle", "own_downstream", "own_source", 0, false, false, false)
 		ownershipInherited(s, "own_reader", "own_middle", "MEMBER", true)
 		ownershipInherited(s, "own_source", "own_middle", "MEMBER", true)
-		if s.Backend.PG {
-			ownershipSelect(s, "SELECT policyname,roles::TEXT AS roles FROM pg_policies WHERE tablename='own_cleanup' ORDER BY policyname", []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"own_policy_mixed", "{own_reader}"}, {"own_policy_public", "{public}"}})
-		}
+		ownershipSelect(s, "SELECT policyname,roles::TEXT AS roles FROM pg_policies WHERE tablename='own_cleanup' ORDER BY policyname", []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"own_policy_mixed", "{own_reader}"}, {"own_policy_public", "{public}"}})
 		ownershipFailure(s, "ALTER POLICY own_policy_last ON own_cleanup", fixture.Diagnostic{Code: "42704", Message: `policy "own_policy_last" for table "own_cleanup" does not exist`})
 		s.Exec("DROP POLICY own_policy_public ON own_cleanup")
 		s.Exec("GRANT SELECT,INSERT ON own_cleanup TO own_source")

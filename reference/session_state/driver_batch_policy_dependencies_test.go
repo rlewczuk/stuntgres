@@ -145,9 +145,7 @@ func TestReferenceDriverBatchPolicyExplicitBoundary(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Select("SELECT id FROM policy_t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{}))
 		batchExec(t, p, b, a, "RESET ROLE", 0)
 		batchExec(t, p, b, a, "ROLLBACK", 0)
-		if b.PG {
-			fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual FROM pg_policies WHERE tablename='policy_t' AND policyname='p'", []string{"qual"}, []string{"TEXT"}, [][]any{{"true"}}))
-		}
+		fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT qual FROM pg_policies WHERE tablename='policy_t' AND policyname='p'", []string{"qual"}, []string{"TEXT"}, [][]any{{"true"}}))
 		batchExec(t, p, b, peer, "SET ROLE batch_explicit_reader", 0)
 		fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT id FROM policy_t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 		batchExec(t, p, b, peer, "RESET ROLE", 0)

@@ -166,6 +166,14 @@ Transaction peers use scalar/raw-tree observations while ALTER owns its relation
 lock, and exact display before/after lock release. Native control phases retain
 actual Dump fidelity/replay assertions alongside common logical metadata.
 
+The `pg_policies` view family asserts all eight typed columns, sorted distinct
+NAME-array targets, independently absent USING/CHECK, current-identity display,
+held-statement freshness and view-level SELECT authorization. It deliberately
+does not filter definitions by target-table or provider privileges. Metadata
+reads have independent sequence/data no-execution witnesses; native control
+phases check full rows and descriptors across actual replacement and failed
+staged Restore.
+
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -191,6 +199,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Transactional policy definitions and existing RLS consumers: `RUN='^TestReferenceTransactionalPolicies(Routes|Retention|Savepoints|Diagnostics|Prepared|Dependencies|Locks|Controls)$'`
 - Policy catalog metadata, definitions, frozen expression display and authorization:
   `RUN='^TestReferencePGPolicy'`
+- Policy view rows, definitions, authorization, lifecycle and native controls:
+  `RUN='^TestReferencePGPolicies'`
 - Table RLS flags, default deny, BYPASSRLS: `RUN='^TestReferenceRLSBase'`
 - Policy applicability and combination: `RUN='^TestReferenceRLSCombination'`
 - Existing-row USING filtering: `RUN='^TestReferenceRLSFilter'`

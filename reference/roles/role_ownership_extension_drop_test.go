@@ -63,9 +63,7 @@ func ownershipExtensionSurvivor(s *fixture.RoleMembershipScenario, database stri
 	ownershipNotices(s, ownershipCascadeNotice("drop cascades to 5 other objects", "drop cascades to default value for column v of table own_ext_consumer\ndrop cascades to constraint own_ext_check on table own_ext_consumer\ndrop cascades to view own_ext_view\ndrop cascades to view own_ext_chain\ndrop cascades to policy own_ext_policy on table own_ext_consumer"))
 	ownershipProviderGone(s)
 	ownershipCount(s, "SELECT count(*) FROM pg_class WHERE relname='own_ext_view' OR relname='own_ext_chain'", 0)
-	if s.Backend.PG {
-		ownershipCount(s, "SELECT count(*) FROM pg_policies WHERE tablename='own_ext_consumer'", 0)
-	}
+	ownershipCount(s, "SELECT count(*) FROM pg_policies WHERE tablename='own_ext_consumer'", 0)
 	ownershipFailure(s, "ALTER POLICY own_ext_policy ON own_ext_consumer", fixture.Diagnostic{Code: "42704", Message: `policy "own_ext_policy" for table "own_ext_consumer" does not exist`})
 	ownershipOwner(s, "own_ext_consumer", "own_other")
 	ownershipRows(s, "own_ext_sentinel")

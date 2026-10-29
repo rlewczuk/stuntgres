@@ -599,6 +599,10 @@ ACLs and RLS evaluation remain with their existing owners. `Runtime.PolicyTree`
 retains the actual frozen policy/presentation without evaluating it; cancellation
 discards the entire capture.
 
+`pg_policies` (12018) projects that same collection as a read-only virtual view.
+Its eight nullable descriptor columns retain the existing rowtype12020/array12019
+association; role names and expression text are owned by the captured authority.
+
 
 ### Adding a system relation
 
@@ -618,8 +622,10 @@ Building the adapter reads nothing; only the selected producer calls the
 methods it needs. Rule facts and view options are read from catalog payloads
 directly (`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`).
 Policy definitions likewise remain relation-owned; `PolicyTree` bridges their
-opaque frozen payload to the stored carrier without exposing its concrete owner
-here. Trigger definitions use `VisitTriggerCatalog` to project checked value
+opaque frozen payload to the stored carrier, and `PolicyDisplay` validates that
+same carrier before default-format rendering with captured caller presentation.
+Neither bridge exposes its concrete owner here. Trigger definitions use
+`VisitTriggerCatalog` to project checked value
 facts and owned tree carriers from the actual relation payload; the distinct
 `VisitTriggerDefinitions` retains information_schema presentation and disclosure.
 Maintenance-aware projections need an adapter backed by a real engine;
@@ -627,6 +633,8 @@ an empty adapter is not an initialized maintenance capture.
 
 Policy producer authority and immutable structural ownership use
 `make check RUN='^TestPGPolicy'`; add `RACE=1` for retained-output concurrency.
+Policy-view projection, typed role arrays, authority, cancellation and retained
+backing use `make check RUN='^TestPGPolicies'`.
 
 | Methods | Why they are engine-owned |
 |---|---|
@@ -641,6 +649,7 @@ Policy producer authority and immutable structural ownership use
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
 | `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance facts and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
+| `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
 | `ViewDefinition`, `IndexDefinition`, `VisitRuleDefinitions` | current-identity stored definition rendering; rule visitor omits exact `_RETURN` before rendering |
@@ -712,6 +721,12 @@ catalog writes or bypass a provider's independent backing-source checks.
   ACLs are not consulted (ordinary relation SELECT protects it).
 - `pg_largeobject_metadata` (2995): object OID, creator's owner OID and raw
   `ClassACL`, without per-object filtering or redaction.
+- `pg_policies`: projects all represented policy definitions under ordinary
+  view SELECT authorization (PUBLIC by default), not target-object filtering.
+  Captured caller visibility controls expression qualification. Current named
+  targets are sorted and deduplicated into genuine NAME[]; PUBLIC is `{public}`.
+  USING and CHECK are independently nullable and use the stored default renderer;
+  reading definitions never evaluates conditions or enables row filtering.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership
@@ -943,8 +958,8 @@ base-table structural events; this does not change catalog write admission.
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
 including `information_schema.columns`, `information_schema.domains`,
 `information_schema.user_defined_types`, `information_schema.tables`,
-`information_schema.usage_privileges` and `pg_catalog.pg_rules`, with
-classification and per-output capability facts.
+`information_schema.usage_privileges`, `pg_catalog.pg_policies` and
+`pg_catalog.pg_rules`, with classification and per-output capability facts.
 Its canonical literal fragments contain explicit object-name and identifier
 occurrences. `pg_rules` uses the same definition authority as both consumers;
 its `pg_get_ruledef(oid)` reference captures stable routine identity, while

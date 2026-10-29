@@ -188,12 +188,9 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 				}
 				ownershipCount(s, "SELECT count(*) FROM pg_class c JOIN pg_roles r ON r.oid=c.relowner WHERE r.rolname IN('own_source','own_alt')", 0)
 				const inventory = "SELECT policyname,roles::TEXT FROM pg_policies WHERE tablename='tx_policy_probe' ORDER BY policyname"
-				var before [][]any
-				if s.Backend.PG {
-					before = ownershipTransactionSnapshot(s, s.C, inventory)
-					if len(before) != 4 {
-						s.T.Fatal("complete sole/mixed/PUBLIC policy inventory", before)
-					}
+				before := ownershipTransactionSnapshot(s, s.C, inventory)
+				if len(before) != 4 {
+					s.T.Fatal("complete sole/mixed/PUBLIC policy inventory", before)
 				}
 				state := func(e fixture.Executor, cleaned bool) {
 					for _, actor := range []string{"own_source", "own_alt", "own_reader", "own_downstream"} {
@@ -302,9 +299,7 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 						x.end(true)
 					}
 					state(s.C, false)
-					if s.Backend.PG {
-						ownershipTransactionSnapshotEqual(s, s.C, inventory, before)
-					}
+					ownershipTransactionSnapshotEqual(s, s.C, inventory, before)
 					return
 				}
 				if out.Err != nil {
@@ -312,9 +307,7 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 				}
 				fixture.LockAffected(s.T, out.Result, 0)
 				state(x.e, true)
-				if s.Backend.PG {
-					ownershipTransactionSnapshotEqual(s, peer, inventory, before)
-				}
+				ownershipTransactionSnapshotEqual(s, peer, inventory, before)
 				// Partial-target and ACL-only cleanup does not prevent the
 				// ordinary peer from reading its still-committed authority.
 				for _, table := range []string{"tx_policy_partial", "tx_policy_acl"} {
@@ -371,12 +364,10 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 				state(peer, committed)
 				ownershipOwner(s, "tx_policy_probe", "own_other")
 				ownershipRows(s, "tx_policy_probe")
-				if s.Backend.PG {
-					if committed {
-						ownershipSelect(s, inventory, []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"tx_policy_mixed", "{own_reader}"}, {"tx_policy_public", "{public}"}})
-					} else {
-						ownershipTransactionSnapshotEqual(s, s.C, inventory, before)
-					}
+				if committed {
+					ownershipSelect(s, inventory, []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"tx_policy_mixed", "{own_reader}"}, {"tx_policy_public", "{public}"}})
+				} else {
+					ownershipTransactionSnapshotEqual(s, s.C, inventory, before)
 				}
 			})
 		})

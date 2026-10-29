@@ -36,9 +36,7 @@ func TestReferenceRoleOwnershipRestrictAtomicity(t *testing.T) {
 		ownershipRows(s, "own_granted")
 		s.Actor("")
 		ownershipInherited(s, "own_downstream", "own_middle", "MEMBER", true)
-		if s.Backend.PG {
-			ownershipSelect(s, "SELECT roles::TEXT AS roles FROM pg_policies WHERE policyname='own_policy_keep'", []string{"roles"}, []string{"TEXT"}, [][]any{{"{own_reader,own_source}"}})
-		}
+		ownershipSelect(s, "SELECT roles::TEXT AS roles FROM pg_policies WHERE policyname='own_policy_keep'", []string{"roles"}, []string{"TEXT"}, [][]any{{"{own_reader,own_source}"}})
 		s.Exec("ALTER TABLE own_granted ENABLE ROW LEVEL SECURITY")
 		s.Exec("GRANT SELECT ON own_granted TO own_reader")
 		s.Actor("own_reader")
@@ -145,9 +143,7 @@ func TestReferenceRoleOwnershipCascade(t *testing.T) {
 		s.Run(fixture.Exec("INSERT INTO own_type_survivor(keep) VALUES(0)", 1))
 		s.Actor("")
 		ownershipSelect(s, "SELECT keep,calc FROM own_type_survivor ORDER BY keep", []string{"keep", "calc"}, []string{"INT4", "INT4"}, [][]any{{int64(0), nil}, {int64(9), int64(7)}})
-		if s.Backend.PG {
-			ownershipCount(s, "SELECT count(*) FROM pg_policies WHERE policyname='own_cast_policy'", 0)
-		}
+		ownershipCount(s, "SELECT count(*) FROM pg_policies WHERE policyname='own_cast_policy'", 0)
 		ownershipFailure(s, "ALTER POLICY own_cast_policy ON own_type_survivor", fixture.Diagnostic{Code: "42704", Message: `policy "own_cast_policy" for table "own_type_survivor" does not exist`})
 		s.Run(fixture.Exec("INSERT INTO own_default_survivor(keep) VALUES(9)", 1))
 		ownershipSelect(s, "SELECT id,keep FROM own_default_survivor ORDER BY id NULLS LAST", []string{"id", "keep"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(9)}, {nil, int64(9)}})

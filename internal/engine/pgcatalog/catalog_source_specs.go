@@ -737,6 +737,16 @@ var Specs = [...]Spec{
 		{"ev_enabled", sqltype.Char, true, 0, 0, -1},
 		{"is_instead", sqltype.Bool, true, 0, 0, -1},
 	}, false, CatalogHasIndexes(2618), false, false, "stuntgres: missing catalog source type"},
+	{PoliciesOID, ids.PGCatalogNamespaceOID, "pg_policies", []ColumnSpec{
+		{"schemaname", sqltype.Name, true, 0, 0, -1},
+		{"tablename", sqltype.Name, true, 0, 0, -1},
+		{"policyname", sqltype.Name, true, 0, 0, -1},
+		{"permissive", sqltype.Text, true, 0, 0, -1},
+		{"roles", 1003, true, 0, 1, -1},
+		{"cmd", sqltype.Text, true, 0, 0, -1},
+		{"qual", sqltype.Text, true, 0, 0, -1},
+		{"with_check", sqltype.Text, true, 0, 0, -1},
+	}, true, CatalogHasIndexes(PoliciesOID), false, false, "stuntgres: missing catalog source type"},
 	{RulesOID, ids.PGCatalogNamespaceOID, "pg_rules", []ColumnSpec{
 		{"schemaname", sqltype.Name, true, 0, 0, -1},
 		{"tablename", sqltype.Name, true, 0, 0, -1},

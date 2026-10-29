@@ -74,9 +74,7 @@ func TestReferenceRoleOwnershipAssociations(t *testing.T) {
 		ownershipPolicyRows(s, "SELECT payload FROM own_parent ORDER BY payload", []string{"payload"}, [][]any{{int64(7)}, {int64(9)}})
 		s.Actor("")
 		ownershipSelect(s, "SELECT description FROM pg_description WHERE classoid=1259 AND objoid='own_parent'::regclass::oid AND objsubid=0", []string{"description"}, []string{"TEXT"}, [][]any{{"ownership sentinel"}})
-		if s.Backend.PG {
-			ownershipSelect(s, "SELECT policyname FROM pg_policies WHERE tablename='own_parent'", []string{"policyname"}, []string{"NAME"}, [][]any{{"own_parent_policy"}})
-		}
+		ownershipSelect(s, "SELECT policyname FROM pg_policies WHERE tablename='own_parent'", []string{"policyname"}, []string{"NAME"}, [][]any{{"own_parent_policy"}})
 		s.Actor("own_target")
 		s.Exec("ALTER TABLE own_parent FORCE ROW LEVEL SECURITY")
 		ownershipSelect(s, "SELECT payload FROM own_parent", []string{"payload"}, []string{"INT4"}, nil)

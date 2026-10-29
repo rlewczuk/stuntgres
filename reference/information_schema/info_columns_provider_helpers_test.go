@@ -66,6 +66,7 @@ func icProviderInventory(c *icCase) {
 		"pg_shmem_allocations":                   strings.Fields("name off size allocated_size"),
 		"pg_shmem_allocations_numa":              strings.Fields("name numa_node size"),
 		"pg_wait_events":                         strings.Fields("type name description"),
+		"pg_policies":                            strings.Fields("schemaname tablename policyname permissive roles cmd qual with_check"),
 		"pg_rules":                               strings.Fields("schemaname tablename rulename definition"),
 		"pg_tables":                              strings.Fields("schemaname tablename tableowner tablespace hasindexes hasrules hastriggers rowsecurity"),
 		"pg_matviews":                            strings.Fields("schemaname matviewname matviewowner tablespace hasindexes ispopulated definition"),
@@ -156,7 +157,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
+			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_policies pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

@@ -49,16 +49,10 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 		const policy = "SELECT policyname,roles::TEXT FROM pg_policies WHERE tablename='tx_cleanup_grants' ORDER BY policyname"
 		const probePolicies = "SELECT policyname,roles::TEXT FROM pg_policies WHERE tablename='tx_cleanup_policy_probe' ORDER BY policyname"
 		before := map[string][][]any{}
-		for _, q := range []string{acl, col, def, member} {
+		for _, q := range []string{acl, col, def, member, policy, probePolicies} {
 			before[q] = ownershipTransactionSnapshot(s, s.C, q)
 		}
-		// These PG-only catalog rows supplement, never replace, common RLS
-		// effects and exact native canonical-descriptor invariants.
-		if s.Backend.PG {
-			before[policy] = ownershipTransactionSnapshot(s, s.C, policy)
-			before[probePolicies] = ownershipTransactionSnapshot(s, s.C, probePolicies)
-		}
-		if len(before[acl]) != 4 || len(before[col]) != 1 || len(before[def]) != 2 || len(before[member]) != 1 || s.Backend.PG && (len(before[policy]) != 2 || len(before[probePolicies]) != 2) {
+		if len(before[acl]) != 4 || len(before[col]) != 1 || len(before[def]) != 2 || len(before[member]) != 1 || len(before[policy]) != 2 || len(before[probePolicies]) != 2 {
 			s.T.Fatal("complete cleanup preconditions", before)
 		}
 		ownershipSelect(s, member, []string{"member", "usage", "can_set"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
@@ -156,9 +150,7 @@ func TestReferenceRoleOwnershipTransactionalCleanup(t *testing.T) {
 			x.run(fixture.Select("SELECT pg_has_role('own_downstream','own_middle','MEMBER') AS inherited", []string{"inherited"}, []string{"BOOL"}, [][]any{{false}}))
 			grantState(x.e, true, route != "auto")
 			policyState(x.e, true)
-			if s.Backend.PG {
-				x.run(fixture.Select(policy, []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"tx_policy_mixed", "{own_reader}"}}))
-			}
+			x.run(fixture.Select(policy, []string{"policyname", "roles"}, []string{"NAME", "TEXT"}, [][]any{{"tx_policy_mixed", "{own_reader}"}}))
 			x.run(fixture.Select("SELECT count(*) FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE r.rolname='own_source'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
 			if route != "auto" {
 				for q, rows := range before {
