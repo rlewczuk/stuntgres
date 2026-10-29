@@ -25,6 +25,16 @@ type Spec struct {
 }
 
 var Specs = [...]Spec{
+	{PartitionedTableOID, ids.PGCatalogNamespaceOID, "pg_partitioned_table", []ColumnSpec{
+		{"partrelid", sqltype.Oid, false, 0, 0, -1},
+		{"partstrat", sqltype.Char, false, 0, 0, -1},
+		{"partnatts", sqltype.Int2, false, 0, 0, -1},
+		{"partdefid", sqltype.Oid, false, 0, 0, -1},
+		{"partattrs", sqltype.Int2Vector, false, 0, 1, -1},
+		{"partclass", sqltype.OidVector, false, 0, 1, -1},
+		{"partcollation", sqltype.OidVector, false, 0, 1, -1},
+		{"partexprs", sqltype.PgNodeTree, true, 950, 0, -1},
+	}, false, CatalogHasIndexes(PartitionedTableOID), true, false, "stuntgres: missing partitioned table source type"},
 	{3394, ids.PGCatalogNamespaceOID, "pg_init_privs", []ColumnSpec{
 		{"objoid", sqltype.Oid, false, 0, 0, -1},
 		{"classoid", sqltype.Oid, false, 0, 0, -1},

@@ -56,6 +56,19 @@ type Producer func(Input) ([][]sqltype.Value, error)
   represented object's privileges or schema USAGE, while normal catalog
   relation/column SELECT admission and held-statement rechecks still apply.
   Reads never create history or derive it from current ACLs or provider recipes.
+- `pg_partitioned_table` (3350) projects eight attributes from real immutable
+  partition descriptors through `Runtime.PartitionMetadata`, without a row store
+  or DDL population hooks. Stable key attnums, selected operator classes, effective
+  collations, strategy and immediate default-child identity belong to that
+  captured frontier. The first seven attributes are nonnullable; the three
+  numeric vectors own rank-one, lower-zero backing. Only `partexprs` is nullable
+  in both the source schema and its registered `pg_attribute` facts: it retains
+  original ordered definition nodes in the established logical expression-list
+  carrier, not physical PostgreSQL node serialization.
+  Source identity, captured type generations and descriptor references are
+  validated even for empty captures; cancellation/invariant failures publish no
+  prefix. Structural rows do not depend on target-table privileges, while catalog
+  SELECT and guarded mutation admission retain centralized execution-time ACLs.
 - `pg_index` projects all 21 attributes from one detached `index.Metadata`
   capture, transported through `Runtime.IndexMetadata`. Actual index identities,
   definition flags and publication state remain index-owner facts. Structural
@@ -1093,6 +1106,10 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 Prepared statement metadata ownership and public scenarios share the family
 selectors `RUN='^TestPGPreparedStatements'` and
 `RUN='^TestReferencePGPreparedStatements'`.
+
+Partition descriptor/source authority, cancellation and retained typed captures
+use `RUN='^TestPGPartitionedTable'` in `core/`; public catalog SQL shares
+`RUN='^TestReferencePGPartitionedTable'` in `reference/partitions`.
 
 Composed index-identity witnesses that require actual hash probing prescribe
 their CPU profile through session settings and command admission. Opening a

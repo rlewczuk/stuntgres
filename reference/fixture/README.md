@@ -110,6 +110,10 @@ production dependency is involved.
 
 ## Helpers
 
+- **Column metadata.** `TableDDLColumnTypes` checks caller-specified names, types
+  and nullability with explicit adapter ScanType expectations, including internal
+  `CHAR`, `INT2`, catalog vectors and `PG_NODE_TREE`; unlisted types fail rather
+  than bypassing metadata assertions.
 - **Extension shared ownership.** `extension_controls.go` (`ExtensionDump`,
   the physical TEMP owner `ExtensionTemporaryOwner`), `pageinspect_pages.go`
   (released BRIN/BTREE/FSM/GIN page images and their metadata checkers),

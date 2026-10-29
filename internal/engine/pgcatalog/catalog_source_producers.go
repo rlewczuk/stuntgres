@@ -53,6 +53,7 @@ var producers = [...]Registration{
 	{3079, captureExtensionCatalog},
 	{3118, captureForeignCatalog},
 	{ids.PolicyClassID, capturePGPolicy},
+	{PartitionedTableOID, capturePGPartitionedTable},
 	{StatisticExtOID, capturePGStatisticExt},
 	{3394, capturePGInitPrivs},
 	{StatisticExtDataOID, capturePGStatisticExtData},

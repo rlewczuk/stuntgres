@@ -80,17 +80,18 @@ type CursorFact struct {
 	Hold, Scroll    bool
 	Created         sqltype.Value
 }
+
 // PreparedStatementFact borrows immutable definition signatures for this visit
 // only. It carries no executable graph or session authority.
 type PreparedStatementFact struct {
 	Name, Statement string
-	Created time.Time
-	FromSQL bool
-	ParameterCount int
-	ParameterTypes []sqltype.Usage
-	ParameterOIDs []uint32
-	Results []catalog.Column
-	HasResults bool
+	Created         time.Time
+	FromSQL         bool
+	ParameterCount  int
+	ParameterTypes  []sqltype.Usage
+	ParameterOIDs   []uint32
+	Results         []catalog.Column
+	HasResults      bool
 }
 type SettingsFact struct {
 	Definition    settings.Definition
@@ -176,6 +177,7 @@ type Runtime interface {
 	ViewCapabilities(context.Context, catalog.Read, *catalog.Relation) (ViewCapability, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
 	IndexMetadata(context.Context, catalog.Read, *catalog.Relation, [6]*sqltype.Descriptor) (IndexMetadataFact, error)
+	PartitionMetadata(context.Context, catalog.Read, *catalog.Relation, [4]*sqltype.Descriptor) (PartitionMetadataFact, error)
 	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
 	VisitTriggerDefinitions(context.Context, catalog.Read, *catalog.Relation, bool, func(TriggerFact) error) error
 	VisitTriggerCatalog(context.Context, catalog.Read, *catalog.Relation, *sqltype.Descriptor, func(TriggerCatalogFact) error) error

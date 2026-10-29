@@ -32,6 +32,7 @@ func icProviderInventory(c *icCase) {
 		"pg_ts_config_map":                       strings.Fields("mapcfg maptokentype mapseqno mapdict"),
 		"pg_shadow":                              strings.Fields("usename usesysid usecreatedb usesuper userepl usebypassrls passwd valuntil useconfig"),
 		"pg_inherits":                            fixture.PGInheritsColumns,
+		"pg_partitioned_table":                   strings.Fields("partrelid partstrat partnatts partdefid partattrs partclass partcollation partexprs"),
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),
 		"pg_attrdef":                             strings.Fields("oid adrelid adnum adbin"),
 		"pg_statistic_ext":                       strings.Fields("oid stxrelid stxname stxnamespace stxowner stxkeys stxstattarget stxkind stxexprs"),

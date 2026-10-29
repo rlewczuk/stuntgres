@@ -29,7 +29,7 @@ func TableDDLColumnTypes(t *testing.T, postgres bool, columns []*sql.ColumnType,
 			if postgres {
 				scan = reflect.TypeFor[any]()
 			}
-		case "PG_NODE_TREE":
+		case "CHAR", "INT2VECTOR", "OIDVECTOR", "PG_NODE_TREE":
 			scan = reflect.TypeFor[string]()
 			if postgres {
 				scan = reflect.TypeFor[any]()

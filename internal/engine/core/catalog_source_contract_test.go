@@ -38,6 +38,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 	for _, statement := range []string{
 		"CREATE TABLE producer_contract_row(id INT DEFAULT 7)",
 		"CREATE INDEX producer_contract_index ON producer_contract_row(id)",
+		"CREATE TABLE producer_contract_partition(id INT) PARTITION BY RANGE(id)",
 		"CREATE VIEW producer_contract_view AS SELECT id FROM producer_contract_row",
 		"CREATE SEQUENCE producer_contract_sequence",
 		"CREATE FOREIGN DATA WRAPPER producer_contract_fdw HANDLER producer_contract_handler",
@@ -121,7 +122,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 			if source.Anonymous == nil || len(source.Anonymous) != 0 || source.View != nil {
 				t.Fatal("transforms must be a typed empty source", source)
 			}
-		case 1259, 1249, 2610, 2604, 2618, 12000, 12002, 12003, 2224,
+		case 1259, 1249, 2610, 3350, 2604, 2618, 12000, 12002, 12003, 2224,
 			ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID:
 			if len(source.Anonymous) == 0 {
 				t.Fatal("real fixture missing from producer", d.Name())
@@ -485,6 +486,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	stableAttributes := map[ids.OID][]int32{
 		2610: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
 		2620: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
+		3350: {1, 2, 3, 4, 5, 6, 7, 8},
 	}
 	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
@@ -525,6 +527,12 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 		collations []uint32
 		typmods    []int32
 	}{
+		{3350,
+			[]string{"partrelid", "partstrat", "partnatts", "partdefid", "partattrs", "partclass", "partcollation", "partexprs"},
+			[]sqltype.ID{26, 18, 21, 26, 22, 30, 30, 194},
+			[]bool{false, false, false, false, false, false, false, true},
+			[]uint32{0, 0, 0, 0, 0, 0, 0, 950},
+			[]int32{-1, -1, -1, -1, -1, -1, -1, -1}},
 		{1255,
 			[]string{"oid", "proname", "pronamespace", "proowner", "prolang", "procost", "prorows", "provariadic", "prosupport", "prokind", "prosecdef", "proleakproof", "proisstrict", "proretset", "provolatile", "proparallel", "pronargs", "pronargdefaults", "prorettype", "proargtypes", "proallargtypes", "proargmodes", "proargnames", "proargdefaults", "protrftypes", "prosrc", "probin", "prosqlbody", "proconfig", "proacl"},
 			[]sqltype.ID{26, 19, 26, 26, 26, 700, 700, 26, 24, 18, 16, 16, 16, 16, 18, 18, 21, 21, 26, 30, 1028, 1002, 1009, 194, 1028, 25, 25, 194, 1009, 1034},

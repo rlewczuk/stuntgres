@@ -31,6 +31,11 @@
   leader/worker pairs for partial execution, and explicit finite planning/
   topology alternatives for retained PostgreSQL statements.
 
+- Add read-only `pg_partitioned_table` metadata from captured partition
+  descriptors, including typed keys, strategies, classes, effective collations,
+  expression definitions and transactional default-child identities, with exact
+  registered attribute nullability.
+
 - Add atomic column rename across declarative partition hierarchies, preserving
   local attribute layouts, bound expressions and data while updating current-name
   diagnostics, prepared metadata and logical Dump/Restore presentation. Release
