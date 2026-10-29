@@ -284,10 +284,10 @@ routine safety depth and lexical scratch. Only admitted DML trigger bodies and
 individual internal RI callbacks enter it, with deferred unwind. WHEN and queue
 qualification read the surrounding level. Ordinary routines and event triggers
 borrow it without entering; rollback and native controls never serialize it.
-The three builtin DML trigger declarations and authenticated stock tcn, refint
-and autoinc providers share PL installation, stored validation and live invocation
-admission. Immediate and queued AFTER dispatch select native capability before
-allocating any PL frame.
+The three builtin DML trigger declarations and authentic installed native
+trigger providers share PL installation, stored validation and live invocation
+admission. Immediate and queued AFTER dispatch select the admitted native body
+before allocating any PL frame.
 Each body borrows OLD/current NEW and stable command UPDATE attributes; suppression uses
 cancellable typed payload comparison, not SQL equality. Vector bodies capture
 one immutable current FTS generation per invocation, resolving explicit names
@@ -339,6 +339,15 @@ contexts; helper-owned violations use 09000 rather than declarative-FK 23503.
 Native controls replay installed identities and postdata triggers, never frames
 or cached invocation values. PostgreSQL's SPI/fmgr C ABI and shared-library
 loading are external mechanisms, not exemptions from these logical SQL effects.
+
+The stock moddatetime provider replaces one exact builtin timestamp/timestamptz
+NEW field from the transaction start and current session zone, using unsized
+precision rather than reapplying the column typmod. Literal arguments name
+case-sensitive user columns; domains are not temporal helper destinations.
+Ordinary SQL invocation is an unfolded evaluation-time protocol error.
+BEFORE/AFTER STATEMENT, including TRUNCATE, and AFTER ROW enter the shared
+native boundary and receive the helper's row-before-timing protocol checks.
+Arbitrary shared-library loading and general PostgreSQL SPI are not engine paths.
 
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
 the calling command's initial data-view capture: lazy trigger-body reads are

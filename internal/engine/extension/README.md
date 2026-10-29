@@ -2,8 +2,9 @@
 
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, citext, cube,
-earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree, pageinspect,
-pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
+earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
+moddatetime, pageinspect, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -132,6 +133,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   declaration returning TRIGGER; names, current membership and library display
   alone never grant its capability. Ordinary EXECUTE checks remain at trigger
   creation, not each firing.
+- **Moddatetime trigger provider** (`moddatetime_provider.go`):
+  Moddatetime seals one volatile, non-strict, parallel-unsafe zero-input C trigger
+  declaration. Its optional native DML capability identifies the released body;
+  both firing paths still validate the current descriptor and provider origin.
+  Relabeling, relocation and membership changes do not select a different body.
+  Non-SQL routine configuration and SECURITY DEFINER remain unadmitted.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares

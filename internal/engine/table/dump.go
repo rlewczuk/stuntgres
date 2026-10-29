@@ -131,7 +131,15 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 			var err error
 			destination := t.Columns[i].Usage.Type
 			base := destination.BaseType().ID()
-			if typedef.ContainsStoredDomainNull(v) {
+			exactTimestamp, captureErr := typedef.ExactTimestampReplayNeeded(ctx, catalogView, t.Columns[i].Usage, v)
+			if captureErr != nil { return captureErr }
+			if exactTimestamp {
+				text, captureErr := destination.Output(ctx, v)
+				if captureErr != nil { return captureErr }
+				node := typedef.DomainReplayNode{Kind: "timestamp_exact", Scalar: &text}
+				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.Columns[i].Name, Value: &node})
+				literal = "'" + strings.ReplaceAll(text, "'", "''") + "'"
+			} else if typedef.ContainsStoredDomainNull(v) {
 				node, captureErr := CaptureDomainReplayNode(ctx, catalogView, t.Columns[i].Usage, v)
 				if captureErr != nil {
 					return captureErr

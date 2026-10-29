@@ -102,6 +102,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"isn":           {"isn", "1.3", nil, "data types for international product numbering standards"},
 					"lo":            {"lo", "1.2", nil, "Large Object maintenance"},
 					"ltree":         {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
+					"moddatetime":   {"moddatetime", "1.0", nil, "functions for tracking last modification time"},
 					"pageinspect":   {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
 					"seg":           {"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"},
 					"tablefunc":     {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
@@ -127,6 +128,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["isn"] = []any{"isn", "1.3", false, true, true, true, nil, nil, "data types for international product numbering standards"}
 					expected["lo"] = []any{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}
 					expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}
+					expected["moddatetime"] = []any{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}
 					expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
 					expected["seg"] = []any{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}
 					expected["tablefunc"] = []any{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}

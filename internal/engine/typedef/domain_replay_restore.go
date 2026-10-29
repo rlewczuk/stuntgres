@@ -39,6 +39,7 @@ type DomainReplayProvenance uint8
 
 const DomainReplayDomainNull DomainReplayProvenance = 1
 const DomainReplaySeg DomainReplayProvenance = 2
+const DomainReplayTimestampExact DomainReplayProvenance = 4
 
 // RestoreDomainReplayNode rebuilds the value of n for usage u: domain and
 // domain-NULL nodes against the domain's captured identity, NULL, array and
@@ -72,6 +73,7 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 		if err != nil {
 			return sqltype.Value{}, 0, err
 		}
+		if count&DomainReplayTimestampExact != 0 { return bad() }
 		if base.IsNull() {
 			return bad()
 		}
@@ -91,6 +93,9 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 	}
 	if u.Type.IsDomain() {
 		return bad()
+	}
+	if n.Shape("timestamp_exact") {
+		return restoreExactTimestamp(env, u, *n.Scalar)
 	}
 	if n.Shape("statistics_tree") {
 		current, ok := env.Catalog.LookupType(sqltype.PgNodeTree)
@@ -140,6 +145,7 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 			if err != nil {
 				return sqltype.Value{}, 0, err
 			}
+			if found&DomainReplayTimestampExact != 0 { return bad() }
 			elements[i] = value
 			count |= found
 		}
@@ -170,6 +176,7 @@ func RestoreDomainReplayNode(env *DomainReplayEnv, u sqltype.Usage, n *DomainRep
 			if err != nil {
 				return sqltype.Value{}, 0, err
 			}
+			if found&DomainReplayTimestampExact != 0 { return bad() }
 			members[i] = value
 			count |= found
 		}
@@ -244,7 +251,8 @@ func DomainReplayCells(env *DomainReplayEnv, s *parser.Insert, cells []DomainRep
 		}
 		raw, ok := s.Rows[0][position].(parser.LiteralExpr)
 		seg := cell.Value.Shape("seg")
-		if !ok || !seg && raw.Value.Kind != parser.NullValue || seg && raw.Value.Kind != parser.StringValue {
+		timestamp := cell.Value.Shape("timestamp_exact")
+		if !ok || !seg && !timestamp && raw.Value.Kind != parser.NullValue || (seg || timestamp) && raw.Value.Kind != parser.StringValue {
 			return nil, fmt.Errorf("stuntgres: native replay requires its exact emitted literal")
 		}
 		usage := relation.Columns[slot].Usage
@@ -252,8 +260,13 @@ func DomainReplayCells(env *DomainReplayEnv, s *parser.Insert, cells []DomainRep
 		if err != nil {
 			return nil, err
 		}
-		if value.Type() != usage.Type || !seg && count&DomainReplayDomainNull == 0 || seg && count != DomainReplaySeg {
+		if value.Type() != usage.Type || !seg && !timestamp && (count&DomainReplayDomainNull == 0 || count&DomainReplayTimestampExact != 0) || seg && count != DomainReplaySeg || timestamp && count != DomainReplayTimestampExact {
 			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted provenance")
+		}
+		if timestamp {
+			if raw.Value.Text != *cell.Value.Scalar {
+				return nil, fmt.Errorf("stuntgres: mismatched canonical timestamp replay literal")
+			}
 		}
 		if seg {
 			exactText, err := usage.Type.OutputWithEnvironment(env.Context, value, env.Output)

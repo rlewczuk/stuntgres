@@ -309,6 +309,11 @@ call live here.
   named ADD NOT NULL NOT VALID NO INHERIT constructors, admitted only by the
   isolated parser option and exact Restore allowlist. Both use ordinary
   candidates and catalog publication, with no paired catalog UPDATE repair.
+  Top-level off-typmod finite timestamp cells use the same paired record with
+  distinct temporal provenance and canonical default-output text. Dump emits
+  no temporal sidecar for fitting values, unlimited precision, NULL or infinity.
+  Destination-owned replay preserves exact data without enabling an ordinary
+  assignment bypass or requiring the historical trigger/provider to survive.
 - **Other cores**: `DropTargets` (over `Resolver`), SET SCHEMA, CREATE TABLE AS
   (`QueryTableColumns`), `RelationProvider` (its `RelationValidators` slots run
   in fixed order), `RecomputeRemappedGenerations`, `Stage.DefinitionProviders`

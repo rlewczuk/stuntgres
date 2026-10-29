@@ -65,6 +65,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tcn' AND version='1.0'", true, [][]any{{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='plpgsql'", false, [][]any{{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='plpgsql' AND version='1.0'", true, [][]any{{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='moddatetime'", false, [][]any{{"moddatetime", "1.0", nil, "functions for tracking last modification time"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='moddatetime' AND version='1.0'", true, [][]any{{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}}, pg))
 			if !pg {
 				// Native availability is its embedded registry, including the genuine
 				// installed bootstrap plpgsql extension.
@@ -105,6 +107,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"})
 				wantAvailable = append(wantAvailable, []any{"insert_username", "1.0", nil, "functions for tracking who changed a table"})
 				wantVersions = append(wantVersions, []any{"insert_username", "1.0", false, true, false, true, nil, nil, "functions for tracking who changed a table"})
+				wantAvailable = append(wantAvailable[:11:11], append([][]any{{"moddatetime", "1.0", nil, "functions for tracking last modification time"}}, wantAvailable[11:]...)...)
+				wantVersions = append(wantVersions[:12:12], append([][]any{{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}}, wantVersions[12:]...)...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

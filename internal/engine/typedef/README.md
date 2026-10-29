@@ -95,6 +95,12 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
   Seg provenance is separate from domain-NULL provenance: only a checked
   destination-owned seg payload paired with its canonical literal is admitted.
   Domain NULL placeholders retain their existing exact-NULL and constraint rules.
+  Exact temporal provenance is also separate: a top-level builtin timestamp or
+  timestamptz precision 0..5 cell is admitted only when its finite canonical
+  default-output text demonstrably loses precision under ordinary assignment.
+  Its identical plain-string INSERT placeholder is reconstructed with unsized
+  destination input, never interpreted as SQL. Session output settings, historical
+  helper identity, domains and nested values confer no such authority.
   `WithoutDomainCheck` is the pure CHECK removal behind DROP CONSTRAINT and
   the DROP dependency passes.
 - **Enums** (`enum_order.go`: sort-order insertion, `EnumSafety`) and

@@ -195,6 +195,11 @@ func DecodeDomainReplay(comment string) (DomainReplayRecord, bool, error) {
 	if record.Schema == "" || record.Table == "" || len(record.Cells) == 0 {
 		return fail(fmt.Errorf("missing target or cells"))
 	}
+	for _, cell := range record.Cells {
+		if cell.Value != nil && cell.Value.Kind == "timestamp_exact" && !cell.Value.Shape("timestamp_exact") {
+			return fail(fmt.Errorf("invalid exact timestamp shape"))
+		}
+	}
 	return record, true, nil
 }
 
@@ -254,7 +259,7 @@ func (n *DomainReplayNode) Shape(kind string) bool {
 		return n.Type != nil && n.Scalar == nil && n.Base == nil && n.Members == nil && n.Dimensions == nil && n.Elements == nil
 	case "domain":
 		return n.Type != nil && n.Scalar == nil && n.Base != nil && n.Members == nil && n.Dimensions == nil && n.Elements == nil
-	case "scalar":
+	case "scalar", "timestamp_exact":
 		return n.Type == nil && n.Scalar != nil && n.Base == nil && n.Members == nil && n.Dimensions == nil && n.Elements == nil
 	case "array":
 		return n.Type == nil && n.Scalar == nil && n.Base == nil && n.Members == nil && n.Dimensions != nil && n.Elements != nil

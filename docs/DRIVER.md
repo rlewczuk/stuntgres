@@ -115,6 +115,15 @@ Stored consumers retain genuine selected identities and recheck current access;
 removing an extension link never removes the object's ordinary dependencies.
 Native replay preserves current routine parallel/cost/rows settings separately
 from immutable released implementation identity.
+The installed `moddatetime` trigger keeps those bindings through routine rename,
+extension relocation and native controls. Its transaction-derived timestamp
+values retain full microseconds even in precision-limited columns; replay
+restores the saved values without firing a new clock or requiring a surviving
+helper. Ordinary SQL assignment still applies the column's declared precision.
+Ordinary helper calls remain evaluation-time protocol errors under the genuine
+current name. Held SQL is reparsed after catalog changes: a vacated old spelling
+is undefined, and an ordinary decoy at that spelling does not retarget the
+stored trigger binding.
 Ordinary text-search parsers may be extension members without acquiring an owner,
 ACL or installed-provider provenance. Their genuine callback declarations and
 dependent nonmember configurations survive membership changes and relocation;

@@ -123,7 +123,8 @@ routine identity. Its runtime capability reads the executing invocation owner;
 reconstruction, stored capture and scalar sources retain no measured depth.
 
 `TriggerBuiltin` is a volatile, nonfoldable zero-child TRIGGER recipe for the
-three builtin DML declarations and genuine installed refint and autoinc declarations.
+three builtin DML declarations and genuine installed refint, autoinc and
+moddatetime declarations.
 The installed route first validates the immutable provider symbol and captures
 the selected procedure dependency; spelling alone never grants capability.
 It retains routine provenance, never activation state. Ordinary SQL evaluation
