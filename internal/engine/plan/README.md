@@ -6,6 +6,10 @@ evaluates them. Node `Eval` methods never name engine state: they use
 `expr.Context`, or the `Runtime` capability declared here and implemented by
 `exec.Context`.
 
+`InstalledAutoincExpr` carries the genuine installed Procedure/Ref around the
+volatile zero-child trigger kernel. Rebuild/substitution preserve that carrier;
+runtime validation never borrows an active trigger invocation for scalar SQL.
+
 ## Imports
 
 Layer L6 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports

@@ -198,7 +198,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer
-	}{{"pageinspect", extension.StockPageinspect}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"isn", extension.StockIsn}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"seg", extension.StockSeg}, {"intarray", extension.StockIntarray}, {"ltree", extension.StockLtree}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"tablefunc", extension.StockTablefunc}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
+	}{{"autoinc", extension.StockAutoinc}, {"pageinspect", extension.StockPageinspect}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"isn", extension.StockIsn}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"seg", extension.StockSeg}, {"intarray", extension.StockIntarray}, {"ltree", extension.StockLtree}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"tablefunc", extension.StockTablefunc}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
 		if err := e.registerExtension(registration.name, registration.implementation); err != nil {
 			return nil, err
 		}

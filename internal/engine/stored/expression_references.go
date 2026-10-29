@@ -131,6 +131,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Procedure != nil {
 			r.Add(n.Ref.Address)
 		}
+	case plan.InstalledAutoincExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPageinspectExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledAmcheckExpr:

@@ -104,6 +104,10 @@ import it.
   It shares resolution/modifier validation with OID-facing REGTYPE and parsed
   callers, but intentionally rejects REGTYPE's numeric-OID/dash value shortcuts.
   Its setup errors stay outside data-validity conversion recovery.
+  `ClassInput.ResolveRelationName` shares qualified relation parsing, captured
+  paths and schema USAGE checks with regclass input, but numeric strings and
+  `-` remain names. Installed autoinc demands this path only for NULL/zero keys;
+  ordinary regclass numeric/dash input retains its existing shortcuts.
   `TextSearchInput.ResolveTextParser` uses that same captured, TEMP-free path
   for parser names, with explicit namespace USAGE checked before lookup.
   Parser names remain TEXT inputs; no regparser type or parser-owner ACL is
@@ -289,6 +293,8 @@ groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 Raw type formatting and immediate-base traversal units live in `enginetests`
 and use `RUN='^TestTypeDescribe(Formatter|BaseType)$'`; shared public scenarios
 live in `reference/domain_types`.
+Composed named-only sequence resolution units use
+`RUN='^TestAutoincTextSequenceNames$'` in `enginetests`.
 
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'

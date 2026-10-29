@@ -48,6 +48,7 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"suppress_redundant_updates_trigger", "tsvector_update_trigger", "tsvector_update_trigger_column"}, ExactSpelling: true, SharedGates: true, Bind: bindTriggerBuiltin},
 	{Names: []string{"triggered_change_notification"}, ExactSpelling: true, Bind: bindTcn},
+	{Names: []string{"autoinc"}, ExactSpelling: true, SharedGates: true, Bind: bindAutoinc},
 	{Names: []string{"pg_trigger_depth"}, ExactSpelling: true, SharedGates: true, Bind: bindTriggerDepth},
 	{Names: eventTriggerRewriteNames, ExactSpelling: true, SharedGates: true, Bind: bindEventTriggerRewrite},
 	{Names: sessionActivityNames[:], ExactSpelling: true, SharedGates: true, Bind: bindSessionActivity},

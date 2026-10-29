@@ -169,6 +169,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		r.record(n.Origin)
 		return catalog.QuoteIdentifier(r.Owner.Columns[n.Slot].Name), nil
+	case plan.InstalledAutoincExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPageinspectExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledAmcheckExpr:

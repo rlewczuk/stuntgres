@@ -21,8 +21,8 @@ Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-archi
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate`,
 `pgcatalog` (projected relation-kind admission) and the standard library.
-Its `extension` imports validate genuine installed cube-spatial
-and earth-point calls before kernel evaluation. It never imports the engine,
+Its `extension` imports validate genuine installed cube-spatial,
+earth-point and autoinc scalar calls before kernel evaluation. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
 
 The shared checked routine call/frame contract also admits PL definitions.

@@ -516,6 +516,15 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			err = ValidateInstalledLevenshtein(n, view)
 		}
 		rebound = n
+	case plan.InstalledAutoincExpr:
+		proc, ok := info.RoutineReference.(*catalog.Procedure)
+		if !ok || proc == nil { return nil, false, fmt.Errorf("stuntgres: missing remapped autoinc declaration") }
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		if view.State() != nil {
+			if err = ValidateInstalledAutoinc(n, view); err != nil { return nil, false, err }
+		} else if err = n.ValidateStoredProvider(); err != nil { return nil, false, err }
+		rebound = n
 	case plan.InstalledUUIDOsspExpr:
 		n.Args = children(n.Args)
 		if err != nil {

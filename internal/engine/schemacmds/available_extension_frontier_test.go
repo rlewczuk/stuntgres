@@ -89,6 +89,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					unaccentVersion = "1.1"
 				}
 				expected := map[string][]any{
+					"autoinc":       {"autoinc", "1.0", nil, "functions for autoincrementing fields"},
 					"amcheck":       {"amcheck", "1.5", nil, "functions for verifying relation integrity"},
 					"citext":        {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 					"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
@@ -112,6 +113,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 				}
 				if oid == 12085 {
+					expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
 					expected["amcheck"] = []any{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}
 					expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 					expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}

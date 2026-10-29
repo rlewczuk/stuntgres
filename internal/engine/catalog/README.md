@@ -92,12 +92,12 @@ private frames, not catalog authority.
 - **DML trigger capability.** `SupportsDMLTrigger` selects zero-input PL
   declarations, including deferred source, the three genuine builtin declarations,
   or installed native declarations admitted through their provider's
-  `SupportsDMLTrigger` capability. TCN and refint share this native contract;
-  refint supplies its sealed two-function declaration.
+  `SupportsDMLTrigger` capability. TCN, refint and autoinc share this native
+  contract with their sealed installed declarations.
   This structural predicate is not permission or provider authority: DDL/stored
   owners retain ordinary provider validation and firing validates the current
   routine carrier before dispatch. Literal trigger arguments carry no activation
-  state or implicit column/configuration identity.
+  state or implicit column/configuration/sequence identity.
 - **Event triggers.** `EventTriggerProvider` validates immutable, globally named
   database-local class 3466 descriptors, actual principal ownership and a
   current zero-argument checked event-function reference. Four command phases,

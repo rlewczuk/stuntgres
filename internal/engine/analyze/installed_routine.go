@@ -103,6 +103,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	switch family {
 	case functions.TcnExtension:
 		installed = extension.TcnProviderOf(proc) == extension.StockTcn
+	case functions.AutoincExtension:
+		installed = extension.AutoincProviderOf(proc) == extension.StockAutoinc
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.UUIDOsspExtension:
@@ -147,6 +149,8 @@ func (r installedExtensionRoutine) Validate() error {
 	switch {
 	case extension.TcnProviderOf(p) != nil:
 		return extension.StockTcn.ValidateProcedure(r.catalog, p)
+	case extension.AutoincProviderOf(p) != nil:
+		return extension.StockAutoinc.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
@@ -212,6 +216,14 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return c, nil
+	case functions.TriggerBuiltin:
+		if extension.AutoincProviderOf(p) != extension.StockAutoinc || c.Name != "autoinc" {
+			break
+		}
+		if err := extension.ValidateAutoincIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledAutoincExpr{TriggerBuiltin: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

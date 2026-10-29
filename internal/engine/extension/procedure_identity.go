@@ -464,6 +464,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/refint", HasBinary: true}) {
 			return invalid()
 		}
+	case StockAutoinc:
+		count = 1
+		name, result, volatility, strict = "autoinc", 2279, expr.Volatile, false
+		if ext.Version != "1.0" || slot != 0 || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "autoinc", Binary: "$libdir/autoinc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile

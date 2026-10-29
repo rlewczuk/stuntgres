@@ -61,6 +61,17 @@ func (r ClassInput) ResolveRegclass(ctx context.Context, text string) (uint32, e
 	if oid, numeric, err := ClassNumeric(text, typ); numeric {
 		return oid, err
 	}
+	return r.ResolveRelationName(ctx, text)
+}
+
+// ResolveRelationName resolves only textual relation names. Unlike regclass
+// input, numeric strings and "-" have no OID shortcut. Callers retain the
+// resolved identity, not the text, through any subsequent allocation lock wait.
+func (r ClassInput) ResolveRelationName(ctx context.Context, text string) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	a := r.capture.Authority
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
 		return 0, sqlstate.SoftInputError(sqlError("42602", "invalid name syntax"))

@@ -119,6 +119,12 @@ not pinned, so their genuine normal dependency edges remain visible under
 rename and mixed extension membership. Fixed simple and default-parser
 identities remain pinned.
 
+Installed autoinc scalar carriers retain sealed Procedure/Ref authority through
+rendering, reference remap and type retagging; ordinary scalar invocation cannot
+borrow trigger activation. Trigger replay uses the helper's current identity
+and escaped literal arguments, with no column/sequence name dependency. Triggers
+remain post-data so manually retained and generated keys are not processed twice.
+
 Installed crosstab consumers retain their selected procedure and genuine named
 result generation, or their completed anonymous record definition. Reference,
 remap, retag and rendering walkers preserve those captures and resolve current

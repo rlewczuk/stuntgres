@@ -1,7 +1,7 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for bundled extensions (amcheck, citext, cube,
+and control data for bundled extensions (amcheck, autoinc, citext, cube,
 earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, ltree, pageinspect,
 pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
@@ -118,6 +118,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   DML-trigger capability only for its immutable installed slot. Capability does
   not replace procedure-origin validation; rename, relocation and replay retain
   the same authority independently of public spelling and current membership.
+- **Autoinc trigger provider** (`autoinc_provider.go`): the sealed installed slot
+  exposes catalog's shared `SupportsDMLTrigger` native capability, alongside
+  tcn and refint; ordinary provider validation authenticates the current declaration.
+  Autoinc 1.0 owns one nonstrict, volatile, parallel-unsafe C
+  declaration returning TRIGGER; names, current membership and library display
+  alone never grant its capability. Ordinary EXECUTE checks remain at trigger
+  creation, not each firing.
 - **Catalog validation** (`extension_catalog.go`): `CatalogProvider` validates
   the extension, text search template and dictionary classes and installed
   member procedures; `ValidateProviderHeader` is the identity check it shares
@@ -650,6 +657,8 @@ DDL and catalogs),
 [reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
+Autoinc installation and forgery units in `enginetests` use
+`RUN='^TestAutoincProviderIdentity$'`; its public scenarios live in `reference/operators`.
 
 Identity-remap units retain genuine physical TEMP owners and derive collision
 targets from actual imported identities. The earth control fixture allocates

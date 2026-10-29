@@ -14,6 +14,16 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
+	case plan.InstalledAutoincExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored autoinc reference")
+		}
+		if err := ValidateInstalledAutoinc(n, view); err != nil { return "", err }
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok { return "", fmt.Errorf("stuntgres: missing autoinc namespace") }
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), nil)
 	case plan.InstalledPageinspectExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored pageinspect reference")

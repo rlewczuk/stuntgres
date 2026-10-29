@@ -65,6 +65,11 @@ func (n TriggerBuiltin) Validate() error {
 		return fmt.Errorf("stuntgres: invalid builtin trigger result")
 	}
 	switch n.Name {
+	case "autoinc":
+		if n.RoutineReference == nil {
+			return fmt.Errorf("stuntgres: autoinc lacks installed provenance")
+		}
+		return nil
 	case "suppress_redundant_updates_trigger", "tsvector_update_trigger", "tsvector_update_trigger_column", "check_primary_key", "check_foreign_key":
 		return nil
 	}
@@ -82,6 +87,9 @@ func (n TriggerBuiltin) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if n.Name == "check_primary_key" || n.Name == "check_foreign_key" {
 		return sqltype.Value{}, sqlError("XX000", n.Name+": not fired by trigger manager")
+	}
+	if n.Name == "autoinc" {
+		return sqltype.Value{}, sqlError("XX000", "not fired by trigger manager")
 	}
 	return sqltype.Value{}, sqlError("XX000", "tsvector_update_trigger: not fired by trigger manager")
 }

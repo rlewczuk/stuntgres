@@ -15,6 +15,11 @@ Cancellation, deadline, cause, unrelated values and the inert request policy are
 unchanged; only a later known-unlocked runtime owner may activate that policy.
 Pure unlocked execution preflight is not blanket-disabled by package location.
 
+Installed autoinc scalar binding resolves the actual stock provider and sealed
+zero-input declaration, then attaches its identity to an unfolded TRIGGER recipe.
+The selected public name may move or change; intrinsic builtin visibility never
+selects this installed helper.
+
 CREATE INHERITS merges effective column policies in declared parent order after
 type/typmod/collation validation. The first actual parent initializes the pair,
 including default-backed sparse storage. Storage must agree; default compression

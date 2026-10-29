@@ -101,6 +101,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"})
 				wantAvailable = append(wantAvailable, []any{"refint", "1.0", nil, "functions for implementing referential integrity (obsolete)"})
 				wantVersions = append(wantVersions, []any{"refint", "1.0", false, true, false, true, nil, nil, "functions for implementing referential integrity (obsolete)"})
+				wantAvailable = append(wantAvailable, []any{"autoinc", "1.0", nil, "functions for autoincrementing fields"})
+				wantVersions = append(wantVersions, []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

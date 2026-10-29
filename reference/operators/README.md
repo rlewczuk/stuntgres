@@ -27,6 +27,9 @@ Persistence retains original writers across native replacement rounds, including
 literal configuration rename/name reuse, and replays actual emitted SQL on
 PostgreSQL; external C ABI, heap/TOAST layout,
 WAL and process loading are not native logical-control operations.
+Installed autoinc scenarios cover demanded textual sequence binding, exact INT4
+tuple replacement, duplicate-target semantics, allocation/rollback and authority,
+retained direct/prepared metadata and logical-control replay.
 Trigger-depth scenarios retain live queries across nested user/RI invocation,
 exception unwind and native consumer replay. They distinguish WHEN/default
 evaluation, actual bodies and queued AFTER execution using ordered phase keys.
@@ -145,6 +148,7 @@ Add `REFERENCE=1` for the oracle.
 - Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
 - Builtin trigger functions: `RUN='^TestReferenceTriggerBuiltins'`
+- Installed autoinc trigger helper: `RUN='^TestReferenceAutoinc'`
 - AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
 - View INSTEAD OF triggers: `RUN='^TestReferenceTriggerInstead'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`

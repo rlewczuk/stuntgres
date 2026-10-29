@@ -9,7 +9,7 @@ privilege and lock walks over view definitions and the read side of DROP.
 
 An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `access`, `analyze` (types and pure functions only), `authorization`, `catalog`,
-`ddl`, `exec`, `expr`, `functions`, `ids`, `index`, `lock`, `pgcatalog`, `plan`,
+`ddl`, `exec`, `expr`, `extension`, `functions`, `ids`, `index`, `lock`, `pgcatalog`, `plan`,
 `regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
 `visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. It never
 imports the engine, `fdw`, `partition`, `role`, `dml` or `control`, and it never
@@ -42,6 +42,8 @@ imports `view`.
   REPLACE replaces. Creation checks table TRIGGER and function EXECUTE grants;
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
+  Trigger capability uses the extension layer's shared read-aware admission;
+  a genuine installed native helper does not require a PL program.
   View INSTEAD OF definitions are checked ROW INSERT/UPDATE/DELETE only, without
   WHEN or column lists; view BEFORE/AFTER STATEMENT I/U/D definitions stay local.
 - **Trigger partition synchronization** (`trigger_sync.go`):

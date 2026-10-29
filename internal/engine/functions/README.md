@@ -123,13 +123,16 @@ routine identity. Its runtime capability reads the executing invocation owner;
 reconstruction, stored capture and scalar sources retain no measured depth.
 
 `TriggerBuiltin` is a volatile, nonfoldable zero-child TRIGGER recipe for the
-three builtin DML declarations and genuine installed refint helper declarations.
+three builtin DML declarations and genuine installed refint and autoinc declarations.
 The installed route first validates the immutable provider symbol and captures
 the selected procedure dependency; spelling alone never grants capability.
 It retains routine provenance, never activation state. Ordinary SQL evaluation
 always reports the function's outside-trigger protocol error with complete ERROR
 severity diagnostics; firing belongs to the shared core trigger owner. Rebuild,
 rendering, scalar-source and stored capture use ordinary recipes.
+Autoinc binding uses installed-provider resolution, not builtin visibility; its
+plan carrier retains current validated declaration authority through reconstruction
+and replay.
 `Tcn` uses the same zero-child protocol with an authenticated installed routine
 reference supplied by `InstalledRoutine.Attach`. Generic routine admission,
 retagging and current-name rendering retain authority without a separate wrapper.
@@ -973,6 +976,8 @@ Live trigger-depth leaf, provenance and executable catalog units use
 Builtin DML recipe provenance units use `RUN='^TestTriggerBuiltins'`.
 Continuous-source normalization and cancellation belong to core's composed
 trigger owner; SQL values, diagnostics and controls stay in `reference/`.
+Autoinc installed scalar provenance and reconstruction units use
+`RUN='^TestAutoincDirectRecipe$'`.
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
   (contexts), so they implement only what the code under test calls; any other

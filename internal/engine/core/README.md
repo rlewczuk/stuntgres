@@ -284,9 +284,10 @@ routine safety depth and lexical scratch. Only admitted DML trigger bodies and
 individual internal RI callbacks enter it, with deferred unwind. WHEN and queue
 qualification read the surrounding level. Ordinary routines and event triggers
 borrow it without entering; rollback and native controls never serialize it.
-The three builtin DML trigger declarations and authenticated stock tcn provider
-share PL installation, stored validation and live invocation admission. Immediate
-and queued AFTER dispatch select native capability before allocating any PL frame.
+The three builtin DML trigger declarations and authenticated stock tcn, refint
+and autoinc providers share PL installation, stored validation and live invocation
+admission. Immediate and queued AFTER dispatch select native capability before
+allocating any PL frame.
 Each body borrows OLD/current NEW and stable command UPDATE attributes; suppression uses
 cancellable typed payload comparison, not SQL equality. Vector bodies capture
 one immutable current FTS generation per invocation, resolving explicit names
@@ -308,6 +309,14 @@ installed routine authority but never borrow an enclosing trigger activation.
 Routine environments, trigger depth and statement rollback retain their existing
 owners. C TriggerData/native ABI, heap/TOAST layout, WAL and process loading are
 outside this process-local logical execution and control boundary.
+Autoinc borrows the incoming tuple for every literal column/sequence pair and
+clones output only at its first replacement. Only actual INT4 columns qualify;
+NULL/zero demands late textual relation lookup and the ordinary sequence host.
+Each allocated int64 narrows to int32; narrowed zero retries exactly once.
+Sequence identity is captured before its allocation lock wait, and allocation,
+ACL/read-only checks, session memory and rollback behavior remain sequence-owned.
+Logical replay stores current helper identity and unchanged argument text,
+never early-bound sequence/column identities or activation state.
 
 Installed refint procedures join this checked native trigger boundary using
 their immutable provider symbols. `check_primary_key` probes ordinary SQL for
@@ -2138,6 +2147,8 @@ Builtin admission, borrowed payloads, streaming positions and unwind units share
 Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;
 provider-authority units share that family in `schemacmds`, and public SQL,
 notification ordering and controls belong to `reference/sessions`.
+Installed autoinc tuple ownership, sequence effects and frame-unwind units use
+`RUN='^TestAutoincTriggerFrames$'`.
 Logical admission witnesses use distinct stored leaves: return-only invocation
 retains view RX without leaf replacement/row-write grants, while nested DML
 observes its own storage and grants inside the physical validation phase.

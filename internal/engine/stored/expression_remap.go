@@ -519,6 +519,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Levenshtein, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
+	case plan.InstalledAutoincExpr:
+		if ref != nil { n.Ref = ref(n.Ref) }
+		next = n
 	case plan.InstalledUUIDOsspExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
