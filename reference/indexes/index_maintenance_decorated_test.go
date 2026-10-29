@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -139,36 +140,38 @@ func TestReferenceIndexMaintenanceDecoratedMetadataOracle(t *testing.T) {
 			{"varchar_ops", int64(10044), "text"},
 			{"varchar_pattern_ops", int64(4218), "text"},
 		}))
-		// Complete vectors and expression/predicate fields remain PG-only:
-		// native pg_index does not expose those fields or indclass.
 		metadata := func(label string) {
-			if !b.PG {
-				return
-			}
 			t.Run(label, func(t *testing.T) {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT c.relname,i.indnatts,i.indnkeyatts,i.indisunique,i.indnullsnotdistinct,i.indisprimary,i.indisexclusion,i.indimmediate,i.indisclustered,i.indisvalid,i.indcheckxmin,i.indisready,i.indislive,i.indisreplident,i.indkey::text,i.indcollation::text,i.indoption::text,i.indexprs IS NULL AS no_expr,i.indpred IS NULL AS no_pred,i.indexrelid=c.oid AS same_index,i.indrelid=p.oid AS same_parent FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "indnatts", "indnkeyatts", "indisunique", "indnullsnotdistinct", "indisprimary", "indisexclusion", "indimmediate", "indisclustered", "indisvalid", "indcheckxmin", "indisready", "indislive", "indisreplident", "indkey", "indcollation", "indoption", "no_expr", "no_pred", "same_index", "same_parent"}, []string{"NAME", "INT2", "INT2", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "TEXT", "TEXT", "TEXT", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{
+				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+				pgIndexBoth(run, fixture.Select(`SELECT c.relname,i.indnatts,i.indnkeyatts,i.indisunique,i.indnullsnotdistinct,i.indisprimary,i.indisexclusion,i.indimmediate,i.indisclustered,i.indisvalid,i.indcheckxmin,i.indisready,i.indislive,i.indisreplident,i.indkey::text,i.indcollation::text,i.indoption::text,i.indexprs IS NULL AS no_expr,i.indpred IS NULL AS no_pred,i.indexrelid=c.oid AS same_index,i.indrelid=p.oid AS same_parent FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "indnatts", "indnkeyatts", "indisunique", "indnullsnotdistinct", "indisprimary", "indisexclusion", "indimmediate", "indisclustered", "indisvalid", "indcheckxmin", "indisready", "indislive", "indisreplident", "indkey", "indcollation", "indoption", "no_expr", "no_pred", "same_index", "same_parent"}, []string{"NAME", "INT2", "INT2", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "TEXT", "TEXT", "TEXT", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{
 					{"mixed", int64(5), int64(3), false, false, false, false, true, false, true, false, true, true, false, "0 4 2 6 6", "951 100 0", "0 0 3", false, true, true, true},
 					{"padded", int64(3), int64(1), false, false, false, false, true, false, true, false, true, true, false, "3 6 7", "950", "2", true, true, true, true},
 					{"patterns", int64(2), int64(2), false, false, false, false, true, false, true, false, true, true, false, "4 5", "950 951", "0 0", true, true, true, true},
 					{"unsigned", int64(5), int64(1), false, false, false, false, true, false, true, false, true, true, false, "2 6 2 6 7", "0", "1", true, true, true, true},
 				}))
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT c.relname,i.indclass::text FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "indclass"}, []string{"NAME", "TEXT"}, [][]any{
+				pgIndexBoth(run, fixture.Select(`SELECT c.relname,i.indclass::text FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "indclass"}, []string{"NAME", "TEXT"}, [][]any{
 					{"mixed", "4217 10044 1978"}, {"padded", "10004"}, {"patterns", "4218 4219"}, {"unsigned", "1981"},
 				}))
 			})
 		}
 		metadata("initial_complete_vectors")
-		if b.PG {
-			t.Run("actual_key_classes", func(t *testing.T) {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT c.relname,k.ordinality::bigint AS key,o.opcname,o.opcintype::regtype::text AS input,o.opcdefault FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid CROSS JOIN LATERAL unnest(i.indclass) WITH ORDINALITY AS k(oid,ordinality) JOIN pg_opclass o ON o.oid=k.oid WHERE p.relname='t' ORDER BY c.relname,k.ordinality`, []string{"relname", "key", "opcname", "input", "opcdefault"}, []string{"NAME", "INT8", "NAME", "TEXT", "BOOL"}, [][]any{
-					{"mixed", int64(1), "text_pattern_ops", "text", false}, {"mixed", int64(2), "varchar_ops", "text", false}, {"mixed", int64(3), "int4_ops", "integer", true},
-					{"padded", int64(1), "bpchar_ops", "character", true}, {"patterns", int64(1), "varchar_pattern_ops", "text", false}, {"patterns", int64(2), "bpchar_pattern_ops", "character", false}, {"unsigned", int64(1), "oid_ops", "oid", true},
-				}))
-			})
-			t.Run("original_expression_only", func(t *testing.T) {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select(`SELECT c.relname,pg_get_expr(i.indexprs,i.indrelid) AS expression FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "expression"}, []string{"NAME", "TEXT"}, [][]any{{"mixed", "lower(s)"}, {"padded", nil}, {"patterns", nil}, {"unsigned", nil}}))
-			})
-		}
+		t.Run("actual_key_classes", func(t *testing.T) {
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+			for ordinal, expected := range [][][]any{
+				{{"mixed", int64(1), "text_pattern_ops", "text", false}, {"padded", int64(1), "bpchar_ops", "character", true}, {"patterns", int64(1), "varchar_pattern_ops", "text", false}, {"unsigned", int64(1), "oid_ops", "oid", true}},
+				{{"mixed", int64(2), "varchar_ops", "text", false}, {"patterns", int64(2), "bpchar_pattern_ops", "character", false}},
+				{{"mixed", int64(3), "int4_ops", "integer", true}},
+			} {
+				q := fmt.Sprintf(`SELECT c.relname,%d::bigint AS key,o.opcname,o.opcintype::regtype::text AS input,o.opcdefault FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid JOIN pg_opclass o ON o.oid=i.indclass[%d] WHERE p.relname='t' AND i.indnkeyatts>%d ORDER BY c.relname`, ordinal+1, ordinal, ordinal)
+				step := fixture.Select(q, []string{"relname", "key", "opcname", "input", "opcdefault"}, []string{"NAME", "INT8", "NAME", "TEXT", "BOOL"}, expected)
+				run(step)
+				run(fixture.Prepared(step))
+			}
+		})
+		t.Run("original_expression_only", func(t *testing.T) {
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+			pgIndexBoth(run, fixture.Select(`SELECT c.relname,pg_get_expr(i.indexprs,i.indrelid) AS expression FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE p.relname='t' ORDER BY c.relname`, []string{"relname", "expression"}, []string{"NAME", "TEXT"}, [][]any{{"mixed", "lower(s)"}, {"padded", nil}, {"patterns", nil}, {"unsigned", nil}}))
+		})
 		run(fixture.Exec("REINDEX INDEX unsigned", 0))
 		run(fixture.Prepared(fixture.Exec("REINDEX TABLE t", 0)))
 		run(fixture.Exec("ALTER TABLE t RENAME COLUMN p TO payload", 0))

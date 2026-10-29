@@ -8,7 +8,12 @@ import (
 
 func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 	indexMaintenanceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+		run := func(s fixture.Step) {
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+			if s.SelectRows && !s.Prepared {
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Prepared(s))
+			}
+		}
 		run(fixture.Exec("CREATE TABLE t(unused INT,n INT,s TEXT)", 0))
 		run(fixture.Exec("CREATE INDEX ni ON t(n ASC NULLS LAST,n ASC NULLS FIRST,n DESC NULLS LAST,n DESC NULLS FIRST)", 0))
 		run(fixture.Exec("CREATE INDEX ei ON t(lower(s),(n+1),n DESC NULLS LAST)", 0))
@@ -16,7 +21,6 @@ func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE q(n INT CONSTRAINT u UNIQUE NULLS NOT DISTINCT)", 0))
 		run(fixture.Exec("CREATE TABLE d(n INT CONSTRAINT distinct_u UNIQUE)", 0))
 		run(fixture.Exec("ALTER TABLE t DROP COLUMN unused", 0))
-		if b.PG {
 			q := `SELECT c.relname,i.indnatts,i.indnkeyatts,i.indisunique,i.indnullsnotdistinct,i.indisprimary,i.indisexclusion,i.indimmediate,i.indisclustered,i.indisvalid,i.indcheckxmin,i.indisready,i.indislive,i.indisreplident,i.indkey::text,i.indoption::text,i.indexprs IS NULL AS no_expr,i.indpred IS NULL AS no_pred,i.indexrelid=c.oid AS same_index,i.indrelid=p.oid AS same_parent FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_class p ON p.oid=i.indrelid WHERE c.relname IN ('ni','ei','ci','u','distinct_u') ORDER BY c.relname`
 			cols := []string{"relname", "indnatts", "indnkeyatts", "indisunique", "indnullsnotdistinct", "indisprimary", "indisexclusion", "indimmediate", "indisclustered", "indisvalid", "indcheckxmin", "indisready", "indislive", "indisreplident", "indkey", "indoption", "no_expr", "no_pred", "same_index", "same_parent"}
 			types := []string{"NAME", "INT2", "INT2", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "TEXT", "TEXT", "BOOL", "BOOL", "BOOL", "BOOL"}
@@ -31,7 +35,6 @@ func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 			run(fixture.Select(`SELECT c.relname,i.indclass::text,i.indcollation::text,pg_get_expr(i.indexprs,i.indrelid) AS expressions FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname IN ('ni','ei','ci','u','distinct_u') ORDER BY c.relname`, []string{"relname", "indclass", "indcollation", "expressions"}, []string{"NAME", "TEXT", "TEXT", "TEXT"}, [][]any{
 				{"ci", "3126 3126 3126", "950 951 100", nil}, {"distinct_u", "1978", "0", nil}, {"ei", "3126 1978 1978", "100 0 0", "lower(s), (n + 1)"}, {"ni", "1978 1978 1978 1978", "0 0 0 0", nil}, {"u", "1978", "0", nil},
 			}))
-		}
 		run(fixture.Select(`SELECT schemaname,tablename,indexname,tablespace,indexdef FROM pg_catalog.pg_indexes WHERE schemaname='public' AND (tablename='t' OR tablename='q' OR tablename='d') ORDER BY indexname`, []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}, []string{"NAME", "NAME", "NAME", "NAME", "TEXT"}, [][]any{
 			{"public", "t", "ci", nil, `CREATE INDEX ci ON public.t USING btree (s COLLATE "C", s COLLATE "POSIX", s)`},
 			{"public", "d", "distinct_u", nil, "CREATE UNIQUE INDEX distinct_u ON public.d USING btree (n)"},
@@ -41,15 +44,11 @@ func TestReferenceIndexMaintenanceMetadataOracle(t *testing.T) {
 		}))
 		run(fixture.Exec("ALTER INDEX ni RENAME TO renamed_ni", 0))
 		run(fixture.Exec("REINDEX TABLE t", 0))
-		if b.PG {
 			run(fixture.Select(`SELECT c.relname,i.indkey::text,i.indclass::text,i.indcollation::text,i.indoption::text FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname IN ('renamed_ni','ei','ci') ORDER BY c.relname`, []string{"relname", "indkey", "indclass", "indcollation", "indoption"}, []string{"NAME", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{
 				{"ci", "3 3 3", "3126 3126 3126", "950 951 100", "0 0 0"}, {"ei", "0 0 2", "3126 1978 1978", "100 0 0", "0 0 1"}, {"renamed_ni", "2 2 2 2", "1978 1978 1978 1978", "0 0 0 0", "0 2 1 3"},
 			}))
-		}
 		run(fixture.Exec("ALTER TABLE t RENAME COLUMN s TO renamed_s", 0))
-		if b.PG {
 			run(fixture.Select(`SELECT i.indkey::text,i.indclass::text,i.indcollation::text,i.indexprs IS NULL AS no_expr,pg_get_indexdef(c.oid) AS definition FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid WHERE c.relname='ci'`, []string{"indkey", "indclass", "indcollation", "no_expr", "definition"}, []string{"TEXT", "TEXT", "TEXT", "BOOL", "TEXT"}, [][]any{{"3 3 3", "3126 3126 3126", "950 951 100", true, `CREATE INDEX ci ON public.t USING btree (renamed_s COLLATE "C", renamed_s COLLATE "POSIX", renamed_s)`}}))
-		}
 		run(fixture.Exec("DROP INDEX renamed_ni", 0))
 		run(fixture.Select("SELECT indexname FROM pg_catalog.pg_indexes WHERE schemaname='public' AND indexname='renamed_ni'", []string{"indexname"}, []string{"NAME"}, nil))
 	})

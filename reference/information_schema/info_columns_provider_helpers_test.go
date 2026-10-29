@@ -38,7 +38,7 @@ func icProviderInventory(c *icCase) {
 		"pg_subscription":                        strings.Fields("oid subdbid subskiplsn subname subowner subenabled subbinary substream subtwophasestate subdisableonerr subpasswordrequired subrunasowner subfailover subconninfo subslotname subsynccommit subpublications suborigin"),
 		"pg_subscription_rel":                    strings.Fields("srsubid srrelid srsubstate srsublsn"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),
-		"pg_index":                               strings.Fields("indexrelid indrelid indisunique indisprimary indisclustered indisvalid indisready indislive indnullsnotdistinct indkey indcollation indclass indoption indimmediate"),
+		"pg_index":                               strings.Fields("indexrelid indrelid indnatts indnkeyatts indisunique indnullsnotdistinct indisprimary indisexclusion indimmediate indisclustered indisvalid indcheckxmin indisready indislive indisreplident indkey indcollation indclass indoption indexprs indpred"),
 		"pg_rewrite":                             strings.Fields("oid rulename ev_class ev_type ev_enabled is_instead"),
 		"pg_trigger":                             strings.Fields("oid tgrelid tgparentid tgname tgfoid tgtype tgenabled tgisinternal tgconstrrelid tgconstrindid tgconstraint tgdeferrable tginitdeferred tgnargs tgattr tgargs tgqual tgoldtable tgnewtable"),
 		"pg_policy":                              strings.Fields("oid polname polrelid polcmd polpermissive polroles polqual polwithcheck"),
@@ -138,11 +138,6 @@ func icProviderInventory(c *icCase) {
 		var want [][]any
 		for i, field := range inventory[name] {
 			ordinal := i + 1
-			if table == "pg_index" {
-				if n := map[string]int{"indisunique": 5, "indisprimary": 7, "indisclustered": 10, "indimmediate": 9, "indisvalid": 11, "indisready": 13, "indislive": 14, "indnullsnotdistinct": 6, "indkey": 16, "indcollation": 17, "indclass": 18, "indoption": 19}[field]; n != 0 {
-					ordinal = n
-				}
-			}
 			want = append(want, []any{field, int64(ordinal)})
 		}
 		sort.Slice(want, func(i, j int) bool { return want[i][1].(int64) < want[j][1].(int64) })

@@ -341,26 +341,60 @@ func (r EngineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 func (r EngineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return index.DefinitionSQL(ctx, view, relation, index.Presentation{})
 }
-func (r EngineCatalogRuntime) IndexVectors(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [4]*sqltype.Descriptor) ([4]sqltype.Value, bool, error) {
-	var values [4]sqltype.Value
+func (r EngineCatalogRuntime) IndexMetadata(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [6]*sqltype.Descriptor) (pgcatalog.IndexMetadataFact, error) {
+	var values pgcatalog.IndexMetadataFact
+	if err := ctx.Err(); err != nil {
+		return values, err
+	}
+	if view.Owner() == nil || relation == nil || view.Get(relation.Address()) != relation {
+		return values, ids.ErrCatalogReplaced
+	}
 	facts, _, err := index.ProjectIndexMetadata(ctx, view, view.Owner().Domain.Ref(view.Epoch(), relation.Address()))
 	if err != nil {
-		return values, false, err
+		return values, err
 	}
-	values[0], err = sqltype.CatalogInt2Vector(types[0], facts.IndKey)
+	values = pgcatalog.IndexMetadataFact{
+		IndexRelID: facts.IndexRelID, IndRelID: facts.IndRelID,
+		IndNatts: facts.IndNatts, IndNKeyAtts: facts.IndNKeyAtts,
+		IndIsUnique: facts.IndIsUnique, IndNullsNotDistinct: facts.IndNullsNotDistinct,
+		IndIsPrimary: facts.IndIsPrimary, IndIsExclusion: facts.IndIsExclusion, IndImmediate: facts.IndImmediate,
+		IndIsClustered: facts.IndIsClustered, IndIsValid: facts.IndIsValid, IndCheckXmin: facts.IndCheckXmin,
+		IndIsReady: facts.IndIsReady, IndIsLive: facts.IndIsLive, IndIsReplIdent: facts.IndIsReplIdent,
+	}
+	values.IndKey, err = sqltype.CatalogInt2Vector(types[0], facts.IndKey)
 	if err != nil {
-		return values, false, err
+		return pgcatalog.IndexMetadataFact{}, err
 	}
-	values[1], err = sqltype.CatalogOIDVector(types[1], facts.IndCollation)
+	values.IndCollation, err = sqltype.CatalogOIDVector(types[1], facts.IndCollation)
 	if err != nil {
-		return values, false, err
+		return pgcatalog.IndexMetadataFact{}, err
 	}
-	values[2], err = sqltype.CatalogOIDVector(types[2], facts.IndClass)
+	values.IndClass, err = sqltype.CatalogOIDVector(types[2], facts.IndClass)
 	if err != nil {
-		return values, false, err
+		return pgcatalog.IndexMetadataFact{}, err
 	}
-	values[3], err = sqltype.CatalogInt2Vector(types[3], facts.IndOption)
-	return values, facts.IndImmediate, err
+	values.IndOption, err = sqltype.CatalogInt2Vector(types[3], facts.IndOption)
+	if err != nil {
+		return pgcatalog.IndexMetadataFact{}, err
+	}
+	values.IndexExpressions = sqltype.Null(types[4])
+	if len(facts.IndexExpressions) != 0 {
+		values.IndexExpressions, err = sqltype.Tree(types[4], plan.OwnExpressionListTree(facts.IndexExpressions))
+		if err != nil {
+			return pgcatalog.IndexMetadataFact{}, err
+		}
+	}
+	values.Predicate = sqltype.Null(types[5])
+	if facts.Predicate != nil {
+		values.Predicate, err = plan.CatalogTree(types[5], facts.Predicate)
+		if err != nil {
+			return pgcatalog.IndexMetadataFact{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return pgcatalog.IndexMetadataFact{}, err
+	}
+	return values, nil
 }
 func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
 	presentation := r.presentation

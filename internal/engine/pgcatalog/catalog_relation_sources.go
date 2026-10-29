@@ -11,7 +11,10 @@ import (
 func capturePGIndex(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	source := in.Source
-	expected := [14]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Int2Vector, sqltype.OidVector, sqltype.OidVector, sqltype.Int2Vector, sqltype.Bool}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	expected := [21]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Int2, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Bool, sqltype.Int2Vector, sqltype.OidVector, sqltype.OidVector, sqltype.Int2Vector, sqltype.PgNodeTree, sqltype.PgNodeTree}
 	if len(source.Columns) != len(expected) {
 		return nil, fmt.Errorf("stuntgres: invalid index source shape")
 	}
@@ -39,21 +42,40 @@ func capturePGIndex(in Input) ([][]sqltype.Value, error) {
 		return value
 	}
 
+	integer := func(i int, n int16) sqltype.Value {
+		value, err := sqltype.Integer(source.Columns[i].Usage.Type, int64(n))
+		if err != nil && captureErr == nil {
+			captureErr = err
+		}
+		return value
+	}
 	boolean := func(i int, b bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, b) }
 	for _, relation := range relations {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if definition := relation.SQLIndex; definition != nil {
-			vectors, immediate, err := in.Runtime.IndexVectors(ctx, view, relation, [4]*sqltype.Descriptor{source.Columns[9].Usage.Type, source.Columns[10].Usage.Type, source.Columns[11].Usage.Type, source.Columns[12].Usage.Type})
+		if relation.SQLIndex != nil {
+			facts, err := in.Runtime.IndexMetadata(ctx, view, relation, [6]*sqltype.Descriptor{source.Columns[15].Usage.Type, source.Columns[16].Usage.Type, source.Columns[17].Usage.Type, source.Columns[18].Usage.Type, source.Columns[19].Usage.Type, source.Columns[20].Usage.Type})
 			if err != nil {
 				return nil, err
 			}
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct), boolean(8, definition.Clustered), vectors[0], vectors[1], vectors[2], vectors[3], boolean(13, immediate)})
+			rows = append(rows, []sqltype.Value{
+				oid(0, uint32(facts.IndexRelID)), oid(1, uint32(facts.IndRelID)),
+				integer(2, facts.IndNatts), integer(3, facts.IndNKeyAtts),
+				boolean(4, facts.IndIsUnique), boolean(5, facts.IndNullsNotDistinct),
+				boolean(6, facts.IndIsPrimary), boolean(7, facts.IndIsExclusion),
+				boolean(8, facts.IndImmediate), boolean(9, facts.IndIsClustered),
+				boolean(10, facts.IndIsValid), boolean(11, facts.IndCheckXmin),
+				boolean(12, facts.IndIsReady), boolean(13, facts.IndIsLive), boolean(14, facts.IndIsReplIdent),
+				facts.IndKey, facts.IndCollation, facts.IndClass, facts.IndOption, facts.IndexExpressions, facts.Predicate,
+			})
 		}
 		if captureErr != nil {
 			return nil, captureErr
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return rows, nil
 }

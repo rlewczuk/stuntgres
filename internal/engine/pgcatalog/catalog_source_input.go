@@ -175,8 +175,7 @@ type Runtime interface {
 	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	ViewCapabilities(context.Context, catalog.Read, *catalog.Relation) (ViewCapability, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
-	// IndexVectors also returns indimmediate from the same metadata capture.
-	IndexVectors(context.Context, catalog.Read, *catalog.Relation, [4]*sqltype.Descriptor) ([4]sqltype.Value, bool, error)
+	IndexMetadata(context.Context, catalog.Read, *catalog.Relation, [6]*sqltype.Descriptor) (IndexMetadataFact, error)
 	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
 	VisitTriggerDefinitions(context.Context, catalog.Read, *catalog.Relation, bool, func(TriggerFact) error) error
 	VisitTriggerCatalog(context.Context, catalog.Read, *catalog.Relation, *sqltype.Descriptor, func(TriggerCatalogFact) error) error

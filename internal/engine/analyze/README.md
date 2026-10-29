@@ -32,6 +32,12 @@ copies retain the source timing independently of their new identities.
 Column constraint timing diagnostics use the parser's positioned attachment
 facts at utility transformation, before type or catalog binding.
 
+Catalog sources admitted for semantic mutation planning, including `pg_index`,
+check the current execution-time actor before sources or row effects, including
+held commands after SET ROLE. Restricted actors receive permission denial and
+superusers retain the catalog-source mutation guard. Other catalogs and virtual
+views retain their owning admission policies.
+
 `StatisticsConsumer` is a distinct retained-expression context. Prohibited
 subquery/aggregate/grouping/window/set-returning nodes use statistics-specific
 diagnostics through normal recursive binding, including selected-call routes.

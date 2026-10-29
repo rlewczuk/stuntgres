@@ -5,8 +5,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// Condensed projections keep their established result order. Stable attribute
-// numbers instead follow REL_18_0 catalog headers, including omitted neighbors.
+// Condensed projections keep their established result order. Their attribute
+// numbers follow PostgreSQL catalog headers; complete projections use ordinals.
 func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 	switch oid {
 	case 2606:
@@ -25,33 +25,6 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 17
 		case "coninhcount":
 			return 18
-		}
-	case 2610:
-		switch name {
-		case "indisunique":
-			return 5
-		case "indisprimary":
-			return 7
-		case "indisclustered":
-			return 10
-		case "indimmediate":
-			return 9
-		case "indisvalid":
-			return 11
-		case "indisready":
-			return 13
-		case "indislive":
-			return 14
-		case "indnullsnotdistinct":
-			return 6
-		case "indkey":
-			return 16
-		case "indcollation":
-			return 17
-		case "indclass":
-			return 18
-		case "indoption":
-			return 19
 		}
 	}
 	return ordinal
@@ -79,6 +52,8 @@ func InitializeAttributes(d *catalog.Relation) {
 			}
 			switch d.Address().ObjectID {
 			case InfoSQLFeaturesOID, InfoSQLSizingOID, InfoSQLImplementationInfoOID, InfoSQLPartsOID:
+				fact.NotNull = !column.Nullable
+			case 2610:
 				fact.NotNull = !column.Nullable
 			case ids.TriggerClassID, ids.EventTriggerClassID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, ids.PolicyClassID:
 				fact.NotNull = !column.Nullable

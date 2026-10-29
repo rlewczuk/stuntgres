@@ -108,6 +108,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Index clauses: `RUN='^TestReferenceIndexClauses'`
 - Index properties: `RUN='^TestReferenceIndexProperties'`
 - Index maintenance and locks: `RUN='^TestReferenceIndexMaintenance'`
+- Logical index catalog metadata, lifecycle, diagnostics and controls: `RUN='^TestReferencePGIndex'`
 - `USING INDEX`: `RUN='^TestReferenceUsingIndex'`
 - Exclusion constraints: `RUN='^TestReferenceExclusion'`
 - Heap verification: `RUN='^TestReferenceAmcheckHeap'`

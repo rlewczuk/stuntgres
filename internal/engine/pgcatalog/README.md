@@ -48,10 +48,15 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
-- `pg_index.indisclustered` projects the captured index definition's preference
-  bit as a non-null BOOL with stable PostgreSQL attribute number 10. Projection
-  ordinals remain independent of stable catalog attributes; the vector columns
-  retain attributes 16–19 and their captured typed values.
+- `pg_index` projects all 21 attributes from one detached `index.Metadata`
+  capture, transported through `Runtime.IndexMetadata`. Actual index identities,
+  definition flags and publication state remain index-owner facts. Structural
+  rows are independent of target-table privileges; catalog ACLs still apply.
+  Typed vectors own numeric backing, with INCLUDE attributes only in `indkey`.
+  Only `indexprs` and `indpred` are nullable: their immutable definition nodes
+  retain ordered expression-list or scalar carriers and native logical structure,
+  not physical PostgreSQL node serialization. Attribute ordinals, provenance and
+  effective nullability follow this complete schema.
 - `pg_attribute` composes effective stable-attribute storage/compression with
   immutable type facts, including scalar dropped history. Index opclass storage
   types substitute representation facts without erasing simple-key policies.

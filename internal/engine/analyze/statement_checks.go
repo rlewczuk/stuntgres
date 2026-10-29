@@ -240,7 +240,7 @@ func GuardedCatalogRelation(d *catalog.Relation) bool {
 	if d.Address().ObjectID == pgcatalog.StatisticExtOID {
 		return true
 	}
-	return d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == 2602 || d.Address().ObjectID == 2603 || d.Address().ObjectID == pgcatalog.TypeOID || d.Address().ObjectID == pgcatalog.TSParserOID || d.Address().ObjectID == pgcatalog.TSConfigOID || d.Address().ObjectID == pgcatalog.TSConfigMapOID || d.Address().ObjectID == pgcatalog.TransformOID
+	return d.Address().ObjectID == 2610 || d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == 2602 || d.Address().ObjectID == 2603 || d.Address().ObjectID == pgcatalog.TypeOID || d.Address().ObjectID == pgcatalog.TSParserOID || d.Address().ObjectID == pgcatalog.TSConfigOID || d.Address().ObjectID == pgcatalog.TSConfigMapOID || d.Address().ObjectID == pgcatalog.TransformOID
 }
 
 // Reachability is independent of catalog binding and precedes relation admission.
