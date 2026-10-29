@@ -31,6 +31,26 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   or parallel safety from current membership. The sealed recipe retains those
   declaration facts while current owner/ACL, cost and parallel overrides remain
   independent and survive native replay.
+  Initial privileges are separate historical catalog records, not recipe ACLs.
+  Providers call `Stage.RecordInitialPrivilege` only for genuine script ACL
+  events: amcheck's eight implemented final REVOKE declarations capture the
+  creator's global/schema routine defaults after selectively removing PUBLIC
+  EXECUTE. Named grantees and grant options survive; owner-only EXECUTE is the
+  untouched-default case. Default-NULL providers acquire no invented records.
+  An UPDATE without a privilege event, including a same-version request, does
+  not refresh history.
+  External ADD captures raw nonempty object and live-column ACLs through the
+  reciprocal membership closure; DROP detaches and removes all those snapshots.
+  Ordinary GRANT/REVOKE and ALTER OWNER leave historical ACLs alone.
+  Extension publication transfers historical deltas and predecessor observations
+  alongside descriptors into the statement journal; validation alone does not
+  publish the provider's private snapshots.
+  After transaction-private ACL changes, journal authority fences retain the
+  committed role predecessor; statement admission still uses private authority.
+  Isolated native owners-v3 membership repair retains history only for its
+  statement-local exact root/extension references and ADD/DROP action. It still
+  executes ownership, closure and membership checks; ordinary SQL and unmatched
+  replay flags use normal snapshot capture/removal.
 - **Accessors** (`extension_implementation.go`): `CitextProviderOf` …
   `UnaccentDictionaryProviderOf` return a descriptor's implementation when it
   has that concrete type, and nil otherwise.
@@ -348,7 +368,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   record-set result and parallel-unsafe declaration. Slots one through seven
   are the three `bt_index_check` and four `bt_index_parent_check` scalar
   overloads returning VOID, all STRICT, VOLATILE and parallel restricted.
-  All members start with explicit owner-only EXECUTE ACLs. Ordered manifest
+  Each member's creation ACL observes the actual owner's global and target-schema
+  routine defaults through the normal catalog candidate. The script's selective
+  PUBLIC EXECUTE revoke preserves named grants/options and records the complete
+  resulting ACL even when PUBLIC was already absent. Raw NULL defaults alone
+  materialize the hardwired baseline; explicit ACLs are not replaced by it.
+  Ordered manifest
   symbols and the distinct heap/B-tree identity validators preserve exact
   installed declaration authority through rename, move, owner transfer and
   symbolic replay. Current arbitrary installed ACLs, including grantor and

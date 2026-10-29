@@ -39,7 +39,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	if phase != nil && phase.Preparing {
 		return true
 	}
-	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 ||
+	if c != nil && (len(c.Descriptors) != 0 || len(c.Names) != 0 || len(c.DefaultACLs) != 0 || len(c.InitialPrivileges) != 0 ||
 		len(c.Generators) != 0 || len(c.Storage) != 0 || len(c.Statistics) != 0 || c.Roles != nil ||
 		index.JournalOf(c.Indexes).Pending()) {
 		return true

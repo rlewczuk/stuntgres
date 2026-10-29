@@ -34,23 +34,25 @@ type restoreRun struct {
 	statements []parser.Statement
 
 	// Records decoded from the script's line comments.
-	domainReplays           []typedef.PositionedDomainReplay
-	domainReplayPairs       map[*parser.Insert]typedef.DomainReplayRecord
-	domainDefaults          []typedef.PositionedDomainDefault
-	domainDefaultPairs      map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
-	triggerClones           []stored.PositionedTriggerClone
-	triggerClonePairs       map[*parser.CreateTrigger]stored.TriggerCloneReplay
-	plChecked               []routine.PositionedPLChecked
-	plCheckedPairs          map[*parser.CreateFunction]routine.PLCheckedReplay
-	triggerCloneCaptures    []viewcmds.RestoredTriggerClone
-	foreignKeyModes         []stored.PositionedForeignKeyMode
-	foreignKeySnapshotValid bool
-	extensionOwners         []extension.OwnerRecord
-	snapshots               []view.MaterializedSnapshot
-	extendedStatistics      []storage.ExtendedStatisticsSnapshot
-	comparison              control.ComparisonRestore
-	attributePairs          control.AttributeConstructorPairs
-	attributeConstructors   map[control.AttributeDropTarget]ids.ObjectRef
+	domainReplays            []typedef.PositionedDomainReplay
+	domainReplayPairs        map[*parser.Insert]typedef.DomainReplayRecord
+	domainDefaults           []typedef.PositionedDomainDefault
+	domainDefaultPairs       map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
+	triggerClones            []stored.PositionedTriggerClone
+	triggerClonePairs        map[*parser.CreateTrigger]stored.TriggerCloneReplay
+	plChecked                []routine.PositionedPLChecked
+	plCheckedPairs           map[*parser.CreateFunction]routine.PLCheckedReplay
+	triggerCloneCaptures     []viewcmds.RestoredTriggerClone
+	foreignKeyModes          []stored.PositionedForeignKeyMode
+	foreignKeySnapshotValid  bool
+	extensionOwners          []extension.OwnerRecord
+	snapshots                []view.MaterializedSnapshot
+	extendedStatistics       []storage.ExtendedStatisticsSnapshot
+	initialPrivileges        *control.InitialPrivilegesMetadata
+	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
+	comparison               control.ComparisonRestore
+	attributePairs           control.AttributeConstructorPairs
+	attributeConstructors    map[control.AttributeDropTarget]ids.ObjectRef
 
 	// Installed declaration metadata is checked once at its first generated
 	// OWNER use. Finish still validates the complete final symbolic state.
@@ -174,6 +176,7 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 	}
 	core.OperationReplay(op).StagingEffects = true
 	end := func() {
+		clearRestoreMembershipHistory(op)
 		core.OperationReplay(op).StagingEffects = false
 		core.OperationReplay(op).SQLBodies = false
 		core.OperationReplay(op).PLChecked = nil
@@ -210,6 +213,7 @@ func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error 
 // per-statement replay flags, closes any rows and detaches the notices.
 func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
 	defer func() { core.OperationReplay(op).PLChecked = nil }()
+	defer clearRestoreMembershipHistory(op)
 	var err error
 	var result core.Result
 	if domain, ok := stmt.(*parser.CreateDomain); ok {

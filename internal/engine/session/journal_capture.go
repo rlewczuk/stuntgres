@@ -59,6 +59,12 @@ func (p JournalCapture) ObserveBase(a ids.ObjectAddress) error {
 // removal, then the namespaces of the changed descriptors and of their base
 // descriptors.
 func (p JournalCapture) ObserveCandidate() error {
+	for address := range p.Candidate.InitialReads() {
+		address.SubID = 0
+		if err := p.ObserveBase(address); err != nil {
+			return err
+		}
+	}
 	for a := range p.Candidate.Descriptors() {
 		if err := p.Observe(a, p.Candidate.Base.Get(a)); err != nil {
 			return err

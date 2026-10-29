@@ -69,6 +69,9 @@ func (s *RoleStore) ValidateReplacementACLsLocked(owner *catalog.Owner, view cat
 	if err := catalog.ValidateDefaultACLs(roles, view); err != nil {
 		return err
 	}
+	if err := catalog.ValidateInitialPrivileges(roles, view); err != nil {
+		return err
+	}
 	for _, d := range next.Descriptors() {
 		if err := ValidateACL(roles, d); err != nil {
 			return err

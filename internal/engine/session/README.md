@@ -352,12 +352,16 @@ nontransactional.
   clock, the v1 allocator (`uuid_v1.go`) and `StatementLease`.
 - **Journal** (`journal.go`, `journal_bookkeeping.go`): `Journal`, a
   transaction's private catalog overlay (descriptors and name bindings with
-  originals, default ACLs, sequence generators, private storage changes,
+  originals, default and historical initial ACLs, sequence generators, private storage changes,
   dependency observations, role overlays, fences and feature slots), with
   `Clone`, `AddFence`, `PrivateRead`, `RecordDescriptor`, `RecordDefaultACL`,
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
   wrappers pass the published base under `Engine.Mu`.
+  Initial ACL deltas, predecessor observations and tombstones participate in
+  private-read caching, savepoint clones and publication even without descriptor
+  changes. `RecordCandidateInitialPrivileges` retains the first committed
+  predecessor; `JournalCapture` also observes the represented object's descriptor.
   Object/default ACLs, role mutations and comments share the immutable role
   overlay. The first actual role delta captures its committed predecessor as
   `RolesBase`; later private deltas preserve that base until a successful immutable

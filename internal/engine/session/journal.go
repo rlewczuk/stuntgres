@@ -19,28 +19,31 @@ import (
 // writes a Clone and installs it, and savepoint marks keep older journals.
 // The root engine validates and publishes it under Engine.mu.
 type Journal struct {
-	ParameterWritten bool
+	ParameterWritten     bool
 	ParameterIncarnation uint64
-	Originals        map[ids.ObjectAddress]catalog.Descriptor
-	Descriptors      map[ids.ObjectAddress]catalog.Descriptor
-	Names            map[ids.NameKey]ids.ObjectAddress
-	DefaultACLs      map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	DefaultOriginals map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	DefaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	Generators       map[ids.ObjectAddress]*storage.SequenceGenerator
-	Storage          map[ids.ObjectAddress]StorageChange
-	Dependencies     []DependencyObservation
-	CachedBase       *catalog.State
-	Cached           catalog.Read
-	Enum             EnumSlot
-	RolesBase        *access.RoleRecord
-	Roles            *access.RoleRecord
-	RetiredRoles     map[authorization.PrincipalRef]struct{}
-	Fences           []Fence // Feature commit preconditions, in recording order.
-	Domain           DomainSlot
-	DomainChanged    bool
-	Indexes          IndexSlot
-	Statistics       map[ids.ObjectAddress]StatisticsChange
+	Originals            map[ids.ObjectAddress]catalog.Descriptor
+	Descriptors          map[ids.ObjectAddress]catalog.Descriptor
+	Names                map[ids.NameKey]ids.ObjectAddress
+	DefaultACLs          map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	DefaultOriginals     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	DefaultReads         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	InitialPrivileges    map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
+	InitialOriginals     map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
+	InitialReads         map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord
+	Generators           map[ids.ObjectAddress]*storage.SequenceGenerator
+	Storage              map[ids.ObjectAddress]StorageChange
+	Dependencies         []DependencyObservation
+	CachedBase           *catalog.State
+	Cached               catalog.Read
+	Enum                 EnumSlot
+	RolesBase            *access.RoleRecord
+	Roles                *access.RoleRecord
+	RetiredRoles         map[authorization.PrincipalRef]struct{}
+	Fences               []Fence // Feature commit preconditions, in recording order.
+	Domain               DomainSlot
+	DomainChanged        bool
+	Indexes              IndexSlot
+	Statistics           map[ids.ObjectAddress]StatisticsChange
 }
 
 // StorageChange is a relation's private storage in the journal.
@@ -147,6 +150,13 @@ func (c *Journal) Clone() *Journal {
 }
 
 func cloneDefaults(source *Journal, next *Journal) {
+	if len(source.InitialPrivileges) != 0 {
+		next.InitialPrivileges = catalog.CloneInitialPrivileges(source.InitialPrivileges)
+		next.InitialOriginals = catalog.CloneInitialPrivileges(source.InitialOriginals)
+	}
+	if len(source.InitialReads) != 0 {
+		next.InitialReads = catalog.CloneInitialPrivileges(source.InitialReads)
+	}
 	if len(source.DefaultACLs) != 0 {
 		next.DefaultACLs = catalog.CloneDefaultACLs(source.DefaultACLs)
 		next.DefaultOriginals = catalog.CloneDefaultACLs(source.DefaultOriginals)

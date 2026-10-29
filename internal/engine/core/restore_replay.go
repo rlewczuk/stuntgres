@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -29,6 +30,11 @@ type restoreReplay struct {
 	DomainReplay           *DomainReplayCapture        // Exact private native INSERT's immutable captured cells.
 	DomainDefault          *DomainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
 	PLChecked              *PLCheckedReplayCapture     // Exact paired CREATE only, before its staged publication.
+	// Exact decoded native membership reconstruction for one prepared statement.
+	// Composition owns admission and clearing; ordinary SQL never sets these.
+	ExtensionMembershipReplayRoot      ids.ObjectRef
+	ExtensionMembershipReplayExtension ids.ObjectRef
+	ExtensionMembershipReplayAction    string
 }
 
 func (*restoreReplay) ReplaySlot() {}

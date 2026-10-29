@@ -81,6 +81,22 @@ and grantor provenance, atomically with member identities. Held calls still
 recheck current EXECUTE authority; a captured persistent regclass literal is not
 retargeted across Reset/Restore.
 
+`pg_catalog.pg_init_privs` exposes historical initial ACLs for represented
+bootstrap objects and supported extension privilege events. Ordinary grants,
+revokes and owner changes do not refresh these snapshots. Extension ADD captures
+explicit object and column ACLs; DROP membership removes them. Inventory rows
+are public, subject to normal SELECT/column privileges on the catalog itself;
+reading history never grants access to the represented object.
+Historical ACL references participate in role dependencies. REASSIGN OWNED
+rewrites those references explicitly. DROP OWNED revokes the selected grantee's
+historical grants made by the object's current owner, with RESTRICT semantics:
+old-owner grants can remain after an owner change, and dependent onward grants
+can reject cleanup. DROP ROLE remains blocked while historical references remain.
+Native Dump/Restore preserves initial and current ACLs independently, including
+historical role references and deleted bootstrap records, remapping both object
+and role identities into the destination. Reset restores the fresh bootstrap
+inventory. Existing exported rows retain their captured values.
+
 Logged and unlogged tables retain their SQL identity in `pg_class` and native
 Dump/Restore. Table persistence changes publish transactionally with all surviving
 owned sequences; failed action lists, cancellation and rollback publish none.

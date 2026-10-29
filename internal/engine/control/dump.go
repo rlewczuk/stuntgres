@@ -44,6 +44,7 @@ type Capture struct {
 	OriginalRoles, DomainRoles   authorization.Read
 	ConstraintReplay             *partition.ConstraintReplay
 	ACLOutput                    regobj.ACLItemOutput
+	InitialPrivileges            *InitialPrivilegesMetadata
 
 	// Preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.

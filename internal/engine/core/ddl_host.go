@@ -226,6 +226,7 @@ func (h DDLHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []acc
 		}
 		view := target.Catalog.Current()
 		access.DefaultRoleDependencies(view, target.RoleStore.PublishedRead(&target.Catalog.Owner, view), ref, &dependencies)
+		access.InitialRoleDependencies(view, ref, &dependencies)
 		if len(dependencies) != 0 {
 			kind := "objects"
 			if len(dependencies) == 1 {

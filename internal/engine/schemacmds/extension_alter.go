@@ -92,6 +92,14 @@ func stageExtensionAlterLocked(e *core.Engine, scope *core.StatementScope, s *pa
 		}
 		return h.Stage, extensionAlterError("55000", fmt.Sprintf("%s is not a member of extension %q", description, old.Name()))
 	}
+	// Native provenance repair replays an already-proven owners-v3 membership,
+	// not a new user ADD/DROP event. Only its exact statement-local identities
+	// may retain history while the normal authorization/membership edits run.
+	replay := core.OperationReplayOrZero(scope.Op)
+	preserveHistory := e.ImportTargets != nil && replay.StagingEffects &&
+		replay.ExtensionMembershipReplayAction == s.Action &&
+		replay.ExtensionMembershipReplayRoot == auth.Owner.Domain.Ref(auth.Catalog.Epoch(), root.Address()) &&
+		replay.ExtensionMembershipReplayExtension == auth.Owner.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	next := *old
 	next.Members = slices.Clone(old.Members)
 	parent := old.Address()
@@ -112,7 +120,15 @@ func stageExtensionAlterLocked(e *core.Engine, scope *core.StatementScope, s *pa
 		}
 		if s.Action == "add" {
 			next.Members = append(next.Members, d.Address())
+			if !preserveHistory {
+				if err := recordExtensionMemberPrivileges(h.Stage, auth.Catalog, d); err != nil {
+					return h.Stage, err
+				}
+			}
 		} else {
+			if !preserveHistory {
+				h.Stage.RemoveInitialPrivileges(d.Address())
+			}
 			for i, a := range next.Members {
 				if a == d.Address() {
 					next.Members = slices.Delete(next.Members, i, i+1)

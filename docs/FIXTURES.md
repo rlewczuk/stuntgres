@@ -63,6 +63,20 @@ owner-switching `SET SESSION AUTHORIZATION` directives, `CREATE` statements in
 dependency order, `INSERT`s with canonical literals, represented database-local
 comments, and sequence state. The output can also be replayed on PostgreSQL.
 
+Historical `pg_init_privs` ACLs are preserved separately from current ACLs.
+When the dump-visible history differs from the canonical fresh bootstrap
+inventory, Dump emits a versioned native metadata comment containing the complete
+inventory, including absence relative to bootstrap state. Extension snapshots
+and removed or rewritten bootstrap records therefore retain their exact history.
+If history exactly equals the canonical seed, the comment is omitted, preserving
+the SQL-only canonical output for pristine catalogs and ordinary objects.
+Restore resolves logical object addresses and principal names against the staged
+destination before atomic publication; malformed metadata, missing identities,
+I/O failures and cancellation leave the published destination unchanged. Roles
+remain destination authority and must already exist. A plain SQL restore without
+the metadata uses normal bootstrap and extension privilege recording. PostgreSQL
+ignores the native comment rather than importing its historical catalog state.
+
 - XML literals replay the exact accepted original spelling with explicit
   XMLPARSE DOCUMENT or CONTENT, preserving the originally requested mode.
   They do not use typed transport output, so declaration normalization and

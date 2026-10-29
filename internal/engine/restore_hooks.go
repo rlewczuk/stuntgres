@@ -24,6 +24,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "comparison binding records", Decode: decodeRestoreComparisonContext},
 	{Name: "statistics: extended records", Decode: decodeRestoreExtendedStatistics},
 	{Name: "partition: pending detach records", Decode: decodeRestorePendingDetach},
+	{Name: "initial privileges inventory", Decode: decodeRestoreInitialPrivileges},
 
 	// Before admission.
 	{Name: "comparison binding context", Before: beforeRestoreComparisonContext},
@@ -121,4 +122,5 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "statistics: extended facts", Finish: finishRestoreExtendedStatistics},
 	// Pending membership is installed only after every ordinary repair completes.
 	{Name: "partition: pending detach membership", Finish: finishRestorePendingDetaches},
+	{Name: "initial privileges replacement", Finish: finishRestoreInitialPrivileges},
 }

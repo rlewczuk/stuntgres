@@ -47,6 +47,59 @@ admits only a single unconditional qualified-target CLUSTER ON preference, uses
 the common private ALTER stage and remaps the full index payload once; no
 physical heap ordering or standalone CLUSTER execution is represented.
 
+### Historical initial privileges
+
+`pg_init_privs` is a separate historical inventory, never reconstructed from
+current object ACLs or extension installation recipes. The coherent capture
+validates current historical principal authority before writer I/O and omits
+TEMP objects under the existing portability rules. An immutable engine-local
+canonical seed map is comparison provenance, not additional live historical
+records or role dependencies. If dump-visible history equals that baseline
+exactly (full addresses, origin, ordered principal references/bits/options), Dump
+omits metadata, preserving pristine and ordinary SQL-only canonical streams.
+Pointer equality, row count alone and current object ACLs do not establish this
+equality. Missing permanent baseline rows are differences, not exclusions.
+
+Otherwise Dump emits one `stuntgres-initial-privileges-v1` base64 JSON comment
+containing the complete inventory, including an empty inventory, a complete-record
+marker, portable logical object identities, stable column numbers, exact `i`/`e`
+origin and ordered named ACL entries with grant options. Row sorting is only for
+deterministic output; ACL entries are not sorted.
+
+Restore strictly rejects unsupported versions, unknown/missing/duplicate/null
+fields, duplicate target records or grants, invalid origins, class identities,
+subobjects and privilege masks. Its final hook resolves objects and principals
+against the isolated replay engine after membership and current-ACL repairs.
+The complete inventory replaces all replay-generated history through the normal
+catalog candidate validation/publication path, including absent bootstrap rows
+such as a dropped/recreated public schema. A plain SQL Restore without this
+metadata retains ordinary bootstrap/extension recording. Late resolution errors
+publish nothing to the destination.
+
+Native installation replay detaches and reattaches members to reconstruct
+identity, owner and current ACL state. Those reconstruction steps are not new
+historical privilege events. Decoded extension-owner metadata identifies the
+exact provider declaration slot or ordinary final logical member identity,
+target extension and ADD/DROP action. Preparation grants statement-local replay
+authority for that exact root/extension pair; the executor still performs normal
+ownership, membership and reciprocal-closure checks and preserves history only
+for that proven repair. Each exact root/extension/action tuple is consumed once
+in Restore-local state; repeated appended membership events use ordinary history
+semantics. Statement authority is cleared on execution success/error, the next
+preparation and operation end. Unmatched/plain SQL ADD/DROP continues to capture
+or delete history normally; an explicit complete historical record remains the
+final authority after all reconstruction and provenance validation.
+
+Direct replacement strips source TEMP history, applies the same principal
+mapper as current ACLs and rekeys full historical addresses through the imported
+object mapping without losing column numbers. Fresh maps reject destination
+collisions before replacing historical roots; destination TEMP records retain
+their exact local authority. Reset imports the newly seeded historical baseline.
+The canonical comparison baseline follows the same principal/object remappers,
+without requiring missing baseline targets to be live. Current-only mutations
+and complete metadata replacement never rewrite that baseline.
+Previously retained catalog roots and rendered rows remain immutable.
+
 
 Extension-owned composite types are reconstructed by their installation.
 Their standalone backing relations are therefore omitted from CREATE TYPE

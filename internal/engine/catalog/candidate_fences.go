@@ -137,7 +137,7 @@ func (c *Candidate) DefaultPreflight(current *State) error {
 	if err := c.ParameterPreflight(current); err != nil {
 		return err
 	}
-	if !c.DefaultRecordsUnchanged(current) {
+	if !c.DefaultRecordsUnchanged(current) || !c.InitialPrivilegesUnchanged(current) {
 		return Conflict{}
 	}
 	for key := range current.DefaultACLs() {

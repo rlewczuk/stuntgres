@@ -22,7 +22,7 @@ func CatalogHasIndexes(oid ids.OID) bool {
 		ids.PolicyClassID, ids.TriggerClassID,
 		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSParserOID, TSConfigOID, 3764, ids.ParameterClassID, 826:
 		return true
-	case TSConfigMapOID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID:
+	case TSConfigMapOID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, 3394:
 		return true
 	}
 	return false
@@ -84,7 +84,10 @@ func ClassRow(in Input, relation *catalog.Relation) ([]sqltype.Value, error) {
 	hasTriggers := relation.HasTriggers()
 	if !hasTriggers {
 		for fact := range catalog.ForeignKeyTriggerFacts(in.Catalog) {
-			if fact.Relation == relation.Address() { hasTriggers = true; break }
+			if fact.Relation == relation.Address() {
+				hasTriggers = true
+				break
+			}
 		}
 	}
 	return classRow(in, relation, hasTriggers)
@@ -108,7 +111,9 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 	if relation.RelationKind == catalog.TableRelation || kind == "m" || kind == "p" {
 		method = uint32(relation.TableMethod)
 	}
-	if relation.RelationKind == catalog.CatalogRelation && kind == "r" { method = 2 }
+	if relation.RelationKind == catalog.CatalogRelation && kind == "r" {
+		method = 2
+	}
 	if relation.SQLIndex != nil {
 		method = uint32(relation.SQLIndex.MethodIdentity())
 	}

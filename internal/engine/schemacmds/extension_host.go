@@ -100,6 +100,22 @@ func (h *extensionHost) Replace(d catalog.Descriptor) error {
 	}
 	return h.Stage.Replace(d)
 }
+func (h *extensionHost) RecordInitialPrivilege(address ids.ObjectAddress, kind byte, acl authorization.ACLValue) {
+	h.Stage.RecordInitialPrivilege(address, kind, acl)
+}
+
+func (h *extensionHost) RoutineCreationACLWithoutPublic(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, error) {
+	if h.Stage == nil || h.Stage.Lifecycle != core.CatalogOpen || h.Stage.Invalid != nil {
+		return authorization.ACLValue{}, fmt.Errorf("stuntgres: invalid catalog stage")
+	}
+	acl := h.Stage.CreationACL(owner, namespace, authorization.DefaultRoutines)
+	if !acl.Explicit {
+		acl = authorization.DefaultBaseline(owner, authorization.DefaultRoutines, false)
+	}
+	acl, _, err := authorization.ChangeObjectACL(h.Op.Context(), h.Auth.Roles, acl, owner, owner,
+		[]authorization.ACLGrantee{{Public: true}}, authorization.ExecutePrivilege, false, true, false, false)
+	return acl, err
+}
 func (h *extensionHost) AllocateOID() (ids.OID, error) { return h.Engine.Catalog.AllocateOIDLocked() }
 func (h *extensionHost) Revision() (ids.DefinitionRevision, error) {
 	return h.Engine.Catalog.RevisionLocked()

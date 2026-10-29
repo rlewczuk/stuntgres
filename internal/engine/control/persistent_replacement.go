@@ -52,5 +52,16 @@ func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	next.SetOperatorNames(operators.Index)
 	next.SetProcedureNames(procedures.Index)
 	catalog.PruneNamespaceDefaults(view.State(), next, nil)
+	if next.InitialPrivilegeCount() != 0 {
+		records := make(map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord, next.InitialPrivilegeCount())
+		for address, record := range next.InitialPrivileges() {
+			object := address
+			object.SubID = 0
+			if next.Get(object) != nil {
+				records[address] = record
+			}
+		}
+		next.SetInitialPrivileges(records)
+	}
 	return view.WithState(next), nil
 }

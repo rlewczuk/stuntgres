@@ -443,7 +443,7 @@ func (e *Engine) normalizeCatalogStage(ctx context.Context, s *CatalogStage) err
 
 func (e *Engine) catalogStageValidationRead(s *CatalogStage) (catalog.Read, error) {
 	var read catalog.Read
-	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 {
+	if s.DescriptorCount() != 0 || len(s.alterFinal) != 0 || s.InitialPrivilegeCount() != 0 {
 		read = e.StageRead(s)
 		validate := s.Candidate.ValidateStagedDefinitionOIDs
 		if len(s.alterFinal) != 0 {
@@ -480,6 +480,14 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	read, err := e.catalogStageValidationRead(s)
 	if err != nil {
 		return nil, err
+	}
+	if s.InitialPrivilegeCount() != 0 {
+		e.Mu.Lock()
+		err = catalog.ValidateInitialPrivileges(s.roleRead(e.sessionRolesLocked(s.AuthSession), read), read)
+		e.Mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, d := range s.Descriptors() {
 		if err := e.validateCatalogDescriptor(s, read, d, e.Catalog.Provider(d.Address().ClassID)); err != nil {
@@ -773,6 +781,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		}
 		if err == nil {
 			err = catalog.ValidateDefaultACLs(s.roleRead(e.RoleStore.Published, e.Catalog.Read(next)), e.Catalog.Read(next))
+		}
+		if err == nil {
+			err = catalog.ValidateInitialPrivileges(s.roleRead(e.RoleStore.Published, e.Catalog.Read(next)), e.Catalog.Read(next))
 		}
 		if err == nil {
 			for _, d := range s.Descriptors() {

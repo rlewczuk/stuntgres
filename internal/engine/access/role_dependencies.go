@@ -7,11 +7,11 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// RoleDependency is one shared dependency on a role: an object it owns, an
-// ACL that names it, a policy that applies to it, or a default ACL record.
+// RoleDependency is one shared dependency on a role: ownership, a current or
+// historical ACL, a policy target, or a default ACL record.
 type RoleDependency struct {
 	Address     ids.ObjectAddress
-	Kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
+	Kind        byte // PostgreSQL ACL ('a'), initial ACL ('i'), owner ('o'), policy ('r').
 	Description string
 	PolicyTable ids.ObjectAddress
 	PolicyName  string
@@ -150,6 +150,40 @@ func DefaultRoleDependencies(view catalog.Read, roles authorization.Read, ref au
 			prefix = "owner of "
 		}
 		*deps = append(*deps, RoleDependency{Kind: kind, Description: prefix + description})
+	}
+	return false
+}
+
+// InitialACLRoleReferences includes historical owners as well as all other
+// grantors and grantees. Current ownership is intentionally irrelevant.
+func InitialACLRoleReferences(record *catalog.InitialPrivilegeRecord) iter.Seq[authorization.PrincipalRef] {
+	return func(yield func(authorization.PrincipalRef) bool) {
+		if record == nil {
+			return
+		}
+		for _, entry := range record.ACL.Entries {
+			if !yield(entry.Grantor) {
+				return
+			}
+			if !entry.Grantee.Public && entry.Grantee.Role != entry.Grantor && !yield(entry.Grantee.Role) {
+				return
+			}
+		}
+	}
+}
+
+// InitialRoleDependencies has one PostgreSQL initial-ACL dependency per
+// role/address, irrespective of how many entries mention that role.
+func InitialRoleDependencies(view catalog.Read, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
+	for address, record := range view.State().InitialPrivileges() {
+		for principal := range InitialACLRoleReferences(record) {
+			if principal == ref {
+				if recordRoleDependency(deps, RoleDependency{Address: address, Kind: 'i'}) {
+					return true
+				}
+				break
+			}
+		}
 	}
 	return false
 }

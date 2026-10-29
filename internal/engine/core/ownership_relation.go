@@ -22,7 +22,7 @@ func OwnershipStage(e *Engine, auth AuthorizationView, op *session.Operation) *C
 
 func PublishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.RoleCandidateRecord == nil {
+	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.InitialPrivilegeCount() == 0 && stage.RoleCandidateRecord == nil {
 		if err := e.validateOperation(scope.Op); err != nil {
 			return Result{}, err
 		}

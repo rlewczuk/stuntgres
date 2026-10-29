@@ -28,10 +28,12 @@ type Candidate struct {
 	oldNames map[ids.NameKey]bool
 	// defaultACLs are default ACL changes (a nil record removes its key);
 	// defaultReads are the base records the candidate observed.
-	defaultACLs  map[DefaultACLKey]*DefaultACLRecord
-	defaultReads map[DefaultACLKey]*DefaultACLRecord
-	DropFlags    map[ids.ObjectAddress]DropProvenance
-	DropRecords  []DroppedObject
+	defaultACLs       map[DefaultACLKey]*DefaultACLRecord
+	defaultReads      map[DefaultACLKey]*DefaultACLRecord
+	initialPrivileges map[ids.ObjectAddress]*InitialPrivilegeRecord
+	initialReads      map[ids.ObjectAddress]*InitialPrivilegeRecord
+	DropFlags         map[ids.ObjectAddress]DropProvenance
+	DropRecords       []DroppedObject
 }
 
 // Removal is one staged removal and the descriptor it observed.
@@ -121,6 +123,17 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if a := c.LookupName(newKey); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return Conflict{}
 	}
+	if previous, ok := old.(*Relation); ok {
+		if next, ok := d.(*Relation); ok && !(len(previous.Attributes) == len(next.Attributes) && (len(previous.Attributes) == 0 || &previous.Attributes[0] == &next.Attributes[0])) {
+			for _, attribute := range previous.Attributes {
+				if next.IndexForAttribute(attribute) < 0 {
+					address := d.Address()
+					address.SubID = attribute
+					c.RemoveInitialPrivileges(address)
+				}
+			}
+		}
+	}
 	if previous := c.descriptors[d.Address()]; previous != nil {
 		delete(c.names, DescriptorNameKey(previous))
 	}
@@ -138,6 +151,7 @@ func (c *Candidate) Replace(d Descriptor) error {
 // RecordRemoval retires the original base identity and any private rebound
 // descriptor. The original ref and name observation remain publication fences.
 func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
+	c.RemoveInitialPrivileges(ref.Address)
 	if c.removals == nil {
 		c.removals = make(map[ids.ObjectAddress]Removal)
 	}
@@ -199,6 +213,8 @@ func (c *Candidate) State() *State {
 		ns.Set(k, v)
 	}
 	next := &State{epoch: c.Base.Epoch(), namespaceGeneration: base.namespaceGeneration, descriptors: ds.Persistent(), names: ns.Persistent(), relations: rs.Persistent(), operatorNames: operators.Index, procedureNames: procedures.Index, castPairs: casts.castPairs, defaultACLs: overlayDefaultACLs(base.defaultACLs, c.defaultACLs), dumpPriorities: base.dumpPriorities}
+	next.initialPrivileges = overlayInitialPrivileges(base.initialPrivileges, c.initialPrivileges)
+	next.initialPrivilegeBaseline = base.initialPrivilegeBaseline
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
 	next.subscriptions = base.subscriptions

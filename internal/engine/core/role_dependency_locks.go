@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func roleDependencyReferences(base catalog.Read, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], defaults iter.Seq2[catalog.DefaultACLKey, *catalog.DefaultACLRecord]) iter.Seq[authorization.PrincipalRef] {
+func roleDependencyReferences(base catalog.Read, descriptors iter.Seq2[ids.ObjectAddress, catalog.Descriptor], defaults iter.Seq2[catalog.DefaultACLKey, *catalog.DefaultACLRecord], initials iter.Seq2[ids.ObjectAddress, *catalog.InitialPrivilegeRecord]) iter.Seq[authorization.PrincipalRef] {
 	return func(yield func(authorization.PrincipalRef) bool) {
 		for address, descriptor := range descriptors {
 			if descriptor == nil || descriptor == base.Get(address) {
@@ -36,6 +36,24 @@ func roleDependencyReferences(base catalog.Read, descriptors iter.Seq2[ids.Objec
 			for ref := range access.DefaultACLRoleReferences(key, record) {
 				present := false
 				for prior := range access.DefaultACLRoleReferences(key, before) {
+					if prior == ref {
+						present = true
+						break
+					}
+				}
+				if !present && !yield(ref) {
+					return
+				}
+			}
+		}
+		for address, record := range initials {
+			before := base.State().InitialPrivilege(address)
+			if record == nil || record == before {
+				continue
+			}
+			for ref := range access.InitialACLRoleReferences(record) {
+				present := false
+				for prior := range access.InitialACLRoleReferences(before) {
 					if prior == ref {
 						present = true
 						break
@@ -96,7 +114,7 @@ func (s *StatementScope) AcquireRoleDependencies(references iter.Seq[authorizati
 }
 
 func (s *StatementScope) acquireStageRoleDependencies(stage *CatalogStage) error {
-	return s.AcquireRoleDependencies(roleDependencyReferences(stage.Base, stage.Descriptors(), stage.DefaultACLs()))
+	return s.AcquireRoleDependencies(roleDependencyReferences(stage.Base, stage.Descriptors(), stage.DefaultACLs(), stage.InitialPrivileges()))
 }
 
 // Caller holds Engine.mu; restore that ownership on every exit. Manual catalog
@@ -113,6 +131,12 @@ func (s *StatementScope) AcquireJournalRoleDependenciesLocked(changes *session.J
 	}, func(yield func(catalog.DefaultACLKey, *catalog.DefaultACLRecord) bool) {
 		for key, record := range changes.DefaultACLs {
 			if !yield(key, record) {
+				return
+			}
+		}
+	}, func(yield func(ids.ObjectAddress, *catalog.InitialPrivilegeRecord) bool) {
+		for address, record := range changes.InitialPrivileges {
+			if !yield(address, record) {
 				return
 			}
 		}

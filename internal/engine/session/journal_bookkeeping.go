@@ -22,7 +22,7 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 	if c.CachedBase == base && c.Cached.State() != nil {
 		return c.Cached
 	}
-	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 {
+	if len(c.Descriptors) == 0 && len(c.DefaultACLs) == 0 && len(c.InitialPrivileges) == 0 {
 		c.CachedBase = base
 		c.Cached = catalog.NewRead(owner, base)
 		return c.Cached
@@ -32,6 +32,7 @@ func (c *Journal) PrivateRead(owner *catalog.Owner, base *catalog.State) catalog
 		n.SetParameterIncarnation(c.ParameterIncarnation)
 	}
 	n.OverlayDefaultACLs(base, c.DefaultACLs)
+	n.OverlayInitialPrivileges(base, c.InitialPrivileges)
 	operators := catalog.OperatorIndexEdit{Index: base.OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: base.ProcedureNames()}
 	for a, d := range c.Descriptors {
@@ -128,6 +129,7 @@ func (c *Journal) ObserveCreationACL(base *catalog.State, view catalog.Read, own
 // RecordCandidateDefaults records the default ACLs candidate read, unless c
 // changed them, and then candidate's default ACL changes against base.
 func (c *Journal) RecordCandidateDefaults(base *catalog.State, candidate *catalog.Candidate) {
+	c.RecordCandidateInitialPrivileges(base, candidate)
 	for key, record := range candidate.DefaultReads() {
 		if _, private := c.DefaultACLs[key]; private {
 			continue
@@ -149,6 +151,20 @@ func (c *Journal) RecordCandidateDefaults(base *catalog.State, candidate *catalo
 // holds, or c's original where c already changed it. On a conflict it
 // records nothing.
 func (c *Journal) MergeCandidate(base, observed *catalog.State, candidate *catalog.Candidate) error {
+	for address, record := range candidate.InitialReads() {
+		expected := record
+		if original, private := c.InitialOriginals[address]; private {
+			expected = original
+		}
+		if base.InitialPrivilege(address) != expected {
+			return catalog.Conflict{}
+		}
+		object := address
+		object.SubID = 0
+		if !c.mergeObserved(base, observed, object) {
+			return catalog.Conflict{}
+		}
+	}
 	for a := range candidate.Descriptors() {
 		if !c.mergeObserved(base, observed, a) {
 			return catalog.Conflict{}
@@ -159,12 +175,19 @@ func (c *Journal) MergeCandidate(base, observed *catalog.State, candidate *catal
 			return catalog.Conflict{}
 		}
 	}
+	for address := range candidate.InitialReads() {
+		address.SubID = 0
+		if _, exists := c.Originals[address]; !exists {
+			c.Originals[address] = base.Get(address)
+		}
+	}
 	for a, d := range candidate.Descriptors() {
 		c.RecordDescriptor(base, a, d)
 	}
 	for a := range candidate.Removals() {
 		c.RecordDescriptor(base, a, nil)
 	}
+	c.RecordCandidateInitialPrivileges(base, candidate)
 	return nil
 }
 

@@ -2,6 +2,7 @@ package role
 
 import (
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
@@ -74,6 +75,27 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 		switch d.(type) {
 		case *catalog.Procedure, *catalog.Operator, *catalog.TSDictionary, *catalog.TSConfiguration:
 			providersChanged = true
+		}
+	}
+	for address, record := range h.StageRead().State().InitialPrivileges() {
+		acl := record.ACL
+		changed := false
+		for ref := range access.InitialACLRoleReferences(record) {
+			if !plan.Sources[ref] || ref == target {
+				continue
+			}
+			// The immutable input may mention this source more than once;
+			// do not copy again after its first complete replacement.
+			for _, entry := range acl.Entries {
+				if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
+					acl = authorization.SchemaACLOwner(acl, ref, target)
+					changed = true
+					break
+				}
+			}
+		}
+		if changed {
+			stage.RecordInitialPrivilege(address, record.PrivType, acl)
 		}
 	}
 	if !providersChanged {

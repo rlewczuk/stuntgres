@@ -135,8 +135,13 @@ No parallel language-permission table or cached grant decision exists.
   (`analyze.TableKindError` in the engine), because `analyze` imports
   `access`.
 - **Role dependencies** (`role_dependencies.go`): `RoleDependency`,
-  `DescriptorRoleDependencies` and `DefaultRoleDependencies`. A nil collector
-  stops at the first dependency.
+  `DescriptorRoleDependencies`, `DefaultRoleDependencies` and
+  `InitialRoleDependencies`. A nil collector stops at the first dependency.
+  Initial ACL references use kind `i`, include historical owners and every
+  grantor/grantee, and deduplicate each role/full object address; the current
+  ACL collector's owner exclusion must not be applied to historical snapshots.
+  Replacement ACL validation includes this inventory against destination role
+  authority, independently of current descriptor ACLs.
 - **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
   `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
   (`database_connect.go`) is the CONNECT check of physical session start.

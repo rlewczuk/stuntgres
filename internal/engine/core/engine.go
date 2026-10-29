@@ -242,6 +242,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		return nil, err
 	}
 	e.Catalog.FinishSeedLocked(builtinSeed)
+	if err := e.initializeInitialPrivileges(); err != nil {
+		return nil, err
+	}
 	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil
 }

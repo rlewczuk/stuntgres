@@ -33,10 +33,10 @@ func NewProcedureRemapper(m PrincipalRemap) ProcedureRemapper {
 }
 
 // RemapPrincipals rewrites every owner, ACL and policy role of an
-// unpublished private candidate, then its default ACL records. Each changed
-// descriptor is a copy; the first mapping error stops the rewrite. Callers
-// validate the default ACLs against the target roles afterwards. It rewrites
-// most of the catalog, so it runs as a bulk load.
+// unpublished private candidate, then its default and historical initial ACL
+// records. Each changed descriptor/ACL is a copy; the first mapping error
+// stops the rewrite. Callers validate both inventories against target roles
+// afterwards. It rewrites most of the catalog, so it runs as a bulk load.
 func RemapPrincipals(state *State, m PrincipalRemap) error {
 	state.BeginBulkLoad(0)
 	defer state.EndBulkLoad()
@@ -299,6 +299,28 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 			next[key] = &DefaultACLRecord{OID: record.OID, ACL: value}
 		}
 		state.SetDefaultACLs(next)
+	}
+	if state.InitialPrivilegeCount() != 0 {
+		next := make(map[ids.ObjectAddress]*InitialPrivilegeRecord, state.InitialPrivilegeCount())
+		for address, record := range state.InitialPrivileges() {
+			value, err := acl(record.ACL)
+			if err != nil {
+				return err
+			}
+			next[address] = &InitialPrivilegeRecord{PrivType: record.PrivType, ACL: value}
+		}
+		state.SetInitialPrivileges(next)
+	}
+	if state.InitialPrivilegeBaselineCount() != 0 {
+		next := make(map[ids.ObjectAddress]*InitialPrivilegeRecord, state.InitialPrivilegeBaselineCount())
+		for address, record := range state.InitialPrivilegeBaseline() {
+			value, err := acl(record.ACL)
+			if err != nil {
+				return err
+			}
+			next[address] = &InitialPrivilegeRecord{PrivType: record.PrivType, ACL: value}
+		}
+		state.SetInitialPrivilegeBaseline(next)
 	}
 	return nil
 }

@@ -23,7 +23,7 @@ func prepareRestoreReplayFlags(r *restoreRun, op *session.Operation, stmt parser
 	if selected, ok := stmt.(*parser.Select); ok {
 		replay.LargeObjectAuthority = largeobject.RestoresBytes(selected)
 	}
-	return nil
+	return prepareRestoreMembershipHistory(r, op, stmt)
 }
 
 // restoreTableDestination reports the creations Restore replays with

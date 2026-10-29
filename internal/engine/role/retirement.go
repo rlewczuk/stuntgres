@@ -22,6 +22,9 @@ func RetirementPreflightLocked(c *session.Journal, owner *catalog.Owner, princip
 		if access.DefaultRoleDependencies(catalog.NewRead(owner, state), access.RoleRead(owner, principals, catalog.NewRead(owner, state), c.Roles), ref, nil) {
 			return ids.ErrCatalogReplaced
 		}
+		if access.InitialRoleDependencies(catalog.NewRead(owner, state), ref, nil) {
+			return ids.ErrCatalogReplaced
+		}
 		for _, descriptor := range state.Descriptors() {
 			if access.DescriptorRoleDependencies(descriptor, ref, nil) {
 				return ids.ErrCatalogReplaced

@@ -176,10 +176,14 @@ func (p *AmcheckProvider) Stage(stage Stage, ext *catalog.Extension, owner autho
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
-		proc.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.ExecutePrivilege}}}
+		proc.ACL, err = stage.RoutineCreationACLWithoutPublic(owner, ext.TargetNamespace)
+		if err != nil {
+			return err
+		}
 		if err := stage.Create(proc); err != nil {
 			return err
 		}
+		stage.RecordInitialPrivilege(address, 'e', proc.ACL)
 		ext.Members = append(ext.Members, address)
 	}
 	return nil

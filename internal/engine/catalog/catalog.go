@@ -167,26 +167,29 @@ type NotNullConstraint struct {
 }
 
 type State struct {
-	epoch               ids.CatalogEpoch
-	namespaceGeneration uint64
+	epoch                ids.CatalogEpoch
+	namespaceGeneration  uint64
 	parameterIncarnation uint64
-	descriptors         util.PersistentMap[ids.ObjectAddress, Descriptor]
-	names               util.PersistentMap[ids.NameKey, ids.ObjectAddress]
-	relations           util.PersistentMap[ids.ObjectAddress, *Relation]
-	bulk                *stateBulk
-	operatorNames       *OperatorNameIndex
-	procedureNames      *ProcedureNameIndex
-	castPairs           map[CastPair]*Cast
-	defaultClasses      util.PersistentMap[defaultClassPair, []ids.OID]
-	eventTriggers       util.PersistentMap[ids.ObjectAddress, *EventTrigger]
-	subscriptions       util.PersistentMap[ids.ObjectAddress, *Subscription]
-	helperOwners        util.PersistentMap[ids.ObjectAddress, *Procedure]
-	temporaryNamespaces util.PersistentMap[ids.ObjectAddress, *Namespace]
-	oidCeiling          ids.OID                                           // See oid_ceiling.go.
-	unseeded            util.PersistentMap[ids.ObjectAddress, Descriptor] // See unseeded_index.go.
-	unseededAll         bool                                              // Every entry is unseeded.
-	seedCeiling         ids.OID                                           // oidCeiling when the seed ended.
-	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
+	descriptors          util.PersistentMap[ids.ObjectAddress, Descriptor]
+	names                util.PersistentMap[ids.NameKey, ids.ObjectAddress]
+	relations            util.PersistentMap[ids.ObjectAddress, *Relation]
+	bulk                 *stateBulk
+	operatorNames        *OperatorNameIndex
+	procedureNames       *ProcedureNameIndex
+	castPairs            map[CastPair]*Cast
+	defaultClasses       util.PersistentMap[defaultClassPair, []ids.OID]
+	eventTriggers        util.PersistentMap[ids.ObjectAddress, *EventTrigger]
+	subscriptions        util.PersistentMap[ids.ObjectAddress, *Subscription]
+	helperOwners         util.PersistentMap[ids.ObjectAddress, *Procedure]
+	temporaryNamespaces  util.PersistentMap[ids.ObjectAddress, *Namespace]
+	oidCeiling           ids.OID                                           // See oid_ceiling.go.
+	unseeded             util.PersistentMap[ids.ObjectAddress, Descriptor] // See unseeded_index.go.
+	unseededAll          bool                                              // Every entry is unseeded.
+	seedCeiling          ids.OID                                           // oidCeiling when the seed ended.
+	defaultACLs          map[DefaultACLKey]*DefaultACLRecord
+	initialPrivileges    map[ids.ObjectAddress]*InitialPrivilegeRecord
+	// Immutable seed comparison provenance, never live inventory/dependency data.
+	initialPrivilegeBaseline map[ids.ObjectAddress]*InitialPrivilegeRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
 	dumpPriorities map[ids.ObjectAddress]ids.OID
@@ -274,6 +277,8 @@ func CloneState(s *State) *State {
 	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: s.descriptors, names: s.names, relations: s.relations}
 	n.parameterIncarnation = s.parameterIncarnation
 	n.defaultACLs = s.defaultACLs
+	n.initialPrivileges = s.initialPrivileges
+	n.initialPrivilegeBaseline = s.initialPrivilegeBaseline
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames
 	n.castPairs = s.castPairs

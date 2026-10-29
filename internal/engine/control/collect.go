@@ -123,6 +123,9 @@ var dumpCollectors = [...]dumpCollector{
 }
 
 func temporaryDumpObject(state *catalog.State, d catalog.Descriptor) bool {
+	if ns, ok := d.(*catalog.Namespace); ok {
+		return ns.Temporary != (ids.SessionToken{})
+	}
 	ns, ok := state.Namespace(d.Namespace())
 	return ok && ns.Temporary != (ids.SessionToken{})
 }

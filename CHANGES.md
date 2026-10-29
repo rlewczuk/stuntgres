@@ -7,6 +7,10 @@
   epoch fences. Select snapshot-visible children for recursion and ONLY, leaving
   committed pending-detach branches untouched without acquiring their rename locks.
 
+- Add historical `pg_init_privs` inventory with exact represented bootstrap and
+  supported extension ACL snapshots, membership/column cleanup, transactional
+  role dependencies, and independent initial/current ACL native round trips.
+
 - Add the four typed PostgreSQL routine declaration inquiries, including
   declaration defaults/modes, procedure NULL results, aggregate diagnostics and
   CREATE OR REPLACE presentation from current catalog descriptors. Native SQL

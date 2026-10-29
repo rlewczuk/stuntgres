@@ -35,6 +35,8 @@ type OwnedCleanupStage interface {
 	DefaultACLChange(catalog.DefaultACLKey) (*catalog.DefaultACLRecord, bool)
 	ObserveDefault(catalog.DefaultACLKey)
 	SetDefaultACL(catalog.DefaultACLKey, *catalog.DefaultACLRecord)
+	StageRead() catalog.Read
+	RecordInitialPrivilege(ids.ObjectAddress, byte, authorization.ACLValue)
 	// RoleCandidate is the membership deletion that joins this stage's
 	// publication, or nil.
 	RoleCandidate() *access.RoleRecord

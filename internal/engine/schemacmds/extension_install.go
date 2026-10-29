@@ -67,9 +67,14 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)
 	}
+	changes.RecordCandidateDefaults(e.Catalog.State, &stage.Candidate)
 	// Candidate observations use the private predecessor; journal fences
 	// retain committed roots, including names already changed by this TX.
-	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: e.Catalog.State.Get(namespace), Database: stage.DatabasePredecessor}})
+	roleRevision := stage.RoleRevision
+	if changes.RolesBase != nil {
+		roleRevision = changes.RolesBase.Revision
+	}
+	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: roleRevision, Namespace: e.Catalog.State.Get(namespace), Database: stage.DatabasePredecessor}})
 	if err := e.CatalogPreflightLocked(changes); err != nil {
 		return core.Result{}, err
 	}

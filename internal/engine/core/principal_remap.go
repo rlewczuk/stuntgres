@@ -61,6 +61,9 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 	if err := catalog.ValidateDefaultACLs(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(state)), e.Catalog.Read(state)); err != nil {
 		return nil, nil, err
 	}
+	if err := catalog.ValidateInitialPrivileges(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(state)), e.Catalog.Read(state)); err != nil {
+		return nil, nil, err
+	}
 	return state, policy.Procedure, nil
 }
 

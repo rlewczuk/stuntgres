@@ -48,6 +48,14 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_init_privs` (3394) projects immutable historical records by full object
+  address with no allocated row OID. Its five nonnullable columns retain exact
+  source-owned OID/INT4/internal CHAR/ACLITEM[] carriers and ordered ACL entries.
+  Catalog and paired principal authority are validated before capture; canceled
+  captures expose no partial rows. The inventory is public and unfiltered by the
+  represented object's privileges or schema USAGE, while normal catalog
+  relation/column SELECT admission and held-statement rechecks still apply.
+  Reads never create history or derive it from current ACLs or provider recipes.
 - `pg_index` projects all 21 attributes from one detached `index.Metadata`
   capture, transported through `Runtime.IndexMetadata`. Actual index identities,
   definition flags and publication state remain index-owner facts. Structural

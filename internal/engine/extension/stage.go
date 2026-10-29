@@ -24,6 +24,12 @@ type Stage interface {
 	LookupName(ids.NameKey) ids.ObjectAddress
 	Create(catalog.Descriptor) error
 	Replace(catalog.Descriptor) error
+	// RoutineCreationACLWithoutPublic applies the supported script's PUBLIC
+	// EXECUTE revoke to the creator's global/schema routine defaults.
+	RoutineCreationACLWithoutPublic(authorization.PrincipalRef, ids.ObjectAddress) (authorization.ACLValue, error)
+	// RecordInitialPrivilege records an actual script ACL event, not membership
+	// or an unrelated descriptor replacement.
+	RecordInitialPrivilege(ids.ObjectAddress, byte, authorization.ACLValue)
 	// ScriptFunctions resolves an extension script's helper functions as the
 	// script would: against the staged catalog, as owner, with namespace as
 	// the whole search path. It checks USAGE on namespace first. The result

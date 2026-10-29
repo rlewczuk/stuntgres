@@ -80,6 +80,9 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 		procedureIndex.ProviderOverrides = maps.Clone(procedureNames.ProviderOverrides)
 	}
 	next.SetProcedureNames(procedureIndex)
+	if err := remapInitialPrivilegeAddresses(next, mapping); err != nil {
+		return err
+	}
 	remapStorageRoots(mapping, relations, sequences)
 	return nil
 }

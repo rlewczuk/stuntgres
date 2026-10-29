@@ -154,6 +154,24 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 		stage.ObserveDefault(key)
 		stage.SetDefaultACL(key, next)
 	}
+	// Read the coherent candidate after object removals and descriptor cleanup,
+	// so neither whole-object nor column tombstones can be resurrected.
+	current := stage.StageRead()
+	for address, record := range current.State().InitialPrivileges() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		object := address
+		object.SubID = 0
+		owner, _, _ := access.DescriptorACL(current.Get(object))
+		acl, changed, err := cleanupInitialACL(ctx, roles, record.ACL, owner, sources)
+		if err != nil {
+			return err
+		}
+		if changed {
+			stage.RecordInitialPrivilege(address, record.PrivType, acl)
+		}
+	}
 	return nil
 }
 

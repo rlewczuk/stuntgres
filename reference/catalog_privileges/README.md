@@ -1,7 +1,7 @@
 # reference/catalog_privileges
 
 Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles`, `pg_user`, `pg_shadow`, `pg_group`,
-`pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`,
+`pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`, `pg_init_privs`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
@@ -16,6 +16,23 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 [reference/catalogs](../catalogs/README.md#testing). `TestMain` is
 `fixture.Main(m, fixture.WithLegacyCryptoProvider())`, as in every catalog
 package.
+
+The `TestReferencePGInitPrivs` family independently prescribes bootstrap and
+extension initial ACL privilege/grantor/option bags, rather than deriving
+expectations from current ACLs. It covers typed shape and diagnostics,
+membership/column cleanup, unfiltered inventory with catalog authorization,
+transaction/savepoint publication, historical role dependencies and native
+Reset/Dump/Restore with destination remapping. Native control phases use only
+unwrapped public pools; PostgreSQL phases exercise the shared SQL behavior.
+`TestReferencePGInitPrivsExtensionDefaults` separately composes global routine
+default grants/options with schema-specific defaults during amcheck installation:
+its selective PUBLIC revoke preserves named grantees in both current and initial
+ACLs. Later current/default revocation leaves historical dependencies and native
+round-trip values intact. Owner-only amcheck expectations apply to untouched
+defaults, not to installations with configured named grantees.
+Run each selected group in native mode and with `REFERENCE=1`, for example
+`make check RUN='^TestReferencePGInitPrivs(Shape|Bootstrap|Diagnostics)$'`.
+The permanent feature smoke is `make check RUN='^TestReferencePGInitPrivsSmoke$'`.
 
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example

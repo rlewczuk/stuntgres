@@ -57,6 +57,18 @@ var dumpSections = [...]dumpSection{
 	{"subscriptions", emitDumpSubscriptions},
 	{"event triggers", emitDumpEventTriggers},
 	{"extended statistics snapshots", emitDumpExtendedStatistics},
+	{"initial privileges inventory", emitDumpInitialPrivileges},
+}
+
+func emitDumpInitialPrivileges(_ context.Context, s *dumpScript, w *dumpWriter) error {
+	if s.InitialPrivileges == nil {
+		return nil
+	}
+	comment, err := s.InitialPrivileges.Comment()
+	if err != nil {
+		return err
+	}
+	return w.emit(comment)
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {

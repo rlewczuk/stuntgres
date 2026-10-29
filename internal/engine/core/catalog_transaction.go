@@ -134,9 +134,15 @@ func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if !catalog.DefaultRecordsUnchanged(e.Catalog.State, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.Catalog.State, c.DefaultReads) {
 		return catalog.Conflict{}
 	}
+	if !catalog.InitialPrivilegesUnchanged(e.Catalog.State, c.InitialOriginals) || !catalog.InitialPrivilegesUnchanged(e.Catalog.State, c.InitialReads) {
+		return catalog.Conflict{}
+	}
 	view := e.PrivateCatalogLocked(c)
 	read := e.RoleStore.Read(&e.Catalog.Owner, view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
+		return err
+	}
+	if err := catalog.ValidateInitialPrivileges(read, view); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {

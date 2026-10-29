@@ -136,5 +136,8 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 	if dep.Kind == 'o' {
 		prefix = "owner of "
 	}
+	if dep.Kind == 'i' {
+		prefix = "initial privileges for "
+	}
 	return prefix + kind + name
 }

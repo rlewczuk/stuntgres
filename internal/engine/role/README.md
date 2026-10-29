@@ -81,6 +81,15 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   (`OwnedPlan`); `StageOwnedCleanup` stages DROP OWNED's ACL, policy,
   default-privilege and membership cleanup; `OwnedCleanupAddsDeletionRoot`
   decides the singular/plural diagnostic primary.
+  Historical initial ACLs participate independently: DROP ROLE and its final
+  retirement preflight include original grantors/owners and grantees with shared
+  dependency kind `i`, rendered as “initial privileges for”. REASSIGN OWNED
+  rewrites snapshot-only references with the normal ACL owner replacement and
+  duplicate-entry merge rules; bare ALTER OWNER deliberately does not.
+  DROP OWNED revokes selected historical grantees as the current object owner,
+  with RESTRICT, after object removals against the coherent candidate. Empty
+  snapshots disappear without resurrecting object/column history. Entries from
+  an old owner or another grantor can remain dependencies until REASSIGN OWNED.
 - **Ownership** (`ownership.go`): `PlanTypeOwnership`,
   `PlanDatabaseOwnership`, `PlanLargeObjectOwnership` and `PlanRelationOwnership`
   check ALTER ... OWNER and return an `OwnerChange` (nil `Object`: unchanged).

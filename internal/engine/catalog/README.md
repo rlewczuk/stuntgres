@@ -371,6 +371,11 @@ private frames, not catalog authority.
   For default ACLs, `ObserveDefault` records the base input once (including
   absence), `SetDefaultACL` stages output (present nil means removal) and
   `DefaultRecordsUnchanged` checks the observed inputs.
+  Historical ACLs use the same COW contract through `RecordInitialPrivilege`,
+  `InitialReads` and `InitialPrivilegesUnchanged`, including observed absence
+  and the represented object's descriptor predecessor. Captures copy ordered
+  ACL entries; replacements preserve origin. Whole-object retirement removes
+  every sub-ID, and relation replacement removes retired column snapshots.
 - **Candidate publication helpers** (`candidate_fences.go`,
   `candidate_apply.go`, `relation_history.go`,
   `default_privileges_catalog.go`). Unlike the reads above, these scan the
@@ -596,6 +601,18 @@ private frames, not catalog authority.
 - `DefaultACLRecord` owns its unique persistent row OID: the catalog allocator
   assigns it only to final new records, updates and remaps preserve it, and reads
   never allocate.
+- `InitialPrivilegeRecord` is keyed by complete object address, not a row OID.
+  Its `i`/`e` origin and ordered explicit nonempty ACL are independent of current
+  ownership and ACLs. Clone/publication share unchanged immutable records;
+  validators check live object/column and principal authority without requiring
+  a historical grantor to remain the current owner.
+  Bootstrap capture excludes `information_schema` and its objects: initdb creates
+  that schema after its privilege snapshot, despite their later explicit ACLs.
+  State also carries the immutable canonical seed baseline for native dump
+  comparison. It initially shares the seed map/records with current history;
+  COW and every state projection preserve it. Current-history replacement and
+  SQL mutations never rewrite it. It is not SQL inventory or live dependency
+  authority; native identity remapping translates both maps coherently.
 
 ## What stays in the engine
 
