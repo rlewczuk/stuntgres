@@ -86,7 +86,7 @@ func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 
 func TestStringCoreDefaultSelectedFunctionBoundary(t *testing.T) {
 	for _, name := range []string{
-		"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible",
+		"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible",
 		"abs", "num_nulls",
 	} {
 		for _, prefix := range []string{"", "pg_catalog."} {
@@ -141,6 +141,26 @@ func TestCheckQualifiedColumnAST(t *testing.T) {
 		for j, part := range want {
 			if column.Name.Parts[j].Text != part || column.Name.Parts[j].Pos.Character == 0 {
 				t.Fatal(column)
+			}
+		}
+	}
+}
+
+func TestCheckSearchVisibilityContext(t *testing.T) {
+	for _, name := range []string{"pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
+		for _, prefix := range []string{"", "pg_catalog."} {
+			query := "CREATE TABLE t(id oid CHECK(" + prefix + name + "(id)))"
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			check := statements[0].(*CreateTable).Elements[0].Column.Constraints[0].Check
+			call, ok := check.Expression.(FunctionExpr)
+			if !ok || call.Name.Parts[len(call.Name.Parts)-1].Text != name || len(call.Args) != 1 || call.Pos.Character == 0 {
+				t.Fatal("lost stored inquiry authority", check.Expression)
+			}
+			if _, ok := call.Args[0].(ColumnExpr); !ok {
+				t.Fatal("lost dynamic CHECK operand", call.Args)
 			}
 		}
 	}

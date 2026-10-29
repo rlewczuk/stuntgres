@@ -24,6 +24,8 @@ import (
 // independent released facts, including pg_proc.h's parallel-safe default.
 // The four oid->text routine-declaration inquiries follow the same released
 // strict/stable/parallel-safe contract and internal implementation symbols.
+// The five OID->BOOL text-search/statistics visibility inquiries retain released
+// cost 10, strict/stable/parallel-safe metadata through the same inventory.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -124,8 +126,8 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	if len(facts) != 2062 {
-		t.Fatalf("released represented overloads: got %d, want 2062", len(facts))
+	if len(facts) != 2067 {
+		t.Fatalf("released represented overloads: got %d, want 2067", len(facts))
 	}
 	return facts
 }

@@ -3,7 +3,7 @@ package parser
 import "testing"
 
 func TestBooleanCallPredicateGrammar(t *testing.T) {
-	for _, name := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
+	for _, name := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
 		for _, prefix := range []string{"", "pg_catalog."} {
 			parts := 1
 			if prefix != "" {

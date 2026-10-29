@@ -8,6 +8,12 @@ catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_amop`, `pg_coll
 transactional comments). The other catalog families are listed in
 [reference/catalogs](../catalogs/README.md).
 
+Search visibility scenarios discover descriptor identities through their owning
+catalogs, independently of the inquiry under test. The five search/statistics
+classes use the statement-captured non-TEMP effective path, with schema USAGE
+filtering but no object-rights predicate. Control phases replay actual emitted
+SQL and rediscover destination identities rather than retaining allocator values.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
@@ -122,4 +128,5 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `RUN='^TestPGTSConfigMap(Capture|Ownership)$'`.
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`
 - Visibility inquiries: `RUN='^TestReferenceVisibilityInquiry'`, `RUN='^TestReferenceBooleanCall'`
+- Search-path object visibility: `RUN='^TestReferenceSearchVisibility'`
 - Catalog smoke scenarios migrated from the root package: `RUN='^TestReferenceSmoke'`

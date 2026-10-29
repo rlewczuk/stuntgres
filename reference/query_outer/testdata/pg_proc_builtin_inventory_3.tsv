@@ -442,6 +442,7 @@
 3396	regexp_match	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1009	25 25	\N	\N	{string,pattern}	false	\N	regexp_match_no_flags	\N	false	\N
 3397	regexp_match	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	1009	25 25 25	\N	\N	{string,pattern,flags}	false	\N	regexp_match	\N	false	\N
 3399	int8_mul_cash	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	790	20 790	\N	\N	\N	false	\N	int8_mul_cash	\N	false	\N
+3403	pg_statistics_obj_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_statistics_obj_is_visible	\N	false	\N
 3404	pg_dependencies_in	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	3402	2275	\N	\N	\N	false	\N	pg_dependencies_in	\N	false	\N
 3405	pg_dependencies_out	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2275	3402	\N	\N	\N	false	\N	pg_dependencies_out	\N	false	\N
 3406	pg_dependencies_recv	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3402	2281	\N	\N	\N	false	\N	pg_dependencies_recv	\N	false	\N

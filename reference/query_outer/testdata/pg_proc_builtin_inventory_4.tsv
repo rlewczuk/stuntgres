@@ -32,6 +32,10 @@
 3749	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3614	25	\N	\N	\N	false	\N	to_tsvector	\N	false	\N
 3750	to_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	to_tsquery	\N	false	\N
 3751	plainto_tsquery	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3615	25	\N	\N	\N	false	\N	plainto_tsquery	\N	false	\N
+3756	pg_ts_parser_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_parser_is_visible	\N	false	\N
+3757	pg_ts_dict_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_dict_is_visible	\N	false	\N
+3758	pg_ts_config_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_config_is_visible	\N	false	\N
+3768	pg_ts_template_is_visible	11	12	10	0	0	0	f	false	false	true	false	s	s	1	0	16	26	\N	\N	\N	false	\N	pg_ts_template_is_visible	\N	false	\N
 3778	pg_tablespace_location	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_tablespace_location	\N	false	\N
 3787	to_jsonb	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	3802	2283	\N	\N	\N	false	\N	to_jsonb	\N	false	\N
 3811	money	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	790	23	\N	\N	\N	false	\N	int4_cash	\N	false	\N

@@ -19,6 +19,11 @@ const (
 	CollationVersionInquiry
 	DatabaseCollationVersionInquiry
 	ImportSystemCollationsInquiry
+	TSConfigVisibility
+	TSDictionaryVisibility
+	TSParserVisibility
+	TSTemplateVisibility
+	StatisticsObjectVisibility
 )
 
 func (k VisibilityInquiryKind) name() string {
@@ -37,6 +42,16 @@ func (k VisibilityInquiryKind) name() string {
 		return "pg_database_collation_actual_version"
 	case ImportSystemCollationsInquiry:
 		return "pg_import_system_collations"
+	case TSConfigVisibility:
+		return "pg_ts_config_is_visible"
+	case TSDictionaryVisibility:
+		return "pg_ts_dict_is_visible"
+	case TSParserVisibility:
+		return "pg_ts_parser_is_visible"
+	case TSTemplateVisibility:
+		return "pg_ts_template_is_visible"
+	case StatisticsObjectVisibility:
+		return "pg_statistics_obj_is_visible"
 	}
 	return ""
 }
@@ -54,6 +69,16 @@ func (k VisibilityInquiryKind) Class() ids.OID {
 		return ids.DatabaseClassID
 	case ImportSystemCollationsInquiry:
 		return ids.NamespaceClassID
+	case TSConfigVisibility:
+		return ids.TSConfigurationClassID
+	case TSDictionaryVisibility:
+		return ids.TSDictionaryClassID
+	case TSParserVisibility:
+		return ids.TSParserClassID
+	case TSTemplateVisibility:
+		return ids.TSTemplateClassID
+	case StatisticsObjectVisibility:
+		return ids.StatisticExtClassID
 	}
 	return 0
 }
@@ -154,6 +179,16 @@ func BindVisibilityInquiryStructure(b Binder, raw parser.FunctionExpr) (Visibili
 		kind = DatabaseCollationVersionInquiry
 	case "pg_import_system_collations":
 		kind = ImportSystemCollationsInquiry
+	case "pg_ts_config_is_visible":
+		kind = TSConfigVisibility
+	case "pg_ts_dict_is_visible":
+		kind = TSDictionaryVisibility
+	case "pg_ts_parser_is_visible":
+		kind = TSParserVisibility
+	case "pg_ts_template_is_visible":
+		kind = TSTemplateVisibility
+	case "pg_statistics_obj_is_visible":
+		kind = StatisticsObjectVisibility
 	default:
 		return VisibilityInquiry{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
 	}

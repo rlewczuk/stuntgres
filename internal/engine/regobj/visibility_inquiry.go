@@ -12,8 +12,8 @@ import (
 
 // VisibilityInquiry answers the pg_*_is_visible and collation-version
 // inquiries for oid over the statement's visibility snapshot: its catalog,
-// the relation path and the path for collations and conversions (TEMP
-// filtered). pg_import_system_collations is answered by the caller.
+// the relation path and the non-TEMP path for collations, conversions, text
+// search objects and statistics. pg_import_system_collations is answered by the caller.
 func VisibilityInquiry(view catalog.Read, relations, others []ids.ObjectAddress, kind functions.VisibilityInquiryKind, oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	d, exists := view.Descriptor(ids.ObjectAddress{ClassID: kind.Class(), ObjectID: ids.OID(oid)})
 	if !exists {
@@ -43,7 +43,11 @@ func VisibilityInquiry(view catalog.Read, relations, others []ids.ObjectAddress,
 		return sqltype.String(result, *version), nil
 	}
 	path := relations
-	if kind == functions.CollationVisibility || kind == functions.ConversionVisibility {
+	switch kind {
+	case functions.CollationVisibility, functions.ConversionVisibility,
+		functions.TSConfigVisibility, functions.TSDictionaryVisibility,
+		functions.TSParserVisibility, functions.TSTemplateVisibility,
+		functions.StatisticsObjectVisibility:
 		path = others
 	}
 	visible := false

@@ -20,7 +20,7 @@ import (
 func TestBooleanCallPredicateBinding(t *testing.T) {
 	e := engine.New()
 	pos := parser.Position{Offset: 15, Character: 16}
-	for _, name := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
+	for _, name := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
 		for _, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr} {
 			b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 40}}}, Pos: pos}

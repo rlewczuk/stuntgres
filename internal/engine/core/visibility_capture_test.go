@@ -2,16 +2,32 @@ package core_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/sqltype"
 )
 
 // Inspect the existing statement-owned immutable capture after real execution,
 // rather than asserting implementation wiring or incidental source text.
 func TestVisibilityInquiryCaptureDemand(t *testing.T) {
+	for _, name := range []string{"pg_type_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
+		t.Run(name, func(t *testing.T) { visibilityInquiryCaptureDemand(t, name) })
+	}
+}
+
+func visibilityInquiryCaptureDemand(t *testing.T, name string) {
+	query := func(q string) string {
+		q = strings.ReplaceAll(q, "pg_type_is_visible", name)
+		if name != "pg_type_is_visible" {
+			q = strings.ReplaceAll(q, "IS NOT NULL", "IS NULL")
+		}
+		return q
+	}
 	e := engine.New()
 	s := sessionStart(t, e, nil)
 	for _, q := range []string{
@@ -24,7 +40,7 @@ func TestVisibilityInquiryCaptureDemand(t *testing.T) {
 		"INSERT INTO capture_checked VALUES(23)",
 		"CREATE TABLE capture_destination(visible BOOL)",
 	} {
-		sessionSQL(t, s, q)
+		sessionSQL(t, s, query(q))
 	}
 	for _, tc := range []struct {
 		sql      string
@@ -33,6 +49,7 @@ func TestVisibilityInquiryCaptureDemand(t *testing.T) {
 		{"SELECT id FROM capture_ids", false},
 		{"SELECT id FROM capture_plain", false},
 		{"SELECT pg_type_is_visible(NULL)", false},
+		{"SELECT pg_type_is_visible($1)", true},
 		{"SELECT pg_type_is_visible(id) FROM capture_ids", true},
 		{"SELECT TRUE OR pg_type_is_visible(id) FROM capture_ids", true},
 		{"SELECT pg_type_is_visible(id) AND FALSE FROM capture_ids", true},
@@ -55,7 +72,18 @@ func TestVisibilityInquiryCaptureDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := scope.Execute(enginetest.Statement(t, tc.sql), 0, nil)
+			count := 0
+			if strings.Contains(tc.sql, "$1") {
+				count = 1
+			}
+			result, err := scope.Execute(enginetest.Statement(t, query(tc.sql)), count, func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+				if count == 0 {
+					return nil
+				}
+				value, err := sqltype.OIDValue(info.Types[0].Type, 0)
+				frame[0] = value
+				return err
+			})
 			if result.Rows != nil {
 				defer result.Rows.Close()
 			}

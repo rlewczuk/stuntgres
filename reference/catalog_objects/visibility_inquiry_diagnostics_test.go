@@ -13,7 +13,7 @@ func TestReferenceVisibilityInquiryDiagnostics(t *testing.T) {
 		t.Run(backend.Name, func(t *testing.T) {
 			db, rec := backend.DB, backend.Recorder
 			const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-			for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
+			for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
 				cases := []struct {
 					q    string
 					want fixture.Diagnostic
@@ -27,6 +27,7 @@ func TestReferenceVisibilityInquiryDiagnostics(t *testing.T) {
 					{"SELECT /*é*/ " + fn + "(TRUE)", fixture.Diagnostic{Code: "42883", Message: "function " + fn + "(boolean) does not exist", Position: "14", Hint: hint}},
 					{"SELECT " + fn + "('bad')", fixture.Diagnostic{Code: "22P02", Message: `invalid input syntax for type oid: "bad"`, Position: strconv.Itoa(9 + len(fn))}},
 					{"SELECT " + fn + "('4294967296')", fixture.Diagnostic{Code: "22003", Message: `value "4294967296" is out of range for type oid`, Position: strconv.Itoa(9 + len(fn))}},
+					{"SELECT " + fn[:len(fn)-1] + "(0::oid)", fixture.Diagnostic{Code: "42883", Message: "function " + fn[:len(fn)-1] + "(oid) does not exist", Position: "8", Hint: hint}},
 				}
 				for _, tc := range cases {
 					for _, source := range []bool{false, true} {
@@ -45,6 +46,18 @@ func TestReferenceVisibilityInquiryDiagnostics(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, db, rec, fixture.Prepared(s))
 				s.NonContext = true
 				fixture.RunStep(t, p.Ctx, db, rec, fixture.Prepared(s))
+				q := "SELECT " + fn + "($1)"
+				held, err := db.PrepareContext(p.Ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				executor := fixture.HeldStatement{Executor: db, Statement: held, SQL: q}
+				s.NonContext = false
+				fixture.RunStep(t, p.Ctx, executor, rec, s)
+				fixture.RunStep(t, p.Ctx, executor, rec, fixture.Select(q, []string{fn}, []string{"BOOL"}, [][]any{{nil}}, nil))
+				if err := held.Close(); err != nil {
+					t.Fatal(err)
+				}
 				matched := fixture.Select("SELECT "+fn+"(VARIADIC NULL)", []string{fn}, []string{"BOOL"}, [][]any{{nil}})
 				fixture.RunStep(t, p.Ctx, db, rec, matched)
 				fixture.RunStep(t, p.Ctx, db, rec, fixture.Prepared(matched))
@@ -75,7 +88,7 @@ func TestReferenceVisibilityInquiryDiagnosticOrdering(t *testing.T) {
 					setup := fixture.Exec("CREATE TABLE empty_ids(id OID)", 0)
 					setup.NonContext = source
 					fixture.RunStep(t, p.Ctx, db, rec, setup)
-					for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
+					for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible"} {
 						t.Run(fn, func(t *testing.T) {
 							for _, tc := range []struct {
 								name string

@@ -30,6 +30,15 @@ members and emits one row even for a whole-NULL record, without declaring an
 SRF. Generic record transport, stored protocols and native replay require no
 adapter special case.
 
+`VisibilityInquiry` retains one typed OID operand and the selected descriptor
+class. Text-search configuration, dictionary, parser, template and statistics
+inquiries share its strict BOOL, STABLE, non-folding protocol. Evaluation borrows
+the statement-captured catalog and USAGE-filtered non-TEMP effective path;
+same-class namespace/name shadowing never adds object-privilege checks. Prepared
+recipes capture a fresh frontier on execution, while retained rows keep their
+original one. Views and CHECK expressions reuse structural binding and replay;
+the inquiry adds no persistent state.
+
 `EncodingNameCall` binds the strict NAME/INT4 encoding conversions through the
 ordinary routine owner and reuses `sqltype.EncodingID`/`EncodingName` after formal
 coercion. `Keywords` binds a fixed five-OUT record and streams the parser's sole
@@ -895,6 +904,9 @@ publication and lock-manager tickets stay in the engine.
 
 Encoding-name and keyword binding, protocol and cursor units use
 `RUN='^TestEncodingKeywords'`; public scenarios live in `reference/catalogs`.
+Visibility inquiry binding/protocol and composed capture ownership use
+`RUN='^Test(VisibilityInquiry|BooleanCall)'`; public scenarios live in
+`reference/catalog_objects`.
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
