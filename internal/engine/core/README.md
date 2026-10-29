@@ -677,6 +677,13 @@ Destination-name claims remain pending until Finish; exception rollback restores
 their suffix. General authority retains the published role root and installed
 session revision. Shared transfer methods live in core; family executors retain
 their physical work records and old tuple layouts.
+The physical continuation receives one semantic reason mask per stored relation,
+independent of native row copying. Its unlocked callback borrows the command's
+target OID/reason pair and restores both on every exit. Helper evaluation reads
+only that live `table_rewrite` command; prepared nodes and native dumps retain no
+invocation state. Nested utilities and PL exception checkpoints preserve the
+exact enclosing command and pair without restamping publication proofs.
+
 Existing FOREIGN KEY validation captures the stored target/supporting index,
 not a new REFERENCES declaration or privilege grant. Admission takes SUE on the
 child and RowShare on each deduplicated parent; stronger ADD/shape companions

@@ -33,6 +33,9 @@ programs, type generations and TEMP collation cleanup are core's.
   They resolve under `Engine.Mu`, wait for the type and table locks
   unlocked, recheck the resolved descriptors after the waits, and stage,
   validate and publish one catalog stage.
+  Typed cascades pass each stored table's checked TYPE reason mask to the same
+  unlocked physical callback boundary; the inspected OID is the table, never the
+  composite type, and the enclosing command tag remains ALTER TYPE.
 - Dispatch (`core.Statements.ExecuteLocked`): `AlterTableOfLocked` is a
   lock-domain continuation: entered with `Engine.Mu` held and the table
   admitted, it releases it on every return.

@@ -47,14 +47,17 @@ func ColumnTypeEventRewrite(node expr.Expr, original *catalog.Relation, slot int
 	}
 }
 
-func AlterEventRewrite(transformations []index.ColumnTransformation, stored []int32, perRowAdd bool) bool {
+// AlterEventRewriteReason preserves all semantic causes independently of native
+// row copying. Persistence and method changes are added by the relation owner.
+func AlterEventRewriteReason(transformations []index.ColumnTransformation, stored []int32, perRowAdd bool) int32 {
+	var reason int32
 	if len(stored) != 0 || perRowAdd {
-		return true
+		reason |= 2
 	}
 	for _, transformation := range transformations {
 		if transformation.EventRewrite {
-			return true
+			reason |= 4
 		}
 	}
-	return false
+	return reason
 }

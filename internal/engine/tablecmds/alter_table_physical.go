@@ -37,7 +37,8 @@ type AlterTablePhysical struct {
 	validatedNotNull                                                   []catalog.NotNullConstraint
 	foreignKeyHistory                                                  []table.AlterForeignKeyScan
 	fills                                                              map[int32]sqltype.Value
-	rewrite, rewriteEvent, physicalRows, hasAttachments, changedValues bool
+	rewrite, physicalRows, hasAttachments, changedValues bool
+	rewriteReason int32
 	destination                                                        ids.ObjectRef
 	validityOnly                                                       bool
 }
@@ -54,7 +55,7 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 			e.Mu.Unlock()
 		}
 	}()
-	auth, stage, err := e.BeginAlterPhysical(scope, phase, work.ref.Address, work.store, work.rewriteEvent)
+	auth, stage, err := e.BeginAlterPhysical(scope, phase, work.ref.Address, work.store, work.rewriteReason)
 	if err != nil {
 		return core.Result{}, err
 	}

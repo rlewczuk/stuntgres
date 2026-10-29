@@ -848,13 +848,23 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if accumulated, exists := changes.Storage[ref.Address]; physicalRows && exists {
 		shape, store, storageOwner = accumulated, accumulated.Replacement, accumulated.Relation
 	}
+	var rewriteReason int32
+	if old.RelationKind.Stored() {
+		rewriteReason = table.AlterEventRewriteReason(transformations, storedReplacements, perRowAdd)
+		if preparation.Persistence.Changed {
+			rewriteReason |= 1
+		}
+		if preparation.AccessMethod.Changed {
+			rewriteReason |= 8
+		}
+	}
 	physical := AlterTablePhysical{
 		mutation: scope.StatementMutation, ref: ref, old: old, storageOwner: storageOwner, store: store, shape: shape,
 		frontier: frontier, snapshot: snapshot, snapshotExists: snapshotExists,
 		transformations: transformations, additions: additions, storedReplacements: storedReplacements, replacements: replacements,
 		typeChecks: typeChecks, addedChecks: addedChecks, addedIndexes: addedIndexes,
 		validatedChecks: validatedChecks, validatedNotNull: validatedNotNull, foreignKeyHistory: foreignKeyHistory,
-		fills: fills, rewrite: rewrite, rewriteEvent: physicalRows && table.AlterEventRewrite(transformations, storedReplacements, perRowAdd),
+		fills: fills, rewrite: rewrite, rewriteReason: rewriteReason,
 		physicalRows: physicalRows, hasAttachments: hasAttachments, changedValues: changedValues, destination: destination,
 		validityOnly: validityOnly,
 	}

@@ -70,9 +70,12 @@ call live here.
   `AlterNotNullPass` (pass 4; a nil inheritance plan is allowed),
   `FinishAlterCandidate` (the after-loop finish, with the inheritance finish
   as a callback and the stage's emptiness as a `bool`), `BumpAlterRevision`,
-  `AlterRewrites` and `AlterStorageShape`. The row passes take no
-  lock, but expressions may reach host methods that take `Engine.Mu`, so
-  callers hold nothing. `AlterCookingError` clones public diagnostics without
+  `AlterRewrites` and `AlterStorageShape`. `AlterEventRewriteReason`
+  accumulates default/generated and checked TYPE causes without collapsing
+  combinations or confusing native row copies with semantic events. The command
+  owner adds actual persistence/method changes only for stored relation kinds.
+  The row passes take no lock, but expressions may reach host methods that take
+  `Engine.Mu`, so callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
   `ValidateConstraintCandidate` returns an immutable validity-only successor and
   selected stable scan identities; eligible valid facts return the identical

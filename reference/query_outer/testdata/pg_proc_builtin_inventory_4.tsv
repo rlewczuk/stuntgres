@@ -520,3 +520,5 @@
 1291	suppress_redundant_updates_trigger	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	suppress_redundant_updates_trigger	\N	false	\N
 3752	tsvector_update_trigger	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	2279		\N	\N	\N	false	\N	tsvector_update_trigger_byid	\N	false	\N
 3753	tsvector_update_trigger_column	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	2279		\N	\N	\N	false	\N	tsvector_update_trigger_bycolumn	\N	false	\N
+4566	pg_event_trigger_table_rewrite_oid	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	26		{26}	{o}	{oid}	false	\N	pg_event_trigger_table_rewrite_oid	\N	false	\N
+4567	pg_event_trigger_table_rewrite_reason	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	23		\N	\N	\N	false	\N	pg_event_trigger_table_rewrite_reason	\N	false	\N

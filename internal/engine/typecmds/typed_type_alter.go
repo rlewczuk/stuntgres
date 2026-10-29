@@ -292,7 +292,7 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 		mutation.Next = phase.View.MustRelation(mutation.Old.Address())
 		// Composite attribute additions cannot declare DEFAULT expressions;
 		// only checked TYPE transformations can request a typed heap rewrite.
-		auth, physical, physicalErr := e.BeginAlterPhysical(scope, phase, mutation.Old.Address(), nil, table.AlterEventRewrite(mutation.Transforms, nil, false))
+		auth, physical, physicalErr := e.BeginAlterPhysical(scope, phase, mutation.Old.Address(), nil, table.AlterEventRewriteReason(mutation.Transforms, nil, false))
 		if physicalErr != nil {
 			return core.Result{}, physicalErr
 		}

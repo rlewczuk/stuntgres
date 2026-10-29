@@ -512,6 +512,13 @@ Composite wrapping polls the evaluation context before, during and after
 conversion; interruption returns the ordinary context error without a partial
 source or consuming lexical records.
 
+`EventTriggerRewrite` is a stable scalar OID/INT4 inquiry with immutable selected
+routine provenance, never-fold planning and execution-time lexical lookup.
+Scalar FROM uses the same live opening; only the OID declaration supplies the
+single OUT label `oid`. Target-list labels remain the function spelling.
+Absent active rewrite context reports 39P03, including on prepared Execute.
+No target, reason, command pointer or routine frame is retained by the node.
+
 `EventTriggerDDLCommands` uses the same owned source protocol with the selected
 4568 declaration and nine exact OUT members. Binding/Prepare retain no event
 state. Execute opens the current complete-query inventory, not a phase-gated

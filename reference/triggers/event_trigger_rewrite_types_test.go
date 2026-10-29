@@ -117,6 +117,8 @@ func TestReferenceEventTriggerRewriteTypes(t *testing.T) {
 						}
 						run(fixture.Exec("INSERT INTO et_rewrite_types VALUES"+tc.values, 2))
 						eventTriggerPhases(t, p, b, c, "'ALTER TABLE'")
+						run(fixture.Exec("CREATE TABLE et_rewrite_pair(target oid,reason integer)", 0))
+						eventTriggerFunction(t, p, b, c, "et_phase_3", 3, "INSERT INTO et_rewrite_pair VALUES(pg_event_trigger_table_rewrite_oid(),pg_event_trigger_table_rewrite_reason()); RETURN;")
 						step := fixture.Exec("ALTER TABLE et_rewrite_types ALTER COLUMN v TYPE "+tc.target, 0)
 						step.Prepared = route.prepared
 						run(step)
@@ -129,6 +131,11 @@ func TestReferenceEventTriggerRewriteTypes(t *testing.T) {
 						audit = append(audit, eventTriggerRow(4, "et_phase_4", "ddl_command_end", "ALTER TABLE"))
 						run(eventTriggerAudit(audit...))
 						run(eventTriggerCount("SELECT count(*) AS n FROM et_audit WHERE event='table_rewrite'", count))
+						pairs := [][]any{}
+						if tc.rewrite {
+							pairs = [][]any{{true, int64(4)}}
+						}
+						run(fixture.Select("SELECT target='et_rewrite_types'::regclass AS correct_target,reason FROM et_rewrite_pair", []string{"correct_target", "reason"}, []string{"BOOL", "INT4"}, pairs))
 						run(fixture.Select("SELECT v FROM et_rewrite_types ORDER BY id", []string{"v"}, []string{tc.typ}, tc.rows))
 						// Driver domain metadata exposes the base type. The installed
 						// descriptor independently distinguishes the domain and typmod.

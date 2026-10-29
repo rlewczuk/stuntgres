@@ -20,6 +20,8 @@ type EventCommand struct {
 	Records      []catalog.DroppedObject
 	positions    map[ids.ObjectAddress]int
 	Phase        string
+	RewriteOID   ids.OID
+	RewriteReason int32
 	captureError error
 	CollectDDL   bool
 	Commands     []sqltype.DDLCommand

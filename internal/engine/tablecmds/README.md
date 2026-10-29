@@ -107,9 +107,16 @@ TEMP preservation, relation admission and publication.
   Restore-only index attribute name/policy repairs use authenticated private
   catalog publication, preserving immutable column/name lookups and executable
   index definitions, never general writable system catalogs.
+  Semantic rewrite inspection aggregates persistence/default/type/method causes
+  once per stored relation. Actual prepared persistence/method transitions count
+  even without native row copies; same-state requests and partitioned roots do
+  not. Checked type/default classifiers remain independent of validation scans,
+  index rebuilding and maintenance. Callbacks borrow core's live target/mask
+  at the existing unlocked metadata/physical boundary with unchanged proofs.
   These are logical row/catalog/transaction guarantees. External server trigger,
-  transport and physical-page/WAL/crash-recovery mechanisms remain outside this
-  executor; native persistence uses the incumbent logical Dump/Restore controls.
+  transport and physical-page/WAL/init-fork/crash-recovery mechanisms remain
+  outside this executor, as do arbitrary external table-AM native handlers and
+  pg_dump process execution; persistence uses logical native Dump/Restore.
 - Dispatch (`core.Statements.Execute`): `ExecuteSequenceDDL`,
   `ExecuteSequenceComment` and `ExecuteVacuum` are entered with nothing held;
   they take `Engine.Mu` in short windows and release it around lock waits.

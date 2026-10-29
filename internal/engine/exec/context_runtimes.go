@@ -42,6 +42,19 @@ func (c *Context) TriggerDepthValue(result *sqltype.Descriptor) (sqltype.Value, 
 	return host.TriggerDepthValue(result)
 }
 
+var _ functions.EventTriggerRewriteRuntime = (*Context)(nil)
+
+func (c *Context) EventTriggerRewriteValue(oid bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, functions.EventTriggerRewriteContextError(oid)
+	}
+	return host.EventTriggerRewriteValue(oid, result)
+}
+
 // The ACL SQL functions borrow the executing statement's authority through
 // this capability. Each inquiry holds e.mu only for its own catalog and role
 // reads and caches nothing on the expression or statement.

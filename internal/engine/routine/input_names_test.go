@@ -136,6 +136,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6390: {"array", "descending", "nulls_first"},
 		6400: {"name", "size", "modification"},
 		6430: {"shift"},
+		4566: {"oid"},
 	}
 	seen := 0
 	for _, d := range BuiltinProcedures(authorization.PrincipalRef{}) {

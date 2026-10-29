@@ -94,6 +94,7 @@ type Host interface {
 	// functions.EventTriggerDroppedRuntime
 	EventTriggerDroppedObjects() ([][]sqltype.Value, error)
 	EventTriggerDDLCommands() ([][]sqltype.Value, error)
+	EventTriggerRewriteValue(bool, *sqltype.Descriptor) (sqltype.Value, error)
 	VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.SessionInquiryRuntime
 	CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error)

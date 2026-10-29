@@ -46,6 +46,7 @@ func eventTriggerRewriteVisibility(t *testing.T) {
 					enginetest.SessionSQL(t, actor, q)
 				}
 				body := fmt.Sprintf("DECLARE n integer; BEGIN SELECT count(*) INTO n FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid WHERE c.relname IN (%s) AND a.attname='v' AND a.atttypid=20; IF n<>%d THEN RAISE EXCEPTION 'metadata phase incomplete'; END IF; SELECT et_visibility_record() INTO n; SELECT count(*) INTO n FROM pg_class WHERE relname='et_visibility_kept'; IF n=0 THEN SELECT et_visibility_marker() INTO n; END IF;", names, wantMetadata)
+				body += " IF pg_event_trigger_table_rewrite_reason()<>4 OR pg_event_trigger_table_rewrite_oid() NOT IN ('et_visibility_parent'::regclass,'et_visibility_child'::regclass) THEN RAISE EXCEPTION 'wrong live rewrite pair'; END IF;"
 				if mode == "callback_abort" {
 					body += " RAISE EXCEPTION 'visibility callback abort';"
 				}
@@ -87,6 +88,9 @@ func eventTriggerRewriteVisibility(t *testing.T) {
 					}
 					defer scope.Finish(errors.New("unfinished rewrite visibility"))
 					_, executionErr := scope.Execute(enginetest.Statement(t, command), 0, nil)
+					if scope.EventCommand != nil {
+						t.Fatal("completed utility retained lexical rewrite context", scope.EventCommand)
+					}
 					wantFailure := mode == "callback_abort" || mode == "private_successor"
 					if (executionErr != nil) != wantFailure {
 						t.Fatal("unexpected real rewrite outcome", executionErr)

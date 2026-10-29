@@ -56,6 +56,8 @@ The four zero-input session-activity declarations retain their exact released
 identities, result types, strictness, volatility and parallel-safety metadata.
 The zero-input trigger-depth declaration retains OID3163, INT4 result and its
 released strict, STABLE, parallel-restricted internal-function metadata.
+The two rewrite inquiries retain their fixed zero-input STABLE, strict,
+parallel-restricted scalar identities; only OID4566 declares a named OUT `oid`.
 Settings flags and option expansion retain released STABLE/strict declarations,
 unnamed versus fixed input/OUT formal metadata, and the option row estimate 3.
 The eight legacy transaction inquiries retain distinct bigint/txid_snapshot
@@ -81,7 +83,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2056 rows, all backed
+supplements. The complete released inventory contains 2058 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. The encoding
 conversion and keyword routines retain independent release facts for OIDs
 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.

@@ -141,7 +141,7 @@ func (e *Engine) AlterPhysicalProofLocked(phase AlterMetadataPhase, current cata
 	return nil
 }
 
-func (e *Engine) BeginAlterPhysical(scope *StatementScope, phase AlterMetadataPhase, parent ids.ObjectAddress, source *storage.Relation, rewriteEvent bool) (AuthorizationView, *CatalogStage, error) {
+func (e *Engine) BeginAlterPhysical(scope *StatementScope, phase AlterMetadataPhase, parent ids.ObjectAddress, source *storage.Relation, rewriteReason int32) (AuthorizationView, *CatalogStage, error) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err == nil {
@@ -156,7 +156,7 @@ func (e *Engine) BeginAlterPhysical(scope *StatementScope, phase AlterMetadataPh
 	if err == nil && e.PrivateStorageLocked(scope.PendingCatalog(), parent) != source {
 		err = catalog.Conflict{}
 	}
-	if err == nil && !rewriteEvent {
+	if err == nil && rewriteReason == 0 {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.AuthorizeLocked(auth, scope.Op.Session)
 		scope.RoutineAuth = auth
@@ -167,7 +167,7 @@ func (e *Engine) BeginAlterPhysical(scope *StatementScope, phase AlterMetadataPh
 	if err != nil {
 		return AuthorizationView{}, nil, err
 	}
-	if err = scope.fireEventTrigger("table_rewrite"); err != nil {
+	if err = scope.fireTableRewrite(parent.ObjectID, rewriteReason); err != nil {
 		return AuthorizationView{}, nil, err
 	}
 	e.Mu.Lock()

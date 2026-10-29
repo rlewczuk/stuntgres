@@ -47,6 +47,11 @@ the actual fixture creator's role name and carries it through unchanged replay.
 Rewrite filters retain the tested ALTER TYPE/TABLE tag, and audit helpers use
 qualified public identities so restricted-search-path concurrent refresh remains
 an actual callback witness.
+Rewrite inspection retains combined reason masks, current relation identity,
+scalar/FROM naming and typed metadata across direct, fresh and held utility
+execution. Nested callbacks restore outer contexts, vetoes preserve original
+catalog/storage and audit data, and logical control replay preserves historical
+audit OIDs as data while fresh callbacks resolve restored live identities.
 
 All scenarios use the shared `reference/fixture`; no private engine interfaces or
 alternate harness are used. `eventTriggerScenario` owns the configured-backend

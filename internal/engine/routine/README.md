@@ -39,6 +39,9 @@ helper calls retain their normal effective-actor EXECUTE checks.
 The executable `pg_trigger_depth` declaration carries its stable, strict,
 parallel-restricted zero-input INT4 identity; its live value is owned by core,
 not catalog identity lookup or routine safety accounting.
+The two rewrite inquiries likewise carry their fixed stable, restricted scalar
+identities; the OID helper alone has one named OUT `oid`. Their lexical values
+are supplied by core at execution, not by declaration inventory.
 Routine semantic attributes are descriptor-owned and serialized by native Dump.
 CREATE/REPLACE starts complete SQL/PL defaults; ALTER patches a private current
 copy. Identity and owner checks precede semantic attribute action validation;
