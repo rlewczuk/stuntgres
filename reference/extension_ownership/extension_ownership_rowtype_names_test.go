@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func ownershipRowtypeNames(t *testing.T, controls bool) {
+func ownershipRowtypeNames(t *testing.T) {
 	for _, kind := range []string{"TABLE", "VIEW"} {
 		t.Run(strings.ToLower(kind), func(t *testing.T) {
 			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -52,7 +52,7 @@ func ownershipRowtypeNames(t *testing.T, controls bool) {
 					r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname NOT IN ('public','eo_old','eo_new','eo_other','information_schema') AND nspname NOT LIKE 'pg_%'`, 0))
 				}
 				check(c, b.Recorder)
-				if !controls || b.PG {
+				if b.PG {
 					return
 				}
 				saved := fixture.ExtensionDump(t, p.Ctx, p.Native)

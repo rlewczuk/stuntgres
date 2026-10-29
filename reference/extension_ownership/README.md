@@ -309,7 +309,7 @@ crosstab result type by symbolic identity and released version, never member
 order or slot. Unknown codec versions, missing owners and corrupt recipe
 identities must still fail without publishing over the live control state.
 
-Companions and Controls preserve exact generated-array names for installed and
+Controls preserves exact generated-array names for installed and
 ordinary member domains and relation rowtypes. Real parent renames and domain
 displacement produce triple, numeric, mixed and UTF-8 truncation scars, with
 blockers retained or their history removed; direct array ALTER remains protected.

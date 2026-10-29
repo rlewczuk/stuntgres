@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func ownershipRangePlacement(t *testing.T, controls bool) {
+func ownershipRangePlacement(t *testing.T) {
 	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := ownershipRun(t, p, b, c)
 		ownershipSetup(run)
@@ -37,7 +37,7 @@ func ownershipRangePlacement(t *testing.T, controls bool) {
 			ownershipCallable(r, "eo_new")
 		}
 		check(c, b.Recorder)
-		if !controls || b.PG {
+		if b.PG {
 			return
 		}
 		saved := fixture.ExtensionDump(t, p.Ctx, p.Native)

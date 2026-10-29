@@ -11,7 +11,7 @@ import (
 // A genuine subtype_diff can occupy the final range constructor signature:
 // renaming the type does not rename the generated constructors. Replay must
 // create the real baseline before publishing these independently named objects.
-func ownershipRangeConstructorCollision(t *testing.T, controls bool) {
+func ownershipRangeConstructorCollision(t *testing.T) {
 	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := ownershipRun(t, p, b, c)
 		ownershipSetup(run)
@@ -38,7 +38,7 @@ func ownershipRangeConstructorCollision(t *testing.T, controls bool) {
 			r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname NOT IN ('public','eo_old','eo_new','eo_other','information_schema') AND nspname NOT LIKE 'pg_%'`, 0))
 		}
 		check(c, b.Recorder)
-		if !controls || b.PG {
+		if b.PG {
 			return
 		}
 		saved := fixture.ExtensionDump(t, p.Ctx, p.Native)

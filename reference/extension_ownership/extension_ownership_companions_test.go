@@ -8,10 +8,6 @@ import (
 )
 
 func TestReferenceExtensionOwnershipCompanions(t *testing.T) {
-	t.Run("associated_array_final_names", func(t *testing.T) { ownershipArrayNameControls(t, false) })
-	t.Run("range_actual_placement", func(t *testing.T) { ownershipRangePlacement(t, false) })
-	t.Run("rowtype_array_final_names", func(t *testing.T) { ownershipRowtypeNames(t, false) })
-	t.Run("range_constructor_prerequisite_collision", func(t *testing.T) { ownershipRangeConstructorCollision(t, false) })
 	t.Run("range_exact_set", func(t *testing.T) {
 		ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			run := ownershipRun(t, p, b, c)

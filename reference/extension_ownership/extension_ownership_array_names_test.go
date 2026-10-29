@@ -13,7 +13,7 @@ import (
 
 // These names follow REL_18_6 makeArrayTypeName/moveArrayTypeName. In particular
 // the UTF-8 numeric candidate is 62 bytes: its next rune cannot fit the spare byte.
-func ownershipArrayNameControls(t *testing.T, controls bool) {
+func ownershipArrayNameControls(t *testing.T) {
 	long := strings.Repeat("é", 30) + "ab"
 	for _, installed := range []bool{true, false} {
 		for _, shape := range []string{"triple", "numeric", "mixed", "utf8_numeric"} {
@@ -141,7 +141,7 @@ func ownershipArrayNameControls(t *testing.T, controls bool) {
 							run(s)
 							check(c, b.Recorder)
 						}
-						if !controls || b.PG {
+						if b.PG {
 							return
 						}
 						saved := fixture.ExtensionDump(t, p.Ctx, p.Native)
