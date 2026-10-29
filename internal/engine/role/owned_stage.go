@@ -37,6 +37,8 @@ func StageOwned(h StageHost, auth ddl.Authority, plan OwnedPlan) error {
 		// PostgreSQL's schema and generic collation handlers retain their
 		// own eligibility checks; relation/type bulk recursion does not SET.
 		switch d.(type) {
+		case *catalog.Publication:
+			err = access.PublicationOwnershipEligibility(view, auth, d.(*catalog.Publication), target)
 		case *catalog.EventTrigger:
 			err = access.EventTriggerOwnershipEligibility(view, auth, d.(*catalog.EventTrigger), target)
 		case *catalog.ForeignObject:

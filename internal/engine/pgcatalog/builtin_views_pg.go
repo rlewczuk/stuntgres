@@ -1,6 +1,7 @@
 package pgcatalog
 
 var pgBuiltinViews = [...]builtinView{
+	{oid: PublicationTablesOID, parts: publicationTablesViewParts()},
 	{oid: PoliciesOID, parts: policiesViewParts(false), prettyParts: policiesViewParts(true)},
 	{oid: ProgressCreateIndexOID, returnRule: ProgressCreateIndexRuleOID, parts: createIndexProgressViewParts(false), prettyParts: createIndexProgressViewParts(true)},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},

@@ -33,6 +33,10 @@ func (e *Engine) TransferAlterStage(scope *StatementScope, stage *CatalogStage) 
 		case ids.ProcedureClassID:
 			// Type-generation normalization also reowns installed SQL recipes.
 			provider = stored.ProcedureProvider{}
+		case ids.PublicationRelationClassID:
+			provider = catalog.PublicationRelationProvider{}
+		case ids.PublicationNamespaceClassID:
+			provider = catalog.PublicationNamespaceProvider{}
 		default:
 			return fmt.Errorf("stuntgres: unexpected ALTER metadata class %d", d.Address().ClassID)
 		}

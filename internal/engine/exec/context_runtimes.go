@@ -258,6 +258,22 @@ func (c *Context) PartitionRoot(oid uint32, result *sqltype.Descriptor) (sqltype
 	return host.PartitionRoot(oid, result)
 }
 
+func (c *Context) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing publication inquiry snapshot")
+	}
+	return host.RelationIsPublishable(oid, result)
+}
+
+func (c *Context) PublicationTables(names sqltype.Value, result *sqltype.Descriptor) (expr.SourceCursor, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing publication inquiry snapshot")
+	}
+	return host.PublicationTables(names, result)
+}
+
 func (c *Context) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

@@ -153,6 +153,11 @@ ignores the native comment rather than importing its historical catalog state.
   Unrelated subscription/statistics/local-object edits during reader I/O retain
   the ordinary replacement behavior; existing principal and live-TEMP validation
   errors keep their precedence.
+- Logical publication definitions replay after referenced schemas, columns,
+  final indexes and replica identities. Dump preserves options, owners, explicit
+  ONLY memberships, schema edges, stable column lists and retained normal
+  filters. Reset removes them; Restore remaps their real catalog references
+  atomically without transporting data or contacting a publisher.
 - Event triggers replay in the final DDL section, after saved data/defaults and
   attribute metadata, initially disabled and activated only after all definitions.
   Owner, function references, ordered TAG filters and O/D states survive logical

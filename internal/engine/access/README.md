@@ -50,6 +50,12 @@ No parallel language-permission table or cached grant decision exists.
     `ValidateACL` classifies them with the other ownerless descriptors, while
     their catalog providers validate structural, handler and referenced-object
     authority. Owning descriptors reject every zero or foreign principal.
+    Publication relation/schema mappings likewise have no independent principal,
+    ACL, grant mask or role dependency; their providers validate real endpoints.
+    The publication itself retains normal owner validation and role dependencies.
+    `PublicationDatabaseCreate` retains normal current/recipient database CREATE
+    authorization with the utility family's unquoted database diagnostic.
+    Generic ownership and physical connection diagnostics are unchanged.
 - **`Environment`**: the two session inputs of the checks.
   `TemporaryNamespace()` returns the session's own TEMP namespace, and
   `ReferencePath()` returns the search path that qualifies type names in
@@ -222,6 +228,8 @@ canonical function/window/procedure kinds independently of a SQL body, while
 preserving generic replacement-ownership wording. Engine unit tests exercise
 the checks through `AuthorizationView`.
 System-read versus ordinary-column authority uses `RUN='^TestQueryTableOIDAdmission'`.
+Publication mapping versus owning-definition ACL classification uses
+`RUN='^TestPublicationMappingOwnerlessACL$'`.
 
 
 ```sh

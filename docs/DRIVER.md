@@ -742,6 +742,17 @@ Both inquiries work directly and through held prepared statements. Native
 Reset/Restore retain live subscriptions, pending holds and client-ready events;
 Dump serializes none of them, and an independent restored Driver starts empty.
 
+## Logical publication definitions
+
+Publication commands retain database-local definitions, explicit table and schema
+memberships, column lists, normal Boolean row filters and publish options in the
+ordinary transaction journal. Catalog readers and membership inquiries consume
+current definitions; held statements recheck current authority at Execute.
+Replica-identity restrictions apply to relevant UPDATE/DELETE capabilities,
+including empty targets. Publication filters do not restrict local reads or
+writes. Dump/Reset/Restore preserve or atomically replace this logical metadata;
+there is no WAL streaming, network replication or data-transport API.
+
 ## COPY
 
 `stuntgres.CopyFrom(ctx, conn, "COPY t FROM STDIN ...", reader)` and

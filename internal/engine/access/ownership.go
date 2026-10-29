@@ -106,7 +106,7 @@ func EventTriggerOwnershipEligibility(view View, env Environment, d *catalog.Eve
 // not bulk roots. operatorSeeded reports the seeded builtin operators.
 func OwnershipRoot(view catalog.Read, d catalog.Descriptor, operatorSeeded func(*catalog.Operator) bool) bool {
 	switch t := d.(type) {
-	case *catalog.Subscription:
+	case *catalog.Subscription, *catalog.Publication:
 		return true
 	case *catalog.Language:
 		return t.Address().ObjectID < 12 || t.Address().ObjectID > 14

@@ -108,6 +108,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"language", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Language); return ok }, collectLanguageDump},
 	{"event trigger", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.EventTrigger); return ok }, collectEventTriggerDump},
 	{"subscription", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Subscription); return ok }, collectSubscriptionDump},
+	{"publication", isDumpPublication, collectPublicationDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},
 	{"operator family", isDumpOperatorFamily, collectOperatorFamilyDump},

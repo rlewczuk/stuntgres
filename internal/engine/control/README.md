@@ -271,6 +271,16 @@ physical-slot/inheritance checks and owner authorization, and cannot retire afte
 data or final ACL consumption.
 
 
+Publication collection captures real database-local definitions and mapping
+descriptors, preflighting providers, owners and retained normal filters before
+writer I/O. Deterministic replay follows final table/index/replica-identity
+definitions, creates explicit ONLY edges to avoid inheritance re-expansion,
+preserves absent lists and schema edges, then transfers final ownership from
+the ordinary bootstrap actor. Current stable names come from the normal stored
+renderer, not retained SQL text. Replacement remaps mapping endpoints, semantic
+dependencies and executable payloads together. Reset removes local definitions;
+failed or canceled replacement preserves the complete old catalog.
+
 Subscription collection selects only the captured logical database. Complete
 definitions and owner authority are preflighted before writer I/O. Replay sorts
 by final subscription name and reserves all final and slot-origin names before
@@ -859,6 +869,8 @@ authorization); the composition functions `Reset`, `Dump` and `Restore`
 
 Text-search parser graph, declaration and canceled/failed capture ownership
 uses the shared `RUN='^TestTSParser'` family.
+Publication definition preflight, replay and immutable capture units use
+`RUN='^TestPublicationDump'`.
 
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public

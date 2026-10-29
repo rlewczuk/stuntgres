@@ -11,6 +11,15 @@ func ForeignGrantKind(kind string) bool {
 // is empty when stmt does not modify anything.
 func ModifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.Publication:
+		switch stmt.(*parser.Publication).Action {
+		case "create":
+			return "CREATE PUBLICATION"
+		case "drop":
+			return "DROP PUBLICATION"
+		default:
+			return "ALTER PUBLICATION"
+		}
 	case *parser.Subscription:
 		switch stmt.(*parser.Subscription).Action {
 		case "create":
@@ -282,7 +291,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		}
 	}
 	switch stmt.(type) {
-	case *parser.Subscription:
+	case *parser.Subscription, *parser.Publication:
 		return true
 	case *parser.AlterSystem:
 		return true
@@ -333,7 +342,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 // source.
 func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
-	case *parser.Subscription:
+	case *parser.Subscription, *parser.Publication:
 		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		return true

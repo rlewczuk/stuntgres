@@ -55,6 +55,7 @@ var dumpSections = [...]dumpSection{
 	{"index storage", emitDumpIndexStorage},
 	{"object ACLs", emitDumpObjectACLs},
 	{"raw codec completion", emitDumpRawCodecCompletion},
+	{"publications", emitDumpPublications},
 	{"subscriptions", emitDumpSubscriptions},
 	{"event triggers", emitDumpEventTriggers},
 	{"extended statistics snapshots", emitDumpExtendedStatistics},

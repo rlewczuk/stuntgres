@@ -272,7 +272,9 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					}
 					return true
 				})
-			case *catalog.Statistics:
+			case interface {
+				VisitDependencies(func(ids.ObjectAddress, byte))
+			}:
 				d.VisitDependencies(func(dependency ids.ObjectAddress, kind byte) {
 					matches := dependency == target || target.SubID == 0 && dependency.ClassID == target.ClassID && dependency.ObjectID == target.ObjectID
 					if matches {

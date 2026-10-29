@@ -180,6 +180,15 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.SubscriptionProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.PublicationProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.RegisterCatalogProvider(catalog.PublicationRelationProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.RegisterCatalogProvider(catalog.PublicationNamespaceProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.TSParserProvider{}); err != nil {
 		return nil, err
 	}
@@ -332,7 +341,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return Description{}, nil
-	case *parser.Subscription:
+	case *parser.Subscription, *parser.Publication:
 		return Description{}, nil
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		return Description{}, nil

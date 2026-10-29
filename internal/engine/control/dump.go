@@ -48,37 +48,40 @@ type Capture struct {
 
 	// Preamble reconstructs bootstrap identity changes before ordinary
 	// namespaces are created.
-	Preamble            []string
-	Schemas             []Schema
-	SchemaComments      []SchemaComment
-	Sequences           []sequence.Dump
-	Domains             []*catalog.Type
-	Collations          []*catalog.Collation
-	Conversions         []*catalog.Conversion
-	Operators           []*catalog.Operator
-	AccessMethods       []*catalog.AccessMethod
-	OperatorFamilies    []catalog.Descriptor
-	OwnedRoutines       []*catalog.Procedure
-	EventTriggers       []*catalog.EventTrigger
-	Subscriptions       []*catalog.Subscription
-	Dictionaries        []*catalog.TSDictionary
-	Templates           []*catalog.TSTemplate
-	Configurations      []*catalog.TSConfiguration
-	Parsers             []*catalog.TSParser
-	Statistics          []*catalog.Statistics
-	ExtendedStatistics  []storage.ExtendedStatisticsSnapshot
-	Providers           []providerReplay
-	Tables              []table.DumpRelation
-	LargeObjects        []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
-	Materialized        []table.DumpRelation
-	Views               []OwnedStatement
-	Indexes             []OwnedStatement
-	ViewIndices         map[ids.OID]int
-	TableIndices        map[ids.OID]int
-	IndexIndices        map[ids.OID]int
-	Composites          map[ids.OID]*catalog.Relation
-	Graph               dump.Graph
-	ForeignDeclarations map[ids.OID]dump.Statement
+	Preamble              []string
+	Schemas               []Schema
+	SchemaComments        []SchemaComment
+	Sequences             []sequence.Dump
+	Domains               []*catalog.Type
+	Collations            []*catalog.Collation
+	Conversions           []*catalog.Conversion
+	Operators             []*catalog.Operator
+	AccessMethods         []*catalog.AccessMethod
+	OperatorFamilies      []catalog.Descriptor
+	OwnedRoutines         []*catalog.Procedure
+	EventTriggers         []*catalog.EventTrigger
+	Subscriptions         []*catalog.Subscription
+	Publications          []*catalog.Publication
+	PublicationRelations  []*catalog.PublicationRelation
+	PublicationNamespaces []*catalog.PublicationNamespace
+	Dictionaries          []*catalog.TSDictionary
+	Templates             []*catalog.TSTemplate
+	Configurations        []*catalog.TSConfiguration
+	Parsers               []*catalog.TSParser
+	Statistics            []*catalog.Statistics
+	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
+	Providers             []providerReplay
+	Tables                []table.DumpRelation
+	LargeObjects          []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.
+	Materialized          []table.DumpRelation
+	Views                 []OwnedStatement
+	Indexes               []OwnedStatement
+	ViewIndices           map[ids.OID]int
+	TableIndices          map[ids.OID]int
+	IndexIndices          map[ids.OID]int
+	Composites            map[ids.OID]*catalog.Relation
+	Graph                 dump.Graph
+	ForeignDeclarations   map[ids.OID]dump.Statement
 	// Foreign defaults replay after every provider/name phase, independently
 	// of ordinary table deferral and without physical rows or storage.
 	ForeignDefaults map[ids.OID]map[int32]bool

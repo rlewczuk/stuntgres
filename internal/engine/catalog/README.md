@@ -278,6 +278,16 @@ neither owns catalog authority.
   `ValidateCatalogViewLocked` check provenance and epoch. The engine holds the
   store by value and never copies it, because every `Read` points at its
   `Owner`.
+- **Logical publications** (`publication.go`) are database-local immutable
+  descriptors with persistent definition, explicit-relation and schema indexes.
+  Mapping keys identify real endpoint pairs; schema/all-table/partition
+  expansion is not stored as fabricated edges. Stable column numbers distinguish
+  absent lists from explicit current projections. Retained normal predicate
+  payloads own execution/presentation lifetime; detached semantic addresses feed
+  the same AUTO/NORMAL dependency visitor used by deletion and `pg_depend`.
+  Clone/candidate/bulk/reset/remap paths preserve older indexes and descriptor
+  backing. `CloneState` carries all three persistent index roots along with the
+  descriptor/name maps; unrelated writes never erase effective membership.
 - **Shared projection** (`shared_projection.go`, `subscription_projection.go`,
   `parameter_projection.go`). Every cluster store carries the same committed
   database, subscription and parameter descriptor pointers. Publication prepares
@@ -698,6 +708,9 @@ retargeting. Its explicit-transaction failure clears savepoints and requires ful
 rollback before fresh same-owner transaction use.
 
 ## Testing
+
+Publication index clone, candidate, application, bulk and reset ownership uses
+`RUN='^TestCatalogPublicationIndexLifecycle$'`.
 
 Package units cover the read/write API, persistent storage and bulk loads,
 Candidate ownership, cast pair indexes, operator class and family identity,

@@ -19,6 +19,8 @@ type CatalogInquiryRuntime interface {
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	RelationIsPublishable(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	PublicationTables(sqltype.Value, *sqltype.Descriptor) (expr.SourceCursor, error)
 	DeparseInquiry(DeparseSignature, [3]sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	CommentInquiry(CommentInquiryKind, [2]sqltype.Value, expr.Info, *sqltype.Descriptor) (sqltype.Value, error)
 	VisibilityInquiry(VisibilityInquiryKind, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)

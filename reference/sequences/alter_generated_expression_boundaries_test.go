@@ -73,18 +73,14 @@ func TestReferenceAlterGeneratedExpressionBoundaries(t *testing.T) {
 	generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		run(fixture.Exec(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(a+1) VIRTUAL)`, 0))
 		run(fixture.Exec(`INSERT INTO g(a) VALUES(2)`, 1))
-		// Publication catalogs remain a native boundary. Both engines admit
-		// attributed routines and enforce the virtual-expression restriction.
-		if b.PG {
-			run(fixture.Exec(`CREATE PUBLICATION alter_generated_pub FOR TABLE g`, 0))
-			defer b.DB.ExecContext(p.Ctx, `DROP PUBLICATION alter_generated_pub`)
-			d := alterGeneratedVirtualDiagnostic("SET EXPRESSION")
-			d.Message += " in tables that are part of a publication"
-			run(fixture.ImplicitError(`ALTER TABLE g ALTER b SET EXPRESSION AS(a+2)`, d))
-			run(fixture.Exec(`DROP PUBLICATION alter_generated_pub`, 0))
-		} else {
-			run(fixture.ImplicitError(`CREATE PUBLICATION alter_generated_pub FOR TABLE g`, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "PUBLICATION"`, Position: "8"}))
-		}
+		// Both engines admit publication definitions and enforce the existing
+		// virtual-expression restriction before changing the generated recipe.
+		run(fixture.Exec(`CREATE PUBLICATION alter_generated_pub FOR TABLE g`, 0))
+		defer b.DB.ExecContext(p.Ctx, `DROP PUBLICATION alter_generated_pub`)
+		d := alterGeneratedVirtualDiagnostic("SET EXPRESSION")
+		d.Message += " in tables that are part of a publication"
+		run(fixture.ImplicitError(`ALTER TABLE g ALTER b SET EXPRESSION AS(a+2)`, d))
+		run(fixture.Exec(`DROP PUBLICATION alter_generated_pub`, 0))
 		run(fixture.Exec(`CREATE FUNCTION public.alter_generated_udf(INT) RETURNS INT LANGUAGE SQL IMMUTABLE AS 'SELECT $1+1'`, 0))
 		defer b.DB.ExecContext(p.Ctx, `DROP FUNCTION public.alter_generated_udf(INT)`)
 		run(fixture.Select(`SELECT public.alter_generated_udf(2) AS v`, []string{"v"}, []string{"INT4"}, [][]any{{int64(3)}}))

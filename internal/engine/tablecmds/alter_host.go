@@ -97,6 +97,9 @@ func (h AlterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 	if err != nil {
 		return err
 	}
+	if err := view.PublicationTypeChangeError(auth.Catalog, target, column, path); err != nil {
+		return err
+	}
 	return view.TypeChangeError(&core.DropProvider{Base: auth.Catalog, SearchPath: path, Stage: h.CatalogStage}, target, column)
 }
 

@@ -45,6 +45,7 @@ func (s *State) replaceDescriptor(a ids.ObjectAddress, old, d Descriptor) {
 	s.updateDefaultClasses(old, d)
 	s.updateEventTriggers(old, d)
 	s.updateSubscriptions(old, d)
+	s.updatePublications(old, d)
 	s.updateHelperOwners(old, d)
 	s.updateTemporaryNamespaces(old, d)
 	s.raiseOIDCeiling(a, d)
@@ -59,6 +60,7 @@ func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	s.updateUnseeded(a, nil)
 	s.updateEventTriggers(old, nil)
 	s.updateSubscriptions(old, nil)
+	s.updatePublications(old, nil)
 	s.updateHelperOwners(old, nil)
 	s.updateTemporaryNamespaces(old, nil)
 	s.dropDescriptor(a)
@@ -81,6 +83,9 @@ func (s *State) ResetDescriptors() {
 	s.defaultClasses = util.PersistentMap[defaultClassPair, []ids.OID]{}
 	s.eventTriggers = util.PersistentMap[ids.ObjectAddress, *EventTrigger]{}
 	s.subscriptions = util.PersistentMap[ids.ObjectAddress, *Subscription]{}
+	s.publications = util.PersistentMap[ids.ObjectAddress, *Publication]{}
+	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
+	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
 	s.oidCeiling = 0
@@ -100,6 +105,9 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.defaultClasses = util.PersistentMap[defaultClassPair, []ids.OID]{}
 	s.eventTriggers = util.PersistentMap[ids.ObjectAddress, *EventTrigger]{}
 	s.subscriptions = util.PersistentMap[ids.ObjectAddress, *Subscription]{}
+	s.publications = util.PersistentMap[ids.ObjectAddress, *Publication]{}
+	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
+	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
 	s.oidCeiling = 0

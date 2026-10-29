@@ -228,7 +228,7 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER DATABASE"
 	case *parser.DropRole:
 		base = "DROP ROLE"
-	case *parser.Subscription:
+	case *parser.Subscription, *parser.Publication:
 		base = ModifyingTag(stmt)
 	case *parser.CreateEventTrigger:
 		base = "CREATE EVENT TRIGGER"

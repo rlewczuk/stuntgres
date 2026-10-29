@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -65,6 +66,18 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
+		if publication, ok := descriptor.(*catalog.PublicationRelation); ok {
+			if condition := PolicyOf(publication.Filter); condition != nil {
+				frozen, err := remapView(view, condition.Presentation(), mapping, ref, typ, collation, nil, procedure)
+				if err != nil {
+					return err
+				}
+				copy := *publication
+				copy.Filter = NewPolicy(condition.Syntax(), frozen.Query().Root.(*plan.ProjectNode).Expressions[0], frozen)
+				next.SetDescriptor(address, &copy)
+			}
+			continue
+		}
 		if statistics, ok := descriptor.(*catalog.Statistics); ok {
 			copy, err := reownStatisticsExpressions(statistics, ref, statisticsRetag)
 			if err != nil {

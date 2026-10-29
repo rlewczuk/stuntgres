@@ -39,6 +39,9 @@ const (
 	TriggerClassID               OID = 2620
 	EventTriggerClassID          OID = 3466
 	SubscriptionClassID          OID = 6100
+	PublicationClassID           OID = 6104
+	PublicationRelationClassID   OID = 6106
+	PublicationNamespaceClassID  OID = 6237
 	ParameterClassID             OID = 6243
 	TablespaceClassID            OID = 1213
 	LanguageClassID              OID = 2612
@@ -106,4 +109,7 @@ const (
 	SubscriptionObject
 	TSParserObject
 	TransformObject
+	PublicationObject
+	PublicationRelationObject
+	PublicationNamespaceObject
 )

@@ -100,6 +100,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_event_trigger_dropped_objects"}, ExactSpelling: true, Bind: bindEventTriggerDroppedObjects},
 	{Names: []string{"pg_event_trigger_ddl_commands"}, ExactSpelling: true, Bind: bindEventTriggerDDLCommands},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},
+	{Names: []string{"pg_relation_is_publishable", "pg_get_publication_tables"}, ExactSpelling: true, Bind: bindPublicationInfo, NamedCall: namedPublicationInfo},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, ResultCall: jsonRecordCallResult, NamedCall: namedJSONCall},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath, ProbeCall: probeThresholdBucket},

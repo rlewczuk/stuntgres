@@ -180,6 +180,12 @@ func (d *TSDictionary) Name() string { return d.ObjectName }
 func (*TSDictionary) Kind() ids.ObjectKind { return ids.TSDictionaryObject }
 
 func DescriptorNameKey(d Descriptor) ids.NameKey {
+	if m, ok := d.(*PublicationRelation); ok {
+		return ids.NameKey{ClassID: ids.PublicationRelationClassID, Namespace: m.Publication, Name: fmt.Sprint(m.Relation.ObjectID)}
+	}
+	if m, ok := d.(*PublicationNamespace); ok {
+		return ids.NameKey{ClassID: ids.PublicationNamespaceClassID, Namespace: m.Publication, Name: fmt.Sprint(m.Schema.ObjectID)}
+	}
 	if sub, ok := d.(*Subscription); ok {
 		return SubscriptionNameKey(sub.Database, sub.Name())
 	}

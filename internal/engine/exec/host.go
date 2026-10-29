@@ -89,6 +89,8 @@ type Host interface {
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	RelationIsPublishable(uint32, *sqltype.Descriptor) (sqltype.Value, error)
+	PublicationTables(sqltype.Value, *sqltype.Descriptor) (expr.SourceCursor, error)
 	CommentInquiry(c *Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error)
 	DeparseInquiry(c *Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	DescribeObject(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)

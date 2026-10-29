@@ -452,6 +452,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.Mu.Unlock()
 				return Result{}, err
 			}
+			read := partition.CaptureCatalog(auth.Catalog, scope.PartitionRelations, scope.PendingDetachSnapshot())
+			if err := CheckPublicationAdmission(read, view.PhysicalBinding(b).Relation, stmt); err != nil {
+				e.Mu.Unlock()
+				return Result{}, err
+			}
 			e.Mu.Unlock()
 			return Result{}, boundary
 		}

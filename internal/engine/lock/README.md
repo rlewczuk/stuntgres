@@ -163,6 +163,9 @@ use ordinary AS grants against ALTER/DROP AX grants. No conversion DEFAULT-pair
 lock is manufactured. These contributions share ordinary savepoint, cancellation,
 owner-end and replacement lifetimes. Object holds project
 as object tags; internal destination claims expose only actual blocker XIDs.
+Publication names likewise use local zero-namespace keys. Publication definition
+AS/AX grants retain the ticket's own database domain and epoch, and project as
+non-shared class6104 object locks; mapping edges have no independent lock owner.
 
 ALTER retains its original target even for no-op actions, independently of DROP
 roots. After the exact object grant, current authority must still identify that
@@ -262,6 +265,8 @@ resources from an `ids.Domain` without an engine; drive deadlines with
 detector. Engine tests that need an engine live in `internal/engine/core` (relation
 locks, waits and deadlocks) or `internal/engine` and read lock state only
 through the diagnostic seam.
+Publication name/definition resource admission and object-tag ownership use
+`RUN='^TestPublicationDefinitionLockResources$'`.
 
 ```sh
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'

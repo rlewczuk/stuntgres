@@ -61,6 +61,30 @@ catalog/effect checkpoint: suffix tokens become inactive, while preexisting
 tokens recover their exact identity, predecessor descriptor and column progress,
 even if they completed inside the failed suffix. Successful marks never rewind.
 
+Logical publication DDL uses database-local immutable catalog descriptors,
+ordinary definition/name/dependency admission and the existing statement journal.
+`BindRetainedPredicate` shares the normal Boolean binder and frozen presentation
+owner with policies; publication restrictions do not introduce an evaluator.
+Common Execute admission checks declared UPDATE/DELETE capabilities against
+current membership and replica identity, including empty targets, MERGE and
+ON CONFLICT UPDATE. After locked-relation validation admits compatible metadata,
+publication facts use the descriptor from the current captured catalog without
+replacing the binding's retained row layout or authority. Actual partition-leaf
+capture repeats physical identity admission against the same captured topology.
+No predicate filters local SQL.
+Publication admission precedes the hierarchy write-capability rejection, including
+the early ON CONFLICT UPDATE boundary; unrelated unsupported executors remain
+unsupported. ALTER's genuine metadata transfer validates remapped publication
+mapping descriptors through their registered providers.
+Catalog capture retains the exact catalog/role/source pairing and owned values.
+`EngineCatalogRuntime.VisitPublicationTables` bridges selected publication relations
+to low catalog-producer facts under that captured root. A private shared projection
+supplies both the view and inquiry with the presented relation's direct mapping
+and default attributes, independently of DML-effective ancestry coverage.
+Callback errors and cancellation discard the source; no second resolver or retained
+authority enters pgcatalog. Normal policy tree/display runtime methods own filter
+serialization.
+
 Subscription DDL uses ordinary definition/name admission, role dependency locks
 and catalog journals. Shared catalog projections prepare replacement roots for
 every database under the cluster mutex before the installation fence; no
@@ -2146,6 +2170,9 @@ changes only that cell. Current-user capture occurs inside the routine
 environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
+
+Publication descriptor/filter/membership/capture ownership units use
+`make check RUN='^TestPublication'`; public SQL scenarios remain in `reference/`.
 
 Aggregate SQL invocation ownership uses
 `make check RUN='^(TestAggregateParallelInvocationOwnership|TestAggregateCombineSQLGate)$'`;

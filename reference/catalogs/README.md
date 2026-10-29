@@ -105,6 +105,53 @@ catalog/ACL roots and native replacement. Ordinary schema/table DDL never create
 publication memberships. Select with
 `make check RUN='^TestReferencePGPublicationNamespace'` (add `REFERENCE=1`).
 
+Publication command scenarios (`publication_*_test.go`) populate the existing
+`pg_publication` and `pg_publication_namespace` producers and observe actual
+effective membership through `pg_publication_tables`. Existing empty-source
+ownership and ACL scenarios remain unchanged. The contract is metadata-only:
+local DML is never filtered, and these scenarios do not claim WAL delivery.
+
+Run each selected group both natively and with `REFERENCE=1`:
+
+- `make check RUN='^TestReferencePublication(DefinitionOptions|Membership|InheritancePartitions)$'`
+- `make check RUN='^TestReferencePublication(ColumnsGenerated|Filters|DeferredIdentity)$'`
+- `make check RUN='^TestReferencePublication(Privileges|Dependencies|Transactions)$'`
+- `make check RUN='^TestReferencePublication(NativeControls|Smoke)$'`
+- `make check RUN='^TestReferencePublicationInquiry$'`: intrinsic relation
+  publishability (including NULL/missing/retired OIDs) and variadic publication
+  table inquiry. Direct/prepared witnesses assert real owner OID relationships,
+  typed empty SRF shape, column/filter/generated policies, schema/ALL dynamic
+  membership, array bounds/dimensions/multiplicity, full diagnostics and
+  combined partition via-root suppression.
+- `make check RUN='^TestReferencePublicationTablePresentation$'`: direct
+  presented-relation column/filter metadata across cross-schema ancestry and
+  overlapping via-root mappings in both relation/mapping allocation orders;
+  NULL empty projections and generated/ordinary-column transitions. Both the
+  view and executable inquiry have independent direct/prepared expectations.
+
+The self-contained feature smoke is
+`make check RUN='^TestReferencePublicationSmoke$'` (also with `REFERENCE=1`):
+real definitions, populated catalogs, retained column/filter metadata, deferred
+zero-row DELETE rejection, transaction rollback and native logical roundtrip.
+The controls scenario additionally replays actual emitted bytes on an independent
+native destination and, in real mode, PostgreSQL; checks canonical redump,
+retained rows and held statements; and rejects late-invalid/canceled replacement
+without changing the sentinel or publication state.
+
+Transactions include direct and prepared publication ADD cancellation after a
+strict candidate-table lock admission witness, with canceled workers joined
+before releasing resources and no mapping or option publication. PostgreSQL uses
+server cancellation and a complete `57014` record; native pre-cancellation also
+checks ordinary context errors. lib/pq pre-canceled utility results are not
+constrained, as required by the shared testing policy.
+
+For oracle-first discovery before native implementation, select the existing
+`postgres` subtest rather than adding a backend filter. Ordinary families use
+`RUN='^TestReferencePublication(DefinitionOptions|Membership|InheritancePartitions|ColumnsGenerated|Filters|Privileges|Dependencies|Transactions|NativeControls|Smoke)$$/^postgres$'`.
+The per-case identity matrix has an extra level:
+`RUN='^TestReferencePublicationDeferredIdentity$$/./^postgres$'`.
+These discovery selectors do not replace selected full dual-mode proof.
+
 
 Type identity scenarios retain attribute privilege identities across rename and
 retire obsolete lookup names.

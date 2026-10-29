@@ -60,6 +60,9 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 			return "CREATE PROCEDURE", false
 		}
 		return "CREATE FUNCTION", true
+	case *parser.Publication:
+		tag, _, _, _ = ClassifyCommandTag(stmt, TxIdle)
+		return tag, true
 	case *parser.CreateTable, *parser.DropTable,
 		*parser.AlterTable, *parser.AlterTableDefault, *parser.AlterTableOf,
 		*parser.AlterTableAttachPartition,

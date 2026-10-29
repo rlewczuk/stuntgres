@@ -28,6 +28,8 @@ import (
 // cost 10, strict/stable/parallel-safe metadata through the same inventory.
 // The two one-OID partition inquiries retain the released strict/stable/
 // parallel-safe scalar TEXT metadata and unnamed input formals.
+// The two publication inquiries retain released variadic/output formals,
+// strict/stable/parallel-safe metadata and fixed scalar/set-returning types.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -128,10 +130,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// Existing declarations plus eight JSON text-search overloads and the five
-	// timezone-aware JSONPath query declarations.
-	if len(facts) != 2090 {
-		t.Fatalf("released represented overloads: got %d, want 2090", len(facts))
+	// 2073 existing declarations, four text-search debug/stat overloads,
+	// eight JSON text-search overloads, five timezone-aware JSONPath query
+	// declarations, and two publication inquiries.
+	if len(facts) != 2092 {
+		t.Fatalf("released represented overloads: got %d, want 2092", len(facts))
 	}
 	return facts
 }

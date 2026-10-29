@@ -138,3 +138,28 @@ func TestConsumerBoundaryLeavesGiSTOptionValidationToBinder(t *testing.T) {
 		t.Fatalf("admission performed ordinary binder validation: %v", err)
 	}
 }
+
+func TestPublicationDeleteBoundaryOrdering(t *testing.T) {
+	root := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 910101}, ObjectRevision: 1, RelationKind: catalog.PartitionedRelation, Partition: &catalog.PartitionDefinition{}}
+	leaf := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 910102}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Membership: &catalog.PartitionMembership{Parent: root.Address()}}
+	plain := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 910103}, ObjectRevision: 1, RelationKind: catalog.TableRelation}
+	state := catalog.NewState(1)
+	for _, r := range []*catalog.Relation{root, leaf, plain} {
+		state.SetDescriptor(r.Address(), r)
+	}
+	read := catalog.NewRead(&catalog.Owner{Domain: &ids.Domain{}}, state)
+	statement := &parser.Delete{}
+	for _, r := range []*catalog.Relation{root, leaf} {
+		if err := ConsumerBoundary(read, statement, r, nil); err != nil {
+			t.Fatal("pre-bind boundary preempted normal publication admission", err)
+		}
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "deleting from partition hierarchies is unsupported"}
+		diagnostic, ok := WriteExtensionBoundary(statement, r).(*sqlstate.Error)
+		if !ok || *diagnostic != want {
+			t.Fatal("post-bind boundary granted an unsupported delete executor", diagnostic)
+		}
+	}
+	if err := WriteExtensionBoundary(statement, plain); err != nil {
+		t.Fatal("ordinary table delete was changed", err)
+	}
+}

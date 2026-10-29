@@ -1,0 +1,85 @@
+package core
+
+import (
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// BindRetainedPredicate binds and freezes a relation-local Boolean condition
+// through the ordinary binder. Engine.Mu is held; no row is evaluated.
+func BindRetainedPredicate(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment, construct, aggregateClause string) (*stored.Policy, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
+	columns := make([]analyze.QueryColumn, len(d.Columns))
+	for i, c := range d.Columns {
+		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
+	}
+	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
+	b := NewExpressionBinder(op.Context(), e, input, op, nil)
+	b.Consumer.PolicyConsumer = construct == "POLICY"
+	b.Consumer.PublicationConsumer = construct == "PUBLICATION WHERE"
+	b.Params.NoParameters = true
+	b.Clause.AggregateClause = aggregateClause
+	b.Target.Relation = d
+	b.Query.Auth, b.Query.Namespace = &auth, &ns
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	bindingContext := analyze.ProjectionContext
+	if b.Consumer.PublicationConsumer {
+		bindingContext = analyze.FilterContext
+	}
+	node, err := b.BindBoolean(raw, bindingContext, construct)
+	if err != nil {
+		if b.Consumer.PolicyConsumer {
+			err = table.AlterCookingError(err)
+		}
+		return nil, err
+	}
+	raw = b.NormalizeStoredExpression(raw)
+	if err = b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
+		return nil, err
+	}
+	raw = b.NormalizeStoredExpression(raw)
+	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
+	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
+	capture := analyze.Binding{Query: &plan.Query{Root: root}, Dependencies: b.Dependencies, QuerySources: b.Query.Sources, Capture: b.Capture, Prepared: analyze.PreparedCaptures{SequenceConstants: b.Prepared.SequenceConstants, RegtypeConstants: b.Prepared.RegtypeConstants}}
+	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, CatalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
+	if err != nil {
+		return nil, err
+	}
+	refs, err := stored.ExpressionDependRefs(op.Context(), auth.Catalog, node)
+	if err != nil {
+		return nil, err
+	}
+	original := frozen.Dependencies()
+	dependencies := original
+	seen := make(map[ids.ObjectAddress]bool, len(original)+len(refs))
+	for _, dependency := range original {
+		seen[dependency.Ref.Address] = true
+	}
+	for _, address := range refs {
+		if seen[address] {
+			continue
+		}
+		whole := address
+		whole.SubID = 0
+		if len(dependencies) == len(original) {
+			dependencies = make([]catalog.ExpressionDependency, len(original), len(original)+len(refs))
+			copy(dependencies, original)
+		}
+		dependencies = append(dependencies, catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: auth.Catalog.Get(whole).Revision()})
+		seen[address] = true
+	}
+	frozen = frozen.With(func(p *stored.ViewParts) { p.Frames[1] = root; p.ExpressionSyntax = raw; p.Dependencies = dependencies })
+	return stored.NewPolicy(raw, node, frozen), nil
+}

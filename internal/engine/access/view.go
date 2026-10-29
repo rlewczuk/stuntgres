@@ -103,6 +103,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Subscription:
 		return d.Owner, authorization.ACLValue{}, nil
+	case *catalog.Publication:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Parameter:
 		return d.Owner, d.ACL, nil
 	case *catalog.Tablespace:
@@ -137,6 +139,9 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 
 // ClassPrivileges returns the privileges that can be granted on d.
 func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
+	if d.Kind() == ids.PublicationObject || d.Kind() == ids.PublicationRelationObject || d.Kind() == ids.PublicationNamespaceObject {
+		return 0
+	}
 	if d.Kind() == ids.LanguageObject {
 		return authorization.UsagePrivilege
 	}
@@ -355,6 +360,8 @@ func (v View) Check(env Environment, req Requirement) error {
 			kind = "event trigger"
 		} else if d.Kind() == ids.SubscriptionObject {
 			kind = "subscription"
+		} else if d.Kind() == ids.PublicationObject {
+			kind = "publication"
 		} else if d.Kind() == ids.ProcedureObject {
 			kind = "function"
 		} else if d.Kind() == ids.DatabaseObject {
@@ -422,6 +429,8 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind = "event trigger"
 	} else if d.Kind() == ids.SubscriptionObject {
 		kind = "subscription"
+	} else if d.Kind() == ids.PublicationObject {
+		kind = "publication"
 	} else if d.Kind() == ids.ProcedureObject {
 		kind = "function"
 		if p, ok := d.(*catalog.Procedure); ok && p.RoutineKind == catalog.ProcedureRoutine {
@@ -532,7 +541,7 @@ func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 			return r.ValidatePrincipal(t.MappedRole)
 		}
-	case *catalog.AccessMethod, *catalog.Cast, *catalog.Transform, *catalog.TSTemplate, *catalog.TSParser, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
+	case *catalog.PublicationRelation, *catalog.PublicationNamespace, *catalog.AccessMethod, *catalog.Cast, *catalog.Transform, *catalog.TSTemplate, *catalog.TSParser, *catalog.OperatorFamilyOperator, *catalog.OperatorFamilySupport:
 		return nil
 	}
 	owner, acl, cols := DescriptorACL(d)

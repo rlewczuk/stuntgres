@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/publication"
 )
 
 func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth AuthorizationView, target *catalog.Relation) error {
@@ -17,6 +18,11 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		return e.CaptureCommentSnapshotLocked(s)
 	}, func(leaf *catalog.Relation) error {
+		if s.rlsCommand != nil {
+			if err := publication.CheckReplicaIdentity(read, leaf, PublicationActions(s.rlsCommand.syntax)); err != nil {
+				return err
+			}
+		}
 		if err := e.CaptureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
 		}

@@ -68,6 +68,7 @@ type ConsumerContext struct {
 	DatetimeZoneOperands    bool
 	CheckConsumer           bool
 	PolicyConsumer          bool
+	PublicationConsumer     bool
 	IndexConsumer           bool
 	StatisticsConsumer      bool
 	IndexPredicateConsumer  bool

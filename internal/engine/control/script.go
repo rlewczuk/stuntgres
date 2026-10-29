@@ -37,6 +37,7 @@ type dumpScript struct {
 	foreignKeyModes                            []stored.ForeignKeyModeReplay
 	eventTriggerReplay                         []eventTriggerReplay
 	subscriptionReplay                         []subscriptionReplay
+	publicationReplay                          []publicationReplay
 	domainNodes                                map[ids.OID]*catalog.Type
 	collationStatements, conversionStatements  []dump.Statement
 	seedStatements, conversionSeeds            []string
@@ -136,6 +137,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.prepareSubscriptions(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.preparePublications(ctx); err != nil {
 		return nil, err
 	}
 	return s, nil

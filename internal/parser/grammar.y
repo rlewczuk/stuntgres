@@ -9,6 +9,8 @@ package parser
  dictionaryOptions []DictionaryOption
  dictionaryOption DictionaryOption
  alterDictionary *AlterDictionary
+ publicationMembers []PublicationMember
+ publicationMember PublicationMember
  configurationOptions []ConfigurationOption
  configurationOption ConfigurationOption
  alterConfiguration *AlterConfiguration
@@ -374,6 +376,7 @@ package parser
 %token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
 %token <tok> TS_CONFIGURATION TS_TEMPLATE TS_PARSER
 %token <tok> SUBSCRIPTION PUBLICATION
+%token <tok> PUBLICATION_TABLES
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R ANALYZE UNIQUE PRIMARY CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -480,6 +483,12 @@ package parser
 %type <stmt> create_trigger alter_trigger drop_trigger
 %type <stmt> create_event_trigger alter_event_trigger drop_event_trigger
 %type <stmt> subscription
+%type <stmt> publication
+%type <publicationMembers> publication_for publication_objects
+%type <publicationMember> publication_table publication_schema publication_object
+%type <identifiers> publication_columns
+%type <expr> publication_filter
+%type <desc> publication_star
 %type <dictionaryOptions> subscription_options
 %type <identifiers> subscription_publications
 %type <eventFilters> event_filters event_filter_clauses
@@ -1055,6 +1064,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | create_trigger | alter_trigger | drop_trigger
  | create_event_trigger | alter_event_trigger | drop_event_trigger
  | subscription
+ | publication
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
  | notify | listen | unlisten | load
@@ -1204,6 +1214,32 @@ subscription: CREATE SUBSCRIPTION name ROLE_CONNECTION STRING PUBLICATION subscr
  | ALTER SUBSCRIPTION name OWNER TO schema_owner {$$=&Subscription{Action:"owner",Name:Identifier{Text:$3.text,Pos:$3.pos},Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}}
  | DROP SUBSCRIPTION name drop_mode {$$=&Subscription{Action:"drop",Name:Identifier{Text:$3.text,Pos:$3.pos},Mode:$4,Pos:$1.pos}}
  | DROP SUBSCRIPTION IF EXISTS name drop_mode {$$=&Subscription{Action:"drop",Name:Identifier{Text:$5.text,Pos:$5.pos},IfExists:true,Mode:$6,Pos:$1.pos}} ;
+publication: CREATE PUBLICATION name publication_for subscription_options {$$=&Publication{Action:"create",Name:Identifier{Text:$3.text,Pos:$3.pos},Members:$4,Options:$5,Pos:$1.pos}}
+ | CREATE PUBLICATION name FOR ALL PUBLICATION_TABLES subscription_options {$$=&Publication{Action:"create",Name:Identifier{Text:$3.text,Pos:$3.pos},AllTables:true,Options:$7,Pos:$1.pos}}
+ | ALTER PUBLICATION name SET '(' dictionary_options ')' {$$=&Publication{Action:"options",Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$6,Pos:$1.pos}}
+ | ALTER PUBLICATION name ADD publication_objects {$$=&Publication{Action:"add",Name:Identifier{Text:$3.text,Pos:$3.pos},Members:$5,Pos:$1.pos}}
+ | ALTER PUBLICATION name SET publication_objects {$$=&Publication{Action:"set",Name:Identifier{Text:$3.text,Pos:$3.pos},Members:$5,Pos:$1.pos}}
+ | ALTER PUBLICATION name DROP publication_objects {$$=&Publication{Action:"remove",Name:Identifier{Text:$3.text,Pos:$3.pos},Members:$5,Pos:$1.pos}}
+ | ALTER PUBLICATION name RENAME TO name {$$=&Publication{Action:"rename",Name:Identifier{Text:$3.text,Pos:$3.pos},Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER PUBLICATION name OWNER TO schema_owner {$$=&Publication{Action:"owner",Name:Identifier{Text:$3.text,Pos:$3.pos},Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}}
+ | DROP PUBLICATION subscription_publications drop_mode {$$=&Publication{Action:"drop",Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP PUBLICATION IF EXISTS subscription_publications drop_mode {$$=&Publication{Action:"drop",Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+publication_for: /* empty */ {$$=nil} | FOR publication_objects {$$=$2} ;
+publication_objects: TABLE publication_table {$2.Kind="table";$$=[]PublicationMember{$2}}
+ | PUBLICATION_TABLES IN SCHEMA publication_schema {$4.Kind="schema";$$=[]PublicationMember{$4}}
+ | publication_objects ',' publication_object {members,ok:=appendPublicationMember(sqllex,$1,$3);if !ok{return 1};$$=members} ;
+publication_object: TABLE publication_table {$2.Kind="table";$$=$2}
+ | PUBLICATION_TABLES IN SCHEMA publication_schema {$4.Kind="schema";$$=$4}
+ | publication_table {$$=$1}
+ | CURRENT_SCHEMA {$$=PublicationMember{CurrentSchema:true,Schema:Identifier{Text:$1.text,Pos:$1.pos}}} ;
+publication_table: relation_name publication_star publication_columns publication_filter {$$=PublicationMember{Table:$1,Star:$2,Columns:$3,Filter:$4}}
+ | ONLY relation_name publication_columns publication_filter {$$=PublicationMember{Table:$2,Only:true,Columns:$3,Filter:$4}}
+ | ONLY '(' relation_name ')' publication_columns publication_filter {$$=PublicationMember{Table:$3,Only:true,Columns:$5,Filter:$6}} ;
+publication_star: /* empty */ {$$=false} | '*' {$$=true} ;
+publication_columns: /* empty */ {$$=nil} | '(' view_names ')' {$$=$2} ;
+publication_filter: /* empty */ {$$=nil} | WHERE '(' scalar_projection ')' {$$=$3} ;
+publication_schema: name {$$=PublicationMember{Schema:Identifier{Text:$1.text,Pos:$1.pos}}}
+ | CURRENT_SCHEMA {$$=PublicationMember{CurrentSchema:true,Schema:Identifier{Text:$1.text,Pos:$1.pos}}} ;
 rule_head: CREATE RULE name AS ON rule_event TO relation_name {
  sqllex.(*lexer).ruleDefinition=true
  $$=&CreateRule{Name:Identifier{Text:$3.text,Pos:$3.pos},Event:$6.text,Table:$8,Pos:$1.pos}
@@ -3706,6 +3742,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
  | SUBSCRIPTION | PUBLICATION
+ | PUBLICATION_TABLES
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | string_word
@@ -3766,6 +3803,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | SQLJSON_PARSE
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
+ | PUBLICATION_TABLES
  | VACUUM
  | routine_name_word
  | grant_external_name_word
@@ -3812,6 +3850,7 @@ generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | 
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
  | CONVERSION
  | RECURSIVE | XML
+ | PUBLICATION_TABLES
  | FREEZE | VERBOSE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | routine_name_word

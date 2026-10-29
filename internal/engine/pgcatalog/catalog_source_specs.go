@@ -119,6 +119,20 @@ var Specs = [...]Spec{
 		{"pnpubid", sqltype.Oid, false, 0, 0, -1},
 		{"pnnspid", sqltype.Oid, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(PublicationNamespaceOID), true, false, "stuntgres: missing catalog source type"},
+	{PublicationRelationOID, ids.PGCatalogNamespaceOID, "pg_publication_rel", []ColumnSpec{
+		{"oid", sqltype.Oid, false, 0, 0, -1},
+		{"prpubid", sqltype.Oid, false, 0, 0, -1},
+		{"prrelid", sqltype.Oid, false, 0, 0, -1},
+		{"prqual", sqltype.PgNodeTree, true, 950, 0, -1},
+		{"prattrs", sqltype.Int2Vector, true, 0, 1, -1},
+	}, false, true, true, false, "stuntgres: missing publication relation source type"},
+	{PublicationTablesOID, ids.PGCatalogNamespaceOID, "pg_publication_tables", []ColumnSpec{
+		{"pubname", sqltype.Name, true, 950, 0, -1},
+		{"schemaname", sqltype.Name, true, 950, 0, -1},
+		{"tablename", sqltype.Name, true, 950, 0, -1},
+		{"attnames", sqltype.ID(1003), true, 950, 1, -1},
+		{"rowfilter", sqltype.Text, true, 950, 0, -1},
+	}, true, false, true, false, "stuntgres: missing publication tables source type"},
 	{ReplicationOriginOID, ids.PGCatalogNamespaceOID, "pg_replication_origin", []ColumnSpec{
 		{"roident", sqltype.Oid, false, 0, 0, -1},
 		{"roname", sqltype.Text, false, 950, 0, -1},

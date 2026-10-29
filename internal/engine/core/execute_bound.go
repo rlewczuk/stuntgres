@@ -355,6 +355,21 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	scope.FoldCaptures = foldCaptures
 	b = view.PhysicalBinding(b)
+	if actions := PublicationActions(stmt); b.Relation != nil && (actions.Update || actions.Delete) {
+		read := partition.CaptureCatalog(auth.Catalog, scope.PartitionRelations, scope.PendingDetachSnapshot())
+		// Locked-relation validation already admitted compatible metadata
+		// revisions. Use this read's descriptor for publication facts without
+		// changing the original binding's row layout or retained authority.
+		target, ok := read.Relation(b.Relation.Address())
+		if !ok {
+			e.Mu.Unlock()
+			return Result{}, ids.ErrCatalogReplaced
+		}
+		if err := CheckPublicationAdmission(read, target, stmt); err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+	}
 	if err = partition.WriteExtensionBoundary(stmt, b.Relation); err != nil {
 		e.Mu.Unlock()
 		return Result{}, err

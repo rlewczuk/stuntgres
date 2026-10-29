@@ -1555,6 +1555,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3423: {Language: catalog.InternalRoutineLanguage, Source: "pg_partition_tree"},
 	3424: {Language: catalog.InternalRoutineLanguage, Source: "pg_partition_root"},
 	3425: {Language: catalog.InternalRoutineLanguage, Source: "pg_partition_ancestors"},
+	6119: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_publication_tables"},
+	6121: {Language: catalog.InternalRoutineLanguage, Source: "pg_relation_is_publishable"},
 	3432: {Language: catalog.InternalRoutineLanguage, Source: "gen_random_uuid"},
 	3445: {Language: catalog.InternalRoutineLanguage, Source: "pg_import_system_collations", Cost: 100},
 	3448: {Language: catalog.InternalRoutineLanguage, Source: "pg_collation_actual_version", Cost: 100},

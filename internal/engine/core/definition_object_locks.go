@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
+	return class == ids.PublicationClassID || class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -48,6 +48,10 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 			addresses = append(addresses, catalog.CastDependencies(d)...)
 		case *catalog.Statistics:
 			addresses = append(addresses, d.Relation.Address)
+			d.VisitDependencies(func(a ids.ObjectAddress, _ byte) { a.SubID = 0; addresses = append(addresses, a) })
+		case *catalog.PublicationRelation:
+			d.VisitDependencies(func(a ids.ObjectAddress, _ byte) { a.SubID = 0; addresses = append(addresses, a) })
+		case *catalog.PublicationNamespace:
 			d.VisitDependencies(func(a ids.ObjectAddress, _ byte) { a.SubID = 0; addresses = append(addresses, a) })
 		case *catalog.Conversion:
 			addresses = append(addresses, d.Handler)

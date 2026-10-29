@@ -4,6 +4,17 @@
   catalog metadata, per-column ANALYZE collection and signed planner estimates,
   with immutable publication and native logical Dump/Restore.
 
+- Add transactional database-local publication definitions, effective membership,
+  retained normal filters and column lists, protected populated catalog readers,
+  current replica-identity admission and atomic native metadata replay.
+  Preserve all publication indexes across catalog clones, classify mapping edges
+  as ownerless without relaxing publication ownership, and admit database-local
+  publication name/definition locks with genuine object-tag projection.
+  Preserve normal anonymous-row predicates, publication identity diagnostics
+  before unsupported physical hierarchy execution, and real table-membership
+  lock waits; register the executable membership inquiries and validate remapped
+  mapping descriptors during ALTER dependency work.
+
 - Add installed extension comments with initial provider defaults, transactional
   COMMENT and inquiry/catalog identity, and exact native replay of custom text
   and removed defaults, including seeded plpgsql.

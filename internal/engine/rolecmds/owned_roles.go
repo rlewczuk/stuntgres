@@ -68,7 +68,7 @@ func ExecuteOwned(e *core.Engine, scope *core.StatementScope, stmt parser.Statem
 	objectLocked := false
 	// Global roots use the same class/address order as definition mutations.
 	// OwnedRoots already orders object IDs within each class.
-	for _, class := range [...]ids.OID{ids.LanguageClassID, ids.SubscriptionClassID} {
+	for _, class := range [...]ids.OID{ids.LanguageClassID, ids.SubscriptionClassID, ids.PublicationClassID} {
 		for _, address := range roots {
 			if address.ClassID != class {
 				continue

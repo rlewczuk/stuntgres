@@ -431,6 +431,14 @@ func GenerationCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation,
 			// PostgreSQL18.0 rejects even an unrelated CHECK; newer releases differ.
 			message = "ALTER TABLE / SET EXPRESSION is not supported for virtual generated columns in tables with check constraints"
 		}
+		if action.Action == parser.SetExpression {
+			for _, mapping := range h.AccessView(auth).Catalog.PublicationRelations() {
+				if mapping.Relation == old.Address() {
+					message = "ALTER TABLE / SET EXPRESSION is not supported for virtual generated columns in tables that are part of a publication"
+					break
+				}
+			}
+		}
 		if message != "" {
 			diagnostic := sqlError("0A000", message).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf(`Column "%s" of relation "%s" is a virtual generated column.`, name, old.Name())

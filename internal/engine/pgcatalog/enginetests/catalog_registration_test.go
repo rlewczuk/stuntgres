@@ -52,7 +52,9 @@ func TestCatalogGrantRegistration(t *testing.T) {
 		{"column_origin", func(d *catalog.Relation) { d.Columns[0].OriginTable++ }},
 		{"column_attribute", func(d *catalog.Relation) { d.Columns[0].OriginAttribute++ }},
 		{"stable_attribute", func(d *catalog.Relation) { d.Attributes[0]++ }},
-		{"foreign_type", func(d *catalog.Relation) { d.Columns[0].Usage.Type, _ = foreign.LookupType(d.Columns[0].Usage.Type.ID()) }},
+		{"foreign_type", func(d *catalog.Relation) {
+			d.Columns[0].Usage.Type, _ = foreign.LookupType(d.Columns[0].Usage.Type.ID())
+		}},
 		{"column_index", func(d *catalog.Relation) { d.Index[d.Columns[0].Name] = 1 }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,5 +73,35 @@ func TestCatalogGrantRegistration(t *testing.T) {
 				t.Fatal("synthetic registration admitted")
 			}
 		})
+	}
+}
+
+func TestCatalogBuiltinViewDefinitionInventory(t *testing.T) {
+	view := engine.New().CatalogRead()
+	for _, descriptor := range view.Descriptors() {
+		relation, ok := descriptor.(*catalog.Relation)
+		if !ok || relation.RelationKind != catalog.CatalogRelation || pgcatalog.ClassKind(view, relation) != "v" {
+			continue
+		}
+		oid := relation.Address().ObjectID
+		if pgcatalog.SummaryViewDefinition(oid) == "" {
+			t.Errorf("builtin view %s (%d) has no canonical definition", relation.Name(), oid)
+		}
+		definition := pgcatalog.BuiltinViewDefinition(oid, false, func(name pgcatalog.BuiltinViewName) string {
+			return name.Name
+		})
+		if definition == "" {
+			t.Errorf("builtin view %s (%d) has no formatted definition", relation.Name(), oid)
+		}
+	}
+	relation := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.PublicationTablesOID})
+	if !pgcatalog.RegisteredSource(view, relation) {
+		t.Fatal("publication view lost source registration")
+	}
+	if producer, ok := pgcatalog.ProducerFor(pgcatalog.PublicationTablesOID); !ok || producer == nil {
+		t.Fatal("publication view lost native producer")
+	}
+	if pgcatalog.BuiltinViewEvents(pgcatalog.PublicationTablesOID, nil) != 0 {
+		t.Fatal("publication view acquired write authority")
 	}
 }

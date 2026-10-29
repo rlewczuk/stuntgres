@@ -40,6 +40,14 @@ func PolicyTree(ctx context.Context, view catalog.Read, relation *catalog.Relati
 		}
 	}
 	if !found {
+		for _, mapping := range view.PublicationRelations() {
+			if mapping.Relation == relation.Address() && PolicyOf(mapping.Filter) == policy {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: detached policy payload")
 	}
 	if err := policy.Validate(view, relation); err != nil {

@@ -217,9 +217,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   grants all owner table privileges and PUBLIC SELECT, without grant options or
   column grants. Current Execute admission governs direct and held reads.
   Capture authenticates exact catalog/role roots, backing engine and owned type
-  generations, returning a nonnil empty rowset because no local publications
-  exist. Cancellation and invalid authority return no rows. Remote publication
-  names on subscriptions and ordinary tables never become publication rows.
+  generations, then projects actual immutable database-local definitions.
+  Cancellation and invalid authority return no rows. Remote publication names
+  on subscriptions never become local publication rows.
   Reads neither create definitions nor imply replication transport or contact
   publishers. Index presence is metadata, not a fabricated physical index.
 - `pg_publication_namespace` (6237) is a real database-local catalog with three
@@ -227,8 +227,21 @@ type Producer func(Input) ([][]sqltype.Value, error)
   paired catalog/role roots and backing-engine ownership, including private
   transaction roots. Current SELECT admission governs direct and held reads,
   even when empty. Its explicit owner/PUBLIC ACL has no column grants. Population
-  contains only actual implemented schema-publication memberships, currently
-  none; ordinary schema/table DDL and subscription names never infer edges.
+  contains actual schema-publication mappings; ordinary schema/table DDL and
+  subscription names never infer edges.
+  `pg_publication_rel` exposes only explicit table mappings, retaining stable
+  attribute vectors and genuine normal-expression tree carriers.
+  `pg_publication_tables` resolves current effective membership, including
+  implicit partition descendants and current/future schema/all-table coverage.
+  Its native relation identity is source-specific, not a PostgreSQL allocator
+  constant. All four readers retain the same protected capture boundary.
+  Direct metadata for each selected presented relation arrives as borrowed
+  `PublicationTableFact` values through `Runtime.VisitPublicationTables`; core
+  shares its projection with the publication-table inquiry, separately from
+  DML-effective ancestry coverage. Empty attribute projections produce typed NULL
+  `attnames`, matching the canonical aggregate. Producers use the existing
+  `PolicyTree`/`PolicyDisplay` bridges and never import the higher publication,
+  stored-expression, routine or table command packages.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual
@@ -735,6 +748,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance facts and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
+| `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
 | `VisitCheckAttributes`, `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`, `IndexSimpleAttribute`, `IndexKey` | walks over engine plan and expression nodes |
 | `ForeignKeyComparisons` | the binder's foreign-key comparison operators (`pg_constraint`) |
 | `ViewDefinition`, `IndexDefinition`, `VisitRuleDefinitions` | current-identity stored definition rendering; rule visitor omits exact `_RETURN` before rendering |
@@ -1069,6 +1083,11 @@ including `information_schema.columns`, `information_schema.domains`,
 `information_schema.user_defined_types`, `information_schema.tables`,
 `information_schema.usage_privileges`, `pg_catalog.pg_policies` and
 `pg_catalog.pg_rules`, with classification and per-output capability facts.
+Every represented catalog view, including a newly registered virtual source,
+must have a real canonical definition in this inventory: `views` and `pg_views`
+capture all candidate definitions before outer query filtering. Publication
+tables retain the released attribute aggregation and publication-table inquiry
+references here; execution remains owned by the registered native producer.
 Its canonical literal fragments contain explicit object-name and identifier
 occurrences. `pg_rules` uses the same definition authority as both consumers;
 its `pg_get_ruledef(oid)` reference captures stable routine identity, while

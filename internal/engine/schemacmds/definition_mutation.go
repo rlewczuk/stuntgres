@@ -37,11 +37,13 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	switch stmt.(type) {
 	case *parser.Subscription:
 		alter = stmt.(*parser.Subscription).Action != "create" && stmt.(*parser.Subscription).Action != "drop"
+	case *parser.Publication:
+		alter = stmt.(*parser.Publication).Action != "create" && stmt.(*parser.Publication).Action != "drop"
 	case *parser.AlterLanguage, *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
-	case *parser.Subscription:
+	case *parser.Subscription, *parser.Publication:
 	case *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage:
 	case *parser.DropStatistics, *parser.AlterStatisticsTarget:
 	case *parser.AlterParser, *parser.DropParser:
@@ -53,6 +55,16 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	var scratch [8]ids.ObjectAddress
 	addresses := scratch[:0]
+	var relations []ids.ObjectAddress
+	if _, publication := stmt.(*parser.Publication); publication {
+		for _, original := range stage.DomainBases {
+			if _, relation := original.(*catalog.Relation); relation {
+				relations = append(relations, original.Address())
+			}
+		}
+		slices.SortFunc(relations, core.CompareDefinitionAddress)
+		relations = slices.Compact(relations)
+	}
 	if alter {
 		for _, original := range stage.DomainBases {
 			if core.DefinitionObjectClass(original.Address().ClassID) {
@@ -75,7 +87,7 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 			addresses = append(addresses, address)
 		}
 	}
-	if len(addresses) == 0 {
+	if len(addresses) == 0 && len(relations) == 0 {
 		return stage, nil
 	}
 	slices.SortFunc(addresses, core.CompareDefinitionAddress)
@@ -87,6 +99,15 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 			mode = lock.AccessShare
 		}
 		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, mode); err != nil {
+			return stage, err
+		}
+	}
+	// Publication membership takes the real table's ShareUpdateExclusive lock,
+	// including CREATE and every expanded inheritance member. A cancellation
+	// while waiting cannot publish the provisional mapping candidate.
+	for _, address := range relations {
+		ref := s.Engine().Catalog.Domain.Ref(stage.Base.Epoch(), address)
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
 			return stage, err
 		}
 	}
@@ -130,6 +151,12 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
+	for _, address := range relations {
+		original := stage.Base.Get(address)
+		if original == nil || auth.Catalog.NameAddress(catalog.DescriptorNameKey(original)) != address {
+			return stage, ids.ErrCatalogReplaced
+		}
+	}
 	// No notice from provisional construction is delivered twice. Notices from
 	// earlier statements in a retained message remain owned by that message.
 	s.Op.Notices = s.Op.Notices[:noticeMark]
@@ -156,6 +183,14 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	// ALTER's resolved target is retained even for no-op actions. Replacements
 	// and removals must all belong to the original admitted mutation set.
+	for _, original := range current.DomainBases {
+		if _, relation := original.(*catalog.Relation); relation {
+			if _, publication := stmt.(*parser.Publication); publication && !slices.Contains(relations, original.Address()) {
+				e.DiscardCatalogStage(current)
+				return stage, ids.ErrCatalogReplaced
+			}
+		}
+	}
 	for _, original := range current.DomainBases {
 		if alter && core.DefinitionObjectClass(original.Address().ClassID) && !slices.Contains(addresses, original.Address()) {
 			e.DiscardCatalogStage(current)

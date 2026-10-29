@@ -66,6 +66,26 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			boundResult = nil
 		}
 	}()
+	if b.Consumer.PublicationConsumer {
+		detail := ""
+		switch r := raw.(type) {
+		case parser.ColumnExpr:
+			parts := r.Name.Parts
+			if len(parts) != 0 && catalog.IsSystemColumn(parts[len(parts)-1].Text) {
+				owner := b.Target.Relation
+				if owner != nil && (len(parts) == 1 || len(parts) == 2 && parts[0].Text == owner.Name() || len(parts) == 3 && parts[1].Text == owner.Name() && parts[0].Text == b.Query.Namespace.Qualifiers[0].Schema) {
+					detail = "System columns are not allowed."
+				}
+			}
+		case parser.SubqueryExpr, parser.IndexSubqueryExpr:
+			detail = "Only columns, constants, built-in operators, built-in data types, built-in collations, and immutable built-in functions are allowed."
+		}
+		if detail != "" {
+			diagnostic := expr.ErrorAt("0A000", "invalid publication WHERE expression", raw.SourcePosition()).(*sqlstate.Error)
+			diagnostic.Detail = detail
+			return nil, diagnostic
+		}
+	}
 	if b.Consumer.StatisticsConsumer {
 		switch r := raw.(type) {
 		case parser.ColumnExpr:

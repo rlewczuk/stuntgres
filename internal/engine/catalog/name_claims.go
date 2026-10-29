@@ -48,6 +48,8 @@ func bindingDuplicate(claim BindingClaim) error {
 		table, constraint, detail = "pg_language", "pg_language_name_index", fmt.Sprintf("Key (lanname)=(%s) already exists.", key.Name)
 	case ids.SubscriptionClassID:
 		table, constraint, detail = "pg_subscription", "pg_subscription_subname_index", fmt.Sprintf("Key (subdbid, subname)=(%d, %s) already exists.", key.Namespace.ObjectID, key.Name)
+	case ids.PublicationClassID:
+		table, constraint, detail = "pg_publication", "pg_publication_pubname_index", fmt.Sprintf("Key (pubname)=(%s) already exists.", key.Name)
 	case ids.NamespaceClassID:
 		table, constraint, detail = "pg_namespace", "pg_namespace_nspname_index", fmt.Sprintf("Key (nspname)=(%s) already exists.", key.Name)
 	case ids.TypeClassID:

@@ -17,6 +17,23 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 	base := target
 	base.SubID = 0
 	if d, ok := read.Find(base); ok {
+		if publication, ok := d.(*catalog.Publication); ok {
+			return "publication " + catalog.DependencyIdentifier(publication.Name())
+		}
+		if mapping, ok := d.(*catalog.PublicationRelation); ok {
+			r, exists := read.Relation(mapping.Relation)
+			p, valid := read.Get(mapping.Publication).(*catalog.Publication)
+			if exists && valid {
+				return "publication of table " + DependencyRelationName(read, r, path) + " in publication " + catalog.DependencyIdentifier(p.Name())
+			}
+		}
+		if mapping, ok := d.(*catalog.PublicationNamespace); ok {
+			ns, exists := read.Namespace(mapping.Schema)
+			p, valid := read.Get(mapping.Publication).(*catalog.Publication)
+			if exists && valid {
+				return "publication of schema " + catalog.DependencyIdentifier(ns.Name()) + " in publication " + catalog.DependencyIdentifier(p.Name())
+			}
+		}
 		if sub, ok := d.(*catalog.Subscription); ok {
 			return "subscription " + catalog.DependencyIdentifier(sub.Name())
 		}

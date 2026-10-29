@@ -147,6 +147,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		6400: {"name", "size", "modification"},
 		6430: {"shift"},
 		4566: {"oid"},
+		6119: {"pubname", "pubid", "relid", "attrs", "qual"},
 	}
 	seen := 0
 	for _, d := range BuiltinProcedures(authorization.PrincipalRef{}) {

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/publication"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/subscription"
@@ -423,6 +424,10 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 		}
 	case *parser.Subscription:
 		if err = subscription.Stage(host, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.Publication:
+		if err = publication.Stage(publicationHost{host}, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:

@@ -52,6 +52,10 @@ single-statement limit of driver calls) belong to callers.
   `TestPredefinedUnavailableSyntax` deliberately accepts the subscription role
   consumer as a structured AST; only remaining unavailable utilities retain
   generic syntax exclusions.
+- Publication utilities retain positioned table/schema groups, ONLY/star,
+  absent versus explicit column lists, normal filter syntax, ordered options
+  and multi-object drops. Grammar owns full-input consumption; current
+  membership, option interpretation and authorization belong to execution.
 - Text-search template utilities retain qualified names and ordered positioned
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong
@@ -414,6 +418,8 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 ## Testing
 
 Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSParser'`.
+Publication utility AST, source positions and complete-input units use
+`RUN='^TestPublicationGrammar$'`.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 Constraint enforcement AST/property/full-input units use `RUN='^TestConstraintEnforcement(Parser|PropertySyntax|UsingIndexParser)$'`.

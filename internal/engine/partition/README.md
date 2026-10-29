@@ -38,6 +38,10 @@ it. It never builds a binder.
   root first, for the caller to lock before the leaf. Ordinary GiST/SP-GiST CREATE INDEX,
   including aliases identified by the captured catalog's native method authority,
   uses the existing partitioned-index propagation path in `index`.
+  Hierarchy DELETE, MERGE and ON CONFLICT capability refusals belong to
+  `WriteExtensionBoundary` after normal binding/ACL and Execute-time publication
+  admission. This deferral grants no hierarchy DELETE executor; absent an earlier
+  publication identity error, its unsupported diagnostic remains unchanged.
   Column rename is admitted to `tablecmds`' immutable hierarchy continuation,
   which uses `EffectiveChildren` for both recursion and ONLY before descendant
   locking, without changing canonical membership or direct inherited eligibility.

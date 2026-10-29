@@ -50,6 +50,16 @@ func (e *Policy) VisitExpression(visit func(expr.Expr) error) error {
 }
 
 func PolicySQL(ctx context.Context, view catalog.Read, expression *Policy) (string, error) {
+	return retainedPredicateSQL(ctx, view, expression, true)
+}
+
+// PublicationFilterSQL renders relation-local publication syntax without a
+// synthetic range-table qualifier. Stable attributes supply current names.
+func PublicationFilterSQL(ctx context.Context, view catalog.Read, expression *Policy) (string, error) {
+	return retainedPredicateSQL(ctx, view, expression, false)
+}
+
+func retainedPredicateSQL(ctx context.Context, view catalog.Read, expression *Policy, qualified bool) (string, error) {
 	r := NewQueryRenderer(expression.presentation)
 	r.Frame = 1
 	source := analyze.ViewFromRoot(r.frames[1])
@@ -71,7 +81,10 @@ func PolicySQL(ctx context.Context, view catalog.Read, expression *Policy) (stri
 	for i, attribute := range leaf.Attributes {
 		for j, current := range d.Attributes {
 			if current == attribute {
-				slots[i] = catalog.QuoteIdentifier(d.Name()) + "." + catalog.QuoteIdentifier(d.Columns[j].Name)
+				slots[i] = catalog.QuoteIdentifier(d.Columns[j].Name)
+				if qualified {
+					slots[i] = catalog.QuoteIdentifier(d.Name()) + "." + slots[i]
+				}
 				break
 			}
 		}

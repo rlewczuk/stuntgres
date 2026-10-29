@@ -181,6 +181,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			}
 		case *catalog.Statistics:
 			d.VisitDependencies(func(target ids.ObjectAddress, kind byte) { add(d.Address(), target, kind) })
+		case *catalog.PublicationRelation:
+			d.VisitDependencies(func(target ids.ObjectAddress, kind byte) { add(d.Address(), target, kind) })
+		case *catalog.PublicationNamespace:
+			d.VisitDependencies(func(target ids.ObjectAddress, kind byte) { add(d.Address(), target, kind) })
 		case *catalog.Conversion:
 			if !d.Seeded() {
 				add(d.Address(), d.Namespace(), 'n')

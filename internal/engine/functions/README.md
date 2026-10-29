@@ -689,6 +689,11 @@ host, which owns all locking and returns owned values.
   neither snapshots nor authority. Listening opens an invocation-owned typed
   vector (including empty TEXT sources); queue usage is volatile and scalar.
   Both are nonfoldable and reuse ordinary callable identities and source gates.
+- Publication inquiries use the current protected catalog inquiry snapshot:
+  `pg_relation_is_publishable` reads genuine relation eligibility;
+  `pg_get_publication_tables` opens an invocation-owned typed membership source.
+  Recipes retain typed operands and normal routine identities, never catalog
+  authority or expanded membership caches.
 
 ## Aggregate and window registries
 

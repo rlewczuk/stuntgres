@@ -49,6 +49,16 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 		switch d := d.(type) {
 		case *Transform:
 			// Pairs have no principals; capability/type remapping owns them.
+		case *Publication:
+			n := *d
+			var err error
+			n.Owner, err = remap(d.Owner)
+			if err != nil {
+				return err
+			}
+			state.SetDescriptor(addr, &n)
+		case *PublicationRelation, *PublicationNamespace:
+			// Database-local mapping descriptors have no principals.
 		case *Subscription:
 			n := *d
 			var err error

@@ -11,6 +11,10 @@ import (
 func VisitDefinitionExpressions(d catalog.Descriptor, visit func(expr.Expr)) error {
 	query := func(root plan.Node) { plan.VisitCTEQuery(root, func(plan.Node) {}, visit, true) }
 	switch d := d.(type) {
+	case *catalog.PublicationRelation:
+		if p := PolicyOf(d.Filter); p != nil {
+			visit(p.expression)
+		}
 	case *catalog.Relation:
 		if v := ViewOf(d); v != nil {
 			query(v.Query().Root)

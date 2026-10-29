@@ -78,7 +78,7 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		if err := (catalog.LanguageProvider{}).Validate(base, language); err != nil {
 			return err
 		}
-	case *catalog.Subscription, *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration, *catalog.TSParser:
+	case *catalog.Publication, *catalog.PublicationRelation, *catalog.PublicationNamespace, *catalog.Subscription, *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration, *catalog.TSParser:
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Pinned() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
@@ -119,7 +119,7 @@ func ClosureTargetClass(class ids.OID) bool {
 	switch class {
 	case ids.TransformClassID:
 		return true
-	case ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TSParserClassID:
+	case ids.PublicationClassID, ids.PublicationRelationClassID, ids.PublicationNamespaceClassID, ids.SubscriptionClassID, ids.StatisticExtClassID, ids.TSParserClassID:
 		return true
 	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.LanguageClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:
 		return true

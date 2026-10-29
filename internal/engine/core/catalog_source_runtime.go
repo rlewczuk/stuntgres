@@ -25,18 +25,18 @@ import (
 // Retaining handles here is cheap. Only the selected producer demands facts;
 // neither construction nor unrelated OIDs inspect mutable runtime state.
 type EngineCatalogRuntime struct {
-	engine       *Engine
-	Auth         AuthorizationView
-	cursors      *cursorRegistry
+	engine             *Engine
+	Auth               AuthorizationView
+	cursors            *cursorRegistry
 	preparedStatements *PreparedRegistry
-	settings     *session.SettingsStore
-	registry     settings.Registry
-	input        sqltype.InputEnvironment
-	Database     string
-	temporary    ids.SessionToken
-	presentation stored.Presentation
-	sequenceBase *catalog.State
-	sequenceOwn  *session.Journal
+	settings           *session.SettingsStore
+	registry           settings.Registry
+	input              sqltype.InputEnvironment
+	Database           string
+	temporary          ids.SessionToken
+	presentation       stored.Presentation
+	sequenceBase       *catalog.State
+	sequenceOwn        *session.Journal
 }
 
 var _ pgcatalog.Runtime = EngineCatalogRuntime{}
@@ -52,20 +52,28 @@ func (r EngineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) erro
 }
 func (r EngineCatalogRuntime) PreparedStatementCount() int {
 	count := len(r.preparedStatements.definitions)
-	if r.preparedStatements.Lookup("") != nil { count-- }
+	if r.preparedStatements.Lookup("") != nil {
+		count--
+	}
 	return count
 }
 func (r EngineCatalogRuntime) VisitPreparedStatements(ctx context.Context, visit func(pgcatalog.PreparedStatementFact) error) error {
 	for name, entry := range r.preparedStatements.Definitions() {
-		if err := ctx.Err(); err != nil { return err }
-		if name == "" { continue }
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if name == "" {
+			continue
+		}
 		d := entry.Description
 		if err := visit(pgcatalog.PreparedStatementFact{
 			Name: name, Statement: entry.Source, Created: entry.Created, FromSQL: entry.FromSQL,
 			ParameterCount: d.Parameters.Count, ParameterTypes: d.Parameters.Types,
 			ParameterOIDs: entry.ParameterOIDs, Results: d.Results,
 			HasResults: session.ProtocolHasRows(entry.Body, d.Results),
-		}); err != nil { return err }
+		}); err != nil {
+			return err
+		}
 	}
 	return ctx.Err()
 }
@@ -162,6 +170,8 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.SubscriptionRelOID:                 "pg_subscription_rel",
 	pgcatalog.PublicationOID:                     "pg_publication",
 	pgcatalog.PublicationNamespaceOID:            "pg_publication_namespace",
+	pgcatalog.PublicationRelationOID:             "pg_publication_rel",
+	pgcatalog.PublicationTablesOID:               "pg_publication_tables",
 	pgcatalog.TablePrivilegesOID:                 "table_privileges",
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",
@@ -210,7 +220,7 @@ func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 	a := r.Auth
 	// These readers require a backing engine with the captured owner, including
 	// legitimate transaction-private catalog roots.
-	if (oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
+	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
 		return fmt.Errorf("stuntgres: invalid %s capture", sharedCaptureNames[oid])
 	}
 	if name, ok := sharedCaptureNames[oid]; ok {

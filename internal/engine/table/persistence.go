@@ -24,7 +24,7 @@ func EffectivePersistence(view catalog.Read, relation *catalog.Relation) string 
 }
 
 type PersistencePreparation struct {
-	Changed bool
+	Changed     bool
 	Destination string
 }
 
@@ -43,25 +43,44 @@ func PreparePersistence(view catalog.Read, original *catalog.Relation, action pa
 		return prior, err
 	}
 	destination := "logged"
-	if action == parser.SetUnlogged { destination = "unlogged" }
-	if current == destination { return prior, nil }
+	if action == parser.SetUnlogged {
+		destination = "unlogged"
+	}
+	if current == destination {
+		return prior, nil
+	}
+	if destination == "unlogged" {
+		for _, mapping := range view.PublicationRelations() {
+			if mapping.Relation == original.Address() {
+				return prior, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`cannot change table "%s" to unlogged because it is part of a publication`, original.Name()), Detail: "Unlogged relations cannot be replicated."}
+			}
+		}
+	}
 	if original.Sequence != nil {
 		return PersistencePreparation{Changed: true, Destination: destination}, nil
 	}
 	for _, child := range view.Relations() {
 		for _, fk := range child.Constraints.ForeignKeys {
-			if child.Address() == fk.Target { continue }
+			if child.Address() == fk.Target {
+				continue
+			}
 			parent, ok := view.Relation(fk.Target)
-			if !ok { continue }
+			if !ok {
+				continue
+			}
 			other := parent
 			blocked := destination == "logged" && child.Address() == original.Address() && EffectivePersistence(view, parent) == "unlogged"
 			if destination == "unlogged" && parent.Address() == original.Address() && EffectivePersistence(view, child) == "logged" {
 				blocked = true
 				other = child
 			}
-			if !blocked { continue }
+			if !blocked {
+				continue
+			}
 			otherIdentity := "unlogged"
-			if destination == "unlogged" { otherIdentity = "logged" }
+			if destination == "unlogged" {
+				otherIdentity = "logged"
+			}
 			err := sqlError("42P16", fmt.Sprintf(`could not change table "%s" to %s because it references %s table "%s"`, original.Name(), destination, otherIdentity, other.Name())).(*sqlstate.Error)
 			err.Schema = view.MustNamespace(original.Namespace()).Name()
 			err.Table = original.Name()
@@ -77,7 +96,6 @@ func persistenceKindError(relation *catalog.Relation, action, kind string) error
 	err.Detail = "This operation is not supported for " + kind + "."
 	return err
 }
-
 
 func persistenceCompositeError(relation *catalog.Relation) error {
 	err := sqlError("42809", fmt.Sprintf(`"%s" is a composite type`, relation.Name())).(*sqlstate.Error)

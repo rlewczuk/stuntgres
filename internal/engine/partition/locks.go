@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// These newly admitted mutation forms finish ordinary analysis and ACL checks,
+// These mutation forms finish ordinary analysis, ACL and publication admission,
 // but must not demand defaults, capture virtual storage or publish routed effects.
 func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) error {
 	if d == nil || !catalog.HierarchyRelation(d) {
@@ -26,6 +26,8 @@ func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) err
 		}
 	case *parser.Merge:
 		return sqlError("0A000", "merging partition hierarchies is unsupported")
+	case *parser.Delete:
+		return sqlError("0A000", "deleting from partition hierarchies is unsupported")
 	}
 	return nil
 }
@@ -60,8 +62,6 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 	}
 	message := ""
 	switch s := statement.(type) {
-	case *parser.Delete:
-		message = "deleting from partition hierarchies is unsupported"
 	case *parser.Select:
 		if s.Locking != nil {
 			message = "row locking partition hierarchies is unsupported"

@@ -25,8 +25,8 @@ type keyword struct {
 
 // KeywordMetadata is a by-value view of the grammar's immutable vocabulary.
 type KeywordMetadata struct {
-	Word string
-	Category byte
+	Word      string
+	Category  byte
 	BareLabel bool
 }
 
@@ -521,7 +521,7 @@ var keywords = [...]keyword{
 	{"system", Unreserved, true, SYSTEM},
 	{"system_user", Reserved, true, SYSTEM_USER},
 	{"table", Reserved, true, TABLE},
-	{"tables", Unreserved, true, 0},
+	{"tables", Unreserved, true, PUBLICATION_TABLES},
 	{"tablesample", TypeFunctionName, true, 0},
 	{"tablespace", Unreserved, true, TABLESPACE},
 	{"target", Unreserved, true, TARGET},

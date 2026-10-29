@@ -3,6 +3,7 @@ package pgcatalog
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -20,10 +21,23 @@ func capturePGPublicationNamespace(in Input) ([][]sqltype.Value, error) {
 	if err := in.Runtime.ValidateCapture(in.Catalog, in.Roles, in.Ref, in.Source, PublicationNamespaceOID); err != nil {
 		return nil, err
 	}
-	// Execute's current used-column manifest owns SELECT admission. Publication
-	// commands own schema memberships; no local memberships currently exist.
-	if err := in.Context.Err(); err != nil {
-		return nil, err
+	rows := make([][]sqltype.Value, 0)
+	for _, d := range in.Catalog.PublicationNamespaces() {
+		if err := in.Context.Err(); err != nil {
+			return nil, err
+		}
+		if err := (catalog.PublicationNamespaceProvider{}).Validate(in.Catalog, d); err != nil {
+			return nil, err
+		}
+		row := make([]sqltype.Value, 3)
+		for i, oid := range []ids.OID{d.Address().ObjectID, d.Publication.ObjectID, d.Schema.ObjectID} {
+			var err error
+			row[i], err = sqltype.OIDValue(in.Source.Columns[i].Usage.Type, uint32(oid))
+			if err != nil {
+				return nil, err
+			}
+		}
+		rows = append(rows, row)
 	}
-	return [][]sqltype.Value{}, nil
+	return rows, in.Context.Err()
 }
