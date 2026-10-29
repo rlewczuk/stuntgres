@@ -382,12 +382,14 @@ folds at planning time. The statement capability returns invocation-owned record
 after complete debug acquisition or nested SQL consumption, including typed empty
 sources for strict NULL. Dictionary arrays retain REGDICTIONARY identities.
 
-`FTSConversion` binds all five text-search constructors with explicit or omitted
-configuration. Both forms are strict; explicit REGCONFIG/TEXT is immutable and
-omitted TEXT is stable. The node owns checked children and routine authority,
-never a synthetic default-config constant. Execution borrows one coherent
-parser/dictionary capture; ordinary folding owns immutable explicit results,
-without a conversion cache or notice replay.
+`FTSConversion` binds the five TEXT constructors and JSON/JSONB vector
+conversions, including the filtered JSON names, with up to three checked children.
+All forms are strict; explicit REGCONFIG forms are immutable and omitted forms
+are stable. Input kind and filter layout survive rebuild, capture, grouping and
+qualified replay. The node owns operands and routine authority, never a synthetic
+default-config constant. Execution borrows one coherent parser/dictionary
+capture; ordinary folding owns immutable explicit results without a conversion
+cache or notice replay.
 
 `VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
 Named-input binding and applicability share slot assignment and ordinary
@@ -1014,6 +1016,7 @@ make check RUN='^Test(ACLValues|ACLNodes|ACLValueEvaluates|ObjectACLEvaluates|Ac
 make check RUN='^Test(FTSOps|Point|Circle|Polygon|GeometryAlignment|GeometryRelation|GeometryConversion|GeometryMeasureBoxLine|MACADDR8Comparison|NetworkSubnet)Provider'  # operator providers
 make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider authority
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
+make check RUN='^TestFTSJSON'  # JSON conversion operand lifecycle
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
 make check RUN='^TestSnowball'  # released English rules, provider/resource and lifetime ownership
 make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes

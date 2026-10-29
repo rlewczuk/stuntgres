@@ -529,3 +529,11 @@
 3753	tsvector_update_trigger_column	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	2279		\N	\N	\N	false	\N	tsvector_update_trigger_bycolumn	\N	false	\N
 4566	pg_event_trigger_table_rewrite_oid	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	26		{26}	{o}	{oid}	false	\N	pg_event_trigger_table_rewrite_oid	\N	false	\N
 4567	pg_event_trigger_table_rewrite_reason	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	23		\N	\N	\N	false	\N	pg_event_trigger_table_rewrite_reason	\N	false	\N
+4209	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3614	3802	\N	\N	\N	false	\N	jsonb_string_to_tsvector	\N	false	\N
+4210	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	1	0	3614	114	\N	\N	\N	false	\N	json_string_to_tsvector	\N	false	\N
+4211	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3614	3734 3802	\N	\N	\N	false	\N	jsonb_string_to_tsvector_byid	\N	false	\N
+4212	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3614	3734 114	\N	\N	\N	false	\N	json_string_to_tsvector_byid	\N	false	\N
+4213	jsonb_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	3614	3802 3802	\N	\N	\N	false	\N	jsonb_to_tsvector	\N	false	\N
+4214	jsonb_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	3	0	3614	3734 3802 3802	\N	\N	\N	false	\N	jsonb_to_tsvector_byid	\N	false	\N
+4215	json_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	s	s	2	0	3614	114 3802	\N	\N	\N	false	\N	json_to_tsvector	\N	false	\N
+4216	json_to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	3	0	3614	3734 114 3802	\N	\N	\N	false	\N	json_to_tsvector_byid	\N	false	\N

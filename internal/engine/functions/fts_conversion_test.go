@@ -108,7 +108,7 @@ func TestFTSConvertLifecycle(t *testing.T) {
 			if kind == fts.VectorConversion {
 				result = sqltype.TSVector
 			}
-			node := FTSConversion{Info: expr.Info{Usage: types[result].Usage()}, Kind: kind, Explicit: explicit}
+			node := FTSConversion{Info: expr.Info{Usage: types[result].Usage()}, Kind: kind, Explicit: explicit, Input: sqltype.Text}
 			for i := range node.arity() {
 				typ := types[sqltype.Text]
 				if explicit && i == 0 {

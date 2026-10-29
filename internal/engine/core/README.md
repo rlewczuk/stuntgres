@@ -562,6 +562,13 @@ resource compilation, lexization or notice callbacks. Capture does not initializ
 mapped dictionaries. Omitted configuration reads the operation's effective
 `default_text_search_config` at execution, with Engine-before-settings lock order.
 Mapping changes publish through ordinary schema stages and definition locks.
+JSON conversion validates its filter before traversal and lazily captures at the
+first selected item, including an empty string. All items share that generation
+and acquisition, but reset parser/phrase state per item. One cumulative position
+counter includes stopwords; only an item emitting lexemes adds an artificial gap.
+No selected item yields a typed empty vector without configuration lookup or
+dictionary receipts. Traversal, lexical work and final acceptance remain detached
+and cancellation-fenced; no partial vector or acquisition escapes a failure.
 Debug borrows the same coherent capture/default resolver and acquisition fence,
 but independently lexizes every mapped dictionary against each original token.
 Its complete ordered mapping arrays and recognized-empty/unknown distinctions
@@ -2329,6 +2336,9 @@ with `RACE=1`.
 - UPDATE auxiliary-storage measurements preparse their fixed SQL before measuring
   bytes, then use real session acquisition and engine execution. Parser scratch
   pool retention is not an execution-memory invariant.
+
+JSON conversion ownership and cancellation use `RUN='^TestFTSJSON'`, also with
+`RACE=1`; these inspect accepted backing and private acquisition publication.
 
 Core tests are external (`package core_test`) except the accessor files
 `export_<area>_test.go` and the pure units that build no engine

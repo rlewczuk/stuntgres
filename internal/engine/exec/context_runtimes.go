@@ -968,3 +968,11 @@ func (c *Context) ConvertTextSearch(kind fts.ConversionKind, explicit bool, conf
 	}
 	return host.ConvertTextSearch(c.Context, kind, explicit, configuration, text, result)
 }
+
+func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: JSON text search conversion lacks statement authority")
+	}
+	return host.ConvertJSONTextSearch(c.Context, explicit, configuration, document, filter, filtered, result)
+}

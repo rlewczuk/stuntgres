@@ -35,9 +35,4 @@ func TestFTSConvertRoutineDeclarations(t *testing.T) {
 			t.Fatal(tc, display)
 		}
 	}
-	for _, oid := range []ids.OID{4209, 4210, 4211, 4212} {
-		if BuiltinRoutine(oid) != nil {
-			t.Fatal("JSON overload registered", oid)
-		}
-	}
 }

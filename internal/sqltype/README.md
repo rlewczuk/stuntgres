@@ -37,6 +37,15 @@ copy work. JSONB containment, existence, pretty formatting and record population
 charge actual frame/candidate/conversion steps. Object/array expansion charges
 only present members, not NULL or EOF. Path deletion propagates its identity
 through chunked copying and ancestor rebuilding without charging set/insert.
+
+`ParseJSONTextSearchFlags` borrows the immutable JSONB filter tree;
+`WalkJSONTextSearch` synchronously visits selected keys/scalars without retaining
+callbacks. Text JSON reuses its decoding lexer, source order, duplicate fields and
+exact numeric spelling, including validation of unselected strings. Callbacks
+follow scalar lookahead and first-value-token field timing. JSONB borrows retained
+nodes and exact numeric output without reparsing or copying the document. Both
+walks are iterative, leave input backing unchanged, and charge actual traversal
+to `WorkTSVectorConvert`; cancellation/refusal propagates unchanged.
 Structural quanta are not universal byte, CPU or memory bounds; existing
 long-scalar and key-comparison cancellation remains independent.
 
@@ -749,6 +758,7 @@ XML value ownership and codec units use `RUN='^TestXMLSQL'`.
 Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;
 add `RACE=1` for cancellation and cursor-lifetime proof.
+JSON text-search filter/traversal ownership uses `RUN='^TestJSONTextSearch'`.
 
 Native physical datum and BRIN/B-tree/FSM byte-reader units use `RUN='^TestPageinspect'`;
 GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.

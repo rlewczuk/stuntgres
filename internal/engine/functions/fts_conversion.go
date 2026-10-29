@@ -10,18 +10,21 @@ import (
 
 type FTSConversionRuntime interface {
 	ConvertTextSearch(fts.ConversionKind, bool, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
+	ConvertJSONTextSearch(bool, sqltype.Value, sqltype.Value, sqltype.Value, bool, *sqltype.Descriptor) (sqltype.Value, error)
 }
 
 // FTSConversion owns checked SQL operands, never configuration or dictionary state.
 type FTSConversion struct {
 	expr.Info
-	Args     [2]expr.Expr
+	Args     [3]expr.Expr
 	Kind     fts.ConversionKind
 	Explicit bool
+	Input    sqltype.ID
+	Filtered bool
 }
 
 func bindFTSConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	var small [2]Argument
+	var small [3]Argument
 	operands := small[:0]
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
@@ -49,12 +52,32 @@ func bindFTSConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 			break
 		}
 	}
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	filtered := name == "json_to_tsvector" || name == "jsonb_to_tsvector"
 	explicit := len(operands) == 2
-	formals := []sqltype.ID{sqltype.Text}
-	if explicit {
-		formals = []sqltype.ID{sqltype.Regconfig, sqltype.Text}
+	input := sqltype.Text
+	if filtered {
+		explicit = len(operands) == 3
+		input = sqltype.JSON
+		if name == "jsonb_to_tsvector" {
+			input = sqltype.JSONB
+		}
+	} else if kind == fts.VectorConversion && len(operands) > 0 {
+		last := operands[len(operands)-1].Usage.Type
+		if last != nil && (last.BaseType().ID() == sqltype.JSON || last.BaseType().ID() == sqltype.JSONB) {
+			input = last.BaseType().ID()
+		}
 	}
-	valid := visible && (len(operands) == 1 || explicit) && len(raw.ArgNames) == 0 && !raw.Variadic
+	var formalStorage [3]sqltype.ID
+	formals := formalStorage[:0]
+	if explicit {
+		formals = append(formals, sqltype.Regconfig)
+	}
+	formals = append(formals, input)
+	if filtered {
+		formals = append(formals, sqltype.JSONB)
+	}
+	valid := visible && len(operands) == len(formals) && len(raw.ArgNames) == 0 && !raw.Variadic
 	if valid {
 		for i, arg := range operands {
 			if arg.Usage.Type != nil {
@@ -78,14 +101,14 @@ func bindFTSConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	var args [2]expr.Expr
+	var args [3]expr.Expr
 	volatility := expr.Stable
 	if explicit {
 		volatility = expr.Immutable
 	}
 	properties := expr.Properties{Volatility: volatility}
 	for i, arg := range operands {
-		args[i], err = b.CoerceArgument(arg, CoercionRequest{Intent: ConditionalArgument, Target: b.Type(formals[i]).Usage(), Label: kind.Name()})
+		args[i], err = b.CoerceArgument(arg, CoercionRequest{Intent: ConditionalArgument, Target: b.Type(formals[i]).Usage(), Label: name})
 		if err != nil {
 			return nil, err
 		}
@@ -95,18 +118,34 @@ func bindFTSConversion(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if kind == fts.VectorConversion {
 		result = sqltype.TSVector
 	}
-	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(result).Usage(), raw.Pos, properties), FTSQueryRoutineProvider, kind.Name(), formals...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(result).Usage(), raw.Pos, properties), FTSQueryRoutineProvider, name, formals...)
 	if err != nil {
 		return nil, err
 	}
-	e := FTSConversion{Info: info, Args: args, Kind: kind, Explicit: explicit}
+	e := FTSConversion{Info: info, Args: args, Kind: kind, Explicit: explicit, Input: input, Filtered: filtered}
 	return e, e.Validate()
 }
 func (e FTSConversion) arity() int {
+	n := 1
 	if e.Explicit {
-		return 2
+		n++
 	}
-	return 1
+	if e.Filtered {
+		n++
+	}
+	return n
+}
+func (e FTSConversion) inputType() sqltype.ID {
+	return e.Input
+}
+func (e FTSConversion) name() string {
+	if e.Filtered {
+		if e.inputType() == sqltype.JSONB {
+			return "jsonb_to_tsvector"
+		}
+		return "json_to_tsvector"
+	}
+	return e.Kind.Name()
 }
 func (e FTSConversion) Validate() error {
 	result := sqltype.TSQuery
@@ -116,8 +155,16 @@ func (e FTSConversion) Validate() error {
 	if !e.Kind.Valid() || e.Usage.Type == nil || e.Usage.Type.ID() != result {
 		return fmt.Errorf("invalid text search conversion result")
 	}
+	if e.inputType() != sqltype.Text && e.inputType() != sqltype.JSON && e.inputType() != sqltype.JSONB ||
+		(e.Filtered || e.inputType() != sqltype.Text) && e.Kind != fts.VectorConversion ||
+		e.Filtered && e.inputType() == sqltype.Text {
+		return fmt.Errorf("invalid text search conversion input kind")
+	}
 	for i, arg := range e.Children() {
-		id := sqltype.Text
+		id := e.inputType()
+		if e.Filtered && i == e.arity()-1 {
+			id = sqltype.JSONB
+		}
 		if e.Explicit && i == 0 {
 			id = sqltype.Regconfig
 		}
@@ -125,8 +172,10 @@ func (e FTSConversion) Validate() error {
 			return fmt.Errorf("invalid text search conversion operand")
 		}
 	}
-	if !e.Explicit && e.Args[1] != nil {
-		return fmt.Errorf("unexpected text search conversion operand")
+	for _, arg := range e.Args[e.arity():] {
+		if arg != nil {
+			return fmt.Errorf("unexpected text search conversion operand")
+		}
 	}
 	return nil
 }
@@ -139,7 +188,7 @@ func (e FTSConversion) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
-	var values [2]sqltype.Value
+	var values [3]sqltype.Value
 	for i, arg := range e.Children() {
 		v, err := arg.Eval(c)
 		if err != nil {
@@ -152,10 +201,6 @@ func (e FTSConversion) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
-	text, err := values[e.arity()-1].Text()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
 	runtime, ok := c.(FTSConversionRuntime)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: text search conversion lacks statement authority")
@@ -164,6 +209,21 @@ func (e FTSConversion) Eval(c expr.Context) (sqltype.Value, error) {
 	if e.Explicit {
 		config = values[0]
 	}
+	if e.inputType() != sqltype.Text {
+		documentIndex := 0
+		if e.Explicit {
+			documentIndex++
+		}
+		var filter sqltype.Value
+		if e.Filtered {
+			filter = values[e.arity()-1]
+		}
+		return runtime.ConvertJSONTextSearch(e.Explicit, config, values[documentIndex], filter, e.Filtered, e.Usage.Type)
+	}
+	text, err := values[e.arity()-1].Text()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
 	return runtime.ConvertTextSearch(e.Kind, e.Explicit, config, text, e.Usage.Type)
 }
 func (e FTSConversion) Children() []expr.Expr { return e.Args[:e.arity()] }
@@ -171,7 +231,7 @@ func (e FTSConversion) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr,
 	if err := checkChildren("FTSConversion", children, e.arity()); err != nil {
 		return nil, err
 	}
-	next := FTSConversion{Info: info, Kind: e.Kind, Explicit: e.Explicit}
+	next := FTSConversion{Info: info, Kind: e.Kind, Explicit: e.Explicit, Input: e.Input, Filtered: e.Filtered}
 	copy(next.Args[:], children)
 	return next, next.Validate()
 }
@@ -192,7 +252,7 @@ func (e FTSConversion) Render() (expr.Rendering, error) {
 	if err := e.Validate(); err != nil {
 		return expr.Rendering{}, err
 	}
-	spec := callRendering("text search conversion", e.Children(), e.Kind.Name(), e.Children())
+	spec := callRendering("text search conversion", e.Children(), e.name(), e.Children())
 	spec.Namespace = "pg_catalog"
 	spec.Replay.QuoteNamespace = true
 	spec.Replay.Validate = e.Validate
@@ -200,7 +260,7 @@ func (e FTSConversion) Render() (expr.Rendering, error) {
 }
 func (e FTSConversion) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(FTSConversion)
-	if !ok || e.Kind != o.Kind || e.Explicit != o.Explicit {
+	if !ok || e.Kind != o.Kind || e.Explicit != o.Explicit || e.inputType() != o.inputType() || e.Filtered != o.Filtered {
 		return false
 	}
 	for i, arg := range e.Children() {

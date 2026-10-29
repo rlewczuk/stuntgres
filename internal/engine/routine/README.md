@@ -530,6 +530,7 @@ ordinary/moving EXTRA flags against real overloads and collapsed ANY supports.
 
 ```sh
 make check RUN='^Test(BuiltinRoutine(Lookup|Costs)|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
+make check RUN='^TestFTSJSON'  # JSON conversion declarations and presentation
 make check RACE=1 RUN='^Test(OperatorClassMethodIdentity|ExclusionOperatorFamilyMembership|RoutineDrop)'
 make check RUN='^Test(Aggregate(Final|Moving)DetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
 make check RUN='^TestAggregateOrdered(FinalDeclarationVectors|CanonicalStrictDeclaration|MovingFinalDetachedDefinition|DetachedDefinition)$'

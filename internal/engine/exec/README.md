@@ -204,6 +204,9 @@ typmods; naming is captured only on failure and is never retained in result tupl
   methods forward to the host. `InputDomainChecks` scopes fresh text input:
   domain violations stay soft, CHECK execution errors carry the hard
   `sqlstate.InputError` marker. COPY and JSONB record input use it.
+  TEXT and JSON text-search conversion forward separately through `LiveHost`;
+  JSON carries typed document/filter operands so traversal and lazy configuration
+  capture remain runtime-owned rather than expression-context state.
   Snapshot inquiry forwards to the admitted host's immutable public value,
   selected together with the tuple frontier, never sampled during Eval.
   Immutable expression nodes and prepared descriptors retain no runtime owner.

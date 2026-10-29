@@ -32,6 +32,11 @@ these are shared across families:
   quoting; their held routes retain typed selector and weight operands across
   executions. Select this family with
   `make check RUN='^TestReferenceFTSVectorFunctions'`.
+- JSON text-search conversions reuse the configuration scenario and constructor
+  metadata helper. Direct, fresh-prepared and held typed operands cover filters,
+  source-preserving JSON traversal, lazy configuration demand and diagnostics;
+  exact JSONB positions use arrays or single-key objects, never a portable
+  multi-key object order. Select with `make check RUN='^TestReferenceFTSJSON'`.
 - `range_helpers_test.go`: `rangeSelect` checks the public any-scan and the
   middleware stream before normalization (a nil nullable slice asserts unknown
   nullability, a non-nil one declared nullability) and maps multirange type names

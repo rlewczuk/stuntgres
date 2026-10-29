@@ -62,7 +62,7 @@ var definitions = [...]Definition{
 	{Names: []string{"ts_parse", "ts_token_type"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSParser, NamedCall: namedFTSParser},
 	{Names: []string{"ts_debug", "ts_stat"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSInspection, NamedCall: namedFTSInspection},
 	{Names: []string{"ts_lexize"}, ExactSpelling: true, SharedGates: true, Bind: bindDictionary},
-	{Names: []string{"to_tsvector", "to_tsquery", "plainto_tsquery", "phraseto_tsquery", "websearch_to_tsquery"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSConversion},
+	{Names: []string{"to_tsvector", "json_to_tsvector", "jsonb_to_tsvector", "to_tsquery", "plainto_tsquery", "phraseto_tsquery", "websearch_to_tsquery"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSConversion},
 	{Names: []string{"box", "bound_box", "circle", "line", "lseg", "path", "point", "polygon"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
 	{Names: []string{"area", "center", "diameter", "width", "height", "diagonal", "slope", "isclosed", "isopen", "npoints", "pclose", "popen"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryMeasure},
 	{Names: []string{"line_eq"}, ExactSpelling: true, SharedGates: true, Bind: bindLineEquality},
