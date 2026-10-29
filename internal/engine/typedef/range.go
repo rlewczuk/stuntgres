@@ -239,5 +239,6 @@ func StageCreateRangeLocked(h StageHost, auth ddl.Authority, s *parser.CreateRan
 	if err = stageRangeConstructors(h, ns.Address, r, m); err != nil {
 		return err
 	}
+	ddl.RecordCommand(h.Stage(), "CREATE TYPE", ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: oid})
 	return h.Context().Err()
 }

@@ -23,6 +23,7 @@ func StageOwnedCleanup(ctx context.Context, stage OwnedCleanupStage, roles autho
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		recordOwnedACLCommands(stage, descriptor, sources)
 		if _, removed := stage.Removal(address); removed {
 			continue
 		}

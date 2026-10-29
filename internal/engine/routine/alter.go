@@ -2,6 +2,7 @@ package routine
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -65,6 +66,7 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 			return err
 		}
 		if owner == d.Owner {
+			ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
 			return nil
 		}
 		next.Owner = owner
@@ -79,6 +81,7 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 			return err
 		}
 		if ns.Address == d.Namespace() {
+			ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
 			return nil
 		}
 		view = h.AccessView(auth)
@@ -138,5 +141,6 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 	if err = h.Stage().Replace(&next); err != nil {
 		return err
 	}
+	ddl.RecordCommand(h.Stage(), "ALTER "+strings.ToUpper(s.Kind), d.Address())
 	return h.RecordDependencyPath(auth)
 }

@@ -83,6 +83,11 @@ func ExecuteAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 		}
 	}
 	if err == nil {
+		tag := "ALTER VIEW"
+		if s.Materialized {
+			tag = "ALTER MATERIALIZED VIEW"
+		}
+		scope.RecordDDLCommand(tag, ref.Address)
 		scope.CompleteUtility()
 	}
 	return core.Result{}, err

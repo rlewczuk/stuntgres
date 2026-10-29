@@ -73,12 +73,14 @@ type StageHost interface {
 // records as its query sources, and Replacement names the definition a
 // CREATE OR REPLACE TRIGGER replaces (zero otherwise).
 type RelationChange struct {
-	Skip        string
-	Ref         ids.ObjectRef
-	Next        *catalog.Relation
-	Sources     []catalog.Descriptor
-	Replacement TriggerReplacement
-	Deleted     ids.ObjectAddress // Actual payload deletion; replacement/rename never sets this fact.
+	Skip           string
+	Ref            ids.ObjectRef
+	Next           *catalog.Relation
+	Sources        []catalog.Descriptor
+	Replacement    TriggerReplacement
+	Deleted        ids.ObjectAddress // Actual payload deletion; replacement/rename never sets this fact.
+	CommandAddress ids.ObjectAddress
+	CommandTag     string
 }
 
 // TriggerReplacement authorizes local-child replacement only for the exact

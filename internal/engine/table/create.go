@@ -172,7 +172,9 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	d.Persistence = s.Persistence
 	if kind == catalog.TableRelation {
 		d.TableMethod, err = ResolveTableMethod(view.Catalog, h.DefaultTableAccessMethod())
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 	}
 	if b.Create.OfType != nil {
 		d.OfType = b.Create.OfType.Address()
@@ -281,6 +283,11 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	if err := StageLikeIndexes(h, auth, d, b.Create.Likes); err != nil {
 		return err
 	}
+	tag := "CREATE TABLE"
+	if kind == catalog.ForeignRelation {
+		tag = "CREATE FOREIGN TABLE"
+	}
+	ddl.RecordCommand(h.Stage(), tag, d.Address())
 	return StageCreateForeignKeys(h, auth, d, s, foreignTargets)
 }
 

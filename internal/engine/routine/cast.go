@@ -197,7 +197,7 @@ func StageCreateCast(h DDLHost, a ddl.Authority, s *parser.CreateCast) error {
 	if err != nil {
 		return err
 	}
-	return h.Stage().Create(d)
+	return ddl.CreateCommand(h.Stage(), "CREATE CAST", d)
 }
 func StageDropCast(h DDLHost, a ddl.Authority, s *parser.DropCast) error {
 	source, target, err := castEndpoints(h, a, s.Source, s.Target)

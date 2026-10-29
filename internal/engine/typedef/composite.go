@@ -96,5 +96,6 @@ func StageCreateCompositeLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 	if err := h.StageRowType(relation); err != nil {
 		return err
 	}
+	ddl.RecordCommand(h.Stage(), "CREATE TYPE", ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	return h.Stage().Create(relation)
 }

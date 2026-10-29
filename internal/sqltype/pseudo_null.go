@@ -1,8 +1,8 @@
 package sqltype
 
-// QueryNullUsage admits only canonical builtin pseudo identities that carry
-// typed SQL NULL in expressions. Self-ownership rejects copied descriptors;
-// this capability grants no non-NULL codec, declaration family or stored type.
+// QueryNullUsage admits canonical builtin pseudo identities carrying typed SQL
+// NULL in expressions. Self-ownership rejects copied descriptors. The separate
+// OID32 DDLCommandValue constructor is the sole non-NULL query exception.
 func (u Usage) QueryNullUsage() bool {
 	d := u.Type
 	return d != nil && d.queryNullOwner == d && d.lookupOnly &&

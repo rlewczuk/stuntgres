@@ -92,6 +92,9 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 			}
 		}
 		scope.recordDroppedProvenance(stage.DropRecords, stage.DropFlags)
+		if scope.EventCommand != nil && scope.EventCommand.CollectDDL {
+			scope.EventCommand.Commands = append(scope.EventCommand.Commands, stage.DDLCommands...)
+		}
 		stage.Lifecycle = catalogPublished
 	}
 	scope.Op.Session.Mu.Unlock()

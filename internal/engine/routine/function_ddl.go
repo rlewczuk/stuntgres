@@ -285,6 +285,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err != nil {
 		return err
 	}
+	if !s.Procedure {
+		ddl.RecordCommand(h.Stage(), "CREATE FUNCTION", d.Address())
+	}
 	err = h.BindSQLRoutine(auth, d, input)
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" && !d.SQL.Standard {

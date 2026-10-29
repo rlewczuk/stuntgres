@@ -10,6 +10,15 @@ import (
 // NUMERIC display scale, BPCHAR bytes and floating signed-zero/NaN bits.
 // Usage (including typmod/collation) belongs to the bound expression caller.
 func SameDatum(a, b Value) bool {
+	if a.typ != nil && a.typ == b.typ && a.typ.ID() == 32 && a.typ.Usage().QueryNullUsage() {
+		if !a.ValidResult(a.typ.Usage()) || !b.ValidResult(b.typ.Usage()) {
+			return false
+		}
+		if a.null || b.null {
+			return a.null == b.null
+		}
+		return a.ddlCommand.command == b.ddlCommand.command
+	}
 	if a.typ == nil || a.typ != b.typ || !a.typ.Concrete() && !a.typ.Usage().CatalogNullUsage() {
 		return false
 	}

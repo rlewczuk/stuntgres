@@ -119,7 +119,7 @@ func StageCreateConfiguration(h ConfigurationHost, auth Authority, s *parser.Cre
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Create(d)
+	return CreateCommand(h.Stage(), "CREATE TEXT SEARCH CONFIGURATION", d)
 }
 func StageAlterConfiguration(h ConfigurationHost, auth Authority, s *parser.AlterConfiguration) error {
 	raw, err := configurationLookup(h, auth, s.Name, ids.TSConfigurationClassID)
@@ -197,7 +197,7 @@ func StageAlterConfiguration(h ConfigurationHost, auth Authority, s *parser.Alte
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ReplaceCommand(h.Stage(), "ALTER TEXT SEARCH CONFIGURATION", &next)
 }
 func configurationMappings(h ConfigurationHost, auth Authority, d *catalog.TSConfiguration, s *parser.AlterConfiguration) error {
 	p := h.AccessView(auth).Catalog.MustTSParser(d.Parser)

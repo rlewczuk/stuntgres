@@ -13,10 +13,15 @@ import (
 )
 
 // ExecuteDefaultPrivileges runs ALTER DEFAULT PRIVILEGES.
-func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statement *parser.AlterDefaultPrivileges, count int) (core.Result, error) {
+func ExecuteDefaultPrivileges(e *core.Engine, scope *core.StatementScope, statement *parser.AlterDefaultPrivileges, count int) (outcome core.Result, failure error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	defer func() {
+		if failure == nil {
+			scope.RecordDDLPrivileges("ALTER DEFAULT PRIVILEGES", statement.Class)
+		}
+	}()
 	var scratch [8]defaultPrivilegeClaim
 	claims := scratch[:0]
 	e.Mu.Lock()

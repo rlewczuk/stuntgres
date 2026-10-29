@@ -154,6 +154,17 @@ func (p *RulePlan) Finish(h Host, auth ddl.Authority) (RelationChange, error) {
 	change := RelationChange{Ref: p.ref, Next: &p.next, Sources: p.sources}
 	if _, drop := p.stmt.(*parser.DropRule); drop {
 		change.Deleted = ids.ObjectAddress{ClassID: 2618, ObjectID: stored.RulesOf(p.old)[p.index].OID}
+	} else if _, create := p.stmt.(*parser.CreateRule); create {
+		change.CommandAddress = ids.ObjectAddress{ClassID: 2618, ObjectID: p.parts.OID}
+		if p.parts.Event == "" {
+			// ON SELECT replaces the view's real _RETURN rule rather than
+			// constructing an ordinary rule payload.
+			change.CommandAddress.ObjectID = stored.ViewOf(&p.next).RuleOID()
+		}
+		change.CommandTag = "CREATE RULE"
+	} else {
+		change.CommandAddress = ids.ObjectAddress{ClassID: 2618, ObjectID: stored.RulesOf(p.old)[p.index].OID}
+		change.CommandTag = "ALTER RULE"
 	}
 	return change, nil
 }

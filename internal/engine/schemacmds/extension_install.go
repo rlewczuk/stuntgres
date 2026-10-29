@@ -42,6 +42,11 @@ func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *co
 			changes.Originals[a] = stage.Base.Get(a)
 		}
 		if _, extension := d.(*catalog.Extension); extension {
+			tag := "CREATE EXTENSION"
+			if _, exists := stage.Base.Extension(a); exists {
+				tag = "ALTER EXTENSION"
+			}
+			scope.RecordDDLCommand(tag, a)
 			if old, exists := stage.Base.Extension(a); exists {
 				for _, member := range old.Members {
 					if _, captured := changes.Originals[member]; !captured {

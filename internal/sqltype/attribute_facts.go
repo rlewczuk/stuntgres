@@ -121,6 +121,9 @@ func (v Value) ValidResult(u Usage) bool {
 	if v.typ == u.Type && u.CatalogNullUsage() {
 		return v.validStatisticResult()
 	}
+	if v.typ == u.Type && u.QueryNullUsage() && v.typ.ID() == 32 && v.ddlCommand != nil && !v.null {
+		return true
+	}
 	if v.typ == u.Type && v.null && u.QueryNullUsage() {
 		return true
 	}

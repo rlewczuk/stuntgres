@@ -61,5 +61,5 @@ func StageAlterStatisticsTarget(h StatisticsHost, auth Authority, s *parser.Alte
 		return err
 	}
 	_ = h.RecordDependencyPath(auth)
-	return h.Stage().Replace(&next)
+	return ReplaceCommand(h.Stage(), "ALTER STATISTICS", &next)
 }

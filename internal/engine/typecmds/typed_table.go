@@ -55,6 +55,7 @@ func AlterTableOfLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
+		scope.RecordDDLCommand("ALTER TABLE", next.Address())
 		scope.CompleteUtility()
 	}
 	return core.Result{}, err

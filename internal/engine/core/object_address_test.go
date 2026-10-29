@@ -25,13 +25,13 @@ func TestObjectAddressAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	for address, descriptor := range view.Descriptors() {
-		identity, err := regobj.IdentifyAddress(view, roles, nil, address)
+		identity, err := regobj.IdentifyAddress(view, roles, nil, address, ids.SessionToken{})
 		if err != nil || !identity.Found || identity.Identity == "" || identity.Kind == "" {
 			t.Fatal("descriptor authority", address, descriptor.Name(), identity, err)
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
 			for _, sub := range relation.Attributes {
-				column, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{1259, address.ObjectID, sub})
+				column, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{1259, address.ObjectID, sub}, ids.SessionToken{})
 				if err != nil || !column.Found || len(column.Names) != 3 {
 					t.Fatal("column authority", address, sub, column, err)
 				}
@@ -43,14 +43,14 @@ func TestObjectAddressAuthority(t *testing.T) {
 		t.Fatal("released routine count", len(released))
 	}
 	for _, routine := range released {
-		identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.ID, 0})
+		identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{1255, routine.ID, 0}, ids.SessionToken{})
 		if err != nil || !identity.Found || len(identity.Names) != 2 || identity.Names[1] != routine.Name {
 			t.Fatal("lookup-only routine authority", routine, identity, err)
 		}
 	}
 	for i := range sqltype.CastMetadataCount() {
 		fact, _ := sqltype.CastMetadataAt(i)
-		identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{2605, ids.OID(fact.OID), 0})
+		identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{2605, ids.OID(fact.OID), 0}, ids.SessionToken{})
 		if err != nil || !identity.Found || len(identity.Names) != 1 || len(identity.Args) != 1 {
 			t.Fatal("cast owner", fact, identity, err)
 		}
@@ -58,7 +58,7 @@ func TestObjectAddressAuthority(t *testing.T) {
 	for i := range sqltype.IndexClassMetadataCount() {
 		fact, _ := sqltype.IndexClassMetadataAt(i)
 		for _, a := range []ids.ObjectAddress{{2616, ids.OID(fact.OID), 0}, {2753, ids.OID(fact.Family), 0}} {
-			identity, err := regobj.IdentifyAddress(view, roles, nil, a)
+			identity, err := regobj.IdentifyAddress(view, roles, nil, a, ids.SessionToken{})
 			if err != nil || !identity.Found || len(identity.Names) != 3 {
 				t.Fatal("index owner", fact, a, identity, err)
 			}
@@ -84,7 +84,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 		sub  int32
 		name string
 	}{{1, "a"}, {3, "c"}, {2, "........pg.dropped.2........"}, {65538, "........pg.dropped.2........"}, {2147483647, "ctid"}, {-6, "tableoid"}} {
-		identity, err := regobj.IdentifyAddress(view, roles, []ids.ObjectAddress{d.Namespace()}, ids.ObjectAddress{1259, d.Address().ObjectID, tc.sub})
+		identity, err := regobj.IdentifyAddress(view, roles, []ids.ObjectAddress{d.Namespace()}, ids.ObjectAddress{1259, d.Address().ObjectID, tc.sub}, ids.SessionToken{})
 		if err != nil || !identity.Found || identity.Names[2] != tc.name || identity.Name != "address_unit" {
 			t.Fatal(tc, identity, err)
 		}
@@ -104,7 +104,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 		name      string
 	}{{2606, 48010, "nn"}, {2606, 48011, "ck"}, {2606, 48012, "uk"}, {2606, 48013, "pk"}, {2606, 48014, "fk"}, {2606, 48015, "ex"}, {2604, 48016, "a"}, {2604, 48017, "c"}, {2618, 48018, "rule_unit"}, {3256, 48019, "policy_unit"}, {2618, 48022, "_RETURN"}} {
 		a := ids.ObjectAddress{tc.class, tc.id, 0}
-		identity, err := regobj.IdentifyAddress(view, roles, nil, a)
+		identity, err := regobj.IdentifyAddress(view, roles, nil, a, ids.SessionToken{})
 		if err != nil || !identity.Found || identity.Names[2] != tc.name || regobj.OwnedAddressByName(d, tc.class, tc.name) != tc.id {
 			t.Fatal("owned definition roundtrip", tc, identity, err)
 		}
@@ -117,7 +117,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	}
 	typ := &catalog.Type{SQLType: domain, ObjectNamespace: d.Namespace(), DomainChecks: []catalog.DomainCheckConstraint{{OID: 48021, Name: "domain_ck"}}}
 	view.State().SetDescriptor(typ.Address(), typ)
-	identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0})
+	identity, err := regobj.IdentifyAddress(view, roles, nil, ids.ObjectAddress{2606, 48021, 0}, ids.SessionToken{})
 	if err != nil || !identity.Found || identity.Kind != "domain constraint" || !reflect.DeepEqual(identity.Args, []string{"domain_ck"}) {
 		t.Fatal(identity, err)
 	}
@@ -200,15 +200,15 @@ func TestObjectAddressSnapshot(t *testing.T) {
 	renamed := *d
 	renamed.ObjectName = "address_renamed"
 	fresh.State().SetDescriptor(d.Address(), &renamed)
-	before, err := regobj.IdentifyAddress(old, roles, nil, d.Address())
+	before, err := regobj.IdentifyAddress(old, roles, nil, d.Address(), ids.SessionToken{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := regobj.IdentifyAddress(fresh, roles, nil, d.Address())
+	after, err := regobj.IdentifyAddress(fresh, roles, nil, d.Address(), ids.SessionToken{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	again, err := regobj.IdentifyAddress(old, roles, nil, d.Address())
+	again, err := regobj.IdentifyAddress(old, roles, nil, d.Address(), ids.SessionToken{})
 	if err != nil || before.Identity != "public.address_unit" || after.Identity != "public.address_renamed" || !reflect.DeepEqual(before, again) {
 		t.Fatal("immutable snapshot identity", before, after, again, err)
 	}

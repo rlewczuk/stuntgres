@@ -161,6 +161,7 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				return core.Result{}, err
 			}
 		}
+		scope.RecordDDLCommand("CREATE SEQUENCE", d.Address())
 		return core.Result{}, nil
 	case *parser.AlterSequence:
 		e.Mu.Lock()
@@ -217,7 +218,11 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				return core.Result{}, err
 			}
 			if ownerTarget == old.Owner {
-				return core.Result{}, op.Context().Err()
+				if err = op.Context().Err(); err != nil {
+					return core.Result{}, err
+				}
+				scope.RecordDDLCommand("ALTER SEQUENCE", old.Address())
+				return core.Result{}, nil
 			}
 		}
 		changes := scope.PendingCatalog().Clone()
@@ -333,6 +338,7 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 		}
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
 		scope.Catalog = changes
+		scope.RecordDDLCommand("ALTER SEQUENCE", d.Address())
 		return core.Result{}, nil
 	case *parser.DropSequence:
 		return dropSequences(e, scope, s)

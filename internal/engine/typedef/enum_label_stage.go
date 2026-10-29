@@ -82,5 +82,6 @@ func StageAlterEnumLabelLocked(h StageHost, old *catalog.Type, alter *parser.Alt
 	if err := h.Stage().Replace(&next); err != nil {
 		return EnumLabelEdit{}, err
 	}
+	ddl.RecordCommand(h.Stage(), "ALTER TYPE", next.Address())
 	return edit, nil
 }

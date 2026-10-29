@@ -93,6 +93,7 @@ type Host interface {
 	LookupObjectAddress(c *Context, values [3]sqltype.Value) (ids.ObjectAddress, error)
 	// functions.EventTriggerDroppedRuntime
 	EventTriggerDroppedObjects() ([][]sqltype.Value, error)
+	EventTriggerDDLCommands() ([][]sqltype.Value, error)
 	VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.SessionInquiryRuntime
 	CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error)

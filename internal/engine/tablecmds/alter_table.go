@@ -22,7 +22,7 @@ import (
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds core.Engine.mu. Every return releases it before callbacks/scanning.
-func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int, physicalWork *[]AlterTablePhysical) (core.Result, error) {
+func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int, physicalWork *[]AlterTablePhysical) (outcome core.Result, failure error) {
 	scope.RoutineAuth = auth
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -42,6 +42,21 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
+	recordParent := false
+	if scope.Inheritance.Alter == nil {
+		defer func() {
+			if failure == nil && recordParent {
+				tag := "ALTER TABLE"
+				if s.Materialized {
+					tag = "ALTER MATERIALIZED VIEW"
+				}
+				scope.RecordDDLCommand(tag, ref.Address)
+				if command := scope.EventCommand; command != nil && command.CollectDDL {
+					command.Commands[len(command.Commands)-1].AlterActions = uint32(len(s.Actions))
+				}
+			}
+		}()
+	}
 	if s.Materialized && old.RelationKind != catalog.MaterializedViewRelation {
 		return fail(core.SQLError("42809", fmt.Sprintf(`"%s" is not a materialized view`, old.Name())))
 	}
@@ -52,12 +67,15 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		s = table.OnlySetNotNull(auth.Catalog, old, s)
 	}
 	if core.PartitionUniqueReplayAllowed(op, auth, s, old) {
+		recordParent = true
 		return executePartitionUniqueReplayLocked(e, scope, op, auth, s, old)
 	}
 	if catalog.HierarchyRelation(old) && partition.ExclusionAddActions(s) {
+		recordParent = true
 		return executePartitionExclusionAddLocked(e, scope, op, auth, s, old)
 	}
 	if catalog.HierarchyRelation(old) && index.PartitionConstraintDropActions(old, s.Actions) {
+		recordParent = true
 		return executePartitionConstraintDropLocked(e, scope, auth, old, s)
 	}
 	if len(s.Actions) == 0 {
@@ -107,6 +125,7 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		e.Mu.Unlock()
 		return core.Result{}, nil
 	}
+	recordParent = true
 	if len(work) != len(s.Actions) {
 		command := *s
 		command.Actions = work
@@ -632,7 +651,9 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			if err == nil {
 				err = stageColumnStorageIndexes(stage, next, slot, action.Action)
 			}
-			if err != nil { return core.Result{}, err }
+			if err != nil {
+				return core.Result{}, err
+			}
 			inheritancePlan(scope).RecordAction(before, next, action)
 			continue
 		}

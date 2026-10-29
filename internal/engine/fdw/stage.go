@@ -214,6 +214,11 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 			return nil, nil, er
 		}
 		if successor == old.Owner {
+			tag := "ALTER SERVER"
+			if class == ids.ForeignWrapperClassID {
+				tag = "ALTER FOREIGN DATA WRAPPER"
+			}
+			ddl.RecordCommand(h.Stage(), tag, old.Address())
 			return nil, nil, nil
 		}
 		next.ACL = authorization.SchemaACLOwner(next.ACL, next.Owner, successor)
@@ -239,6 +244,19 @@ func stageDefinition(h Host, auth ddl.Authority, s *parser.ForeignDDL, target st
 	if err != nil {
 		return nil, nil, err
 	}
+	tag := "CREATE "
+	if old != nil {
+		tag = "ALTER "
+	}
+	switch class {
+	case ids.ForeignWrapperClassID:
+		tag += "FOREIGN DATA WRAPPER"
+	case ids.ForeignServerClassID:
+		tag += "SERVER"
+	case ids.ForeignMappingClassID:
+		tag += "USER MAPPING"
+	}
+	ddl.RecordCommand(h.Stage(), tag, next.Address())
 	if s.Action == "alter" && class == ids.ForeignWrapperClassID {
 		if handlerSet {
 			h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper handler can change behavior of existing foreign tables"})

@@ -16,7 +16,7 @@ import (
 
 // Engine.mu and the owner-authorized AX grant are held on entry. Every
 // return releases Engine.mu; relabeling never copies or scans row storage.
-func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (core.Result, error) {
+func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (outcome core.Result, failure error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -35,6 +35,29 @@ func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *sessio
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
+	defer func() {
+		if failure != nil || scope.EventCommand == nil || !scope.EventCommand.CollectDDL {
+			return
+		}
+		tag := "ALTER TABLE"
+		switch old.RelationKind {
+		case catalog.IndexRelation:
+			tag = "ALTER INDEX"
+		case catalog.SequenceRelation:
+			tag = "ALTER SEQUENCE"
+		case catalog.ViewRelation:
+			tag = "ALTER VIEW"
+		case catalog.MaterializedViewRelation:
+			tag = "ALTER MATERIALIZED VIEW"
+		case catalog.ForeignRelation:
+			tag = "ALTER FOREIGN TABLE"
+		}
+		address := ref.Address
+		if columnRename {
+			address.SubID = old.Attributes[old.Index[column]]
+		}
+		scope.RecordDDLCommand(tag, address)
+	}()
 	if columnRename && old.RelationKind == catalog.IndexRelation && !allowIndexColumn {
 		return fail(analyze.TableKindError(old, "rename"))
 	}

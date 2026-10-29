@@ -144,7 +144,7 @@ func StageCreateParser(h ParserHost, auth Authority, s *parser.CreateParser) err
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Create(d)
+	return CreateCommand(h.Stage(), "CREATE TEXT SEARCH PARSER", d)
 }
 
 func StageAlterParser(h ParserHost, auth Authority, s *parser.AlterParser) error {
@@ -197,7 +197,7 @@ func StageAlterParser(h ParserHost, auth Authority, s *parser.AlterParser) error
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ReplaceCommand(h.Stage(), "ALTER TEXT SEARCH PARSER", &next)
 }
 
 func StageDropParser(h ConfigurationHost, auth Authority, s *parser.DropParser) error {

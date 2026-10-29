@@ -123,11 +123,11 @@ func TestDroppedIdentityProjection(t *testing.T) {
 			}
 			for _, tc := range cases {
 				t.Run(tc.label, func(t *testing.T) {
-					before, err := IdentifyAddress(view, authorization.Read{}, path, tc.a)
+					before, err := IdentifyAddress(view, authorization.Read{}, path, tc.a, ns.Temporary)
 					if err != nil {
 						t.Fatal(err)
 					}
-					got, err := DroppedAddress(view, authorization.Read{}, path, tc.a)
+					got, err := DroppedAddress(view, authorization.Read{}, path, tc.a, ns.Temporary)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -139,17 +139,17 @@ func TestDroppedIdentityProjection(t *testing.T) {
 					if !got.Found || got.Address != tc.a || got.Original || got.Normal || got.Temporary != wantTemporary || got.Kind != tc.kind || got.Identity != tc.identity || got.Schema != wantSchema || got.Name != tc.name || got.HasSchema != tc.hasSchema || got.HasName != tc.hasName || !reflect.DeepEqual(got.Names, tc.names) || got.Args == nil || !reflect.DeepEqual(got.Args, append([]string{}, tc.args...)) {
 						t.Fatalf("DroppedAddress = %+v; want kind=%q identity=%q schema=%q name=%q presence=%v/%v names=%q args=%q temporary=%v", got, tc.kind, tc.identity, wantSchema, tc.name, tc.hasSchema, tc.hasName, tc.names, tc.args, wantTemporary)
 					}
-					after, err := IdentifyAddress(view, authorization.Read{}, path, tc.a)
+					after, err := IdentifyAddress(view, authorization.Read{}, path, tc.a, ns.Temporary)
 					if err != nil || !reflect.DeepEqual(before, after) {
 						t.Fatalf("inquiry changed: before=%+v after=%+v err=%v", before, after, err)
 					}
 				})
 			}
-			inquiry, err := IdentifyAddress(view, authorization.Read{}, path, relation.Address())
+			inquiry, err := IdentifyAddress(view, authorization.Read{}, path, relation.Address(), ns.Temporary)
 			if err != nil || inquiry.Schema != catalog.Identifier(ns.Name()) || inquiry.Name != `"T q"` {
 				t.Fatalf("inquiry raw/quoted separation = %+v, %v", inquiry, err)
 			}
-			captured, err := DroppedAddress(view, authorization.Read{}, path, relation.Address())
+			captured, err := DroppedAddress(view, authorization.Read{}, path, relation.Address(), ns.Temporary)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -158,15 +158,15 @@ func TestDroppedIdentityProjection(t *testing.T) {
 			if captured.Identity != owner || !reflect.DeepEqual(captured.Names, []string{schema, "T q"}) || captured.Name != "T q" {
 				t.Fatalf("captured identity changed after removal: %+v", captured)
 			}
-			missing, err := DroppedAddress(view, authorization.Read{}, path, relation.Address())
+			missing, err := DroppedAddress(view, authorization.Read{}, path, relation.Address(), ns.Temporary)
 			if err != nil || !reflect.DeepEqual(missing, catalog.DroppedObject{}) {
 				t.Fatalf("missing = %+v, %v; want zero record", missing, err)
 			}
-			missing, err = DroppedAddress(view, authorization.Read{}, path, address(2604, 99999))
+			missing, err = DroppedAddress(view, authorization.Read{}, path, address(2604, 99999), ns.Temporary)
 			if err != nil || !reflect.DeepEqual(missing, catalog.DroppedObject{}) {
 				t.Fatalf("missing owned address = %+v, %v", missing, err)
 			}
-			if _, err := DroppedAddress(view, authorization.Read{}, path, address(99999, 1)); err == nil {
+			if _, err := DroppedAddress(view, authorization.Read{}, path, address(99999, 1), ns.Temporary); err == nil {
 				t.Fatal("unsupported class did not retain inquiry error")
 			}
 		})
@@ -210,7 +210,7 @@ func TestDroppedIdentityCast(t *testing.T) {
 			Kind: "cast", Identity: identity, Description: description,
 			Names: []string{source}, Args: []string{target}, Found: true,
 		}
-		inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a)
+		inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a, ids.SessionToken{})
 		if err != nil || !reflect.DeepEqual(inquiry, wantInquiry) {
 			t.Fatalf("IdentifyAddress = %+v, %v; want %+v", inquiry, err, wantInquiry)
 		}
@@ -218,7 +218,7 @@ func TestDroppedIdentityCast(t *testing.T) {
 			Address: a, Kind: "cast", Identity: identity,
 			Names: []string{source}, Args: []string{target}, Found: true,
 		}
-		dropped, err := DroppedAddress(view, authorization.Read{}, path, a)
+		dropped, err := DroppedAddress(view, authorization.Read{}, path, a, ids.SessionToken{})
 		if err != nil || !reflect.DeepEqual(dropped, wantDropped) {
 			t.Fatalf("DroppedAddress = %+v, %v; want %+v", dropped, err, wantDropped)
 		}
@@ -226,11 +226,11 @@ func TestDroppedIdentityCast(t *testing.T) {
 	}
 	checkMissing := func(t *testing.T, view catalog.Read, a ids.ObjectAddress) {
 		t.Helper()
-		inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a)
+		inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a, ids.SessionToken{})
 		if err != nil || !reflect.DeepEqual(inquiry, ObjectIdentity{Kind: "cast"}) {
 			t.Fatalf("missing IdentifyAddress = %+v, %v", inquiry, err)
 		}
-		dropped, err := DroppedAddress(view, authorization.Read{}, path, a)
+		dropped, err := DroppedAddress(view, authorization.Read{}, path, a, ids.SessionToken{})
 		if err != nil || !reflect.DeepEqual(dropped, catalog.DroppedObject{}) {
 			t.Fatalf("missing DroppedAddress = %+v, %v", dropped, err)
 		}
@@ -275,4 +275,77 @@ func TestDroppedIdentityCast(t *testing.T) {
 			t.Fatalf("retained results changed: inquiry=%+v dropped=%+v", inquiry, dropped)
 		}
 	})
+}
+
+func TestObjectIdentityTemporarySessionOwnership(t *testing.T) {
+	state := catalog.NewState(0)
+	address := func(class, oid ids.OID) ids.ObjectAddress {
+		return ids.ObjectAddress{ClassID: class, ObjectID: oid}
+	}
+	put := func(d catalog.Descriptor) { state.SetDescriptor(d.Address(), d) }
+	domain := new(ids.Domain)
+	owner, peer := domain.Session(1), domain.Session(2)
+	ns := &catalog.Namespace{ObjectAddress: address(2615, 29001), ObjectName: "pg_temp_123", Temporary: owner}
+	toast := &catalog.Namespace{ObjectAddress: address(2615, 29002), ObjectName: "pg_toast_temp_123", Temporary: owner, TemporaryToast: true}
+	put(ns)
+	put(toast)
+	for _, typ := range sqltype.Builtins() {
+		put(&catalog.Type{SQLType: typ})
+	}
+	row, err := sqltype.Composite(29004, "T q", `pg_temp_123."T q"`, 29005, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, err := sqltype.Array(29005, "_T q", row)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relation := &catalog.Relation{
+		ObjectAddress: address(1259, 29003), ObjectNamespace: ns.Address(), ObjectName: "T q",
+		Columns: []catalog.Column{{Name: "c!", Usage: row.Usage()}}, Attributes: []int32{3},
+		Triggers: droppedIdentityTriggers{{OID: 29006, Name: "tr!"}},
+	}
+	put(relation)
+	put(&catalog.Type{SQLType: row, ObjectNamespace: ns.Address(), OwningRelation: relation.Address(), Array: 29005})
+	put(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address()})
+	routine := &catalog.Procedure{ObjectAddress: address(1255, 29007), ObjectNamespace: ns.Address(), ObjectName: "fn!", Signature: "23"}
+	operator := &catalog.Operator{ObjectAddress: address(2617, 29008), ObjectNamespace: ns.Address(), ObjectName: "===", Left: 23, Right: 23}
+	put(routine)
+	put(operator)
+	view := catalog.NewRead(nil, state)
+	for _, tc := range []struct {
+		name   string
+		token  ids.SessionToken
+		schema string
+	}{{"owner", owner, "pg_temp"}, {"peer", peer, ns.Name()}, {"detached", ids.SessionToken{}, ns.Name()}} {
+		t.Run(tc.name, func(t *testing.T) {
+			qualified := catalog.Identifier(tc.schema)
+			for _, object := range []struct {
+				address          ids.ObjectAddress
+				schema, identity string
+			}{
+				{relation.Address(), tc.schema, qualified + `."T q"`},
+				{ids.ObjectAddress{ClassID: 1259, ObjectID: relation.Address().ObjectID, SubID: 3}, tc.schema, qualified + `."T q"."c!"`},
+				{address(1247, 29004), tc.schema, qualified + `."T q"`},
+				{address(1247, 29005), tc.schema, qualified + `."T q"[]`},
+				{address(2620, 29006), "", `"tr!" on ` + qualified + `."T q"`},
+				{ns.Address(), "", qualified},
+				{toast.Address(), "", toast.Name()},
+				{routine.Address(), tc.schema, `pg_temp_123."fn!"(integer)`},
+				{operator.Address(), tc.schema, `pg_temp_123.===(integer,integer)`},
+			} {
+				got, err := IdentifyAddress(view, authorization.Read{}, nil, object.address, tc.token)
+				if err != nil || !got.Found || got.RawSchema != object.schema || got.Identity != object.identity {
+					t.Fatalf("address %v: got %+v, %v; want schema=%q identity=%q", object.address, got, err, object.schema, object.identity)
+				}
+			}
+			dropped, err := DroppedAddress(view, authorization.Read{}, nil, relation.Address(), tc.token)
+			if err != nil || dropped.Schema != tc.schema || dropped.Temporary != (tc.token == owner) || dropped.Identity != qualified+`."T q"` {
+				t.Fatalf("dropped ownership: %+v, %v", dropped, err)
+			}
+		})
+	}
+	if ns.Name() != "pg_temp_123" || toast.Name() != "pg_toast_temp_123" {
+		t.Fatal("identity rendering mutated catalog namespace descriptors")
+	}
 }

@@ -61,5 +61,6 @@ func ExecuteSequenceComment(e *core.Engine, scope *core.StatementScope, s *parse
 	e.CatalogChangeLocked(changes, ref.Address, &next)
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
 	scope.Catalog = changes
+	scope.RecordDDLCommand("COMMENT", ref.Address)
 	return core.Result{}, nil
 }

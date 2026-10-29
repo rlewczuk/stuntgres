@@ -91,6 +91,7 @@ var definitions = [...]Definition{
 	{Names: controlDataNames[:], ExactSpelling: true, Bind: bindControlData},
 	{Names: runtimeInfoNames[:], ExactSpelling: true, Bind: bindRuntimeInfo},
 	{Names: []string{"pg_event_trigger_dropped_objects"}, ExactSpelling: true, Bind: bindEventTriggerDroppedObjects},
+	{Names: []string{"pg_event_trigger_ddl_commands"}, ExactSpelling: true, Bind: bindEventTriggerDDLCommands},
 	{Names: []string{"pg_partition_tree", "pg_partition_ancestors", "pg_partition_root"}, Bind: bindPartitionInfo, NamedCall: namedPartitionInfo},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall, ResultCall: jsonRecordCallResult, NamedCall: namedJSONCall},

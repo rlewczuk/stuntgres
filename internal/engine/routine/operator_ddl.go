@@ -199,9 +199,9 @@ func StageCreateOperator(h DDLHost, auth ddl.Authority, s *parser.CreateOperator
 		return sqlError("42P13", "operator cannot be its own negator")
 	}
 	if old == nil {
-		err = h.Stage().Create(&next)
+		err = ddl.CreateCommand(h.Stage(), "CREATE OPERATOR", &next)
 	} else {
-		err = h.Stage().Replace(&next)
+		err = ddl.ReplaceCommand(h.Stage(), "CREATE OPERATOR", &next)
 	}
 	if err != nil {
 		return err
@@ -259,6 +259,7 @@ func StageAlterOperator(h DDLHost, auth ddl.Authority, s *parser.AlterOperator) 
 			return err
 		}
 		if target == d.Owner {
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER OPERATOR", d.Address())
 			return nil
 		}
 		if err = access.OwnershipEligibility(view, auth, target, d.Namespace()); err != nil {
@@ -313,7 +314,7 @@ func StageAlterOperator(h DDLHost, auth ddl.Authority, s *parser.AlterOperator) 
 	if err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER OPERATOR", &next)
 }
 
 // StageDropOperator records the DROP OPERATOR targets and the dependency path

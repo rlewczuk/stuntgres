@@ -42,6 +42,24 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   implicit relation (index, owned sequence, LIKE index): table and column
   clipped to 63 bytes on rune boundaries, then the label with the first free
   numeric suffix.
+- **Command annotations** (`command.go`): `CreateCommand` and `ReplaceCommand`
+  record the explicitly selected base command only after the checked stage
+  mutation succeeds. `RecordCommand` attaches an actual returned object address
+  independently of descriptor changes; companion arrays, row types, recursive
+  descendants and payload rewrites keep ordinary stage mutations unless they
+  execute a separate base command. An optional stage collector keeps pure
+  catalog hosts independent of lexical event state. Core admits staged receipts
+  with the ordinary successful publication/overlay transfer, preserving repeated
+  addresses rather than deriving or deduplicating commands from catalog diffs.
+  `AdmitNoopCommand` is only for a successful, resolved command whose owner
+  returns without a publishable stage, including unchanged ownership/schema and
+  unchanged collation version refresh. It records directly in that owner's
+  collector without replacing a descriptor or allocating a revision. The command
+  owner preserves its authorization, error and notice ordering before admission.
+  Skipped creation, invalid returned addresses and failures must not use it.
+  Conversely a no-mutation result is not itself a reason to omit a valid receipt.
+  Callers own command-specific grouping, tags and subobject addresses; these
+  helpers neither resolve targets nor grant publication or callback authority.
 - **`SchemaHost`**: `Host` plus what CREATE and DROP SCHEMA need:
   `StageSchemaTable` (one `CREATE TABLE` element, analyzed as the schema owner
   with the new namespace first in the path, on the host's own copy of the

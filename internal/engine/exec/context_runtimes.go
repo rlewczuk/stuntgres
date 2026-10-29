@@ -521,6 +521,17 @@ func (c *Context) EventTriggerDroppedObjects() ([][]sqltype.Value, error) {
 	return host.EventTriggerDroppedObjects()
 }
 
+func (c *Context) EventTriggerDDLCommands() ([][]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return nil, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return nil, functions.EventTriggerDDLCommandsContextError()
+	}
+	return host.EventTriggerDDLCommands()
+}
+
 func (c *Context) DescribeObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
 	if host == nil {

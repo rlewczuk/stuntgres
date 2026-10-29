@@ -137,7 +137,7 @@ func StageCreateDomainLocked(h StageHost, auth ddl.Authority, s *parser.CreateDo
 	if err := h.BindDomainConstraints(auth, domain, s.Constraints, input); err != nil {
 		return err
 	}
-	if err = h.Stage().Create(domain); err != nil {
+	if err = ddl.CreateCommand(h.Stage(), "CREATE DOMAIN", domain); err != nil {
 		return err
 	}
 	return h.Stage().Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: authorization.DefaultBaseline(view.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})

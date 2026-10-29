@@ -149,5 +149,26 @@ func PlanPolicy(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.Ob
 	if drop {
 		change.Deleted = ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: old.Security.Policies[index].OID}
 	}
+	if !drop {
+		address := old.Security.Policies
+		lookupName := name
+		if create {
+			address = next.Security.Policies
+		}
+		if alter && stmt.(*parser.AlterPolicy).Rename != nil {
+			lookupName = stmt.(*parser.AlterPolicy).Rename.Text
+			address = next.Security.Policies
+		}
+		for _, policy := range address {
+			if policy.Name == lookupName {
+				change.CommandAddress = ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
+				break
+			}
+		}
+		change.CommandTag = "ALTER POLICY"
+		if create {
+			change.CommandTag = "CREATE POLICY"
+		}
+	}
 	return change, nil
 }

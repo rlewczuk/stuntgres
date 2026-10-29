@@ -1,5 +1,23 @@
 # Changes
 
+- Add event-trigger DDL-command inspection with typed nine-column command
+  records, canonical object identities, opaque non-NULL query command values,
+  lexical nested/exception ownership and persistent serializable audit data.
+  Receipts follow actual base commands, including generated LIKE indexes,
+  unchanged enum-label admission and real column/rule addresses; ALTER TABLE
+  backing indexes remain grouped under their parent command. Successful unchanged
+  sequence/collation/conversion/operator ownership, collation/conversion/template
+  schema and collation-version refresh retain real receipts without forcing
+  catalog mutations, while preserving the refresh notice.
+  Query-table destinations retain ordinary source-function row effects through
+  atomic statement Finish even when enabled event-trigger inventory is unmatched;
+  collection scratch alone still does not force a callback journal.
+  Temporary namespace identities use the executing backend's own non-toast
+  namespace, preserving physical peer names for supported metadata operations.
+  User-mapping identities resolve genuine role/server descriptors, including
+  PUBLIC mappings, instead of exposing internal storage keys.
+  Bundled extension staging does not fabricate external SQL-script commands.
+
 - Add the PostgreSQL 18 six-column read-only `pg_stat_progress_basebackup`
   catalog view and released definition display. Its validated producer is
   genuinely empty: no physical backup workers or native logical Dump progress

@@ -603,10 +603,16 @@ shares that journal and the write stage, but owns fresh lexical command scratch.
 
 Each selection captures operation-effective replication role under `Engine.Mu`
 (then the settings mutex), filtering immutable O/D/R/A definitions by event and
-TAG. No match leaves ordinary Completed utility ownership untouched, without
-command scratch or a callback journal. Each matching phase recaptures current
-authority and invokes checked functions in name order unlocked. Prepared handles
-retain neither callback lists nor function bodies nor a cached replica bit.
+TAG. With neither matching callbacks nor enabled end/drop/rewrite inventory,
+ordinary Completed utility ownership remains untouched, without command scratch
+or a callback journal. Enabled unmatched inventory installs collection scratch
+only. If a query-table source function stages actual row writes or deletions,
+the destination joins the existing catalog overlay and those effects publish
+together at ordinary `Finish`, just as for a writable CTE. Collector scratch
+alone does not delay ordinary utility publication or allocate that journal.
+Each matching phase recaptures current authority and invokes checked functions
+in name order unlocked. Prepared handles retain neither callback lists nor
+function bodies nor a cached replica bit.
 Exact command drop capture uses the same effective role/TAG gate; catalog-only
 capture remains a conservative session-independent O/R/A superset. Exception
 checkpoints restore command-local drop facts alongside catalog, row and effect
@@ -648,11 +654,16 @@ the existing physical source proof; descriptor, provider and epoch fences remain
 `ActiveScopeOfLease` alone supplies unfinished statement authority; a retained
 finished lease remains useful for accounting, not private catalog or role lookup.
 
-`EventCommand` holds lexical tag, phase and immutable pre-deletion records, not
-publication authority. `BeginEventCommand`, `RecordDroppedObjects` and
-`FinishEventCommand` pair entry with exact enclosing-command restoration.
-Successful catalog transfer admits captured removal/projection effects; full
-addresses deduplicate independently merged ORIGINAL/NORMAL reachability.
+`EventCommand` owns lexical tag/phase, deduplicated immutable pre-deletion
+records and a separate append-only base-DDL inventory, never publication
+authority. Enabled end/drop/rewrite inventory installs collection independently
+of TAG matching. Unmatched inventory needs scratch but no callback journal;
+matching callbacks retain the existing atomic Finish owner. Explicit successful
+producer annotations transfer with admitted catalog stages, not descriptor diffs.
+Repeated base commands on one address remain distinct. Generated utility
+commands borrow collection; complete nested commands isolate it and restore the
+exact enclosing pointer. Raw namespaces and identities resolve against the
+executing private catalog, and deleted known targets are omitted.
 Explicit ALTER payload capture uses the owner's immutable pre-step catalog,
 roles and path, never the lazily initialized query inquiry. Stage capture keeps
 its authorized role snapshot even when a statement inquiry also exists.
@@ -663,11 +674,12 @@ success. Both partition constraint and index commands initialize that path
 before unlocked retirement; ordinary descriptor replacement never captures.
 Generated-expression replacement reports the old attrdef as an explicit root;
 internal default/identity replacements remain suppressed.
-`sql_drop` alone exposes the non-consuming typed helper; nested commands and
-exception checkpoints restore the exact outer phase, records and address index.
-Helper conversion polls the current operation context before, during and after
-materialization; cancellation returns no row prefix and leaves captured records
-unchanged.
+`sql_drop` alone exposes dropped records. DDL inspection instead requires the
+active complete-query collector, including its empty start/drop/rewrite states.
+Exception checkpoints clone mutable append backing and restore installed state,
+phase and address index. Conversion polls cancellation before, during and after
+materialization, returns no partial source, and never consumes the inventory.
+The opaque ninth field owns bounded immutable command facts, not lexical state.
 `ProjectedRoots` and `WriteStage.Replacing`
 distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
 uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh

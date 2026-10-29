@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
@@ -178,7 +179,9 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 				idx.Attributes[j] = int32(j + 1)
 			}
 		}
-		if err := CopyColumnStorage(h.StageRead(), d, idx); err != nil { return err }
+		if err := CopyColumnStorage(h.StageRead(), d, idx); err != nil {
+			return err
+		}
 		idx.Index = make(map[string]int, len(idx.Columns))
 		for j := range idx.Columns {
 			column := &idx.Columns[j]
@@ -198,8 +201,13 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 		return err
 	}
 	for _, staged := range indices {
+		// ALTER TABLE collects this as a subcommand of its one parent;
+		// CREATE TABLE executes a separate generated CREATE INDEX command.
 		if err := h.Stage().Create(staged); err != nil {
 			return err
+		}
+		if !altering {
+			ddl.RecordCommand(h.Stage(), "CREATE INDEX", staged.Address())
 		}
 	}
 	return nil

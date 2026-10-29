@@ -139,7 +139,9 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 	d.StorageOptions = storageOptions
 	d.ColumnMeta.HighWater = int32(len(attributes))
-	if err := CopyColumnStorage(view, parent, d); err != nil { return CreatePlan{}, err }
+	if err := CopyColumnStorage(view, parent, d); err != nil {
+		return CreatePlan{}, err
+	}
 	if s.Concurrent.Character != 0 {
 		definition.Ready, definition.Valid = false, false
 	}
@@ -150,7 +152,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 // ONLY leaves it valid only without partitions; otherwise every partition
 // gets an attached child
 func StageCreate(h Host, parent, idx *catalog.Relation, only bool) error {
-	if err := h.Stage().Create(idx); err != nil {
+	if err := ddl.CreateCommand(h.Stage(), "CREATE INDEX", idx); err != nil {
 		return err
 	}
 	if parent.Partition == nil {

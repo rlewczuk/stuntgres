@@ -103,11 +103,11 @@ func TestAddressLookupRoutineKindsAndRetainedAuthority(t *testing.T) {
 			if err != nil || got != p.Address() {
 				t.Fatalf("inverse = %v, %v; want %v", got, err, p.Address())
 			}
-			identity, err := IdentifyAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address())
+			identity, err := IdentifyAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address(), q.Capture.Token)
 			if err != nil || !identity.Found || identity.Kind != tc.want {
 				t.Fatalf("forward = %+v, %v; want %s", identity, err, tc.want)
 			}
-			dropped, err := DroppedAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address())
+			dropped, err := DroppedAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address(), q.Capture.Token)
 			if err != nil || !dropped.Found || dropped.Kind != tc.want {
 				t.Fatalf("dropped = %+v, %v; want %s", dropped, err, tc.want)
 			}
@@ -121,7 +121,7 @@ func TestAddressLookupRoutineKindsAndRetainedAuthority(t *testing.T) {
 			if objectRoutineKind(current, tc.id) != "function" {
 				t.Fatal("replacement descriptor kind not observed")
 			}
-			after, err := IdentifyAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address())
+			after, err := IdentifyAddress(q.Catalog, authorization.Read{}, q.Capture.Path, p.Address(), q.Capture.Token)
 			if err != nil || !reflect.DeepEqual(before, after) {
 				t.Fatalf("retained identity changed: %+v, %v; want %+v", after, err, before)
 			}
@@ -142,7 +142,7 @@ func TestAddressLookupRoutineReleasedAndHelperFallback(t *testing.T) {
 		if got := objectRoutineKind(lookup.Catalog, tc.id); got != tc.want {
 			t.Fatalf("released kind %d = %s, want %s", tc.id, got, tc.want)
 		}
-		identity, err := IdentifyAddress(lookup.Catalog, authorization.Read{}, lookup.Capture.Path, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id})
+		identity, err := IdentifyAddress(lookup.Catalog, authorization.Read{}, lookup.Capture.Path, ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: tc.id}, lookup.Capture.Token)
 		if err != nil || !identity.Found || identity.Kind != tc.want {
 			t.Fatalf("released identity %d = %+v, %v", tc.id, identity, err)
 		}
@@ -167,7 +167,7 @@ func TestAddressLookupRoutineReleasedAndHelperFallback(t *testing.T) {
 	if err != nil || got.ObjectID != helper.ID {
 		t.Fatalf("helper inverse = %v, %v", got, err)
 	}
-	identity, err := IdentifyAddress(lookup.Catalog, authorization.Read{}, lookup.Capture.Path, got)
+	identity, err := IdentifyAddress(lookup.Catalog, authorization.Read{}, lookup.Capture.Path, got, lookup.Capture.Token)
 	if err != nil || !identity.Found || identity.Kind != "function" {
 		t.Fatalf("helper inherited aggregate kind: %+v, %v", identity, err)
 	}

@@ -366,6 +366,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   also an `Updater` (`Updates`, one `UpdateAction` per executable version edge).
   `Actions`, `ValidateActions` (registration check) and `StagePath` (runs the
   update actions along a version path).
+  Bundled installers stage finite declarative provider graphs; they do not load
+  arbitrary filesystem control/SQL scripts, native libraries or external
+  processes. Event-command inspection records their real outer CREATE/UPDATE,
+  not an invented script history; an already-installed UPDATE version returns
+  no command address and therefore no inspection row. Ordinary member ALTER is
+  not installation execution and does not derive `in_extension` from membership.
 - **Handlers** (`host.go`, `extension_create.go`, `extension_update.go`,
   `extension_drop.go`, `extension_owner_import.go`): `Host` is the statement
   host of CREATE and ALTER EXTENSION UPDATE (context, notices, the creation

@@ -230,6 +230,7 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 	if err != nil {
 		return core.Result{}, err
 	}
+	stage.RecordDDLCommand("ALTER FOREIGN TABLE", ref.Address)
 	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch})
 	return core.Result{}, err
 }

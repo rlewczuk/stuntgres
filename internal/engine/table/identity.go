@@ -95,7 +95,7 @@ func StageIdentitySequence(h Host, relation *catalog.Relation, slot int, name st
 	options.Identity = true
 	d := sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: relation.Namespace(), Name: name, Revision: rev, Owner: relation.Owner, Columns: h.SequenceColumns(), Options: options})
 	d.Security.ACL = h.CreationACL(relation.Owner, relation.Namespace(), authorization.DefaultSequences)
-	if err := h.Stage().Create(d); err != nil {
+	if err := ddl.CreateCommand(h.Stage(), "CREATE SEQUENCE", d); err != nil {
 		return err
 	}
 	if relation.ColumnMeta.Identities == nil {

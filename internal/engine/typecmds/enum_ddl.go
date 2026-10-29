@@ -55,6 +55,7 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 	}
 	changes := scope.PendingCatalog().Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
 	host := tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	var created ids.ObjectRef
@@ -103,6 +104,9 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 			return core.Result{}, err
 		}
 		if edit.Skipped {
+			// AlterEnum returns the real type address even when AddEnumLabel
+			// only emits its IF NOT EXISTS notice.
+			scope.RecordDDLCommand("ALTER TYPE", ref.Address)
 			return core.Result{}, nil
 		}
 		if edit.Added && (!typedef.EnumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.Owner.Savepoints) != 0) {
@@ -131,5 +135,8 @@ func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 		e.CatalogChangeLocked(changes, a, d)
 	}
 	scope.Catalog = changes
+	if scope.EventCommand != nil && scope.EventCommand.CollectDDL {
+		scope.EventCommand.Commands = append(scope.EventCommand.Commands, stage.DDLCommands...)
+	}
 	return core.Result{Created: created}, nil
 }

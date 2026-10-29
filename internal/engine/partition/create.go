@@ -92,6 +92,9 @@ func StageCreate(h Host, auth ddl.Authority, s *parser.CreateTable, namespace id
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	address, _ := h.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	child := h.Stage().Get(address).(*catalog.Relation)
+	if parent != nil {
+		ddl.RecordCommand(h.Stage(), "CREATE TABLE", child.Address())
+	}
 	part, err := BindKeys(h, h.Recapture(auth, h.StageRead()), child, s.PartitionBy, input)
 	if err != nil {
 		return nil, err
@@ -175,13 +178,17 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 	d.TableMethod = parent.TableMethod
 	if d.TableMethod == 0 && syntax.PartitionBy == nil {
 		d.TableMethod, err = table.ResolveTableMethod(view.Catalog, h.DefaultTableAccessMethod())
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
 	d.Security.ACL = h.CreationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0
 		if properties := parent.ColumnMeta.Storage[parent.Attributes[i]]; properties != (catalog.ColumnStorage{}) {
-			if d.ColumnMeta.Storage == nil { d.ColumnMeta.Storage = make(map[int32]catalog.ColumnStorage) }
+			if d.ColumnMeta.Storage == nil {
+				d.ColumnMeta.Storage = make(map[int32]catalog.ColumnStorage)
+			}
 			d.ColumnMeta.Storage[d.Attributes[i]] = properties
 		}
 	}

@@ -282,7 +282,7 @@ func StagePreparedCollationLocked(h StageHost, auth ddl.Authority, plan *Collati
 	if err != nil {
 		return err
 	}
-	return h.Stage().Create(&d)
+	return ddl.CreateCommand(h.Stage(), "CREATE COLLATION", &d)
 }
 
 func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterCollation) error {
@@ -299,6 +299,7 @@ func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterC
 			return err
 		}
 		if ownerTarget == d.Owner {
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER COLLATION", d.Address())
 			return nil
 		}
 	}
@@ -321,6 +322,7 @@ func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterC
 		}
 		if actual == nil || *actual == *d.Version {
 			ddl.Notice(h, "00000", "version has not changed")
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER COLLATION", d.Address())
 			return nil
 		}
 		ddl.Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
@@ -343,6 +345,7 @@ func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterC
 		sourceNamespace := view.Catalog.MustNamespace(d.Namespace())
 		targetNamespace := view.Catalog.MustNamespace(dest.Address)
 		if d.Namespace() == dest.Address {
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER COLLATION", d.Address())
 			return nil
 		}
 		if sourceNamespace.Temporary != (ids.SessionToken{}) || targetNamespace.Temporary != (ids.SessionToken{}) {
@@ -363,7 +366,7 @@ func StageAlterCollationLocked(h StageHost, auth ddl.Authority, s *parser.AlterC
 	if err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER COLLATION", &next)
 }
 
 func StageDropCollationLocked(h StageHost, auth ddl.Authority, s *parser.DropCollation) error {

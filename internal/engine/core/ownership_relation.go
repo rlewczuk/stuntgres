@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
@@ -75,6 +76,7 @@ func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 		return fail(err)
 	}
 	if change.Object == nil {
+		scope.RecordDDLCommand("ALTER "+strings.ToUpper(kind), ref.Address)
 		e.Mu.Unlock()
 		scope.CompleteUtility()
 		return Result{}, scope.Op.Context().Err()
@@ -100,5 +102,6 @@ func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
+	stage.RecordDDLCommand("ALTER "+strings.ToUpper(kind), ref.Address)
 	return PublishOwnership(e, scope, stage)
 }

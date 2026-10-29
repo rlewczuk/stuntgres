@@ -103,7 +103,7 @@ func StageCreateOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Cr
 	if err != nil {
 		return err
 	}
-	return h.Stage().Create(&catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectRevision: revision, ObjectName: name, Method: method, Owner: h.AccessView(auth).State.CurrentUser})
+	return ddl.CreateCommand(h.Stage(), "CREATE OPERATOR FAMILY", &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectRevision: revision, ObjectName: name, Method: method, Owner: h.AccessView(auth).State.CurrentUser})
 }
 func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.AlterOperatorFamily) error {
 	method, err := familyMethod(h.StageRead(), s.Method.Text)
@@ -118,7 +118,11 @@ func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Alt
 		if err = familySuperuser(h, auth, "alter"); err != nil {
 			return err
 		}
-		return stageFamilyMembers(h, auth, d, s)
+		if err := stageFamilyMembers(h, auth, d, s); err != nil {
+			return err
+		}
+		ddl.RecordCommand(h.Stage(), "ALTER OPERATOR FAMILY", d.Address())
+		return nil
 	}
 	if err = familyOwner(h, auth, d); err != nil {
 		return err
@@ -155,7 +159,7 @@ func StageAlterOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.Alt
 	if err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER OPERATOR FAMILY", &next)
 }
 func StageDropOperatorFamily(h FamilyDDLHost, auth ddl.Authority, s *parser.DropOperatorFamily) error {
 	method, err := familyMethod(h.StageRead(), s.Method.Text)

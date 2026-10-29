@@ -376,6 +376,20 @@ func TestEventTriggerNoMatchingBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(errors.New("unfinished no-matching boundary proof"))
+			previous, err := scope.BeginEventCommand("CREATE TABLE")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.name == "other_tag" {
+				if scope.EventCommand == nil || !scope.EventCommand.CollectDDL || scope.EventCommand.Commands != nil || scope.Catalog != nil {
+					t.Fatal("unmatched enabled inventory must install empty scratch without a catalog journal")
+				}
+			} else if scope.EventCommand != nil || scope.Catalog != nil {
+				t.Fatal("absent or disabled inventory allocated lexical state")
+			}
+			if err := scope.FinishEventCommand(previous, nil); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := scope.Execute(enginetest.Statement(t, "CREATE TABLE et_unmatched_table(v integer)"), 0, nil); err != nil {
 				t.Fatal(err)
 			}

@@ -107,6 +107,8 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if err == nil && s.Replace {
 		change.Replacement = TriggerReplacement{Relation: change.Next.Address(), OID: definition.OID()}
 	}
+	change.CommandAddress = ids.ObjectAddress{ClassID: 2620, ObjectID: definition.OID()}
+	change.CommandTag = "CREATE TRIGGER"
 	return change, err
 }
 

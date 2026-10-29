@@ -108,6 +108,11 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 					return err
 				}
 			}
+			tag := "ALTER TYPE"
+			if domainOnly {
+				tag = "ALTER DOMAIN"
+			}
+			ddl.RecordCommand(h.Stage(), tag, old.Address())
 			return nil
 		}
 		from, to := view.Catalog.MustNamespace(old.Namespace()), view.Catalog.MustNamespace(namespace)
@@ -150,6 +155,11 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 			return sqlError("42710", fmt.Sprintf(`type "%s" already exists in schema "%s"`, array.Name(), current.MustNamespace(namespace).Name()))
 		}
 	}
+	tag := "ALTER TYPE"
+	if domainOnly {
+		tag = "ALTER DOMAIN"
+	}
+	ddl.RecordCommand(h.Stage(), tag, old.Address())
 	if old.SQLType.IsComposite() {
 		relation := *current.MustRelation(old.OwningRelation)
 		relation.ObjectName, relation.ObjectNamespace = name, namespace

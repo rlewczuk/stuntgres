@@ -80,27 +80,31 @@ func RenameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 // RenameConstraintKind is the kind of parent's constraint name ('n', 'c', 'u',
 // 'x' or 'f') and, for UNIQUE and EXCLUDE, its backing index. PostgreSQL
 // accepts view and index targets here, then performs constraint lookup.
-func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.ObjectAddress, error) {
+func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.ObjectAddress, ids.ObjectAddress, error) {
 	if parent.RelationKind == catalog.SequenceRelation {
-		return 0, ids.ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."}
+		return 0, ids.ObjectAddress{}, ids.ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, parent.Name()), Detail: "This operation is not supported for sequences."}
 	}
 	var backing ids.ObjectAddress
 	kind := byte(0)
+	constraint := ids.ObjectAddress{ClassID: 2606}
 	for _, c := range parent.Constraints.NotNull {
 		if c.Name == name {
 			kind = 'n'
+			constraint.ObjectID = c.OID
 			break
 		}
 	}
 	for _, c := range parent.Constraints.Check {
 		if c.Name == name {
 			kind = 'c'
+			constraint.ObjectID = c.OID
 			break
 		}
 	}
 	for _, c := range parent.Constraints.Unique {
 		if c.Name == name {
 			kind = 'u'
+			constraint.ObjectID = c.OID
 			backing = c.Index
 			break
 		}
@@ -108,6 +112,7 @@ func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.Obje
 	for _, c := range parent.Constraints.Exclusion {
 		if c.Name == name {
 			kind = 'x'
+			constraint.ObjectID = c.OID
 			backing = c.Index
 			break
 		}
@@ -115,13 +120,14 @@ func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.Obje
 	for _, c := range parent.Constraints.ForeignKeys {
 		if c.Name == name {
 			kind = 'f'
+			constraint.ObjectID = c.OID
 			break
 		}
 	}
 	if kind == 0 {
-		return 0, ids.ObjectAddress{}, sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, name, parent.Name()))
+		return 0, ids.ObjectAddress{}, ids.ObjectAddress{}, sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, name, parent.Name()))
 	}
-	return kind, backing, nil
+	return kind, backing, constraint, nil
 }
 
 // StageRenameConstraint stages RENAME CONSTRAINT of a local constraint of

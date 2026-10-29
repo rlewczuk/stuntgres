@@ -3,6 +3,7 @@ package schemacmds
 import (
 	"fmt"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 )
@@ -57,7 +58,8 @@ func stageCommentLocked(e *core.Engine, scope *core.StatementScope, s *parser.Co
 		}
 		return nil, core.InstallOperationRolesLocked(e, op, roles)
 	}
-	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, scope.LockedRef, text, e.Catalog.RevisionLocked)
+	var target ids.ObjectAddress
+	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, scope.LockedRef, text, e.Catalog.RevisionLocked, &target)
 	if err != nil {
 		return nil, err
 	}
@@ -66,5 +68,6 @@ func stageCommentLocked(e *core.Engine, scope *core.StatementScope, s *parser.Co
 	if err := stage.Replace(updated); err != nil {
 		return nil, err
 	}
+	stage.RecordDDLCommand("COMMENT", target)
 	return stage, nil
 }

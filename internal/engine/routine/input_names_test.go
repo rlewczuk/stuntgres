@@ -86,6 +86,7 @@ func TestRoutineInputNameDeclarations(t *testing.T) {
 		4007: {"target", "path", "vars", "silent"},
 		4008: {"target", "path", "vars", "silent"},
 		4009: {"target", "path", "vars", "silent"},
+		4568: {"classid", "objid", "objsubid", "command_tag", "object_type", "schema_name", "object_identity", "in_extension", "command"},
 		5029: {"name", "size", "modification"},
 		5030: {"tablespace", "name", "size", "modification"},
 		5031: {"name", "size", "modification"},

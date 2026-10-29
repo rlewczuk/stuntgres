@@ -184,8 +184,9 @@ func StageOwnership(stage OwnerStage, d catalog.Descriptor, target authorization
 // OwnerChange is a decided ALTER ... OWNER: Object gets Target as its new
 // owner. A nil Object means the owner is unchanged.
 type OwnerChange struct {
-	Object catalog.Descriptor
-	Target authorization.PrincipalRef
+	Object  catalog.Descriptor
+	Target  authorization.PrincipalRef
+	Address ids.ObjectAddress // Resolved successful no-op target, without a mutation.
 }
 
 // PlanLargeObjectOwnership resolves the recipient before NumericOnly OID input,
@@ -217,7 +218,7 @@ func PlanLargeObjectOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, 
 		return OwnerChange{}, sqlError("42704", fmt.Sprintf("large object %d does not exist", oid))
 	}
 	if target == old.Owner {
-		return OwnerChange{}, nil
+		return OwnerChange{Address: address}, nil
 	}
 	if err := view.Check(auth, access.Requirement{Object: view.Ref(address), OwnerOnly: true}); err != nil {
 		return OwnerChange{}, err
@@ -265,7 +266,7 @@ func PlanTypeOwnership(h Host, auth ddl.Authority, s *parser.AlterOwner, name st
 		return OwnerChange{}, sqlError("0A000", "ownership of builtin types is unsupported")
 	}
 	if target == old.Owner {
-		return OwnerChange{}, nil
+		return OwnerChange{Address: old.Address()}, nil
 	}
 	if err = view.Check(auth, access.Requirement{Object: view.Ref(old.Address()), OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return OwnerChange{}, err

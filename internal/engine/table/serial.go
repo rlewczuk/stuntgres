@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 )
@@ -40,13 +41,14 @@ func StageCreateSerials(h Host, relation *catalog.Relation, declarations []analy
 		options.Owned.SubID = relation.Attributes[slot]
 		d := sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: relation.Namespace(), Name: name, Revision: revision, Owner: relation.Owner, Columns: h.SequenceColumns(), Options: options})
 		d.Security.ACL = h.CreationACL(relation.Owner, relation.Namespace(), authorization.DefaultSequences)
-		if err := h.Stage().Create(d); err != nil {
+		if err := ddl.CreateCommand(h.Stage(), "CREATE SEQUENCE", d); err != nil {
 			return err
 		}
 		h.SequenceStage().SetGenerator(address, sequence.InitialGenerator(options, nil, revision))
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(relation.Namespace())
 		declarations[slot].DefaultExpr = sequence.SerialDefault(namespace.Name(), name)
+		ddl.RecordCommand(h.Stage(), "ALTER SEQUENCE", address)
 	}
 	return nil
 }

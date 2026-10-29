@@ -317,6 +317,11 @@ func ExecuteAlterComposite(e *core.Engine, scope *core.StatementScope, op *sessi
 	if err := e.FinishAlterValidation(scope, phase); err != nil {
 		return core.Result{}, err
 	}
+	address := source.Address()
+	if s.Rename != nil {
+		address.SubID = source.Attributes[source.Index[s.Column.Text]]
+	}
+	scope.RecordDDLCommand("ALTER TYPE", address)
 	view.EmitCascade(op, stage.DropCascadeNames)
 	scope.CompleteUtility()
 	return core.Result{}, err

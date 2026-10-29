@@ -187,7 +187,7 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 			if in.Options&analyze.LikeComments != 0 {
 				cloned.Comment = source.Comment
 			}
-			if err := h.Stage().Create(cloned); err != nil {
+			if err := ddl.CreateCommand(h.Stage(), "CREATE INDEX", cloned); err != nil {
 				return err
 			}
 		}

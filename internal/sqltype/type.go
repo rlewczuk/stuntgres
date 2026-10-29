@@ -534,6 +534,7 @@ type Value struct {
 	snapshot        *Snapshot
 	statistics      *statisticsPayload
 	statisticArray  *statisticArrayPayload
+	ddlCommand      *ddlCommandPayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -542,6 +543,10 @@ func (v Value) IsNull() bool      { return v.null }
 // Retag remints descriptor ownership without changing a concrete scalar datum.
 // It preserves logical identity and physical base constraints, not just payload shape.
 func (v Value) Retag(d *Descriptor) (Value, error) {
+	if v.typ != nil && v.typ.ID() == 32 && v.ValidResult(v.typ.Usage()) && d != nil && d.ID() == 32 && d.Usage().QueryNullUsage() {
+		v.typ = d
+		return v, nil
+	}
 	if v.typ != nil && v.typ.Usage().CatalogNullUsage() {
 		return v.retagStatistic(d)
 	}
@@ -1243,6 +1248,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	}
 	if d.id == 2277 && d.Usage().CatalogNullUsage() {
 		return v.statisticArrayOutput(ctx, env)
+	}
+	if d.id == 32 {
+		return "", failure("0A000", "cannot display a value of type pg_ddl_command")
 	}
 	if d.IsDomain() {
 		v.typ = d.BaseType()

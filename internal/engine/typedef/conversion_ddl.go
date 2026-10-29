@@ -95,7 +95,7 @@ func StageCreateConversionLocked(h StageHost, auth ddl.Authority, s *parser.Crea
 	if err != nil {
 		return err
 	}
-	return h.Stage().Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
+	return ddl.CreateCommand(h.Stage(), "CREATE CONVERSION", &catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
 func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.AlterConversion) error {
@@ -112,6 +112,7 @@ func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.Alter
 			return err
 		}
 		if target == d.Owner {
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER CONVERSION", d.Address())
 			return nil
 		}
 	}
@@ -122,6 +123,7 @@ func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.Alter
 			return err
 		}
 		if destination.Address == d.Namespace() {
+			ddl.AdmitNoopCommand(h.Stage(), "ALTER CONVERSION", d.Address())
 			return nil
 		}
 		view = h.AccessView(auth)
@@ -164,7 +166,7 @@ func StageAlterConversionLocked(h StageHost, auth ddl.Authority, s *parser.Alter
 	if err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER CONVERSION", &next)
 }
 
 func StageDropConversionLocked(h StageHost, auth ddl.Authority, s *parser.DropConversion) error {

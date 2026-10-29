@@ -119,6 +119,16 @@ func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 	if err != nil {
 		return core.Result{}, err
 	}
+	if _, alter := stmt.(*parser.AlterIndex); alter {
+		for _, ref := range g.Targets {
+			scope.RecordDDLCommand("ALTER INDEX", ref.Address)
+		}
+	}
+	if reindex {
+		for _, ref := range g.Indexes {
+			scope.RecordDDLCommand("REINDEX", ref.Address)
+		}
+	}
 	scope.CompleteUtility()
 	for _, notice := range g.Notices {
 		scope.Op.EmitNotice(session.LevelNotice, notice)

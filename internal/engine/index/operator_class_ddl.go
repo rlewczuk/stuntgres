@@ -88,7 +88,7 @@ func StageAlterOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Alte
 	if err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER OPERATOR CLASS", &next)
 }
 func StageDropOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.DropOperatorClass) error {
 	method, err := familyMethod(h.StageRead(), s.Method.Text)

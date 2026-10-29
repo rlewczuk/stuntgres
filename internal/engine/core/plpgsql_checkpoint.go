@@ -144,6 +144,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	if s.EventCommand != nil {
 		c.eventState = *s.EventCommand
 		c.eventState.Records = slices.Clone(s.EventCommand.Records)
+		c.eventState.Commands = slices.Clone(s.EventCommand.Commands)
 		c.eventState.positions = maps.Clone(s.EventCommand.positions)
 	}
 	if s.CatalogAuthority != nil {

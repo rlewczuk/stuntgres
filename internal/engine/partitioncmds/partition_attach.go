@@ -195,6 +195,7 @@ func AttachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return core.Result{}, err
 	}
+	stage.RecordDDLCommand("ALTER TABLE", parent.Address())
 	// The canonical overlay builds real populated key roots before returning;
 	// implicit Finish and explicit COMMIT/savepoints own their publication.
 	err = e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())

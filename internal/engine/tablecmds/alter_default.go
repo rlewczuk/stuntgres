@@ -15,7 +15,7 @@ import (
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
 // Every return releases core.Engine.mu.
-func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (core.Result, error) {
+func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (outcome core.Result, failure error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -45,6 +45,11 @@ func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		return fail(err)
 	}
 	attr := old.Attributes[slot]
+	defer func() {
+		if failure == nil {
+			scope.RecordDDLCommand("ALTER TABLE", ref.Address)
+		}
+	}()
 	if catalog.InheritanceParticipant(auth.Catalog, old) {
 		return alterInheritanceDefaultLocked(e, scope, op, auth, s, old)
 	}

@@ -39,6 +39,7 @@ func StageAlterSchema(h Host, auth Authority, s *parser.AlterSchema) (bool, erro
 			return false, err
 		}
 		if target == old.Owner {
+			AdmitNoopCommand(h.Stage(), "ALTER SCHEMA", old.Address())
 			return false, nil
 		}
 		if err = checkSchemaOwner(h, auth, old); err != nil {
@@ -57,7 +58,7 @@ func StageAlterSchema(h Host, auth Authority, s *parser.AlterSchema) (bool, erro
 	if err != nil {
 		return false, err
 	}
-	if err = h.Stage().Replace(&next); err != nil {
+	if err = ReplaceCommand(h.Stage(), "ALTER SCHEMA", &next); err != nil {
 		return false, err
 	}
 	return true, nil

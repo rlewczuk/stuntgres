@@ -85,6 +85,25 @@ audit data; reconstruction compares the current catalog, not historic IDs.
 Native controls do not emulate PostgreSQL physical storage, WAL durability,
 network/process or native ABI mechanisms.
 
+DDL-command inspection scenarios independently assert exact nine-column metadata,
+per-base-command bags, catalog-linked OIDs, raw namespaces and quoted identities,
+held utility execution and nonconsuming repeated reads. Native controls persist
+only definitions, data and serializable audit fields, never collector or opaque
+datum authority. An ordinary function reached by CTAS inspects the active empty
+bag with enabled but unmatched end/drop/rewrite inventory and no callbacks.
+The unaccent1.1 witnesses use outer installation, ordinary same-member ALTER
+and same-version UPDATE: the exact already-installed notice accompanies an end
+callback with zero command rows and unchanged member definitions, identities
+and data. Arbitrary external SQL-script execution is a separate mechanism,
+not fabricated bundled-provider history.
+Typed OID projections use the shared `OidReferenceRows`/`OidReferenceValue`
+contract: independently expected integers with raw native/pq carrier and OID
+metadata validation. Standalone maintenance witnesses do not introduce explicit
+transactions; transactional producers retain rollback coverage. DROP OWNED bags
+keep separate ACL-cleanup receipts, including grants inherited by audit tables,
+and retire role dependencies after rollback even when an assertion fails.
+
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` delegates directly to

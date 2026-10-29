@@ -39,5 +39,10 @@ func ExecuteForeignGrant(e *core.Engine, scope *core.StatementScope, s *parser.O
 	}
 	scope.Catalog = changes
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+	tag := "GRANT"
+	if s.Revoke {
+		tag = "REVOKE"
+	}
+	scope.RecordDDLPrivileges(tag, s.Kind)
 	return core.Result{}, nil
 }

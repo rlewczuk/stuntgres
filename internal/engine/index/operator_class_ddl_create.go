@@ -53,7 +53,7 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 				return e
 			}
 			family = &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectRevision: revision, ObjectName: name, Method: method, Owner: v.State.CurrentUser}
-			if err = h.Stage().Create(family); err != nil {
+			if err = ddl.CreateCommand(h.Stage(), "CREATE OPERATOR FAMILY", family); err != nil {
 				return err
 			}
 		}
@@ -83,7 +83,7 @@ func StageCreateOperatorClass(h FamilyDDLHost, auth ddl.Authority, s *parser.Cre
 		if err != nil {
 			return err
 		}
-		return h.Stage().Create(class)
+		return ddl.CreateCommand(h.Stage(), "CREATE OPERATOR CLASS", class)
 	}
 	return stageOperatorMembers(h, auth, family, &parser.AlterOperatorFamily{Name: s.Name, Method: s.Method, Action: "add", Items: s.Items}, class, beforeStore)
 }

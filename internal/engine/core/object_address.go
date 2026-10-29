@@ -55,5 +55,5 @@ func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqlt
 	if scope == nil || scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return regobj.IdentifyValues(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, scope.Inquiry.DeparsePath, values, result, operation)
+	return regobj.IdentifyValues(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, scope.Inquiry.DeparsePath, values, result, operation, scope.Op.Session.SessionToken)
 }

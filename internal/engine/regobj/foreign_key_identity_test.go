@@ -51,11 +51,11 @@ func TestDroppedIdentityForeignKeyTriggers(t *testing.T) {
 				}
 				identity := catalog.Identifier(name) + " on " + catalog.Identifier(schema) + "." + catalog.Identifier(owner.Name())
 				a := address(2620, oid)
-				inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a)
+				inquiry, err := IdentifyAddress(view, authorization.Read{}, path, a, childNS.Temporary)
 				if err != nil || !inquiry.Found || inquiry.Kind != "trigger" || inquiry.Schema != "" || inquiry.Name != "" || inquiry.Identity != identity || inquiry.Description != "trigger "+name+" on table "+catalog.Identifier(owner.Name()) || !reflect.DeepEqual(inquiry.Names, []string{schema, owner.Name(), name}) || len(inquiry.Args) != 0 {
 					t.Fatalf("slot %d inquiry = %+v, %v; want %q on actual trigger relation", slot, inquiry, err, identity)
 				}
-				got, err := DroppedAddress(view, authorization.Read{}, path, a)
+				got, err := DroppedAddress(view, authorization.Read{}, path, a, childNS.Temporary)
 				if err != nil || !got.Found || got.Address != a || got.Kind != "trigger" || got.Identity != identity || !got.HasSchema || got.Schema != schema || got.HasName || got.Name != "" || got.Temporary != isTemporary || got.Original || got.Normal || !reflect.DeepEqual(got.Names, []string{schema, owner.Name(), name}) || got.Args == nil || len(got.Args) != 0 {
 					t.Fatalf("slot %d dropped identity = %+v, %v; want %q schema=%q temporary=%v and NULL simple name", slot, got, err, identity, schema, isTemporary)
 				}
@@ -70,7 +70,7 @@ func TestDroppedIdentityForeignKeyTriggers(t *testing.T) {
 			replacement.Constraints.ForeignKeys = []catalog.ForeignKeyConstraint{replacementFK}
 			state.SetDescriptor(replacement.Address(), &replacement)
 			for _, saved := range captured {
-				missing, err := DroppedAddress(view, authorization.Read{}, path, saved.Address)
+				missing, err := DroppedAddress(view, authorization.Read{}, path, saved.Address, childNS.Temporary)
 				if err != nil || !reflect.DeepEqual(missing, catalog.DroppedObject{}) {
 					t.Fatalf("retired RI trigger = %+v, %v; want missing", missing, err)
 				}

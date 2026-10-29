@@ -110,6 +110,8 @@ func detachConcurrentLocked(e *core.Engine, s *core.StatementScope, op *session.
 	}
 	if raw.Mode == parser.DetachConcurrent {
 		s.CompleteUtility()
+	} else {
+		s.RecordDDLCommand("ALTER TABLE", parent.Address())
 	}
 	return core.Result{}, nil
 }

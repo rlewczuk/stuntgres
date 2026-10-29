@@ -172,7 +172,7 @@ func StageCreateStatistics(h StatisticsHost, auth Authority, s *parser.CreateSta
 		return err
 	}
 	h.AddDomainBase(rel)
-	return h.Stage().Create(&catalog.Statistics{ObjectAddress: ids.ObjectAddress{ClassID: ids.StatisticExtClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: object, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Relation: ref, Selection: selection, Expressions: catalog.NewStatisticsExpressions(expressions)})
+	return CreateCommand(h.Stage(), "CREATE STATISTICS", &catalog.Statistics{ObjectAddress: ids.ObjectAddress{ClassID: ids.StatisticExtClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: object, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Relation: ref, Selection: selection, Expressions: catalog.NewStatisticsExpressions(expressions)})
 }
 
 func StageDropStatistics(h StatisticsHost, auth Authority, s *parser.DropStatistics) error {

@@ -204,9 +204,9 @@ func StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView, old *cat
 		return err
 	}
 	if old != nil {
-		return h.Stage().Replace(d)
+		return ddl.ReplaceCommand(h.Stage(), "CREATE VIEW", d)
 	}
-	if err := h.Stage().Create(d); err != nil {
+	if err := ddl.CreateCommand(h.Stage(), "CREATE VIEW", d); err != nil {
 		return err
 	}
 	return h.ReownDisplacedTypes()

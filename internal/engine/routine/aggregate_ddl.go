@@ -533,7 +533,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Create(d)
+	return ddl.CreateCommand(h.Stage(), "CREATE AGGREGATE", d)
 }
 
 // Definition strings preserve PostgreSQL's extracted external text, rather than

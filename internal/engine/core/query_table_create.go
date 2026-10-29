@@ -84,8 +84,10 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err != nil {
 		return nil, nil, false, err
 	}
-	d.TableMethod, err = table.ResolveTableMethod(auth.Catalog, (DDLHost{E:e,Op:op}).DefaultTableAccessMethod())
-	if err != nil { return nil,nil,false,err }
+	d.TableMethod, err = table.ResolveTableMethod(auth.Catalog, (DDLHost{E: e, Op: op}).DefaultTableAccessMethod())
+	if err != nil {
+		return nil, nil, false, err
+	}
 	if s.Form == parser.CreateMaterializedView {
 		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {
@@ -106,6 +108,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		}
 		d = stage.Get(d.Address()).(*catalog.Relation)
 	}
+	stage.RecordDDLCommand(session.ModifyingTag(s), d.Address())
 	return stage, d, false, nil
 }
 
@@ -161,7 +164,19 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		if scope.cteInvocation != nil {
+		// Ordinary source functions, like writable CTEs, can leave row effects
+		// in the shared statement stage without opening a catalog journal.
+		// Publish the destination with those effects at Finish, not separately
+		// followed by CompleteUtility suppressing their publication.
+		if scope.cteInvocation != nil || len(scope.Stage.Rows) != 0 || len(scope.Stage.Deletes) != 0 {
+			if scope.cteInvocation == nil {
+				// Preserve the admissions and reservation release formerly owned
+				// by PublishCatalogOperation on this non-CTE path.
+				if err = scope.acquireCatalogStageAdmissions(stage); err != nil {
+					return err
+				}
+				defer scope.releaseCatalogReservation()
+			}
 			err = e.StageCatalogOverlay(scope, stage, scope.PendingCatalog().Clone())
 		} else {
 			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})

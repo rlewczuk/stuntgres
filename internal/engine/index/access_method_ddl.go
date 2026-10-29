@@ -54,7 +54,7 @@ func StageCreateAccessMethod(h FamilyDDLHost, auth ddl.Authority, s *parser.Crea
 	if err != nil {
 		return err
 	}
-	return h.Stage().Create(&catalog.AccessMethod{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: s.Name.Text, Handler: identity.ID, Native: routine.AccessMethod})
+	return ddl.CreateCommand(h.Stage(), "CREATE ACCESS METHOD", &catalog.AccessMethod{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: s.Name.Text, Handler: identity.ID, Native: routine.AccessMethod})
 }
 func StageDropAccessMethod(h FamilyDDLHost, auth ddl.Authority, s *parser.DropAccessMethod) error {
 	method, ok := h.StageRead().LookupAccessMethod(s.Name.Text)

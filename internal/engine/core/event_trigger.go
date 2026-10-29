@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/sqltype"
 )
 
 // EventCommand is lexical command scratch. The journal and row effects belong
@@ -20,40 +21,44 @@ type EventCommand struct {
 	positions    map[ids.ObjectAddress]int
 	Phase        string
 	captureError error
+	CollectDDL   bool
+	Commands     []sqltype.DDLCommand
+	holdsEffects bool
 }
 
 // BeginEventCommand enters a lexical utility boundary, retaining its journal
 // until Finish. Pair a successful entry with FinishEventCommand.
 func (s *StatementScope) BeginEventCommand(tag string) (*EventCommand, error) {
 	previous := s.EventCommand
-	if previous == nil {
-		e := s.Engine()
-		e.Mu.Lock()
-		auth, err := s.RoutineAuthorizationLocked()
-		if err != nil {
-			e.Mu.Unlock()
-			return nil, err
-		}
-		replica := auth.RuleReplica()
-		matched := false
-		for _, trigger := range auth.Catalog.EventTriggers() {
-			if trigger.Matches(trigger.Event, tag, replica) {
-				matched = true
-				break
-			}
-		}
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := s.RoutineAuthorizationLocked()
+	if err != nil {
 		e.Mu.Unlock()
-		if !matched {
-			// The descriptor index proves no phase can invoke a callback.
-			// Keep ordinary utility completion and publication ownership intact.
-			return nil, nil
+		return nil, err
+	}
+	replica := auth.RuleReplica()
+	matched, collectDDL := false, false
+	for _, trigger := range auth.Catalog.EventTriggers() {
+		if trigger.Event != "ddl_command_start" && trigger.FiringMode.Valid() && trigger.FiringMode.Fires(replica) {
+			collectDDL = true
+		}
+		if trigger.Matches(trigger.Event, tag, replica) {
+			matched = true
 		}
 	}
-	if s.Catalog == nil {
+	e.Mu.Unlock()
+	if previous == nil && !matched && !collectDDL {
+		return nil, nil
+	}
+	holds := matched || previous != nil && previous.holdsEffects
+	if holds && s.Catalog == nil {
 		s.Catalog = s.Owner.Catalog.Clone()
 	}
-	s.EventCommand = &EventCommand{Tag: tag}
-	s.Completed = false
+	s.EventCommand = &EventCommand{Tag: tag, CollectDDL: collectDDL, holdsEffects: holds}
+	if holds {
+		s.Completed = false
+	}
 	if err := s.fireEventTrigger("ddl_command_start"); err != nil {
 		s.EventCommand = previous
 		return nil, err
@@ -67,7 +72,13 @@ func (s *StatementScope) FinishEventCommand(previous *EventCommand, primary erro
 	if s.EventCommand == nil {
 		return primary
 	}
-	defer func() { s.EventCommand = previous; s.Completed = false }()
+	holds := s.EventCommand.holdsEffects
+	defer func() {
+		s.EventCommand = previous
+		if holds {
+			s.Completed = false
+		}
+	}()
 	if primary != nil {
 		return primary
 	}
@@ -80,6 +91,32 @@ func (s *StatementScope) FinishEventCommand(previous *EventCommand, primary erro
 		}
 	}
 	return s.fireEventTrigger("ddl_command_end")
+}
+
+// RecordDDLCommand appends a real successful base command; unlike dropped
+// objects, repeated addresses are significant and must never be deduplicated.
+func (s *StatementScope) RecordDDLCommand(tag string, address ids.ObjectAddress) {
+	if s.EventCommand == nil || !s.EventCommand.CollectDDL {
+		return
+	}
+	s.EventCommand.Commands = append(s.EventCommand.Commands, sqltype.DDLCommand{
+		Tag: tag, ClassID: uint32(address.ClassID), ObjectID: uint32(address.ObjectID), SubID: address.SubID,
+	})
+}
+
+// RecordDDLPrivileges retains PostgreSQL's address-less grant command form,
+// once per base grant rather than once per ACL or target descriptor.
+func (s *StatementScope) RecordDDLPrivileges(tag, kind string) {
+	if s.EventCommand == nil || !s.EventCommand.CollectDDL {
+		return
+	}
+	if kind == "" {
+		kind = "table"
+	}
+	if kind == "foreign-data wrapper" {
+		kind = "foreign data wrapper"
+	}
+	s.EventCommand.Commands = append(s.EventCommand.Commands, sqltype.DDLCommand{Tag: tag, SpecialKind: strings.ToUpper(kind)})
 }
 
 // RecordDroppedObjects admits successful deletion effects. Identity slices are

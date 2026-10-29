@@ -34,7 +34,7 @@ func copyProgressRuleMetadata(t *testing.T, e *core.Engine, read catalog.Read) *
 	if regobj.OwnedAddressByName(source, 2618, "_RETURN") != rule.ObjectID {
 		t.Fatal("rule name lookup lost identity")
 	}
-	identity, err := regobj.IdentifyAddress(read, e.Roles(), nil, rule)
+	identity, err := regobj.IdentifyAddress(read, e.Roles(), nil, rule, ids.SessionToken{})
 	if err != nil || !identity.Found || len(identity.Names) != 3 || identity.Names[2] != "_RETURN" {
 		t.Fatal("rule address lookup", identity, err)
 	}

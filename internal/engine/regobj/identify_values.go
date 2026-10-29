@@ -11,7 +11,7 @@ import (
 // IdentifyValues answers pg_identify_object, pg_identify_object_as_address
 // and pg_describe_object for (classid, objid, objsubid) over the statement's
 // comment catalog, roles and deparse path.
-func IdentifyValues(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
+func IdentifyValues(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation, temporary ids.SessionToken) (sqltype.Value, error) {
 	class, err := values[0].OID()
 	if err != nil {
 		return sqltype.Value{}, err
@@ -28,7 +28,7 @@ func IdentifyValues(view catalog.Read, roles authorization.Read, path []ids.Obje
 	if operation == functions.DescribeObject && class == 0 && object == 0 {
 		return sqltype.Null(result), nil
 	}
-	identity, err := IdentifyAddress(view, roles, path, address)
+	identity, err := IdentifyAddress(view, roles, path, address, temporary)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

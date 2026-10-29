@@ -17,10 +17,19 @@ import (
 //
 // Object grants own only their statement candidate. Finish decides whether to
 // retain it privately or publish it with the transaction's other effects.
-func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *parser.ObjectGrant, count int) (core.Result, error) {
+func ExecuteObjectGrant(e *core.Engine, scope *core.StatementScope, statement *parser.ObjectGrant, count int) (outcome core.Result, failure error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
+	defer func() {
+		if failure == nil && statement.Kind != "parameter" && statement.Kind != "tablespace" {
+			tag := "GRANT"
+			if statement.Revoke {
+				tag = "REVOKE"
+			}
+			scope.RecordDDLPrivileges(tag, statement.Kind)
+		}
+	}()
 	var parameterScratch [8]privilegeClaim
 	parameters := parameterScratch[:0]
 	e.Mu.Lock()

@@ -131,6 +131,35 @@ type CatalogStage struct {
 	TableSlot        *table.Stage
 	indexesSlot      *index.Stage
 	MaterializedSlot *view.MaterializedStage
+	DDLCommands      []sqltype.DDLCommand
+}
+
+// RecordDDLCommand retains explicit successful producer annotations until the
+// catalog stage is admitted. Incidental descriptor changes never call this.
+func (s *CatalogStage) RecordDDLCommand(tag string, address ids.ObjectAddress) {
+	if s.statement == nil || s.statement.EventCommand == nil || !s.statement.EventCommand.CollectDDL {
+		return
+	}
+	s.DDLCommands = append(s.DDLCommands, sqltype.DDLCommand{Tag: tag, ClassID: uint32(address.ClassID), ObjectID: uint32(address.ObjectID), SubID: address.SubID})
+}
+
+func (s *CatalogStage) CollectsDDLCommands() bool {
+	return s.statement != nil && s.statement.EventCommand != nil && s.statement.EventCommand.CollectDDL
+}
+
+func (s *CatalogStage) RecordDDLPrivileges(tag, kind string) {
+	if !s.CollectsDDLCommands() {
+		return
+	}
+	s.DDLCommands = append(s.DDLCommands, sqltype.DDLCommand{Tag: tag, SpecialKind: kind})
+}
+
+// AdmitDDLNoop is for an already successful utility that returns no catalog
+// stage. It records the resolved address without manufacturing a mutation.
+func (s *CatalogStage) AdmitDDLNoop(tag string, address ids.ObjectAddress) {
+	if s.CollectsDDLCommands() {
+		s.statement.RecordDDLCommand(tag, address)
+	}
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -502,7 +531,7 @@ func (s *StatementScope) releaseCatalogReservation() {
 // UsesCatalogOverlay reports whether catalog publication belongs to this
 // statement's pending journal, including the first write in a routine body.
 func (s *StatementScope) UsesCatalogOverlay() bool {
-	return s != nil && (s.Owner.State == session.TxActive || s.EventCommand != nil || s.Catalog != nil || s.activeSQLRoutineDepth != 0)
+	return s != nil && (s.Owner.State == session.TxActive || s.EventCommand != nil && s.EventCommand.holdsEffects || s.Catalog != nil || s.activeSQLRoutineDepth != 0)
 }
 
 func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
@@ -520,7 +549,7 @@ func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *Statement
 			return ChangeSet{}, err
 		}
 	}
-	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || scope.EventCommand == nil && scope.Catalog == nil && scope.activeSQLRoutineDepth == 0) {
+	if op != nil && op.Session.Transactions.RetainsTransaction() && (scope == nil || (scope.EventCommand == nil || !scope.EventCommand.holdsEffects) && scope.Catalog == nil && scope.activeSQLRoutineDepth == 0) {
 		return e.stageMessageCatalog(op, p, token)
 	}
 	if scope.UsesCatalogOverlay() {
@@ -540,7 +569,11 @@ func (e *Engine) PublishCatalogOperation(op *session.Operation, scope *Statement
 		}
 		return catalogStageChanges(p.stage), nil
 	}
-	return e.PublishPreparedCatalog(op, scope, p, token)
+	changes, err := e.PublishPreparedCatalog(op, scope, p, token)
+	if err == nil && scope != nil && scope.EventCommand != nil && scope.EventCommand.CollectDDL {
+		scope.EventCommand.Commands = append(scope.EventCommand.Commands, p.stage.DDLCommands...)
+	}
+	return changes, err
 }
 func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {

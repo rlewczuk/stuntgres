@@ -104,6 +104,7 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
+		scope.RecordDDLCommand("REFRESH MATERIALIZED VIEW", ref.Address)
 		scope.CompleteUtility()
 	}
 	return core.Result{}, err

@@ -110,9 +110,15 @@ func (p *DropProvider) captureDropped(address ids.ObjectAddress, descriptor cata
 			}
 		}
 	}
+	var temporary ids.SessionToken
+	if p.Scope != nil {
+		temporary = p.Scope.Op.Session.SessionToken
+	} else if p.Stage != nil && p.Stage.AuthSession != nil {
+		temporary = p.Stage.AuthSession.SessionToken
+	}
 	records := make([]catalog.DroppedObject, 0, len(addresses))
 	for _, a := range addresses {
-		record, err := regobj.DroppedAddress(view, roles, p.SearchPath, a)
+		record, err := regobj.DroppedAddress(view, roles, p.SearchPath, a, temporary)
 		if err != nil {
 			return nil, err
 		}

@@ -17,6 +17,12 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 	if v.null || other.null {
 		return v.null == other.null, nil
 	}
+	if v.ddlCommand != nil || other.ddlCommand != nil {
+		return v.typ != nil && other.typ != nil && v.typ.ID() == 32 && other.typ.ID() == 32 &&
+			v.ValidResult(v.typ.Usage()) && other.ValidResult(other.typ.Usage()) &&
+			v.ddlCommand != nil && other.ddlCommand != nil &&
+			v.ddlCommand.command == other.ddlCommand.command, nil
+	}
 	if v.xml != nil || other.xml != nil || v.typ != nil && v.typ.BaseType().id == XML || other.typ != nil && other.typ.BaseType().id == XML {
 		if !v.validXML() || !other.validXML() {
 			return false, nil

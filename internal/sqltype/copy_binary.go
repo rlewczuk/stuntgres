@@ -25,6 +25,9 @@ func (d *Descriptor) binaryReceive(ctx context.Context, p []byte, typmod int32, 
 	if err = ctx.Err(); err != nil {
 		return
 	}
+	if d != nil && d.id == 32 {
+		return v, 0, failure("0A000", "cannot accept a value of type pg_ddl_command")
+	}
 	if d == nil || !d.Concrete() || !d.validTypmod(typmod) {
 		return v, 0, fmt.Errorf("invalid binary input usage")
 	}
@@ -226,6 +229,9 @@ func binary64(dst []byte, n uint64) []byte { return binary.BigEndian.AppendUint6
 func (d *Descriptor) AppendBinaryWithEnvironment(ctx context.Context, dst []byte, v Value, env OutputEnvironment) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return dst, err
+	}
+	if d != nil && d.id == 32 && v.typ == d && !v.null {
+		return dst, failure("0A000", "cannot display a value of type pg_ddl_command")
 	}
 	if d == nil || !d.Concrete() || v.typ != d || v.null {
 		return dst, fmt.Errorf("invalid binary output value")

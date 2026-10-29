@@ -120,7 +120,7 @@ func StageCreateDictionary(h DictionaryHost, auth ddl.Authority, s *parser.Creat
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Create(d)
+	return ddl.CreateCommand(h.Stage(), "CREATE TEXT SEARCH DICTIONARY", d)
 }
 func StageAlterDictionary(h DictionaryHost, auth ddl.Authority, s *parser.AlterDictionary) error {
 	raw, err := dictionaryLookup(h, auth, s.Name, ids.TSDictionaryClassID)
@@ -183,7 +183,7 @@ func StageAlterDictionary(h DictionaryHost, auth ddl.Authority, s *parser.AlterD
 	if err = h.Context().Err(); err != nil {
 		return err
 	}
-	return h.Stage().Replace(&next)
+	return ddl.ReplaceCommand(h.Stage(), "ALTER TEXT SEARCH DICTIONARY", &next)
 }
 func StageDropDictionary(h DictionaryHost, auth ddl.Authority, s *parser.DropDictionary) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))

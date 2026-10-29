@@ -148,12 +148,20 @@ import it.
   no schema/simple name or temporary status.
   Subscription descriptions use the raw stored name, independently of quoted SQL
   identity/name fields; address components retain the decoded database-local name.
+  User mappings resolve their mapped principal through the supplied authorization
+  snapshot and their server through the catalog descriptor. PUBLIC uses `public`;
+  identities quote the role but retain the raw server name, while address arrays
+  carry the raw role and server separately. Storage keys and diagnostic cached
+  names never supply identity, schema or simple-name fields.
   `DroppedAddress` (`dropped_identity.go`) shares that renderer and owner lookup,
   capturing a plain immutable `catalog.DroppedObject` before deletion. Its
   nullable schema/simple names are raw identifiers, separate from inquiry
-  spellings; namespace ownership supplies temporary status and `pg_temp`.
-  Temporary routine identity text retains its physical namespace name while
-  address-name components use canonical `pg_temp`.
+  spellings. The canonical identity APIs take the executing physical session
+  token explicitly: only its non-toast TEMP namespace renders as `pg_temp`.
+  Peer TEMP and own temporary-toast namespaces retain their physical names,
+  including raw DDL schema metadata; detached readers pass the zero token.
+  Temporary routine/operator identity text retains its physical namespace name
+  even for the owner, independently of canonical schema/address components.
   Forward and inverse routine kinds read the exact represented `Procedure`
   descriptor first (aggregate/procedure, otherwise function). Only unrepresented
   identities use released kind facts; an aggregate helper's dependency owner

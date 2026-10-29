@@ -105,6 +105,7 @@ func alterIdentityTypeSequence(e *core.Engine, scope *core.StatementScope, stage
 	if err := stageIdentitySequenceOptionsLocked(e, scope, stage, table, attribute, address, []parser.SequenceOption{as}); err != nil {
 		return err
 	}
+	stage.RecordDDLCommand("ALTER SEQUENCE", address)
 	// AS discards this backend's tail even if a later table pass rolls back.
 	// currval/lastval and unseen peer caches are physical-session authorities.
 	if memory := core.PayloadOf(scope.Op.Session).Sequences.Memory(address); memory != nil {

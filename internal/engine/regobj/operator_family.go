@@ -83,7 +83,7 @@ func OperatorFamilyDescription(view catalog.Read, d catalog.Descriptor, path []i
 	return fmt.Sprintf("%s %d (%s, %s) of %s: %s", kind, number, TypeSpelling(view, path, left), TypeSpelling(view, path, right), label, impl), true
 }
 
-func identifyOperatorFamilyMember(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor, r ObjectIdentity) (ObjectIdentity, bool) {
+func identifyOperatorFamilyMember(view catalog.Read, path []ids.ObjectAddress, d catalog.Descriptor, r ObjectIdentity, temporary ids.SessionToken) (ObjectIdentity, bool) {
 	var family, left, right ids.OID
 	var number int16
 	kind := "operator"
@@ -100,13 +100,13 @@ func identifyOperatorFamilyMember(view catalog.Read, path []ids.ObjectAddress, d
 	if !ok {
 		return r, true
 	}
-	_, namespace := objectNamespace(view, f.Namespace())
+	_, namespace := objectNamespace(view, f.Namespace(), temporary)
 	fact, ok := view.AccessMethod(f.Method)
 	if !ok {
 		return r, true
 	}
 	method := fact.Name()
-	ltype, rtype := objectQualifiedType(view, left), objectQualifiedType(view, right)
+	ltype, rtype := objectQualifiedType(view, left, temporary), objectQualifiedType(view, right, temporary)
 	r.Found = true
 	r.Names = []string{method, namespace, f.Name(), strconv.Itoa(int(number))}
 	r.Args = []string{ltype, rtype}

@@ -48,7 +48,7 @@ func PlanRoleComment(view access.View, name, text string) (*access.RoleRecord, e
 // ownership, and returns the target's descriptor with the comment set to text
 // (empty removes it) and a new revision from revision. domain mints the
 // references; the engine stages and publishes the result.
-func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, locked ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error)) (catalog.Descriptor, error) {
+func PlanObjectComment(view access.View, env access.Environment, domain *ids.Domain, s *parser.Comment, locked ids.ObjectRef, text string, revision func() (ids.DefinitionRevision, error), target *ids.ObjectAddress) (catalog.Descriptor, error) {
 	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
@@ -129,5 +129,6 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		}
 		updated = &n
 	}
+	*target = ref.Address
 	return updated, nil
 }

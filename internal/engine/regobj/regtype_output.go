@@ -10,12 +10,12 @@ import (
 )
 
 func TypeSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) string {
-	return regtypeSpellingMode(view, path, id, false)
+	return regtypeSpellingMode(view, path, id, false, ids.SessionToken{})
 }
 
 // Machine object identities qualify nonspecial SQL type names, including the
 // canonical temporary namespace alias, without changing ordinary regtype output.
-func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID, qualified bool) string {
+func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID, qualified bool, temporary ids.SessionToken) string {
 	if id == 0 {
 		return "-"
 	}
@@ -24,7 +24,7 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 		return strconv.FormatUint(uint64(id), 10)
 	}
 	if typ.IsArray() && !typ.IsCatalogVector() {
-		return regtypeSpellingMode(view, path, ids.OID(typ.Element().ID()), qualified) + "[]"
+		return regtypeSpellingMode(view, path, ids.OID(typ.Element().ID()), qualified, temporary) + "[]"
 	}
 	switch typ.ID() {
 	case sqltype.Bool:
@@ -69,7 +69,7 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 	}
 	namespace := view.MustNamespace(d.Namespace())
 	schema := namespace.Name()
-	if qualified && namespace.Temporary != (ids.SessionToken{}) {
+	if qualified && temporary != (ids.SessionToken{}) && namespace.Temporary == temporary && !namespace.TemporaryToast {
 		schema = "pg_temp"
 	}
 	return regclassIdentifier(schema) + "." + name

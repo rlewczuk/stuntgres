@@ -37,7 +37,7 @@ func StageCreateSchema(h SchemaHost, auth Authority, s *parser.CreateSchema, inp
 	}
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: name, ObjectRevision: rev, Owner: owner}
 	ns.ACL = h.CreationACL(owner, ids.ObjectAddress{}, authorization.DefaultSchemas)
-	if err = h.Stage().Create(ns); err != nil {
+	if err = CreateCommand(h.Stage(), "CREATE SCHEMA", ns); err != nil {
 		return false, err
 	}
 	for _, table := range s.Tables {

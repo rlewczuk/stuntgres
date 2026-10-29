@@ -2,6 +2,7 @@ package rolecmds
 
 import (
 	"fmt"
+	"strings"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/core"
@@ -35,6 +36,7 @@ func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 		return fail(err)
 	}
 	if change.Object == nil {
+		scope.RecordDDLCommand("ALTER "+strings.ToUpper(s.Kind), change.Address)
 		e.Mu.Unlock()
 		scope.CompleteUtility()
 		return core.Result{}, scope.Op.Context().Err()
@@ -57,8 +59,10 @@ func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 		e.DiscardCatalogStage(stage)
 		return core.Result{}, err
 	}
+	stage.RecordDDLCommand("ALTER "+strings.ToUpper(s.Kind), change.Object.Address())
 	return core.PublishOwnership(e, scope, stage)
 }
+
 // Neither family has a namespace or a relation identity to lock.
 func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, name string, identity bool, count int) (core.Result, error) {
 	if count != 0 {
@@ -80,6 +84,9 @@ func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *
 		return fail(err)
 	}
 	if change.Object == nil {
+		if s.Kind != "database" {
+			scope.RecordDDLCommand("ALTER "+strings.ToUpper(s.Kind), change.Address)
+		}
 		e.Mu.Unlock()
 		scope.CompleteUtility()
 		return core.Result{}, scope.Op.Context().Err()
@@ -94,6 +101,9 @@ func executeUnqualifiedOwnership(e *core.Engine, scope *core.StatementScope, s *
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
+	}
+	if s.Kind != "database" {
+		stage.RecordDDLCommand("ALTER "+strings.ToUpper(s.Kind), change.Object.Address())
 	}
 	return core.PublishOwnership(e, scope, stage)
 }

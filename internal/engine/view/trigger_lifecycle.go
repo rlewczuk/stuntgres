@@ -82,7 +82,7 @@ func planTriggerLifecycle(h Host, auth ddl.Authority, stmt parser.Statement, loc
 		return RelationChange{}, err
 	}
 	if !changed {
-		return RelationChange{Ref: ref, Next: old, Sources: sources}, nil
+		return RelationChange{Ref: ref, Next: old, Sources: sources, CommandAddress: ids.ObjectAddress{ClassID: 2620, ObjectID: list[index].OID()}, CommandTag: "ALTER TRIGGER"}, nil
 	}
 	definition, err := stored.NewTrigger(p)
 	if err != nil {
@@ -91,7 +91,10 @@ func planTriggerLifecycle(h Host, auth ddl.Authority, stmt parser.Statement, loc
 	list = slices.Clone(list)
 	list[index] = definition
 	slices.SortFunc(list, func(a, b stored.Trigger) int { return strings.Compare(a.Name(), b.Name()) })
-	return triggerListChange(h, ref, old, list, sources)
+	change, err := triggerListChange(h, ref, old, list, sources)
+	change.CommandAddress = ids.ObjectAddress{ClassID: 2620, ObjectID: definition.OID()}
+	change.CommandTag = "ALTER TRIGGER"
+	return change, err
 }
 
 // alterTriggerParts applies a RENAME or [NO] DEPENDS ON EXTENSION to p.

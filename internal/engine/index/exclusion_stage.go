@@ -159,7 +159,9 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 		return DefaultClassDiagnostic(h, auth, err)
 	}
 	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, StorageOptions: options}
-	if err := CopyColumnStorage(h.StageRead(), parent, backing); err != nil { return err }
+	if err := CopyColumnStorage(h.StageRead(), parent, backing); err != nil {
+		return err
+	}
 	for i := range columns {
 		backing.Columns[i].Nullable = true
 		backing.Columns[i].NullabilityKnown = true
@@ -174,6 +176,11 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	}
 	if err := h.Stage().Create(backing); err != nil {
 		return err
+	}
+	// An existing parent owns an ALTER TABLE subcommand, not a separate
+	// generated CREATE INDEX utility. Fresh-table indexes are base commands.
+	if _, existing := h.StageBase().Find(parent.Address()); !existing {
+		ddl.RecordCommand(h.Stage(), "CREATE INDEX", backing.Address())
 	}
 	if parent.Partition != nil {
 		if !recurse {

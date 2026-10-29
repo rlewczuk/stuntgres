@@ -60,6 +60,17 @@ func AlterSchemaLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 			return fail(err)
 		}
 		scope.CompleteUtility()
+		tag := "ALTER TABLE"
+		if old.RelationKind == catalog.ViewRelation {
+			tag = "ALTER VIEW"
+		}
+		if old.RelationKind == catalog.MaterializedViewRelation {
+			tag = "ALTER MATERIALIZED VIEW"
+		}
+		if old.RelationKind == catalog.ForeignRelation {
+			tag = "ALTER FOREIGN TABLE"
+		}
+		scope.RecordDDLCommand(tag, ref.Address)
 		e.Mu.Unlock()
 		return core.Result{}, nil
 	}
@@ -138,6 +149,17 @@ func AlterSchemaLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	if err != nil {
 		return core.Result{}, err
 	}
+	tag := "ALTER TABLE"
+	if old.RelationKind == catalog.ViewRelation {
+		tag = "ALTER VIEW"
+	}
+	if old.RelationKind == catalog.MaterializedViewRelation {
+		tag = "ALTER MATERIALIZED VIEW"
+	}
+	if old.RelationKind == catalog.ForeignRelation {
+		tag = "ALTER FOREIGN TABLE"
+	}
+	scope.RecordDDLCommand(tag, ref.Address)
 	scope.CompleteUtility()
 	return core.Result{}, nil
 }

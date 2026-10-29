@@ -57,6 +57,9 @@ func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.
 	stage.DomainBases = append(stage.DomainBases, old)
 	edit, err := typedef.StageAlterDomainLocked(tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, old, raw, scope.Input, scope.Output)
 	if err == nil && edit.Skipped {
+		if raw.Action == parser.DomainDropCheck && raw.IfExists {
+			scope.RecordDDLCommand("ALTER DOMAIN", ref.Address)
+		}
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return core.Result{}, nil
@@ -155,6 +158,7 @@ func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.
 	if err != nil {
 		return core.Result{}, err
 	}
+	stage.RecordDDLCommand("ALTER DOMAIN", ref.Address)
 	_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch})
 	return core.Result{}, err
 }

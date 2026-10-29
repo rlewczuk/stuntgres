@@ -205,6 +205,11 @@ long-scalar and key-comparison cancellation remains independent.
   expression usages remain non-concrete and grant neither codecs nor storage.
   Dummy pseudo input reports its SQL diagnostic before concrete codec admission;
   this does not make handlers or other signature-only identities concrete.
+  Canonical OID32 additionally admits `DDLCommandValue`: a query-only immutable
+  bounded command representation without engine/catalog/AST references. Copies
+  and compatible retags share its private backing; copied or noncanonical
+  descriptors cannot construct it. It grants no declaration, storage, comparison
+  or dump codec. Input and text/binary display retain their 0A000 diagnostics.
 - `IndexClass` retains the catalog-selected method, family, input and storage
   identities. GiST classes admit exact owning geometry, network, range,
   multirange and text-search datums without a B-tree comparator. Logical

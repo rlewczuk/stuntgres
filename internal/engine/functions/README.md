@@ -473,6 +473,14 @@ Composite wrapping polls the evaluation context before, during and after
 conversion; interruption returns the ordinary context error without a partial
 source or consuming lexical records.
 
+`EventTriggerDDLCommands` uses the same owned source protocol with the selected
+4568 declaration and nine exact OUT members. Binding/Prepare retain no event
+state. Execute opens the current complete-query inventory, not a phase-gated
+drop view; missing state is 39P03 even for an empty result. The ninth
+`PG_DDL_COMMAND` member is a non-NULL immutable query datum. Projection and
+metadata do not display it; explicit text/binary display rejects with 0A000.
+
+
 ## Binder
 
 `Binder` (`binder.go`) is what bind code may ask of the analyzer;

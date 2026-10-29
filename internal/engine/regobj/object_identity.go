@@ -17,6 +17,8 @@ type ObjectIdentity struct {
 	Kind, Schema, Name, Identity, Description string
 	Names, Args                               []string
 	Found                                     bool
+	// RawSchema is the unquoted canonical namespace, not presentation SQL.
+	RawSchema string
 }
 
 // These are released address classes, not a whitelist of native providers.
@@ -108,10 +110,10 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 	}
 	return "", false
 }
-func objectNamespace(view catalog.Read, namespace ids.ObjectAddress) (actual, canonical string) {
+func objectNamespace(view catalog.Read, namespace ids.ObjectAddress, temporary ids.SessionToken) (actual, canonical string) {
 	if ns, ok := view.Namespace(namespace); ok {
 		actual, canonical = ns.Name(), ns.Name()
-		if ns.Temporary != (ids.SessionToken{}) {
+		if temporary != (ids.SessionToken{}) && ns.Temporary == temporary && !ns.TemporaryToast {
 			canonical = "pg_temp"
 		}
 	}
@@ -125,6 +127,8 @@ func ObjectRelationKind(view catalog.Read, d *catalog.Relation) string {
 		return "view"
 	case "m":
 		return "materialized view"
+	case "f":
+		return "foreign table"
 	case "c":
 		return "composite type"
 	case "i", "I":
@@ -147,8 +151,8 @@ func ObjectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) stri
 	}
 	return ""
 }
-func objectQualifiedType(view catalog.Read, id ids.OID) string {
-	return regtypeSpellingMode(view, nil, id, true)
+func objectQualifiedType(view catalog.Read, id ids.OID, temporary ids.SessionToken) string {
+	return regtypeSpellingMode(view, nil, id, true, temporary)
 }
 
 // Represented declarations own their kind, including released OIDs. A helper's
@@ -167,11 +171,14 @@ func objectRoutineKind(view catalog.Read, id ids.OID) string {
 	return routine.ObjectRoutineKind(id)
 }
 
-func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress) (ObjectIdentity, error) {
-	return identifyAddress(view, roles, path, a, nil)
+// IdentifyAddress renders against an immutable catalog and the executing
+// physical session token. A zero token grants no own-TEMP namespace alias;
+// it does not alter lookup, visibility or storage-access authority.
+func IdentifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress, temporary ids.SessionToken) (ObjectIdentity, error) {
+	return identifyAddress(view, roles, path, a, nil, temporary)
 }
 
-func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress, dropped *catalog.DroppedObject) (ObjectIdentity, error) {
+func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.ObjectAddress, a ids.ObjectAddress, dropped *catalog.DroppedObject, temporary ids.SessionToken) (ObjectIdentity, error) {
 	kind, known := objectAddressClassKind(a.ClassID)
 	if !known {
 		return ObjectIdentity{}, sqlError("XX000", fmt.Sprintf("unsupported object class: %d", a.ClassID))
@@ -187,16 +194,17 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		}
 		r.Found = true
 		r.Kind = objectRoutineKind(view, p.ID)
-		ns, canonical := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
+		ns, canonical := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace}, temporary)
 		if dropped != nil {
-			droppedNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace}, dropped)
+			droppedNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace}, dropped, temporary)
 		}
 		r.Schema = catalog.Identifier(ns)
+		r.RawSchema = canonical
 		r.Names = []string{canonical, p.Name}
 		if p.Signature != "" {
 			for arg := range strings.SplitSeq(string(p.Signature), ",") {
 				id, _ := strconv.ParseUint(arg, 10, 32)
-				r.Args = append(r.Args, objectQualifiedType(view, ids.OID(id)))
+				r.Args = append(r.Args, objectQualifiedType(view, ids.OID(id), temporary))
 			}
 		}
 		r.Identity = catalog.Identifier(ns) + "." + catalog.Identifier(p.Name) + "(" + strings.Join(r.Args, ",") + ")"
@@ -251,7 +259,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		if !r.Found {
 			return r, nil
 		}
-		source, target := objectQualifiedType(view, sourceID), objectQualifiedType(view, targetID)
+		source, target := objectQualifiedType(view, sourceID, temporary), objectQualifiedType(view, targetID, temporary)
 		r.Names = []string{source}
 		r.Args = []string{target}
 		r.Identity = "(" + source + " AS " + target + ")"
@@ -259,27 +267,50 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		return r, nil
 	}
 	if a.ClassID == 2606 || a.ClassID == 2604 || a.ClassID == 2618 || a.ClassID == 2620 || a.ClassID == 3256 {
-		return identifyOwnedAddress(view, path, a, r, dropped), nil
+		return identifyOwnedAddress(view, path, a, r, dropped, temporary), nil
 	}
 	if d == nil {
 		return r, nil
 	}
+	if mapping, ok := d.(*catalog.ForeignObject); ok && a.ClassID == ids.ForeignMappingClassID {
+		server, ok := view.Foreign(mapping.Server)
+		if !ok || server.Address().ClassID != ids.ForeignServerClassID {
+			return r, fmt.Errorf("stuntgres: missing user mapping server identity")
+		}
+		username := "public"
+		if mapping.MappedRole != (authorization.PrincipalRef{}) {
+			role, err := roles.Descriptor(mapping.MappedRole)
+			if err != nil {
+				return r, err
+			}
+			username = role.Name
+		}
+		r.Found = true
+		r.Names = []string{username}
+		r.Args = []string{server.Name()}
+		// PostgreSQL quotes only the role here; the server and description
+		// use raw names, independently of the mapping's internal storage key.
+		r.Identity = catalog.Identifier(username) + " on server " + server.Name()
+		r.Description = "user mapping for " + username + " on server " + server.Name()
+		return r, nil
+	}
 	r.Found = true
-	if member, ok := identifyOperatorFamilyMember(view, path, d, r); ok {
+	if member, ok := identifyOperatorFamilyMember(view, path, d, r, temporary); ok {
 		return member, nil
 	}
-	actual, canonical := objectNamespace(view, d.Namespace())
+	actual, canonical := objectNamespace(view, d.Namespace(), temporary)
 	if dropped != nil {
-		droppedNamespace(view, d.Namespace(), dropped)
+		droppedNamespace(view, d.Namespace(), dropped, temporary)
 		if a.SubID == 0 && a.ClassID != 2617 {
 			dropped.Name, dropped.HasName = d.Name(), true
 		}
 		if ns, ok := d.(*catalog.Namespace); ok {
-			dropped.Temporary = ns.Temporary != (ids.SessionToken{})
+			dropped.Temporary = temporary != (ids.SessionToken{}) && ns.Temporary == temporary && !ns.TemporaryToast
 		}
 	}
 	if actual != "" {
 		r.Schema = catalog.Identifier(actual)
+		r.RawSchema = canonical
 	}
 	r.Name = catalog.Identifier(d.Name())
 	r.Identity = r.Name
@@ -315,7 +346,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 		r.Description = "operator family " + display + " for access method " + catalog.DependencyIdentifier(am)
 		return r, nil
 	case *catalog.Namespace:
-		_, canonical = objectNamespace(view, d.Address())
+		_, canonical = objectNamespace(view, d.Address(), temporary)
 		r.Identity = catalog.Identifier(canonical)
 		r.Names = []string{canonical}
 		display = r.Name
@@ -334,21 +365,21 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			return r, nil
 		}
 	case *catalog.Type:
-		r.Identity = objectQualifiedType(view, a.ObjectID)
+		r.Identity = objectQualifiedType(view, a.ObjectID, temporary)
 		r.Names = []string{r.Identity}
 		display = TypeSpelling(view, path, a.ObjectID)
 	case *catalog.Operator:
 		r.Name = ""
 		left, right := "NONE", "NONE"
 		if d.Left != 0 {
-			left = objectQualifiedType(view, d.Left)
+			left = objectQualifiedType(view, d.Left, temporary)
 			r.Args = append(r.Args, left)
 		}
 		if d.Right != 0 {
-			right = objectQualifiedType(view, d.Right)
+			right = objectQualifiedType(view, d.Right, temporary)
 			r.Args = append(r.Args, right)
 		}
-		r.Identity = catalog.Identifier(canonical) + "." + d.Name() + "(" + left + "," + right + ")"
+		r.Identity = catalog.Identifier(actual) + "." + d.Name() + "(" + left + "," + right + ")"
 		display = d.Name()
 		if !NamedObjectVisible(view, path, d) {
 			display = catalog.Identifier(canonical) + "." + display
@@ -368,17 +399,18 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
-func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject) ObjectIdentity {
+func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject, temporary ids.SessionToken) ObjectIdentity {
 	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*catalog.Type); ok && a.ClassID == 2606 {
 			if nn := domain.DomainNotNull; nn != nil && nn.OID == a.ObjectID {
 				if dropped != nil {
-					droppedNamespace(view, domain.Namespace(), dropped)
+					droppedNamespace(view, domain.Namespace(), dropped, temporary)
 				}
 				r.Found, r.Kind = true, "domain constraint"
-				ns, _ := objectNamespace(view, domain.Namespace())
+				ns, canonical := objectNamespace(view, domain.Namespace(), temporary)
 				r.Schema = catalog.Identifier(ns)
-				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
+				r.RawSchema = canonical
+				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()), temporary)
 				r.Identity = catalog.Identifier(nn.Name) + " on " + typeName
 				r.Names, r.Args = []string{typeName}, []string{nn.Name}
 				r.Description = "constraint " + nn.Name
@@ -389,13 +421,14 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 					continue
 				}
 				if dropped != nil {
-					droppedNamespace(view, domain.Namespace(), dropped)
+					droppedNamespace(view, domain.Namespace(), dropped, temporary)
 				}
 				r.Found = true
 				r.Kind = "domain constraint"
-				ns, _ := objectNamespace(view, domain.Namespace())
+				ns, canonical := objectNamespace(view, domain.Namespace(), temporary)
 				r.Schema = catalog.Identifier(ns)
-				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()))
+				r.RawSchema = canonical
+				typeName := objectQualifiedType(view, ids.OID(domain.SQLType.ID()), temporary)
 				r.Identity = catalog.Identifier(check.Name) + " on " + typeName
 				r.Names = []string{typeName}
 				r.Args = []string{check.Name}
@@ -411,7 +444,7 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 		if name == "" {
 			continue
 		}
-		return identifyOwnedRelationAddress(view, path, a, r, dropped, d, name, sub)
+		return identifyOwnedRelationAddress(view, path, a, r, dropped, d, name, sub, temporary)
 	}
 	if a.ClassID == 2620 {
 		for fact := range catalog.ForeignKeyTriggerFacts(view) {
@@ -419,7 +452,7 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 				continue
 			}
 			if relation, ok := view.Relation(fact.Relation); ok {
-				return identifyOwnedRelationAddress(view, path, a, r, dropped, relation, fact.Name, 0)
+				return identifyOwnedRelationAddress(view, path, a, r, dropped, relation, fact.Name, 0, temporary)
 			}
 			break
 		}
@@ -427,14 +460,14 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 	return r
 }
 
-func identifyOwnedRelationAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject, d *catalog.Relation, name string, sub int32) ObjectIdentity {
+func identifyOwnedRelationAddress(view catalog.Read, path []ids.ObjectAddress, a ids.ObjectAddress, r ObjectIdentity, dropped *catalog.DroppedObject, d *catalog.Relation, name string, sub int32, temporary ids.SessionToken) ObjectIdentity {
 	r.Found = true
-	actual, canonical := objectNamespace(view, d.Namespace())
+	actual, canonical := objectNamespace(view, d.Namespace(), temporary)
 	if dropped != nil {
 		// pg_rewrite has no namespace attribute or owner-schema override,
 		// including for temporary-status detection.
 		if a.ClassID != 2618 {
-			droppedNamespace(view, d.Namespace(), dropped)
+			droppedNamespace(view, d.Namespace(), dropped, temporary)
 		}
 	}
 	relation := catalog.Identifier(canonical) + "." + catalog.Identifier(d.Name())
@@ -444,6 +477,7 @@ func identifyOwnedRelationAddress(view catalog.Read, path []ids.ObjectAddress, a
 	case 2606:
 		r.Kind = "table constraint"
 		r.Schema = catalog.Identifier(actual)
+		r.RawSchema = canonical
 		r.Identity = catalog.Identifier(name) + " on " + relation
 		r.Description = "constraint " + name + " on " + description
 	case 2604:
