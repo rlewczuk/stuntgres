@@ -1626,7 +1626,9 @@ Producers, the OID registry and descriptor specs live in
   read-only; private transaction catalogs or role records capture fresh. Errors
   are never stored, and a hit still returns the caller's context error. The slot
   also keeps an `exec.CatalogKeyIndex` of its rows; hits and misses attach it as
-  `Source.CatalogKeys`, so oid equality filters visit only matching rows.
+  `Source.CatalogKeys`, so oid equality filters visit only matching rows. A
+  statement whose filter yields a `pgcatalog.Keep` (`pg_proc.oid`) uses a hit
+  as is; on a miss it builds only the kept rows and stores nothing.
 - `EngineCatalogRuntime` exposes values per call, never Engine, StatementScope,
   AuthorizationView or bindings. Settings rows capture one coherent
   physical-session snapshot after unlocking `Engine.Mu`; `pg_locks_capture.go`

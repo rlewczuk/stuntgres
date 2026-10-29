@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"fmt"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -85,6 +86,9 @@ func TestReferencePGCatalogKeyProbes(t *testing.T) {
 			typeParam(int64(0))
 			typeParam(nil)
 			procParam(f1, "f1")
+			both(fixture.Select("SELECT proname FROM pg_proc WHERE oid='ckp_ns.f2(integer)'::regprocedure", []string{"proname"}, []string{"NAME"}, names("f2")))
+			both(fixture.Select("SELECT p.proname FROM pg_proc p WHERE p.oid IN ('ckp_ns.f1()'::regprocedure,'ckp_ns.f2(integer)'::regprocedure,0) ORDER BY 1", []string{"proname"}, []string{"NAME"}, names("f1", "f2")))
+			both(fixture.Select(fmt.Sprintf("SELECT proname FROM pg_proc WHERE oid=%d AND prorettype='integer'::regtype", f1), []string{"proname"}, []string{"NAME"}, names("f1")))
 			namespace("f1", "f2")
 			both(fixture.Select("SELECT p.proname,l.lanname FROM (SELECT * FROM pg_proc WHERE oid='ckp_ns.f2(integer)'::regprocedure::oid) p JOIN (SELECT * FROM pg_language WHERE lanname='sql') l ON l.oid=p.prolang", []string{"proname", "lanname"}, []string{"NAME", "NAME"}, [][]any{{"f2", "sql"}}))
 			both(fixture.Select("SELECT t.typname,b.typname AS base FROM (SELECT * FROM pg_type WHERE oid='ckp_ns.d1'::regtype::oid) t JOIN (SELECT * FROM pg_type WHERE oid=23) b ON b.oid=t.typbasetype", []string{"typname", "base"}, []string{"NAME", "NAME"}, [][]any{{"d1", "int4"}}))

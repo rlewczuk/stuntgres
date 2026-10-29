@@ -55,6 +55,11 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		if procedure, ok := descriptor.(*catalog.Procedure); ok {
+			if in.Keep.Rejects(ProcedureOIDColumn, func() (sqltype.Value, error) {
+				return sqltype.OIDValue(source.Columns[ProcedureOIDColumn].Usage.Type, uint32(procedure.Address().ObjectID))
+			}) {
+				continue
+			}
 			row, err := procedureRow(in, procedure)
 			if err != nil {
 				return nil, err

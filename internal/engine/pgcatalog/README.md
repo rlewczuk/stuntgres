@@ -186,8 +186,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - `Keep`, when set, tests one key column's cell of a candidate row; the
   producer omits the rows it rejects, which the statement's own filter rejects
   anyway (`exec.CatalogSourceKeep`). `KeyColumns` lists them: `pg_settings.name`,
-  `pg_attribute.attrelid` (one test per relation) and `pg_class.oid` or
-  `relname`. Captures made with `Keep` are never shared.
+  `pg_attribute.attrelid` (one test per relation), `pg_class.oid` or
+  `relname`, and `pg_proc.oid`. Captures made with `Keep` are never shared; a
+  statement with `Keep` may still read a shared full capture.
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write
   into returned rows.

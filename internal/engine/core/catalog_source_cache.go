@@ -51,11 +51,14 @@ func (c *catalogCaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
 // published catalog and role record it was built from. Transaction-private
 // catalogs or roles always capture fresh. Errors are never stored, and a hit
 // still reports the caller's cancellation. Both return the slot's key index,
-// so oid equality filters visit only matching rows. Caller holds Engine.Mu.
+// so oid equality filters visit only matching rows. A hit serves a capture
+// with Keep too: the shared rows include every row Keep would keep, and the
+// filter still rejects the rest. A miss with Keep builds only the kept rows
+// and is not stored. Caller holds Engine.Mu.
 func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgcatalog.Producer, roles *access.RoleRecord) (*exec.Source, error) {
 	slot := e.catalogCaptures.slot(in.Source.Address().ObjectID)
 	state := in.Catalog.State()
-	if slot == nil || in.Keep.Test != nil || state == nil || state != e.Catalog.State || roles == nil || roles != e.RoleStore.Published {
+	if slot == nil || state == nil || state != e.Catalog.State || roles == nil || roles != e.RoleStore.Published {
 		return CaptureCatalogSourceRows(in, produce)
 	}
 	key := catalogCaptureKey{state: state, roles: roles, source: in.Source, ref: in.Ref}
@@ -64,6 +67,9 @@ func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgca
 			return nil, err
 		}
 		return &exec.Source{Ref: in.Ref, Anonymous: slot.rows, CatalogKeys: slot.keys}, nil
+	}
+	if in.Keep.Test != nil {
+		return CaptureCatalogSourceRows(in, produce)
 	}
 	source, err := CaptureCatalogSourceRows(in, produce)
 	if err == nil {

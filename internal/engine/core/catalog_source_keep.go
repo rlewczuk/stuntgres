@@ -16,8 +16,8 @@ type catalogKeepQuery struct {
 }
 
 // captureSelectSourcesLocked is CaptureQuerySourcesLocked for a SELECT whose
-// root reads the leaves. While it runs, a pg_settings, pg_attribute or
-// pg_class leaf filtered by one of its key columns builds only the rows the
+// root reads the leaves. While it runs, a pg_settings, pg_attribute, pg_class
+// or pg_proc leaf filtered by one of its key columns builds only the rows the
 // filter can accept.
 func (e *Engine) captureSelectSourcesLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf, parameters []sqltype.Value, singleton bool) (*exec.Source, error) {
 	previous := scope.catalogKeep

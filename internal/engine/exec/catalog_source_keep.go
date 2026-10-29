@@ -155,10 +155,12 @@ func textConstant(x expr.Expr) bool {
 }
 
 // oidConstant reports whether every expression of a statement constant's
-// chain is an oid or regclass, ending in an oid literal or parameter or in a
-// regclass literal. The binder resolves 'name'::regclass literals to their OID
-// (bindRegclass), so no step reads the input environment; a text cast to
-// regclass would, and is rejected.
+// chain is an oid, regclass or routine alias, ending in an oid literal or
+// parameter, in a regclass or regproc/regprocedure literal, or in an integer
+// literal cast to oid. The binder resolves 'name'::regclass and
+// 'f(x)'::regprocedure literals to their OID (bindRegclass, RoutineConstant),
+// so no step reads the input environment; a text cast to regclass would, and
+// is rejected.
 func oidConstant(x expr.Expr) bool {
 	for {
 		typ := x.ResultUsage().Type
@@ -166,11 +168,14 @@ func oidConstant(x expr.Expr) bool {
 			return false
 		}
 		id := typ.ID()
-		if id != sqltype.Oid && id != sqltype.Regclass {
+		if id != sqltype.Oid && id != sqltype.Regclass && !sqltype.IsRoutineAlias(id) {
 			return false
 		}
 		switch c := x.(type) {
 		case plan.CoercionExpr:
+			if id == sqltype.Oid && integerLiteral(c.Child) {
+				return true
+			}
 			x = c.Child
 		case plan.LiteralExpr:
 			return true
@@ -180,4 +185,18 @@ func oidConstant(x expr.Expr) bool {
 			return false
 		}
 	}
+}
+
+// integerLiteral reports an int2, int4 or int8 literal, such as 16384 in
+// oid = 16384.
+func integerLiteral(x expr.Expr) bool {
+	literal, ok := x.(plan.LiteralExpr)
+	if !ok || literal.ResultUsage().Type == nil {
+		return false
+	}
+	switch literal.ResultUsage().Type.ID() {
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
+		return true
+	}
+	return false
 }

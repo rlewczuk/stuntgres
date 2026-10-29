@@ -52,6 +52,7 @@ const (
 	AttributeRelationColumn = 0 // pg_attribute.attrelid
 	ClassOIDColumn          = 0 // pg_class.oid
 	ClassNameColumn         = 1 // pg_class.relname
+	ProcedureOIDColumn      = 0 // pg_proc.oid
 )
 
 // KeyColumns lists the key columns of a system relation whose producer skips
@@ -64,6 +65,8 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{AttributeRelationColumn}
 	case ClassOID:
 		return []int{ClassOIDColumn, ClassNameColumn}
+	case ids.ProcedureClassID:
+		return []int{ProcedureOIDColumn}
 	}
 	return nil
 }
