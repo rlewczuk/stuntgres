@@ -89,6 +89,12 @@ func TestReferencePGCatalogKeyProbes(t *testing.T) {
 			both(fixture.Select("SELECT proname FROM pg_proc WHERE oid='ckp_ns.f2(integer)'::regprocedure", []string{"proname"}, []string{"NAME"}, names("f2")))
 			both(fixture.Select("SELECT p.proname FROM pg_proc p WHERE p.oid IN ('ckp_ns.f1()'::regprocedure,'ckp_ns.f2(integer)'::regprocedure,0) ORDER BY 1", []string{"proname"}, []string{"NAME"}, names("f1", "f2")))
 			both(fixture.Select(fmt.Sprintf("SELECT proname FROM pg_proc WHERE oid=%d AND prorettype='integer'::regtype", f1), []string{"proname"}, []string{"NAME"}, names("f1")))
+			// Through inner and LEFT joins the probe filters pg_proc before
+			// pairing: a join condition never sees the other procedures.
+			both(fixture.Select("SELECT p.proname,n.nspname,l.lanname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_language l ON l.oid=p.prolang WHERE p.oid='ckp_ns.f2(integer)'::regprocedure", []string{"proname", "nspname", "lanname"}, []string{"NAME", "NAME", "NAME"}, [][]any{{"f2", "ckp_ns", "sql"}}))
+			both(fixture.Select("SELECT p.proname,COALESCE(e.extname::text,'') AS member FROM pg_proc p LEFT JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e' LEFT JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid IN ('ckp_ns.f1()'::regprocedure,'ckp_ns.f2(integer)'::regprocedure) ORDER BY 1", []string{"proname", "member"}, []string{"NAME", "TEXT"}, [][]any{{"f1", ""}, {"f2", ""}}))
+			both(fixture.Select("SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON (CASE WHEN p.oid='ckp_ns.f1()'::regprocedure THEN n.oid ELSE (1/(p.pronargs-p.pronargs))::oid END)=p.pronamespace WHERE p.oid='ckp_ns.f1()'::regprocedure", []string{"proname"}, []string{"NAME"}, names("f1")))
+			both(fixture.Select("SELECT n.nspname FROM pg_namespace n RIGHT JOIN pg_proc p ON n.oid=p.pronamespace WHERE p.oid='ckp_ns.f2(integer)'::regprocedure", []string{"nspname"}, []string{"NAME"}, names("ckp_ns")))
 			namespace("f1", "f2")
 			both(fixture.Select("SELECT p.proname,l.lanname FROM (SELECT * FROM pg_proc WHERE oid='ckp_ns.f2(integer)'::regprocedure::oid) p JOIN (SELECT * FROM pg_language WHERE lanname='sql') l ON l.oid=p.prolang", []string{"proname", "lanname"}, []string{"NAME", "NAME"}, [][]any{{"f2", "sql"}}))
 			both(fixture.Select("SELECT t.typname,b.typname AS base FROM (SELECT * FROM pg_type WHERE oid='ckp_ns.d1'::regtype::oid) t JOIN (SELECT * FROM pg_type WHERE oid=23) b ON b.oid=t.typbasetype", []string{"typname", "base"}, []string{"NAME", "NAME"}, [][]any{{"d1", "int4"}}))

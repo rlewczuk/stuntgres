@@ -53,6 +53,17 @@ func TestCatalogSourceKeepFilterShapes(t *testing.T) {
 	}
 	scan := func() *plan.SourceNode { return &plan.SourceNode{Ref: ref} }
 	filtered := func(predicate expr.Expr) plan.Node { return &plan.FilterNode{Child: scan(), Predicate: predicate} }
+	// The scan is the left input of every join; another relation is the right.
+	join := func(kind parser.JoinKind, left plan.Node) *plan.JoinNode {
+		return &plan.JoinNode{Left: left, Right: &plan.SourceNode{Ref: other, Occurrence: 1}, Kind: kind, LeftWidth: 2, RightWidth: 1, Frame: 1}
+	}
+	overJoin := func(j *plan.JoinNode) plan.Node {
+		return &plan.FilterNode{Child: j, Predicate: eq(name, literal("role"))}
+	}
+	merged := join(parser.JoinInner, scan())
+	merged.Merges = []expr.Expr{name}
+	rightScan := join(parser.JoinInner, &plan.SourceNode{Ref: other, Occurrence: 1})
+	rightScan.Right = scan()
 	unrelated := eq(plan.ColumnExpr{Info: info, Origin: attribute(ref, 2), Scope: 1, Frame: 1, Slot: 1}, literal("on"))
 	seven, err := sqltype.Integer(integer, 7)
 	if err != nil {
@@ -81,11 +92,18 @@ func TestCatalogSourceKeepFilterShapes(t *testing.T) {
 		{"not equality", filtered(plan.ComparisonExpr{Info: truth, Left: name, Right: literal("role"), Predicate: equal, Operator: "<"}), nil, nil},
 		{"filter above projection", &plan.FilterNode{Child: &plan.ProjectNode{Child: scan()}, Predicate: eq(name, literal("role"))}, nil, nil},
 		{"two scans", &plan.JoinNode{Left: filtered(eq(name, literal("role"))), Right: scan()}, nil, nil},
+		{"inner join", overJoin(join(parser.JoinInner, scan())), []string{"role"}, []string{"work_mem"}},
+		{"nested left joins", overJoin(join(parser.JoinLeft, join(parser.JoinInner, scan()))), []string{"role"}, []string{"work_mem"}},
+		{"right join", overJoin(join(parser.JoinRight, scan())), nil, nil},
+		{"full join", overJoin(join(parser.JoinFull, scan())), nil, nil},
+		{"under a right join", overJoin(join(parser.JoinInner, join(parser.JoinRight, scan()))), nil, nil},
+		{"merged join", overJoin(merged), nil, nil},
+		{"scan on the right", overJoin(rightScan), nil, nil},
 		{"unfiltered", scan(), nil, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			keep := exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, tc.root, 0, ref, 0)
+			keep := exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, tc.root, true, 0, ref, 0)
 			if tc.keep == nil {
 				if keep != nil {
 					t.Fatal("unexpected row test")
@@ -109,6 +127,13 @@ func TestCatalogSourceKeepFilterShapes(t *testing.T) {
 				t.Fatal("rejected a NULL cell, for which the conjunct is not FALSE")
 			}
 		})
+	}
+	// A lock context keeps the post-join filter order, so a join pairs every row.
+	if exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, overJoin(join(parser.JoinInner, scan())), false, 0, ref, 0) != nil {
+		t.Fatal("row test through a join of a locking statement")
+	}
+	if exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, filtered(eq(name, literal("role"))), false, 0, ref, 0) == nil {
+		t.Fatal("missing row test directly over a locking statement's scan")
 	}
 }
 
@@ -183,7 +208,7 @@ func TestCatalogSourceKeepOIDProbes(t *testing.T) {
 		keeps bool
 	}{{"oid literal", oidLiteral, true}, {"bound regclass literal", boundRegclass, true}, {"bound regprocedure literal", boundRegprocedure, true}, {"integer literal", integerLiteral, true}, {"oid parameter", parameter, true}, {"integer parameter", integerParameter, false}, {"text cast to regclass", textRegclass, false}} {
 		t.Run(tc.name, func(t *testing.T) {
-			keep := exec.CatalogSourceKeep(context.Background(), []sqltype.Value{cell(16384)}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, filtered(tc.probe), 0, ref, 0)
+			keep := exec.CatalogSourceKeep(context.Background(), []sqltype.Value{cell(16384)}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, filtered(tc.probe), true, 0, ref, 0)
 			if !tc.keeps {
 				if keep != nil {
 					t.Fatal("unexpected row test")

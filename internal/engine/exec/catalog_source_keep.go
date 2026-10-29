@@ -13,20 +13,28 @@ import (
 // CatalogSourceKeep returns a test of one column cell of the catalog source
 // that leaf occurrence of root scans, so its producer can skip rows the
 // statement's filter rejects. It applies only when root scans the occurrence
-// once, directly under a filter whose first-evaluated conjunct compares column
-// slot of that scan with non-NULL statement constants (text, or an oid probe
-// such as a bound 'name'::regclass literal): "=" or "= ANY" of a list, with a
-// builtin pg_catalog comparison. The test evaluates that
-// comparison's own predicate and rejects a cell only when the conjunct is
-// FALSE: the filter then rejects the row without evaluating anything else.
-// TRUE, NULL and a failing evaluation keep the cell for the filter. nil means
-// no such filter, and every row must be produced.
+// once, under a filter whose first-evaluated conjunct compares column slot of
+// that scan with non-NULL statement constants (text, or an oid probe such as a
+// bound 'name'::regclass literal): "=" or "= ANY" of a list, with a builtin
+// pg_catalog comparison. The test evaluates that comparison's own predicate
+// and rejects a cell only when the conjunct is FALSE: the filter then rejects
+// the row without evaluating anything else. TRUE, NULL and a failing
+// evaluation keep the cell for the filter. nil means no such filter, and
+// every row must be produced.
+//
+// The filter is directly over the scan, or over a chain of inner and LEFT
+// joins whose left inputs lead to it. Through joins the conjunct must be one
+// JoinRestriction moves below each of them, and only when the statement reads
+// without a lock context (lockFree) or identity reads: execution then filters
+// the scan's rows before any join pairs them, so a skipped row never reaches
+// a join predicate or a correlated right input either.
 //
 // parameters, input and output are the statement's, as the filter sees them
 // at the top-level scope and frame.
-func CatalogSourceKeep(ctx context.Context, parameters []sqltype.Value, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, root plan.Node, occurrence int, ref ids.ObjectRef, slot int) func(sqltype.Value) bool {
+func CatalogSourceKeep(ctx context.Context, parameters []sqltype.Value, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, root plan.Node, lockFree bool, occurrence int, ref ids.ObjectRef, slot int) func(sqltype.Value) bool {
 	var scan *plan.SourceNode
 	var filter *plan.FilterNode
+	var joins []*plan.JoinNode
 	scans := 0
 	plan.VisitCTEQuery(root, func(n plan.Node) {
 		switch n := n.(type) {
@@ -35,17 +43,41 @@ func CatalogSourceKeep(ctx context.Context, parameters []sqltype.Value, input sq
 				scan, scans = n, scans+1
 			}
 		case *plan.FilterNode:
-			if child, ok := n.Child.(*plan.SourceNode); ok && child.Occurrence == occurrence {
-				filter = n
+			var path []*plan.JoinNode
+			child := n.Child
+			for {
+				join, ok := child.(*plan.JoinNode)
+				if !ok {
+					break
+				}
+				path, child = append(path, join), join.Left
+			}
+			if leaf, ok := child.(*plan.SourceNode); ok && leaf.Occurrence == occurrence {
+				filter, joins = n, path
 			}
 		}
 	}, func(expr.Expr) {}, true)
-	if scans != 1 || filter == nil || filter.Child != plan.Node(scan) || scan.Ref != ref {
+	if scans != 1 || filter == nil || scan.Ref != ref {
+		return nil
+	}
+	conjunct := firstConjunct(filter.Predicate)
+	if len(joins) != 0 && (!lockFree || QueryHasIdentityReads(root) || !restrictedThrough(joins, conjunct)) {
 		return nil
 	}
 	evaluation := Context{EvalFrame: EvalFrame{Scope: 1, Frame: 1}, EvalStatement: EvalStatement{Parameters: parameters, Input: input, Output: output}}
 	evaluation.setContext(ctx)
-	return catalogColumnKeep(&evaluation, firstConjunct(filter.Predicate), occurrence, ref, slot)
+	return catalogColumnKeep(&evaluation, conjunct, occurrence, ref, slot)
+}
+
+// restrictedThrough reports whether JoinRestriction moves conjunct below each
+// join, outermost first, down to the leftmost input.
+func restrictedThrough(joins []*plan.JoinNode, conjunct expr.Expr) bool {
+	for _, join := range joins {
+		if join.Kind != parser.JoinInner && join.Kind != parser.JoinLeft || len(join.Merges) != 0 || !plan.JoinLeftRestriction(join, conjunct) {
+			return false
+		}
+	}
+	return true
 }
 
 // firstConjunct returns the leftmost operand of an AND chain, which AND

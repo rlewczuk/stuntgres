@@ -395,7 +395,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 				if scope.ruleAction.Auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 					sourceInvoker = leaf.Principal
 				}
-				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogSourceKeep(leaves, i, mark))
+				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogSourceKeep(leaves, i, mark, locks))
 				e.Mu.Lock()
 			}
 		}
