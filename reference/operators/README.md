@@ -13,7 +13,7 @@ comparison, BETWEEN and conditional expressions are in
 [reference/query_core](../query_core/README.md#testing) and
 [reference/types](../types/README.md#testing); explicit casts and the
 comparison resolution matrix are in `reference/type_resolution`.
-BEFORE row, AFTER row/statement and view INSTEAD OF row trigger scenarios cover private PL frames,
+BEFORE row/statement, AFTER row/statement and view INSTEAD OF row trigger scenarios cover private PL frames,
 ordered chains, query completion, zero-row events, TRUNCATE, permissions,
 physical mutation producers and native post-data replay. The shared
 `triggerScenario` helper follows the ordinary configured-backend loop.
@@ -84,6 +84,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
   loops, `triggerSetup` and `triggerDDLChain` provide shared definitions, and
   `triggerRows`, `triggerDDLHeld`, `triggerDDLError` and `triggerDDLX` assert
   metadata, actual retained-handle execution, diagnostics and extension edges.
+- BEFORE statement scenarios use `beforeStatementRoutes` to retain actual prepared
+  handles alongside direct execution; select the family with
+  `make check RUN='^TestReferenceTriggerBeforeStatement'` (and `REFERENCE=1`).
+  The foreign participant half of `ViewForeign` lives in `reference/tables`.
 - Trigger protocol helpers use `fixture.NewServerFixture` for process, backend
   and credential ownership. The local `triggerProtocolWire` uses public pgconn
   startup/authentication and typed pgproto3 messages; each received message is

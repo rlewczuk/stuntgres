@@ -43,7 +43,7 @@ imports `view`.
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
   View INSTEAD OF definitions are checked ROW INSERT/UPDATE/DELETE only, without
-  WHEN or column lists; applicable view AFTER STATEMENT definitions stay local.
+  WHEN or column lists; view BEFORE/AFTER STATEMENT I/U/D definitions stay local.
 - **Trigger partition synchronization** (`trigger_sync.go`):
   `SynchronizeTriggersLocked` keeps row-level partition trigger clones in step
   with their parents at every catalog publication (CREATE, ATTACH, DETACH and

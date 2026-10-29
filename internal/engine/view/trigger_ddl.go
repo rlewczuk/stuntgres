@@ -153,8 +153,8 @@ func triggerKind(old *catalog.Relation, s *parser.CreateTrigger) error {
 				return sqlError("0A000", "INSTEAD OF triggers cannot have column lists")
 			}
 		}
-	} else if s.Timing != "after" && (s.Timing != "before" || !s.Row) {
-		return sqlError("0A000", "only row-level BEFORE and row or statement AFTER triggers are supported")
+	} else if s.Timing != "after" && s.Timing != "before" {
+		return sqlError("0A000", "unsupported trigger timing")
 	}
 	return nil
 }

@@ -38,6 +38,9 @@ func ExecuteViewTrigger(h Host, in ViewTriggerCommand) (outcome Outcome, err err
 	} else if in.Target != nil {
 		event = stored.TriggerDelete
 	}
+	if err = BeforeStatement(h, b, event); err != nil {
+		return Outcome{}, err
+	}
 	if err = RegisterAfterStatement(h, b, event); err != nil {
 		return Outcome{}, err
 	}

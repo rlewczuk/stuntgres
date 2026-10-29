@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -71,6 +72,65 @@ func HasRowTriggers(relation *catalog.Relation, event stored.TriggerEvent, timin
 		}
 	}
 	return false
+}
+
+// BeforeStatement is gated only by metadata relevance. Mode, WHEN and UPDATE OF
+// belong to the host after it marks this query's first relation/event producer.
+// Trigger-free and irrelevant metadata paths call no host and allocate nothing.
+func BeforeStatement(h Host, b analyze.Binding, event stored.TriggerEvent) error {
+	if !HasStatementTriggers(b.Relation, event, stored.TriggerBefore) {
+		return nil
+	}
+	var targets []int32
+	if event == stored.TriggerUpdate {
+		targets = UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
+	}
+	return h.BeforeStatement(b.Ref, event, targets)
+}
+
+func HasStatementTriggers(relation *catalog.Relation, event stored.TriggerEvent, timing stored.TriggerTiming) bool {
+	if relation == nil {
+		return false
+	}
+	for _, definition := range stored.TriggersOf(relation) {
+		p := definition.Parts()
+		if p.Timing == timing && p.Level == stored.TriggerStatement && p.Events&event != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// StatementEvents is the logical event set of an accepted mutation, independent
+// of affected rows or chosen conflict/MERGE actions.
+func StatementEvents(b analyze.Binding, statement parser.Statement) stored.TriggerEvent {
+	if b.Merge != nil {
+		var events stored.TriggerEvent
+		for _, arm := range b.Merge.Arms {
+			switch arm.Action {
+			case parser.MergeInsertAction:
+				events |= stored.TriggerInsert
+			case parser.MergeUpdateAction:
+				events |= stored.TriggerUpdate
+			case parser.MergeDeleteAction:
+				events |= stored.TriggerDelete
+			}
+		}
+		return events
+	}
+	switch StatementCTERoot(statement).(type) {
+	case *parser.Insert:
+		events := stored.TriggerInsert
+		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
+			events |= stored.TriggerUpdate
+		}
+		return events
+	case *parser.Update:
+		return stored.TriggerUpdate
+	case *parser.Delete:
+		return stored.TriggerDelete
+	}
+	return 0
 }
 
 // RegisterAfterStatement is execution-only and independent of row production.

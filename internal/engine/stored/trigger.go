@@ -80,7 +80,7 @@ func validateTriggerParts(p TriggerParts) error {
 	if p.OID == 0 || p.Name == "" || p.Relation.Address.ClassID != ids.RelationClassID || p.Relation.Address.ObjectID == 0 || p.Procedure.Address.ClassID != ids.ProcedureClassID || p.Procedure.Address.ObjectID == 0 || p.Events == 0 || p.Events&^(TriggerInsert|TriggerUpdate|TriggerDelete|TriggerTruncate) != 0 || (p.When == nil) != (p.Presentation == nil) || (p.When == nil) != (p.Binding == nil) {
 		return fmt.Errorf("stuntgres: invalid trigger definition")
 	}
-	if (p.Timing != TriggerBefore && p.Timing != TriggerAfter && p.Timing != TriggerInstead) || (p.Level != TriggerRow && p.Level != TriggerStatement) || p.Timing == TriggerBefore && p.Level != TriggerRow || p.Events&TriggerTruncate != 0 && p.Level != TriggerStatement || p.Parent.ObjectID != 0 && p.Level != TriggerRow {
+	if (p.Timing != TriggerBefore && p.Timing != TriggerAfter && p.Timing != TriggerInstead) || (p.Level != TriggerRow && p.Level != TriggerStatement) || p.Events&TriggerTruncate != 0 && p.Level != TriggerStatement || p.Parent.ObjectID != 0 && p.Level != TriggerRow {
 		return fmt.Errorf("stuntgres: invalid trigger timing or level")
 	}
 	if p.Timing == TriggerInstead && (p.Level != TriggerRow || p.Events&TriggerTruncate != 0 || p.When != nil || p.Presentation != nil || p.Binding != nil || len(p.UpdateColumns) != 0 || p.Parent != (ids.ObjectAddress{}) || p.ParentRevision != 0) {
@@ -176,7 +176,7 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 			return err
 		}
 		if owner.RelationKind == catalog.ViewRelation {
-			if p.Events&TriggerTruncate != 0 || p.Timing != TriggerInstead && (p.Timing != TriggerAfter || p.Level != TriggerStatement) {
+			if p.Events&TriggerTruncate != 0 || p.Timing != TriggerInstead && p.Level != TriggerStatement {
 				return fmt.Errorf("stuntgres: invalid view trigger definition")
 			}
 		} else if p.Timing == TriggerInstead {

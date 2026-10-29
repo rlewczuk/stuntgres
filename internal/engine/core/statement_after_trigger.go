@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"stuntgres/internal/engine/analyze"
@@ -27,6 +28,7 @@ type afterTriggerFrame struct {
 	draining         bool
 	producers        []afterStatementProducer
 	producer         int
+	before           map[afterStatementKey]struct{}
 }
 
 type afterStatementKey struct {
@@ -253,7 +255,9 @@ func (s *StatementScope) qualifyAfterStatement(event afterTriggerEvent) (bool, e
 	return s.afterWhen(event, auth)
 }
 
-func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
+// fireTrigger shares live executable admission and balanced invocation for
+// queued AFTER and immediate BEFORE STATEMENT events; it never transforms rows.
+func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 	if err := s.Op.Context().Err(); err != nil {
 		return err
 	}
@@ -284,7 +288,10 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 		return err
 	}
 	if catalog.NativeDMLTrigger(d) {
-		_, err := s.invokeNativeTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
+		result, err := s.invokeNativeTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
+		if p.Timing == stored.TriggerBefore && p.Level == stored.TriggerStatement {
+			return beforeStatementNativeResult(result, err)
+		}
 		return err
 	}
 	rel, err := plTriggerRelation(event.read, event.relation)
@@ -304,7 +311,11 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 	if p.Level == stored.TriggerStatement {
 		level = "STATEMENT"
 	}
-	frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, "AFTER", level, p.Arguments, event.old, event.next)
+	timing := "AFTER"
+	if p.Timing == stored.TriggerBefore {
+		timing = "BEFORE"
+	}
+	frame, err := proc.NewPLTriggerFrame(d.SQL, rel, p.Name, name, timing, level, p.Arguments, event.old, event.next)
 	if err != nil {
 		return err
 	}
@@ -339,7 +350,7 @@ func (s *StatementScope) drainAfter() error {
 				continue
 			}
 		}
-		if err := s.fireAfter(event); err != nil {
+		if err := s.fireTrigger(event); err != nil {
 			return err
 		}
 	}
@@ -356,6 +367,7 @@ func cloneAfterState(state *afterTriggerState) *afterTriggerState {
 		f := *frame
 		f.rows, f.statements = slices.Clone(frame.rows), slices.Clone(frame.statements)
 		f.producers = slices.Clone(frame.producers)
+		f.before = maps.Clone(frame.before)
 		copy.frames[id] = &f
 	}
 	return copy

@@ -35,8 +35,16 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	ctx, b, source, from, parameters, schema := in.Context, in.Binding, in.Source, in.From, in.Parameters, in.Schema
 	defer source.Close()
 	source.Host = h
+	if err := BeforeStatement(h, b, stored.TriggerUpdate); err != nil {
+		if from != nil {
+			from.Close()
+		}
+		return Outcome{}, err
+	}
 	if err := RegisterAfterStatement(h, b, stored.TriggerUpdate); err != nil {
-		if from != nil { from.Close() }
+		if from != nil {
+			from.Close()
+		}
 		return Outcome{}, err
 	}
 	defer CompleteAfterStatement(h, b, stored.TriggerUpdate, &outcome, &err)

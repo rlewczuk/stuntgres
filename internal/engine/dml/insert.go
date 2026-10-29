@@ -9,8 +9,8 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
 
@@ -39,8 +39,26 @@ type InsertInput struct {
 // stages the batch or finishes RETURNING.
 func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 	ctx, b := in.Context, in.Binding
+	if err := BeforeStatement(h, b, stored.TriggerInsert); err != nil {
+		if in.Query != nil {
+			in.Query.Close()
+		}
+		return Outcome{}, err
+	}
+	if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
+		update := b
+		update.Targets = b.Insert.Conflict.UpdateTargets
+		if err := BeforeStatement(h, update, stored.TriggerUpdate); err != nil {
+			if in.Query != nil {
+				in.Query.Close()
+			}
+			return Outcome{}, err
+		}
+	}
 	if err := RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
-		if in.Query != nil { in.Query.Close() }
+		if in.Query != nil {
+			in.Query.Close()
+		}
 		return Outcome{}, err
 	}
 	defer CompleteAfterStatement(h, b, stored.TriggerInsert, &outcome, &failure)

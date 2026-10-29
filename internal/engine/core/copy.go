@@ -260,6 +260,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	s.beginCopyProgress(b.Ref.Address.ObjectID, true)
 	h := s.WriteHost()
+	if err = dml.BeforeStatement(h, b, stored.TriggerInsert); err != nil {
+		return 0, err
+	}
 	if err = dml.RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
 		return 0, err
 	}

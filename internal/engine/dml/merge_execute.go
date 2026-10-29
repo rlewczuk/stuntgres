@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
 )
@@ -33,6 +34,19 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	defer target.Close()
 	// Freezing can replace the bundle head; cleanup follows its current owner.
 	defer func() { inputs.Close() }()
+	events := StatementEvents(b, nil)
+	for _, event := range [...]stored.TriggerEvent{stored.TriggerInsert, stored.TriggerUpdate, stored.TriggerDelete} {
+		if events&event == 0 {
+			continue
+		}
+		binding := b
+		if event == stored.TriggerUpdate {
+			binding.Targets = b.Merge.UpdateTargets
+		}
+		if err := BeforeStatement(h, binding, event); err != nil {
+			return Outcome{}, err
+		}
+	}
 	unique, err := BindUniqueWrite(h, b.Ref)
 	if err != nil {
 		return Outcome{}, err

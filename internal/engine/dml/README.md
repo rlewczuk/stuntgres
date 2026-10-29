@@ -41,6 +41,14 @@ the sole write authorities.
   with the caller holding nothing; `LatestRow` reads one row per `RowKind`
   under one lock.
 - `Presentation`: `RowDetail`, `SchemaName`, `CaptureRegclassOutput`.
+- `BeforeStatement` is relevance-gated by logical relation/event metadata before
+  defaults, source consumption, row iteration or foreign participant effects.
+  Core marks the first query-owned relation/event opportunity before mode,
+  lexical UPDATE OF or WHEN filtering. Conflict UPDATE announces INSERT then
+  UPDATE; MERGE announces each declared action kind in INSERT/UPDATE/DELETE
+  order. Parent DML owns its statement boundary independently of physical leaves.
+  The host invokes callbacks unlocked; no absent/irrelevant metadata path calls
+  it or allocates capture/fired state.
 - `BeforeRow`: captures physical relation trigger provenance under the engine
   mutex, then evaluates WHEN and PL unlocked in the same statement stage.
   UPDATE OF captures physical lexical target attributes once per command; when
@@ -83,7 +91,8 @@ the sole write authorities.
   and count publication. NULL suppression skips these checks, not prior effects.
   The target arrives already selected and frozen by the stored-query bridge;
   producers project its outputs without selecting its visibility mapping twice.
-  Statement AFTER registration/completion and the shared journal remain unchanged.
+  Statement BEFORE admission, AFTER registration/completion and the shared journal
+  remain independent of handled-row counts.
 
 `FinishHost` adds `ForeignKeys`, the FK runtime's engine side
 (`statement_host_foreign_key.go`). Mutating RI commands register statements even

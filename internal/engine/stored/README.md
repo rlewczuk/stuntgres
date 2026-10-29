@@ -215,9 +215,9 @@ the `#=` backer, domain identity and anonymous occurrence shapes.
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
 WHEN recipes, explicit timing/orientation and row-only partition-clone provenance,
-never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D,
-AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D. Views
-otherwise admit only AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
+never activation values. Checked kinds are BEFORE/AFTER ROW I/U/D,
+BEFORE/AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D.
+Views otherwise admit BEFORE/AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
 WHEN, UPDATE OF or partition provenance; statement definitions cannot be clones.
 Routine capability is shared with DDL and runtime: genuine zero-input PL DML
 programs or the three checked builtin DML declarations. Provider/provenance checks

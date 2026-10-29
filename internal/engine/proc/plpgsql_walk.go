@@ -255,7 +255,13 @@ func (r *PLRun) returnValue(instruction PLInstruction) (sqltype.Value, error) {
 		}
 	}
 	if err != nil {
-		return sqltype.Value{}, PLRuntimeError(err, r.Definition, r.Host.Identity, statement.ExpressionStart, statement.ExpressionEnd, statement.Pos, "at RETURN", expressionError)
+		// RETURN expressions retain their own SPI/planning callback, including
+		// trigger returns. Trigger assignment diagnostics have a different rule.
+		query := PLDiagnosticQuery{}
+		if expressionError && PLExpressionCallback(err) {
+			query = PLBodyDiagnostic(r.Definition.Source, statement.ExpressionStart, statement.ExpressionEnd, PLExpressionCallbackKind)
+		}
+		return sqltype.Value{}, PLRuntimeQueryError(err, r.Definition, r.Host.Identity, statement.Pos, "at RETURN", query)
 	}
 	return value, nil
 }

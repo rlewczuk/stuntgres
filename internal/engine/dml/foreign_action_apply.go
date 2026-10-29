@@ -160,6 +160,9 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 	} else {
 		binding.Targets = plan.Targets
 	}
+	if err := BeforeStatement(h, binding, statementEvent); err != nil {
+		return err
+	}
 	if err := RegisterAfterStatement(h, binding, statementEvent); err != nil {
 		return err
 	}

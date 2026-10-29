@@ -30,6 +30,12 @@ type DeleteInput struct {
 // staged for deletion.
 func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 	b, source, inputs, parameters := in.Binding, in.Source, in.Inputs, in.Parameters
+	if err := BeforeStatement(h, b, stored.TriggerDelete); err != nil {
+		if inputs != nil {
+			inputs.Close()
+		}
+		return Outcome{}, err
+	}
 	if err := RegisterAfterStatement(h, b, stored.TriggerDelete); err != nil {
 		if inputs != nil {
 			inputs.Close()

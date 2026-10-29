@@ -29,8 +29,16 @@ func (fence truncateGraphFence) CurrentLocked(e *Engine, c *session.Journal) err
 // stageTruncate replaces roots, never scans/discards individual row values.
 // Existing Finish/Commit provides the one atomic publication frontier and veto.
 func (s *StatementScope) stageTruncate() error {
+	// Admit the complete manifest before invoking any body. No storage frontier
+	// or sequence state is captured until every BEFORE chain has completed.
+	if err := s.beforeTruncate(); err != nil {
+		return err
+	}
 	groups, err := s.prepareForeignTruncate()
 	if err != nil {
+		return err
+	}
+	if err := s.Active(); err != nil {
 		return err
 	}
 	e := s.Engine()
@@ -57,7 +65,7 @@ func (s *StatementScope) stageTruncate() error {
 		ref := selected.Ref
 		d, ok := auth.Catalog.Relation(ref.Address)
 		store := e.PrivateStorageLocked(s.PendingCatalog(), ref.Address)
-		if !ok || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || store != selected.Storage {
+		if !ok || auth.Ref(ref.Address) != ref || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || store != selected.Storage {
 			err = ids.ErrCatalogReplaced
 			break
 		}
@@ -153,6 +161,63 @@ func (s *StatementScope) stageTruncate() error {
 		}
 	}
 	return nil
+}
+
+func (s *StatementScope) beforeTruncate() error {
+	relevant := false
+	for _, selected := range s.truncateOrZero().Relations {
+		if dml.HasStatementTriggers(selected.Relation, stored.TriggerTruncate, stored.TriggerBefore) {
+			relevant = true
+			break
+		}
+	}
+	if !relevant {
+		return nil
+	}
+	if err := s.Active(); err != nil {
+		return err
+	}
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
+	if err == nil && s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil {
+		for _, named := range s.truncateOrZero().Names {
+			if err = e.truncateNameCurrent(auth, named); err != nil {
+				break
+			}
+		}
+	}
+	if err == nil {
+		for _, selected := range s.truncateOrZero().Relations {
+			d, ok := auth.Catalog.Relation(selected.Ref.Address)
+			if !ok || auth.Ref(selected.Ref.Address) != selected.Ref || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || e.PrivateStorageLocked(s.PendingCatalog(), selected.Ref.Address) != selected.Storage {
+				err = ids.ErrCatalogReplaced
+				break
+			}
+			if err = dml.CheckTruncate(auth.View, auth, selected.Ref, d, selected.Privilege, false); err != nil {
+				break
+			}
+			if err = s.relationCursorPreflight(auth.Catalog, selected.Ref.Address, "TRUNCATE"); err != nil {
+				break
+			}
+		}
+	}
+	if err == nil && len(dml.TruncateReferencers(auth.Catalog, s.truncateOrZero().Selected)) != 0 {
+		err = catalog.Conflict{}
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		return err
+	}
+	for _, selected := range s.truncateOrZero().Relations {
+		if err := dml.BeforeStatement(s.WriteHost(), analyze.Binding{Ref: selected.Ref, Relation: selected.Relation}, stored.TriggerTruncate); err != nil {
+			return err
+		}
+	}
+	return s.Active()
 }
 
 // A name observation is a fence, not permission to replay on a new relation.

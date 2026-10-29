@@ -66,6 +66,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Referential actions: `RUN='^TestReferenceForeignActions'`
 - Constraint timing (including nested utilities and procedural transaction lifetime), FK completion and native controls:
   `RUN='^TestReferenceDeferred(Constraint|ForeignKey)'`
+- BEFORE statement foreign-operation boundaries (shared selector with the view
+  scenarios in `reference/operators`):
+  `RUN='^TestReferenceTriggerBeforeStatementViewForeign$'`.
 - Foreign tables: `RUN='^TestReferenceFDW'`
   `TestReferenceFDWRoutineSourceCompaction` exercises six real foreign-target
   INSERT/UPDATE/DELETE source forms with direct/held routine calls, exact rows,

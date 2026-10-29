@@ -306,16 +306,12 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 	defer func() {
 		scope.deferAfterProducers, scope.deferredAfterCommand = previousDeferred, previousDeferredCommand
 	}()
-	consumerEffects := false
+	consumerEffects := dml.HasStatementTriggers(prepared.main.binding.Relation, dml.StatementEvents(prepared.main.binding, statement), stored.TriggerBefore)
 	for i := range commands {
-		for _, definition := range stored.TriggersOf(commands[i].execution.binding.Relation) {
-			p := definition.Parts()
-			if p.Timing == stored.TriggerAfter && p.Level == stored.TriggerStatement {
-				consumerEffects = true
-				break
-			}
-		}
-		if consumerEffects {
+		binding := commands[i].execution.binding
+		if dml.HasStatementTriggers(binding.Relation, dml.StatementEvents(binding, commands[i].statement), stored.TriggerBefore) ||
+			dml.HasStatementTriggers(binding.Relation, stored.TriggerInsert|stored.TriggerUpdate|stored.TriggerDelete|stored.TriggerTruncate, stored.TriggerAfter) {
+			consumerEffects = true
 			break
 		}
 	}
@@ -391,36 +387,36 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 			}
 		}
 	} else {
-	for i := range commands {
-		command := &commands[i]
-		scope.deferAfterProducers = false
-		scope.ActiveMutation = command.mutation
-		scope.installRuleScratch(command.scratch)
-		scope.ruleAction = originalRuleAction
-		if command.ruleOwner {
-			scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
+		for i := range commands {
+			command := &commands[i]
+			scope.deferAfterProducers = false
+			scope.ActiveMutation = command.mutation
+			scope.installRuleScratch(command.scratch)
+			scope.ruleAction = originalRuleAction
+			if command.ruleOwner {
+				scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
+			}
+			output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
+			if err != nil {
+				return Result{}, err
+			}
+			commandOwner := findOwner(command.definition.Owner)
+			if commandOwner == nil {
+				return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
+			}
+			if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
+				return Result{}, err
+			}
+			e.Mu.Lock()
+			if err := scope.RefreshRelationGrantsLocked(e); err != nil {
+				e.Mu.Unlock()
+				return Result{}, err
+			}
+			if err := scope.Op.Context().Err(); err != nil {
+				e.Mu.Unlock()
+				return Result{}, err
+			}
 		}
-		output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
-		if err != nil {
-			return Result{}, err
-		}
-		commandOwner := findOwner(command.definition.Owner)
-		if commandOwner == nil {
-			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE owner")
-		}
-		if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
-			return Result{}, err
-		}
-		e.Mu.Lock()
-		if err := scope.RefreshRelationGrantsLocked(e); err != nil {
-			e.Mu.Unlock()
-			return Result{}, err
-		}
-		if err := scope.Op.Context().Err(); err != nil {
-			e.Mu.Unlock()
-			return Result{}, err
-		}
-	}
 	}
 	scope.activateMutation(main)
 	scope.installRuleScratch(prepared.MainScratch)

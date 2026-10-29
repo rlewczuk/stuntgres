@@ -36,6 +36,9 @@ type Host interface {
 	// BeforeRow captures live trigger provenance under synchronization, then
 	// admits/evaluates WHEN and the PL body unlocked in the caller's stage.
 	BeforeRow(BeforeRow) (BeforeResult, error)
+	// BeforeStatement consumes the query-owned logical relation/event boundary
+	// before source or row effects, with unlocked eligibility and invocation.
+	BeforeStatement(ids.ObjectRef, stored.TriggerEvent, []int32) error
 	AfterRow(BeforeRow) error
 	AfterStatement(ids.ObjectRef, stored.TriggerEvent, []int32) error
 	CompleteAfterStatement(ids.ObjectRef, stored.TriggerEvent) error

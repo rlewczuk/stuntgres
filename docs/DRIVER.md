@@ -274,6 +274,16 @@ ordinary SQL errors leave the connection reusable.
 - `RowsAffected` counts rows actually inserted, updated, deleted or merged.
   CREATE MATERIALIZED VIEW WITH DATA reports the produced row count; WITH NO
   DATA reports zero without running the producer. `LastInsertId` is not supported.
+- **BEFORE statement triggers.** Logical INSERT/UPDATE/DELETE boundaries execute
+  before source and row effects, including zero-row commands. Statement frames
+  have no OLD/NEW row images, and PL composite returns cannot suppress or modify
+  rows or counts. Name ordering, WHEN, UPDATE OF and trigger modes use current
+  firing authority. Writable CTEs share query-owned relation/event firing state;
+  nested routine commands own independent boundaries. Conflict UPDATE announces
+  INSERT then UPDATE; MERGE announces its declared action kinds. Parent-targeted
+  DML does not emit leaf statement events. BEFORE TRUNCATE runs for every selected
+  relation before any truncation or identity restart. Errors and cancellation
+  roll back outer and trigger writes without replay.
 - **AFTER triggers.** INSERT, UPDATE and DELETE row triggers run at query
   completion with completed row images, before statement triggers. Statement
   triggers also fire for zero-row commands. Returned values do not change the

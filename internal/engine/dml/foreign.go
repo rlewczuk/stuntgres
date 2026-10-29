@@ -48,6 +48,9 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 	case catalog.ForeignDelete:
 		event = stored.TriggerDelete
 	}
+	if err := BeforeStatement(h, b, event); err != nil {
+		return Outcome{}, err
+	}
 	if err := RegisterAfterStatement(h, b, event); err != nil {
 		return Outcome{}, err
 	}

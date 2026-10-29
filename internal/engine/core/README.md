@@ -1289,7 +1289,23 @@ captured before WHEN/tuple ownership; draining never rechecks a queued mode/role
 Disabled statement candidates become skipped registrations, not fired events. VACUUM is
 [`tablecmds`](../tablecmds/README.md#vacuum)'s.
 
-AFTER state belongs to `StatementScope`, keyed by monotonic effect-command
+Immediate BEFORE STATEMENT events use the admitted logical relation lifecycle
+grant (RowExclusive for DML, AccessExclusive for TRUNCATE), including views,
+partitions and foreign targets, rather than row replacement authority. Their
+lazily allocated relation/event fired set belongs to the same
+effect-command frame as AFTER progress and is marked before mode, UPDATE OF or
+WHEN filtering. Lexical CTE scratch swaps cannot replace it; reached routine SQL
+owns a distinct frame. Checkpoints clone its mutable map, and Finish retires it.
+Main modifiers start before demand on auxiliary CTE sources. Statement frames
+have absent OLD/NEW images; PL composite results do not alter rows or counts.
+The shared live-executable invocation rejects successful non-NULL native tuple
+results with 39P01, preserving original helper errors.
+TRUNCATE admits its complete manifest, then runs every BEFORE chain unlocked
+before capturing any replacement frontier or restarting sequences. It recaptures
+and revalidates authority/storage afterward; its manifest, not DML query dedup,
+owns selected-relation uniqueness. AFTER remains all-post-effects.
+
+Query trigger state belongs to `StatementScope`, keyed by monotonic effect-command
 identity rather than swapped DML scratch. Writable CTEs share their query frame;
 routine SQL completes its own frame synchronously. Accepted ROW WHEN predicates
 run unlocked on final images; queued bodies run at command completion after
@@ -2116,7 +2132,7 @@ Runtime work-policy handoff and terminal-owner mechanics use
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
-Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead)'`.
+Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share
 `RUN='^TestTriggerBuiltins'`; public SQL/control witnesses live in `reference/operators`.
 Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;

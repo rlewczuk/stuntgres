@@ -76,7 +76,11 @@ invocations supply explicit timing/level, admitted table or logical-view row sha
 typed absent records and owned zero-based text-array arguments. Row-trigger returns retain
 strict table-row validation even when their AFTER result is ignored. Statement
 returns still evaluate the expression and require RETURN, but skip table-row
-shape conversion; neither kind ignores execution errors.
+shape conversion. BEFORE STATEMENT composite returns cannot suppress or replace
+rows; scalar and expression-evaluation errors remain errors. Neither timing
+discards execution errors.
+RETURN expression failures retain the expression producer's SPI/planning callback
+even for triggers; scalar return conversion failures retain only the RETURN frame.
 Engine-created scalar TG slots resolve fixed `pg_catalog` types regardless of
 search_path or shadow types; user-written declarations keep ordinary lookup.
 The twelve canonical OLD/NEW/TG slots retain their fixed identities. One separate
