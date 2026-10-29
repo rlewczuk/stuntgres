@@ -3,9 +3,9 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"math"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +26,7 @@ type vacuumProgressSnapshot struct {
 	delay      sql.NullFloat64
 }
 
-func vacuumProgressScan(t *testing.T, row *sql.Row) (vacuumProgressSnapshot, bool) {
+func vacuumProgressScan(t *testing.T, row interface{ Scan(...any) error }) (vacuumProgressSnapshot, bool) {
 	t.Helper()
 	var s vacuumProgressSnapshot
 	args := []any{&s.pid, &s.datid, &s.database, &s.relid, &s.phase}
@@ -86,21 +86,53 @@ func vacuumProgressWorkload(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	if b.PG {
 		copyProgressExec(t, p.Ctx, c, "ALTER TABLE "+table+" SET (autovacuum_enabled=false)")
 	}
-	payload := strings.Repeat("v", 128)
-	for first := 0; first < vacuumProgressVersions; first += 1024 {
-		var q strings.Builder
-		fmt.Fprintf(&q, "INSERT INTO %s VALUES", table)
-		for i := first; i < first+1024; i++ {
-			if i != first {
-				q.WriteByte(',')
-			}
-			fmt.Fprintf(&q, "(%d,'%s')", i, payload)
-		}
-		copyProgressExec(t, p.Ctx, c, q.String())
+	payload := "v"
+	var input strings.Builder
+	input.Grow(vacuumProgressVersions * (6 + 1 + len(payload) + 1))
+	var digits [20]byte
+	for i := range vacuumProgressVersions {
+		input.Write(strconv.AppendInt(digits[:0], int64(i), 10))
+		input.WriteByte('\t')
+		input.WriteString(payload)
+		input.WriteByte('\n')
 	}
+	stream := copyProgressConn(t, p, fixture.CopyScenarioPool(t, p, b.PG, "", ""))
+	result, err := fixture.CopyFrom(p.Ctx, stream, b.PG, "COPY "+table+"(id,payload) FROM STDIN", strings.NewReader(input.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Count != vacuumProgressVersions || result.CommandTag != "COPY 262144" {
+		t.Fatalf("seed COPY result %+v", result)
+	}
+	// Flush the actual COPY writer before returning its stream borrower.
+	if b.PG {
+		copyProgressExec(t, p.Ctx, stream, "SELECT pg_stat_force_next_flush()")
+	}
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	vacuumRun(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM "+table, []string{"n"}, []string{"INT8"}, [][]any{{int64(vacuumProgressVersions)}}))
+	vacuumRun(t, p, b, c, fixture.Select("SELECT id,payload FROM "+table+" WHERE id IN (0,1,262142,262143) ORDER BY id",
+		[]string{"id", "payload"}, []string{"INT4", "TEXT"}, [][]any{{int64(0), payload}, {int64(1), payload}, {int64(262142), payload}, {int64(262143), payload}}))
 	copyProgressExec(t, p.Ctx, c, "CREATE INDEX "+table+"_id ON "+table+"(id)")
 	copyProgressExec(t, p.Ctx, c, "CREATE INDEX "+table+"_payload ON "+table+"(payload)")
-	copyProgressExec(t, p.Ctx, c, "DELETE FROM "+table+" WHERE id % 2 = 0")
+	// Both real, valid indexes exist before the committed half deletion.
+	vacuumRun(t, p, b, c, fixture.Select("SELECT indexrelid='"+table+"_id'::regclass AS id_index,indexrelid='"+table+"_payload'::regclass AS payload_index,indisvalid,indisready FROM pg_index WHERE indrelid='"+table+"'::regclass ORDER BY id_index DESC",
+		[]string{"id_index", "payload_index", "indisvalid", "indisready"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"},
+		[][]any{{true, false, true, true}, {false, true, true, true}}))
+	vacuumRun(t, p, b, c, fixture.Exec("DELETE FROM "+table+" WHERE id % 2 = 0", vacuumProgressVersions/2))
+	vacuumRun(t, p, b, c, fixture.Select("SELECT count(*) AS n FROM "+table, []string{"n"}, []string{"INT8"}, [][]any{{int64(vacuumProgressVersions / 2)}}))
+	vacuumRun(t, p, b, c, fixture.Select("SELECT id,payload FROM "+table+" WHERE id IN (0,1,2,3,262141,262142,262143) ORDER BY id",
+		[]string{"id", "payload"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), payload}, {int64(3), payload}, {int64(262141), payload}, {int64(262143), payload}}))
+	if b.PG {
+		copyProgressExec(t, p.Ctx, c, "SELECT pg_stat_force_next_flush()")
+	}
+	vacuumCount(t, p.Ctx, c, table, 0)
+	// Supplemental cumulative estimates; exact COPY/delete/survivors above are
+	// the primary real-work witness. Oracle discovery must confirm these.
+	vacuumStatistic(t, p.Ctx, c, table, "n_tup_ins", vacuumProgressVersions)
+	vacuumStatistic(t, p.Ctx, c, table, "n_tup_del", vacuumProgressVersions/2)
+	vacuumStatistic(t, p.Ctx, c, table, "n_dead_tup", vacuumProgressVersions/2)
 }
 
 type vacuumProgressRunning struct {
@@ -109,7 +141,7 @@ type vacuumProgressRunning struct {
 	finished    chan struct{}
 	joined      bool
 	workerStack string
-	pg, sampled bool
+	pg          bool
 }
 
 func vacuumProgressLaunch(t *testing.T, p *fixture.Pair, b fixture.Backend, worker *sql.Conn, table string) *vacuumProgressRunning {
@@ -149,16 +181,11 @@ func vacuumProgressObserve(t *testing.T, p *fixture.Pair, stmt *sql.Stmt, id cop
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
 	for {
+		vacuumProgressUnfinished(t, r)
 		s, ok := vacuumProgressScan(t, stmt.QueryRowContext(ctx, id.pid))
-		if !r.pg && !r.sampled {
-			r.sampled = vacuumProgressNativeStack(r.workerStack)
-		}
-		select {
-		case <-r.finished:
-			t.Fatal("VACUUM returned before a live second-session SQL snapshot")
-		default:
-		}
-		if ok && (r.pg || r.sampled) {
+		admitted := r.pg || vacuumProgressNativeStack(r.workerStack)
+		vacuumProgressUnfinished(t, r)
+		if ok && admitted {
 			return s
 		}
 		select {
@@ -171,27 +198,47 @@ func vacuumProgressObserve(t *testing.T, p *fixture.Pair, stmt *sql.Stmt, id cop
 	}
 }
 
-// Match a complete live stack of this exact launched worker, excluding creation
-// metadata, just as fixture's active-operation admission observer does.
-func vacuumProgressNativeStack(worker string) bool {
+func vacuumProgressUnfinished(t *testing.T, workers ...*vacuumProgressRunning) {
+	t.Helper()
+	for _, r := range workers {
+		select {
+		case <-r.finished:
+			t.Fatal("VACUUM returned before required live progress observation")
+		default:
+		}
+	}
+}
+
+// Require every exact launched worker's live storage frames in one complete
+// capture, excluding creation metadata. This observes admission, not a hold.
+func vacuumProgressNativeStack(workers ...string) bool {
 	stacks := make([]byte, 64<<10)
 	n := runtime.Stack(stacks, true)
 	for n == len(stacks) {
 		stacks = make([]byte, len(stacks)*2)
 		n = runtime.Stack(stacks, true)
 	}
-	for _, stack := range strings.Split(string(stacks[:n]), "\n\n") {
-		if !strings.HasPrefix(stack, worker) {
-			continue
-		}
-		live, _, _ := strings.Cut(stack, "\ncreated by ")
-		for _, symbol := range []string{"storage.InspectVacuum", "storage.MaterializeVacuum", "storage.RemapVacuumIndex", "index.RebuildBrinVacuumRoot"} {
-			if strings.Contains(live, symbol) {
-				return true
+	captured := strings.Split(string(stacks[:n]), "\n\n")
+	for _, worker := range workers {
+		found := false
+		for _, stack := range captured {
+			if !strings.HasPrefix(stack, worker) {
+				continue
 			}
+			live, _, _ := strings.Cut(stack, "\ncreated by ")
+			for _, symbol := range []string{"storage.InspectVacuum", "storage.MaterializeVacuum", "storage.RemapVacuumIndex", "index.RebuildBrinVacuumRoot"} {
+				if strings.Contains(live, symbol) {
+					found = true
+					break
+				}
+			}
+			break
+		}
+		if !found {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func TestReferenceVacuumProgressActive(t *testing.T) {

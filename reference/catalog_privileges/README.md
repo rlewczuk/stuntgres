@@ -71,8 +71,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - VACUUM: `RUN='^TestReferenceVacuum'`
 - VACUUM progress: `RUN='^TestReferenceVacuumProgress'`; Active, Privileges,
   ActiveWorkers and ActiveTargets require real second-session SQL rows from
-  executing workers. PROCESS_TOAST false keeps base-target identity exact.
-  PostgreSQL-only cost pacing is physical workload tuning, not native behavior.
+  executing workers. Their shared setup uses public COPY for 262144 rows with
+  one-byte payloads, verifies two valid indexes before committed half deletion,
+  and independently checks real survivors and maintenance state.
+  ActiveWorkers admits both complete rows in one SQL bag; native storage frames
+  for both exact workers must occur in one complete live stack capture.
+  Stack admission is observational, not a worker-lifetime hold.
+  PROCESS_TOAST false keeps base-target identity exact. PostgreSQL-only cost
+  pacing is physical workload tuning, not native behavior.
   ReadOnly checks complete direct/prepared55000 diagnostics and unchanged state.
   Run the selected family both natively and with `REFERENCE=1`; owner barriers
   supplement, never replace, these public active-work witnesses.
