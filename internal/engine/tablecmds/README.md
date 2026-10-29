@@ -145,6 +145,20 @@ TEMP preservation, relation admission and publication.
   type rebinds (`typecmds`' ALTER TYPE on composites); `RenameRelationLocked`
   and `AlterSchemaLocked` also serve `viewcmds`' ALTER VIEW.
 
+Declarative column rename captures snapshot-visible membership under the addressed
+AX grant using `partition.EffectiveChildren` and the scope's retained pending-detach
+snapshot. ONLY uses the same effective direct children. Omitted pending branches
+contribute no locks, ownership checks or candidates; canonical membership and
+inherited eligibility remain intact. The complete breadth-first, per-parent
+OID-ordered AX closure is acquired outside `Engine.Mu`. Authentic catalog/descriptor
+fences are refreshed after waits. Descendant ownership and eligibility run only
+after all grants, in queue order with the addressed root last. One metadata stage
+publishes all local-slot name candidates together, including transaction
+overlays/savepoints; heaps, index roots, bound recipes and retained readers are
+unchanged.
+After stage authorization, rename releases the replacement read gate before
+provider work; final publication still fences the captured catalog epoch.
+
 `Engine` (`inheritance_alter_admission.go`) is a defined type over
 `core.Engine` that carries only `admitInheritanceAlter`, whose
 `(*Engine).admitInheritanceAlter(` frame a read-only reference cancellation
@@ -265,6 +279,7 @@ through SQL or the exported API.
 ```sh
 make check RUN='^TestAlter'                                # ALTER TABLE passes, defaults, types, schema
 make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|TableInheritance)'  # inheritance ALTER admission
+make check RUN='^TestPartitionRenameColumn'               # hierarchy names, identity, locks and publication
 make check RUN='^Test(TableLike|TableCore|PartitionConstraints|UsingIndex)'  # CREATE TABLE forms and constraints
 make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
 make check RUN='^TestAlterValidateConstraint'               # selection, publication, admission and parser invariants

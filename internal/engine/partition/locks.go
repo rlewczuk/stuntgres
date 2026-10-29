@@ -136,7 +136,7 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 		if !replayAllowed(s, d) {
 			message = "altering partition hierarchies is unsupported"
 		}
-	case *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableSetSchema:
+	case *parser.AlterTableRenameTable, *parser.AlterTableSetSchema:
 		message = "altering partition hierarchies is unsupported"
 	}
 	if message != "" {

@@ -23,6 +23,9 @@ it. It never builds a binder.
   `MissingPartition` discloses key values only to an actor without RLS who may
   SELECT them. Routing retains the admitted catalog, layouts, `access.View`
   and environment; per-leaf insertion groups belong only to INSERT/COPY.
+  Simple-key diagnostic labels resolve stable attributes through the current
+  parent descriptor; expression labels use the stored renderer. Rename never
+  rewrites key recipes, executable providers or captured labels.
   Captured physical BEFORE/AFTER ROW INSERT applicability is independent of
   statement definitions. Only row definitions clone to leaves; logical statement
   targets remain the query-named relation.
@@ -35,6 +38,10 @@ it. It never builds a binder.
   root first, for the caller to lock before the leaf. Ordinary GiST/SP-GiST CREATE INDEX,
   including aliases identified by the captured catalog's native method authority,
   uses the existing partitioned-index propagation path in `index`.
+  Column rename is admitted to `tablecmds`' immutable hierarchy continuation,
+  which uses `EffectiveChildren` for both recursion and ONLY before descendant
+  locking, without changing canonical membership or direct inherited eligibility.
+  Unrelated relation rename and namespace-transfer boundaries stay unchanged.
   `StageConstraintDrop` marks only the successfully selected constraint ORIGINAL,
   after inherited/backing-index validation and constraint-driven recursive
   retirement. Recursive constraints and backing indexes are not SQL roots.
@@ -58,8 +65,8 @@ it. It never builds a binder.
   index attachment edges; a childless partitioned relation is not a leaf.
   Canonical pending membership remains a dependency edge. Fresh table inquiry
   traversal omits pending branches and treats a pending child as its own root.
-  Scan/routing eligibility alone may retain the edge from an older stable
-  snapshot; `EffectiveChildren` never resurrects a fully removed edge.
+  Scan/routing and column-rename eligibility may retain the edge from an older
+  stable snapshot; `EffectiveChildren` never resurrects a fully removed edge.
   Incomplete-detach ALTER admission guards the target's immediate edge, not all
   descendants or ATTACH candidates. Rename and namespace transfer are separate
   utility paths and preserve membership identity.

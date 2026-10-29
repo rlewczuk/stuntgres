@@ -154,6 +154,13 @@ call live here.
   the common constructor against final destination columns and staged providers,
   never source index overrides.
   These are logical catalog policies, not tuple rewrites.
+- **Column rename** (`rename.go`, `partition_rename.go`): immutable name/index
+  candidates retain local slots, stable attributes and all bound definitions.
+  Declarative recursion uses caller-selected snapshot-visible children in
+  breadth-first, per-parent OID order; ONLY uses that same child selection.
+  ONLY-with-children and direct inherited-column eligibility precede the
+  corresponding source/destination checks. Visibility, runtime locks and
+  publication remain in `tablecmds`; selection never changes canonical membership.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
   `physical_not_null*.go`, `check*.go`, `default*.go`, `generated*.go`,
   `row_constraints.go`): `NotNullCandidate`, the physical NOT NULL transitions,
@@ -457,6 +464,7 @@ make check RUN='^TestAlterPersistence'
 make check RUN='^Test(DropPreparation|DropColumnRoutine|DropReaderSeam|InheritanceAlterAdmission|ReferenceAlterDropColumn)'
 make check RUN='^Test(ForeignKey(TypeProviders|DefinitionProviders|Checks)|Scan(Restored)?ForeignKeys|RestoredForeignKeyTarget|RestoreInherited|AttributeRankRestore|RestoreConstraintHistory|RestoreNotNullNoInherit)'
 make check RACE=1 RUN='^Test(NotNull|PhysicalNotNull|Inheritance)'
+make check RUN='^TestPartitionRenameColumn'
 make check RUN='^Test(Reference)?Vacuum'
 make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'
 make check RUN='^TestReference(TableCore|TableLike|NotNull|Check|Inheritance|TypedTable)'

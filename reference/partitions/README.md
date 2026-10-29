@@ -2,9 +2,9 @@
 
 Declarative partitioning: RANGE/LIST/HASH definitions, DML routing,
 ATTACH/DETACH, pruning (including constraint exclusion over inheritance trees),
-partitioned UNIQUE/PRIMARY KEY and exclusion constraints, and inherited partition
-CHECK/NOT NULL constraints. Related families: table core, constraints, foreign
-keys and foreign tables in [reference/tables](../tables/README.md); inheritance,
+partitioned UNIQUE/PRIMARY KEY and exclusion constraints, inherited partition
+CHECK/NOT NULL constraints, and hierarchy column rename. Related families: table
+core, constraints, foreign keys and foreign tables in [reference/tables](../tables/README.md); inheritance,
 typed tables and LIKE in [reference/inheritance](../inheritance/README.md);
 partitioned indexes in `reference/indexes`; ALTER TABLE actions in
 `reference/alter`.
@@ -34,6 +34,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   Held statements are prepared before admission; every cancellation is joined
   before inspecting the retained graph. Native replacement/replay controls stay
   explicit phases of the same shared SQL scenario.
+- Hierarchy-rename pending scenarios reuse the committed-edge fixture, prepare
+  held utilities before the marker, and hold AS only on omitted branches/leaves
+  to prove lock exclusion. Inspect divergent names through catalogs, then restore
+  parent names before nested pending reads and FINALIZE. Restore/replay consumers
+  execute future routing and dependent expressions on each destination.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -44,6 +49,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - ATTACH PARTITION: `RUN='^TestReferencePartitionAttach'`
 - DETACH PARTITION: `RUN='^TestReferencePartitionDetach'`
 - Partition pruning: `RUN='^TestReferencePartitionPruning'`
+- Hierarchy column rename: `RUN='^TestReferencePartitionRenameColumn'`
 - <a id="partitioned-constraints--selected-proof"></a>Partitioned UNIQUE/PRIMARY KEY: `RUN='^TestReferencePartitionConstraints'`
 - Partitioned exclusion constraints: `RUN='^TestReferencePartitionExclusion'`
 - Constraint timing propagation: `RUN='^TestReferenceDeferredConstraintPropagation'`

@@ -1,5 +1,12 @@
 # Changes
 
+- Add atomic column rename across declarative partition hierarchies, preserving
+  local attribute layouts, bound expressions and data while updating current-name
+  diagnostics, prepared metadata and logical Dump/Restore presentation. Release
+  replacement admission before rename provider callbacks while retaining final
+  epoch fences. Select snapshot-visible children for recursion and ONLY, leaving
+  committed pending-detach branches untouched without acquiring their rename locks.
+
 - Add the four typed PostgreSQL routine declaration inquiries, including
   declaration defaults/modes, procedure NULL results, aggregate diagnostics and
   CREATE OR REPLACE presentation from current catalog descriptors. Native SQL

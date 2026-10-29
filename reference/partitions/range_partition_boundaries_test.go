@@ -18,7 +18,7 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 		{"row_lock", "SELECT * FROM rp_boundary ORDER BY k FOR UPDATE", "row locking partition hierarchies is unsupported", 0, true},
 		{"lock", "LOCK TABLE rp_boundary IN ACCESS SHARE MODE", "locking partition hierarchies is unsupported", 0, false},
 		{"alter_default", "ALTER TABLE rp_boundary ALTER payload SET DEFAULT 'fresh'", "altering partition hierarchies is unsupported", 0, false},
-		{"alter_rename", "ALTER TABLE rp_boundary RENAME COLUMN payload TO label", "altering partition hierarchies is unsupported", 0, false},
+		{"alter_rename", "ALTER TABLE rp_boundary RENAME COLUMN payload TO label", "", 0, false},
 		{"alter_type", "ALTER TABLE rp_boundary ALTER payload TYPE VARCHAR(20)", "altering partition hierarchies is unsupported", 0, false},
 		{"index", "CREATE INDEX rp_boundary_index ON rp_boundary(payload)", "partitioned indexes are unsupported", 0, false},
 		{"reindex", "REINDEX TABLE rp_boundary", "partitioned indexes are unsupported", 0, false},
@@ -31,7 +31,7 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE rp_boundary_a PARTITION OF rp_boundary FOR VALUES FROM(1) TO(3)", 0))
 				run(fixture.Exec("CREATE TABLE rp_boundary_b PARTITION OF rp_boundary FOR VALUES FROM(3) TO(5)", 0))
 				run(fixture.Exec("INSERT INTO rp_boundary VALUES(1,'a'),(3,'b')", 2))
-				if b.PG || c.name == "update_parent" || c.name == "update_leaf" {
+				if b.PG || c.name == "update_parent" || c.name == "update_leaf" || c.name == "alter_rename" {
 					if c.name == "lock" {
 						tx, err := b.DB.BeginTx(p.Ctx, nil)
 						if err != nil {
@@ -65,6 +65,10 @@ func TestReferenceRangePartitionBoundaries(t *testing.T) {
 						types[1] = "VARCHAR"
 					}
 					run(fixture.Select("SELECT * FROM rp_boundary ORDER BY k", names, types, rows))
+					if c.name == "alter_rename" {
+						run(fixture.Select("SELECT * FROM rp_boundary_a", names, types, rows[:1]))
+						run(fixture.Prepared(fixture.Select("SELECT * FROM rp_boundary_b", names, types, rows[1:])))
+					}
 				} else {
 					s := referenceRangeError(c.sql, "0A000", c.message, fixture.Diagnostic{})
 					s.SelectRows = c.query

@@ -209,7 +209,7 @@ func (state *InsertState) MissingPartition(ctx context.Context, parent *catalog.
 			names.WriteString(", ")
 			values.WriteString(", ")
 		}
-		label := entry.Label
+		var label string
 		if entry.Derived != nil {
 			if renderer.Path == nil {
 				path, pathErr := state.Env.ReferencePath()
@@ -235,7 +235,7 @@ func (state *InsertState) MissingPartition(ctx context.Context, parent *catalog.
 			}
 			label = text
 		} else {
-			label = catalog.Identifier(label)
+			label = catalog.Identifier(parent.Columns[parent.IndexForAttribute(entry.Attribute)].Name)
 		}
 		names.WriteString(label)
 		if err := exec.WriteDiagnosticValue(ctx, &values, key[i].Value, output); err != nil {

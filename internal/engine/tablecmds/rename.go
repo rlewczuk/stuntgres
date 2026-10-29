@@ -66,6 +66,9 @@ func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *sessio
 		if old.OfType != (ids.ObjectAddress{}) {
 			return fail(core.SQLError("42809", "cannot rename column of typed table"))
 		}
+		if catalog.HierarchyRelation(old) {
+			return renamePartitionColumnLocked(e, scope, op, auth, old, column, destination, only)
+		}
 		if err := table.InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
