@@ -7,7 +7,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func ownershipProviderMetadataSurvivors(t *testing.T, controls bool) {
+func ownershipProviderMetadataSurvivors(t *testing.T) {
 	for _, provider := range []string{"pgrowlocks", "intagg_enum", "intagg_aggregate"} {
 		t.Run(provider, func(t *testing.T) {
 			states := []string{"attached", "detached", "foreign", "absent"}
@@ -146,7 +146,7 @@ func ownershipProviderMetadataSurvivors(t *testing.T, controls bool) {
 								}
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, controls, "", provider+"_"+state, []string{signature}, check)
+						ownershipSurvivorControls(t, p, b, c, provider+"_"+state, []string{signature}, check)
 					})
 				})
 			}

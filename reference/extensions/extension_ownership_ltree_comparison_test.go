@@ -303,7 +303,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 				retainedRows = append(retainedRows, oldRows)
 			}
 		}
-		ownershipSurvivorControls(t, p, b, c, true, "", "ltree_comparison_"+state, signatures, check)
+		ownershipSurvivorControls(t, p, b, c, "ltree_comparison_"+state, signatures, check)
 		for _, oldRows := range retainedRows {
 			columns, err := oldRows.ColumnTypes()
 			if err != nil || len(columns) != 2 || columns[0].Name() != "id" || columns[0].DatabaseTypeName() != "INT4" || columns[1].Name() != "v" || columns[1].DatabaseTypeName() != "LTREE" {

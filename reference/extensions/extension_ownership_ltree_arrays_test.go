@@ -343,7 +343,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 								retainedRows = append(retainedRows, oldRows)
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, true, "", "ltree_array_"+state, allDeclarations, check)
+						ownershipSurvivorControls(t, p, b, c, "ltree_array_"+state, allDeclarations, check)
 						for _, oldRows := range retainedRows {
 							columns, err := oldRows.ColumnTypes()
 							if err != nil || len(columns) != 1 {

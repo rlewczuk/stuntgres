@@ -11,7 +11,7 @@ import (
 // The complete real nominal/helper graph survives retirement. Catalog-derived
 // addresses select DDL targets only: expected values are the existing hstore
 // constructor/record/rows/update corpora, never values learned from native SQL.
-func ownershipHstoreSurvivors(t *testing.T, controls bool) {
+func ownershipHstoreSurvivors(t *testing.T) {
 	corpus := ownershipHstoreSurvivorCorpus()
 	for _, foreign := range []bool{false, true} {
 		name := "detached"
@@ -164,7 +164,7 @@ func ownershipHstoreSurvivors(t *testing.T, controls bool) {
 								allDeclarations = append(allDeclarations, strings.TrimPrefix(target, "FUNCTION "))
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, controls, "", "hstore_"+name, allDeclarations, check)
+						ownershipSurvivorControls(t, p, b, c, "hstore_"+name, allDeclarations, check)
 					})
 				})
 			}

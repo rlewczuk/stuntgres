@@ -15,7 +15,7 @@ import (
 // The native raw tree is an immutable syntax owner, not PostgreSQL's bound
 // nodeToString representation. PostgreSQL independently proves the live type,
 // callee and consumer identities; only native controls compare captured syntax.
-func ownershipEarthBodyCoordinates(t *testing.T, controls bool) {
+func ownershipEarthBodyCoordinates(t *testing.T) {
 	for _, mode := range []string{"removed_history", "occupied_history", "pg_catalog_history", "occupied_provider_history", "occupied_provider_pg_catalog"} {
 		t.Run(mode, func(t *testing.T) {
 			fixture.SchemaReferenceCleanup(t, "EO Cube Past")
@@ -288,7 +288,7 @@ func ownershipEarthBodyCoordinates(t *testing.T, controls bool) {
 					}
 				}
 				check(t, c, b.Recorder)
-				if b.PG || !controls {
+				if b.PG {
 					return
 				}
 				saved := extensionDump(t, p.Ctx, p.Native)

@@ -11,11 +11,7 @@ import (
 
 // Each corpus/state owns one bounded source scenario shared by both native
 // destinations. All shared SQL runs on both backends.
-func ownershipTemplateSurvivors(t *testing.T, controls bool) {
-	phase := "source"
-	if controls {
-		phase = ""
-	}
+func ownershipTemplateSurvivors(t *testing.T) {
 	for _, family := range []string{"ordinary_simple", "ordinary_unaccent", "installed"} {
 		t.Run(family, func(t *testing.T) {
 			for _, foreign := range []bool{false, true} {
@@ -26,7 +22,7 @@ func ownershipTemplateSurvivors(t *testing.T, controls bool) {
 				t.Run(state, func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
 					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						ownershipTemplateSurvivor(t, p, b, c, family, foreign, phase)
+						ownershipTemplateSurvivor(t, p, b, c, family, foreign)
 					})
 				})
 			}
@@ -34,7 +30,7 @@ func ownershipTemplateSurvivors(t *testing.T, controls bool) {
 	}
 }
 
-func ownershipTemplateSurvivor(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, family string, foreign bool, phase string) {
+func ownershipTemplateSurvivor(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, family string, foreign bool) {
 	run := ownershipRun(t, p, b, c)
 	ownershipSurvivorRoles(run)
 	run(fixture.Exec(`CREATE EXTENSION unaccent SCHEMA eo_old`, 0))
@@ -207,13 +203,13 @@ func ownershipTemplateSurvivor(t *testing.T, p *fixture.Pair, b fixture.Backend,
 			templateRestrict(t, p, conn, recorder, name, "eo_new.witness")
 		}
 	}
-	ownershipTemplateControls(t, p, b, c, phase, family, query, input, want, declarations, check)
+	ownershipTemplateControls(t, p, b, c, family, query, input, want, declarations, check)
 }
 
-func ownershipTemplateControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, phase, family, query, input, want string, signatures []string, check func(*sql.Conn, *fixture.Recorder)) {
+func ownershipTemplateControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, family, query, input, want string, signatures []string, check func(*sql.Conn, *fixture.Recorder)) {
 	t.Helper()
 	check(c, b.Recorder)
-	if b.PG || phase == "source" {
+	if b.PG {
 		return
 	}
 	saved := extensionDump(t, p.Ctx, p.Native)
@@ -275,12 +271,8 @@ func ownershipTemplateControls(t *testing.T, p *fixture.Pair, b fixture.Backend,
 			check(conn, recorder)
 		}
 	}
-	if phase == "" || phase == "same_driver" {
-		restore(false)
-	}
-	if phase == "" || phase == "independent_driver" {
-		restore(true)
-	}
+	restore(false)
+	restore(true)
 	for _, oldRows := range retainedRows {
 		columns, err := oldRows.ColumnTypes()
 		if err != nil || len(columns) != 1 || columns[0].Name() != "lexemes" || columns[0].DatabaseTypeName() != "_TEXT" {

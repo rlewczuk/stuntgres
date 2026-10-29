@@ -67,7 +67,7 @@ func TestReferenceExtensionOwnershipConsumerDependencies(t *testing.T) {
 							r(fixture.Exec("RESET ROLE", 0))
 							ownershipConsumerLinks(r, signature, foreign)
 						}
-						ownershipSurvivorControls(t, p, b, c, true, "", "consumer_"+tc.name+"_"+state, []string{signature}, check)
+						ownershipSurvivorControls(t, p, b, c, "consumer_"+tc.name+"_"+state, []string{signature}, check)
 					})
 				})
 			}

@@ -12,7 +12,7 @@ import (
 
 // Membership is not the C implementation's origin. The images and metadata
 // checker are the same independent released-layout fixtures as the BRIN suite.
-func ownershipPageinspectSurvivors(t *testing.T, controls bool) {
+func ownershipPageinspectSurvivors(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		name := "detached"
 		if foreign {
@@ -116,7 +116,7 @@ func ownershipPageinspectSurvivors(t *testing.T, controls bool) {
 				// numeric OIDs are asserted stable only within the original engine.
 				logical := `SELECT p.proname,n.nspname,r.rolname,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid='eo_old.eo_classify(bytea)'::regprocedure`
 				current := ownershipSnapshot(t, p, c, logical)
-				if controls && !b.PG {
+				if !b.PG {
 					saved := extensionDump(t, p.Ctx, p.Native)
 					connector, err := stuntgres.NewDriver().OpenConnector("eo_pageinspect_" + name)
 					if err != nil {

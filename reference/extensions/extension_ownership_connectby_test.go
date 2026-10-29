@@ -12,7 +12,7 @@ import (
 
 // The released tree/layout expectations are shared with the connectby suite;
 // current extension membership never substitutes for an installed declaration.
-func ownershipConnectbySurvivors(t *testing.T, controls bool) {
+func ownershipConnectbySurvivors(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		name := "detached"
 		if foreign {
@@ -140,7 +140,7 @@ func ownershipConnectbySurvivors(t *testing.T, controls bool) {
 				check(c, b.Recorder)
 				logical := `SELECT p.proname,n.nspname,r.rolname,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,l.lanname,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin,p.pronargdefaults,p.provariadic::bigint FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner JOIN pg_language l ON l.oid=p.prolang WHERE n.nspname='eo_old' AND p.proname IN ('eo_walk_0','eo_walk_1','eo_walk_2','eo_walk_3') ORDER BY p.proname`
 				current := ownershipSnapshot(t, p, c, logical)
-				if controls && !b.PG {
+				if !b.PG {
 					saved := extensionDump(t, p.Ctx, p.Native)
 					connector, err := stuntgres.NewDriver().OpenConnector("eo_connectby_" + name)
 					if err != nil {

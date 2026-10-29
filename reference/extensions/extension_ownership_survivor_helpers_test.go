@@ -38,7 +38,7 @@ func ownershipSurvivorACL(run func(fixture.Step), signature string) {
 	}
 }
 
-func ownershipSurvivorControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, controls bool, phase, name string, signatures []string, check func(*sql.Conn, *fixture.Recorder)) {
+func ownershipSurvivorControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name string, signatures []string, check func(*sql.Conn, *fixture.Recorder)) {
 	t.Helper()
 	check(c, b.Recorder)
 	queries := make([]string, len(signatures))
@@ -50,7 +50,7 @@ func ownershipSurvivorControls(t *testing.T, p *fixture.Pair, b fixture.Backend,
 			t.Fatal("missing genuine survivor declaration", signature)
 		}
 	}
-	if !controls || b.PG {
+	if b.PG {
 		return
 	}
 	saved := extensionDump(t, p.Ctx, p.Native)
@@ -72,24 +72,20 @@ func ownershipSurvivorControls(t *testing.T, p *fixture.Pair, b fixture.Backend,
 			ownershipUnchanged(t, p, conn, q, before[i])
 		}
 	}
-	if phase == "" || phase == "same_driver" {
-		restore(p.Native, b.DB, b.Recorder)
+	restore(p.Native, b.DB, b.Recorder)
+	connector, err := stuntgres.NewDriver().OpenConnector("eo_survivor_" + name)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if phase == "" || phase == "independent_driver" {
-		connector, err := stuntgres.NewDriver().OpenConnector("eo_survivor_" + name)
-		if err != nil {
+	recorded, recorder := fixture.RecordedNativePool(t, connector)
+	other := sql.OpenDB(connector)
+	defer other.Close()
+	for _, q := range []string{`CREATE ROLE eo_survivor_owner SUPERUSER`, `CREATE ROLE eo_survivor_acl`} {
+		if _, err := other.ExecContext(p.Ctx, q); err != nil {
 			t.Fatal(err)
 		}
-		recorded, recorder := fixture.RecordedNativePool(t, connector)
-		other := sql.OpenDB(connector)
-		defer other.Close()
-		for _, q := range []string{`CREATE ROLE eo_survivor_owner SUPERUSER`, `CREATE ROLE eo_survivor_acl`} {
-			if _, err := other.ExecContext(p.Ctx, q); err != nil {
-				t.Fatal(err)
-			}
-		}
-		restore(other, recorded, recorder)
 	}
+	restore(other, recorded, recorder)
 }
 
 // Exercise mutation failures against the actual released object, then prove

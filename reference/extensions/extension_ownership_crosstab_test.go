@@ -11,7 +11,7 @@ import (
 
 // Exercise every released crosstab signature, including the nominal result
 // graph. The source and independent expected rows are the baseline corpus.
-func ownershipCrosstabSurvivors(t *testing.T, controls bool) {
+func ownershipCrosstabSurvivors(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		name := "detached"
 		if foreign {
@@ -182,7 +182,7 @@ func ownershipCrosstabSurvivors(t *testing.T, controls bool) {
 						}
 					}
 				}
-				ownershipSurvivorControls(t, p, b, c, controls, "", "crosstab_"+name, signatures, check)
+				ownershipSurvivorControls(t, p, b, c, "crosstab_"+name, signatures, check)
 			})
 		})
 	}

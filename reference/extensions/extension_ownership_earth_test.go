@@ -10,7 +10,7 @@ import (
 
 // These released float8-only functions do not acquire an incidental dependency
 // on the Earth/cube nominal types. The real sec/gc -> earth() dependency remains.
-func ownershipEarthScalarSurvivors(t *testing.T, controls bool) {
+func ownershipEarthScalarSurvivors(t *testing.T) {
 	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := ownershipRun(t, p, b, c)
 		for _, q := range []string{`CREATE SCHEMA eo_old`, `CREATE SCHEMA eo_new`, `CREATE EXTENSION cube SCHEMA eo_new`, `CREATE EXTENSION earthdistance SCHEMA eo_old`} {
@@ -56,7 +56,7 @@ func ownershipEarthScalarSurvivors(t *testing.T, controls bool) {
 			r(fixture.Exec("ROLLBACK", 0))
 		}
 		check(t, c, b.Recorder)
-		if b.PG || !controls {
+		if b.PG {
 			return
 		}
 		saved := extensionDump(t, p.Ctx, p.Native)

@@ -10,7 +10,7 @@ import (
 
 // These are the same independently assembled release-layout images used by the
 // decoder suites. Membership mutation must not alter their released OUT ABI.
-func ownershipPageinspectFamiliesSurvivors(t *testing.T, controls bool) {
+func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 	cases := []struct {
 		name         string
 		names, types []string
@@ -148,7 +148,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T, controls bool) {
 						}
 						// Ensure the granted caller reaches the real execution permission check.
 						run(fixture.Exec(`GRANT USAGE ON SCHEMA eo_new TO eo_survivor_acl`, 0))
-						ownershipSurvivorControls(t, p, b, c, controls, "", "pageinspect_"+tc.name+"_"+state, []string{signature}, check)
+						ownershipSurvivorControls(t, p, b, c, "pageinspect_"+tc.name+"_"+state, []string{signature}, check)
 					})
 				})
 			}

@@ -8,17 +8,7 @@ import (
 )
 
 func TestReferenceExtensionOwnershipMembership(t *testing.T) {
-	t.Run("earth_scalar_survivors", func(t *testing.T) { ownershipEarthScalarSurvivors(t, false) })
-	t.Run("earth_body_coordinates", func(t *testing.T) { ownershipEarthBodyCoordinates(t, false) })
 	t.Run("upgrade_preserves_nonrecipe_membership", ownershipUpdateMembership)
-	t.Run("tablefunc_survivors", func(t *testing.T) { ownershipTablefuncSurvivors(t, false) })
-	t.Run("pageinspect_survivors", func(t *testing.T) { ownershipPageinspectSurvivors(t, false) })
-	t.Run("connectby_survivors", func(t *testing.T) { ownershipConnectbySurvivors(t, false) })
-	t.Run("pageinspect_families_survivors", func(t *testing.T) { ownershipPageinspectFamiliesSurvivors(t, false) })
-	t.Run("crosstab_survivors", func(t *testing.T) { ownershipCrosstabSurvivors(t, false) })
-	t.Run("hstore_survivors", func(t *testing.T) { ownershipHstoreSurvivors(t, false) })
-	t.Run("provider_metadata_survivors", func(t *testing.T) { ownershipProviderMetadataSurvivors(t, false) })
-	t.Run("template_survivors", func(t *testing.T) { ownershipTemplateSurvivors(t, false) })
 	t.Run("ordinary_overloaded_function", func(t *testing.T) {
 		ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			run := ownershipRun(t, p, b, c)

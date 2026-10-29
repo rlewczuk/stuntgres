@@ -9,7 +9,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func ownershipTablefuncSurvivors(t *testing.T, controls bool) {
+func ownershipTablefuncSurvivors(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		name := "detached"
 		if foreign {
@@ -59,7 +59,7 @@ func ownershipTablefuncSurvivors(t *testing.T, controls bool) {
 					r(fixture.Prepared(s))
 				}
 				check(c, b.Recorder)
-				if !controls || b.PG {
+				if b.PG {
 					return
 				}
 				saved := extensionDump(t, p.Ctx, p.Native)
