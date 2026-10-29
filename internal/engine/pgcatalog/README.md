@@ -631,6 +631,14 @@ facts and owned tree carriers from the actual relation payload; the distinct
 Maintenance-aware projections need an adapter backed by a real engine;
 an empty adapter is not an initialized maintenance capture.
 
+`pg_prepared_statements` is captured fresh from the admitted physical session,
+never cached by catalog revision. The engine releases its mutex before visiting
+the registry. Borrowed signatures expire with each synchronous visit; the
+producer creates private immutable regtype arrays and current timestamp/type
+descriptors, retaining no definition, session or execution graph. No-result
+commands have NULL result_types; zero-column results have an empty array.
+Unsupported generic/custom chooser statistics remain typed bigint NULLs.
+
 Policy producer authority and immutable structural ownership use
 `make check RUN='^TestPGPolicy'`; add `RACE=1` for retained-output concurrency.
 Policy-view projection, typed role arrays, authority, cancellation and retained
@@ -639,6 +647,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | Methods | Why they are engine-owned |
 |---|---|
 | `CursorCount`, `VisitCursors` | session cursor registry (`pg_cursors`) |
+| `PreparedStatementCount`, `VisitPreparedStatements` | current token's named SQL/protocol definitions, distinct from prepared transactions |
 | `SessionSettings` | one coherent typed settings snapshot under the physical-session mutex (`pg_settings`) |
 | `PreparedCount`, `VisitPreparedTransactions` | prepared-transaction registry, assigned XIDs, published role names |
 | `TimezoneInput`, `DatabaseName`, `TemporaryOwner`, `CurrentPrincipal` | statement input environment, session database, physical TEMP owner, current user |
@@ -1003,6 +1012,10 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 (large objects in `reference/object_grants`, settings in
 `reference/session_state`); follow
 [docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
+
+Prepared statement metadata ownership and public scenarios share the family
+selectors `RUN='^TestPGPreparedStatements'` and
+`RUN='^TestReferencePGPreparedStatements'`.
 
 Composed index-identity witnesses that require actual hash probing prescribe
 their CPU profile through session settings and command admission. Opening a

@@ -119,6 +119,7 @@ func (s *StatementScope) publishProtocolStatement(name string, entry *PreparedDe
 	if name != "" && r.Lookup(name) != nil {
 		return SQLError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
 	}
+	entry.Created, entry.FromSQL = s.Op.StatementStart(), false
 	r.Install(name, entry)
 	return nil
 }

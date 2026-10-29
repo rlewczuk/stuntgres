@@ -72,6 +72,7 @@ func icProviderInventory(c *icCase) {
 		"pg_matviews":                            strings.Fields("schemaname matviewname matviewowner tablespace hasindexes ispopulated definition"),
 		"pg_indexes":                             strings.Fields("schemaname tablename indexname tablespace indexdef"),
 		"pg_prepared_xacts":                      strings.Fields("transaction gid prepared owner database"),
+		"pg_prepared_statements":                 strings.Fields("name statement prepare_time parameter_types result_types from_sql generic_plans custom_plans"),
 		"pg_cursors":                             strings.Fields("name statement is_holdable is_binary is_scrollable creation_time"),
 		"pg_locks":                               strings.Fields("locktype database relation page tuple virtualxid transactionid classid objid objsubid virtualtransaction pid mode granted fastpath waitstart"),
 		"pg_timezone_names":                      strings.Fields("name abbrev utc_offset is_dst"),
@@ -157,7 +158,7 @@ func icProviderInventory(c *icCase) {
 			child.run(child.conn, s)
 			child.run(child.conn, fixture.Prepared(s))
 			kind := "r"
-			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_policies pg_rules pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
+			views := strings.Fields("pg_stat_all_tables pg_stat_sys_tables pg_stat_user_tables pg_stat_progress_basebackup pg_stat_progress_copy pg_stat_progress_create_index pg_stat_progress_vacuum pg_roles pg_group pg_user pg_shadow pg_cursors pg_locks pg_timezone_names pg_timezone_abbrevs pg_available_extensions pg_available_extension_versions pg_sequences pg_views pg_shmem_allocations pg_shmem_allocations_numa pg_wait_events pg_policies pg_rules pg_prepared_statements pg_prepared_xacts pg_indexes pg_tables pg_matviews pg_user_mappings pg_settings")
 			for _, view := range views {
 				if view == table {
 					kind = "v"

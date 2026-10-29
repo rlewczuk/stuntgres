@@ -422,6 +422,17 @@ var pgBuiltinViews = [...]builtinView{
 		viewText("    "), viewIdentifier("creation_time"), viewText("\n"),
 		viewText("   FROM "), viewRoutine("pg_cursor", ""), viewText("() "), viewIdentifier("c"), viewText("("), viewIdentifier("name"), viewText(", "), viewIdentifier("statement"), viewText(", "), viewIdentifier("is_holdable"), viewText(", "), viewIdentifier("is_binary"), viewText(", "), viewIdentifier("is_scrollable"), viewText(", "), viewIdentifier("creation_time"), viewText(");"),
 	}},
+	{oid: PreparedStatementsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("name"), viewText(",\n"),
+		viewText("    "), viewIdentifier("statement"), viewText(",\n"),
+		viewText("    "), viewIdentifier("prepare_time"), viewText(",\n"),
+		viewText("    "), viewIdentifier("parameter_types"), viewText(",\n"),
+		viewText("    "), viewIdentifier("result_types"), viewText(",\n"),
+		viewText("    "), viewIdentifier("from_sql"), viewText(",\n"),
+		viewText("    "), viewIdentifier("generic_plans"), viewText(",\n"),
+		viewText("    "), viewIdentifier("custom_plans"), viewText("\n"),
+		viewText("   FROM "), viewRoutine("pg_prepared_statement", ""), viewText("() "), viewIdentifier("p"), viewText("("), viewIdentifier("name"), viewText(", "), viewIdentifier("statement"), viewText(", "), viewIdentifier("prepare_time"), viewText(", "), viewIdentifier("parameter_types"), viewText(", "), viewIdentifier("result_types"), viewText(", "), viewIdentifier("from_sql"), viewText(", "), viewIdentifier("generic_plans"), viewText(", "), viewIdentifier("custom_plans"), viewText(");"),
+	}},
 	// pg_catalog.pg_available_extensions — REL_18_6 system_views.sql; pinned 18.6 display.
 	{oid: 12081, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("e"), viewText("."), viewIdentifier("name"), viewText(",\n"),

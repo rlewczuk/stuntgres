@@ -58,6 +58,7 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
+	entry.Created, entry.FromSQL = s.Op.StatementStart(), true
 	r.Install(raw.Name.Text, entry)
 	// Like cursor mutations, SQL names are session effects, not rollback state.
 	s.Completed, s.sessionCompleted = true, true

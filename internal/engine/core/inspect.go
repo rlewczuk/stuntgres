@@ -99,6 +99,7 @@ type CatalogRuntimeFields struct {
 	Engine       *Engine
 	Auth         AuthorizationView
 	Cursors      *cursorRegistry
+	PreparedStatements *PreparedRegistry
 	Settings     *session.SettingsStore
 	Registry     settings.Registry
 	Input        sqltype.InputEnvironment
@@ -111,7 +112,7 @@ type CatalogRuntimeFields struct {
 
 // NewCatalogRuntime builds a EngineCatalogRuntime from f.
 func NewCatalogRuntime(f CatalogRuntimeFields) EngineCatalogRuntime {
-	return EngineCatalogRuntime{engine: f.Engine, Auth: f.Auth, cursors: f.Cursors, settings: f.Settings, registry: f.Registry, input: f.Input, Database: f.Database, temporary: f.Temporary, presentation: f.Presentation, sequenceBase: f.SequenceBase, sequenceOwn: f.SequenceOwn}
+	return EngineCatalogRuntime{engine: f.Engine, Auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry, input: f.Input, Database: f.Database, temporary: f.Temporary, presentation: f.Presentation, sequenceBase: f.SequenceBase, sequenceOwn: f.SequenceOwn}
 }
 
 // AuthorizationMaterializedPopulation returns x.materializedPopulation.

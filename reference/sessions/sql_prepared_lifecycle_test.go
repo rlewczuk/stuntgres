@@ -99,6 +99,7 @@ func TestReferenceSQLPreparedPhysicalLifetime(t *testing.T) {
 			t.Fatal("borrower return replaced physical session")
 		}
 		sqlPreparedStep(t, p, b, reused, sqlPreparedScalar("EXECUTE p", "?column?", "INT4", int64(11)))
+		ppsSignature(t,p,b,reused,"p","PREPARE p AS SELECT 11","{}","{integer}",true)
 		if err := reused.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
 			t.Fatal(err)
 		}
@@ -112,6 +113,8 @@ func TestReferenceSQLPreparedPhysicalLifetime(t *testing.T) {
 			t.Fatal("invalid physical session reused")
 		}
 		sqlPreparedStep(t, p, b, fresh, fixture.ErrorDiagnostic("EXECUTE p", sqlPreparedMissing("p")))
+		ppsAbsent(t,p,b,fresh,"p")
+		ppsSignature(t,p,b,peer,"p","PREPARE p AS SELECT 22","{}","{integer}",true)
 		sqlPreparedStep(t, p, b, fresh, sqlPreparedScalar("SELECT v FROM prep_sentinel", "v", "INT4", int64(7)))
 		sqlPreparedStep(t, p, b, peer, sqlPreparedScalar("EXECUTE p", "?column?", "INT4", int64(22)))
 	})

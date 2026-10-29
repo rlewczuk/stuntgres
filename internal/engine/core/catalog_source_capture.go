@@ -78,6 +78,9 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case pgcatalog.CursorsOID:
 		runtime.cursors = PayloadOf(scope.Op.Session).Cursors
 		unlockBefore = true
+	case pgcatalog.PreparedStatementsOID:
+		runtime.preparedStatements = PayloadOf(scope.Op.Session).PreparedSQL
+		unlockBefore = true
 	case 12081, 12085:
 		in.Catalog = scope.Inquiry.CommentCatalog
 		unlockBefore = true

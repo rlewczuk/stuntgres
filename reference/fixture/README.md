@@ -42,9 +42,9 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   `RecordedNativePool(t, connector)` applies that same recording adapter to a
   fresh native connector, such as a separate Driver's Restore destination.
   `RawBackend` selects codec assertions; it does not install recording middleware.
-  `AssertRawValue` checks non-NULL internal-char arrays (`_CHAR`) as native
-  strings and pq byte slices before normalization, like other generic arrays;
-  scalar `CHAR` remains a string on both backends.
+  `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`) and
+  regtype (`_REGTYPE`) arrays, as native strings and pq byte slices before
+  normalization; scalar `CHAR` remains a string on both backends.
 - Before and after each case, the reset borrows the admin pool's one idle session
   and runs standalone `ROLLBACK`, then standalone `DISCARD ALL` (it cannot run in a
   transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on

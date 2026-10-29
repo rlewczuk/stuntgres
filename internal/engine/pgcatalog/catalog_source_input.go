@@ -77,6 +77,18 @@ type CursorFact struct {
 	Hold, Scroll    bool
 	Created         sqltype.Value
 }
+// PreparedStatementFact borrows immutable definition signatures for this visit
+// only. It carries no executable graph or session authority.
+type PreparedStatementFact struct {
+	Name, Statement string
+	Created time.Time
+	FromSQL bool
+	ParameterCount int
+	ParameterTypes []sqltype.Usage
+	ParameterOIDs []uint32
+	Results []catalog.Column
+	HasResults bool
+}
 type SettingsFact struct {
 	Definition    settings.Definition
 	Value, Reset  settings.Value
@@ -125,6 +137,8 @@ type TriggerCatalogFact struct {
 type Runtime interface {
 	CursorCount() int
 	VisitCursors(func(CursorFact) error) error
+	PreparedStatementCount() int
+	VisitPreparedStatements(context.Context, func(PreparedStatementFact) error) error
 	SessionSettings(context.Context) ([]SettingsFact, error)
 	PreparedCount() int
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error

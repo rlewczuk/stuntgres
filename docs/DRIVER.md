@@ -269,6 +269,20 @@ ordinary SQL errors leave the connection reusable.
 - **SQL `PREPARE`/`EXECUTE`** names and cursors are session objects, independent of
   Go `Stmt` handles; closing a `Stmt` or `Rows` neither deallocates a name nor moves
   a cursor.
+  `pg_catalog.pg_prepared_statements` observes the current physical session's
+  named definitions with eight columns: name, original statement, prepare_time,
+  parameter_types, result_types, from_sql, generic_plans and custom_plans.
+  SQL definitions retain the complete original PREPARE source; named wire Parse
+  definitions retain their Parse source and have from_sql=false. Unnamed Parse
+  and in-process Go handles do not introduce named rows. Creation time is the
+  admitted command-start instant, unchanged by execution or observation. Formal
+  and result identities are regtype arrays; a zero-column result has an empty
+  result array, while a command without results has NULL. Both bigint planner
+  statistics are typed NULL: this runtime has no generic/custom plan chooser.
+  DEALLOCATE, DISCARD ALL and physical-session termination remove definitions;
+  DISCARD PLANS, pool ResetSession and native Reset/Restore retain names and
+  original provenance. Native catalog replacement gives newly observed values
+  current type descriptors without mutating earlier eager rows.
 - Parameterless prepared definitions retain immutable typed constant results,
   not executable graphs or permission decisions. The first execution (wire
   Bind) computes demanded folds; Prepare/Parse/Describe do not. Current binding,

@@ -1271,6 +1271,13 @@ with row effects; standalone utilities retain their ordinary publication boundar
 - `PreparedRegistry` owns actual physical-session definitions and bindings.
   Lookup/Install/Remove act on the definitions consumed by execution; replacement
   retires publication rights, not already accepted independent resources.
+  Successful SQL/protocol publication records the admitted command-start clock
+  and origin on this same definition; rebind never replaces provenance.
+  `pg_prepared_statements` captures only the issuing token's named definitions,
+  after releasing `Engine.Mu` under physical-session admission. Its synchronous
+  visitor borrows signatures, not plans; detached rows own their regtype buffers
+  and current catalog descriptors. Membership alone determines visibility, so
+  native catalog replacement/pool reuse retain rows and physical end removes them.
   `PreparedBinding` retains accepted description/occurrences, transaction/birth
   identity and immutable `exec.AcceptedFolds`. Its `PreparedResource.Root` is the
   real graph consumed by the cursor, with the existing unlocked terminal close
@@ -1843,6 +1850,10 @@ Shared parameter authority backing, admission, publication and replacement
 units use `make check RUN='^TestParameterACLShared'`; add `RACE=1` for the same
 deterministic ownership/concurrency witnesses. SQL acceptance remains in the
 owning dual-mode reference packages.
+Prepared metadata identity, immutable buffers and token lifetime units use
+`RUN='^TestPGPreparedStatements'`; public SQL and wire scenarios use
+`RUN='^TestReferencePGPreparedStatements'`.
+
 
 Text-search parser descriptor, staging, native capability and dependency owner
 units share `RUN='^TestTSParser'`.

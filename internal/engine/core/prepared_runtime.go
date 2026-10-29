@@ -5,6 +5,7 @@ import (
  "fmt"
  "iter"
  "maps"
+ "time"
  "stuntgres/internal/engine/exec"
  "stuntgres/internal/engine/ids"
  "stuntgres/internal/engine/plan"
@@ -19,6 +20,8 @@ type PreparedDefinition struct {
  Source string
  Description Description
  ParameterOIDs []uint32
+ Created time.Time
+ FromSQL bool
 }
 
 // PreparedResource associates an accepted binding with its actual private graph

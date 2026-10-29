@@ -19,6 +19,7 @@ func TestReferenceSQLPreparedNativeControls(t *testing.T) {
 				sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE control_ins(int) AS INSERT INTO prep_control VALUES($1)", 0))
 				sqlPreparedStep(t, p, b, c, fixture.Exec("EXECUTE control_ins(7)", 1))
 				sqlPreparedStep(t, p, b, c, fixture.Exec("PREPARE constant AS SELECT 11", 0))
+				created := ppsCreated(t,p,c,"constant")
 				if b.PG {
 					// Native host replacement has no PostgreSQL SQL counterpart.
 					sqlPreparedStep(t, p, b, c, sqlPreparedScalar("SELECT v FROM prep_control", "v", "INT4", int64(7)))
@@ -57,6 +58,9 @@ func TestReferenceSQLPreparedNativeControls(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				ppsSignature(t,p,b,c,"constant","PREPARE constant AS SELECT 11","{}","{integer}",true)
+				ppsSignature(t,p,b,peer,"constant","PREPARE constant AS SELECT 22","{}","{integer}",true)
+				if !ppsCreated(t,p,c,"constant").Equal(created) { t.Fatal("native replacement changed creation time") }
 				sqlPreparedStep(t, p, b, c, fixture.Exec("DEALLOCATE constant", 0))
 				sqlPreparedStep(t, p, b, frozen, sqlPreparedScalar(q, "?column?", "INT4", int64(11)))
 				sqlPreparedStep(t, p, b, peer, sqlPreparedScalar(q, "?column?", "INT4", int64(22)))

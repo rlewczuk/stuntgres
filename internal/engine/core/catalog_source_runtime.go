@@ -29,6 +29,7 @@ type EngineCatalogRuntime struct {
 	engine       *Engine
 	Auth         AuthorizationView
 	cursors      *cursorRegistry
+	preparedStatements *PreparedRegistry
 	settings     *session.SettingsStore
 	registry     settings.Registry
 	input        sqltype.InputEnvironment
@@ -49,6 +50,25 @@ func (r EngineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) erro
 		}
 	}
 	return nil
+}
+func (r EngineCatalogRuntime) PreparedStatementCount() int {
+	count := len(r.preparedStatements.definitions)
+	if r.preparedStatements.Lookup("") != nil { count-- }
+	return count
+}
+func (r EngineCatalogRuntime) VisitPreparedStatements(ctx context.Context, visit func(pgcatalog.PreparedStatementFact) error) error {
+	for name, entry := range r.preparedStatements.Definitions() {
+		if err := ctx.Err(); err != nil { return err }
+		if name == "" { continue }
+		d := entry.Description
+		if err := visit(pgcatalog.PreparedStatementFact{
+			Name: name, Statement: entry.Source, Created: entry.Created, FromSQL: entry.FromSQL,
+			ParameterCount: d.Parameters.Count, ParameterTypes: d.Parameters.Types,
+			ParameterOIDs: entry.ParameterOIDs, Results: d.Results,
+			HasResults: session.ProtocolHasRows(entry.Body, d.Results),
+		}); err != nil { return err }
+	}
+	return ctx.Err()
 }
 func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.SettingsFact, error) {
 	if err := ctx.Err(); err != nil {
