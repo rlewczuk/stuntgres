@@ -6,6 +6,11 @@ DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
+The parser-handler, vector-I/O, DDL-receiver and RI metadata declarations are
+ordinary zero-provider builtin descriptors. Catalog rows and definition inquiry
+share those released declarations; no catalog-row supplement or identity-ledger
+lookup manufactures a target descriptor or callable capability.
+
 `OperatorProvider` validates a nonzero current extension link against its parent
 before ordinary operand, result and backer checks. A zero link is locally
 detached; extension-class validation separately rejects any parent bag that
@@ -69,6 +74,10 @@ and appends detached tuples through the existing invocation-private set sink.
 Replacement checks actual row shape and setness, not just the shared RECORD OID.
 Dump renders modes/defaults/VARIADIC and TABLE/SETOF, and orders real formal child
 types and named result types before their callers.
+SQL-standard dump preserves the explicit top-level RETURN versus BEGIN ATOMIC
+wrapper, including RETURN statement identity inside atomic bodies. Restore
+reconstructs this declaration fact through the normal parser; no separate
+serialization store or stateless builtin dump is introduced.
 Non-superuser routine ownership replays with authenticated administrator creation
 and an immediate ordinary FUNCTION/PROCEDURE owner transfer using the input-only
 identity. The emitter then restores the actual owner before dependent events;

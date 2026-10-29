@@ -14,17 +14,34 @@ import (
 // routineDeclarationBody privately owns parsed release declaration syntax. It is
 // deliberately not a RoutineProgram: parsing grants no execution or dependency
 // authority, and catalog reads never bind or prepare these statements.
-type routineDeclarationBody struct{ statements []parser.Statement }
+type routineDeclarationBody struct {
+	statements []parser.Statement
+	recipe DeclarationRecipe
+}
 
-func NewRoutineDeclarationBody(source string) (sqltype.StructuralTree, error) {
+func NewRoutineDeclarationBody(recipe DeclarationRecipe) (sqltype.StructuralTree, error) {
+	source := recipe.source()
 	statements, err := parser.ParseRoutineDeclarationBody(source)
 	if err != nil {
 		return nil, err
 	}
-	if len(statements) == 0 {
-		return nil, fmt.Errorf("stuntgres: empty routine declaration body")
+	if len(statements) != 1 || len(recipe.Parts) == 0 {
+		return nil, fmt.Errorf("stuntgres: invalid routine declaration recipe")
 	}
-	return &routineDeclarationBody{statements: statements}, nil
+	recipe.Parts = append([]DeclarationPart(nil), recipe.Parts...)
+	return &routineDeclarationBody{statements: statements, recipe: recipe}, nil
+}
+
+// DeclarationParts exposes immutable values without copying the retained list
+// or leaking mutable parser syntax.
+type DeclarationParts struct{ body *routineDeclarationBody }
+func (p DeclarationParts) Return() bool { return p.body.recipe.Return }
+func (p DeclarationParts) Len() int { return len(p.body.recipe.Parts) }
+func (p DeclarationParts) At(i int) DeclarationPart { return p.body.recipe.Parts[i] }
+
+func RoutineDeclarationRecipe(tree sqltype.StructuralTree) (DeclarationParts, bool) {
+	body, ok := tree.(*routineDeclarationBody)
+	return DeclarationParts{body:body}, ok && body != nil
 }
 
 // EarthDeclarationCubeSchema reads placement from the private parsed owner.

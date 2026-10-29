@@ -261,7 +261,12 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 		if err := d.SQLBody.Validate(view); err != nil {
 			return dump.Statement{}, err
 		}
-		sql.WriteString("BEGIN ATOMIC\n")
+		if d.SQL.StandardReturn && d.SQLBody.Len() != 1 {
+			return dump.Statement{}, fmt.Errorf("invalid SQL-standard RETURN body")
+		}
+		if !d.SQL.StandardReturn {
+			sql.WriteString("BEGIN ATOMIC\n")
+		}
 		for i := range d.SQLBody.Len() {
 			statement, err := d.SQLBody.StatementSQL(context.Background(), view, i)
 			if err != nil {
@@ -269,7 +274,9 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 			}
 			sql.WriteString(statement + ";\n")
 		}
-		sql.WriteString("END;\n")
+		if !d.SQL.StandardReturn {
+			sql.WriteString("END;\n")
+		}
 	} else {
 		sql.WriteString("AS " + dump.CommentLiteral(d.SQL.Source) + ";\n")
 	}

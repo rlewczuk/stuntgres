@@ -17,6 +17,7 @@ type sqlSymType struct {
 	alterConfiguration        *AlterConfiguration
 	extensionMember           ExtensionMemberTarget
 	statements                []Statement
+	routineStandardBody       routineStandardBody
 	rule                      *CreateRule
 	trigger                   *CreateTrigger
 	triggerEvent              TriggerEvent
@@ -23900,7 +23901,7 @@ sqldefault:
 	case 1037:
 		sqlDollar = sqlS[sqlpt-9 : sqlpt+1]
 		{
-			node := &CreateFunction{Name: sqlDollar[3].objectName, Arguments: sqlDollar[5].routineParameters, Result: sqlDollar[7].routineResult.Type, ResultSpecified: sqlDollar[7].routineResult.Specified, TableResult: sqlDollar[7].routineResult.Table, Language: Identifier{Text: "sql"}, Standard: sqlDollar[9].statements, Pos: sqlDollar[1].tok.pos}
+			node := &CreateFunction{Name: sqlDollar[3].objectName, Arguments: sqlDollar[5].routineParameters, Result: sqlDollar[7].routineResult.Type, ResultSpecified: sqlDollar[7].routineResult.Specified, TableResult: sqlDollar[7].routineResult.Table, Language: Identifier{Text: "sql"}, Standard: sqlDollar[9].routineStandardBody.Statements, StandardReturn: sqlDollar[9].routineStandardBody.Return, Pos: sqlDollar[1].tok.pos}
 			if !sqllex.(*lexer).functionAttributes(node, sqlDollar[8].routineAttributes) {
 				return 1
 			}
@@ -23909,7 +23910,7 @@ sqldefault:
 	case 1038:
 		sqlDollar = sqlS[sqlpt-12 : sqlpt+1]
 		{
-			node := &CreateFunction{Name: sqlDollar[3].objectName, Arguments: sqlDollar[5].routineParameters, Result: sqlDollar[7].routineResult.Type, ResultSpecified: sqlDollar[7].routineResult.Specified, TableResult: sqlDollar[7].routineResult.Table, Language: Identifier{Text: sqlDollar[10].tok.text, Pos: sqlDollar[10].tok.pos}, Standard: sqlDollar[12].statements, Pos: sqlDollar[1].tok.pos}
+			node := &CreateFunction{Name: sqlDollar[3].objectName, Arguments: sqlDollar[5].routineParameters, Result: sqlDollar[7].routineResult.Type, ResultSpecified: sqlDollar[7].routineResult.Specified, TableResult: sqlDollar[7].routineResult.Table, Language: Identifier{Text: sqlDollar[10].tok.text, Pos: sqlDollar[10].tok.pos}, Standard: sqlDollar[12].routineStandardBody.Statements, StandardReturn: sqlDollar[12].routineStandardBody.Return, Pos: sqlDollar[1].tok.pos}
 			if !sqllex.(*lexer).functionAttributes(node, sqlDollar[8].routineAttributes, sqlDollar[11].routineAttributes) {
 				return 1
 			}
@@ -23946,7 +23947,8 @@ sqldefault:
 		{
 			node := sqlDollar[1].stmt.(*CreateFunction)
 			node.Language = Identifier{Text: "sql"}
-			node.Standard = sqlDollar[3].statements
+			node.Standard = sqlDollar[3].routineStandardBody.Statements
+			node.StandardReturn = sqlDollar[3].routineStandardBody.Return
 			node.setProcedureAttributes(sqlDollar[2].routineAttributes)
 			sqlVAL.stmt = node
 		}
@@ -23955,7 +23957,8 @@ sqldefault:
 		{
 			node := sqlDollar[1].stmt.(*CreateFunction)
 			node.Language = Identifier{Text: sqlDollar[4].tok.text, Pos: sqlDollar[4].tok.pos}
-			node.Standard = sqlDollar[6].statements
+			node.Standard = sqlDollar[6].routineStandardBody.Statements
+			node.StandardReturn = sqlDollar[6].routineStandardBody.Return
 			node.setProcedureAttributes(sqlDollar[2].routineAttributes, sqlDollar[5].routineAttributes)
 			sqlVAL.stmt = node
 		}
@@ -23980,7 +23983,7 @@ sqldefault:
 	case 1045:
 		sqlDollar = sqlS[sqlpt-11 : sqlpt+1]
 		{
-			node := &CreateFunction{Name: sqlDollar[5].objectName, Arguments: sqlDollar[7].routineParameters, Result: sqlDollar[9].routineResult.Type, ResultSpecified: sqlDollar[9].routineResult.Specified, TableResult: sqlDollar[9].routineResult.Table, Language: Identifier{Text: "sql"}, Standard: sqlDollar[11].statements, Replace: true, Pos: sqlDollar[1].tok.pos}
+			node := &CreateFunction{Name: sqlDollar[5].objectName, Arguments: sqlDollar[7].routineParameters, Result: sqlDollar[9].routineResult.Type, ResultSpecified: sqlDollar[9].routineResult.Specified, TableResult: sqlDollar[9].routineResult.Table, Language: Identifier{Text: "sql"}, Standard: sqlDollar[11].routineStandardBody.Statements, StandardReturn: sqlDollar[11].routineStandardBody.Return, Replace: true, Pos: sqlDollar[1].tok.pos}
 			if !sqllex.(*lexer).functionAttributes(node, sqlDollar[10].routineAttributes) {
 				return 1
 			}
@@ -23989,7 +23992,7 @@ sqldefault:
 	case 1046:
 		sqlDollar = sqlS[sqlpt-14 : sqlpt+1]
 		{
-			node := &CreateFunction{Name: sqlDollar[5].objectName, Arguments: sqlDollar[7].routineParameters, Result: sqlDollar[9].routineResult.Type, ResultSpecified: sqlDollar[9].routineResult.Specified, TableResult: sqlDollar[9].routineResult.Table, Language: Identifier{Text: sqlDollar[12].tok.text, Pos: sqlDollar[12].tok.pos}, Standard: sqlDollar[14].statements, Replace: true, Pos: sqlDollar[1].tok.pos}
+			node := &CreateFunction{Name: sqlDollar[5].objectName, Arguments: sqlDollar[7].routineParameters, Result: sqlDollar[9].routineResult.Type, ResultSpecified: sqlDollar[9].routineResult.Specified, TableResult: sqlDollar[9].routineResult.Table, Language: Identifier{Text: sqlDollar[12].tok.text, Pos: sqlDollar[12].tok.pos}, Standard: sqlDollar[14].routineStandardBody.Statements, StandardReturn: sqlDollar[14].routineStandardBody.Return, Replace: true, Pos: sqlDollar[1].tok.pos}
 			if !sqllex.(*lexer).functionAttributes(node, sqlDollar[10].routineAttributes, sqlDollar[13].routineAttributes) {
 				return 1
 			}
@@ -25524,13 +25527,13 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).routineBodyDepth--
-			sqlVAL.statements = []Statement{&Select{Targets: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}}
+			sqlVAL.routineStandardBody = routineStandardBody{Statements: []Statement{&Select{Targets: []Expr{sqlDollar[2].expr}, RoutineReturn: true, Pos: sqlDollar[1].tok.pos}}, Return: true}
 		}
 	case 1333:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqllex.(*lexer).routineBodyDepth--
-			sqlVAL.statements = sqlDollar[2].statements
+			sqlVAL.routineStandardBody = routineStandardBody{Statements: sqlDollar[2].statements}
 		}
 	case 1334:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
@@ -25566,7 +25569,7 @@ sqldefault:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).routineBodyDepth--
-			sqlVAL.stmt = &Select{Targets: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &Select{Targets: []Expr{sqlDollar[2].expr}, RoutineReturn: true, Pos: sqlDollar[1].tok.pos}
 		}
 	case 1341:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]

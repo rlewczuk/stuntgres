@@ -69,6 +69,23 @@ The rule and trigger definition functions add four independently released
 `REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
 stable, parallel-safe defaults and internal implementation names. Membership
 and complete direct/prepared property batches migrate together.
+The four one-OID routine declaration inquiries add independent released records
+2098/2162/2165/2232. `TestReferenceRoutineDeparse` covers typed signatures,
+defaults versus identity arguments, modes/results, builtin/aggregate distinctions,
+public diagnostics, captured presentation and native-control replay. Select each
+changed definition in both native and pinned real PostgreSQL modes; the
+`FeatureSmoke` definition exercises returned DDL and native replay end to end.
+`StandardBodies` checks all sixty represented builtin/installed SQL-standard
+definitions against independent pinned PostgreSQL strings under both identifier
+policies, then exercises installed rename, path masking and native fresh-driver
+remapping. Inquiries never execute the body, including unavailable native math.
+`InternalMetadata` checks all four inquiries for the twenty-six parser, vector
+I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
+supplements. The complete released inventory remains 2053 rows, now all backed
+by actual descriptors; metadata ownership does not grant execution.
+`TemporarySources` checks masked own-session TEMP qualification against exact
+pinned definitions, with direct, fresh-prepared and held calls under both
+identifier policies on the same borrowed physical connection.
 
 Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
 `proceduresHeld` with declaration-owned output metadata checked before iteration.

@@ -26,6 +26,10 @@ const (
 	DeparseTriggerPretty
 	DeparseRule
 	DeparseRulePretty
+	DeparseFunction
+	DeparseFunctionArguments
+	DeparseFunctionIdentityArguments
+	DeparseFunctionResult
 )
 
 type deparseSignatureDefinition struct {
@@ -50,6 +54,10 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 	{"pg_get_triggerdef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
 	{"pg_get_ruledef", []sqltype.ID{sqltype.Oid}},
 	{"pg_get_ruledef", []sqltype.ID{sqltype.Oid, sqltype.Bool}},
+	{"pg_get_functiondef", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_function_arguments", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_function_identity_arguments", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_function_result", []sqltype.ID{sqltype.Oid}},
 }
 
 type Deparse struct {

@@ -1,0 +1,4 @@
+2098	pg_get_functiondef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_functiondef	\N	false	\N
+2162	pg_get_function_arguments	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_arguments	\N	false	\N
+2165	pg_get_function_result	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_result	\N	false	\N
+2232	pg_get_function_identity_arguments	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_function_identity_arguments	\N	false	\N

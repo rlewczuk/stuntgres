@@ -42,10 +42,10 @@ func TestPGProcProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seenMain, seenSupplement := false, false
+	seenMain, seenInternal := false, false
 	for _, row := range rows {
 		if len(row) != 30 || row[10].Type() != source.Columns[10].Usage.Type || row[10].IsNull() || row[28].Type() != source.Columns[28].Usage.Type {
-			t.Fatal("both producer widths/types")
+			t.Fatal("descriptor projection width/types")
 		}
 		id, err := row[0].OID()
 		if err != nil {
@@ -71,15 +71,19 @@ func TestPGProcProjection(t *testing.T) {
 			}
 		}
 		if id == 40 {
-			seenSupplement = true
+			seenInternal = true
 			security, err := row[10].Boolean()
 			if err != nil || security || !row[28].IsNull() {
-				t.Fatal("supplement security/config", err)
+				t.Fatal("internal descriptor security/config", err)
 			}
 		}
 	}
-	if !seenMain || !seenSupplement {
-		t.Fatal("missing producer witnesses")
+	if !seenMain || !seenInternal {
+		t.Fatal("missing descriptor witnesses")
+	}
+	internal := base.MustProcedure(ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:40})
+	if internal.Builtin == nil || internal.Builtin.Providers != 0 || internal.Display.Source != "int2vectorin" {
+		t.Fatal("internal metadata must have a genuine non-executable descriptor")
 	}
 	if base.MustProcedure(declaration.Address()).Configuration != nil {
 		t.Fatal("capture changed retained base")

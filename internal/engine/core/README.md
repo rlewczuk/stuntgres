@@ -9,6 +9,18 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+Routine declaration inquiry composes the statement-owned catalog and presentation
+settings with the shared formal projection and metadata-safe default/body
+renderers. It never invokes the target or checks its EXECUTE privilege. Actual
+Procedure descriptors are authoritative; release identity aliases do not create
+catalog objects. Public CREATE OR REPLACE output is independent of native dump
+SQL, while both consume the same retained declaration and wrapper metadata.
+Body presentation carries the querying statement's captured temporary-owner
+authority, never the stored routine's principal. Qualified own-session TEMP
+sources use `pg_temp`; foreign or absent temporary authority retains physical
+namespace naming through the unchanged stored relation renderer.
+
+
 `StageForeignConstruction` strictly validates a complete CREATE candidate with
 table metadata and no column options, forces ordinary publication into the
 statement-private journal, then immediately installs an immutable foreign shell

@@ -123,6 +123,9 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if !proc.DeclarationUsage(d.SQL.Result) || d.SQL.Standard != (d.SQLBody != nil) || len(d.SQL.Names) != len(d.SQL.Inputs) {
 		return invalid()
 	}
+	if d.SQL.StandardReturn && !d.SQL.Standard {
+		return invalid()
+	}
 	language, validLanguage := v.Get(d.Language).(*catalog.Language)
 	if !validLanguage || (catalog.LanguageProvider{}).Validate(v, language) != nil {
 		return invalid()

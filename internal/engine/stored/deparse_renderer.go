@@ -214,12 +214,7 @@ func (r Deparser) Literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 	if err != nil {
 		return "", err
 	}
-	quote := func(s string) string {
-		if r.NonstandardStrings {
-			s = strings.ReplaceAll(s, "\\", "\\\\")
-		}
-		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-	}
+	quote := r.StringLiteral
 	if u.Type.IsArray() {
 		return quote(text) + "::" + typ, nil
 	}

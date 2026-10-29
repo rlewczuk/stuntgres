@@ -20,6 +20,10 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
+	switch signature {
+	case functions.DeparseFunction, functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments, functions.DeparseFunctionResult:
+		return scope.deparseRoutine(c, signature, values[0], result)
+	}
 	return table.Deparse(c, scope.deparseInputs(), signature, values, result)
 }
 

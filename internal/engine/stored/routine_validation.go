@@ -19,6 +19,15 @@ func (p *RoutineProgram) ValidateDefinition(d *catalog.Procedure) error {
 	if d.SQL == nil || !d.SQL.Standard || len(p.actions) != len(d.SQL.Statements) {
 		return fmt.Errorf("stuntgres: invalid SQL-standard routine program")
 	}
+	if d.SQL.StandardReturn {
+		if len(d.SQL.Statements) != 1 {
+			return fmt.Errorf("stuntgres: invalid SQL-standard RETURN wrapper")
+		}
+		statement, ok := d.SQL.Statements[0].(*parser.Select)
+		if !ok || !statement.RoutineReturn {
+			return fmt.Errorf("stuntgres: missing SQL-standard RETURN syntax")
+		}
+	}
 	for i, statement := range d.SQL.Statements {
 		if p.actions[i].syntax != statement || p.actions[i].presentation == nil {
 			return fmt.Errorf("stuntgres: mismatched SQL-standard command capture")

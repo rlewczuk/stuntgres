@@ -1,77 +1,89 @@
 package routine
 
 import (
-	"fmt"
+ "fmt"
 
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/proc"
-	"stuntgres/internal/sqltype"
+ "stuntgres/internal/engine/catalog"
+ "stuntgres/internal/engine/ids"
+ "stuntgres/internal/engine/proc"
+ "stuntgres/internal/sqltype"
 )
 
-// Exact represented SQL-standard replacements from REL_18_6
-// src/backend/catalog/system_functions.sql. As in parser.CreateFunction.Standard,
-// RETURN expressions use the parser's single-target SELECT representation. These
-// parsed recipes are metadata only: they are never checked executable programs.
+// One closed REL_18_6 analyzed recipe owns both parsed structure and display.
+// Typed slots are metadata identities, never checked executable expressions.
 var builtinRoutineDeclarationBodies = func() map[ids.OID]sqltype.StructuralTree {
-	recipes := map[ids.OID]string{
-		2325: `SELECT pg_relation_size($1, 'main')`,
-		5023: `SELECT $2 + $1`,
-		879:  `SELECT lpad($1, $2, ' ')`,
-		880:  `SELECT rpad($1, $2, ' ')`,
-		1215: `SELECT description FROM pg_description WHERE objoid = $1 AND classoid = (SELECT oid FROM pg_class WHERE relname = $2 AND relnamespace = 'pg_catalog'::regnamespace) AND objsubid = 0`,
-		1216: `SELECT description FROM pg_description WHERE objoid = $1 AND classoid = 'pg_class'::regclass AND objsubid = $2`,
-		1296: `SELECT $2 + $1`,
-		1298: `SELECT $2 + $1`,
-		1305: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4))`,
-		1306: `SELECT ($1, $2) OVERLAPS ($3, ($3 + $4))`,
-		1307: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, $4)`,
-		1309: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4))`,
-		1310: `SELECT ($1, $2) OVERLAPS ($3, ($3 + $4))`,
-		1311: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, $4)`,
-		1348: `SELECT description FROM pg_description WHERE objoid = $1 AND objsubid = 0`,
-		1384: `SELECT date_part($1, CAST($2 AS timestamp))`,
-		1426: `SELECT on_ppath($2, $1)`,
-		1481: `SELECT log(10, $1)`,
-		1544: `SELECT polygon(12, $1)`,
-		1708: `SELECT round($1, 0)`,
-		1710: `SELECT trunc($1, 0)`,
-		1741: `SELECT log(10, $1)`,
-		1810: `SELECT octet_length($1) * 8`,
-		1811: `SELECT octet_length($1) * 8`,
-		1812: `SELECT length($1)`,
-		1848: `SELECT $2 + $1`,
-		1993: `SELECT description FROM pg_shdescription WHERE objoid = $1 AND classoid = (SELECT oid FROM pg_class WHERE relname = $2 AND relnamespace = 'pg_catalog'::regnamespace)`,
-		2042: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4))`,
-		2043: `SELECT ($1, $2) OVERLAPS ($3, ($3 + $4))`,
-		2044: `SELECT ($1, ($1 + $2)) OVERLAPS ($3, $4)`,
-		2059: `SELECT age(CAST(current_date AS timestamp), $1)`,
-		2074: `SELECT substring($1, similar_to_escape($2, $3))`,
-		2546: `SELECT $2 + $1`,
-		2547: `SELECT $2 + $1`,
-		2548: `SELECT $2 + $1`,
-		2549: `SELECT $2 + $1`,
-		2550: `SELECT $2 + $1`,
-		2631: `SELECT $2 + $1`,
-		3935: `SELECT pg_sleep(extract(epoch FROM clock_timestamp() + $1) - extract(epoch FROM clock_timestamp()))`,
-		3936: `SELECT pg_sleep(extract(epoch FROM $1) - extract(epoch FROM clock_timestamp()))`,
-	}
-	bodies := make(map[ids.OID]sqltype.StructuralTree, len(recipes))
-	for oid, source := range recipes {
-		display, ok := builtinRoutineDisplay[oid]
-		if !ok || display.Language != catalog.SQLRoutineLanguage || display.Source != "" {
-			panic(fmt.Sprintf("stuntgres: unexpected released routine body %d", oid))
-		}
-		body, err := proc.NewRoutineDeclarationBody(source)
-		if err != nil {
-			panic(fmt.Sprintf("stuntgres: invalid released routine body %d: %v", oid, err))
-		}
-		bodies[oid] = body
-	}
-	for oid, display := range builtinRoutineDisplay {
-		if (display.Language == catalog.SQLRoutineLanguage && display.Source == "") != (bodies[oid] != nil) {
-			panic(fmt.Sprintf("stuntgres: incomplete released routine body %d", oid))
-		}
-	}
-	return bodies
+ t, a, f, typ := proc.DeclarationText, proc.DeclarationArgument, proc.DeclarationFunction, proc.DeclarationTypeName
+ op:=func(name string,left,right uint32) proc.DeclarationPart {
+  part:=proc.DeclarationOp(name,left,right)
+  for _,identity:=range builtinOperators {if identity.name==name && uint32(identity.left)==left && uint32(identity.right)==right {part.OID=uint32(identity.oid);return part}}
+  panic("stuntgres: unknown released declaration operator")
+ }
+ ret := func(parts ...proc.DeclarationPart) proc.DeclarationRecipe { return proc.DeclarationRecipe{Return:true, Parts:parts} }
+ text := func(value string) []proc.DeclarationPart { return []proc.DeclarationPart{proc.DeclarationString(value), t("::"),typ(25,"text")} }
+ callText := func(name, signature, value string) proc.DeclarationRecipe {
+  parts:=[]proc.DeclarationPart{f(name,signature),t("("),a(0),t(", ")}
+  if name=="lpad" || name=="rpad" { parts=append(parts,a(1),t(", ")) }
+  parts=append(parts,text(value)...); parts=append(parts,t(")")); return ret(parts...)
+ }
+ plus := func(left,right uint32) proc.DeclarationRecipe { return ret(t("("),a(1),t(" "),op("+",left,right),t(" "),a(0),t(")")) }
+ overlaps := func(base uint32, leftInterval,rightInterval bool) proc.DeclarationRecipe {
+  parts:=[]proc.DeclarationPart{t("(("),a(0),t(", ")}
+  if leftInterval { parts=append(parts,t("("),a(0),t(" "),op("+",base,1186),t(" "),a(1),t(")")) } else { parts=append(parts,a(1)) }
+  parts=append(parts,t(") OVERLAPS ("),a(2),t(", "))
+  if rightInterval { parts=append(parts,t("("),a(2),t(" "),op("+",base,1186),t(" "),a(3),t(")")) } else { parts=append(parts,a(3)) }
+  return ret(append(parts,t("))"))...)
+ }
+ log := func() proc.DeclarationRecipe { return ret(f("log","1700,1700"),t("((10)::"),typ(1700,"numeric"),t(", "),a(0),t(")")) }
+ bitLength := func(signature string) proc.DeclarationRecipe { return ret(t("("),f("octet_length",signature),t("("),a(0),t(") "),op("*",23,23),t(" 8)")) }
+ description := func(relation uint32, name string, class bool, column bool) proc.DeclarationRecipe {
+  col:=func(attr int32,name string) proc.DeclarationPart { return proc.DeclarationAttribute(relation,func() string { if relation==2396 {return "pg_shdescription"}; return "pg_description" }(),attr,name) }
+  descriptionAttr:=int32(4); if relation==2396 { descriptionAttr=3 }
+  parts:=[]proc.DeclarationPart{t("SELECT "),col(descriptionAttr,"description"),t("\n    FROM "),proc.DeclarationTable(relation,name),t("\n   WHERE (("),col(1,"objoid"),t(" "),op("=",26,26),t(" "),a(0),t(")")}
+  if class || column {
+   parts=append(parts,t(" AND ("),col(2,"classoid"),t(" "),op("=",26,26),t(" "))
+   if class {
+    parts=append(parts,t("( SELECT "),proc.DeclarationAttribute(1259,"pg_class",1,"oid"),t("\n            FROM "),proc.DeclarationTable(1259,"pg_class"),t("\n           WHERE (("),proc.DeclarationAttribute(1259,"pg_class",2,"relname"),t(" "),op("=",19,19),t(" "),a(1),t(") AND ("),proc.DeclarationAttribute(1259,"pg_class",3,"relnamespace"),t(" "),op("=",26,26),t(" ("),proc.DeclarationCatalogAlias(2615,11,"pg_catalog"),t("::"),typ(4089,"regnamespace"),t(")::"),typ(26,"oid"),t(")))"))
+   } else { parts=append(parts,t("("),proc.DeclarationCatalogAlias(1259,1259,"pg_class"),t("::"),typ(2205,"regclass"),t(")::"),typ(26,"oid")) }
+   parts=append(parts,t(")"))
+  }
+  if relation!=2396 { parts=append(parts,t(" AND ("),col(3,"objsubid"),t(" "),op("=",23,23),t(" ")); if column { parts=append(parts,a(1)) } else { parts=append(parts,t("0")) }; parts=append(parts,t(")")) }
+  return proc.DeclarationRecipe{Parts:append(parts,t(")"))}
+ }
+ sleep := func(interval bool) proc.DeclarationRecipe {
+  parts:=[]proc.DeclarationPart{f("pg_sleep","701"),t("(((EXTRACT("),proc.DeclarationIdentifierName("epoch"),t(" FROM ")}
+  if interval { parts=append(parts,t("("),f("clock_timestamp",""),t("() "),op("+",1184,1186),t(" "),a(0),t(")")) } else { parts=append(parts,a(0)) }
+  parts=append(parts,t(") "),op("-",1700,1700),t(" EXTRACT("),proc.DeclarationIdentifierName("epoch"),t(" FROM "),f("clock_timestamp",""),t("())))::"),typ(701,"double precision"),t(")")); return ret(parts...)
+ }
+ recipes:=map[ids.OID]proc.DeclarationRecipe{
+ 2325:callText("pg_relation_size","2205,25","main"),
+ 5023:plus(3220,1700), 879:callText("lpad","25,23,25"," "),880:callText("rpad","25,23,25"," "),
+ 1215:description(2609,"pg_description",true,false),1216:description(2609,"pg_description",false,true),
+ 1296:plus(1082,1083),1298:plus(1082,1266),
+ 1305:overlaps(1184,true,true),1306:overlaps(1184,false,true),1307:overlaps(1184,true,false),
+ 1309:overlaps(1083,true,true),1310:overlaps(1083,false,true),1311:overlaps(1083,true,false),
+ 1348:description(2609,"pg_description",false,false),
+ 1384:ret(f("date_part","25,1114"),t("("),a(0),t(", ("),a(1),t(")::"),typ(1114,"timestamp without time zone"),t(")")),
+ 1426:ret(f("on_ppath","600,602"),t("("),a(1),t(", "),a(0),t(")")),
+ 1481:log(),1544:ret(f("polygon","23,718"),t("(12, "),a(0),t(")")),
+ 1708:ret(f("round","1700,23"),t("("),a(0),t(", 0)")),1710:ret(f("trunc","1700,23"),t("("),a(0),t(", 0)")),1741:log(),
+ 1810:bitLength("17"),1811:bitLength("25"),1812:ret(f("length","1560"),t("("),a(0),t(")")),1848:plus(1083,1186),
+ 1993:description(2396,"pg_shdescription",true,false),
+ 2042:overlaps(1114,true,true),2043:overlaps(1114,false,true),2044:overlaps(1114,true,false),
+ 2059:ret(f("age","1114,1114"),t("((CURRENT_DATE)::"),typ(1114,"timestamp without time zone"),t(", "),a(0),t(")")),
+ 2074:ret(f("substring","25,25"),t("("),a(0),t(", "),f("similar_to_escape","25,25"),t("("),a(1),t(", "),a(2),t("))")),
+ 2546:plus(1082,1186),2547:plus(1266,1186),2548:plus(1114,1186),2549:plus(1184,1186),2550:plus(1082,23),2631:plus(869,20),
+ 3935:sleep(true),3936:sleep(false),
+ }
+ bodies:=make(map[ids.OID]sqltype.StructuralTree,len(recipes))
+ for oid, recipe:=range recipes {
+  display,ok:=builtinRoutineDisplay[oid]
+  if !ok || display.Language!=catalog.SQLRoutineLanguage || display.Source!="" { panic(fmt.Sprintf("stuntgres: unexpected released routine body %d",oid)) }
+  body,err:=proc.NewRoutineDeclarationBody(recipe)
+  if err!=nil { panic(fmt.Sprintf("stuntgres: invalid released routine body %d: %v",oid,err)) }
+  bodies[oid]=body
+ }
+ for oid,display:=range builtinRoutineDisplay {
+  if (display.Language==catalog.SQLRoutineLanguage && display.Source=="")!=(bodies[oid]!=nil) { panic(fmt.Sprintf("stuntgres: incomplete released routine body %d",oid)) }
+ }
+ return bodies
 }()

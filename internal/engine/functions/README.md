@@ -94,6 +94,14 @@ outside-trigger protocol error with complete ERROR severity diagnostics; install
 firing belongs to the core trigger owner. Rebuild, rendering, scalar-source and
 stored capture use ordinary recipes.
 
+The same `Deparse` typed path owns the four one-OID routine inquiries:
+`pg_get_functiondef`, `pg_get_function_arguments`,
+`pg_get_function_identity_arguments` and `pg_get_function_result`. All are strict,
+STABLE, unfolded nullable TEXT expressions with ordinary callable resolution,
+snapshot demand and stored capture. Identity arguments omit defaults, not OUT
+formals; procedure result is NULL. No text or pretty overload is admitted.
+
+
 `Deparse` also owns `pg_get_triggerdef(oid [, boolean])` and
 `pg_get_ruledef(oid [, boolean])`, all returning nullable TEXT. The shared typed
 signature resolver analyzes every child before strict NULL evaluation, preserving

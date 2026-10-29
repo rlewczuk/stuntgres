@@ -40,6 +40,9 @@ private frames, not catalog authority.
   `Procedure.ReturnsSet` reads intrinsic SQL/builtin/installed capability;
   `RowEstimate` applies positive canonical `Rows` overrides only to genuine set
   declarations, retaining released/provider defaults when no override exists.
+  `CostEstimate` shares the declaration's zero-sentinel resolution between
+  catalog projection and definition presentation: SQL/PL default to 100,
+  internal/C default to 1; explicit positive estimates remain authoritative.
   Physical directory record listings, including both `pg_ls_tmpdir` overloads,
   retain the released twenty-row estimate rather than the default thousand.
   Both legacy and modern snapshot member sources retain the released fifty-row

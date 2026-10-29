@@ -15,18 +15,30 @@ Published syntax/metadata is immutable. Standard RETURN is a SELECT expression;
 BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
-`NewRoutineDeclarationBody` separately parses released readonly builtin/installed
-SQL-standard syntax once into private immutable backing. It is a structural
-metadata carrier, never a checked executable program, provider or dependency
-manifest. `AppendRoutineSyntax` records concrete parser node/field names and
-ordered children/literals without SQL rendering, catalog access or evaluation;
-source positions are not structural identity. Stored checked programs use this
-same syntax writer for their already-retained actions. Output is native
-`pg_node_tree` structure, deliberately not PostgreSQL `nodeToString`.
-Recipe acquisition uses `parser.ParseRoutineDeclarationBody`, reusing the
-ordinary lexer/grammar while keeping readonly syntax capture distinct from its
-selected-call execution frontier. This permits the actual released sin/asin/cos
-arithmetic bodies without changing source spelling or ordinary SQL admission.
+`NewRoutineDeclarationBody` acquires one closed release-analyzed typed-parts
+recipe for every represented builtin/installed SQL-standard declaration. The
+same owner assembles canonical parse source, retains its private structural AST,
+and records RETURN versus atomic wrapper and display parts. Formal slots,
+routine/operator identities, types, relation attributes, catalog-alias literals
+and installation-member identities are explicit metadata, not token replacement
+or a second per-name SQL output table. `RoutineDeclarationRecipe` exposes only
+immutable part values; `stored.RoutineDeclarationSQL` applies the current
+catalog/search path, names and captured quoting/string policy without binding,
+execution, target EXECUTE checks or executable provider authority.
+Installation-member slots resolve through sealed producer `Installation` and
+`InstalledOrigin` metadata, not the mutable current extension membership order.
+Current reciprocal membership is checked separately; legal detachment does not
+erase declaration identity. Earth's cube references follow the actual domain
+base-type producer, never a schema/name lookup for a replacement installation.
+`AppendRoutineSyntax` records genuine concrete parser node/field names and
+ordered children/literals; source positions are not structural identity.
+Acquisition uses `parser.ParseRoutineDeclarationBody`, the ordinary lexer/grammar
+with readonly syntax capture separate from selected-call execution admission.
+Output remains native `pg_node_tree`, not PostgreSQL `nodeToString`.
+For user declarations, `parser.CreateFunction.StandardReturn` propagates to
+`Definition.StandardReturn`, retaining top-level RETURN versus BEGIN ATOMIC;
+`parser.Select.RoutineReturn` separately retains RETURN statements inside an
+atomic body. Native dump preserves these forms and Restore reconstructs them.
 
 Declaration usages admit pseudo signature identities separately from executable
 values. Result-safety and language-admission validators have separate DDL ordering;

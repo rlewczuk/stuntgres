@@ -1,5 +1,12 @@
 # Changes
 
+- Add the four typed PostgreSQL routine declaration inquiries, including
+  declaration defaults/modes, procedure NULL results, aggregate diagnostics and
+  CREATE OR REPLACE presentation from current catalog descriptors. Native SQL
+  routine replay preserves top-level RETURN versus BEGIN ATOMIC bodies.
+  Previously row-only parser, vector I/O, DDL-receiver and RI metadata now share
+  genuine descriptor ownership without acquiring executable providers.
+
 - Add event-trigger DDL-command inspection with typed nine-column command
   records, canonical object identities, opaque non-NULL query command values,
   lexical nested/exception ownership and persistent serializable audit data.

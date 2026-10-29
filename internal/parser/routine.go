@@ -31,7 +31,13 @@ type CreateFunction struct {
 	Attributes      []RoutineAttribute
 	Replace         bool
 	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
+	StandardReturn  bool // True only for the top-level SQL-standard RETURN form.
 	Pos             Position
+}
+
+type routineStandardBody struct {
+	Statements []Statement
+	Return     bool
 }
 
 // RoutineAttribute retains utility-validation input in source order.

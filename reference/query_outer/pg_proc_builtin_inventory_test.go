@@ -19,9 +19,11 @@ import (
 // comes from the actual routine declaration/cast completion and fixed conversion,
 // access-method, BRIN, shared-memory, generic-file, control-data, runtime-information, session-activity, session-endpoint, trigger-depth, trigger-builtin and settings/options descriptor owners. The existing 1719
 // information_schema fact approach is reused, not mistaken for complete membership.
-// The fourteen parser/vector/DDL-receiver and twelve RI supplements are included.
+// The fourteen parser/vector/DDL-receiver and twelve RI metadata descriptors are included.
 // The four pg_get_ruledef/pg_get_triggerdef executable overloads use the same
 // independent released facts, including pg_proc.h's parallel-safe default.
+// The four oid->text routine-declaration inquiries follow the same released
+// strict/stable/parallel-safe contract and internal implementation symbols.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -70,7 +72,7 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	t.Helper()
 	var facts [][]any
 	seen := make(map[int64]bool)
-	for part := 1; part <= 4; part++ {
+	for part := 1; part <= 5; part++ {
 		name := fmt.Sprintf("testdata/pg_proc_builtin_inventory_%d.tsv", part)
 		f, err := pgProcInventoryFiles.Open(name)
 		if err != nil {
@@ -122,9 +124,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 		}
 	}
 	// This is the exact represented membership, not a guessed PostgreSQL total:
-	// 1923 actual primary + 100 other fixed owners + 26 metadata supplements.
-	if len(facts) != 2049 {
-		t.Fatalf("released represented overloads: got %d, want 2049", len(facts))
+	// 1953 primary descriptors + 100 other fixed descriptor owners.
+	if len(facts) != 2053 {
+		t.Fatalf("released represented overloads: got %d, want 2053", len(facts))
 	}
 	return facts
 }

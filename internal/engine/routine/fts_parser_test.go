@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 func TestFTSParserRoutineDeclarations(t *testing.T) {
@@ -27,9 +28,30 @@ func TestFTSParserRoutineDeclarations(t *testing.T) {
 			t.Fatal("parser display metadata", tc.oid, display)
 		}
 	}
-	for _, oid := range []ids.OID{3717, 3718, 3719, 3720, 3721} {
-		if BuiltinRoutine(oid) != nil {
-			t.Fatal("internal handler became SQL executable", oid)
+	for _, tc := range []struct {
+		oid ids.OID
+		name, signature string
+		result ids.OID
+		inputs []sqltype.ID
+	}{
+		{3717,"prsd_start","2281,23",2281,[]sqltype.ID{2281,sqltype.Int4}},
+		{3718,"prsd_nexttoken","2281,2281,2281",2281,[]sqltype.ID{2281,2281,2281}},
+		{3719,"prsd_end","2281",2278,[]sqltype.ID{2281}},
+		{3720,"prsd_headline","2281,2281,3615",2281,[]sqltype.ID{2281,2281,sqltype.TSQuery}},
+		{3721,"prsd_lextype","2281",2281,[]sqltype.ID{2281}},
+	} {
+		d := BuiltinRoutine(tc.oid)
+		identity := catalog.RoutineIdentity{ID:tc.oid,Namespace:11,Name:tc.name,Signature:catalog.ProcedureSignature(tc.signature)}
+		if d == nil || d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != tc.result || d.ReturnsSet || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.Providers != 0 || d.Defaults != 0 || d.Variadic != 0 || d.Outputs != nil {
+			t.Fatal("internal handler lacks complete non-executable metadata",tc,d)
+		}
+		if display,ok := builtinRoutineDisplay[tc.oid];!ok || display != (builtinDisplayFacts{Language:catalog.InternalRoutineLanguage,Source:tc.name}) {
+			t.Fatal("internal handler display metadata",tc.oid,display)
+		}
+		for _, provider := range []expr.RoutineProvider{functions.FTSParserRoutineProvider,functions.CatalogRoutineProvider} {
+			if _,err := LookupBuiltinRoutineDeclaration(provider,tc.name,tc.inputs);err == nil {
+				t.Fatal("internal handler acquired SQL execution authority",tc.oid,provider)
+			}
 		}
 	}
 }

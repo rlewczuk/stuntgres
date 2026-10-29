@@ -61,6 +61,18 @@ func (d *Procedure) RowEstimate() float32 {
 	return d.Installed.Rows
 }
 
+// CostEstimate resolves the declaration's zero sentinel with the same language
+// defaults for catalog rows and routine-definition presentation.
+func (d *Procedure) CostEstimate() float32 {
+	if d.Cost != 0 {
+		return d.Cost
+	}
+	if d.Display.Language == SQLRoutineLanguage || d.Display.Language == PLpgSQLRoutineLanguage {
+		return 100
+	}
+	return 1
+}
+
 func (d *Procedure) Seeded() bool {
 	return d.SnowballHelper != NoSnowballHelper || d.Builtin != nil || d.Conversion.Name() != "" || d.BrinSupport != 0 || d.AccessMethod != NoAccessMethod && NativeHandler(d.Address().ObjectID) == d.AccessMethod
 }

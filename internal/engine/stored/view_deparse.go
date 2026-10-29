@@ -22,6 +22,8 @@ type Presentation struct {
 	Deparse, Pretty    bool
 	Wrap               int64
 	Rule               bool // Catalog rule display, not replay or reduced-parenthesis pretty mode.
+	RoutineDeclaration bool // Metadata-only routine body, independent of executable replacements.
+	RoutineInputNames []string // Borrowed declaration input-slot names for body display.
 	Policy             bool // Policy expressions share rule sublink punctuation, not rule indentation.
 	Indent             int
 	HideLabels         bool // Nested expression/set-arm fallback names are not externally visible.
@@ -105,7 +107,7 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		simpleFrom = alias.Input
 	}
 	_, renderer.simple = simpleFrom.(*parser.TableReference)
-	renderer.simple = renderer.simple && !presentation.Rule && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
+	renderer.simple = renderer.simple && !presentation.Rule && !presentation.RoutineDeclaration && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
 	if table, ok := simpleFrom.(*parser.TableReference); ok && ViewCTETable(analyze.ViewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
@@ -312,6 +314,12 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 		natural := ""
 		if presentation.Rule && presentation.HideLabels {
 			natural = presentation.identifier("?column?")
+		}
+		if presentation.RoutineDeclaration && len(s.Targets) == len(targets) && i < len(project.Expressions) {
+			// Routine bodies have no view result descriptor imposing labels.
+			// Derive the natural label from the retained typed target instead.
+			name, _ := analyze.ExpressionName(s.Targets[i], project.Expressions[i].ResultUsage(), project.Expressions[i])
+			natural = presentation.identifier(name)
 		}
 		if presentation.Deparse && i < len(project.Expressions) {
 			if column, ok := project.Expressions[i].(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
@@ -1028,6 +1036,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	case parser.ParameterExpr:
 		if e.Number <= 0 || e.Number > len(v.routineInputs) {
 			return "", fmt.Errorf("stuntgres: invalid frozen routine parameter")
+		}
+		if v.Presentation.RoutineDeclaration && e.Number <= len(v.Presentation.RoutineInputNames) {
+			if name := v.Presentation.RoutineInputNames[e.Number-1]; name != "" {
+				return v.Presentation.identifier(name), nil
+			}
 		}
 		return "$" + strconv.Itoa(e.Number), nil
 	case parser.ColumnExpr:

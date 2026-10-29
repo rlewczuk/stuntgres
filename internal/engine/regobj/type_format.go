@@ -13,6 +13,16 @@ import (
 // specified distinguishes SQL NULL from an explicitly supplied negative typmod;
 // declaration validation and regtype output deliberately have other semantics.
 func FormatType(view catalog.Read, path []ids.ObjectAddress, id sqltype.ID, typmod int32, specified bool) (string, error) {
+	return formatType(view, path, id, typmod, specified, regclassIdentifier)
+}
+
+// FormatDeclarationType omits typmods and shares format_type's canonical type
+// spellings, while allowing a captured quote_all_identifiers policy.
+func FormatDeclarationType(view catalog.Read, path []ids.ObjectAddress, id sqltype.ID, identifier func(string) string) (string, error) {
+	return formatType(view, path, id, -1, false, identifier)
+}
+
+func formatType(view catalog.Read, path []ids.ObjectAddress, id sqltype.ID, typmod int32, specified bool, identifier func(string) string) (string, error) {
 	if id == 0 {
 		return "-", nil
 	}
@@ -21,7 +31,7 @@ func FormatType(view catalog.Read, path []ids.ObjectAddress, id sqltype.ID, typm
 		return "???", nil
 	}
 	if typ.IsArray() && !typ.IsCatalogVector() {
-		name, err := FormatType(view, path, typ.Element().ID(), typmod, specified)
+		name, err := formatType(view, path, typ.Element().ID(), typmod, specified, identifier)
 		if err != nil {
 			return "", err
 		}
@@ -75,14 +85,14 @@ func FormatType(view catalog.Read, path []ids.ObjectAddress, id sqltype.ID, typm
 	}
 	if name == "" {
 		d := view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-		name = regclassIdentifier(d.Name())
+		name = identifier(d.Name())
 		if !NamedObjectVisible(view, path, d) {
 			namespace := view.MustNamespace(d.Namespace())
 			schema := namespace.Name()
 			if namespace.Temporary != (ids.SessionToken{}) {
 				schema = "pg_temp"
 			}
-			name = regclassIdentifier(schema) + "." + name
+			name = identifier(schema) + "." + name
 		}
 	}
 	if !withTypmod {

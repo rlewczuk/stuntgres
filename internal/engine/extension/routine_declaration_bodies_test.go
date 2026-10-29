@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
@@ -50,20 +51,32 @@ func TestEarthDeclarationCubePlacement(t *testing.T) {
 			}
 		}
 	}
-	for _, source := range []string{
-		`SELECT degrees(atan2(a.cube_ll_coord($1,2),b.cube_ll_coord($1,1)));`,
-		`SELECT degrees(atan2(cube_ll_coord($1,2),cube_ll_coord($1,1)));`,
-		`SELECT degrees(atan2(a.cube_ll_coord($1),a.cube_ll_coord($1,1)));`,
-		`SELECT degrees(atan2(a.cube_ll_coord($1,2),a.other($1,1)));`,
-		`SELECT a.cube_ll_coord($1,1);`,
-		`SELECT degrees(atan2(a.cube_ll_coord($1,2),a.cube_ll_coord($1,1))) FROM t;`,
+	coord := func(spelling string, args ...declarationParts) declarationParts {
+		return declarationCall(proc.DeclarationMember("cube", 26, uint32(ids.ProcedureClassID), spelling, 0, 23), args...)
+	}
+	first, second := declarationArg(0), declarationText("2")
+	one := declarationText("1")
+	longitude := func(left, right declarationParts) declarationParts {
+		return declarationBuiltin("degrees", "701", declarationBuiltin("atan2", "701,701", left, right))
+	}
+	valid := longitude(coord("a.cube_ll_coord", first, second), coord("a.cube_ll_coord", first, one))
+	for _, test := range []struct {
+		name string
+		parts declarationParts
+	}{
+		{"mixed_schemas", longitude(coord("a.cube_ll_coord", first, second), coord("b.cube_ll_coord", first, one))},
+		{"unqualified", longitude(coord("cube_ll_coord", first, second), coord("cube_ll_coord", first, one))},
+		{"wrong_arity", longitude(coord("a.cube_ll_coord", first), coord("a.cube_ll_coord", first, one))},
+		{"foreign_member", longitude(coord("a.cube_ll_coord", first, second), coord("a.other", first, one))},
+		{"wrong_outer_shape", coord("a.cube_ll_coord", first, one)},
+		{"unexpected_from", declarationJoin(valid, declarationText(" FROM "), declarationParts{proc.DeclarationTable(0, "t")})},
 	} {
-		body, err := proc.NewRoutineDeclarationBody(source)
+		body, err := proc.NewRoutineDeclarationBody(proc.DeclarationRecipe{Return: true, Parts: test.parts})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if _, err := proc.EarthDeclarationCubeSchema(body, sqltype.EarthLongitude); err == nil {
-			t.Fatal("invalid declaration placement accepted", source)
+			t.Fatal("invalid declaration placement accepted", test.name)
 		}
 	}
 	for op := sqltype.EarthRadiusOperation; op <= sqltype.EarthGCToSec; op++ {

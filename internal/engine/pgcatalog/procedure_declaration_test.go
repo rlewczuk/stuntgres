@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func TestProcedureFormalProjection(t *testing.T) {
+func TestProcedureDeclarationProjection(t *testing.T) {
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for _, typ := range sqltype.Builtins() {
 		types[typ.ID()] = typ
@@ -42,7 +42,7 @@ func TestProcedureFormalProjection(t *testing.T) {
 			var gotTypes []ids.OID
 			var gotModes []string
 			var gotInputs []int
-			err := visitProcedureFormals(context.Background(), d, sqltype.Value{}, func(f procedureFormal) error {
+			err := VisitProcedureFormals(context.Background(), d, sqltype.Value{}, func(f ProcedureFormal) error {
 				if f.Index != len(gotTypes) {
 					t.Fatal("ordinal", f)
 				}
@@ -58,21 +58,21 @@ func TestProcedureFormalProjection(t *testing.T) {
 	}
 	for _, signature := range []catalog.ProcedureSignature{"bad", "23,", "0", "23,,25"} {
 		d := &catalog.Procedure{Signature: signature}
-		if err := visitProcedureFormals(context.Background(), d, sqltype.Value{}, func(procedureFormal) error { return nil }); err == nil {
+		if err := VisitProcedureFormals(context.Background(), d, sqltype.Value{}, func(ProcedureFormal) error { return nil }); err == nil {
 			t.Fatal("bad signature", signature)
 		}
 	}
 	fixed := catalog.NewRoutineOutputs([]ids.OID{25, 3802}, "from_json", "key", "value")
 	d := &catalog.Procedure{Signature: "3802", Builtin: &catalog.BuiltinRoutineDeclaration{Outputs: fixed}}
-	var got []procedureFormal
-	if err := visitProcedureFormals(context.Background(), d, sqltype.Value{}, func(f procedureFormal) error { got = append(got, f); return nil }); err != nil {
+	var got []ProcedureFormal
+	if err := VisitProcedureFormals(context.Background(), d, sqltype.Value{}, func(f ProcedureFormal) error { got = append(got, f); return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 3 || got[0].Type != 3802 || got[0].Input != 0 || got[1].Type != 25 || got[1].Input != -1 || got[1].Mode != "o" || got[2].Type != 3802 {
 		t.Fatal(got)
 	}
 	d.Signature = "3802,23"
-	if err := visitProcedureFormals(context.Background(), d, sqltype.Value{}, func(procedureFormal) error { return nil }); err == nil {
+	if err := VisitProcedureFormals(context.Background(), d, sqltype.Value{}, func(ProcedureFormal) error { return nil }); err == nil {
 		t.Fatal("fixed output input mismatch")
 	}
 }

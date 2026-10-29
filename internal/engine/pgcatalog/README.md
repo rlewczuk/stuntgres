@@ -15,6 +15,13 @@ capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
 [engine README](../README.md).
 
+`VisitProcedureFormals` and `ProcedureNameProjection` are the single declaration
+projection for pg_proc arrays, information_schema parameters and routine inquiry.
+They retain all-formal order separately from input/default slots, including OUT,
+INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
+cannot replace these descriptor-owned facts.
+
+
 ## Imports
 
 Layer L5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
@@ -189,9 +196,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   support links, leakproofness, transforms, source and binary provenance come
   from immutable canonical declaration owners, not public names or execution
   admission. Configuration is a typed nullable, ordered one-based TEXT array.
-  Lookup-only supplements retain their genuine released defaults and never
-  gain callable providers. SQL-backed routines require an actual language
-  descriptor; native Go callbacks retain their native-only language0 sentinel.
+  Metadata-only routines retain descriptor-owned released declarations without
+  callable providers. SQL-backed routines require an actual language descriptor;
+  native Go callbacks retain their native-only language0 sentinel.
   Builtin/provider set capability remains intrinsic; estimates consume canonical
   positive `Procedure.Rows` overrides, otherwise retaining genuine released or
   installed defaults. Scalar estimates remain zero.
@@ -277,9 +284,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - `pg_ts_parser` projects current seeded and user immutable parser descriptors
   once, through provider-checked OID/NAME/REGPROC authority. Optional HEADLINE
   is a nonNULL REGPROC zero; no owner or ACL is synthesized. Namespace and
-  nonzero callback dependencies use ordinary pin suppression. The bounded stock
-  handler pg_proc supplement remains independent of parser definitions and
-  confers no standalone execution provider.
+  nonzero callback dependencies use ordinary pin suppression. Stock handler
+  pg_proc rows come from real metadata-only Procedure descriptors, independently
+  of parser definitions and without standalone execution providers.
   `pg_proc.proretset` comes from actual routine declaration metadata.
   Its full row includes FLOAT4 `prorows` and `procost`, declaration `prosrc`,
   OIDVECTOR `proargtypes` built from each routine's input signature, and OID `provariadic`.
@@ -330,7 +337,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   ACLITEM[] `proacl`, and non-NULL INT2 `pronargdefaults`. ACLs use captured
   `Runtime.ObjectACL` and `ClassACL` authority. Implicit routine ACLs remain SQL
   NULL; explicit empty and granted ACLs remain real arrays. Internal metadata-only
-  supplements retain NULL ACLs.
+  descriptors retain their ordinary NULL default ACL representation.
   Canonical array-compatible OIDVECTOR owns `proargtypes`; no separate carrier
   or scalar-only vector path is introduced. Released attribute identities stay
   `procost`6, `pronargdefaults`18, `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30

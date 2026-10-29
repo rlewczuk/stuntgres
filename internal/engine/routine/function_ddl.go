@@ -257,6 +257,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	definition.ReturnsSet, definition.TableResult = s.Result.Setof, s.TableResult != nil
 	if s.Standard != nil {
 		definition.Standard, definition.Statements = true, s.Standard
+		definition.StandardReturn = s.StandardReturn
 	}
 	if previous == nil {
 		oid, allocationErr := h.AllocateOID()

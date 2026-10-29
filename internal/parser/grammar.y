@@ -14,6 +14,7 @@ package parser
  alterConfiguration *AlterConfiguration
  extensionMember ExtensionMemberTarget
  statements []Statement
+ routineStandardBody routineStandardBody
  rule *CreateRule
  trigger *CreateTrigger
  triggerEvent TriggerEvent
@@ -632,7 +633,8 @@ package parser
 %type <routineParameter> function_declaration_argument table_function_column
 %type <routineResult> function_result
 %type <grantRoutineArguments> aggregate_arguments
-%type <statements> standard_routine_body routine_body_list
+%type <routineStandardBody> standard_routine_body
+%type <statements> routine_body_list
 %type <stmt> routine_body_statement
 %type <stmt> nontransaction_statement transaction_common
 %type <tok> routine_return_head routine_atomic_head
@@ -1960,16 +1962,16 @@ drop_parser: DROP TEXT SEARCH TS_PARSER relation_names drop_mode {$$=&DropParser
 aggregate_arguments: '*' {$$=nil} | grant_routine_arguments {$$=$1} ;
 create_function: CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes AS routine_as function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$13.Body.text,BodyPos:routineBodyPosition($13.Body),Symbol:$13.Symbol.text,SymbolSpecified:$13.HasSymbol,SymbolPos:$13.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}
  | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes AS routine_as function_attributes LANGUAGE name function_attributes {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:$13.text,Pos:$13.pos},Body:$10.Body.text,BodyPos:routineBodyPosition($10.Body),Symbol:$10.Symbol.text,SymbolSpecified:$10.HasSymbol,SymbolPos:$10.Symbol.pos,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11,$14){return 1};$$=node}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:"sql"},Standard:$9,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8){return 1};$$=node}
- | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:$10.text,Pos:$10.pos},Standard:$12,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11){return 1};$$=node}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:"sql"},Standard:$9.Statements,StandardReturn:$9.Return,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8){return 1};$$=node}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$3,Arguments:$5,Result:$7.Type,ResultSpecified:$7.Specified,TableResult:$7.Table,Language:Identifier{Text:$10.text,Pos:$10.pos},Standard:$12.Statements,StandardReturn:$12.Return,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$8,$11){return 1};$$=node}
  | procedure_head procedure_attributes LANGUAGE name procedure_attributes AS routine_as procedure_attributes {node:=$1.(*CreateFunction);node.Language=Identifier{Text:$4.text,Pos:$4.pos};node.Body=$7.Body.text;node.BodyPos=routineBodyPosition($7.Body);node.Symbol=$7.Symbol.text;node.SymbolSpecified=$7.HasSymbol;node.SymbolPos=$7.Symbol.pos;node.setProcedureAttributes($2,$5,$8);$$=node}
  | procedure_head procedure_attributes AS routine_as procedure_attributes LANGUAGE name procedure_attributes {node:=$1.(*CreateFunction);node.Language=Identifier{Text:$7.text,Pos:$7.pos};node.Body=$4.Body.text;node.BodyPos=routineBodyPosition($4.Body);node.Symbol=$4.Symbol.text;node.SymbolSpecified=$4.HasSymbol;node.SymbolPos=$4.Symbol.pos;node.setProcedureAttributes($2,$5,$8);$$=node}
- | procedure_head procedure_attributes standard_routine_body {node:=$1.(*CreateFunction);node.Language=Identifier{Text:"sql"};node.Standard=$3;node.setProcedureAttributes($2);$$=node}
- | procedure_head procedure_attributes LANGUAGE name procedure_attributes standard_routine_body {node:=$1.(*CreateFunction);node.Language=Identifier{Text:$4.text,Pos:$4.pos};node.Standard=$6;node.setProcedureAttributes($2,$5);$$=node}
+ | procedure_head procedure_attributes standard_routine_body {node:=$1.(*CreateFunction);node.Language=Identifier{Text:"sql"};node.Standard=$3.Statements;node.StandardReturn=$3.Return;node.setProcedureAttributes($2);$$=node}
+ | procedure_head procedure_attributes LANGUAGE name procedure_attributes standard_routine_body {node:=$1.(*CreateFunction);node.Language=Identifier{Text:$4.text,Pos:$4.pos};node.Standard=$6.Statements;node.StandardReturn=$6.Return;node.setProcedureAttributes($2,$5);$$=node}
  | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes AS routine_as function_attributes {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:$12.text,Pos:$12.pos},Body:$15.Body.text,BodyPos:routineBodyPosition($15.Body),Symbol:$15.Symbol.text,SymbolSpecified:$15.HasSymbol,SymbolPos:$15.Symbol.pos,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13,$16){return 1};$$=node}
  | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes AS routine_as function_attributes LANGUAGE name function_attributes {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:$15.text,Pos:$15.pos},Body:$12.Body.text,BodyPos:routineBodyPosition($12.Body),Symbol:$12.Symbol.text,SymbolSpecified:$12.HasSymbol,SymbolPos:$12.Symbol.pos,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13,$16){return 1};$$=node}
- | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:"sql"},Standard:$11,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10){return 1};$$=node}
- | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:$12.text,Pos:$12.pos},Standard:$14,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13){return 1};$$=node} ;
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:"sql"},Standard:$11.Statements,StandardReturn:$11.Return,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10){return 1};$$=node}
+ | CREATE OR replace_word FUNCTION relation_name '(' function_arguments ')' function_result function_attributes LANGUAGE name function_attributes standard_routine_body {node:=&CreateFunction{Name:$5,Arguments:$7,Result:$9.Type,ResultSpecified:$9.Specified,TableResult:$9.Table,Language:Identifier{Text:$12.text,Pos:$12.pos},Standard:$14.Statements,StandardReturn:$14.Return,Replace:true,Pos:$1.pos};if !sqllex.(*lexer).functionAttributes(node,$10,$13){return 1};$$=node} ;
 procedure_head: CREATE PROCEDURE relation_name '(' function_arguments ')' {$$=&CreateFunction{Name:$3,Arguments:$5,Procedure:true,Pos:$1.pos}}
  | CREATE OR replace_word PROCEDURE relation_name '(' function_arguments ')' {$$=&CreateFunction{Name:$5,Arguments:$7,Procedure:true,Replace:true,Pos:$1.pos}} ;
 procedure_attributes: /* empty */ {$$=nil}
@@ -2206,15 +2208,15 @@ pl_cursor_motion: /* empty */ {$$=&PLCursorMotion{}}
  | BACKWARD ALL {$$=&PLCursorMotion{Direction:CursorBackward,All:true,Counted:true}} ;
 routine_return_head: RETURN_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
 routine_atomic_head: BEGIN ATOMIC_BODY {sqllex.(*lexer).routineBodyDepth++;$$=$1} ;
-standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=[]Statement{&Select{Targets:[]Expr{$2},Pos:$1.pos}}}
- | routine_atomic_head routine_body_list END {sqllex.(*lexer).routineBodyDepth--;$$=$2} ;
+standard_routine_body: routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=routineStandardBody{Statements:[]Statement{&Select{Targets:[]Expr{$2},RoutineReturn:true,Pos:$1.pos}},Return:true}}
+ | routine_atomic_head routine_body_list END {sqllex.(*lexer).routineBodyDepth--;$$=routineStandardBody{Statements:$2}} ;
 routine_body_list: /* empty */ {$$=make([]Statement,0)}
  | routine_body_list ';' {$$=$1}
  | routine_body_list routine_body_statement ';' {$$=append($1,$2)} ;
 routine_body_statement: nontransaction_statement {$$=$1}
  | transaction_common {$$=$1}
  | COMMIT opt_transaction opt_chain {$$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos}}
- | routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=&Select{Targets:[]Expr{$2},Pos:$1.pos}} ;
+ | routine_return_head target {sqllex.(*lexer).routineBodyDepth--;$$=&Select{Targets:[]Expr{$2},RoutineReturn:true,Pos:$1.pos}} ;
 function_arguments: routine_arguments_start optional_function_arguments {$$=$2} ;
 routine_arguments_start: /* empty */ {l:=sqllex.(*lexer);l.routineFormalDepth=l.jsonParenDepth;l.routineFormalDefault=false} ;
 optional_function_arguments: /* empty */ {$$=nil} | function_declaration_argument_list {$$=$1} ;

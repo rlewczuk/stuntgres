@@ -55,6 +55,17 @@ declared pseudo signatures pass the same determinability and language checks as
 creation, separately from concrete invocation validation. No activation values or
 evaluated PL expressions enter stored payloads.
 
+`RoutineProgram.DefinitionSQL` presents SQL-standard routine bodies under captured
+catalog/path/output authority, using metadata validation rather than executable
+re-admission. Callee implementation replacement does not invalidate retained
+declaration display; current logical identities still determine names. Replay
+`StatementSQL` keeps its stricter executable capture checks. Top-level RETURN
+and RETURN statements inside an atomic wrapper retain explicit parser facts.
+Routine declaration queries retain relation qualification even for a sole source,
+and atomic continuation clauses inherit the statement's one-space body indent.
+Ordinary view display and executable replay keep their existing layout policies.
+
+
 Type inquiry recipes retain their selected declaration, ordered demanded
 operands and logical type witness through generic rebuild, retag and remap.
 Unknown literal and analyzer-confirmed pseudo-cast syntax remains unknown on

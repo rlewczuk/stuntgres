@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -12,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,8 +39,16 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 		{3721, "prsd_lextype", 1, 2281, "2281"},
 	}
 	for _, h := range handlers {
-		if _, represented := base.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: h.oid}); represented {
-			t.Fatalf("baseline handler %d unexpectedly has a Procedure descriptor", h.oid)
+		d, represented := base.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: h.oid})
+		if !represented || d.Builtin == nil || d.Builtin != routine.BuiltinRoutine(h.oid) {
+			t.Fatalf("handler %d lacks its canonical metadata descriptor", h.oid)
+		}
+		identity := catalog.RoutineIdentity{ID:h.oid, Namespace:11, Name:h.name, Signature:catalog.ProcedureSignature(strings.ReplaceAll(h.arguments," ",","))}
+		if d.Builtin.Identity != identity || d.Builtin.Providers != 0 || d.Builtin.Result != ids.OID(h.result) || d.RoutineKind != catalog.FunctionRoutine || d.Result != ids.OID(h.result) || d.Name() != h.name || d.Namespace().ObjectID != 11 || d.Owner != source.Owner || !d.Strict || d.Volatility != expr.Immutable || d.Builtin.Parallel != 's' || d.ReturnsSet() || d.CostEstimate() != 1 {
+			t.Fatalf("handler %d lost released non-executable metadata: %+v", h.oid, d)
+		}
+		if d.SQL != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Foreign != nil || d.Implementation != nil || d.PLHandler != catalog.NoPLHandler || d.SecurityDefiner || d.Configuration != nil || d.Display != (catalog.RoutineDisplay{Language:catalog.InternalRoutineLanguage,Source:h.name}) {
+			t.Fatalf("handler %d acquired SQL/foreign/executable authority or changed display",h.oid)
 		}
 	}
 	// This released adjacent identity is genuine but outside the authorized five.
@@ -49,7 +59,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	if _, represented := base.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3710}); represented {
 		t.Fatal("unrelated witness is not lookup-only")
 	}
-	capture := func(t *testing.T, read catalog.Read, represented *catalog.Procedure) map[ids.OID][]sqltype.Value {
+	capture := func(t *testing.T, read catalog.Read) map[ids.OID][]sqltype.Value {
 		t.Helper()
 		rows, err := produce(pgcatalog.Input{Context: context.Background(), Catalog: read, Roles: e.RoleStore.PublishedRead(read.Owner(), read), Source: source, Owner: read.Owner(), Runtime: core.EngineCatalogRuntime{}})
 		if err != nil {
@@ -59,12 +69,9 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 		for _, oid := range []ids.OID{40, 41, 54, 55, 2410, 2411, 2420, 2421, 88, 1644, 1645, 1646, 1647, 1648, 1649, 1650, 1651, 1652, 1653, 1654, 1655} {
 			wanted[oid] = true
 		}
-		if represented != nil {
-			delete(wanted, represented.Address().ObjectID)
-		}
 		seen := make(map[ids.OID]bool, len(rows))
 		selected := make(map[ids.OID][]sqltype.Value, 5)
-		supplements := 0
+		metadataRows := 0
 		for _, row := range rows {
 			if len(row) != len(source.Columns) {
 				t.Fatal("wrong real producer row width", len(row))
@@ -79,11 +86,11 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			}
 			seen[oid] = true
 			if _, exists := read.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}); !exists {
-				if !wanted[oid] {
-					t.Fatalf("unselected lookup-only identity %d supplemented", oid)
-				}
-				delete(wanted, oid)
-				supplements++
+				t.Fatalf("pg_proc row %d has no owning Procedure descriptor",oid)
+			}
+			if wanted[oid] {
+				delete(wanted,oid)
+				metadataRows++
 			}
 			for _, h := range handlers {
 				if oid == h.oid {
@@ -96,19 +103,15 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 				}
 			}
 		}
-		wantCount := 26
-		if represented != nil {
-			wantCount = 25
-		}
-		if supplements != wantCount || len(wanted) != 0 || len(selected) != 5 {
-			t.Fatalf("supplement boundary: count=%d missing=%v selected=%d", supplements, wanted, len(selected))
+		if metadataRows != 26 || len(wanted) != 0 || len(selected) != 5 {
+			t.Fatalf("metadata descriptor boundary: count=%d missing=%v selected=%d", metadataRows, wanted, len(selected))
 		}
 		if seen[3710] {
 			t.Fatal("unrelated lookup-only ts_rank_cd became a pg_proc row")
 		}
 		return selected
 	}
-	baseline := capture(t, base, nil)
+	baseline := capture(t, base)
 	for _, h := range handlers {
 		want := []any{int64(h.oid), h.name, int64(11), int64(source.Owner.ID()), int64(12), float64(1), float64(0), int64(0), int64(0), "f", false, false, true, false, "i", "s", h.arity, int64(0), h.result, h.arguments, nil, nil, nil, nil, nil, h.name, nil, nil, nil, nil}
 		if got := parserProjectionCells(t, baseline[h.oid]); !reflect.DeepEqual(got, want) {
@@ -117,9 +120,9 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	}
 	for _, h := range handlers {
 		t.Run(fmt.Sprint(h.oid), func(t *testing.T) {
-			// Install an ordinary metadata descriptor into a private real catalog
+			// Replace an ordinary metadata descriptor in a private real catalog
 			// state. Its current name/signature/result/attributes intentionally
-			// differ from the released supplement; no SQL callback is installed.
+			// differ from the released declaration; no SQL callback is installed.
 			represented := &catalog.Procedure{
 				ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: h.oid},
 				ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
@@ -131,14 +134,14 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 			state := catalog.CloneState(base.State())
 			state.SetDescriptor(represented.Address(), represented)
 			state.BindName(catalog.DescriptorNameKey(represented), represented.Address())
-			rows := capture(t, base.WithState(state), represented)
+			rows := capture(t, base.WithState(state))
 			want := []any{int64(h.oid), "represented_parser_handler", int64(11), int64(source.Owner.ID()), int64(12), float64(1), float64(0), int64(0), int64(0), "f", false, false, false, false, "v", "s", int64(1), int64(0), int64(25), "25", nil, nil, nil, nil, nil, h.name, nil, nil, nil, nil}
 			if got := parserProjectionCells(t, rows[h.oid]); !reflect.DeepEqual(got, want) {
-				t.Fatalf("represented descriptor lost precedence: got=%#v want=%#v", got, want)
+				t.Fatalf("current descriptor lost precedence: got=%#v want=%#v", got, want)
 			}
 			for _, other := range handlers {
 				if other.oid != h.oid && !reflect.DeepEqual(parserProjectionCells(t, rows[other.oid]), parserProjectionCells(t, baseline[other.oid])) {
-					t.Fatal("represented sibling changed another supplement", other.oid)
+					t.Fatal("replacing one descriptor changed another handler", other.oid)
 				}
 			}
 		})

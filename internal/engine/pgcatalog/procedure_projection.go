@@ -173,14 +173,14 @@ func procedureRow(in Input, d *catalog.Procedure) ([]sqltype.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	names, err := procedureNameProjection(view, d)
+	names, err := ProcedureNameProjection(view, d)
 	if err != nil {
 		return nil, err
 	}
 	if names.present {
 		elements := make([]sqltype.Value, names.count)
 		for i := range elements {
-			elements[i] = sqltype.String(source.Columns[procArgNames].Usage.Type.Element(), names.at(i))
+			elements[i] = sqltype.String(source.Columns[procArgNames].Usage.Type.Element(), names.At(i))
 		}
 		row[procArgNames], err = sqltype.OwnedArrayValue(source.Columns[procArgNames].Usage.Type, []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements)
 		if err != nil {
@@ -217,14 +217,7 @@ func procedureRow(in Input, d *catalog.Procedure) ([]sqltype.Value, error) {
 			return nil, err
 		}
 	}
-	cost := float64(d.Cost)
-	if cost == 0 {
-		cost = 1
-		if d.Display.Language == catalog.SQLRoutineLanguage || d.Display.Language == catalog.PLpgSQLRoutineLanguage {
-			cost = 100
-		}
-	}
-	floating(procCost, cost)
+	floating(procCost, float64(d.CostEstimate()))
 	boolean(procSecurityDefiner, d.SecurityDefiner)
 	if d.Configuration.Len() != 0 {
 		elements := make([]sqltype.Value, d.Configuration.Len())

@@ -15,7 +15,7 @@ import (
 
 // A declaration formal is independent of invocation expansion and result shape.
 // Usage is present for checked SQL/PL formals; other types are catalog identities.
-type procedureFormal struct {
+type ProcedureFormal struct {
 	Type         ids.OID
 	Usage        sqltype.Usage
 	Mode         string
@@ -23,7 +23,7 @@ type procedureFormal struct {
 	HasDefault   bool
 }
 
-func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes sqltype.Value, visit func(procedureFormal) error) error {
+func VisitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes sqltype.Value, visit func(ProcedureFormal) error) error {
 	if d.SQL != nil {
 		if len(d.SQL.Formals) != len(d.SQL.FormalInputs) || len(d.SQL.Inputs) != len(d.SQL.InputFormals) {
 			return fmt.Errorf("stuntgres: invalid routine formal layout")
@@ -51,7 +51,7 @@ func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 			if d.SQL.FormalInputs[i] != slot || slot >= 0 && (slot >= len(d.SQL.InputFormals) || d.SQL.InputFormals[slot] != i || d.SQL.Inputs[slot] != f.Usage) {
 				return fmt.Errorf("stuntgres: invalid routine input projection")
 			}
-			if err := visit(procedureFormal{ids.OID(f.Usage.Type.ID()), f.Usage, f.Mode, i, slot, f.HasDefault}); err != nil {
+			if err := visit(ProcedureFormal{ids.OID(f.Usage.Type.ID()), f.Usage, f.Mode, i, slot, f.HasDefault}); err != nil {
 				return err
 			}
 		}
@@ -107,7 +107,7 @@ func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 		if variadic != 0 && i == inputs-1 {
 			mode = "v"
 		}
-		if err := visit(procedureFormal{Type: ids.OID(n), Mode: mode, Index: i, Input: i, HasDefault: i >= inputs-defaults}); err != nil {
+		if err := visit(ProcedureFormal{Type: ids.OID(n), Mode: mode, Index: i, Input: i, HasDefault: i >= inputs-defaults}); err != nil {
 			return err
 		}
 	}
@@ -119,7 +119,7 @@ func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := visit(procedureFormal{Type: ids.OID(outputs.Type(i)), Mode: "o", Index: inputs + i, Input: -1}); err != nil {
+			if err := visit(ProcedureFormal{Type: ids.OID(outputs.Type(i)), Mode: "o", Index: inputs + i, Input: -1}); err != nil {
 				return err
 			}
 		}
@@ -129,7 +129,7 @@ func visitProcedureFormals(ctx context.Context, d *catalog.Procedure, inputTypes
 
 // One name projection serves pg_proc arrays and parameter rows. It borrows only
 // immutable declaration data, never a provider binding or inferred output.
-type procedureNames struct {
+type ProcedureNames struct {
 	sql        *proc.Definition
 	names      []string
 	inputNames *catalog.RoutineInputNames
@@ -140,7 +140,7 @@ type procedureNames struct {
 	present    bool
 }
 
-func (n procedureNames) at(i int) string {
+func (n ProcedureNames) At(i int) string {
 	if n.sql != nil {
 		return n.sql.Formals[i].Name
 	}
@@ -161,8 +161,8 @@ func (n procedureNames) at(i int) string {
 	}
 	return ""
 }
-func procedureNameProjection(view catalog.Read, d *catalog.Procedure) (procedureNames, error) {
-	n := procedureNames{count: int(ProcedureArity(d))}
+func ProcedureNameProjection(view catalog.Read, d *catalog.Procedure) (ProcedureNames, error) {
+	n := ProcedureNames{count: int(ProcedureArity(d))}
 	if d.SQL != nil {
 		n.sql = d.SQL
 		n.count = len(d.SQL.Formals)

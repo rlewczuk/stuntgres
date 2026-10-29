@@ -36,6 +36,7 @@ type Definition struct {
 	Position          parser.Position
 	Statements        []parser.Statement
 	Standard          bool
+	StandardReturn    bool
 	Name              string
 	Names             []string
 	Inputs            []sqltype.Usage

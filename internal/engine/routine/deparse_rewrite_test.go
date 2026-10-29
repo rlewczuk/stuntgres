@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func TestDeparseRewriteRoutineAssociation(t *testing.T) {
+func TestDeparseRoutineAssociation(t *testing.T) {
 	// Released REL_18_6 pg_proc.dat identities and sources, not values inferred
 	// from either the typed provider or the executable declaration inventory.
 	procedures := BuiltinProcedures(authorization.PrincipalRef{})
@@ -27,6 +27,10 @@ func TestDeparseRewriteRoutineAssociation(t *testing.T) {
 		{2504, "pg_get_ruledef", "26,16", []sqltype.ID{sqltype.Oid, sqltype.Bool}, "pg_get_ruledef_ext", functions.DeparseRulePretty},
 		{1662, "pg_get_triggerdef", "26", []sqltype.ID{sqltype.Oid}, "pg_get_triggerdef", functions.DeparseTrigger},
 		{2730, "pg_get_triggerdef", "26,16", []sqltype.ID{sqltype.Oid, sqltype.Bool}, "pg_get_triggerdef_ext", functions.DeparseTriggerPretty},
+		{2098, "pg_get_functiondef", "26", []sqltype.ID{sqltype.Oid}, "pg_get_functiondef", functions.DeparseFunction},
+		{2162, "pg_get_function_arguments", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_arguments", functions.DeparseFunctionArguments},
+		{2232, "pg_get_function_identity_arguments", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_identity_arguments", functions.DeparseFunctionIdentityArguments},
+		{2165, "pg_get_function_result", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_result", functions.DeparseFunctionResult},
 	} {
 		t.Run(tc.source, func(t *testing.T) {
 			// Successful typed binding uses this exact provider/formal lookup even

@@ -1400,6 +1400,7 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
+	RoutineReturn bool // SQL-standard RETURN, represented as a single-target query.
 	With          []CommonTableExpression
 	WithRecursive bool
 	From          FromItem

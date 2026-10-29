@@ -38,6 +38,17 @@ func (v *View) SQLRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLit
 }
 
 func (v *QueryRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (string, error) {
+	if v.Presentation.RoutineDeclaration {
+		ref, ok := v.routineRefs[path]
+		if !ok || !raw.StoredSQLRoutine || ref.Domain() != read.Owner().Domain || ref.Epoch != read.Epoch() {
+			return "", ids.ErrCatalogReplaced
+		}
+		d, ok := read.Procedure(ref.Address)
+		if !ok {
+			return "", ids.ErrCatalogReplaced
+		}
+		return (Deparser{View: read, Path: v.Presentation.Path, Output: v.Presentation.Output, RoutineDeclaration: true}).sqlRoutineName(d)
+	}
 	d, err := v.SQLRoutineRecipeProcedure(read, path, raw)
 	if err != nil {
 		return "", err
@@ -127,6 +138,9 @@ func (v *QueryRenderer) aggregateRecipeName(read catalog.Read, path analyze.View
 
 func sameMappedSQLRoutine(current, captured *catalog.Procedure, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation func(sqltype.CollationRef) (sqltype.CollationRef, error)) (bool, error) {
 	if current.SQL == nil || captured.SQL == nil || current.Strict != captured.Strict || current.Display != captured.Display || current.SQL.Kind != captured.SQL.Kind || current.SQL.Invocation != captured.SQL.Invocation || current.PLHandler != captured.PLHandler || current.SQL.Standard != captured.SQL.Standard || current.SQL.Source != captured.SQL.Source || !slices.Equal(current.SQL.Names, captured.SQL.Names) || len(current.SQL.Inputs) != len(captured.SQL.Inputs) {
+		return false, nil
+	}
+	if current.SQL.StandardReturn != captured.SQL.StandardReturn {
 		return false, nil
 	}
 	if current.Volatility != captured.Volatility || current.SecurityDefiner != captured.SecurityDefiner || current.Parallel != captured.Parallel || current.Cost != captured.Cost || current.Rows != captured.Rows || !catalog.SameRoutineConfiguration(current.Configuration, captured.Configuration) {

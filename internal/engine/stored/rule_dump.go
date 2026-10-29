@@ -30,7 +30,7 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 }
 
 func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleRendering, sourceRoots ...plan.Node) (string, error) {
-	r := Deparser{View: view, Pretty: action.policy.Pretty, ShowImplicit: true, Path: action.policy.Path, Output: action.policy.Output, NonstandardStrings: action.policy.NonstandardStrings}
+	r := Deparser{View: view, Pretty: action.policy.Pretty, ShowImplicit: true, Path: action.policy.Path, Output: action.policy.Output, NonstandardStrings: action.policy.NonstandardStrings, RoutineDeclaration: action.policy.RoutineDeclaration}
 	r.ColumnSQL = func(column plan.ColumnExpr) (string, error) {
 		if column.Scope == 1 && column.Frame == 1 && len(sourceRoots) != 0 {
 			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root plan.Node, expr expr.Expr) (string, error) {
@@ -110,6 +110,11 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		return action.policy.identifier(d.Name()) + "." + name, nil
 	}
 	r.NodeSQL = func(expr expr.Expr) (string, bool, error) {
+		if parameter, ok := expr.(plan.ParameterExpr); ok && action.policy.RoutineDeclaration && parameter.Number > 0 && parameter.Number <= len(action.policy.RoutineInputNames) {
+			if name := action.policy.RoutineInputNames[parameter.Number-1]; name != "" {
+				return action.policy.identifier(name), true, nil
+			}
+		}
 		if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope != 0 {
 			if action.presentation == nil {
 				return "", true, fmt.Errorf("stuntgres: missing tableoid source presentation")

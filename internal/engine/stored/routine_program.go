@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // RoutineProgram retains immutable analyzed recipes, never an opened executor,
@@ -69,6 +70,9 @@ func (p *RoutineProgram) Dependencies() []catalog.ExpressionDependency { return 
 func (p *RoutineProgram) StatementSQL(ctx context.Context, view catalog.Read, i int) (string, error) {
 	if err := p.ValidateAction(view, i); err != nil {
 		return "", err
+	}
+	if raw, ok := p.actions[i].syntax.(*parser.Select); ok && raw.RoutineReturn {
+		return routineReturnSQL(ctx, view, ruleRendering{RuleAction: p.actions[i]})
 	}
 	return RuleActionSQL(ctx, view, p.actions[i])
 }

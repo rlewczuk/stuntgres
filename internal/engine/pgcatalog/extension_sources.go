@@ -49,11 +49,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
-	capacity := len(descriptors)
-	if source.Address().ObjectID == ids.ProcedureClassID {
-		capacity += 14
-	}
-	rows := make([][]sqltype.Value, 0, capacity)
+	rows := make([][]sqltype.Value, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -120,9 +116,6 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			return nil, valueErr
 		}
 		rows = append(rows, row)
-	}
-	if source.Address().ObjectID == ids.ProcedureClassID {
-		return appendInternalTypeProcedures(in, rows)
 	}
 	return rows, nil
 }

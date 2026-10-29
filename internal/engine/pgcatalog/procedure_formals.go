@@ -40,7 +40,7 @@ func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, mod
 	}
 	typeValues := make([]sqltype.Value, count)
 	modeValues := make([]sqltype.Value, count)
-	if err := visitProcedureFormals(ctx, d, inputTypes, func(f procedureFormal) error {
+	if err := VisitProcedureFormals(ctx, d, inputTypes, func(f ProcedureFormal) error {
 		if f.Index >= count {
 			return fmt.Errorf("stuntgres: invalid formal array width")
 		}

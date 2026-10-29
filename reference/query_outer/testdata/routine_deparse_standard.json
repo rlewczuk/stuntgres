@@ -1,0 +1,302 @@
+[
+  {
+    "identity": "lpad(text,integer)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.lpad(text, integer)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN lpad($1, $2, ' '::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"lpad\"(\"text\", integer)\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"lpad\"($1, $2, ' '::\"text\")\n"
+  },
+  {
+    "identity": "rpad(text,integer)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.rpad(text, integer)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN rpad($1, $2, ' '::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"rpad\"(\"text\", integer)\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"rpad\"($1, $2, ' '::\"text\")\n"
+  },
+  {
+    "identity": "obj_description(oid,name)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.obj_description(oid, name)\n RETURNS text\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT pg_description.description\n    FROM pg_description\n   WHERE ((pg_description.objoid = $1) AND (pg_description.classoid = ( SELECT pg_class.oid\n            FROM pg_class\n           WHERE ((pg_class.relname = $2) AND (pg_class.relnamespace = ('pg_catalog'::regnamespace)::oid)))) AND (pg_description.objsubid = 0));\nEND\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"obj_description\"(\"oid\", \"name\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT \"pg_description\".\"description\"\n    FROM \"pg_description\"\n   WHERE ((\"pg_description\".\"objoid\" = $1) AND (\"pg_description\".\"classoid\" = ( SELECT \"pg_class\".\"oid\"\n            FROM \"pg_class\"\n           WHERE ((\"pg_class\".\"relname\" = $2) AND (\"pg_class\".\"relnamespace\" = ('\"pg_catalog\"'::\"regnamespace\")::\"oid\")))) AND (\"pg_description\".\"objsubid\" = 0));\nEND\n"
+  },
+  {
+    "identity": "col_description(oid,integer)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.col_description(oid, integer)\n RETURNS text\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT pg_description.description\n    FROM pg_description\n   WHERE ((pg_description.objoid = $1) AND (pg_description.classoid = ('pg_class'::regclass)::oid) AND (pg_description.objsubid = $2));\nEND\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"col_description\"(\"oid\", integer)\n RETURNS \"text\"\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT \"pg_description\".\"description\"\n    FROM \"pg_description\"\n   WHERE ((\"pg_description\".\"objoid\" = $1) AND (\"pg_description\".\"classoid\" = ('\"pg_class\"'::\"regclass\")::\"oid\") AND (\"pg_description\".\"objsubid\" = $2));\nEND\n"
+  },
+  {
+    "identity": "timedate_pl(time without time zone,date)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.timedate_pl(time without time zone, date)\n RETURNS timestamp without time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"timedate_pl\"(time without time zone, \"date\")\n RETURNS timestamp without time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "timetzdate_pl(time with time zone,date)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.timetzdate_pl(time with time zone, date)\n RETURNS timestamp with time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"timetzdate_pl\"(time with time zone, \"date\")\n RETURNS timestamp with time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp with time zone,interval,timestamp with time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp with time zone, interval, timestamp with time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp with time zone, interval, timestamp with time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp with time zone,timestamp with time zone,timestamp with time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp with time zone, timestamp with time zone, timestamp with time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp with time zone, timestamp with time zone, timestamp with time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp with time zone,interval,timestamp with time zone,timestamp with time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp with time zone, interval, timestamp with time zone, timestamp with time zone)\n RETURNS boolean\n LANGUAGE sql\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp with time zone, interval, timestamp with time zone, timestamp with time zone)\n RETURNS boolean\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n"
+  },
+  {
+    "identity": "\"overlaps\"(time without time zone,interval,time without time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(time without time zone, interval, time without time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(time without time zone, interval, time without time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(time without time zone,time without time zone,time without time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(time without time zone, time without time zone, time without time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(time without time zone, time without time zone, time without time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(time without time zone,interval,time without time zone,time without time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(time without time zone, interval, time without time zone, time without time zone)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(time without time zone, interval, time without time zone, time without time zone)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n"
+  },
+  {
+    "identity": "obj_description(oid)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.obj_description(oid)\n RETURNS text\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT pg_description.description\n    FROM pg_description\n   WHERE ((pg_description.objoid = $1) AND (pg_description.objsubid = 0));\nEND\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"obj_description\"(\"oid\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT \"pg_description\".\"description\"\n    FROM \"pg_description\"\n   WHERE ((\"pg_description\".\"objoid\" = $1) AND (\"pg_description\".\"objsubid\" = 0));\nEND\n"
+  },
+  {
+    "identity": "date_part(text,date)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.date_part(text, date)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN date_part($1, ($2)::timestamp without time zone)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"date_part\"(\"text\", \"date\")\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"date_part\"($1, ($2)::timestamp without time zone)\n"
+  },
+  {
+    "identity": "path_contain_pt(path,point)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.path_contain_pt(path, point)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN on_ppath($2, $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"path_contain_pt\"(\"path\", \"point\")\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"on_ppath\"($2, $1)\n"
+  },
+  {
+    "identity": "log10(numeric)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.log10(numeric)\n RETURNS numeric\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN log((10)::numeric, $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"log10\"(numeric)\n RETURNS numeric\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"log\"((10)::numeric, $1)\n"
+  },
+  {
+    "identity": "polygon(circle)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.polygon(circle)\n RETURNS polygon\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN polygon(12, $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"polygon\"(\"circle\")\n RETURNS \"polygon\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"polygon\"(12, $1)\n"
+  },
+  {
+    "identity": "round(numeric)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.round(numeric)\n RETURNS numeric\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN round($1, 0)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"round\"(numeric)\n RETURNS numeric\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"round\"($1, 0)\n"
+  },
+  {
+    "identity": "trunc(numeric)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.trunc(numeric)\n RETURNS numeric\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN trunc($1, 0)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"trunc\"(numeric)\n RETURNS numeric\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"trunc\"($1, 0)\n"
+  },
+  {
+    "identity": "log(numeric)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.log(numeric)\n RETURNS numeric\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN log((10)::numeric, $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"log\"(numeric)\n RETURNS numeric\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"log\"((10)::numeric, $1)\n"
+  },
+  {
+    "identity": "bit_length(bytea)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.bit_length(bytea)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN (octet_length($1) * 8)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"bit_length\"(\"bytea\")\n RETURNS integer\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN (\"octet_length\"($1) * 8)\n"
+  },
+  {
+    "identity": "bit_length(text)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.bit_length(text)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN (octet_length($1) * 8)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"bit_length\"(\"text\")\n RETURNS integer\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN (\"octet_length\"($1) * 8)\n"
+  },
+  {
+    "identity": "bit_length(bit)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.bit_length(bit)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN length($1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"bit_length\"(bit)\n RETURNS integer\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"length\"($1)\n"
+  },
+  {
+    "identity": "interval_pl_time(interval,time without time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_time(interval, time without time zone)\n RETURNS time without time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_time\"(interval, time without time zone)\n RETURNS time without time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "shobj_description(oid,name)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.shobj_description(oid, name)\n RETURNS text\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT pg_shdescription.description\n    FROM pg_shdescription\n   WHERE ((pg_shdescription.objoid = $1) AND (pg_shdescription.classoid = ( SELECT pg_class.oid\n            FROM pg_class\n           WHERE ((pg_class.relname = $2) AND (pg_class.relnamespace = ('pg_catalog'::regnamespace)::oid)))));\nEND\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"shobj_description\"(\"oid\", \"name\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT\nBEGIN ATOMIC\n SELECT \"pg_shdescription\".\"description\"\n    FROM \"pg_shdescription\"\n   WHERE ((\"pg_shdescription\".\"objoid\" = $1) AND (\"pg_shdescription\".\"classoid\" = ( SELECT \"pg_class\".\"oid\"\n            FROM \"pg_class\"\n           WHERE ((\"pg_class\".\"relname\" = $2) AND (\"pg_class\".\"relnamespace\" = ('\"pg_catalog\"'::\"regnamespace\")::\"oid\")))));\nEND\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp without time zone,interval,timestamp without time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp without time zone, interval, timestamp without time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp without time zone, interval, timestamp without time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp without time zone,timestamp without time zone,timestamp without time zone,interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp without time zone, timestamp without time zone, timestamp without time zone, interval)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp without time zone, timestamp without time zone, timestamp without time zone, interval)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, $2) OVERLAPS ($3, ($3 + $4)))\n"
+  },
+  {
+    "identity": "\"overlaps\"(timestamp without time zone,interval,timestamp without time zone,timestamp without time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"overlaps\"(timestamp without time zone, interval, timestamp without time zone, timestamp without time zone)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"overlaps\"(timestamp without time zone, interval, timestamp without time zone, timestamp without time zone)\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE COST 1\nRETURN (($1, ($1 + $2)) OVERLAPS ($3, $4))\n"
+  },
+  {
+    "identity": "age(timestamp without time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.age(timestamp without time zone)\n RETURNS interval\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT COST 1\nRETURN age((CURRENT_DATE)::timestamp without time zone, $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"age\"(timestamp without time zone)\n RETURNS interval\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT COST 1\nRETURN \"age\"((CURRENT_DATE)::timestamp without time zone, $1)\n"
+  },
+  {
+    "identity": "\"substring\"(text,text,text)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.\"substring\"(text, text, text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"substring\"($1, similar_to_escape($2, $3))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"substring\"(\"text\", \"text\", \"text\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"substring\"($1, \"similar_to_escape\"($2, $3))\n"
+  },
+  {
+    "identity": "pg_relation_size(regclass)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.pg_relation_size(regclass)\n RETURNS bigint\n LANGUAGE sql\n PARALLEL SAFE STRICT COST 1\nRETURN pg_relation_size($1, 'main'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"pg_relation_size\"(\"regclass\")\n RETURNS bigint\n LANGUAGE \"sql\"\n PARALLEL SAFE STRICT COST 1\nRETURN \"pg_relation_size\"($1, 'main'::\"text\")\n"
+  },
+  {
+    "identity": "interval_pl_date(interval,date)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_date(interval, date)\n RETURNS timestamp without time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_date\"(interval, \"date\")\n RETURNS timestamp without time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "interval_pl_timetz(interval,time with time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_timetz(interval, time with time zone)\n RETURNS time with time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_timetz\"(interval, time with time zone)\n RETURNS time with time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "interval_pl_timestamp(interval,timestamp without time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_timestamp(interval, timestamp without time zone)\n RETURNS timestamp without time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_timestamp\"(interval, timestamp without time zone)\n RETURNS timestamp without time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "interval_pl_timestamptz(interval,timestamp with time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_timestamptz(interval, timestamp with time zone)\n RETURNS timestamp with time zone\n LANGUAGE sql\n STABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_timestamptz\"(interval, timestamp with time zone)\n RETURNS timestamp with time zone\n LANGUAGE \"sql\"\n STABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "integer_pl_date(integer,date)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.integer_pl_date(integer, date)\n RETURNS date\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"integer_pl_date\"(integer, \"date\")\n RETURNS \"date\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "int8pl_inet(bigint,inet)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.int8pl_inet(bigint, inet)\n RETURNS inet\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"int8pl_inet\"(bigint, \"inet\")\n RETURNS \"inet\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "pg_sleep_for(interval)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.pg_sleep_for(interval)\n RETURNS void\n LANGUAGE sql\n PARALLEL SAFE STRICT COST 1\nRETURN pg_sleep(((EXTRACT(epoch FROM (clock_timestamp() + $1)) - EXTRACT(epoch FROM clock_timestamp())))::double precision)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"pg_sleep_for\"(interval)\n RETURNS \"void\"\n LANGUAGE \"sql\"\n PARALLEL SAFE STRICT COST 1\nRETURN \"pg_sleep\"(((EXTRACT(\"epoch\" FROM (\"clock_timestamp\"() + $1)) - EXTRACT(\"epoch\" FROM \"clock_timestamp\"())))::double precision)\n"
+  },
+  {
+    "identity": "pg_sleep_until(timestamp with time zone)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.pg_sleep_until(timestamp with time zone)\n RETURNS void\n LANGUAGE sql\n PARALLEL SAFE STRICT COST 1\nRETURN pg_sleep(((EXTRACT(epoch FROM $1) - EXTRACT(epoch FROM clock_timestamp())))::double precision)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"pg_sleep_until\"(timestamp with time zone)\n RETURNS \"void\"\n LANGUAGE \"sql\"\n PARALLEL SAFE STRICT COST 1\nRETURN \"pg_sleep\"(((EXTRACT(\"epoch\" FROM $1) - EXTRACT(\"epoch\" FROM \"clock_timestamp\"())))::double precision)\n"
+  },
+  {
+    "identity": "numeric_pl_pg_lsn(numeric,pg_lsn)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.numeric_pl_pg_lsn(numeric, pg_lsn)\n RETURNS pg_lsn\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"numeric_pl_pg_lsn\"(numeric, \"pg_lsn\")\n RETURNS \"pg_lsn\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"
+  },
+  {
+    "identity": "regexp_match(citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_match(string citext, pattern citext)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_match((string)::text, (pattern)::text, 'i'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_match\"(\"string\" \"citext\", \"pattern\" \"citext\")\n RETURNS \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_match\"((\"string\")::\"text\", (\"pattern\")::\"text\", 'i'::\"text\")\n"
+  },
+  {
+    "identity": "regexp_match(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_match(string citext, pattern citext, flags text)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_match((string)::text, (pattern)::text, CASE WHEN (strpos(flags, 'c'::text) = 0) THEN (flags || 'i'::text) ELSE flags END)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_match\"(\"string\" \"citext\", \"pattern\" \"citext\", \"flags\" \"text\")\n RETURNS \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_match\"((\"string\")::\"text\", (\"pattern\")::\"text\", CASE WHEN (\"strpos\"(\"flags\", 'c'::\"text\") = 0) THEN (\"flags\" || 'i'::\"text\") ELSE \"flags\" END)\n"
+  },
+  {
+    "identity": "regexp_matches(citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_matches(string citext, pattern citext)\n RETURNS SETOF text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT ROWS 1\nRETURN regexp_matches((string)::text, (pattern)::text, 'i'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_matches\"(\"string\" \"citext\", \"pattern\" \"citext\")\n RETURNS SETOF \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT ROWS 1\nRETURN \"regexp_matches\"((\"string\")::\"text\", (\"pattern\")::\"text\", 'i'::\"text\")\n"
+  },
+  {
+    "identity": "regexp_matches(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_matches(string citext, pattern citext, flags text)\n RETURNS SETOF text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT ROWS 10\nRETURN regexp_matches((string)::text, (pattern)::text, CASE WHEN (strpos(flags, 'c'::text) = 0) THEN (flags || 'i'::text) ELSE flags END)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_matches\"(\"string\" \"citext\", \"pattern\" \"citext\", \"flags\" \"text\")\n RETURNS SETOF \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT ROWS 10\nRETURN \"regexp_matches\"((\"string\")::\"text\", (\"pattern\")::\"text\", CASE WHEN (\"strpos\"(\"flags\", 'c'::\"text\") = 0) THEN (\"flags\" || 'i'::\"text\") ELSE \"flags\" END)\n"
+  },
+  {
+    "identity": "regexp_replace(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_replace(string citext, pattern citext, replacement text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_replace((string)::text, (pattern)::text, replacement, 'i'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_replace\"(\"string\" \"citext\", \"pattern\" \"citext\", \"replacement\" \"text\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_replace\"((\"string\")::\"text\", (\"pattern\")::\"text\", \"replacement\", 'i'::\"text\")\n"
+  },
+  {
+    "identity": "regexp_replace(citext,citext,text,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_replace(string citext, pattern citext, replacement text, flags text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_replace((string)::text, (pattern)::text, replacement, CASE WHEN (strpos(flags, 'c'::text) = 0) THEN (flags || 'i'::text) ELSE flags END)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_replace\"(\"string\" \"citext\", \"pattern\" \"citext\", \"replacement\" \"text\", \"flags\" \"text\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_replace\"((\"string\")::\"text\", (\"pattern\")::\"text\", \"replacement\", CASE WHEN (\"strpos\"(\"flags\", 'c'::\"text\") = 0) THEN (\"flags\" || 'i'::\"text\") ELSE \"flags\" END)\n"
+  },
+  {
+    "identity": "regexp_split_to_array(citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_split_to_array(string citext, pattern citext)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_split_to_array((string)::text, (pattern)::text, 'i'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_split_to_array\"(\"string\" \"citext\", \"pattern\" \"citext\")\n RETURNS \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_split_to_array\"((\"string\")::\"text\", (\"pattern\")::\"text\", 'i'::\"text\")\n"
+  },
+  {
+    "identity": "regexp_split_to_array(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_split_to_array(string citext, pattern citext, flags text)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_split_to_array((string)::text, (pattern)::text, CASE WHEN (strpos(flags, 'c'::text) = 0) THEN (flags || 'i'::text) ELSE flags END)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_split_to_array\"(\"string\" \"citext\", \"pattern\" \"citext\", \"flags\" \"text\")\n RETURNS \"text\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_split_to_array\"((\"string\")::\"text\", (\"pattern\")::\"text\", CASE WHEN (\"strpos\"(\"flags\", 'c'::\"text\") = 0) THEN (\"flags\" || 'i'::\"text\") ELSE \"flags\" END)\n"
+  },
+  {
+    "identity": "regexp_split_to_table(citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_split_to_table(string citext, pattern citext)\n RETURNS SETOF text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_split_to_table((string)::text, (pattern)::text, 'i'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_split_to_table\"(\"string\" \"citext\", \"pattern\" \"citext\")\n RETURNS SETOF \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_split_to_table\"((\"string\")::\"text\", (\"pattern\")::\"text\", 'i'::\"text\")\n"
+  },
+  {
+    "identity": "regexp_split_to_table(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.regexp_split_to_table(string citext, pattern citext, flags text)\n RETURNS SETOF text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_split_to_table((string)::text, (pattern)::text, CASE WHEN (strpos(flags, 'c'::text) = 0) THEN (flags || 'i'::text) ELSE flags END)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"regexp_split_to_table\"(\"string\" \"citext\", \"pattern\" \"citext\", \"flags\" \"text\")\n RETURNS SETOF \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_split_to_table\"((\"string\")::\"text\", (\"pattern\")::\"text\", CASE WHEN (\"strpos\"(\"flags\", 'c'::\"text\") = 0) THEN (\"flags\" || 'i'::\"text\") ELSE \"flags\" END)\n"
+  },
+  {
+    "identity": "strpos(citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.strpos(citext, citext)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN strpos(lower(($1)::text), lower(($2)::text))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"strpos\"(\"citext\", \"citext\")\n RETURNS integer\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"strpos\"(\"lower\"(($1)::\"text\"), \"lower\"(($2)::\"text\"))\n"
+  },
+  {
+    "identity": "replace(citext,citext,citext)",
+    "normal": "CREATE OR REPLACE FUNCTION public.replace(citext, citext, citext)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN regexp_replace(($1)::text, regexp_replace(($2)::text, '([^a-zA-Z_0-9])'::text, '\\\\\\1'::text, 'g'::text), ($3)::text, 'gi'::text)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"replace\"(\"citext\", \"citext\", \"citext\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"regexp_replace\"(($1)::\"text\", \"regexp_replace\"(($2)::\"text\", '([^a-zA-Z_0-9])'::\"text\", '\\\\\\1'::\"text\", 'g'::\"text\"), ($3)::\"text\", 'gi'::\"text\")\n"
+  },
+  {
+    "identity": "split_part(citext,citext,integer)",
+    "normal": "CREATE OR REPLACE FUNCTION public.split_part(citext, citext, integer)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN (regexp_split_to_array(($1)::text, regexp_replace(($2)::text, '([^a-zA-Z_0-9])'::text, '\\\\\\1'::text, 'g'::text), 'i'::text))[$3]\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"split_part\"(\"citext\", \"citext\", integer)\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN (\"regexp_split_to_array\"(($1)::\"text\", \"regexp_replace\"(($2)::\"text\", '([^a-zA-Z_0-9])'::\"text\", '\\\\\\1'::\"text\", 'g'::\"text\"), 'i'::\"text\"))[$3]\n"
+  },
+  {
+    "identity": "translate(citext,citext,text)",
+    "normal": "CREATE OR REPLACE FUNCTION public.translate(citext, citext, text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN translate(translate(($1)::text, lower(($2)::text), $3), upper(($2)::text), $3)\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"translate\"(\"citext\", \"citext\", \"text\")\n RETURNS \"text\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"translate\"(\"translate\"(($1)::\"text\", \"lower\"(($2)::\"text\"), $3), \"upper\"(($2)::\"text\"), $3)\n"
+  },
+  {
+    "identity": "earth()",
+    "normal": "CREATE OR REPLACE FUNCTION public.earth()\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\nRETURN '6378168'::double precision\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"earth\"()\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE\nRETURN '6378168'::double precision\n"
+  },
+  {
+    "identity": "sec_to_gc(double precision)",
+    "normal": "CREATE OR REPLACE FUNCTION public.sec_to_gc(double precision)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ($1 < '0'::double precision) THEN '0'::double precision WHEN (($1 / ('2'::double precision * earth())) > '1'::double precision) THEN (pi() * earth()) ELSE (('2'::double precision * earth()) * asin(($1 / ('2'::double precision * earth())))) END\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"sec_to_gc\"(double precision)\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ($1 < '0'::double precision) THEN '0'::double precision WHEN (($1 / ('2'::double precision * \"earth\"())) > '1'::double precision) THEN (\"pi\"() * \"earth\"()) ELSE (('2'::double precision * \"earth\"()) * \"asin\"(($1 / ('2'::double precision * \"earth\"())))) END\n"
+  },
+  {
+    "identity": "gc_to_sec(double precision)",
+    "normal": "CREATE OR REPLACE FUNCTION public.gc_to_sec(double precision)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ($1 < '0'::double precision) THEN '0'::double precision WHEN (($1 / earth()) > pi()) THEN ('2'::double precision * earth()) ELSE (('2'::double precision * earth()) * sin(($1 / ('2'::double precision * earth())))) END\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"gc_to_sec\"(double precision)\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ($1 < '0'::double precision) THEN '0'::double precision WHEN (($1 / \"earth\"()) > \"pi\"()) THEN ('2'::double precision * \"earth\"()) ELSE (('2'::double precision * \"earth\"()) * \"sin\"(($1 / ('2'::double precision * \"earth\"())))) END\n"
+  },
+  {
+    "identity": "ll_to_earth(double precision,double precision)",
+    "normal": "CREATE OR REPLACE FUNCTION public.ll_to_earth(double precision, double precision)\n RETURNS earth\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN (cube(cube(cube(((earth() * cos(radians($1))) * cos(radians($2)))), ((earth() * cos(radians($1))) * sin(radians($2)))), (earth() * sin(radians($1)))))::earth\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"ll_to_earth\"(double precision, double precision)\n RETURNS \"earth\"\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN (\"cube\"(\"cube\"(\"cube\"(((\"earth\"() * \"cos\"(\"radians\"($1))) * \"cos\"(\"radians\"($2)))), ((\"earth\"() * \"cos\"(\"radians\"($1))) * \"sin\"(\"radians\"($2)))), (\"earth\"() * \"sin\"(\"radians\"($1)))))::\"earth\"\n"
+  },
+  {
+    "identity": "latitude(earth)",
+    "normal": "CREATE OR REPLACE FUNCTION public.latitude(earth)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ((cube_ll_coord(($1)::cube, 3) / earth()) < '-1'::double precision) THEN '-90'::double precision WHEN ((cube_ll_coord(($1)::cube, 3) / earth()) > '1'::double precision) THEN '90'::double precision ELSE degrees(asin((cube_ll_coord(($1)::cube, 3) / earth()))) END\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"latitude\"(\"earth\")\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN CASE WHEN ((\"cube_ll_coord\"(($1)::\"cube\", 3) / \"earth\"()) < '-1'::double precision) THEN '-90'::double precision WHEN ((\"cube_ll_coord\"(($1)::\"cube\", 3) / \"earth\"()) > '1'::double precision) THEN '90'::double precision ELSE \"degrees\"(\"asin\"((\"cube_ll_coord\"(($1)::\"cube\", 3) / \"earth\"()))) END\n"
+  },
+  {
+    "identity": "longitude(earth)",
+    "normal": "CREATE OR REPLACE FUNCTION public.longitude(earth)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN degrees(atan2(cube_ll_coord(($1)::cube, 2), cube_ll_coord(($1)::cube, 1)))\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"public\".\"longitude\"(\"earth\")\n RETURNS double precision\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT\nRETURN \"degrees\"(\"atan2\"(\"cube_ll_coord\"(($1)::\"cube\", 2), \"cube_ll_coord\"(($1)::\"cube\", 1)))\n"
+  }
+]

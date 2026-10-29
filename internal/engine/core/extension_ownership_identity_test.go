@@ -359,9 +359,25 @@ func ownershipEarthDeclarationPlacement(t *testing.T) {
 		current := *p
 		switch corruption {
 		case "body_pointer":
-			current.DeclarationBody, err = proc.NewRoutineDeclarationBody(`SELECT public.cube(public.cube(public.cube(earth() * cos(radians($1)) * cos(radians($2))), earth() * cos(radians($1)) * sin(radians($2))), earth() * sin(radians($1)))::earth;`)
+			retained, ok := proc.RoutineDeclarationRecipe(p.DeclarationBody)
+			if !ok {
+				t.Fatal("missing genuine typed declaration recipe")
+			}
+			foreign := proc.DeclarationRecipe{Return: retained.Return(), Parts: make([]proc.DeclarationPart, retained.Len())}
+			for i := range retained.Len() {
+				foreign.Parts[i] = retained.At(i)
+			}
+			current.DeclarationBody, err = proc.NewRoutineDeclarationBody(foreign)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if current.DeclarationBody == p.DeclarationBody {
+				t.Fatal("foreign declaration reused genuine owner")
+			}
+			originalTree, originalErr := p.DeclarationBody.StructuralOutput(t.Context())
+			foreignTree, foreignErr := current.DeclarationBody.StructuralOutput(t.Context())
+			if originalErr != nil || foreignErr != nil || originalTree != foreignTree {
+				t.Fatal("foreign-owner witness changed declaration structure", originalErr, foreignErr)
 			}
 		case "copied_origin":
 			origin := *p.Origin
