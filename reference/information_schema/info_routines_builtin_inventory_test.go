@@ -88,9 +88,12 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3783, "pg_logical_slot_get_binary_changes", "pg_logical_slot_get_binary_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3784, "pg_logical_slot_peek_changes", "pg_logical_slot_peek_changes", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3785, "pg_logical_slot_peek_binary_changes", "pg_logical_slot_peek_binary_changes", "INTERNAL", "INVOKER"},
+		irBuiltinFact{1291, "suppress_redundant_updates_trigger", "suppress_redundant_updates_trigger", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1741 {
-		t.Fatalf("released represented inventory: got %d, want 1741", len(facts))
+	if len(facts) != 1744 {
+		t.Fatalf("released represented inventory: got %d, want 1744", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

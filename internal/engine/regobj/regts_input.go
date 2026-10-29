@@ -49,11 +49,24 @@ func (r TextSearchInput) name(ctx context.Context, text string) ([]parser.Identi
 	return parts, spelling, nil
 }
 func (r TextSearchInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
+	return r.resolveConfig(ctx, text, false)
+}
+
+// ResolveTriggerConfig uses semantic namespace errors and requires an explicit
+// namespace; unlike regconfig input it never consults the search path.
+func (r TextSearchInput) ResolveTriggerConfig(ctx context.Context, text string) (uint32, error) {
+	return r.resolveConfig(ctx, text, true)
+}
+
+func (r TextSearchInput) resolveConfig(ctx context.Context, text string, trigger bool) (uint32, error) {
 	parts, spelling, err := r.name(ctx, text)
 	if err != nil {
 		return 0, err
 	}
-	selection, err := r.namespaces(parts, false)
+	if trigger && len(parts) < 2 {
+		return 0, sqlError("22023", "text search configuration name \""+text+"\" must be schema-qualified")
+	}
+	selection, err := r.namespaces(parts, trigger)
 	if err != nil {
 		return 0, err
 	}

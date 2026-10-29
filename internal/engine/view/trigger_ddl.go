@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -206,7 +205,7 @@ func triggerFunction(h Host, auth ddl.Authority, catalogAccess access.View, name
 	if ok && d.RoutineKind == catalog.ProcedureRoutine {
 		return ids.ObjectAddress{}, sqlError("42883", fmt.Sprintf("function %s() does not exist", catalog.ObjectNameText(name)))
 	}
-	if !ok || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
+	if !ok || !catalog.SupportsDMLTrigger(d) {
 		return ids.ObjectAddress{}, sqlError("42P17", fmt.Sprintf("function %s must return type trigger", catalog.ObjectNameText(name)))
 	}
 	return address, nil

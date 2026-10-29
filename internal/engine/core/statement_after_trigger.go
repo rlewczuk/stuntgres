@@ -270,7 +270,7 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 	}
 	if err == nil {
 		d, _ = auth.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
-		if d == nil || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
+		if !catalog.SupportsDMLTrigger(d) {
 			err = fmt.Errorf("stuntgres: invalid installed trigger function")
 		} else {
 			_, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
@@ -278,6 +278,10 @@ func (s *StatementScope) fireAfter(event afterTriggerEvent) error {
 	}
 	e.Mu.Unlock()
 	if err != nil {
+		return err
+	}
+	if catalog.BuiltinDMLTrigger(d) != 0 {
+		_, err := s.invokeBuiltinTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
 		return err
 	}
 	rel, err := plTriggerRelation(event.read, event.relation)

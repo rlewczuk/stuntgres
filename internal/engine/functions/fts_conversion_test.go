@@ -38,7 +38,8 @@ func TestFTSConvertLexemes(t *testing.T) {
 				return nil, err
 			}
 			var positions []fts.LexicalPosition
-			err = fts.NormalizeTokens(t.Context(), tokens, func(token fts.DocumentToken) (fts.LexicalResult, error) {
+			position := 0
+			err = fts.NormalizeTokens(t.Context(), tokens, &position, func(token fts.DocumentToken) (fts.LexicalResult, error) {
 				if token.ID == 12 {
 					return fts.LexicalResult{}, nil
 				}
@@ -112,7 +113,8 @@ func TestFTSConvertLexemes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var positions []fts.LexicalPosition
-	err = fts.NormalizeTokens(t.Context(), tokens, func(token fts.DocumentToken) (fts.LexicalResult, error) {
+	position := 0
+	err = fts.NormalizeTokens(t.Context(), tokens, &position, func(token fts.DocumentToken) (fts.LexicalResult, error) {
 		switch token.Text {
 		case "skip", " ":
 			return fts.LexicalResult{}, nil

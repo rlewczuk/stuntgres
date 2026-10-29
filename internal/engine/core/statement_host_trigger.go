@@ -99,7 +99,7 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 				err = fmt.Errorf("stuntgres: stale trigger function identity")
 			} else {
 				d, _ = current.Catalog.Get(p.Procedure.Address).(*catalog.Procedure)
-				if d == nil || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation {
+				if !catalog.SupportsDMLTrigger(d) {
 					err = fmt.Errorf("stuntgres: invalid installed trigger function")
 				} else {
 					_, err = exec.ValidateRoutineDescriptor(current.Catalog, current.Roles, d)
@@ -143,6 +143,13 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 			name = "UPDATE"
 		} else if request.Event == dml.BeforeDelete {
 			name = "DELETE"
+		}
+		if catalog.BuiltinDMLTrigger(d) != 0 {
+			result, err = s.invokeBuiltinTrigger(d, relation, p, event, result.Row, request.Old, request.Targets)
+			if err != nil || !result.Proceed {
+				return result, err
+			}
+			continue
 		}
 		rel, err := plTriggerRelation(read, relation)
 		if err != nil {

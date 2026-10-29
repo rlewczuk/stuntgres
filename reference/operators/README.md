@@ -17,6 +17,16 @@ BEFORE row, AFTER row/statement and view INSTEAD OF row trigger scenarios cover 
 ordered chains, query completion, zero-row events, TRUNCATE, permissions,
 physical mutation producers and native post-data replay. The shared
 `triggerScenario` helper follows the ordinary configured-backend loop.
+Builtin trigger scenarios use the same helper for representation-sensitive
+suppression, explicit and row-configured vector sources, continuous positions,
+lexical UPDATE targets, current mappings, complete diagnostics and builtin catalog
+identities. Raw TSVECTOR RETURNING checks retain descriptors on suppressed rows;
+system-attribute diagnostics, constrained-domain replacement and declared binary
+coercibility distinguish builtin tuple operations from ordinary SQL assignment.
+Persistence retains original writers across native replacement rounds, including
+literal configuration rename/name reuse, and replays actual emitted SQL on
+PostgreSQL; external C ABI, heap/TOAST layout,
+WAL and process loading are not native logical-control operations.
 Trigger-depth scenarios retain live queries across nested user/RI invocation,
 exception unwind and native consumer replay. They distinguish WHEN/default
 evaluation, actual bodies and queued AFTER execution using ordered phase keys.
@@ -130,6 +140,7 @@ Add `REFERENCE=1` for the oracle.
 - <a id="cast-definitions"></a>CREATE CAST definitions: `RUN='^TestReferenceCastDefinition'`
 - Declared CAST/typename authority: `RUN='^TestReferenceCastImplementedDeclaredTypeNameAuthority$'`
 - Row-level triggers: `RUN='^TestReferenceTriggerCore'`
+- Builtin trigger functions: `RUN='^TestReferenceTriggerBuiltins'`
 - AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
 - View INSTEAD OF triggers: `RUN='^TestReferenceTriggerInstead'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`

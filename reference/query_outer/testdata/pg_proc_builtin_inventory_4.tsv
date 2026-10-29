@@ -517,3 +517,6 @@
 2947	txid_snapshot_xip	11	12	1	50	0	0	f	false	false	true	true	i	s	1	0	20	2970	\N	\N	\N	false	\N	pg_snapshot_xip	\N	false	\N
 2948	txid_visible_in_snapshot	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	20 2970	\N	\N	\N	false	\N	pg_visible_in_snapshot	\N	false	\N
 3360	txid_status	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	25	20	\N	\N	\N	false	\N	pg_xact_status	\N	false	\N
+1291	suppress_redundant_updates_trigger	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2279		\N	\N	\N	false	\N	suppress_redundant_updates_trigger	\N	false	\N
+3752	tsvector_update_trigger	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	2279		\N	\N	\N	false	\N	tsvector_update_trigger_byid	\N	false	\N
+3753	tsvector_update_trigger_column	11	12	1	0	0	0	f	false	false	false	false	v	s	0	0	2279		\N	\N	\N	false	\N	tsvector_update_trigger_bycolumn	\N	false	\N

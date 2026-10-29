@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
@@ -191,7 +190,7 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 			return fmt.Errorf("stuntgres: invalid trigger provenance")
 		}
 		d, ok := read.Get(p.Procedure.Address).(*catalog.Procedure)
-		if !ok || d.SQL == nil || d.SQL.Invocation != proc.DMLTriggerInvocation || d.SQL.PL == nil || len(d.SQL.Inputs) != 0 {
+		if !ok || !catalog.SupportsDMLTrigger(d) {
 			return fmt.Errorf("stuntgres: invalid trigger function")
 		}
 		if err := (ProcedureProvider{}).Validate(read, d); err != nil {

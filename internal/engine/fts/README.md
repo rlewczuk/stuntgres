@@ -24,6 +24,12 @@ let generated NOT chains exceed 32 nodes without exceeding the per-frame parser
 limit on replay. `String` stays canonical. Lossless text is computed only when
 needed by SQLLiteral, never for SELECT, with no extra cache.
 
+`NormalizeTokens` streams recognized lexical results through a caller-owned
+position counter. Recognized empty stopwords advance it, including trailing
+stops; unrecognized tokens do not. Scalar document consumers initialize zero,
+while multi-source trigger consumers retain one counter across separate parses.
+No joined source buffer, rendered-vector reparse or catalog lookup is involved.
+
 `ConvertQuery` reuses strict operand grammar with a borrowed document-normalizer
 callback, or builds plain, phrase and forgiving web modes directly into the same
 owned arena. Each normalized operand drops stopped edge padding, retains internal

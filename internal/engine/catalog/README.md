@@ -73,6 +73,12 @@ private frames, not catalog authority.
   capabilities are validated by `LanguageProvider`; PL installation OIDs are
   allocated, not universal constants. `Procedure.DeclarationDependencies` stores
   replay-only type/collation and `%TYPE`/`%ROWTYPE` sources, not `pg_depend` edges.
+- **DML trigger capability.** `SupportsDMLTrigger` selects checked zero-input PL
+  DML programs or the three builtin declarations identified by `BuiltinDMLTrigger`.
+  This structural predicate is not permission or provider authority: DDL/stored
+  owners retain ordinary provider validation and firing validates the current
+  routine carrier before dispatch. Literal trigger arguments carry no activation
+  state or implicit column/configuration identity.
 - **Event triggers.** `EventTriggerProvider` validates immutable, globally named
   database-local class 3466 descriptors, actual principal ownership and a
   current zero-argument checked event-function reference. Four command phases,

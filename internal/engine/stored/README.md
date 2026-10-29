@@ -174,6 +174,11 @@ never activation values. Checked kinds are BEFORE ROW I/U/D, AFTER ROW I/U/D,
 AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D. Views
 otherwise admit only AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
 WHEN, UPDATE OF or partition provenance; statement definitions cannot be clones.
+Routine capability is shared with DDL and runtime: genuine zero-input PL DML
+programs or the three checked builtin DML declarations. Provider/provenance checks
+remain mandatory. Builtin string arguments stay literal owned strings, without
+hidden column/configuration dependencies or rename rewriting. Dump preserves
+their order and writes triggers after data so replay does not recompute vectors.
 Rename retains every identity and recipe while reordering the table-local chain.
 `WithMode` replaces only the definition envelope, retaining the WHEN binding,
 presentation, arguments and dependency backing. User and RI triggers share checked

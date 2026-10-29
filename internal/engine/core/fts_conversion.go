@@ -44,86 +44,17 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveRegconfig(ctx, name)
 		}
 	}
-	var config *catalog.TSConfiguration
-	var ok bool
-	var parser fts.ParserRuntime
-	var dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
+	var captured textSearchCapture
 	if err == nil {
-		config, ok = read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
-		if !ok {
-			err = SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
-		}
-	}
-	if err == nil {
-		err = (catalog.TSConfigurationProvider{}).Validate(read, config)
-	}
-	if err == nil {
-		parser, err = catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
-	}
-	if err == nil {
-		dictionaries = make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
-		for _, mapping := range config.Mappings {
-			for _, address := range mapping.Dictionaries {
-				if _, exists := dictionaries[address]; !exists {
-					dictionaries[address] = read.MustTSDictionary(address).Runtime
-				}
-			}
-		}
+		captured, err = captureTextSearch(read, oid)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	noticeLong := func() {
-		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
-	}
-	lexize := func(token fts.DocumentToken) (fts.LexicalResult, error) {
-		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
-			return fts.LexicalResult{}, err
-		}
-		if len(token.Text) >= 2047 {
-			noticeLong()
-			return fts.LexicalResult{}, nil
-		}
-		input := token.Text
-		for _, address := range config.Mapping(token.ID) {
-			if err := ctx.Err(); err != nil {
-				return fts.LexicalResult{}, err
-			}
-			dictionary := dictionaries[address]
-			lexical, err := dictionary.Lexize(ctx, input)
-			if err != nil {
-				return fts.LexicalResult{}, err
-			}
-			if !lexical.Recognized {
-				continue
-			}
-			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
-				input = lexical.Lexemes[0].Text
-				continue
-			}
-			words := lexical.Lexemes[:0]
-			for _, word := range lexical.Lexemes {
-				if err := ctx.Err(); err != nil {
-					return fts.LexicalResult{}, err
-				}
-				if len(word.Text) > 2047 {
-					noticeLong()
-					continue
-				}
-				words = append(words, word)
-			}
-			lexical.Lexemes = words
-			return lexical, nil
-		}
-		return fts.LexicalResult{}, nil
-	}
 	walk := func(input string, emit func(fts.LexicalPosition)) error {
-		tokens, err := parser.Parse(ctx, input)
-		if err != nil {
-			return err
-		}
-		return fts.NormalizeTokens(ctx, tokens, lexize, emit)
+		position := 0
+		return captured.walk(ctx, s, input, &position, emit)
 	}
 	normalize := func(input string) ([]fts.LexicalPosition, error) {
 		var positions []fts.LexicalPosition
@@ -158,4 +89,87 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 	}
 	return sqltype.TSQueryValue(result, query)
+}
+
+// textSearchCapture owns one immutable configuration generation. Capturing
+// requires Engine.Mu; walking never holds it across parser/dictionary callbacks.
+type textSearchCapture struct {
+	config       *catalog.TSConfiguration
+	parser       fts.ParserRuntime
+	dictionaries map[ids.ObjectAddress]catalog.DictionaryRuntime
+}
+
+func captureTextSearch(read catalog.Read, oid uint32) (textSearchCapture, error) {
+	config, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
+	if !ok {
+		return textSearchCapture{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
+	}
+	if err := (catalog.TSConfigurationProvider{}).Validate(read, config); err != nil {
+		return textSearchCapture{}, err
+	}
+	parser, err := catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
+	if err != nil {
+		return textSearchCapture{}, err
+	}
+	dictionaries := make(map[ids.ObjectAddress]catalog.DictionaryRuntime)
+	for _, mapping := range config.Mappings {
+		for _, address := range mapping.Dictionaries {
+			if _, exists := dictionaries[address]; !exists {
+				dictionaries[address] = read.MustTSDictionary(address).Runtime
+			}
+		}
+	}
+	return textSearchCapture{config: config, parser: parser, dictionaries: dictionaries}, nil
+}
+
+func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, text string, position *int, emit func(fts.LexicalPosition)) error {
+	noticeLong := func() {
+		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
+	}
+	lexize := func(token fts.DocumentToken) (fts.LexicalResult, error) {
+		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
+			return fts.LexicalResult{}, err
+		}
+		if len(token.Text) >= 2047 {
+			noticeLong()
+			return fts.LexicalResult{}, nil
+		}
+		input := token.Text
+		for _, address := range c.config.Mapping(token.ID) {
+			if err := ctx.Err(); err != nil {
+				return fts.LexicalResult{}, err
+			}
+			dictionary := c.dictionaries[address]
+			lexical, err := dictionary.Lexize(ctx, input)
+			if err != nil {
+				return fts.LexicalResult{}, err
+			}
+			if !lexical.Recognized {
+				continue
+			}
+			if dictionary.Filtering() && len(lexical.Lexemes) > 0 {
+				input = lexical.Lexemes[0].Text
+				continue
+			}
+			words := lexical.Lexemes[:0]
+			for _, word := range lexical.Lexemes {
+				if err := ctx.Err(); err != nil {
+					return fts.LexicalResult{}, err
+				}
+				if len(word.Text) > 2047 {
+					noticeLong()
+					continue
+				}
+				words = append(words, word)
+			}
+			lexical.Lexemes = words
+			return lexical, nil
+		}
+		return fts.LexicalResult{}, nil
+	}
+	tokens, err := c.parser.Parse(ctx, text)
+	if err != nil {
+		return err
+	}
+	return fts.NormalizeTokens(ctx, tokens, position, lexize, emit)
 }

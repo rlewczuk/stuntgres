@@ -17,6 +17,9 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	1291: {Language: catalog.InternalRoutineLanguage, Source: "suppress_redundant_updates_trigger"},
+	3752: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_update_trigger_byid"},
+	3753: {Language: catalog.InternalRoutineLanguage, Source: "tsvector_update_trigger_bycolumn"},
 	3782: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_get_changes", Cost: 1000},
 	3783: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_get_binary_changes", Cost: 1000},
 	3784: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_slot_peek_changes", Cost: 1000},

@@ -6,8 +6,7 @@ import "context"
 // stopwords. The caller supplies its captured dictionary chain and consumes each
 // invocation-owned lexical result synchronously; the kernel owns no SQL state.
 // Streaming avoids a positional scratch array when building a vector.
-func NormalizeTokens(ctx context.Context, tokens []DocumentToken, lexize func(DocumentToken) (LexicalResult, error), emit func(LexicalPosition)) error {
-	position := 0
+func NormalizeTokens(ctx context.Context, tokens []DocumentToken, position *int, lexize func(DocumentToken) (LexicalResult, error), emit func(LexicalPosition)) error {
 	for _, token := range tokens {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -19,8 +18,8 @@ func NormalizeTokens(ctx context.Context, tokens []DocumentToken, lexize func(Do
 		if !lexical.Recognized {
 			continue
 		}
-		position++
-		emit(LexicalPosition{Position: position, Lexemes: lexical.Lexemes})
+		*position++
+		emit(LexicalPosition{Position: *position, Lexemes: lexical.Lexemes})
 	}
 	return ctx.Err()
 }

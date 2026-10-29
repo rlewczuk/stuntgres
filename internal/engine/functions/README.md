@@ -87,6 +87,13 @@ session, clock result or authority is retained in the immutable leaf.
 routine identity. Its runtime capability reads the executing invocation owner;
 reconstruction, stored capture and scalar sources retain no measured depth.
 
+`TriggerBuiltin` is a volatile, nonfoldable zero-child TRIGGER recipe for the
+three builtin DML trigger declarations. It retains selected routine provenance,
+never activation state. Ordinary SQL evaluation always reports the function's
+outside-trigger protocol error with complete ERROR severity diagnostics; installed
+firing belongs to the core trigger owner. Rebuild, rendering, scalar-source and
+stored capture use ordinary recipes.
+
 `SessionEndpoint` retains a zero-child stable typed recipe and ordinary routine
 provenance, never socket state or authority. In-process sessions have no transport
 endpoints: address leaves return typed INET NULL and port leaves typed INT4 NULL.
@@ -856,6 +863,8 @@ Native ordered support state, tuple ownership and cancellation units use
 
 Live trigger-depth leaf, provenance and executable catalog units use
 `RUN='^TestTriggerDepth'`; public SQL scenarios stay in `reference/`.
+Builtin DML recipe provenance and continuous-source normalization units use
+`RUN='^TestTriggerBuiltins'`; SQL values, diagnostics and controls stay in `reference/`.
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
   (contexts), so they implement only what the code under test calls; any other
