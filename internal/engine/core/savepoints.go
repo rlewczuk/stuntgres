@@ -46,6 +46,7 @@ func (e *Engine) restoreSavepointLocked(t *session.TransactionOwner, mark sessio
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.rollback(mark.Cursors))
 	retireProtocolPortalsAfter(t, mark.Cursors)
 	t.RollbackToLocked(mark, settings)
+	e.reconcileReplicationOriginsLocked(t)
 	exclusion := index.ExclusionMarkOrZero(mark.Exclusion)
 	ownerExtensionOf(t).constraintModes = exclusion.Modes
 	e.Exclusions.RestoreLocked(t.Ticket, exclusion.Projection)
@@ -179,6 +180,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.Session.Settings.CurrentReadOnly = t.ReadOnly
 			t.TruncateSavepoints(position)
 		}
+		e.reconcileReplicationOriginsLocked(t)
 		s.controlOutcome = controlExecuted
 		return Result{}, nil
 	}()

@@ -51,6 +51,11 @@ submitted SQL, including comments, batches and prepared placeholders.
 the actual initial settings load as timestamp-with-time-zone values. Session
 identity and these cluster event clocks survive native Reset and Restore.
 
+Offline `CREATE SUBSCRIPTION ... WITH (connect=false)` registers its main
+replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
+Registration follows the subscription's transactional lifetime; it does not
+start workers, contact a publisher or track replay progress.
+
 `CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
 `connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
 anonymous record columns: key, parent, integer depth, optional text branch,

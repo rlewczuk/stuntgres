@@ -22,6 +22,7 @@ func TestSubscriptionCatalogAuthority(t *testing.T) {
 	state := catalog.CloneState(read.State())
 	names := []string{"p1", "p2"}
 	d := &catalog.Subscription{ObjectAddress: ids.ObjectAddress{ClassID: ids.SubscriptionClassID, ObjectID: 900000}, ObjectRevision: 1, ObjectName: "authority", Database: e.Catalog.DatabaseAddress(), Owner: e.RoleStore.Domain.Principal(10), Streaming: 'p', TwoPhase: 'd', PasswordRequired: true, SynchronousCommit: "off", Origin: "any"}
+	d.ReplicationOriginID = 1
 	d.SetPublications(names)
 	names[0] = "caller mutation"
 	state.SetDescriptor(d.Address(), d)
@@ -42,6 +43,13 @@ func TestSubscriptionCatalogAuthority(t *testing.T) {
 	copy := *d
 	copy.ObjectRevision = 2
 	copy.SetPublications([]string{"new"})
+	stage := e.BeginCatalogStage(view)
+	forged := copy
+	forged.ReplicationOriginID++
+	if err := stage.Replace(&forged); err == nil {
+		t.Fatal("same-identity subscription replacement changed its registration")
+	}
+	e.DiscardCatalogStage(stage)
 	next.SetDescriptor(d.Address(), &copy)
 	if !slices.Equal(d.Publications(), []string{"p1", "p2"}) {
 		t.Fatal("replacement changed old definition")
@@ -63,6 +71,9 @@ func TestSubscriptionCatalogAuthority(t *testing.T) {
 		t.Fatal("descriptor index", oldCount, newCount)
 	}
 	for _, mutate := range []func(*catalog.Subscription){
+		func(n *catalog.Subscription) { n.ReplicationOriginID = 0 },
+		func(n *catalog.Subscription) { n.ReplicationOriginID = 65535 },
+		func(n *catalog.Subscription) { n.ReplicationOriginID = 65536 },
 		func(n *catalog.Subscription) { n.Owner = foreign.RoleStore.Domain.Principal(10) },
 		func(n *catalog.Subscription) {
 			n.Database = ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 999999}

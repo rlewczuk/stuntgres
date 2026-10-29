@@ -16,6 +16,8 @@ import (
 type Host interface {
 	ddl.Host
 	AllocateSharedOID() (ids.OID, error)
+	AllocateReplicationOrigin(ids.ObjectAddress) (ids.OID, error)
+	AbandonReplicationOrigin()
 	SubscriptionInBlock() bool
 	ValidateSubscriptionSync(string) error
 	ParseSubscriptionLSN(string) (uint64, error)
@@ -136,7 +138,12 @@ func Stage(h Host, auth ddl.Authority, s *parser.Subscription) error {
 		if err != nil {
 			return err
 		}
+		d.ReplicationOriginID, err = h.AllocateReplicationOrigin(d.Address())
+		if err != nil {
+			return err
+		}
 		if err = h.Stage().Create(d); err != nil {
+			h.AbandonReplicationOrigin()
 			return err
 		}
 		h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "subscription was created, but is not connected", Hint: "To initiate replication, you must manually create the replication slot, enable the subscription, and refresh the subscription."})

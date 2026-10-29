@@ -41,11 +41,13 @@ func TestCatalogSubscriptionIndexClonesAndCandidates(t *testing.T) {
 		ObjectAddress:  ids.ObjectAddress{ClassID: ids.SubscriptionClassID, ObjectID: 3001},
 		ObjectRevision: 1, ObjectName: "kept",
 		Database: ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 4001},
+		ReplicationOriginID: 1,
 	}
 	changed := &Subscription{
 		ObjectAddress:  ids.ObjectAddress{ClassID: ids.SubscriptionClassID, ObjectID: 3002},
 		ObjectRevision: 1, ObjectName: "changed", HasSlot: true, SlotName: "changed",
 		Database: ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: 4002},
+		ReplicationOriginID: 2,
 	}
 	for _, subscription := range []*Subscription{kept, changed} {
 		base.SetDescriptor(subscription.Address(), subscription)

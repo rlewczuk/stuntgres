@@ -126,6 +126,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 	mark := captureSavepoint(t, "")
 	mark.Invocation = s.Op.CaptureInvocation()
 	mark.Internal = true
+	mark.StatementCatalog = s.Catalog
 	t.Mu.Unlock()
 	s.foreignUnlocked()
 	if err := foreignSavepoint(t, s.Op.Context(), 0, mark.Serial); err != nil {
@@ -258,6 +259,9 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		s.Completed, s.sessionCompleted, s.ProjectedRoots = c.completed, c.sessionCompleted, c.ProjectedRoots
 	}
 	t.TruncateSavepoints(n)
+	s.Engine().Mu.Lock()
+	s.Engine().reconcileStatementReplicationOriginsLocked(t, s.Catalog)
+	s.Engine().Mu.Unlock()
 	t.Mu.Unlock()
 	if rollback {
 		s.Engine().Locks.Restore(t.Ticket, mark.Locks)

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
@@ -21,10 +23,9 @@ func (h DDLHost) AllocateSharedOID() (ids.OID, error) {
 }
 func (h DDLHost) SubscriptionInBlock() bool { return h.Op.Session.Transactions.InBlock() }
 
-// Replacement subscriptions have no embedded domain refs or consumers to
-// rewrite. Remint them before retaining peer databases, so even an imported
-// address equal to a peer's subscription cannot overwrite that definition.
-func (e *Engine) remintSubscriptionsLocked(next *catalog.State, oids *catalog.OIDReservation) error {
+// Portable replay creates registrations; replacement remints both the catalog
+// address and the allocated main origin against retained peers and live claims.
+func (e *Engine) remintSubscriptionsLocked(ctx context.Context, next *catalog.State, oids *catalog.OIDReservation) error {
 	hasSubscriptions := false
 	for range e.Catalog.Read(next).Subscriptions() {
 		hasSubscriptions = true
@@ -42,7 +43,18 @@ func (e *Engine) remintSubscriptionsLocked(next *catalog.State, oids *catalog.OI
 			}
 		}
 	}
-	for address, d := range e.Catalog.Read(next).Subscriptions() {
+	occupancy := e.replicationOriginOccupancyLocked(true)
+	addresses := make([]ids.ObjectAddress, 0)
+	for address := range e.Catalog.Read(next).Subscriptions() {
+		addresses = append(addresses, address)
+	}
+	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
+		if a.ObjectID < b.ObjectID { return -1 }
+		if a.ObjectID > b.ObjectID { return 1 }
+		return 0
+	})
+	for _, address := range addresses {
+		d := e.Catalog.Read(next).Get(address).(*catalog.Subscription)
 		oid, err := catalog.DatabaseOIDLocked(floor, &e.Catalog, e.Cluster.Catalogs)
 		if err != nil {
 			return err
@@ -50,6 +62,8 @@ func (e *Engine) remintSubscriptionsLocked(next *catalog.State, oids *catalog.OI
 		n := *d
 		n.ObjectAddress.ObjectID = oid
 		n.Database = e.Catalog.DatabaseAddress()
+		n.ReplicationOriginID, err = occupancy.allocate(ctx)
+		if err != nil { return err }
 		next.UnbindName(catalog.DescriptorNameKey(d))
 		next.RemoveDescriptor(address)
 		next.SetDescriptor(n.Address(), &n)

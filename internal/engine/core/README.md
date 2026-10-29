@@ -54,8 +54,20 @@ and catalog journals. Shared catalog projections prepare replacement roots for
 every database under the cluster mutex before the installation fence; no
 callbacks, connection attempts or external I/O occur there. Definition ownership
 is database-local, visibility is shared, and ENABLE is desired metadata only.
-Reset/Restore remint the selected database's subscriptions and retain committed
-peer definitions. Detached catalog reads keep the original immutable backing.
+Each subscription owns an immutable allocated replication-origin ID (1..65534);
+the main origin name uses its actual subscription OID. The cluster mutex guards
+lazy pending exclusions, transferred from stage to statement journal, retained
+through savepoints/internal exception statement journals and prepared ownership,
+and released at canonical disposal. They are never catalog rows or public locks.
+Reset/Restore remint selected subscription addresses and origin registrations
+against retained peers and pending allocations. Final preparation rechecks
+candidate uniqueness, exact peer predecessors and live exclusions. Failed
+replacement changes neither roots nor reservation ownership. Detached catalog
+reads keep their original immutable backing.
+The source-opening policy captures operation authorization explicitly for
+`pg_replication_origin`, pairing its private catalog and role roots with the
+engine-backed runtime. CREATE DATABASE's unregistered replacement runtime has
+no cluster exclusions; it acquires shared registrations only when attached.
 
 Parameter ACLs use the same immutable shared projection, canonical-name writer
 admission and cluster allocation frontier. SET, inquiry and catalog producers
@@ -2077,6 +2089,11 @@ Retain `TestRoutineTriggerAttributeEnvironment` and
 `TestRoutineEventTriggerAttributeEnvironment` alongside that matrix: their
 ordinary canceled entry/exit contract requires live coherent caller captures,
 not restoration of a sparse pre-Execute Input.
+
+Replication-origin allocation, stage/journal/exception ownership, immutable
+capture and replacement units use `make check RUN='^(TestReplicationOrigin|TestPGReplicationOrigin)'`;
+add `RACE=1` for the same ownership witnesses. Public scenarios remain in
+`reference/catalogs`, selected by `^TestReferenceReplicationOrigin`.
 
 Shared parameter authority backing, admission, publication and replacement
 units use `make check RUN='^TestParameterACLShared'`; add `RACE=1` for the same

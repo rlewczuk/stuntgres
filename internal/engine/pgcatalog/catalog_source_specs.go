@@ -119,6 +119,10 @@ var Specs = [...]Spec{
 		{"pnpubid", sqltype.Oid, false, 0, 0, -1},
 		{"pnnspid", sqltype.Oid, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(PublicationNamespaceOID), true, false, "stuntgres: missing catalog source type"},
+	{ReplicationOriginOID, ids.PGCatalogNamespaceOID, "pg_replication_origin", []ColumnSpec{
+		{"roident", sqltype.Oid, false, 0, 0, -1},
+		{"roname", sqltype.Text, false, 950, 0, -1},
+	}, false, CatalogHasIndexes(ReplicationOriginOID), true, false, "stuntgres: missing replication origin source type"},
 	{SubscriptionOID, ids.PGCatalogNamespaceOID, "pg_subscription", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"subdbid", sqltype.Oid, false, 0, 0, -1},

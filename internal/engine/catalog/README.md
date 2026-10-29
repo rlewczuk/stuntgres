@@ -266,6 +266,14 @@ private frames, not catalog authority.
   by state clones, private journals and peer roots. Failed replacement publishes
   neither roots nor reserved frontiers. Subscription replacement retains other
   databases' subscriptions and their immutable descriptor-derived read index.
+  A subscription's immutable `ReplicationOriginID` owns its main registration;
+  `Origin` remains its independent filtering option. Complete candidates validate
+  bounded nonzero registration IDs and uniqueness. Renames/owner/options clone
+  the stored ID; generic removal retires registration with its sole descriptor.
+  Shared inheritance preserves the same registration, never reallocating it.
+  SQL DROP OWNED excludes shared subscriptions; detached DROP and native
+  replacement remove them. Generic removal still retires their registration
+  whenever the owning descriptor is actually selected for removal.
   Parameter remint reservations retain the registered peer-store set and allocation
   frontiers as transient preconditions. Final installation rejects a peer-local
   allocation or attachment racing unlocked provider preparation, without retry.

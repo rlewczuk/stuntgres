@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"strconv"
 	"unicode/utf8"
 )
 
@@ -26,6 +27,7 @@ type Subscription struct {
 	DisableOnError, PasswordRequired, RunAsOwner, Failover bool
 	SynchronousCommit, Origin                              string
 	SkipLSN                                                uint64
+	ReplicationOriginID                                    ids.OID
 	publications                                           []string
 }
 
@@ -36,6 +38,12 @@ func (d *Subscription) Name() string                     { return d.ObjectName }
 func (*Subscription) Kind() ids.ObjectKind               { return ids.SubscriptionObject }
 func (d *Subscription) Publications() []string           { return slices.Clone(d.publications) }
 func (d *Subscription) SetPublications(names []string)   { d.publications = slices.Clone(names) }
+
+// ReplicationOriginName identifies the main registration, independently of the
+// subscription's origin filtering option and its mutable SQL name.
+func (d *Subscription) ReplicationOriginName() string {
+	return "pg_" + strconv.FormatUint(uint64(d.Address().ObjectID), 10)
+}
 func SubscriptionNameKey(database ids.ObjectAddress, name string) ids.NameKey {
 	return ids.NameKey{ClassID: ids.SubscriptionClassID, Namespace: database, Name: name}
 }
@@ -53,6 +61,9 @@ func (SubscriptionProvider) Validate(v Read, descriptor Descriptor) error {
 		return invalid()
 	}
 	if _, ok := v.Get(d.Database).(*Database); !ok {
+		return invalid()
+	}
+	if d.ReplicationOriginID == 0 || d.ReplicationOriginID >= 65535 {
 		return invalid()
 	}
 	if len(d.Name()) > 63 || !utf8.ValidString(d.Name()) || strings.IndexByte(d.Name(), 0) >= 0 || d.HasSlot && (len(d.SlotName) == 0 || len(d.SlotName) > 63) || !d.HasSlot && d.SlotName != "" {
@@ -83,4 +94,18 @@ func (s *State) updateSubscriptions(old, next Descriptor) {
 	if is {
 		s.subscriptions = s.subscriptions.Set(b.Address(), b)
 	}
+}
+
+// ValidateReplicationOrigins checks complete-candidate uniqueness once, rather
+// than rescanning the subscription index for every emitted catalog row.
+func ValidateReplicationOrigins(v Read) error {
+	var occupied [1024]uint64
+	for _, d := range v.Subscriptions() {
+		id := d.ReplicationOriginID
+		if id == 0 || id >= 65535 || occupied[id/64]&(uint64(1)<<(id%64)) != 0 {
+			return fmt.Errorf("stuntgres: invalid replication origin registration authority")
+		}
+		occupied[id/64] |= uint64(1) << (id % 64)
+	}
+	return nil
 }

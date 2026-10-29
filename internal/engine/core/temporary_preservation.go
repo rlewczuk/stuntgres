@@ -30,7 +30,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := e.remintParametersLocked(next, oids); err != nil {
 		return err
 	}
-	if err := e.remintSubscriptionsLocked(next, oids); err != nil {
+	if err := e.remintSubscriptionsLocked(ctx, next, oids); err != nil {
 		return err
 	}
 	e.Catalog.RetainOtherSubscriptionsLocked(next)

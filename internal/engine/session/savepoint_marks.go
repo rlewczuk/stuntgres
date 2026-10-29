@@ -21,6 +21,9 @@ type SavepointMark struct {
 	Writes              map[ids.ObjectAddress][]storage.RowVersion
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Catalog             *Journal
+	// Internal exception marks also retain the enclosing statement's COW
+	// journal; it is not the transaction journal restored by RollbackToLocked.
+	StatementCatalog    *Journal
 	Settings            SettingsMark
 	Invocation          *InvocationMark // Internal local environment, nil for ordinary savepoints.
 	Isolation           Isolation

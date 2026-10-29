@@ -16,7 +16,8 @@ func (s *Store) RetainOtherSubscriptionsLocked(next *State) {
 	}
 }
 
-// InheritSubscriptionsLocked attaches a new database to current shared state.
+// InheritSubscriptionsLocked attaches a new database to current shared state,
+// preserving each subscription's exact immutable origin registration.
 func (s *Store) InheritSubscriptionsLocked(next *State) {
 	for address, d := range s.State.subscriptions.All() {
 		next.SetDescriptor(address, d)

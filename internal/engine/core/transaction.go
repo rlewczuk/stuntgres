@@ -21,6 +21,13 @@ import (
 type EndResult struct{ Committed bool }
 
 func clearTransaction(t *session.TransactionOwner) {
+	releaseReplicationOrigins(t)
+	clearTransactionContents(t)
+}
+
+// clearTransactionContents also serves PREPARE's engine-locked ownership
+// transfer, where the prepared entry retains the old incarnation's exclusions.
+func clearTransactionContents(t *session.TransactionOwner) {
 	ownerExtensionOf(t).retireForeign()
 	if PayloadOf(t.Session).Cursors != nil {
 		ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))

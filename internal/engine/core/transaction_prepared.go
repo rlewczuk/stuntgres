@@ -29,7 +29,8 @@ func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
 	e.Visibility.DropSnapshotLocked(p.Entry.Ref)
 	e.prepared.InstallLocked(p.Entry)
 	p.Origin.Ticket = nil
-	clearTransaction(p.Origin)
+	e.prepareReplicationOriginsLocked(p.Entry.Ref, true)
+	clearTransactionContents(p.Origin)
 	p.Origin.Session.RetireTransactionTimeoutLocked()
 }
 
@@ -38,6 +39,8 @@ func (e *Engine) finishPreparedLocked(p *session.PreparedPublication) {
 		return
 	}
 	e.prepared.RemoveLocked(p.Entry.GID)
+	e.prepareReplicationOriginsLocked(p.Entry.Ref, false)
+	e.releaseReplicationOriginsLocked(p.Entry.Ref)
 	e.endSerializableLocked(p.Entry.Ref, true)
 }
 
@@ -123,6 +126,8 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 		}
 		if err == nil {
 			e.prepared.RemoveLocked(gid)
+			e.prepareReplicationOriginsLocked(entry.Ref, false)
+			e.releaseReplicationOriginsLocked(entry.Ref)
 			e.endSerializableLocked(entry.Ref, false)
 		}
 		op.Session.Mu.Unlock()

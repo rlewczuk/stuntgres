@@ -39,6 +39,7 @@ func icProviderInventory(c *icCase) {
 		"pg_statistic_ext_data":                  strings.Fields("stxoid stxdinherit stxdndistinct stxddependencies stxdmcv stxdexpr"),
 		"pg_publication":                         strings.Fields("oid pubname pubowner puballtables pubinsert pubupdate pubdelete pubtruncate pubviaroot pubgencols"),
 		"pg_publication_namespace":               strings.Fields("oid pnpubid pnnspid"),
+		"pg_replication_origin":                  strings.Fields("roident roname"),
 		"pg_subscription":                        strings.Fields("oid subdbid subskiplsn subname subowner subenabled subbinary substream subtwophasestate subdisableonerr subpasswordrequired subrunasowner subfailover subconninfo subslotname subsynccommit subpublications suborigin"),
 		"pg_subscription_rel":                    strings.Fields("srsubid srrelid srsubstate srsublsn"),
 		"pg_proc":                                strings.Fields("oid proname pronamespace proowner prolang procost prorows provariadic prosupport prokind prosecdef proleakproof proisstrict proretset provolatile proparallel pronargs pronargdefaults prorettype proargtypes proallargtypes proargmodes proargnames proargdefaults protrftypes prosrc probin prosqlbody proconfig proacl"),

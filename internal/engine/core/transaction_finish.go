@@ -194,6 +194,9 @@ func (s *StatementScope) Finish(err error) error {
 	} else if err != nil && admittedFailure && (t.State == session.TxActive || t.State == session.TxAborted) {
 		endedTicket = e.failExplicitTransactionLocked(s.Op, t, err)
 	}
+	e.Mu.Lock()
+	e.reconcileReplicationOriginsLocked(t)
+	e.Mu.Unlock()
 	e.endStatementVisibility(s.TxRef, t.State != session.TxIdle && t.Isolation.Stable())
 	if s.View != nil {
 		s.View.Release()
@@ -246,6 +249,11 @@ func (s *StatementScope) Finish(err error) error {
 // disposal. Admission and t.Mu are held; foreign savepoint work temporarily drops
 // t.Mu exactly as ordinary Finish does. The failed block retains its incarnation.
 func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session.TransactionOwner, err error) *lock.Ticket {
+	defer func() {
+		e.Mu.Lock()
+		e.reconcileReplicationOriginsLocked(t)
+		e.Mu.Unlock()
+	}()
 	if errors.Is(err, ids.ErrCatalogReplaced) {
 		ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.clear())
 		t.TruncateSavepoints(0)

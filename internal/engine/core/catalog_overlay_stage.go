@@ -82,6 +82,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		err = e.AssignTransactionXIDLocked(scope.TxRef)
 	}
 	if err == nil {
+		e.transferReplicationOriginsLocked(stage, scope.TxRef)
 		scope.Catalog = changes
 		if scope.CatalogAuthority == nil {
 			scope.CatalogAuthority = stage.FinishAuthority

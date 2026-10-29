@@ -89,6 +89,11 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		if d == nil {
 			continue
 		}
+		if old, ok := c.Originals[a].(*catalog.Subscription); ok {
+			if next, ok := d.(*catalog.Subscription); ok && next.ReplicationOriginID != old.ReplicationOriginID {
+				return nil, fmt.Errorf("stuntgres: immutable subscription replication origin identity")
+			}
+		}
 		p := e.Catalog.Provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
@@ -99,6 +104,9 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		if err := catalog.Validate(p, view, d); err != nil {
 			return nil, err
 		}
+	}
+	if err := catalog.ValidateReplicationOrigins(view); err != nil {
+		return nil, err
 	}
 	return view.State(), ctx.Err()
 }

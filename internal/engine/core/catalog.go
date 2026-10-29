@@ -92,6 +92,7 @@ type CatalogStage struct {
 	Invalid         error
 	AuthSession     *session.Session
 	statement       *StatementScope
+	replicationOrigins []ids.OID
 	AuthRevision    uint64
 	RoleRevision    uint64
 	// Selected lifecycle stages retain their original admission only until the
@@ -217,6 +218,11 @@ func (s *CatalogStage) ReplaceDescriptor(d catalog.Descriptor, synchronize, pres
 	previous := s.Get(d.Address())
 	if previous == nil {
 		previous = s.Base.Get(d.Address())
+	}
+	if old, ok := previous.(*catalog.Subscription); ok {
+		if next, ok := d.(*catalog.Subscription); ok && next.ReplicationOriginID != old.ReplicationOriginID {
+			return fmt.Errorf("stuntgres: immutable subscription replication origin identity")
+		}
 	}
 	d = catalog.NormalizeTypeReplacement(previous, d, preserveDomainPlan)
 	if err := s.Candidate.Replace(d); err != nil {
@@ -501,6 +507,9 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		if err := e.validateCatalogDescriptor(s, read, d, e.Catalog.Provider(d.Address().ClassID)); err != nil {
 			return nil, err
 		}
+	}
+	if err := catalog.ValidateReplicationOrigins(read); err != nil {
+		return nil, err
 	}
 	s.Lifecycle = catalogValidated
 	return &PreparedCatalogPublication{stage: s, epoch: s.Base.Epoch(), ctx: ctx}, nil
@@ -890,6 +899,7 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			}
 			e.Catalog.PublishLocked(next)
 			sharedRoots.InstallLocked()
+			e.releaseStageReplicationOriginsLocked(s)
 			e.Storage.ReplaceRelationsLocked(relations)
 			e.Storage.RelationMetadata = relationMetadata
 			index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
@@ -947,6 +957,11 @@ func extensionMaterializedViewsCurrent(s *CatalogStage, current *catalog.State) 
 func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	if s != nil && s.Owner == e && s.Lifecycle != catalogPublished {
 		s.Lifecycle = catalogDiscarded
+		if len(s.replicationOrigins) != 0 {
+			e.Mu.Lock()
+			e.releaseStageReplicationOriginsLocked(s)
+			e.Mu.Unlock()
+		}
 	}
 }
 
@@ -1185,6 +1200,9 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
 	}
+	if err := e.validateReplacementReplicationOriginsLocked(next); err != nil {
+		return err
+	}
 	metadata, err := e.prepareRetainedRelationMetadataLocked(ctx, next, relations)
 	if err != nil {
 		return err
@@ -1207,6 +1225,10 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	}
 	if prepared.BaseCatalog != e.Catalog.State || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
+	}
+	// External preparation may have released Engine.Mu.
+	if err := e.validateReplacementReplicationOriginsLocked(next); err != nil {
+		return err
 	}
 	e.installReplacementLocked(next, relations, sequences, metadata, prepared.Roots, prepared.NextRow, prepared.NextVersion, nextRevision, oids.Next)
 	return nil
@@ -1233,6 +1255,7 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	next.SetEpoch(e.Catalog.State.Epoch() + 1)
 	e.Catalog.PublishLocked(next)
 	sharedRoots.InstallLocked()
+	e.retireReplacedReplicationOriginsLocked()
 	e.Catalog.InstallOIDFrontierLocked(nextOID)
 	for store := range e.Cluster.Catalogs {
 		store.InstallOIDFrontierLocked(max(store.NextOID(), nextOID))

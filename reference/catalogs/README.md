@@ -57,6 +57,13 @@ Select the family with
 Publisher connections, remote slot changes/removal, workers and synchronization
 are separate external mechanisms, never inferred from stored enabled metadata.
 
+Replication-origin scenarios independently assert typed public catalog shape,
+real offline registration, first-free identity reuse, immutable identity across
+ALTER, transactional/shared visibility, diagnostics, and portable native control
+remint against peer and pending registrations. Acquired rows retain old values;
+held statements recapture current state. Select the family with
+`make check RUN='^TestReferenceReplicationOrigin'` (add `REFERENCE=1`).
+
 Subscription scenarios cover the exact eighteen-column empty schema, shared
 relation and reciprocal row/array identities, explicit owner-only table ACL,
 PUBLIC column grants, current delegated/inherited authority and complete

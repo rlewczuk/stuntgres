@@ -28,6 +28,8 @@ columns, including nullable WHEN/transition metadata and the ordered UPDATE vect
 The shared `pg_subscription` catalog contributes all eighteen ordered columns
 for the administrator inventory, including `subconninfo`; PUBLIC column grants
 do not hide its administrator-visible metadata or turn the relation into a view.
+The shared, PUBLIC-readable `pg_replication_origin` catalog contributes its two
+ordered real-table columns, `roident` and `roname`.
 Database-local `pg_subscription_rel` contributes four ordered real-table columns,
 with nullable synchronization position and PUBLIC visibility from table SELECT.
 Database-local `pg_publication` contributes all ten ordered real-table columns,
