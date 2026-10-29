@@ -48,12 +48,17 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   example `mxid_age('1'::xid)` deltas), never as constants, `xmax` reads or XID
   ordering. Commit-timestamp witnesses bracket publication with each backend's
   server clock; never compare allocator values or wall-clock time. Prepared XIDs
-  come from `pg_prepared_xacts.transaction`.
+  come from `pg_prepared_xacts.transaction`; bracket preparation with server
+  clocks after the transaction-start instant, not client-clock tolerances.
 - **Prepared transactions.** Register bounded GID-specific `ROLLBACK PREPARED`
   cleanup before each prepare-capable operation, ahead of schema, pool and role
   cleanup; never clean unrelated GIDs. `sql.Conn.Close` only returns a borrower:
   close an isolated pool or the raw driver connection to witness physical origin
   end.
+  View witnesses reuse one held SELECT across real prepare/commit/rollback
+  transitions and assert complete typed metadata even for empty results.
+  Unrelated ordinary logins read through PUBLIC SELECT without acquiring
+  completion authority; denied completion must preserve the entire row.
 - **Pre-canceled lib/pq calls.** Pre-canceled `BeginTx` and rollback race lib/pq's
   context watcher, so their transport outcome is not an SQL expectation. Clean up
   any returned transaction, retire the canceled physical connection, and assert
@@ -78,6 +83,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Savepoints: `RUN='^TestReferenceSavepoints'`
 - Serializable isolation: `RUN='^TestReferenceSerializable'`
 - Prepared transactions: `RUN='^TestReference(PreparedTransaction|SessionMessagesPreparedOriginReuse)'`
+- Prepared transaction metadata view: `RUN='^TestReferencePreparedXactsView'`
 - Relation locks and deadlocks: `RUN='^TestReference(LockModes|RelationLock|RelationDeadlock|SmokeRelation)'`
 - Row locks: `RUN='^TestReference(RowLock|QueryLock|QueryLimitMigratedLock)'`
 - `pgrowlocks`: `RUN='^TestReferencePgrowlocks'`

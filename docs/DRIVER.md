@@ -193,6 +193,11 @@ ordinary SQL errors leave the connection reusable.
 - `PREPARE TRANSACTION` GIDs are case-sensitive, at most 199 bytes, and shared by
   all sessions of one database. Reset/Restore refuse to run while prepared
   transactions exist.
+- `pg_catalog.pg_prepared_xacts` projects only successfully prepared transactions:
+  typed XID, exact GID, preparation time, owner and database. Its metadata is
+  PUBLIC-readable; reading another user's row does not grant permission to finish
+  it. Each execution, including a held SELECT, observes current prepared state;
+  commit or rollback prepared removes the corresponding row.
 
 ## Statements and results
 

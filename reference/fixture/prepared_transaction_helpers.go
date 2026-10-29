@@ -69,7 +69,14 @@ type preparedReferenceEntry struct {
 
 func preparedReferenceView(t *testing.T, p *Pair, x Executor, gid string) []preparedReferenceEntry {
 	t.Helper()
-	rows, err := x.QueryContext(p.Ctx, "SELECT * FROM pg_catalog.pg_prepared_xacts WHERE gid="+PreparedReferenceLiteral(gid))
+	return PreparedReferenceQuery(t, p, x, "SELECT * FROM pg_catalog.pg_prepared_xacts WHERE gid="+PreparedReferenceLiteral(gid))
+}
+
+// PreparedReferenceQuery checks the complete view shape, including empty results,
+// and decodes real prepared identities through either direct or held execution.
+func PreparedReferenceQuery(t *testing.T, p *Pair, x Executor, query string, args ...any) []preparedReferenceEntry {
+	t.Helper()
+	rows, err := x.QueryContext(p.Ctx, query, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
