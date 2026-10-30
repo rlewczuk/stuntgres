@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 )
@@ -27,6 +28,22 @@ func (v AuthorizationView) RuleReplica() bool {
 	replica := v.settings.TypedValue("session_replication_role").Text == "replica"
 	v.settings.Mu.Unlock()
 	return replica
+}
+
+// RestrictedRelations reads the caller's operation-effective policy. Changing
+// view ownership must not change this setting source.
+func (v AuthorizationView) RestrictedRelations() settings.RestrictedRelationKinds {
+	return restrictedRelations(v.settings)
+}
+
+func restrictedRelations(store *session.SettingsStore) settings.RestrictedRelationKinds {
+	if store == nil {
+		return 0
+	}
+	store.Mu.Lock()
+	policy := store.TypedValue("restrict_nonsystem_relation_kind").RestrictedRelations
+	store.Mu.Unlock()
+	return policy
 }
 
 // AsUser returns a copy whose current user is principal; v is unchanged.

@@ -186,15 +186,29 @@ func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, stateme
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	// Include every target, even INSERT without FROM, before the first effect.
+	// Include every executable target, even INSERT without FROM, before effects.
+	// Replaced lexical targets retain their name/ACL/lock contexts, not a read
+	// occurrence. Actual rewritten targets and sources remain in this frontier.
 	// Dead SELECT definitions remain analysis-only and do not open providers.
 	leaves := b.QuerySources
+	rewrites := view.RuleCTEsOf(b.Rule.CTEs)
+targets:
 	for i := range scope.mutations {
 		mutation := scope.mutations[i]
 		if i == scope.ActiveMutation {
 			mutation = scope.StatementMutation
 		}
 		if mutation.LockedRef.Domain() != nil {
+			if len(rewrites) != 0 {
+				for _, definition := range b.CTEs {
+					if definition.Statement != mutation.Statement {
+						continue
+					}
+					if rewrite := rewrites[definition]; rewrite != nil && rewrite.Mutation != i {
+						continue targets
+					}
+				}
+			}
 			if len(leaves) == len(b.QuerySources) {
 				leaves = append([]exec.Leaf(nil), leaves...)
 			}

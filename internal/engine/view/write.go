@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -81,7 +82,7 @@ func StableViewSlot(source *catalog.Relation, leaf stored.ViewLeaf, frozen int) 
 	return 0, ids.ErrCatalogReplaced
 }
 
-func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, b *analyze.Binding, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, restricted settings.RestrictedRelationKinds, b *analyze.Binding, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	if b.Relation == nil || b.Relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -122,6 +123,9 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, replica bool, b *ana
 				return nil
 			}
 			break
+		}
+		if err := stored.AdmitView(d, restricted); err != nil {
+			return err
 		}
 		event := stored.TriggerInsert
 		if operation == "update" {

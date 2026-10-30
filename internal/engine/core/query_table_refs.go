@@ -16,5 +16,5 @@ func (e *Engine) QueryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	if auth.Owner != &e.Catalog.Owner || read.Owner() != &e.Catalog.Owner || read.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
-	return view.QueryTableRefs(auth.View, auth, invoker, leaves, refs, token, inherited)
+	return view.QueryTableRefs(auth.View, auth, invoker, leaves, refs, token, inherited, auth.RestrictedRelations())
 }

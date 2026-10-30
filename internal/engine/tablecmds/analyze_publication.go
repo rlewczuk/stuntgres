@@ -60,7 +60,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		_, err := fdw.HandlerFor(auth.Catalog, wrapper)
+		_, err := fdw.HandlerFor(auth.Catalog, wrapper, auth.RestrictedRelations())
 		e.Mu.Unlock()
 		if err != nil {
 			return err

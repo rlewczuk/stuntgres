@@ -23,7 +23,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	handler, request, err := fdw.ScanRequest(auth.View, invoker, relation, uses)
+	handler, request, err := fdw.ScanRequest(auth.View, invoker, relation, uses, auth.RestrictedRelations())
 	if err != nil {
 		return nil, err
 	}

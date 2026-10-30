@@ -13,7 +13,7 @@ import (
 
 // CatalogViewLeafEvents calls catalogViewLeafEvents.
 func CatalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
-	return catalogViewLeafEvents(ctx, read, relation, subset)
+	return (EngineCatalogRuntime{}).catalogViewLeafEvents(ctx, read, relation, subset)
 }
 
 // EngineCapturePGPredicateLocksLocked calls x.capturePGPredicateLocksLocked.

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -28,18 +29,18 @@ func TestAnalysisHostValidatesViewReadGraph(t *testing.T) {
 	}
 	host := e.AnalysisHost(nil)
 	view := e.CatalogRead()
-	if err := host.ValidateViewReadGraph(view, []exec.Leaf{{Relation: relation(view, "base")}, {Relation: relation(view, "w")}}); err != nil {
+	if err := host.ValidateViewReadGraph(core.AuthorityOf(catalogAuthorization(e, view)), []exec.Leaf{{Relation: relation(view, "base")}, {Relation: relation(view, "w")}}); err != nil {
 		t.Fatalf("acyclic read graph: %v", err)
 	}
 	stale := relation(view, "loop")
 	enginetest.SessionSQL(t, s, "CREATE OR REPLACE VIEW loop AS SELECT id FROM loop")
 	view = e.CatalogRead()
 	var diagnostic *sqlstate.Error
-	if err := host.ValidateViewReadGraph(view, []exec.Leaf{{Relation: relation(view, "loop")}}); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != `infinite recursion detected in rules for relation "loop"` {
+	if err := host.ValidateViewReadGraph(core.AuthorityOf(catalogAuthorization(e, view)), []exec.Leaf{{Relation: relation(view, "loop")}}); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != `infinite recursion detected in rules for relation "loop"` {
 		t.Fatalf("recursive read graph = %v, want 42P17", err)
 	}
 	enginetest.SessionSQL(t, s, "DROP VIEW loop")
-	if err := host.ValidateViewReadGraph(e.CatalogRead(), []exec.Leaf{{Relation: stale}}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := host.ValidateViewReadGraph(core.AuthorityOf(catalogAuthorization(e, e.CatalogRead())), []exec.Leaf{{Relation: stale}}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("dropped view = %v, want %v", err, ids.ErrCatalogReplaced)
 	}
 }

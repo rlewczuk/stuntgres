@@ -16,7 +16,7 @@ import (
 )
 
 func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
-	events, err := view.Capabilities(ctx, read, relation, nil, catalogViewLeafEvents)
+	events, err := view.Capabilities(ctx, read, relation, nil, r.catalogViewLeafEvents)
 	if err != nil {
 		return pgcatalog.ViewCapability{}, err
 	}
@@ -41,7 +41,7 @@ func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog
 
 // No provider method is called: interface support is immutable handler metadata.
 // The caller owns the captured catalog; no foreign transaction or scan is begun.
-func catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
+func (r EngineCatalogRuntime) catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -58,18 +58,7 @@ func catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *cat
 	if relation.RelationKind != catalog.ForeignRelation {
 		return 0, nil
 	}
-	if relation.Foreign == nil {
-		return 0, ids.ErrCatalogReplaced
-	}
-	server, ok := read.Foreign(relation.Foreign.Server)
-	if !ok {
-		return 0, ids.ErrCatalogReplaced
-	}
-	wrapper, ok := read.Foreign(server.Wrapper)
-	if !ok {
-		return 0, ids.ErrCatalogReplaced
-	}
-	handler, err := fdw.HandlerFor(read, wrapper)
+	handler, err := fdw.RelationHandler(read, relation, r.Auth.RestrictedRelations())
 	if err != nil {
 		return 0, err
 	}

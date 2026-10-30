@@ -46,7 +46,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 						otherTemporary, err = dml.TruncateOtherTemporary(auth.Catalog, before, s.Op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
-						err = dml.CheckTruncate(auth.View, auth, ref, before, privilege && !cascade, only)
+						err = dml.CheckTruncate(auth.View, auth, ref, before, privilege && !cascade, only, auth.RestrictedRelations())
 						if err == nil && privilege {
 							err = access.CheckTemporaryStorageAccess(auth.Catalog, before, s.Op.Session.SessionToken)
 						}
@@ -109,7 +109,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
-				err = dml.CheckTruncate(auth.View, auth, ref, d, privilege, only)
+				err = dml.CheckTruncate(auth.View, auth, ref, d, privilege, only, auth.RestrictedRelations())
 			}
 			if err == nil {
 				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")

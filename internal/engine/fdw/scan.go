@@ -10,12 +10,13 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/settings"
 )
 
 // ScanRequest resolves relation's server, wrapper, handler and user
 // mapping, and builds the scan request. A non-zero invoker replaces the
 // view's current user. It reads only the captured view and calls no wrapper.
-func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
+func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int, restricted settings.RestrictedRelationKinds) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
 	if invoker != (authorization.PrincipalRef{}) {
 		view.State.CurrentUser = invoker
 	}
@@ -27,7 +28,7 @@ func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation 
 	if !ok {
 		return nil, catalog.ForeignRequest{}, ids.ErrCatalogReplaced
 	}
-	handler, err := HandlerFor(view.Catalog, wrapper)
+	handler, err := HandlerFor(view.Catalog, wrapper, restricted)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}

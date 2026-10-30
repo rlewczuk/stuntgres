@@ -67,8 +67,9 @@ func (h *BindingHost) MapBoundQueryExpression(view catalog.Read, node expr.Expr,
 }
 
 // ValidateViewReadGraph checks the stored views leaves read against view.
-func (h *BindingHost) ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error {
-	_, err := stored.ValidateViewReadGraph(view, leaves)
+func (h *BindingHost) ValidateViewReadGraph(auth analyze.Authority, leaves []exec.Leaf) error {
+	v := h.view(auth)
+	_, err := stored.ValidateViewReadGraph(v.Catalog, leaves, v.RestrictedRelations())
 	return err
 }
 
@@ -317,7 +318,7 @@ func (h *BindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth
 
 func (h *BindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	v := h.view(auth)
-	return view.BindViewWrite(&h.Engine.Catalog.Owner, v.Catalog, v.RuleReplica(), b, stmt, consumed...)
+	return view.BindViewWrite(&h.Engine.Catalog.Owner, v.Catalog, v.RuleReplica(), v.RestrictedRelations(), b, stmt, consumed...)
 }
 
 // NewExpressionBinder is the root construction point: it binds through the

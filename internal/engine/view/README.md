@@ -10,7 +10,7 @@ privilege and lock walks over view definitions and the read side of DROP.
 An upper feature in [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `access`, `analyze` (types and pure functions only), `authorization`, `catalog`,
 `ddl`, `exec`, `expr`, `extension`, `functions`, `ids`, `index`, `lock`, `pgcatalog`, `plan`,
-`regobj`, `routine`, `sequence`, `session`, `storage`, `stored`, `table`, `typedef`,
+`regobj`, `routine`, `sequence`, `session`, `settings`, `storage`, `stored`, `table`, `typedef`,
 `visibility`, `parser`, `sqlstate`, `sqltype` and the standard library. It never
 imports the engine, `fdw`, `partition`, `role`, `dml` or `control`, and it never
 builds a binder.
@@ -302,6 +302,15 @@ and `DropProvider`. The `SynchronizeTriggersLocked` call stays in core's
 
 ## Invariants
 
+- View admission consumes the operation-effective typed relation-kind policy.
+  The existing stored read graph and each automatic write layer reject normal
+  view OIDs before expansion; namespace spelling and owner do not grant exemption.
+  Explicit matching rules hand off before automatic write admission. Final
+  surviving command sources pass the same stored read-graph guard before being
+  appended to the private rewrite program, including description-time CTE rules.
+  This handoff does not exempt INSTEAD OF trigger endpoints.
+  Executable source/write authority fences share metadata-only relation admission
+  before source ACLs, without changing owner/invoker identity or retaining settings.
 - Rule rewrite order: INSTEAD, ALSO and conditional INSTEAD rules expand in a
   fixed order, with recursion detection by object and event ancestry, a fixed
   command count and RETURNING provider. The composed action runs as the rule

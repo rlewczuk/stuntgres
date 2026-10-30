@@ -207,7 +207,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
 	oldAddress := e.Catalog.State.NameAddress(key)
 	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
-	if token, err := fdw.HandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
+	if token, err := fdw.HandlerFor(e.CatalogRead(), wrapper, 0); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
 	replacement := catalog.CloneState(e.Catalog.State)
@@ -216,7 +216,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	copy.ObjectAddress.ObjectID = 40010
 	replacement.SetDescriptor(copy.Address(), &copy)
 	replacement.BindName(key, copy.Address())
-	_, err := fdw.HandlerFor(e.Catalog.Read(replacement), wrapper)
+	_, err := fdw.HandlerFor(e.Catalog.Read(replacement), wrapper, 0)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
@@ -226,7 +226,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
 	uncallable.SetDescriptor(oldAddress, &procedure)
-	_, err = fdw.HandlerFor(e.Catalog.Read(uncallable), wrapper)
+	_, err = fdw.HandlerFor(e.Catalog.Read(uncallable), wrapper, 0)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 )
 
@@ -27,7 +28,10 @@ func MappingFor(view access.View, server *catalog.ForeignObject) (*catalog.Forei
 	return nil, sqlError("42704", fmt.Sprintf(`user mapping not found for user "%s", server "%s"`, role.Name, server.Name()))
 }
 
-func HandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject) (*catalog.ForeignProcedure, error) {
+func HandlerFor(catalog catalog.Read, wrapper *catalog.ForeignObject, restricted settings.RestrictedRelationKinds) (*catalog.ForeignProcedure, error) {
+	if restricted&settings.RestrictForeignTable != 0 {
+		return nil, sqlError("55000", "access to non-system foreign table is restricted")
+	}
 	if wrapper.Handler == (ids.ObjectAddress{}) {
 		return nil, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no handler`, wrapper.Name()))
 	}
@@ -67,7 +71,7 @@ func ImportedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
 // options and the request. It records the server, wrapper, mapping, handler
 // procedure and local schema among the stage's observed dependencies. The
 // engine runs the importer after releasing Engine.mu and replacementMu.
-func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL) (SchemaImporter, ImportRequest, error) {
+func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL, restricted settings.RestrictedRelationKinds) (SchemaImporter, ImportRequest, error) {
 	view := h.AccessView(auth)
 	server, err := Find(view.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
@@ -87,7 +91,7 @@ func PlanImport(h Host, auth ddl.Authority, s *parser.ForeignDDL) (SchemaImporte
 	if !ok {
 		return nil, ImportRequest{}, ids.ErrCatalogReplaced
 	}
-	handler, err := HandlerFor(view.Catalog, wrapper)
+	handler, err := HandlerFor(view.Catalog, wrapper, restricted)
 	if err != nil {
 		return nil, ImportRequest{}, err
 	}

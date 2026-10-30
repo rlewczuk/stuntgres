@@ -34,18 +34,26 @@ func ParseCreateroleSelfGrant(input string) (Value, error) {
 }
 
 func normalizeRestrictedRelationKind(input string) (string, *sqlstate.Error, error) {
-	return normalizeKeywordList("restrict_nonsystem_relation_kind", input, "view", "foreign-table")
+	v, err := ParseRestrictedRelationKinds(input)
+	return v.Text, nil, err
 }
 
-func normalizeKeywordList(parameter, input string, first, second string) (string, *sqlstate.Error, error) {
-	items, err := ParseIdentifierList(parameter, input)
+// ParseRestrictedRelationKinds validates the entire list before decoding flags.
+func ParseRestrictedRelationKinds(input string) (Value, error) {
+	items, err := ParseIdentifierList("restrict_nonsystem_relation_kind", input)
 	if err != nil {
-		return "", nil, err
+		return Value{}, err
 	}
+	v := Value{Text: input}
 	for _, item := range items {
-		if !strings.EqualFold(item, first) && !strings.EqualFold(item, second) {
-			return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "%s": "%s"`, parameter, input), Detail: fmt.Sprintf(`Unrecognized key word: "%s".`, item)}
+		switch {
+		case strings.EqualFold(item, "view"):
+			v.RestrictedRelations |= RestrictView
+		case strings.EqualFold(item, "foreign-table"):
+			v.RestrictedRelations |= RestrictForeignTable
+		default:
+			return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "restrict_nonsystem_relation_kind": "%s"`, input), Detail: fmt.Sprintf(`Unrecognized key word: "%s".`, item)}
 		}
 	}
-	return input, nil, nil
+	return v, nil
 }

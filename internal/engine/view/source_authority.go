@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/stored"
 )
 
@@ -17,10 +18,13 @@ import (
 // leaf under the view owner or invoker, then its row marks. The source
 // collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
-func AuthorizeSource(a access.View, env access.Environment, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) error {
+func AuthorizeSource(a access.View, env RelationAdmission, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, restricted settings.RestrictedRelationKinds) error {
 	d, ok := a.Catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != a.Owner.Domain || ref.Epoch != a.Catalog.Epoch() || stored.ViewOf(d) != definition {
 		return ids.ErrCatalogReplaced
+	}
+	if err := stored.AdmitView(d, restricted); err != nil {
+		return err
 	}
 	principal := d.Owner
 	if definition.Invoker() {
@@ -34,6 +38,9 @@ func AuthorizeSource(a access.View, env access.Environment, ref ids.ObjectRef, d
 		}
 		if leaf.AnalysisOnly {
 			continue
+		}
+		if err := env.AdmitRelation(source); err != nil {
+			return err
 		}
 		indices := make([]int, 0, len(leaf.Reads))
 		for _, attribute := range leaf.Reads {
@@ -71,7 +78,7 @@ func AuthorizeSource(a access.View, env access.Environment, ref ids.ObjectRef, d
 // CheckRowMarks validates d's read graph, then checks the stored and
 // inherited row marks of its sources under each view's owner or invoker.
 func CheckRowMarks(a access.View, env access.Environment, d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
-	if _, err := stored.ValidateViewReadGraph(a.Catalog, []exec.Leaf{{Relation: d}}); err != nil {
+	if _, err := stored.ValidateViewReadGraph(a.Catalog, []exec.Leaf{{Relation: d}}, 0); err != nil {
 		return err
 	}
 	return checkRowMarksExpanded(a, env, d, inherited, invoker)

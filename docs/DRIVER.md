@@ -529,6 +529,18 @@ physical owner; use an independent connection for other work.
   replacement: current binding still checks exact identities and current rights,
   and unlocked planning is fenced against its accepted catalog context.
   Native/type/provider incompatibility still rejects use.
+  Relation-kind restriction is rechecked during native retained-AST reanalysis
+  and current handler admission. Fresh restricted view preparation fails; foreign
+  preparation remains metadata-only and execution acquires the guarded handler.
+  This retains the existing lifetime contract rather than introducing an executable
+  plan cache: PostgreSQL can reuse an earlier rewritten view or already-planned
+  foreign read after SET; warm ANALYZE and capability inquiries can reuse a cached
+  foreign handler immediately after unrestricted warming. No cached-handler
+  lifetime is promised across intervening catalog work or failed statements.
+  Native held handles and handler inquiries recheck the current policy.
+  Already returned Rows and their owned metadata remain unchanged.
+  Native schema moves retain their existing refusal of system-schema destinations;
+  relation-kind admission uses canonical SQL kind and OID, not schema spelling.
   Plain SELECT portals retain their existing private producer graphs. The
   accepted binding owns the actual graph/resource association and immutable
   typed group independently of the named definition; session end closes every

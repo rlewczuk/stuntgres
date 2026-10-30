@@ -1131,6 +1131,10 @@ Target lock requests are separate from returned local data-view roots. Foreign
 targets retain real RX grants and current ACL/identity checks, while only
 `RelationKind.Stored()` targets enter heap capture, matching source collection.
 Their local query inputs still acquire and capture their actual stored roots.
+Normalized CTE rules retain original lexical target contexts for locks, ACLs and
+name validation. Final data discovery excludes an original target only when the
+exact CTE rewrite selects a different mutation context; actual rewritten targets
+and surviving source occurrences still enter the shared capture frontier.
 DML installs a command-private capture counter: the second successful RETURNING
 projection signals cardinality immediately, before a third candidate. Projection
 errors precede that signal; existing checkpoints discard the staged prefix.

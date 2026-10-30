@@ -9,7 +9,7 @@ GRANT and foreign-table DDL.
 The package is an upper feature at layer L12 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
 imports `access`, `authorization`, `catalog`, `ddl`, `dump`, `exec`, `expr`,
-`ids`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`,
+`ids`, `plan`, `regobj`, `stored`, `typedef`, `parser`, `session`, `settings`,
 `sqlstate`, `sqltype`, `table` (CREATE FOREIGN TABLE stages through
 `table.StageCreateTable`) and the standard library, and never the engine,
 `dml` or another upper feature. `table` never imports it. The engine and the
@@ -270,6 +270,12 @@ transactions/locks.
 
 ## Invariants
 
+- **Handler admission.** `HandlerFor` requires the caller's typed effective
+  relation-kind policy and rejects foreign restriction before resolving or entering
+  a handler. Scans, modifications, all-target TRUNCATE preflight, capability and
+  ANALYZE inquiries, IMPORT and executable source ACL fences share this boundary.
+  `RelationHandler` performs metadata-only relation lookup; metadata DDL and
+  validators remain independent. No provider receives a settings store.
 - **No locks, no callbacks under locks.** The package adds no mutex.
   `Engine.Mu` guards the `Registry`; the transaction owner's mutex and
   admission guard a `Transaction`. Functions that call application code

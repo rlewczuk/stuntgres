@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -14,5 +15,6 @@ type RuleAuthority interface {
 	Access() access.View
 	AsUser(authorization.PrincipalRef) RuleAuthority   // the rule owner
 	StorageLocked(ids.ObjectAddress) *storage.Relation // caller holds Engine.mu
-	RuleReplica() bool                                 // current operation-effective setting, independent of rule owner
+	RestrictedRelations() settings.RestrictedRelationKinds
+	RuleReplica() bool // current operation-effective setting, independent of rule owner
 }

@@ -31,7 +31,7 @@ func ViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	if len(leaves) == 0 {
 		return false, nil
 	}
-	if _, err := ValidateViewReadGraph(view, leaves); err != nil {
+	if _, err := ValidateViewReadGraph(view, leaves, 0); err != nil {
 		return false, err
 	}
 	// Validation above owns cycle and stored-reference errors. Memoization here

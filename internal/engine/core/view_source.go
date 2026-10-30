@@ -26,6 +26,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.Mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
+	if err := stored.AdmitView(d, restrictedRelations(scope.Op.EffectiveSettings())); err != nil {
+		e.Mu.Unlock()
+		return nil, err
+	}
 	if catalog.HierarchyRelation(d) && mark.Mode != 0 {
 		e.Mu.Unlock()
 		return nil, SQLError("0A000", "row locking partition hierarchies is unsupported")
@@ -93,5 +97,5 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 	}
 	auth.Catalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 	auth.Recapture(auth.Catalog)
-	return auth, view.AuthorizeSource(auth.View, auth, ref, definition, invoker, mark)
+	return auth, view.AuthorizeSource(auth.View, auth, ref, definition, invoker, mark, auth.RestrictedRelations())
 }

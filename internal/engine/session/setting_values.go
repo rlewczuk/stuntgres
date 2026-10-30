@@ -50,7 +50,7 @@ func (s *SettingsStore) ParseValue(d settings.Definition, input string) (setting
 	var v settings.Value
 	var notice *sqlstate.Error
 	var err error
-	if d.Name == "createrole_self_grant" {
+	if d.Name == "createrole_self_grant" || d.Name == "restrict_nonsystem_relation_kind" {
 		v, err = d.Parse(input)
 	} else if d.Normalize != nil {
 		v.Text, notice, err = d.Normalize(input)

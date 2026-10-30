@@ -379,10 +379,15 @@ calls resolve that name from operation-effective settings at execution, includin
 session, transaction, savepoint and routine-local restoration. Explicit
 configuration arguments remain independent of the setting.
 
+`restrict_nonsystem_relation_kind` retains presentation and assignment-time typed
+view/foreign-table flags. Current identity-bound view expansion/write lowering
+and common FDW handler admission consume the operation-effective flags; captured
+defaults, overrides and transaction/savepoint restoration use the shared store.
+
 The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
-`restrict_nonsystem_relation_kind`, `session_preload_libraries`,
+`session_preload_libraries`,
 `temp_tablespaces`, `xmlbinary` and `xmloption`.
 `default_table_access_method` instead selects a genuine installed table-method
 identity for ordinary and query-derived creation and stored-relation ALTER

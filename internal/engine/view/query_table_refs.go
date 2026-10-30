@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 )
@@ -17,7 +18,7 @@ import (
 // already-required target refs, preserving a single statement frontier. The
 // caller has checked that a's catalog belongs to the engine; a reference of
 // another domain or epoch is replaced.
-func QueryTableRefs(a access.View, env access.Environment, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
+func QueryTableRefs(a access.View, env RelationAdmission, invoker authorization.PrincipalRef, leaves []exec.Leaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark, restricted settings.RestrictedRelationKinds) ([]ids.ObjectRef, error) {
 	read := a.Catalog
 	domain := read.Owner().Domain
 	// Authorize every executable view occurrence before admitting any physical
@@ -39,7 +40,7 @@ func QueryTableRefs(a access.View, env access.Environment, invoker authorization
 			}
 		}
 		mark = exec.EffectiveQueryRowMark(relation, mark)
-		if err := AuthorizeSource(a, env, ref, stored.ViewOf(relation), sourceInvoker, mark); err != nil {
+		if err := AuthorizeSource(a, env, ref, stored.ViewOf(relation), sourceInvoker, mark, restricted); err != nil {
 			return err
 		}
 		active = append(active, ref)

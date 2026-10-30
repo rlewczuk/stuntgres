@@ -16,7 +16,7 @@ import (
 // are checked on the original logical target through binding, which also
 // checks its query sources; a and env check each layer. Each nested layer
 // uses its current owner or the original invoker, never the outer owner.
-func CheckWrite(binding analyze.Privileges, a access.View, env access.Environment, b analyze.Binding, stmt parser.Statement) error {
+func CheckWrite(binding analyze.Privileges, a access.View, env RelationAdmission, b analyze.Binding, stmt parser.Statement) error {
 	w := ViewWriteOf(b.ViewWrite)
 	logical := w.Logical
 	if err := analyze.CheckBinding(binding, logical, stmt); err != nil {
@@ -45,6 +45,9 @@ func CheckWrite(binding analyze.Privileges, a access.View, env access.Environmen
 		if !ok || !index.SameRelationRowShape(source, layer.Source) {
 			return ids.ErrCatalogReplaced
 		}
+		if err := env.AdmitRelation(source); err != nil {
+			return err
+		}
 		if mask == authorization.DeletePrivilege {
 			if err := authority.Check(env, access.Requirement{Object: layer.SourceRef, Privileges: mask}); err != nil {
 				return err
@@ -65,6 +68,9 @@ func CheckWrite(binding analyze.Privileges, a access.View, env access.Environmen
 			}
 			use, err := stored.ViewUseReference(a.Catalog, current, leaf.Ref)
 			if err != nil {
+				return err
+			}
+			if err := env.AdmitRelation(relation); err != nil {
 				return err
 			}
 			indices := make([]int, 0, len(leaf.Reads))

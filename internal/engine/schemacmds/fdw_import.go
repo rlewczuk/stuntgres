@@ -21,7 +21,7 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
-	importer, request, err := fdw.PlanImport(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
+	importer, request, err := fdw.PlanImport(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s, auth.RestrictedRelations())
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

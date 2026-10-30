@@ -77,7 +77,7 @@ func insteadUnitAdmit(t *testing.T, s *core.StatementScope, relation *catalog.Re
 		binding.Update = &analyze.UpdateBinding{}
 	}
 	e := s.Engine()
-	if err := view.BindViewWrite(&e.Catalog.Owner, e.CatalogRead(), s.RoutineAuth.RuleReplica(), &binding, statement); err != nil {
+	if err := view.BindViewWrite(&e.Catalog.Owner, e.CatalogRead(), s.RoutineAuth.RuleReplica(), 0, &binding, statement); err != nil {
 		t.Fatal(err)
 	}
 	w := view.ViewWriteOf(binding.ViewWrite)
@@ -314,7 +314,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 		binding := analyze.Binding{Relation: &outer, Ref: ref}
-		if err := view.BindViewWrite(&e.Catalog.Owner, e.CatalogRead(), s.RoutineAuth.RuleReplica(), &binding, statement); err != nil {
+		if err := view.BindViewWrite(&e.Catalog.Owner, e.CatalogRead(), s.RoutineAuth.RuleReplica(), 0, &binding, statement); err != nil {
 			t.Fatal(err)
 		}
 		endpoint := view.ViewWriteOf(binding.ViewWrite)

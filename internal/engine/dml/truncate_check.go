@@ -9,26 +9,19 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
 
 // CheckTruncate checks one TRUNCATE target: the system catalog guard, the
 // foreign wrapper's truncate support, the relation kind, the TRUNCATE
 // privilege when asked and ONLY on a partitioned table, in that order.
-func CheckTruncate(a access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool) error {
+func CheckTruncate(a access.View, env access.Environment, ref ids.ObjectRef, d *catalog.Relation, privilege, only bool, restricted settings.RestrictedRelationKinds) error {
 	if analyze.GuardedCatalogRelation(d) {
 		return GuardedCatalogMutationError(a, d, true)
 	}
 	if d.RelationKind == catalog.ForeignRelation {
-		server, ok := a.Catalog.Foreign(d.Foreign.Server)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		wrapper, ok := a.Catalog.Foreign(server.Wrapper)
-		if !ok {
-			return ids.ErrCatalogReplaced
-		}
-		handler, err := fdw.HandlerFor(a.Catalog, wrapper)
+		handler, err := fdw.RelationHandler(a.Catalog, d, restricted)
 		if err != nil {
 			return err
 		}

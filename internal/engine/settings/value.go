@@ -20,6 +20,14 @@ const (
 	SelfGrantInherit
 )
 
+// RestrictedRelationKinds is the assignment-time admission policy.
+type RestrictedRelationKinds uint8
+
+const (
+	RestrictView RestrictedRelationKinds = 1 << iota
+	RestrictForeignTable
+)
+
 // Value is a typed setting value. Path is borrowed immutable storage when the
 // value comes from a definition or registry.
 type Value struct {
@@ -33,6 +41,7 @@ type Value struct {
 	Locale                sqltype.Locale
 	ClientEncoding        int
 	SelfGrant             SelfGrantOptions
+	RestrictedRelations   RestrictedRelationKinds
 }
 
 func parameterError(message, hint string) error {
@@ -85,6 +94,9 @@ func (d Definition) Parse(input string) (Value, error) {
 		}
 		if d.Name == "createrole_self_grant" {
 			return ParseCreateroleSelfGrant(input)
+		}
+		if d.Name == "restrict_nonsystem_relation_kind" {
+			return ParseRestrictedRelationKinds(input)
 		}
 		v.Text = input
 		if d.Name == "search_path" {

@@ -210,7 +210,7 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 		}
 	}
 	if len(b.QuerySources) != 0 && view == nil {
-		if err := host.ValidateViewReadGraph(auth.ReadCatalog(), b.QuerySources); err != nil {
+		if err := host.ValidateViewReadGraph(auth, b.QuerySources); err != nil {
 			return b, err
 		}
 	}

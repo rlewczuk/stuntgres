@@ -40,5 +40,7 @@ func (r EngineCatalogRuntime) ColumnUpdatable(ctx context.Context, capture catal
 	if capture != r.Auth.Catalog {
 		return false, ids.ErrCatalogReplaced
 	}
-	return view.ColumnUpdatable(ctx, capture, relation, attribute, fdw.UpdatableEvents)
+	return view.ColumnUpdatable(ctx, capture, relation, attribute, func(ctx context.Context, read catalog.Read, relation *catalog.Relation) (bool, bool, error) {
+		return fdw.UpdatableEvents(ctx, read, relation, r.Auth.RestrictedRelations())
+	})
 }

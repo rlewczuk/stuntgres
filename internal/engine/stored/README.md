@@ -326,7 +326,7 @@ Cancellation never publishes a partial capture or poisons later lazy output.
 Layer L11.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture),
 above `analyze` and `regobj`. It imports `analyze`, `authorization`, `catalog`,
 `dump`, `exec`, `expr`, `extension`, `functions`, `ids`, `lock` (row-lock
-modes), `plan`, `proc`, `regobj`, `routine`, `sequence`, `storage`, `typedef`,
+modes), `plan`, `proc`, `regobj`, `routine`, `sequence`, `settings`, `storage`, `typedef`,
 `parser`, `sqlstate`, `sqltype` and the standard library, and never the root
 engine, `session` or `visibility`. The engine and the upper feature packages
 (`control`, `dml`, `fdw`, `index`, `partition`, `role`, `table`, `view`) import

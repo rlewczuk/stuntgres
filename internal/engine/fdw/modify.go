@@ -8,7 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
 )
 
@@ -53,16 +53,8 @@ func OperationSupported(wrapper catalog.ForeignDataWrapper, op catalog.ForeignMo
 
 // Metadata-only admission also runs for prepared CTE auxiliaries, before any
 // auxiliary executor can open a source or enter a provider transaction.
-func ModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
-	server, ok := view.Foreign(relation.Foreign.Server)
-	if !ok {
-		return ids.ErrCatalogReplaced
-	}
-	wrapper, ok := view.Foreign(server.Wrapper)
-	if !ok {
-		return ids.ErrCatalogReplaced
-	}
-	handler, err := HandlerFor(view, wrapper)
+func ModifyAdmission(view catalog.Read, relation *catalog.Relation, operation catalog.ForeignModifyOperation, restricted settings.RestrictedRelationKinds) error {
+	handler, err := RelationHandler(view, relation, restricted)
 	if err != nil {
 		return err
 	}

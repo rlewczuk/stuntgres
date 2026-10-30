@@ -80,7 +80,7 @@ type Host interface {
 	StoredViewVolatile(auth Authority, root plan.Node) (bool, error)
 	// ValidateViewReadGraph rejects an active-path recursion among the stored
 	// views leaves read, and views that are no longer current.
-	ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error
+	ValidateViewReadGraph(auth Authority, leaves []exec.Leaf) error
 	CaptureRetainedViewInput(auth Authority, relation *catalog.Relation, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error
 
 	// Session.

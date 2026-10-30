@@ -19,7 +19,7 @@ import (
 // into a view reports its diagnostic mode. read is the statement's private
 // catalog; a stale view reference is ids.ErrCatalogReplaced.
 func FirstQueryRowMode(read catalog.Read, root plan.Node, leaves []exec.Leaf) (lock.Mode, error) {
-	if _, err := stored.ValidateViewReadGraph(read, leaves); err != nil {
+	if _, err := stored.ValidateViewReadGraph(read, leaves, 0); err != nil {
 		return 0, err
 	}
 	if mode := analyze.QueryRootRowMode(root); mode != 0 {
@@ -83,7 +83,7 @@ type QueryLockDemand struct {
 func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLockDemand, error) {
 	var demand QueryLockDemand
 	demand.Marked = analyze.QueryRootRowMode(root) != 0
-	visibility, err := stored.ValidateViewReadGraph(read, leaves)
+	visibility, err := stored.ValidateViewReadGraph(read, leaves, 0)
 	if err != nil {
 		return QueryLockDemand{}, err
 	}
