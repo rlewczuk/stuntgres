@@ -13,6 +13,10 @@
   retain truthful missing-slot and zero-target diagnostics. Keep strict-NULL
   EXECUTE admission and named/defaulted lifecycle view recipes through replay.
 
+- Add XML row aggregation with NULL skipping, aggregate-local ordering, retained
+  singleton identity and pairwise XML declaration normalization, with released
+  aggregate catalog metadata and routine declaration presentation.
+
 - Consume `default_tablespace` at relation and index creation with live CREATE
   authority, temporary bypass, partition-default rejection and nested/session
   setting restoration. Distinguish synthesized partition indexes from reuse;

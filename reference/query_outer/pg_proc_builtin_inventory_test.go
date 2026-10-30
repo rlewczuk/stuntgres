@@ -37,6 +37,8 @@ import (
 // parallel-safe TEXT declaration, cost 1 and internal implementation symbol.
 // The nine replication-slot lifecycle declarations retain strict/volatile/
 // parallel-unsafe metadata, exact OUT formals, defaults and overload symbols.
+// XML aggregate OID2901 retains its non-strict IMMUTABLE/parallel-safe XML
+// signature and aggregate_dummy symbol; xmlconcat2 remains lookup-only.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -141,9 +143,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// eight JSON text-search overloads, five timezone-aware JSONPath query
 	// declarations, two publication inquiries, four match routines,
 	// two genuine ispell helpers, four executable XML predicate identities,
-	// the physical compression inquiry, and nine replication-slot declarations.
-	if len(facts) != 2112 {
-		t.Fatalf("released represented overloads: got %d, want 2112", len(facts))
+	// the physical compression inquiry, nine replication-slot declarations,
+	// and XML aggregate OID2901.
+	if len(facts) != 2113 {
+		t.Fatalf("released represented overloads: got %d, want 2113", len(facts))
 	}
 	return facts
 }

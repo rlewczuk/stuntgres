@@ -30,11 +30,14 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   `docs/design/pg-operator-pg18-supported.tsv` (shared by
   every `TestReferencePGOperator` test, `TestReferenceLsegOperatorCatalog` and
   the engine unit `TestPGOperatorCaptureOwnership`),
-  `docs/design/regoperator-pg18-inventory.tsv`, the explicit 144×22 fixture in
+  `docs/design/regoperator-pg18-inventory.tsv`, the explicit 145×22 fixture in
   `pg_aggregate_fixture_test.go` and literal REL_18 catalog tuples in other
   inventories. Admitting a type or operator changes the shared TSV and every
   consumer, including `TestReferencePGTypeAdmission` in
   [reference/catalogs](../catalogs/README.md#testing).
+  XML aggregate OID2901 retains the released transition OID2900, XML state
+  OID142, NULL seeds and no final, combine, serialization or moving support.
+  Its catalog metadata does not admit the transition routine as a scalar call.
   Access-method and operator-class inventories include BRIN's released method,
   handler and minmax classes. Genuine minmax support operations 3383–3386 consume
   internal summaries; this does not advertise missing physical callback ABIs.

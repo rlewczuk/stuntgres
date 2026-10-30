@@ -144,7 +144,7 @@ func TestReferencePGAggregateInventory(t *testing.T) {
 		// These are valid released identities, but their native aggregate overloads
 		// are deliberately not implemented. PostgreSQL legitimately owns their rows.
 		if !b.PG {
-			pgAggregateBoth(t, p, b, b.DB, fixture.Select("SELECT aggfnoid::oid AS aggfnoid FROM pg_aggregate WHERE aggfnoid::oid IN (2901,2125,2141,2050,2051,6373,6374,2797,2798,3526,3527,3564,3565,4189,4190,5099,5100)", []string{"aggfnoid"}, []string{"OID"}, [][]any{}))
+			pgAggregateBoth(t, p, b, b.DB, fixture.Select("SELECT aggfnoid::oid AS aggfnoid FROM pg_aggregate WHERE aggfnoid::oid IN (2125,2141,2050,2051,6373,6374,2797,2798,3526,3527,3564,3565,4189,4190,5099,5100)", []string{"aggfnoid"}, []string{"OID"}, [][]any{}))
 		}
 		pgAggregateBoth(t, p, b, b.DB, fixture.Select("SELECT aggfnoid::oid AS aggfnoid FROM pg_aggregate WHERE aggfnoid::oid IN (3101,3102,3103,3104,3100,2333,2334)", []string{"aggfnoid"}, []string{"OID"}, [][]any{}))
 	})

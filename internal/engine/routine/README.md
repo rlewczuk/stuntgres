@@ -11,6 +11,11 @@ ordinary zero-provider builtin descriptors. Catalog rows and definition inquiry
 share those released declarations; no catalog-row supplement or identity-ledger
 lookup manufactures a target descriptor or callable capability.
 
+The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
+and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
+is metadata, not a scalar transition implementation; identity-only `xmlconcat2`
+does not gain execution capability.
+
 `OperatorProvider` validates a nonzero current extension link against its parent
 before ordinary operand, result and backer checks. A zero link is locally
 detached; extension-class validation separately rejects any parent bag that

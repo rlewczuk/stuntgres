@@ -759,6 +759,10 @@ host, which owns all locking and returns owned values.
 - Providers a view may store implement `RemappableProvider`
   (`aggregate_remap.go`); without it view creation fails with "unpersistable
   view aggregate".
+- `XMLAggregateProvider` binds the genuine XML-to-XML `xmlagg` identity and
+  retains only result Usage. Each group owns a checked accepted-XML accumulator;
+  the executor alone owns FILTER and local ordering. It has no partial or state
+  transport capability. Stored consumers rebuild it through ordinary remapping.
 
 ## Adding or porting a family
 

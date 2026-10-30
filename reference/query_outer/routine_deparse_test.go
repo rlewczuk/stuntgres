@@ -117,6 +117,7 @@ func TestReferenceRoutineDeparseBuiltins(t *testing.T) {
 		routineDeparseFour(t,p,b,c,"abs(integer)",[4]any{routineDeparseAbs,"integer","integer","integer"})
 		for _,tc := range []struct{id int; name,args,result string}{
 			{2803,"count","","bigint"},{3974,"percentile_cont","double precision ORDER BY double precision","double precision"},
+			{2901,"xmlagg","xml","xml"},
 		} {
 			for _,name := range []string{"pg_get_function_arguments","pg_get_function_identity_arguments"} { routineDeparseText(t,p,b,c,fmt.Sprintf("SELECT %s(%d::oid) AS definition",name,tc.id),tc.args) }
 			routineDeparseText(t,p,b,c,fmt.Sprintf("SELECT pg_get_function_result(%d::oid) AS definition",tc.id),tc.result)

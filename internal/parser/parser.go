@@ -524,6 +524,8 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
+	case "xmlagg":
+		return true
 	case "pg_snapshot", "txid_snapshot":
 		return true
 	case "int_array_aggregate":
@@ -560,6 +562,8 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 
 func ordinaryAggregate(name string) bool {
 	switch name {
+	case "xmlagg":
+		return true
 	case "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict":
 		return true
 	case "int_array_aggregate":

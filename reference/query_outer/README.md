@@ -99,8 +99,12 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2103 rows, all backed
-by actual descriptors; metadata ownership does not grant execution. The XML
+supplements. The complete released inventory contains 2104 rows, all backed
+by actual descriptors; metadata ownership does not grant execution. XML aggregate
+OID2901 has one unnamed XML formal, an XML result, non-strict IMMUTABLE/
+parallel-safe metadata and `aggregate_dummy` implementation identity.
+Builtin routine deparsing presents its XML arguments/result and rejects its
+function definition as an aggregate. The XML
 predicate records independently pin OIDs 2614/3051/3052/3053, strict scalar BOOL
 results with TEXT/XML input signatures, internal symbols and parallel-safe metadata.
 Only the unsuffixed validator is STABLE; the remaining three are IMMUTABLE. The encoding

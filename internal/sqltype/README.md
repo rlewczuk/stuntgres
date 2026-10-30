@@ -113,6 +113,10 @@ admission and removes it before nested binding.
   ordinary XML-to-NAME I/O uses typed output and its actual-call warning.
   XML SQL literals replay exact original spelling with its accepted requested mode;
   bounded cancellable sizing and quote emission allocate only the final backing.
+  `XMLAggregateValue` is the narrow exact-descriptor bridge for accepted XML
+  concatenation. Its mutable state belongs to one execution/group, skips typed
+  NULLs and preserves the lone non-NULL Value's datum identity. Constructed values
+  contain only an immutable checked XML result, never the accumulator or context.
 - `ReadBrinPage` borrows immutable caller bytes and checks released page
   headers without consulting table rows. Per-column `BrinStoredColumn` values
   validate the original admitted input/class and capture the actual opclass

@@ -1472,6 +1472,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3530, ids.PGCatalogNamespaceOID, "enum_range", "3500,3500"}, catalog.FunctionRoutine, 2277, false, expr.Stable, 's', false, 0, 0, functions.EnumRoutineProvider, nil},
 	{catalog.RoutineIdentity{3531, ids.PGCatalogNamespaceOID, "enum_range", "3500"}, catalog.FunctionRoutine, 2277, false, expr.Stable, 's', false, 0, 0, functions.EnumRoutineProvider, nil},
 	{catalog.RoutineIdentity{3538, ids.PGCatalogNamespaceOID, "string_agg", "25,25"}, catalog.AggregateRoutine, 25, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider, nil},
+	{catalog.RoutineIdentity{2901, ids.PGCatalogNamespaceOID, "xmlagg", "142"}, catalog.AggregateRoutine, 142, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider, nil},
 	{catalog.RoutineIdentity{3539, ids.PGCatalogNamespaceOID, "format", "25,2276"}, catalog.FunctionRoutine, 25, false, expr.Stable, 's', false, 2276, 0, functions.VariadicRoutineProvider, nil},
 	{catalog.RoutineIdentity{3540, ids.PGCatalogNamespaceOID, "format", "25"}, catalog.FunctionRoutine, 25, false, expr.Stable, 's', false, 0, 0, functions.VariadicRoutineProvider, nil},
 	{catalog.RoutineIdentity{3545, ids.PGCatalogNamespaceOID, "string_agg", "17,17"}, catalog.AggregateRoutine, 17, false, expr.Immutable, 's', false, 0, 0, functions.AggregateRoutineProvider, nil},

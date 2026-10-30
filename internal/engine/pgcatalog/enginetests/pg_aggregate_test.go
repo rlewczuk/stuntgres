@@ -33,7 +33,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.Ref != ref || len(captured.Anonymous) != 144 {
+	if captured.Ref != ref || len(captured.Anonymous) != 145 {
 		t.Fatal("aggregate owner inventory", captured)
 	}
 	for _, values := range captured.Anonymous {
@@ -105,7 +105,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		t.Fatal("retired source admitted", err)
 	}
 	newRef := e.Catalog.Domain.Ref(fresh.Epoch(), address)
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.Anonymous) != 144 {
+	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.Anonymous) != 145 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
 	for i, v := range captured.Anonymous[0] {
@@ -116,7 +116,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 }
 
 func TestPGAggregateReleasedOwnership(t *testing.T) {
-	if len(pgcatalog.AggregateDefinitions) != 144 {
+	if len(pgcatalog.AggregateDefinitions) != 145 {
 		t.Fatal("owned aggregate signatures", len(pgcatalog.AggregateDefinitions))
 	}
 	seen := make(map[ids.OID]bool)
@@ -134,7 +134,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []ids.OID{2901, 2125, 2141, 2050, 2051, 6373, 6374, 2797, 2798, 3526, 3527, 3564, 3565, 4189, 4190, 5099, 5100, 3101, 3102, 3103, 3104, 2333, 2334} {
+	for _, id := range []ids.OID{2125, 2141, 2050, 2051, 6373, 6374, 2797, 2798, 3526, 3527, 3564, 3565, 4189, 4190, 5099, 5100, 3101, 3102, 3103, 3104, 2333, 2334} {
 		if seen[id] {
 			t.Fatal("unimplemented/scalar/helper aggregate admitted", id)
 		}

@@ -108,6 +108,7 @@ func (g remapGenerations) providers(t *testing.T) map[string]RemappableProvider 
 		"JSONArray":            NewJSONArrayAggregateProvider(g.usage(sqltype.Int4), g.usage(sqltype.JSON), false, jsonArray),
 		"JSONObject":           jsonObject,
 		"Extrema":              NewExtremaProvider(g.usage(sqltype.Int4), extremaComparison, true),
+		"XMLAggregate":         NewXMLAggregateProvider(g.usage(sqltype.XML)),
 		"Range":                NewRangeAggregateProvider(g.usage(sqltype.Int4Range), g.usage(sqltype.Int4Range), sqltype.RangeAggregateIntersection, rangeBound),
 	}
 }

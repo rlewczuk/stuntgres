@@ -394,6 +394,22 @@ Every failure returns empty output and leaves the accepted value unchanged.
 Typed output is separate: `OutputText`/`OutputBinary` normalize declaration
 transport and return a warning independently of character serialization.
 
+`ConcatAccumulator` is execution-local accepted-value concatenation, independent
+of input and output normalization. It preserves singleton identity, merges
+declarations after each binary transition and appends bodies verbatim without
+reparsing, including DTD-bearing bodies. The custom byte-zero reader's partial
+metadata and ignored syntax-failure body boundary are local to this operation.
+Constructed results use CONTENT metadata and retain no input diagnostics.
+Body capacity grows geometrically with checked sizes: only an empty replacement
+builder is grown, then the immutable existing prefix is copied with cancellation
+polls at intervals of at most 4096 bytes before new bodies are appended. No write
+can trigger an implicit unbounded prefix copy. Failed append states are poisoned
+and cannot publish or accept later inputs. Headerless finalization shares the
+existing body string without another allocation or copy; declaration-emitting
+finalization alone constructs a prefixed string with the same bounded polling.
+Both paths retain a final cancellation fence. Finalized strings and operand
+backing remain immutable across later appends, including capacity expansion.
+
 
 ## Typed output and lifecycle
 

@@ -57,7 +57,8 @@ func (r Result) EffectiveMode() Mode       { return r.effective }
 func (r Result) Declaration() Declaration  { return r.declaration }
 func (r Result) Diagnostics() []Diagnostic { return append([]Diagnostic(nil), r.diagnostics...) }
 
-// Valid reports genuine successful parser acceptance, including empty CONTENT.
+// Valid reports genuine parser acceptance or checked accepted-value construction,
+// including empty CONTENT. It does not promise a constructed concat is reparsable.
 func (r Result) Valid() bool { return r.valid }
 
 func Parse(ctx context.Context, input string, opts Options) (Result, error) {

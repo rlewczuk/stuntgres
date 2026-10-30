@@ -42,6 +42,7 @@ var aggregateDefinitions = [...]AggregateDefinition{
 	{Names: statisticalNames[:], Bind: bindStatisticalAggregate, Window: windowStatisticalAggregate},
 	{Names: []string{"string_agg"}, Bind: bindStringAggregate, Window: windowStringAggregate},
 	{Names: []string{"array_agg"}, Bind: bindArrayAggregate, Window: windowArrayAggregate, ProbeCall: probeArrayAggregate},
+	{Names: []string{"xmlagg"}, Bind: bindXMLAggregate, Window: windowXMLAggregate},
 	{Names: []string{"range_agg", "range_intersect_agg"}, Bind: bindRangeAggregate, Window: windowRangeAggregate, ProbeCall: probeRangeAggregate},
 	{Names: jsonArrayAggregateNames[:], BindReturning: bindJSONArrayAggregate, Window: windowJSONArrayAggregate, ProbeCall: probeAnyAggregate},
 	{Names: jsonObjectAggregateNames[:], BindReturning: bindJSONObjectAggregate, Window: windowJSONObjectAggregate, ProbeCall: probeAnyAggregate},

@@ -28,7 +28,7 @@ func pgAggregateBuiltinCount(t *testing.T, p *fixture.Pair, b fixture.Backend, e
 	if b.PG {
 		q += " WHERE aggfnoid::oid IN (" + pgAggregateAllowlist() + ")"
 	}
-	fixture.RunStep(t, p.Ctx, e, b.Recorder, fixture.Select(q, []string{"count"}, []string{"INT8"}, [][]any{{int64(144)}}))
+	fixture.RunStep(t, p.Ctx, e, b.Recorder, fixture.Select(q, []string{"count"}, []string{"INT8"}, [][]any{{int64(145)}}))
 }
 func pgAggregateControlFailures(t *testing.T, p *fixture.Pair, e fixture.Executor, schema string, dump []byte, check func()) {
 	t.Helper()
@@ -141,6 +141,6 @@ func TestReferencePGAggregateLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pgAggregateRetained(t, rows, [][]any{{int64(144)}}, []string{"INT8"})
+		pgAggregateRetained(t, rows, [][]any{{int64(145)}}, []string{"INT8"})
 	})
 }

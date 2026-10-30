@@ -31,6 +31,7 @@ func toLowerASCII(s string) string {
 func TestLookupAggregateClaimsRegisteredNames(t *testing.T) {
 	claimed := []string{
 		"count", "sum", "avg", "min", "max", "any_value", "bool_and", "bool_or", "every",
+		"xmlagg",
 		"bit_and", "bit_or", "bit_xor", "string_agg", "array_agg", "range_agg", "range_intersect_agg",
 		"var_pop", "var_samp", "variance", "stddev_pop", "stddev_samp", "stddev", "regr_slope", "regr_sxx",
 		"regr_sxy", "regr_syy", "corr", "covar_pop", "covar_samp", "regr_avgx", "regr_avgy", "regr_count",

@@ -9,6 +9,8 @@ import (
 // binders. This is not an admission rule for other lookup-only routine aliases.
 // PostgreSQL REL_18_0 catalog construction facts:
 // https://github.com/postgres/postgres/blob/REL_18_0/src/include/catalog/pg_aggregate.dat
+// XML aggregate OID2901 also follows REL_18_6 pg_aggregate.dat:
+// https://github.com/postgres/postgres/blob/REL_18_6/src/include/catalog/pg_aggregate.dat
 var AggregateDefinitions = [...]catalog.AggregateDefinition{
 	{2100, "n", 0, [8]ids.OID{2746, 3389, 2785, 2786, 2787, 2746, 3387, 3389}, false, false, "r", "r", 0, 2281, 48, 2281, 48, "", "", false, false},   // avg(int8)
 	{2101, "n", 0, [8]ids.OID{1963, 1964, 3324, 0, 0, 1963, 3571, 1964}, false, false, "r", "r", 0, 1016, 0, 1016, 0, "{0,0}", "{0,0}", true, true},   // avg(int4)
@@ -117,6 +119,7 @@ var AggregateDefinitions = [...]catalog.AggregateDefinition{
 	{2827, "n", 0, [8]ids.OID{2806, 2815, 3342, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 1022, 0, 0, 0, "{0,0,0,0,0,0}", "", true, false},           // covar_pop
 	{2828, "n", 0, [8]ids.OID{2806, 2816, 3342, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 1022, 0, 0, 0, "{0,0,0,0,0,0}", "", true, false},           // covar_samp
 	{2829, "n", 0, [8]ids.OID{2806, 2817, 3342, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 1022, 0, 0, 0, "{0,0,0,0,0,0}", "", true, false},           // corr
+	{2901, "n", 0, [8]ids.OID{2900, 0, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 142, 0, 0, 0, "", "", false, false}, // xmlagg(xml)
 	{3175, "n", 0, [8]ids.OID{3173, 3174, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_agg
 	{3197, "n", 0, [8]ids.OID{3180, 3196, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // json_object_agg
 	{3267, "n", 0, [8]ids.OID{3265, 3266, 0, 0, 0, 0, 0, 0}, false, false, "r", "r", 0, 2281, 0, 0, 0, "", "", false, false},                          // jsonb_agg

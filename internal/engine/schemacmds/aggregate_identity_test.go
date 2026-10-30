@@ -85,7 +85,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.Catalog.Domain.Ref(view.Epoch(), source.Address())
 	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGAggregate)
-	if err != nil || len(rows.Anonymous) != 145 {
+	if err != nil || len(rows.Anonymous) != 146 {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := catalog.CloneState(view.State())

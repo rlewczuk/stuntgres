@@ -68,7 +68,7 @@ WHERE p.oid=a.aggfnoid::oid ORDER BY p.proname`, []string{"proname"}, []string{"
 	if b.PG {
 		countQuery += fmt.Sprintf(" WHERE aggfnoid::oid IN (%s,%d)", pgAggregateAllowlist(), ids[0])
 	}
-	pgAggregateBoth(t, p, b, e, fixture.Select(countQuery, []string{"count"}, []string{"INT8"}, [][]any{{int64(145)}}))
+	pgAggregateBoth(t, p, b, e, fixture.Select(countQuery, []string{"count"}, []string{"INT8"}, [][]any{{int64(146)}}))
 	pgAggregateBoth(t, p, b, e, fixture.Select(fmt.Sprintf(`SELECT a.aggfnoid::oid<>p.oid AS aggregate_distinct,a.aggtransfn::oid<>p.oid AS state_distinct,a.aggfinalfn::oid<>p.oid AS final_distinct
 FROM (SELECT oid,pronamespace FROM pg_proc WHERE proname='int_array_enum') p,
 (SELECT oid FROM pg_namespace WHERE nspname='%s') n,

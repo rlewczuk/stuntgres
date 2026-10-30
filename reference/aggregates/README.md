@@ -18,6 +18,16 @@ count expressions in
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 `fixture.Main(m)`.
 
+- XML aggregates: `RUN='^TestReferenceXMLAgg'`. The family-local helper uses
+  pinned sessions and direct/prepared fixture steps. Ordered results have exact
+  spelling; unordered distinct fragments are checked as multisets with duplicate
+  counts, never as a portable serialized sequence. Lifecycle cases retain actual
+  rows and held statements across input changes and native logical replay.
+  Pre-canceled direct/held admission checks are native-only and require ordinary
+  context errors with no published rows; healthy held reuse remains shared.
+  Deterministic cancellation during actual XML body copying is covered by the
+  private XML accumulator tests.
+
 - **Helpers.** Per-family `*_helpers_test.go` files (`aggregate_modifiers`,
   `bitwise_aggregate`, `create_aggregate_remap`, `hypothetical`,
   `json_array_aggregate`, `json_object_aggregate`, `json_object_unique_aggregate`,

@@ -59,6 +59,7 @@ const (
 	AggregateFloatAvg
 	AggregateAnyValue
 	AggregateString
+	AggregateXML
 	AggregateMin
 	AggregateMax
 	AggregateIntegralSum
