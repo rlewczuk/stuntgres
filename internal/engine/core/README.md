@@ -9,6 +9,17 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
+`database_files_runtime.go` uses the ordinary catalog inquiry owner/role-domain
+and replacement fences under `Engine.Mu`, then reads the transaction-private
+catalog. `pgcatalog.ClassKind` distinguishes storage-less descriptors from
+tables/indexes/sequences/materialized views/stored catalogs; allocated rows are
+irrelevant. Forward stored calls report explicit `0A000` because PostgreSQL
+filenodes and files do not exist here. Reverse absence returns typed REGCLASS
+NULL, not a fabricated OID mapping. No storage capture, filesystem probe, new
+mapping state or serialization is introduced. Common routine admission and
+REGCLASS input retain EXECUTE and schema-USAGE precedence. Unit witnesses:
+`make check RUN='^TestDatabaseFiles(BindingProtocol|RuntimeBoundary)$'`.
+
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
 heaps from the current committed map without mutating captured maps or retained

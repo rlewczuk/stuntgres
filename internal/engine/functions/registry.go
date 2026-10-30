@@ -91,6 +91,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_input_is_valid", "pg_input_error_info"}, Bind: bindInputValidity, NamedCall: namedInputValidity},
 	{Names: []string{"pg_tablespace_location", "pg_tablespace_databases"}, Bind: bindTablespaceInfo},
 	{Names: sizeNames[:], Bind: bindRelationSize},
+	{Names: databaseFilesNames[:], ExactSpelling: true, Bind: bindDatabaseFiles},
 	{Names: genericFileListNames[:], ExactSpelling: true, Bind: bindGenericFileList, NamedCall: namedGenericFileList},
 	{Names: genericFileReadNames[:], ExactSpelling: true, Bind: bindGenericFileRead, NamedCall: namedGenericFileRead},
 	{Names: logicalDecodingNames[:], ExactSpelling: true, Bind: bindLogicalDecoding, NamedCall: namedLogicalDecoding},

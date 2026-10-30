@@ -29,3 +29,6 @@
 6184	ts_debug	11	14	100	1000	0	0	f	false	false	true	true	s	s	1	0	2249	25	{25,25,25,25,3770,3769,1009}	{i,o,o,o,o,o,o}	{document,alias,description,token,dictionaries,dictionary,lexemes}	false	\N		\N	true	\N
 6210	pg_input_is_valid	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	16	25 25	\N	\N	\N	false	\N	pg_input_is_valid	\N	false	\N
 6211	pg_input_error_info	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2249	25 25	{25,25,25,25,25,25}	{i,i,o,o,o,o}	{value,type_name,message,detail,hint,sql_error_code}	false	\N	pg_input_error_info	\N	false	\N
+2999	pg_relation_filenode	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	26	2205	\N	\N	\N	false	\N	pg_relation_filenode	\N	false	\N
+3034	pg_relation_filepath	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	2205	\N	\N	\N	false	\N	pg_relation_filepath	\N	false	\N
+3454	pg_filenode_relation	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2205	26 26	\N	\N	\N	false	\N	pg_filenode_relation	\N	false	\N

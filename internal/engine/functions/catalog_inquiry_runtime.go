@@ -16,6 +16,7 @@ type CatalogInquiryRuntime interface {
 	TablespaceLocation(uint32, *sqltype.Descriptor) (sqltype.Value, error)
 	TablespaceDatabase(uint32, *sqltype.Descriptor) (sqltype.Value, bool, error)
 	SizeInquiry(SizeKind, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
+	DatabaseFilesInquiry(DatabaseFilesKind, sqltype.Value, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
 	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)

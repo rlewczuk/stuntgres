@@ -13,6 +13,22 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+Relation-location functions use their PostgreSQL 18 typed signatures:
+`pg_relation_filenode(regclass) → oid`,
+`pg_relation_filepath(regclass) → text`, and
+`pg_filenode_relation(oid,oid) → regclass`. Strict NULLs, missing numeric relation
+OIDs and storage-less relations (including views and partition roots) yield
+typed NULLs. The embedded engine has no PostgreSQL data directory: forward
+inquiries for tables, indexes, sequences, materialized views and stored catalogs
+raise `0A000`, rather than inventing files or treating a logical OID as a filenode.
+Reverse lookup returns NULL because no physical mappings exist; tablespace zero
+cannot manufacture one. Native Dump/Restore preserves logical metadata only.
+Stock PostgreSQL instead returns actual filenodes and relative first-main-fork
+paths; filenodes can change independently of relation OIDs. Temporary relations
+have forward mappings on PostgreSQL but reverse lookup is NULL; native temporary
+forward inquiries have the same explicit unsupported boundary as other stored
+relations. No extra relation SELECT or server-file privilege is required.
+
 Storage and native Go text remain UTF8/Unicode. The optional server supports
 bidirectional `client_encoding` through actual registered PostgreSQL conversion
 defaults, plus SQL_ASCII. Native byte-stream COPY uses the same encoding

@@ -202,6 +202,12 @@ func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork s
 	return host.SizeInquiry(kind, arg, fork, result)
 }
 
+func (c *Context) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: missing database files inquiry snapshot") }
+	return host.DatabaseFilesInquiry(kind, arg, second, result)
+}
+
 func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
 	host := c.LiveHost()
 	if host == nil {

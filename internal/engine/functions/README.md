@@ -8,6 +8,15 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`database_files.go` owns the three fixed PostgreSQL location signatures.
+`DatabaseFilesInquiry` retains typed REGCLASS/OID operands and released routine
+identity (2999/3034/3454), never a physical mapping. It is STRICT/STABLE,
+parallel-safe and never planning-folded. Its protocol preserves source-order
+child evaluation, typed OID/TEXT/REGCLASS NULLs, scalar-source metadata, capture,
+stored remapping and catalog-snapshot replay. The existing catalog inquiry
+capability carries demanded non-NULL calls to core; valid stored calls bind and
+prepare normally, with unsupported physical work rejected only at execution.
+
 Cooperative execution pauses belong to the detached runtime, not function
 binding. Array transformation uses a stable work point; lower typed providers
 own their corresponding points. Attached requests are dormant until runtime

@@ -10,6 +10,34 @@ views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
 
+The `TestReferenceDatabaseFiles` family independently specifies all three
+relation-location signatures: typed values/metadata, relation-kind boundaries,
+full logical diagnostics, privileges, native logical replay and a focused smoke.
+Native stored forward calls must report the chosen `0A000`; real PostgreSQL
+must expose actual positive filenodes/relative paths and inverse mappings.
+Temporary PostgreSQL relations have forward storage but no reverse mapping.
+Neither backend is used to learn expected values from the other.
+Lifecycle checks independently assert exact created-relation membership,
+kinds/persistence, index association/definition, sequence defaults, materialized-view
+definition/unpopulated state and table column definitions before replay and after
+both native Restore/redump cycles. They also retain function ACL/cost/parallel
+metadata and supported table comments; `COMMENT ON FUNCTION` is not native syntax.
+Configure routine cost/parallel attributes before binding stored callers: those
+callers retain their selected declaration, and changing it afterwards correctly
+triggers the stale-carrier fence. The rollback witness checks absence in
+`pg_class`, without depending on the adjacent unsupported `to_regclass` function.
+Owner-only ACLs use independent bootstrap identities (`postgres` native,
+`stuntgres` in the PostgreSQL fixture). Partition roots are public witnesses in
+both modes; partitioned indexes use native descriptor-unit coverage plus a real
+PostgreSQL public witness because native partitioned-index DDL is unsupported.
+Private privilege schemas register explicit cleanup before their grantee roles.
+
+Run `make check RUN='^TestReferenceDatabaseFiles(Values|Metadata|Relations|Diagnostics|Privileges|Lifecycle)$'`
+and the identical command with `REFERENCE=1`. Feature smoke:
+`make check RUN='^TestReferenceDatabaseFilesSmoke$'`, also with `REFERENCE=1`.
+The unchanged fixture pins PostgreSQL 18.6/UTF8/C; stale selected catalog 18.0
+metadata is not authority to repin the oracle.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in

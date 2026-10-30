@@ -144,9 +144,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// declarations, two publication inquiries, four match routines,
 	// two genuine ispell helpers, four executable XML predicate identities,
 	// the physical compression inquiry, nine replication-slot declarations,
-	// and XML aggregate OID2901.
-	if len(facts) != 2113 {
-		t.Fatalf("released represented overloads: got %d, want 2113", len(facts))
+	// XML aggregate OID2901, and three relation-file location declarations.
+	if len(facts) != 2116 {
+		t.Fatalf("released represented overloads: got %d, want 2116", len(facts))
 	}
 	return facts
 }

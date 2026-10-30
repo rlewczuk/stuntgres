@@ -1,5 +1,13 @@
 # Changes
 
+- Add the PostgreSQL 18 relation-location signatures through typed binding,
+  strict NULLs, catalog authority and ordinary EXECUTE/schema admission.
+  Storage-less and missing relations return NULL; stored forward inquiries
+  explicitly reject unavailable physical filenodes/paths with `0A000`.
+  Reverse inquiries return NULL for absent physical mappings, never logical
+  OIDs disguised as filenodes. Logical definitions and routine metadata replay
+  through native Dump/Restore; PostgreSQL files are not serialized.
+
 - Add release-matched historical Dutch Porter Snowball stemming and its verbatim
   101-word stoplist, genuine `dutch_stem`/`dutch` bootstrap identities and nineteen
   token mappings, preserving typed prepared ownership, atomic publication and
