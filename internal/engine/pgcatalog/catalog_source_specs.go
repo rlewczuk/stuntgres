@@ -880,15 +880,8 @@ var Specs = [...]Spec{
 		{"ispopulated", sqltype.Bool, true, 0, 0, -1},
 		{"definition", sqltype.Text, true, 0, 0, -1},
 	}, false, CatalogHasIndexes(12006), false, false, "stuntgres: missing catalog source type"},
-	{ids.ForeignWrapperClassID, ids.PGCatalogNamespaceOID, "pg_foreign_data_wrapper", []ColumnSpec{
-		{"oid", sqltype.Oid, false, 0, 0, -1},
-		{"fdwname", sqltype.Name, false, 0, 0, -1},
-		{"fdwowner", sqltype.Oid, false, 0, 0, -1},
-		{"fdwhandler", sqltype.Oid, false, 0, 0, -1},
-		{"fdwvalidator", sqltype.Oid, false, 0, 0, -1},
-		{"fdwacl", sqltype.ACLItemArray, true, 0, 0, -1},
-		{"fdwoptions", 1009, true, 950, 0, -1},
-	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
+	{ids.ForeignWrapperClassID, ids.PGCatalogNamespaceOID, "pg_foreign_data_wrapper", pgForeignDataWrapperColumns,
+		false, CatalogHasIndexes(ids.ForeignWrapperClassID), false, false, "stuntgres: missing SQL/MED catalog type %d"},
 	{ids.ForeignServerClassID, ids.PGCatalogNamespaceOID, "pg_foreign_server", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"srvname", sqltype.Name, false, 0, 0, -1},

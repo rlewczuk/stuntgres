@@ -48,6 +48,20 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_foreign_data_wrapper` (2328) projects only actual SQL wrapper definitions,
+  including valid definitions without handlers. Its public inventory, raw ACL and
+  complete ordered options are independent of wrapper USAGE; normal catalog
+  relation/column SELECT admission still applies. Missing support procedures are
+  zero OIDs; absent ACL/options are typed NULL, not default ACLs or empty arrays.
+  Non-NULL arrays own rank-one, lower-one backing; an explicit empty ACL retains
+  that shape with length zero rather than becoming NULL or a rank-zero array.
+  Initialized `pg_attribute` facts preserve declared nullability: the five fixed
+  fields are nonnullable and both rank-one array fields are nullable.
+  Capture validates all seven initialized facts against declared nullability,
+  dimensions and effective collation, as well as source/type/role authority and
+  descriptor references, even for empty inventories;
+  cancellation publishes no prefix. Metadata never invokes registered providers
+  or performs foreign I/O, and registration alone creates no catalog row.
 - `pg_init_privs` (3394) projects immutable historical records by full object
   address with no allocated row OID. Its five nonnullable columns retain exact
   source-owned OID/INT4/internal CHAR/ACLITEM[] carriers and ordered ACL entries.

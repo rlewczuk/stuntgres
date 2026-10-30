@@ -26,7 +26,7 @@ var producers = [...]Registration{
 	{1417, captureForeignCatalog},
 	{1418, captureForeignCatalog},
 	{2224, capturePGSequence},
-	{2328, captureForeignCatalog},
+	{2328, capturePGForeignDataWrapper},
 	{2396, capturePGShDescription},
 	{2600, capturePGAggregate},
 	{2601, capturePGAM},

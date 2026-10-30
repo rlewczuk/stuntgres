@@ -59,9 +59,10 @@ constant capture may run under metadata locks, including runtime-to-DDL reentry;
 they must never wait at a cooperative execution checkpoint. Detached runtime
 evaluation explicitly re-admits the preserved request after capture completes.
 
-Catalog sources admitted for semantic mutation planning, including `pg_index`,
-check the current execution-time actor before sources or row effects, including
-held commands after SET ROLE. Restricted actors receive permission denial and
+Catalog sources admitted for semantic mutation planning, including `pg_index`
+and `pg_foreign_data_wrapper`, check the current execution-time actor before
+sources or row effects, including held commands after SET ROLE.
+Restricted actors receive permission denial and
 superusers retain the catalog-source mutation guard. Other catalogs and virtual
 views retain their owning admission policies.
 

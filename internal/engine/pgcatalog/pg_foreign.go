@@ -64,18 +64,6 @@ func captureForeignCatalog(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 			switch source.Address().ObjectID {
-			case ids.ForeignWrapperClassID:
-				putString(1, d.Name())
-				for i, value := range []uint32{uint32(d.Owner.ID()), uint32(d.Handler.ObjectID), uint32(d.Validator.ObjectID)} {
-					if err = putOID(i+2, value); err != nil {
-						return nil, err
-					}
-				}
-				row[5], err = ClassACL(in.Owner, in.Roles, source.Columns[5].Usage.Type, d.ACL)
-				if err != nil {
-					return nil, err
-				}
-				row[6], err = foreignOptionsValue(source.Columns[6].Usage.Type, d.Options)
 			case ids.ForeignServerClassID:
 				putString(1, d.Name())
 				if err = putOID(2, uint32(d.Owner.ID())); err != nil {
