@@ -108,6 +108,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Database-scoped defaults: `RUN='^TestReferenceDatabaseSettings'`
 - Trusted connectors: `RUN='^TestReferenceRole(Trusted)?Connector'`
 - Membership and role switching: `RUN='^TestReferenceRole(Membership|Switch)'`
+- Creator-origin self grants, typed setting presentation, isolation, transactional
+  rollback and held execution authority: `RUN='^TestReferenceCreateroleSelfGrant'`
 - Membership inquiry: `RUN='^TestReferenceAccessRole(Membership|Privileges|NamesAndOIDs)$'`
 - Role DDL and boundaries:
   `RUN='^TestReferenceRole(Creation|Authorization|AuthenticatedSessions|ExcludedCommands|DropConditionalBoundary|TransactionMutationBoundary)$'`

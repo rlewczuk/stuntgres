@@ -8,7 +8,29 @@ import (
 )
 
 func normalizeCreateroleSelfGrant(input string) (string, *sqlstate.Error, error) {
-	return normalizeKeywordList("createrole_self_grant", input, "set", "inherit")
+	v, err := ParseCreateroleSelfGrant(input)
+	return v.Text, nil, err
+}
+
+// ParseCreateroleSelfGrant preserves presentation while caching the options.
+// Validate the complete list before interpreting any keyword.
+func ParseCreateroleSelfGrant(input string) (Value, error) {
+	items, err := ParseIdentifierList("createrole_self_grant", input)
+	if err != nil {
+		return Value{}, err
+	}
+	v := Value{Text: input}
+	for _, item := range items {
+		switch {
+		case strings.EqualFold(item, "set"):
+			v.SelfGrant |= SelfGrantSet
+		case strings.EqualFold(item, "inherit"):
+			v.SelfGrant |= SelfGrantInherit
+		default:
+			return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "createrole_self_grant": "%s"`, input), Detail: fmt.Sprintf(`Unrecognized key word: "%s".`, item)}
+		}
+	}
+	return v, nil
 }
 
 func normalizeRestrictedRelationKind(input string) (string, *sqlstate.Error, error) {

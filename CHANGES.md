@@ -1,5 +1,9 @@
 # Changes
 
+- Apply `createrole_self_grant` at non-superuser role creation, preserving the
+  bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
+  Preserve raw setting presentation and typed session/transaction restoration.
+
 - Add transactional column statistics targets and distinctness overrides, typed
   catalog metadata, per-column ANALYZE collection and signed planner estimates,
   with immutable publication and native logical Dump/Restore.

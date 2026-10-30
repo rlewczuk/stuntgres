@@ -98,7 +98,7 @@ func TestRoleAttributesCyclicAdminTraversal(t *testing.T) {
 	if loginMember != wantLoginMember {
 		t.Fatal("direct LOGIN changed unrelated attributes", loginMember)
 	}
-	loginRoot, notices, err := AttributeCandidate(context.Background(), read, adminState, actor, loginMember, nil, nil, false, false)
+	loginRoot, notices, err := AttributeCandidate(context.Background(), read, adminState, actor, loginMember, nil, CreatorSelfGrant{}, nil, false, false)
 	if err != nil || len(notices) != 0 {
 		t.Fatal("direct LOGIN candidate", notices, err)
 	}
@@ -142,7 +142,7 @@ func TestRoleAttributesCyclicAdminTraversal(t *testing.T) {
 	if directMember != wantDirectMember {
 		t.Fatal("direct options changed unrelated attributes", directMember)
 	}
-	directRoot, notices, err := AttributeCandidate(context.Background(), loginRead, adminState, actor, directMember, nil, nil, false, false)
+	directRoot, notices, err := AttributeCandidate(context.Background(), loginRead, adminState, actor, directMember, nil, CreatorSelfGrant{}, nil, false, false)
 	if err != nil || len(notices) != 0 {
 		t.Fatal("direct CREATEROLE/NOINHERIT candidate", notices, err)
 	}
@@ -158,7 +158,7 @@ func TestRoleAttributesCyclicAdminTraversal(t *testing.T) {
 	if alteredTarget != wantTarget {
 		t.Fatal("target LOGIN changed unrelated attributes", alteredTarget)
 	}
-	targetRoot, notices, err := AttributeCandidate(context.Background(), directRead, memberState, actor, alteredTarget, nil, nil, false, false)
+	targetRoot, notices, err := AttributeCandidate(context.Background(), directRead, memberState, actor, alteredTarget, nil, CreatorSelfGrant{}, nil, false, false)
 	if err != nil || len(notices) != 0 {
 		t.Fatal("authorized target candidate", notices, err)
 	}

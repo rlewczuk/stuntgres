@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -100,7 +101,15 @@ func ExecuteRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt pars
 				return core.Result{}, err
 			}
 		}
-		n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
+		var selfGrant authorization.CreatorSelfGrant
+		if create != nil && !actor.Superuser {
+			store := op.EffectiveSettings()
+			store.Mu.Lock()
+			options := store.TypedValue("createrole_self_grant").SelfGrant
+			store.Mu.Unlock()
+			selfGrant = authorization.CreatorSelfGrant{Inherit: options&settings.SelfGrantInherit != 0, Set: options&settings.SelfGrantSet != 0}
+		}
+		n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, selfGrant, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
 		if err != nil {
 			op.Notices = notices
 		}

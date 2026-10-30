@@ -12,6 +12,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// SelfGrantOptions are assignment-time options for a future role creation.
+type SelfGrantOptions uint8
+
+const (
+	SelfGrantSet SelfGrantOptions = 1 << iota
+	SelfGrantInherit
+)
+
 // Value is a typed setting value. Path is borrowed immutable storage when the
 // value comes from a definition or registry.
 type Value struct {
@@ -24,6 +32,7 @@ type Value struct {
 	TimezoneAbbreviations sqltype.TimezoneAbbreviations
 	Locale                sqltype.Locale
 	ClientEncoding        int
+	SelfGrant             SelfGrantOptions
 }
 
 func parameterError(message, hint string) error {
@@ -73,6 +82,9 @@ func (d Definition) Parse(input string) (Value, error) {
 	case String:
 		if !utf8.ValidString(input) || strings.IndexByte(input, 0) >= 0 {
 			return v, errors.New("stuntgres: invalid UTF-8 or NUL setting")
+		}
+		if d.Name == "createrole_self_grant" {
+			return ParseCreateroleSelfGrant(input)
 		}
 		v.Text = input
 		if d.Name == "search_path" {

@@ -41,7 +41,7 @@ func TestRoleAttributesDirectAuthority(t *testing.T) {
 		t.Fatal("inherited CREATEROLE shortcut")
 	}
 	changed := ApplyRoleOptions(root.roles[target], alter.Options)
-	next, _, err := AttributeCandidate(context.Background(), read, RoleState{CurrentUser: creator}, root.roles[creator], changed, nil, nil, false, false)
+	next, _, err := AttributeCandidate(context.Background(), read, RoleState{CurrentUser: creator}, root.roles[creator], changed, nil, CreatorSelfGrant{}, nil, false, false)
 	if err != nil || !next.roles[target].Login || read.state.roles[target].Login {
 		t.Fatal("prior attribute root mutated", err)
 	}

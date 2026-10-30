@@ -32,8 +32,10 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteRoleAttributes` (CREATE and ALTER ROLE) validates under
   `Engine.Mu`, takes the role name or principal locks unlocked, prepares the
   password and VALID UNTIL inputs with no lifecycle lock held, then
-  revalidates, takes the initial membership locks of a new role and installs
-  the role record. A changed record or allocator restarts the decision.
+  revalidates and reads typed `createrole_self_grant` from EffectiveSettings.
+  Descriptor, bootstrap ADMIN and optional creator-origin INHERIT/SET grants
+  share one candidate, initial-membership locks and transactional publication
+  fence. A changed record or allocator restarts the decision with current options.
 - `ExecuteRoleRename` revalidates current authority after cluster principal and
   destination-name waits, preserves the principal and complete defaults, and
   replaces the immutable descriptor/name index. Only MD5 verifiers are cleared,
@@ -103,6 +105,9 @@ effects. This CREATE path does not implement ALTER DATABASE policy mutation.
 Shared parameter final-registration ownership uses
 `make check RUN='^TestParameterACLShared'` (also with `RACE=1`), including the
 genuine detached template runtime and an intervening committed grant.
+
+Role creation self-grant SQL coverage lives in `reference/object_address`:
+`make check RUN='^TestReferenceCreateroleSelfGrant'`, also with `REFERENCE=1`.
 
 Tests are external (`package rolecmds_test`) and run on a composed engine:
 the root's `engine.New`, `Reset`, `Dump` and `Restore` and the

@@ -349,8 +349,16 @@ CREATE reads the operation's effective entry value. Only entry on admits
 validator SAVE actions and applies the routine's own normalized
 check_function_bodies override to that scoped policy; no live settings mutate.
 
+`createrole_self_grant` is a USERSET identifier list: empty, `set`, `inherit`,
+or both, with raw presentation retained and typed options cached at assignment.
+Non-superuser CREATEROLE execution reads the operation's effective setting and
+atomically stages a separate creator-origin INHERIT/SET membership alongside
+the mandatory bootstrap-origin ADMIN membership. Superuser creation and ALTER
+do not add either optional grant or retroactively change existing grants.
+Session defaults, overrides, detached invocations and transaction/savepoint
+restoration carry the same typed value; no CREATE-time text parsing is needed.
+
 The following are **setting-only simulations**, not operational switches:
-`createrole_self_grant`,
 `default_tablespace`, `default_text_search_config`, `default_toast_compression`,
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
@@ -368,9 +376,9 @@ configuration of the explicit two-argument conversion.
 Missing configurations, including names qualified by a nonexistent schema, use
 the setting's invalid-value diagnostic (22023); namespace permission failures
 retain their authority diagnostic instead of being hidden as invalid values.
-No compressors, GIN truncation/pending lists, physical placement, automatic
-role membership, relation restrictions, XML execution or event-trigger
-mechanisms are implied. `session_replication_role` instead controls real user
+No compressors, GIN truncation/pending lists, physical placement, relation
+restrictions, XML execution or event-trigger mechanisms are implied.
+`session_replication_role` instead controls real user
 and per-event foreign-key trigger execution through their stored O/D/R/A modes;
 effective changes use the shared prepared-plan discard generation.
 `SET XML OPTION DOCUMENT/CONTENT` (including SESSION/LOCAL) is syntax for the

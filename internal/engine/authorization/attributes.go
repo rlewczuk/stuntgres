@@ -157,8 +157,14 @@ func ApplyRoleOptions(d RoleDescriptor, o parser.RoleOptions) RoleDescriptor {
 	return d
 }
 
-// AttributeCandidate stages descriptor, creator ADMIN and initial clauses together.
-func AttributeCandidate(ctx context.Context, r Read, state RoleState, actor, d RoleDescriptor, create *parser.CreateRole, notices []sqlstate.Error, noticeEligible, warningEligible bool) (Root, []sqlstate.Error, error) {
+// CreatorSelfGrant selects the optional creator-origin membership.
+type CreatorSelfGrant struct {
+	Inherit bool
+	Set     bool
+}
+
+// AttributeCandidate stages descriptor, creator grants and initial clauses together.
+func AttributeCandidate(ctx context.Context, r Read, state RoleState, actor, d RoleDescriptor, create *parser.CreateRole, selfGrant CreatorSelfGrant, notices []sqlstate.Error, noticeEligible, warningEligible bool) (Root, []sqlstate.Error, error) {
 	n, err := r.state.PutDescriptor(d)
 	if err != nil {
 		return Root{}, notices, err
@@ -167,9 +173,16 @@ func AttributeCandidate(ctx context.Context, r Read, state RoleState, actor, d R
 		return n, notices, nil
 	}
 	if !actor.Superuser {
-		n.edges = make([]Membership, len(r.state.edges)+1)
+		count := len(r.state.edges) + 1
+		if selfGrant.Inherit || selfGrant.Set {
+			count++
+		}
+		n.edges = make([]Membership, count)
 		copy(n.edges, r.state.edges)
 		n.edges[len(r.state.edges)] = Membership{Role: d.Ref, Member: actor.Ref, Grantor: r.state.names["postgres"], Admin: true}
+		if selfGrant.Inherit || selfGrant.Set {
+			n.edges[len(r.state.edges)+1] = Membership{Role: d.Ref, Member: actor.Ref, Grantor: actor.Ref, Inherit: selfGrant.Inherit, Set: selfGrant.Set}
+		}
 	}
 	candidate := Read{r.owner, &n, r.databaseOwner}
 	ownedEdges := !actor.Superuser
