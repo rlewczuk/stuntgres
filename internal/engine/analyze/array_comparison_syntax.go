@@ -1,6 +1,10 @@
 package analyze
 
-import "stuntgres/internal/parser"
+import (
+	"slices"
+
+	"stuntgres/internal/parser"
+)
 
 // A postfix cast reports its child's SourcePosition for expression diagnostics,
 // but its own token identifies the syntax occurrence. Lowering the child must
@@ -33,7 +37,7 @@ func (b *Binder) storedExpressionSyntaxKey(raw parser.Expr) StoredExpressionSynt
 // operands and erased quantified constructor casts. Only changed ancestors are
 // copied; child queries normalize in their own lexical binding frame.
 func (b *Binder) NormalizeStoredExpression(raw parser.Expr) parser.Expr {
-	if len(b.Stored.Syntax) == 0 {
+	if len(b.Stored.Syntax) == 0 && len(b.Stored.Coercions) == 0 {
 		return raw
 	}
 	next, _ := b.NormalizeInListExpression(raw)
@@ -63,10 +67,41 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 		return next
 	}
 	if raw != nil {
+		key := b.storedExpressionSyntaxKey(raw)
+		generatedCoercion := false
+		if call, ok := raw.(parser.FunctionExpr); ok {
+			if source, exists := b.Stored.CoercionSources[key]; exists {
+				wrapper := b.Stored.Coercions[source]
+				generatedCoercion = call.Pos == wrapper.Pos && slices.Equal(call.Name.Parts, wrapper.Name.Parts)
+				if generatedCoercion && !b.wrappingSyntax[source] {
+					if b.wrappingSyntax == nil {
+						b.wrappingSyntax = make(map[StoredExpressionSyntaxKey]bool)
+					}
+					b.wrappingSyntax[source] = true
+					defer delete(b.wrappingSyntax, source)
+				}
+			}
+		}
+		if wrapper, exists := b.Stored.Coercions[key]; exists && !b.wrappingSyntax[key] {
+			if b.wrappingSyntax == nil {
+				b.wrappingSyntax = make(map[StoredExpressionSyntaxKey]bool)
+			}
+			b.wrappingSyntax[key] = true
+			defer delete(b.wrappingSyntax, key)
+			next, _ := b.NormalizeInListExpression(wrapper)
+			return next, true
+		}
 		switch raw.(type) {
 		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr, parser.ColumnExpr:
-			key := b.storedExpressionSyntaxKey(raw)
-			if lowered, ok := b.Stored.Syntax[key]; ok && !b.normalizingSyntax[key] {
+			lowered, exists := b.Stored.Syntax[key]
+			// A generated call and a written call can share token/input keys.
+			// Lower the written input, not the surrounding coercion, with its
+			// ordinary selected-call annotation.
+			if generatedCoercion {
+				call, ok := lowered.(parser.FunctionExpr)
+				exists = exists && ok && slices.Equal(call.Name.Parts, raw.(parser.FunctionExpr).Name.Parts)
+			}
+			if exists && !b.normalizingSyntax[key] {
 				if b.normalizingSyntax == nil {
 					b.normalizingSyntax = make(map[StoredExpressionSyntaxKey]bool)
 				}
@@ -78,6 +113,11 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 		}
 	}
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		r.Child = child(r.Child)
+		if changed {
+			return r, true
+		}
 	case parser.XMLParseExpr:
 		r.Child = child(r.Child)
 		if changed {
@@ -300,7 +340,7 @@ func (b *Binder) normalizeInListWindow(raw *parser.WindowSpec) (*parser.WindowSp
 }
 
 func (b *Binder) NormalizeStoredQuerySyntax(s *parser.Select) {
-	if len(b.Stored.Syntax) == 0 {
+	if len(b.Stored.Syntax) == 0 && len(b.Stored.Coercions) == 0 {
 		return
 	}
 	s.Targets, _ = b.normalizeInListArguments(s.Targets)

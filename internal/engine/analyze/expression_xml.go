@@ -79,3 +79,15 @@ func (b *Binder) bindXMLSerialize(raw parser.XMLSerializeExpr) (expr.Expr, error
 	}
 	return plan.CoercionExpr{Info: b.Info(converted.ResultUsage(), raw.Pos, converted.Properties()), Child: converted, Plan: identity, Mode: sqltype.Implicit, XMLSerializeResult: true}, nil
 }
+
+func (b *Binder) bindXMLDocumentPredicate(raw parser.XMLDocumentPredicateExpr) (expr.Expr, error) {
+	source, err := b.xmlSource(raw.Child, b.Type(sqltype.XML).Usage(), "IS DOCUMENT", raw.Pos)
+	if err != nil {
+		return nil, err
+	}
+	if b.Params.NoParameters || b.Consumer.frozenDefinition {
+		raw.Child = b.NormalizeStoredExpression(raw.Child)
+	}
+	node := functions.XMLDocumentPredicate{Info: b.Info(b.Type(sqltype.Bool).Usage(), raw.Pos, source.Properties()), Child: source, Negated: raw.Negated, Syntax: raw}
+	return node, node.ValidateStoredProvider()
+}

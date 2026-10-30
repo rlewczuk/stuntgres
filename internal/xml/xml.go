@@ -64,11 +64,21 @@ func Parse(ctx context.Context, input string, opts Options) (Result, error) {
 	r, _, err := parse(ctx, input, opts, false)
 	return r, err
 }
+
+// parsePolicy is operation-local: XPath's options0 tree must not change type
+// input or serialization, which expand entities and admit DTD defaults.
+type parsePolicy struct {
+	collect, ignoreBlanks                                     bool
+	strictNamespaces, preserveEntities, omitDefaultAttributes bool
+	strictValidity                                           bool
+	documentContext                                           bool // xmlCtxtReadMemory entry, distinct from type input
+}
+
 func parse(ctx context.Context, input string, opts Options, collect bool) (Result, *document, error) {
-	r, d, _, err := parseConfigured(ctx, input, opts, collect, false)
+	r, d, _, err := parseConfigured(ctx, input, opts, parsePolicy{collect: collect})
 	return r, d, err
 }
-func parseConfigured(ctx context.Context, input string, opts Options, collect, ignoreBlanks bool) (Result, *document, []Diagnostic, error) {
+func parseConfigured(ctx context.Context, input string, opts Options, policy parsePolicy) (Result, *document, []Diagnostic, error) {
 	if err := ctx.Err(); err != nil {
 		return Result{}, nil, nil, err
 	}
@@ -98,8 +108,11 @@ func parseConfigured(ctx context.Context, input string, opts Options, collect, i
 			return Result{}, nil, nil, errConvert
 		}
 	}
-	p := parser{ctx: ctx, s: input, requested: opts.Mode, effective: opts.Mode, line: 1, column: 1, replaceEntities: opts.Mode == Document, ignoreBlanks: ignoreBlanks, spaceState: -1}
-	if collect {
+	p := parser{ctx: ctx, s: input, requested: opts.Mode, effective: opts.Mode, line: 1, column: 1, replaceEntities: opts.Mode == Document, ignoreBlanks: policy.ignoreBlanks, policy: policy, spaceState: -1}
+	if policy.documentContext && opts.Mode == Document && len(input) >= 3 && input[:3] == "\xef\xbb\xbf" {
+		p.i = 3
+	}
+	if policy.collect {
 		p.tree = &document{}
 	}
 	if opts.Mode == Content {
@@ -138,7 +151,7 @@ func parseConfigured(ctx context.Context, input string, opts Options, collect, i
 	if p.failed() {
 		return Result{}, nil, p.events, p.parseError()
 	}
-	if collect {
+	if policy.collect {
 		p.finishDocument()
 		if p.err != nil {
 			return Result{}, nil, p.events, p.err

@@ -131,6 +131,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		n, ok := bound.(functions.XMLDocumentPredicate)
+		if !ok || n.Negated != r.Negated {
+			return fmt.Errorf("stuntgres: mismatched IS DOCUMENT occurrence")
+		}
+		return protocol(expr.CaptureXMLDocument, []parser.Expr{r.Child})
 	case parser.XMLParseExpr:
 		n, ok := bound.(functions.XMLParse)
 		if !ok || n.Document != r.Document || n.Whitespace != r.Whitespace {

@@ -87,7 +87,9 @@ standard library, and holds no state, no mutex and no engine callback.
 ## Testing
 
 XML replay recursion and unconditional nested-parameter rejection use
-`RUN='^TestXMLRestoreScalarGuard$'`.
+`RUN='^TestXMLRestoreScalarGuard$'`. XMLEXISTS replay uses the ordinary two-formal
+function recipe and recursively checks both arguments in stored and INSERT modes;
+its special SQL spelling adds no separate restore admission path.
 
 Package units pin `Order`'s phase scheduler and the `RestoreScalar` modes;
 engine witnesses build dump graphs (partition attach/detach, operators,

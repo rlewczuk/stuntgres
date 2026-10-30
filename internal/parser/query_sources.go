@@ -98,6 +98,8 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 			}
 		}
 		switch e := raw.(type) {
+		case XMLDocumentPredicateExpr:
+			return expression(e.Child)
 		case XMLParseExpr:
 			return expression(e.Child)
 		case XMLSerializeExpr:

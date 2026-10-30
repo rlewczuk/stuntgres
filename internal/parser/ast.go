@@ -1737,6 +1737,8 @@ type queryTail struct {
 
 func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
+	case XMLDocumentPredicateExpr:
+		return singletonArgument(e.Child)
 	case XMLParseExpr:
 		return singletonArgument(e.Child)
 	case XMLSerializeExpr:
@@ -2412,6 +2414,8 @@ func ExpressionStart(expr Expr) Position {
 		return ExpressionStart(e.Left)
 	case PredicateExpr:
 		return ExpressionStart(e.Left)
+	case XMLDocumentPredicateExpr:
+		return ExpressionStart(e.Child)
 	case JSONPredicateExpr:
 		return ExpressionStart(e.Child)
 	case LogicalExpr:

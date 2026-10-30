@@ -1,4 +1,4 @@
-# XML character parser
+# XML character parser and XPath evaluator
 
 `Parse(context.Context, string, Options)` is the concrete, handwritten XML
 DOCUMENT/CONTENT validator. `Content` permits empty values, text and multiple
@@ -7,6 +7,32 @@ while retaining CONTENT error classification. `Document` requires one root with
 legal prolog/epilog. The scanner uses fixed XML 1.0 fifth-edition names and
 characters, not host Unicode categories. Version compatibility does not change
 those character ranges.
+
+`IsDocument` classifies accepted characters independently of their input mode;
+`IsWellFormed` suppresses recoverable parse failures only. `XMLExists` reparses
+with the shared parser's operation-local DOCUMENT/options0 policy: namespace
+and `xml:id` validity failures are fatal, ordinary DTD default attributes are absent,
+default namespace bindings remain effective, and entity boundaries survive.
+Validation and serialization keep their own existing policies; no operation
+changes another call's accepted value, warnings or parser state.
+The document-context memory-reader entry owns its initial UTF8 BOM handling and
+single empty-document diagnostic; type input retains its distinct entry rules.
+
+XPath compilation retains immutable syntax only. Invocation-private frames
+project seven node kinds with stable owner/namespace identity, document order,
+all axes and axis-ordered predicates. Namespace axes retain explicit empty default
+bindings as owner-specific nodes: the nearest declaration masks ancestor bindings,
+and descendants inherit the empty binding with their own namespace-node identity.
+Entity replacement contributes to element string-values without entering navigation
+axes. Typed node-set, string, number
+and boolean results share the XPath 1.0 operators, conversions and core function
+library. Numeric scanning and formatting reproduce the release provider's bounded
+fraction/exponent scanner and fifteen-digit formatting rules. Prefixes are query
+bindings, not document declarations; `xml` is predefined. Evaluation checks
+cancellation and checked buffer growth and retains
+no tree, context or scratch in `Result` or compiled expressions. `XPathError`
+distinguishes empty, compilation and evaluation failures; `XPathContextError`
+retains the strict XML parser diagnostic separately from XML input failures.
 
 `Options.InputKind` distinguishes already-decoded `Text` from raw-byte `Binary`
 strings. Text declarations never reinterpret the characters. Binary preflight
@@ -26,7 +52,9 @@ The private `parseExpanded` entry uses the same parser with a nullable transient
 collector. Its operation-owned document preserves ordered element/text/CDATA/
 comment/PI/DOCTYPE nodes, resolved names, namespace declarations, normalized
 explicit/default attributes and unresolved entity-reference identity. It is not
-retained by Result. Repeated entity occurrences have independent mutable nodes.
+retained by Result. Expanded entity occurrences own their nodes. Preserved
+references have distinct boundaries and may share immutable replacement
+contributions within that operation; navigation never enters those contributions.
 Immutable input strings and unchanged node values safely share backing storage.
 Adjacent text is coalesced once; temporary text-part slices are cleared before
 publication rather than retained as mutable collector scratch.
@@ -70,8 +98,17 @@ input; `EntityName` identifies a replacement. Offset and SourceBaseOffset belong
 to that source, not an invented original-document position. Invoking failures are
 separate later events in the parent's source.
 `Detail()` joins only error/fatal blocks without a terminal newline; general
-warnings remain separately observable. Namespace-domain failures do not establish
-ill-formedness. An ordinary lexical duplicate does only when it is the first prior
+warnings remain separately observable. Type-input and serializer policies filter
+namespace-domain failures; XPath's strict policy records them at declaration and
+name-resolution sites and treats them as errors.
+Strict-context `xml:id` validation emits its DTD-domain error at start-tag
+completion after all attributes and namespaces, independently of XPath demand.
+Its release NCName character classes
+remain separate from parser Name rules. Surrounding XML blanks are valid without
+being removed from the collected attribute or ID index; no extra ID normalization
+is performed. Type-input, well-formedness and serializer policies retain their
+existing treatment of validity-domain diagnostics.
+An ordinary lexical duplicate establishes ill-formedness only when it is the first prior
 local-name match (before any equal-URI match); namespace declaration duplicates
 do only when both declarations qualify for namespace collection.
 No SQLSTATE, SQL query position or C source metadata is fabricated by this provider.
@@ -468,4 +505,5 @@ attributes and cancellation during valid and already-failed string decoding.
 make check RUN='^TestXMLCore'
 make check RUN='^TestXMLDTD'
 make check RUN='^TestXMLSerialize'
+make check RUN='^Test(XMLPredicate|XPath)'
 ```

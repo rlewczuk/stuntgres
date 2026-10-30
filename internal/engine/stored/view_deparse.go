@@ -1333,6 +1333,16 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			text = "(" + text + ")"
 		}
 		return text, nil
+	case parser.XMLDocumentPredicateExpr:
+		text, err := child(e.Child)
+		if err != nil {
+			return "", err
+		}
+		suffix := " IS DOCUMENT)"
+		if e.Negated {
+			suffix = " IS NOT DOCUMENT)"
+		}
+		return "(" + text + suffix, nil
 	case parser.XMLParseExpr:
 		text, err := child(e.Child)
 		if err != nil {

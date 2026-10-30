@@ -99,6 +99,9 @@ admission and removes it before nested binding.
   Neither grants XML SQL comparison or executable companion arrays.
   `XMLInput` overrides the session mode for explicit parse operations;
   `XMLSerialize` owns raw character conversion and this-call parser notices.
+  `XMLIsDocument`, `XMLIsWellFormed` and `XMLExists` bridge BOOL providers without
+  retaining trees. XPath stage errors map to 10608; strict context-parse errors
+  map to 2200M with operation-specific primary text and original XML Detail.
   Typed text/binary output uses the provider's distinct declaration policy.
   Binary output formats its target declaration as Unicode, then appends through
   the admitted `Transport` capability only when `ByteTransport` is enabled;

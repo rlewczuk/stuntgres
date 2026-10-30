@@ -114,9 +114,14 @@ single-statement limit of driver calls) belong to callers.
 - `SET [SESSION|LOCAL] XML OPTION DOCUMENT/CONTENT` lowers to the existing
   xmloption Set node. XML retains ordinary identifier, type-name and literal
   contexts. Positioned XMLPARSE/XMLSERIALIZE nodes keep their child, explicit
-  mode, whitespace/indent choice and serializer target syntax. Contextual clause
-  tokens do not turn those words into globally reserved identifiers. Query and
-  expression visitors descend into both operands.
+  mode, whitespace/indent choice and serializer target syntax. IS DOCUMENT keeps
+  nullable negation distinct from IS NULL. XMLEXISTS requires two c-expression
+  operands, accepting and ignoring each omitted/REF/VALUE passing clause, then
+  lowers to an ordinary positioned `pg_catalog.xmlexists` function call.
+  Postfix casts and compound operands require parentheses in the special syntax.
+  Contextual clause tokens preserve ordinary document/passing/value
+  identifiers. Query and expression visitors descend through every operand in
+  written order.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Repeated events are rejected at the
   repeated event token, preserving its raw spelling and character position.
@@ -448,7 +453,7 @@ feature prefix.
 - Keywords and ordinary keyword calls: `RUN='^Test(Keyword|OrdinaryKeywordCallHeads)'`
 - Scratch receivers: `RUN='^TestParseScratch'` (also with `RACE=1`)
 - SQL/JSON and JSON_TABLE: `RUN='^Test(SQLJSONQueryParser|JSONTableParser|JSONBPathOpsParser)$'`
-- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal)$'`
+- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal)$'`
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`

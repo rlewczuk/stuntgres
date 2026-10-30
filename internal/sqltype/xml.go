@@ -71,6 +71,14 @@ func xmlError(err error) error {
 	if err == nil {
 		return nil
 	}
+	var xp *xml.XPathError
+	if errors.As(err, &xp) {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "10608", Message: xp.Error(), Detail: xp.Detail}
+	}
+	var xc *xml.XPathContextError
+	if errors.As(err, &xc) {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2200M", Message: xc.Error(), Detail: xc.Parse.Detail()}
+	}
 	var pe *xml.ParseError
 	if errors.As(err, &pe) {
 		code := "2200N"
@@ -121,6 +129,28 @@ func XMLSerialize(ctx context.Context, v Value, mode XMLMode, indent bool, env I
 	text, events, err := xml.Serialize(ctx, result, xml.SerializeOptions{Mode: mode, Indent: indent})
 	xmlWarnings(events, env)
 	return text, xmlInputError(err, env)
+}
+
+func XMLIsDocument(ctx context.Context, v Value) (bool, error) {
+	result, err := v.XML()
+	if err != nil {
+		return false, err
+	}
+	ok, err := xml.IsDocument(ctx, result)
+	return ok, xmlError(err)
+}
+func XMLIsWellFormed(ctx context.Context, text string, mode XMLMode) (bool, error) {
+	ok, err := xml.IsWellFormed(ctx, text, mode)
+	return ok, xmlError(err)
+}
+func XMLExists(ctx context.Context, path string, v Value, env InputEnvironment) (bool, error) {
+	result, err := v.XML()
+	if err != nil {
+		return false, err
+	}
+	ok, events, err := xml.XMLExists(ctx, path, result)
+	xmlWarnings(events, env)
+	return ok, xmlInputError(err, env)
 }
 func (d *Descriptor) xmlOutput(ctx context.Context, v Value, env OutputEnvironment, binary bool) (string, error) {
 	result, err := v.XML()

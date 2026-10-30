@@ -40,14 +40,32 @@ unchanged callable declarations retain their original identity rather than an
 operation-local clone. The complete expression mapper still checks hidden
 type/collation fields, so genuine provider changes replace recipe backing.
 
-XML parse/serialize recipes retain explicit modes and whitespace/indent options
-through scalar rendering and frozen query presentation. Serializer target Usage
-is authenticated against the actual accepted node in its owning query frame;
-raw target spelling cannot supply descriptor authority. Generic remap/retag
-rebinds hidden TEXT conversion generations without reparsing accepted XML.
-Lossless datum replay remains the scalar literal owner's requested-mode spelling.
-Literal validation pairs the rendered root syntax with its registered query
-frame before traversing occurrences; detached replacement syntax has no authority.
+XML recipes retain modes, whitespace/indent options and document negation through
+rendering and frozen query presentation. Special XMLEXISTS lowers to the ordinary
+qualified routine recipe, with normal function capture and replay; ignored passing
+clauses require no separate frozen syntax or source-assignment authority.
+Generated implicit cast calls retain a separate ordinary routine occurrence around
+the complete written operand, including explicit casts. Normalization preserves
+that occurrence order across capture and final query publication, so deparse and
+replay use the actual selected cast procedure even after its name changes.
+Serializer target Usage and every written XML source occurrence authenticate
+against the actual accepted node in its owning query frame. Raw spelling cannot
+supply descriptor or routine authority. Generic remap/retag rebinds hidden
+conversion generations without reparsing XML. Lossless datum replay retains the
+requested input mode. Literal validation pairs root syntax with its registered
+query frame before traversal; detached replacement syntax has no authority.
+Erased same-Usage source casts retain their exact frozen target annotations.
+Standard CAST replay authenticates those boundaries before matching the surviving
+operand position; raw cast spelling or a different canonical target cannot grant
+source authority.
+
+`TestXMLPredicateFrozenOwnership` also checks a real implicit catalog-cast operand
+under ordinary XMLEXISTS: selected procedure association, invocation descriptor
+generations and immutable backing survive rebuild/remap/identity retag. Same-valued
+alternate routines cannot replace frozen executable occurrence references or the
+selected cast's procedure/reference association. The public predicate lifecycle
+carries that cast-bearing view through rename, deparse recreation and native
+Dump/Reset/Restore with held, retained-row and fresh-reader assertions.
 
 SQL/PL routines share callable captures. Language/body kind, declaration replay
 sources and typed local Usages participate in validation, equivalence and remap;

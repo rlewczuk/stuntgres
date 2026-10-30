@@ -51,6 +51,8 @@ func bindIndexExpression(e *core.Engine, op *session.Operation, input sqltype.In
 	}
 	label := "expr"
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		label = "xml_is_document"
 	case parser.XMLParseExpr:
 		label = "xmlparse"
 	case parser.XMLSerializeExpr:

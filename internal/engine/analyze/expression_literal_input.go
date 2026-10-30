@@ -25,6 +25,8 @@ func ExpressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 		bound = coercion.Child
 	}
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		return "xml_is_document", true
 	case parser.XMLParseExpr:
 		return "xmlparse", true
 	case parser.XMLSerializeExpr:

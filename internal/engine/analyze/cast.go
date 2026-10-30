@@ -192,10 +192,23 @@ func (b *Binder) declaredCoercion(child expr.Expr, target sqltype.Usage, mode sq
 	if raw != nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 		ns := view.Get(p.Namespace()).Name()
 		frozen := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: ns}, {Text: p.Name()}}}, Args: rawArgs, Pos: pos, StoredSQLRoutine: p.RoutineDefinition() != nil || p.RangeConstructor != nil}
-		if b.Stored.Syntax == nil {
-			b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+		if mode == sqltype.Explicit {
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: pos}] = frozen
+		} else {
+			// An implicit/assignment conversion owns the complete written input,
+			// not its diagnostic start token (a postfix cast has a distinct key).
+			// Its call is an added occurrence, not a replacement of that input.
+			source := b.storedExpressionSyntaxKey(raw)
+			if b.Stored.Coercions == nil {
+				b.Stored.Coercions = make(map[StoredExpressionSyntaxKey]parser.FunctionExpr)
+				b.Stored.CoercionSources = make(map[StoredExpressionSyntaxKey]StoredExpressionSyntaxKey)
+			}
+			b.Stored.Coercions[source] = frozen
+			b.Stored.CoercionSources[b.storedExpressionSyntaxKey(frozen)] = source
 		}
-		b.Stored.Syntax[StoredExpressionSyntaxKey{Frame: b.FrameID(), Position: pos}] = frozen
 	}
 	if result.ResultUsage().Type != target.Type {
 		info.Property = result.Properties()

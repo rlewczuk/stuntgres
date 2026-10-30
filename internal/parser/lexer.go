@@ -21,8 +21,9 @@ type lexer struct {
 	commentPositionOffset, commentPositionCharacters int
 	current                                          lexeme
 	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
-	previousToken int
-	plClosingLoop bool // Immediately after END LOOP, not an opening LOOP.
+	previousToken       int
+	beforePreviousToken int
+	plClosingLoop       bool // Immediately after END LOOP, not an opening LOOP.
 	// Contextual role payload words are not global SQL keywords.
 	roleHead int
 	// Operator definition options share type syntax, including SETOF, without
@@ -1187,12 +1188,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
-		if token.lexeme.text == "xmlparse" || token.lexeme.text == "xmlserialize" {
+		if token.lexeme.text == "xmlparse" || token.lexeme.text == "xmlserialize" || token.lexeme.text == "xmlexists" {
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
 			if next.code == int('(') {
 				if token.lexeme.text == "xmlparse" {
 					token.code = XML_PARSE
+				} else if token.lexeme.text == "xmlexists" {
+					token.code = XML_EXISTS
 				} else {
 					token.code = XML_SERIALIZE
 				}
@@ -1200,6 +1203,18 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		if len(l.xmlDepths) > 0 && l.jsonParenDepth == l.xmlDepths[len(l.xmlDepths)-1].Depth {
 			state := &l.xmlDepths[len(l.xmlDepths)-1]
+			if state.Exists {
+				if token.lexeme.text == "passing" && !state.Passed {
+					switch l.previousToken {
+					case '(', ',', '+', '-', '*', '/', '=', '<', '>', AND, OR, NOT, XML_PASSING, BY, XML_PASS_KIND:
+					default:
+						token.code, state.Passed = XML_PASSING, true
+					}
+				}
+				if l.previousToken == BY && (token.lexeme.text == "ref" || token.lexeme.text == "value") {
+					token.code = XML_PASS_KIND
+				}
+			}
 			if token.code == AS && state.Serialize {
 				state.Target = true
 			}
@@ -1226,6 +1241,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				}
 			}
 		}
+	}
+	if token.lexeme.keyword != nil && token.lexeme.text == "document" && (l.previousToken == IS || l.previousToken == NOT && l.beforePreviousToken == IS) {
+		token.code = XML_DOCUMENT
 	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
 		switch token.lexeme.text {
@@ -1971,6 +1989,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
 	l.plClosingLoop = token.code == PL_LOOP && l.previousToken == END
+	l.beforePreviousToken = l.previousToken
 	l.previousToken = token.code
 	return token.code
 }

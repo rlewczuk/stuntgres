@@ -153,13 +153,15 @@ names, authorize input alongside domains.
 XML nominal literals resolve the concrete XML descriptor through that same
 typed-literal lane. Their accepted immutable payload joins the existing
 InputConstant/TemporalConstant capture, independently of fold publication.
-Runtime concrete TEXT casts and XMLPARSE remain execution recipes. Both XML
-sources use ordinary assignment-context coercion before provider NULL handling,
-including declared nonstrict casts. Serializer source input precedes target
-resolution; target conversion uses ordinary implicit coercion. A narrow result
-marker on the existing coercion wrapper preserves XML syntax across native and
-catalog cast graphs. Frozen target Usage and source occurrences, not raw names,
-are authenticated against that actual accepted structure.
+Runtime concrete TEXT casts and XML special forms remain execution recipes.
+XMLPARSE, XMLSERIALIZE and document-predicate sources use ordinary
+assignment-context coercion before provider NULL handling, including declared
+nonstrict casts. Serializer source input precedes target resolution; target
+conversion uses ordinary implicit coercion. A narrow result marker preserves
+serializer syntax across native and catalog cast graphs. Special XMLEXISTS lowers
+to an ordinary qualified call: the normal routine resolver owns overload selection,
+implicit formal applicability, EXECUTE authority, dependencies and frozen capture.
+Frozen usages and source occurrences, not raw names, authenticate XML operations.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before
@@ -253,7 +255,12 @@ library, and never the root engine or `session`. The engine, the root driver
   SQL routine remains checked rather than reverting to builtin cast selection;
   standard/postfix cast occurrences remain separate. Guarded normalization
   follows substituted roots, including cast-to-call lowering, and children
-  without mutating shared syntax. Proof:
+  without mutating shared syntax.
+  Generated implicit/assignment cast calls wrap the complete written occurrence,
+  including any explicit source cast. Binder-local wrapper/source keys make
+  normalization repeatable after ancestor provider capture, without hiding the
+  source's own selected routine annotation. Capture and replay traverse both
+  ordinary call occurrences with their actual executable references. Proof:
   `make check RUN='^(TestCreateAggregateStoredSyntaxCastOwnership|TestStoredProviderSyntax(GeneratedOccurrences|SubstitutedRoot|OwnedAggregateOccurrence|FunctionCastOccurrence)|TestSQLRoutineFrozenPresentation)$'`.
   Builtin aggregate/window plans retain original checked declarations from the
   binding snapshot alongside refs. Aggregate slot reuse requires the same selected

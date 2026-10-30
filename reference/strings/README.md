@@ -5,8 +5,9 @@ and assignment), string literals and Unicode escapes, and string functions:
 trim, `normalize` and concatenation, case mapping, length and position, padding,
 `repeat` and `reverse`, replacement and `overlay`, slicing (`left`, `right`,
 `substring`), splitting, `parse_ident`, integer-base formatting and TEXT `md5`,
-`ascii`/`chr`/`unistr`/`to_ascii`, `string_agg`, and XML scalar input,
-parsing, serialization, session/prepared lifetimes, wire/COPY and controls. Pattern matching, `format`
+`ascii`/`chr`/`unistr`/`to_ascii`, `string_agg`, XML scalar input, parsing,
+serialization, validation/document/XPath existence predicates, session/prepared
+lifetimes, wire/COPY and controls. Pattern matching, `format`
 and the variadic `concat`/`quote_*` functions are in
 [reference/patterns_encoding](../patterns_encoding/README.md#testing); BYTEA and
 binary hashing are in [temporal_types](../temporal_types/README.md#testing).
@@ -41,6 +42,9 @@ Add `REFERENCE=1` for the oracle.
 - `ascii`, `chr`, `unistr`, `to_ascii`: `RUN='^TestReferenceStringEncoding'`
 - `string_agg`: `RUN='^TestReferenceStringAgg'`
 - XML scalar acceptance: `RUN='^TestReferenceXML'`
+- XML predicate cast-bearing held/view/deparse/control lifetimes and deterministic
+  late INSERT/UPDATE failures: `RUN='^(TestReferenceXMLPredicateLifecycle|TestReferenceXMLPredicateDiagnostics)$'`
+  in both native and real-reference modes.
 - BIT and VARBIT types: `RUN='^TestReferenceBitstring'`
 - Bit-string operators: `RUN='^TestReferenceBitOperators'`
 - Bit-string functions (`bit_count`, `length`, `position`, `substring`, `overlay`, ...): `RUN='^TestReferenceBitStringFunctions'`

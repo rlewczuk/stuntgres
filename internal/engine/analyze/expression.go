@@ -58,6 +58,7 @@ type Binder struct {
 	plCallOutputs     []PLCallOutput
 	plAssignmentQuery *parser.Select
 	normalizingSyntax map[StoredExpressionSyntaxKey]bool
+	wrappingSyntax    map[StoredExpressionSyntaxKey]bool
 
 	Target         targetContext
 	Params         parameterState

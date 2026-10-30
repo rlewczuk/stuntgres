@@ -278,6 +278,8 @@ func selectedScalarOperators(l sqlLexer, expr Expr) bool {
 		return true
 	}
 	switch e := expr.(type) {
+	case XMLDocumentPredicateExpr:
+		return selectedScalarOperators(l, e.Child)
 	case XMLParseExpr:
 		return selectedScalarOperators(l, e.Child)
 	case XMLSerializeExpr:
@@ -601,6 +603,8 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case XMLDocumentPredicateExpr:
+		return l.scalarInputTree(r.Child)
 	case XMLParseExpr:
 		return l.scalarInputTree(r.Child)
 	case XMLSerializeExpr:

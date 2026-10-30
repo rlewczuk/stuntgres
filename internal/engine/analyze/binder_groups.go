@@ -92,10 +92,15 @@ type StoredSyntaxState struct {
 	CheckLiterals []plan.LiteralExpr
 	// Frozen syntax retains analyzed lowering without changing prepared source.
 	// Analysis-only templates never enter executable nodes or prepared frames.
-	Syntax        map[StoredExpressionSyntaxKey]parser.Expr
-	valuesCount   int
-	joinCount     int
-	functionCount int
+	Syntax map[StoredExpressionSyntaxKey]parser.Expr
+	// Generated coercion calls wrap, rather than replace, their written source.
+	// Keep both occurrence keys so repeated normalization neither recaptures the
+	// wrapper nor hides ordinary lowering/annotations on its source expression.
+	Coercions       map[StoredExpressionSyntaxKey]parser.FunctionExpr
+	CoercionSources map[StoredExpressionSyntaxKey]StoredExpressionSyntaxKey
+	valuesCount     int
+	joinCount       int
+	functionCount   int
 }
 
 // ClauseState is the state of the clause being bound: its name for

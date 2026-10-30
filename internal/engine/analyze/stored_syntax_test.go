@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/plan"
@@ -176,5 +177,61 @@ func TestStoredProviderSyntaxFunctionCastOccurrence(t *testing.T) {
 	b.Query.Frame = 2
 	if _, ok := b.NormalizeStoredExpression(raw).(parser.CastExpr); !ok || len(b.normalizingSyntax) != 0 {
 		t.Fatal("call annotation crossed query frames or retained its guard")
+	}
+}
+
+func TestStoredCoercionSyntaxOccurrenceOwnership(t *testing.T) {
+	start := parser.Position{Offset: 12, Character: 13}
+	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: start}}
+	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "n"}}}, Pos: start}
+	cast := parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "integer"}, Syntax: parser.PostfixCast, Pos: parser.Position{Offset: 16, Character: 17}}
+	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "source"}}}, Args: []parser.Expr{column}, Pos: parser.Position{Offset: 5, Character: 6}}
+	for name, raw := range map[string]parser.Expr{"literal": literal, "column": column, "postfix-cast": cast, "function": call} {
+		t.Run(name, func(t *testing.T) {
+			b := &Binder{}
+			source := b.storedExpressionSyntaxKey(raw)
+			wrapper := parser.FunctionExpr{
+				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "cast_source"}}},
+				Args: []parser.Expr{raw}, Pos: raw.SourcePosition(), StoredSQLRoutine: true,
+			}
+			b.Stored.Coercions = map[StoredExpressionSyntaxKey]parser.FunctionExpr{source: wrapper}
+			b.Stored.CoercionSources = map[StoredExpressionSyntaxKey]StoredExpressionSyntaxKey{b.storedExpressionSyntaxKey(wrapper): source}
+			normalized := b.NormalizeStoredExpression(raw).(parser.FunctionExpr)
+			for range 3 {
+				normalized = b.NormalizeStoredExpression(normalized).(parser.FunctionExpr)
+			}
+			if !normalized.StoredSQLRoutine || !reflect.DeepEqual(normalized.Args[0], raw) || len(b.normalizingSyntax) != 0 || len(b.wrappingSyntax) != 0 {
+				t.Fatal("normalization duplicated the conversion or changed its source", normalized)
+			}
+			// Provider capture can annotate an ancestor after its children were
+			// normalized. The final query walk must preserve exactly that tree.
+			parent := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "consumer"}}}, Args: []parser.Expr{raw}, Pos: parser.Position{Offset: 1, Character: 2}}
+			frozen := parent
+			frozen.Args = []parser.Expr{normalized}
+			frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, "consumer"
+			b.Stored.Syntax = map[StoredExpressionSyntaxKey]parser.Expr{b.storedExpressionSyntaxKey(parent): frozen}
+			got := b.NormalizeStoredExpression(parent).(parser.FunctionExpr)
+			if !reflect.DeepEqual(got, frozen) || !reflect.DeepEqual(parent.Args[0], raw) {
+				t.Fatal("late ancestor capture duplicated a generated call or mutated input", got)
+			}
+			outer := parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: "text"}, Syntax: parser.PostfixCast, Pos: parser.Position{Offset: 40, Character: 41}}
+			if next := b.NormalizeStoredExpression(outer).(parser.CastExpr); next.Pos != outer.Pos || !reflect.DeepEqual(next.Child, normalized) {
+				t.Fatal("conversion erased its enclosing written cast", next)
+			}
+			if sourceCall, ok := raw.(parser.FunctionExpr); ok {
+				// The wrapper cannot hide a selected routine annotation on its
+				// written producer, even when captured after the wrapper itself.
+				sourceCall.StoredSQLRoutine = true
+				b.Stored.Syntax[source] = sourceCall
+				got := b.NormalizeStoredExpression(normalized).(parser.FunctionExpr)
+				if !got.Args[0].(parser.FunctionExpr).StoredSQLRoutine || !got.StoredSQLRoutine {
+					t.Fatal("conversion hid its source routine occurrence", got)
+				}
+			}
+			b.Query.Frame = 2
+			if !reflect.DeepEqual(b.NormalizeStoredExpression(raw), raw) {
+				t.Fatal("conversion crossed its lexical query frame")
+			}
+		})
 	}
 }

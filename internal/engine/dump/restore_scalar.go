@@ -17,6 +17,8 @@ import (
 // ordinary binder must enforce the selected-provider restriction.
 func RestoreScalar(raw parser.Expr, stored bool, eligible ...func(parser.FunctionExpr) bool) error {
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.XMLParseExpr:
 		return RestoreScalar(r.Child, stored, eligible...)
 	case parser.XMLSerializeExpr:

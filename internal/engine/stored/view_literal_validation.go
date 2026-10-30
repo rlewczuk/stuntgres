@@ -461,6 +461,11 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.XMLDocumentPredicateExpr:
+		if _, err := v.capturedXML(path, r); err != nil {
+			return err
+		}
+		return child(r.Child)
 	case parser.XMLParseExpr:
 		if _, err := v.capturedXML(path, r); err != nil {
 			return err

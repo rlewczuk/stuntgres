@@ -69,14 +69,18 @@ dependency capture and native-control replay path, without a builtin serializer.
 Their published view attributes expose relation-column nullability independently
 of direct computed-source metadata.
 
-`XMLParse` and `XMLSerialize` retain immutable checked operands, explicit modes
-and written options. The analyzer owns ordinary source assignment conversions
-to TEXT/XML and implicit serializer target conversion, including catalog casts,
-domains and typmods. Providers consume checked TEXT/XML and never
-planning-fold: execution owns errors and call-local diagnostics.
-Explicit modes are independent of xmloption; semantic volatility follows child
-and conversion properties. Capture kinds distinguish both written families.
-Rebuild/retag follows ordinary conversion wrappers and preserves accepted values.
+`XMLParse`, `XMLSerialize`, `XMLDocumentPredicate` and `XMLExists` retain checked
+immutable operands and supported options. The analyzer owns assignment conversions
+for parse/serialize/document-predicate sources and implicit serializer target
+conversion, including catalog casts. All providers remain planning-unfolded;
+execution owns errors, strict NULL after source conversion and call-local diagnostics.
+Special XMLEXISTS lowers to the same ordinary qualified routine invocation as a
+written function call; both use implicit formals, actual routine identity, EXECUTE
+authority, normal function capture and ordinary call rendering. Passing clauses
+are accepted and ignored by the grammar. Validators use ordinary registry resolution:
+the unsuffixed validator is Stable and reads execution's XML mode each time;
+explicit document/content validators are Immutable. Rebuild and retag preserve
+conversion authority without retaining a DOM or session mode.
 
 `ArrayTransform` evaluates its child operands before parent transformation.
 `array_to_string` consumes one `WorkArrayTransform` runtime admission grant per
@@ -1019,7 +1023,7 @@ Visibility inquiry binding/protocol and composed capture ownership use
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
-use `RUN='^TestXMLExpression'`.
+use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand)'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

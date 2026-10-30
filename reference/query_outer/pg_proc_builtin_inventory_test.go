@@ -30,6 +30,9 @@ import (
 // parallel-safe scalar TEXT metadata and unnamed input formals.
 // The two publication inquiries retain released variadic/output formals,
 // strict/stable/parallel-safe metadata and fixed scalar/set-returning types.
+// The four XML predicate identities 2614/3051/3052/3053 retain strict scalar BOOL
+// results, parallel-safe defaults and internal symbols. Only the xmloption-aware
+// unsuffixed validator is STABLE; the other three are IMMUTABLE.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -133,9 +136,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// 2073 existing declarations, four text-search debug/stat overloads,
 	// eight JSON text-search overloads, five timezone-aware JSONPath query
 	// declarations, two publication inquiries, four match routines,
-	// and two genuine ispell helpers.
-	if len(facts) != 2098 {
-		t.Fatalf("released represented overloads: got %d, want 2098", len(facts))
+	// two genuine ispell helpers, and four executable XML predicate identities.
+	if len(facts) != 2102 {
+		t.Fatalf("released represented overloads: got %d, want 2102", len(facts))
 	}
 	return facts
 }

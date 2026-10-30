@@ -1,10 +1,11 @@
 # internal/engine/expr
 
-XML capture uses distinct `CaptureXMLParse` and `CaptureXMLSerialize` kinds, each
-with one written operand. `CaptureOperands.XMLSources` and `RenderArg.XMLSource`
-delegate peeling of the opener-owned source assignment to the engine's existing
-coercion structure. Modes/options and resolved serializer target Usage remain
-checked node/presentation data, not raw type-name authority.
+XML capture distinguishes parse, serialize and document-predicate syntax.
+`CaptureOperands.XMLSources` and `RenderArg.XMLSource` delegate peeling of each
+opener-owned assignment conversion to the existing coercion structure. Modes,
+negation and resolved serializer target Usage remain checked node/presentation
+data, not raw type-name or routine authority. XMLEXISTS uses normal function
+capture for both operands; special SQL syntax lowers to that same qualified call.
 
 The expression contract shared by the engine and `internal/engine/functions`:
 types and small pure helpers, including invocation-private cursor handles. It has

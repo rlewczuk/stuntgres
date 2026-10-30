@@ -3,6 +3,8 @@ package parser
 type xmlLexical struct {
 	Depth     int
 	Serialize bool
+	Exists    bool
+	Passed    bool
 	Target    bool
 }
 
@@ -29,3 +31,12 @@ type XMLSerializeExpr struct {
 
 func (XMLSerializeExpr) expression()                {}
 func (e XMLSerializeExpr) SourcePosition() Position { return e.Pos }
+
+type XMLDocumentPredicateExpr struct {
+	Child   Expr
+	Negated bool
+	Pos     Position
+}
+
+func (XMLDocumentPredicateExpr) expression()                {}
+func (e XMLDocumentPredicateExpr) SourcePosition() Position { return e.Pos }

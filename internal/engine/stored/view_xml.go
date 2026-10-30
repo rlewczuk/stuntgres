@@ -11,6 +11,33 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Same-Usage casts are erased by ordinary binding. A replayed standard CAST
+// starts before its surviving operand, unlike postfix syntax. Follow only the
+// exact frozen annotations of such erased boundaries, retaining the original
+// source position and the accepted operand's complete Usage as authority.
+func (v *View) xmlSourceOccurrence(path analyze.ViewLiteralPath, raw parser.Expr, bound expr.Expr) bool {
+	if raw == nil || bound == nil {
+		return false
+	}
+	path.Argument = 0
+	path.Node++ // The XML operation's first written operand.
+	for raw.SourcePosition() != bound.SourcePosition() {
+		cast, ok := raw.(parser.CastExpr)
+		if !ok || cast.FrozenMethod != "" {
+			return false
+		}
+		if usage, captured := v.castUsages[path]; !captured || usage != bound.ResultUsage() {
+			return false
+		}
+		raw = cast.Child
+		if raw == nil {
+			return false
+		}
+		path.Node++
+	}
+	return true
+}
+
 // Authenticate syntax against the actual accepted node in the owning frame,
 // independently of the presentation target map. Raw type names are not authority.
 func (v *View) capturedXML(path analyze.ViewLiteralPath, raw parser.Expr) (sqltype.Usage, error) {
@@ -20,10 +47,18 @@ func (v *View) capturedXML(path analyze.ViewLiteralPath, raw parser.Expr) (sqlty
 	check := func(node expr.Expr) {
 		match := false
 		switch n := node.(type) {
+		case functions.XMLDocumentPredicate:
+			if r, ok := raw.(parser.XMLDocumentPredicateExpr); ok && reflect.DeepEqual(n.Syntax, r) && n.SourcePosition() == r.Pos && n.Negated == r.Negated {
+				written, err := plan.XMLSourceOperand(n.Child, n.Pos)
+				match = err == nil && v.xmlSourceOccurrence(path, r.Child, written)
+				if match {
+					failure = n.ValidateStoredProvider()
+				}
+			}
 		case functions.XMLParse:
 			if r, ok := raw.(parser.XMLParseExpr); ok && reflect.DeepEqual(n.Syntax, r) && n.SourcePosition() == r.Pos {
 				written, err := plan.XMLSourceOperand(n.Child, n.Pos)
-				match = err == nil && r.Child != nil && written.SourcePosition() == r.Child.SourcePosition() && n.Document == r.Document && n.Whitespace == r.Whitespace
+				match = err == nil && v.xmlSourceOccurrence(path, r.Child, written) && n.Document == r.Document && n.Whitespace == r.Whitespace
 				if match {
 					failure = n.ValidateStoredProvider()
 				}
