@@ -52,6 +52,21 @@ func TestReferenceExplainDiagnostics(t *testing.T) {
 		{"child-before-option", "EXPLAIN (bogus) SELECT absent FROM explain_diag", "42703", `column "absent" does not exist`, "absent", "prepare", "", ""},
 		{"child-before-dependency", "EXPLAIN (WAL true) SELECT * FROM explain_absent", "42P01", `relation "explain_absent" does not exist`, "explain_absent", "prepare", "", ""},
 		{"syntax-before-child", "EXPLAIN (bogus) SELECT * FROM explain_absent WHERE", "42601", "syntax error at end of input", "<end>", "prepare", "", ""},
+		{"json-format-quoted", "EXPLAIN (FORMAT 'JSON') SELECT 1", "22023", `unrecognized value for EXPLAIN option "format": "JSON"`, "FORMAT", "execute", "", ""},
+		{"json-earlier-format", "EXPLAIN (FORMAT 'JSON', FORMAT JSON) SELECT 1", "22023", `unrecognized value for EXPLAIN option "format": "JSON"`, "FORMAT", "execute", "", ""},
+		{"json-absent-format", "EXPLAIN (FORMAT, FORMAT JSON) SELECT 1", "42601", "format requires a parameter", "", "prepare", "", ""},
+		{"json-costs-string-one", "EXPLAIN (FORMAT JSON, COSTS '1') SELECT 1", "42601", "costs requires a Boolean value", "", "execute", "", ""},
+		{"json-costs-string-zero", "EXPLAIN (FORMAT JSON, COSTS '0') SELECT 1", "42601", "costs requires a Boolean value", "", "execute", "", ""},
+		{"json-costs-decimal", "EXPLAIN (FORMAT JSON, COSTS 1.0) SELECT 1", "42601", "costs requires a Boolean value", "", "execute", "", ""},
+		{"json-costs-integer", "EXPLAIN (FORMAT JSON, COSTS 2) SELECT 1", "42601", "costs requires a Boolean value", "", "execute", "", ""},
+		{"json-boolean-order", "EXPLAIN (FORMAT JSON, COSTS '1', COSTS false) SELECT 1", "42601", "costs requires a Boolean value", "", "execute", "", ""},
+		{"json-wal-dependency", "EXPLAIN (FORMAT JSON, WAL true) SELECT 1", "22023", "EXPLAIN option WAL requires ANALYZE", "", "execute", "", ""},
+		{"json-dependency-order", "EXPLAIN (FORMAT JSON, TIMING true, WAL true) SELECT 1", "22023", "EXPLAIN option WAL requires ANALYZE", "", "execute", "", ""},
+		{"json-final-dependency", "EXPLAIN (FORMAT JSON, ANALYZE true, ANALYZE false, WAL true) SELECT 1", "22023", "EXPLAIN option WAL requires ANALYZE", "", "execute", "", ""},
+		{"json-child-option", "EXPLAIN (FORMAT JSON, bogus) SELECT absent FROM explain_diag", "42703", `column "absent" does not exist`, "absent", "prepare", "", ""},
+		{"json-child-format", "EXPLAIN (FORMAT 'JSON') SELECT * FROM explain_absent", "42P01", `relation "explain_absent" does not exist`, "explain_absent", "prepare", "", ""},
+		{"json-child-type", "EXPLAIN (FORMAT JSON, WAL) SELECT id FROM explain_diag WHERE 1", "42804", "argument of WHERE must be type boolean, not type integer", "1", "prepare", "", ""},
+		{"json-parse-first", "EXPLAIN (FORMAT JSON, bogus) SELECT * FROM explain_absent WHERE", "42601", "syntax error at end of input", "<end>", "prepare", "", ""},
 	}
 	for _, option := range []string{"ANALYZE", "VERBOSE", "COSTS", "SETTINGS", "GENERIC_PLAN", "BUFFERS", "WAL", "TIMING", "SUMMARY", "MEMORY"} {
 		cases = append(cases, struct {

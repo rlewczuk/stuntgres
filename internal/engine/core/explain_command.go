@@ -21,7 +21,9 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 			return nil, err
 		}
 		if len(bound.Rules.Commands) == 0 {
-			trees = append(trees, &explainTree{label: "Rewrite: nothing"})
+			tree := &explainTree{label: "Rewrite: nothing", nodeType: "Rewrite"}
+			r.property(tree, "Action", "nothing")
+			trees = append(trees, tree)
 		}
 		for _, command := range bound.Rules.Commands {
 			auth := r.auth
@@ -32,10 +34,11 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 				return nil, err
 			}
 			tree.details = append([]string{"Rule rewrite command"}, tree.details...)
+			r.property(tree, "Rule Rewrite Command", true)
 			trees = append(trees, tree)
 		}
 		if len(bound.Rules.Commands) != 0 {
-			rewrite := &explainTree{label: "Rule Rewrite", children: trees}
+			rewrite := &explainTree{label: "Rule Rewrite", nodeType: "Rule Rewrite", children: trees}
 			for i, command := range trees {
 				rewrite.estimate.Cost = min(plan.ExplainEstimateLimit, rewrite.estimate.Cost+command.estimate.Cost)
 				if i == bound.Rules.Returning {
@@ -71,7 +74,9 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 		if err != nil {
 			return nil, err
 		}
-		trees = append(trees, &explainTree{label: subplan.label, children: []*explainTree{tree}, estimate: tree.estimate})
+		wrapper := &explainTree{label: subplan.label, nodeType: "SubPlan", children: []*explainTree{tree}, estimate: tree.estimate}
+		r.property(wrapper, "Subplan Name", subplan.label)
+		trees = append(trees, wrapper)
 	}
 	trees = append(trees, r.producers...)
 	if len(trees) != 0 {
@@ -82,7 +87,7 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 		trees[0].estimate = total
 	}
 	r.trees = trees
-	if r.observation != nil {
+	if r.observation != nil || r.options.format == "json" {
 		return nil, nil
 	}
 	return r.render(), nil
@@ -106,10 +111,13 @@ func (r *explainRenderer) cte(definition *plan.CTEDefinition) (*explainTree, err
 	if tree, ok := r.ctes[definition]; ok {
 		return tree, nil
 	}
-	tree := &explainTree{label: "CTE " + catalog.Identifier(definition.Name)}
+	tree := &explainTree{label: "CTE " + catalog.Identifier(definition.Name), nodeType: "CTE"}
+	r.property(tree, "CTE Name", definition.Name)
 	r.ctes[definition] = tree
 	foreign := r.foreign
-	if owner, ok := r.foreignOwners[definition.Owner]; ok { r.foreign = owner }
+	if owner, ok := r.foreignOwners[definition.Owner]; ok {
+		r.foreign = owner
+	}
 	defer func() { r.foreign = foreign }()
 	frames, occurrences, auth := r.frames, r.occurrences, r.auth
 	r.frames, r.occurrences = maps.Clone(frames), maps.Clone(occurrences)
@@ -271,7 +279,8 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 	var child *explainTree
 	var err error
 	if binding.CurrentOf != "" {
-		child = &explainTree{label: "Cursor Locator on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), estimate: plan.ExplainEstimate{Rows: 1, Cost: 1}}
+		child = &explainTree{label: "Cursor Locator on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), nodeType: "Cursor Locator", estimate: plan.ExplainEstimate{Rows: 1, Cost: 1}}
+		r.relationProperties(child, binding.Relation, target.RangeName)
 		if err = r.sourceDetails(child, target, binding.Relation); err != nil {
 			return nil, err
 		}
@@ -285,22 +294,49 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 		return nil, err
 	}
 	tree := &explainTree{label: label + " on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), children: []*explainTree{child}, estimate: plan.ExplainMutationEstimate(child.estimate, binding.Returning != nil)}
+	tree.properties = modificationTree.properties
+	switch syntax := statement.(type) {
+	case *parser.Insert:
+		tree.nodeType = "Insert"
+		if syntax.DefaultValues {
+			r.property(tree, "Default Values", true)
+		}
+	case *parser.Update:
+		tree.nodeType = "Update"
+	case *parser.Delete:
+		tree.nodeType = "Delete"
+	case *parser.Merge:
+		tree.nodeType = "Merge"
+	}
+	r.relationProperties(tree, binding.Relation, target.RangeName)
 	tree.details = append(tree.details, modificationTree.details...)
 	if original != binding.Relation {
 		tree.details = append(tree.details, "Writable View: "+r.objectName(original.Namespace(), original.Name()))
+		if r.options.format == "json" {
+			writable := &explainTree{}
+			r.relationProperties(writable, original, original.Name())
+			r.property(tree, "Writable View", writable.properties)
+		}
 	}
 	if r.options.costs {
 		tree.details = append(tree.details, fmt.Sprintf("Estimated candidates: %.0f", child.estimate.RoundedRows()))
+		r.property(tree, "Estimated Candidates", child.estimate.RoundedRows())
 	}
 	if binding.CurrentOf != "" {
 		tree.details = append(tree.details, "CURRENT OF: "+catalog.Identifier(binding.CurrentOf))
+		r.property(tree, "Current Of", binding.CurrentOf)
 	}
 	if len(binding.Targets) != 0 {
 		var targets []string
+		var rawTargets []string
 		for _, index := range binding.Targets {
 			targets = append(targets, catalog.Identifier(binding.Relation.Columns[index].Name))
+			if r.options.format == "json" {
+				rawTargets = append(rawTargets, binding.Relation.Columns[index].Name)
+			}
 		}
 		tree.details = append(tree.details, "Target Columns: "+strings.Join(targets, ", "))
+		r.property(tree, "Target Columns", rawTargets)
 	}
 	for i, expression := range binding.Insert.Defaults {
 		if expression == nil {
@@ -315,6 +351,13 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 			name = catalog.Identifier(binding.Relation.Columns[i].Name)
 		}
 		tree.details = append(tree.details, "DEFAULT "+name+": "+text)
+		if r.options.format == "json" {
+			column := fmt.Sprintf("column %d", i+1)
+			if i < len(binding.Relation.Columns) {
+				column = binding.Relation.Columns[i].Name
+			}
+			r.repeated(tree, "Defaults", map[string]any{"Column": column, "Expression": text})
+		}
 	}
 	if binding.Update != nil {
 		if err := r.assignments(tree, source, binding.Relation, binding.Targets, binding.Update); err != nil {
@@ -323,8 +366,10 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 	}
 	if conflict := binding.Insert.Conflict; conflict != nil {
 		tree.details = append(tree.details, "On Conflict: DO NOTHING")
+		r.property(tree, "Conflict Action", "DO NOTHING")
 		if conflict.Update != nil {
 			tree.details[len(tree.details)-1] = "On Conflict: DO UPDATE"
+			r.property(tree, "Conflict Action", "DO UPDATE")
 			conflictSource := explainCandidateJoin(target, &plan.SourceNode{QuerySchema: target.QuerySchema, Ref: binding.Ref, Occurrence: -1, RangeName: "excluded"}, nil, parser.JoinInner)
 			frames := r.frames
 			r.frames = maps.Clone(frames)
@@ -346,11 +391,18 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 				return nil, err
 			}
 			tree.details = append(tree.details, "Conflict Arbiter: "+text)
+			r.repeated(tree, "Conflict Arbiter", text)
 		}
 		if conflict.Constraint.ObjectID != 0 {
-			if declaration, ok := r.auth.Catalog.Find(conflict.Constraint); ok {
-				tree.details = append(tree.details, "Conflict Constraint: "+catalog.Identifier(declaration.Name()))
+			// Relation-local constraints are not catalog Descriptor entries.
+			// The binder resolved this raw name to Constraint before rendering.
+			syntax, ok := statement.(*parser.Insert)
+			if !ok || syntax.Conflict == nil || syntax.Conflict.Constraint.Text == "" {
+				return nil, fmt.Errorf("stuntgres: missing EXPLAIN conflict constraint syntax")
 			}
+			name := syntax.Conflict.Constraint.Text
+			tree.details = append(tree.details, "Conflict Constraint: "+catalog.Identifier(name))
+			r.property(tree, "Conflict Constraint", name)
 		}
 		if conflict.Predicate != nil {
 			text, err := r.expression(target, conflict.Predicate)
@@ -358,6 +410,7 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 				return nil, err
 			}
 			tree.details = append(tree.details, "Conflict Predicate: "+text)
+			r.property(tree, "Conflict Predicate", text)
 		}
 	}
 	if binding.Merge != nil {
@@ -368,35 +421,58 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 			} else if arm.Match == parser.MergeNotMatchedBySource {
 				match = "NOT MATCHED BY SOURCE"
 			}
+			armTree := tree
+			if r.options.format == "json" {
+				armTree = &explainTree{}
+			}
+			r.property(armTree, "Match", match)
 			if arm.Condition != nil {
 				condition, err := r.expression(source, arm.Condition)
 				if err != nil {
 					return nil, err
 				}
 				match += " AND " + condition
+				r.property(armTree, "Condition", condition)
 			}
 			action := map[parser.MergeAction]string{parser.MergeInsertAction: "INSERT", parser.MergeUpdateAction: "UPDATE", parser.MergeDeleteAction: "DELETE", parser.MergeNothingAction: "DO NOTHING"}[arm.Action]
 			tree.details = append(tree.details, "When "+match+" THEN "+action)
+			r.property(armTree, "Action", action)
 			if arm.Input.Update != nil {
-				if err := r.assignments(tree, source, binding.Relation, arm.Input.Targets, arm.Input.Update); err != nil {
+				if err := r.assignments(armTree, source, binding.Relation, arm.Input.Targets, arm.Input.Update); err != nil {
 					return nil, err
+				}
+				if armTree != tree {
+					tree.details = append(tree.details, armTree.details...)
 				}
 			}
 			for _, row := range arm.Input.Expressions {
-				text, err := r.valueRow(source, row)
+				parts, err := r.valueParts(source, row)
 				if err != nil {
 					return nil, err
 				}
-				tree.details = append(tree.details, "Insert Values: "+text)
+				tree.details = append(tree.details, "Insert Values: "+strings.Join(parts, ", "))
+				r.repeated(armTree, "Insert Values", parts)
 			}
 			if arm.Action == parser.MergeInsertAction || arm.Action == parser.MergeUpdateAction {
 				command := catalog.PolicyInsert
 				if arm.Action == parser.MergeUpdateAction {
 					command = catalog.PolicyUpdate
 				}
-				if err := r.rowSecurityCheck(tree, target, binding.Relation, command); err != nil {
+				before := len(armTree.details)
+				if err := r.rowSecurityCheck(armTree, target, binding.Relation, command); err != nil {
 					return nil, err
 				}
+				if armTree != tree {
+					tree.details = append(tree.details, armTree.details[before:]...)
+				}
+			}
+			if r.options.format == "json" {
+				columns := make([]string, len(arm.Input.Targets))
+				for i, target := range arm.Input.Targets {
+					columns[i] = binding.Relation.Columns[target].Name
+				}
+				r.property(armTree, "Target Columns", columns)
+				r.repeated(tree, "Merge Arms", armTree.properties)
 			}
 		}
 	}
@@ -419,11 +495,12 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 		// UPDATE/DELETE/MERGE retain the candidate's combined source frame,
 		// including the lexical owner captured by RETURNING subplans.
 		r.frames[1] = returningSource
-		text, err := r.expressions(returningSource, binding.Returning.Expressions)
+		parts, err := r.expressionParts(returningSource, binding.Returning.Expressions)
 		if err != nil {
 			return nil, err
 		}
-		tree.details = append(tree.details, "RETURNING: "+text)
+		tree.details = append(tree.details, "RETURNING: "+strings.Join(parts, ", "))
+		r.property(tree, "Returning", parts)
 	}
 	return tree, nil
 }
@@ -468,6 +545,11 @@ func (r *explainRenderer) assignments(tree *explainTree, source plan.Node, relat
 			if err != nil {
 				return err
 			}
+			// Domain defaults are already bound assignment recipes, not nil
+			// DEFAULT requests. Preserve their origin without deparsing twice.
+			if r.options.format == "json" && i < len(update.DefaultOrigins) && update.DefaultOrigins[i].Requested {
+				r.repeated(tree, "Defaults", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": text})
+			}
 		} else {
 			defaultExpression, _ := analyze.ColumnDefault(r.auth.Catalog, relation, targets[i])
 			if generation, ok := relation.ColumnMeta.Generations[relation.Attributes[targets[i]]]; ok {
@@ -479,9 +561,15 @@ func (r *explainRenderer) assignments(tree *explainTree, source plan.Node, relat
 					return err
 				}
 				tree.details = append(tree.details, "DEFAULT "+name+": "+defaultSQL)
+				if r.options.format == "json" {
+					r.repeated(tree, "Defaults", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": defaultSQL})
+				}
 			}
 		}
 		tree.details = append(tree.details, "Assignment: "+name+" = "+text)
+		if r.options.format == "json" {
+			r.repeated(tree, "Assignments", map[string]any{"Column": relation.Columns[targets[i]].Name, "Target": name, "Expression": text})
+		}
 	}
 	if update.Predicate != nil {
 		text, err := r.expression(source, update.Predicate)
@@ -489,6 +577,7 @@ func (r *explainRenderer) assignments(tree *explainTree, source plan.Node, relat
 			return err
 		}
 		tree.details = append(tree.details, "Action Filter: "+text)
+		r.property(tree, "Action Filter", text)
 	}
 	return nil
 }
@@ -509,6 +598,7 @@ func (r *explainRenderer) rowSecurityCheck(tree *explainTree, target plan.Node, 
 	r.frames = frames
 	if err == nil {
 		tree.details = append(tree.details, "Row Security Check: "+text)
+		r.repeated(tree, "Row Security Checks", text)
 	}
 	return err
 }

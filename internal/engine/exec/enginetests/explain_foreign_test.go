@@ -13,9 +13,9 @@ import (
 
 type analyzedQueryProvider struct {
 	*queryUnitProvider
-	token *int
-	explained bool
-	explanations int
+	token            *int
+	explained        bool
+	explanations     int
 	explainedRequest catalog.ForeignQueryRequest
 }
 
@@ -50,25 +50,56 @@ func TestExplainAnalyzeForeignPlanIdentity(t *testing.T) {
 	base := &queryUnitProvider{path: queryUnitPath, scan: &queryUnitScan{row: catalog.ForeignRow{int64(7), int64(8), true, false, true}}}
 	provider := &analyzedQueryProvider{queryUnitProvider: base}
 	state, node, owner := queryUnitTree(t, base, false)
-	for _, source := range state.Source.Sources { source.Foreign.Wrapper = provider }
+	for _, source := range state.Source.Sources {
+		source.Foreign.Wrapper = provider
+	}
 	ctx, observation := exec.Observe(context.Background(), false)
-	observation.SetForeignOptions(catalog.ForeignExplainOptions{Costs: true})
+	observation.SetForeignOptions(catalog.ForeignExplainOptions{Costs: true}, true)
 	observation.Register(node)
 	stage, err := exec.OpenNode(ctx, state, node)
-	if err != nil { t.Fatal(err) }
-	if _, present, err := stage.NextOccurrence(ctx); err != nil || !present { t.Fatal(present, err) }
-	if err := stage.Close(); err != nil { t.Fatal(err) }
-	if err := owner.Finish(ctx); err != nil { t.Fatal(err) }
-	if base.discoveries != 1 || base.begins != 1 { t.Fatal("independent replan or repeated execution", base.discoveries, base.begins) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, present, err := stage.NextOccurrence(ctx); err != nil || !present {
+		t.Fatal(present, err)
+	}
+	if err := stage.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Finish(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if base.discoveries != 1 || base.begins != 1 {
+		t.Fatal("independent replan or repeated execution", base.discoveries, base.begins)
+	}
 	actual := observation.Actual(node)
-	if actual.Rows != 1 || actual.Loops != 1 { t.Fatal("lost real composite identity", actual) }
+	if actual.Rows != 1 || actual.Loops != 1 {
+		t.Fatal("lost real composite identity", actual)
+	}
 	foreign, ok := observation.Foreign(node)
-	if !ok || !foreign.Composite || len(foreign.Details) == 0 || foreign.Details[len(foreign.Details)-1] != "Selected: actual" { t.Fatal("missing owned presentation", foreign) }
+	if !ok || !foreign.Composite || len(foreign.Details) == 0 || foreign.Details[len(foreign.Details)-1] != "Selected: actual" {
+		t.Fatal("missing owned presentation", foreign)
+	}
 	before := append([]string(nil), foreign.Details...)
 	foreign.Details[0] = "changed"
 	again, _ := observation.Foreign(node)
-	if !reflect.DeepEqual(again.Details, before) { t.Fatal("borrowed presentation backing") }
-	if actual := observation.Actual(node.Left); actual.Loops != 0 { t.Fatal("pushed child fabricated a local execution", actual) }
+	if !reflect.DeepEqual(again.Details, before) {
+		t.Fatal("borrowed presentation backing")
+	}
+	if foreign.Operation != "join" || len(foreign.Sources) != 2 || len(foreign.Properties) != 1 || foreign.Properties[0].Name != "Selected" || foreign.Estimates["Total Cost"] == 0 {
+		t.Fatal("lost construction-time foreign semantics", foreign)
+	}
+	originalSource, originalProperty, originalCost := foreign.Sources[0], foreign.Properties[0], foreign.Estimates["Total Cost"]
+	foreign.Sources[0].Relation = "changed"
+	foreign.Properties[0].Value = "changed"
+	foreign.Estimates["Total Cost"] = -1
+	detached, _ := observation.Foreign(node)
+	if detached.Sources[0] != originalSource || detached.Properties[0] != originalProperty || detached.Estimates["Total Cost"] != originalCost {
+		t.Fatal("borrowed structured observation backing", detached)
+	}
+	if actual := observation.Actual(node.Left); actual.Loops != 0 {
+		t.Fatal("pushed child fabricated a local execution", actual)
+	}
 }
 
 func TestExplainAnalyzeForeignPlanReScan(t *testing.T) {

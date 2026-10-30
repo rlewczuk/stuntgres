@@ -1,7 +1,6 @@
 package core
 
 import (
-	"time"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -13,6 +12,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"time"
 )
 
 func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
@@ -20,7 +20,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	if owner := scope.explain; owner != nil {
 		previous := scope.invocationContext
 		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.timing)
-		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.verbose, Costs: owner.options.costs})
+		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.verbose, Costs: owner.options.costs}, owner.options.format == "json")
 		defer func() { scope.invocationContext = previous }()
 		evaluationContext := execution.evaluation.Context
 		previousEvaluationContext := evaluationContext

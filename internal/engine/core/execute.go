@@ -337,7 +337,7 @@ func (e *Engine) executeDataStatement(scope *StatementScope, stmt parser.Stateme
 			results = scope.Expected.Results
 		}
 		if scope.explainWrapper(stmt) {
-			results = e.explainSchemaLocked()
+			results = e.explainSchemaLocked(scope.explain.options.format)
 		}
 		if err := CheckStatementSignature(*scope.Expected, Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.Mu.Unlock()

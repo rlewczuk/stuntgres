@@ -2,8 +2,10 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
@@ -11,14 +13,31 @@ import (
 )
 
 func explainProtocolBoundary(t *testing.T, e *core.Engine, s *session.Session, wrapper *explainBoundaryWrapper) {
+	explainProtocolFormatBoundary(t, e, s, wrapper, false)
+}
+
+func TestExplainJSONProtocol(t *testing.T) {
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE explain_boundary_foreign(id integer)")
+	enginetest.SessionSQL(t, s, "CREATE SEQUENCE explain_boundary_s")
+	explainProtocolFormatBoundary(t, e, s, &explainBoundaryWrapper{}, true)
+	explainJSONPreparedOwnership(t, e, s)
+}
+
+func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Session, wrapper *explainBoundaryWrapper, structured bool) {
 	t.Helper()
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
 	command := func(fn func(*core.StatementScope) error) {
 		preparedFoldProtocolCommand(t, e, s, cycle, fn)
 	}
+	prefix, typ := "EXPLAIN ", sqltype.Text
+	if structured {
+		prefix, typ = "EXPLAIN (FORMAT JSON) ", sqltype.JSON
+	}
 	command(func(scope *core.StatementScope) error {
-		_, err := scope.ParseProtocol("explain_definition", "EXPLAIN SELECT abs(-7::integer),nextval('explain_boundary_s'),id FROM explain_boundary_foreign WHERE id=$1", nil)
+		_, err := scope.ParseProtocol("explain_definition", prefix+"SELECT abs(-7::integer),nextval('explain_boundary_s'),id FROM explain_boundary_foreign WHERE id=$1", nil)
 		return err
 	})
 	registry := core.PayloadOf(s).PreparedSQL
@@ -37,7 +56,7 @@ func explainProtocolBoundary(t *testing.T, e *core.Engine, s *session.Session, w
 	}
 	command(func(scope *core.StatementScope) error {
 		description, err := scope.DescribeProtocolPortal("explain_portal")
-		if err == nil && (len(description.Columns) != 1 || description.Columns[0].Name != "QUERY PLAN" || description.Columns[0].Usage.Type.ID() != sqltype.Text) {
+		if err == nil && (len(description.Columns) != 1 || description.Columns[0].Name != "QUERY PLAN" || description.Columns[0].Usage.Type.ID() != typ) {
 			t.Fatal("portal described child columns", description.Columns)
 		}
 		return err
@@ -48,6 +67,15 @@ func explainProtocolBoundary(t *testing.T, e *core.Engine, s *session.Session, w
 			if len(fields) != 1 {
 				t.Fatal("child row reached protocol output", fields)
 			}
+			if structured {
+				var document []map[string]any
+				if fields[0].Null || json.Unmarshal(fields[0].Bytes, &document) != nil || len(document) != 1 {
+					t.Fatal("protocol did not publish one nonnull JSON document", fields)
+				}
+				if _, ok := document[0]["Plan"].(map[string]any); !ok {
+					t.Fatal(document)
+				}
+			}
 			rows++
 			return nil
 		}, nil, nil, core.CopyProtocolHooks{})
@@ -56,6 +84,9 @@ func explainProtocolBoundary(t *testing.T, e *core.Engine, s *session.Session, w
 		}
 		return err
 	})
+	if structured && rows != 1 {
+		t.Fatal("JSON plan row cardinality", rows)
+	}
 	if wrapper.entered || binding.Resource.Root != nil || owner.Live() || owner.Current().Generation != 0 || len(owner.Current().Entries) != 0 {
 		t.Fatal("Execute published/opened/retained child execution state")
 	}

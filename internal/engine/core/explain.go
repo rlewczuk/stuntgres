@@ -43,8 +43,12 @@ func explainSupportedChild(statement parser.Statement) bool {
 	return false
 }
 
-func (e *Engine) explainSchemaLocked() []catalog.Column {
-	typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
+func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
+	id := sqltype.Text
+	if format == "json" {
+		id = sqltype.JSON
+	}
+	typ, _ := e.Catalog.Current().LookupType(id)
 	return []catalog.Column{{Name: "QUERY PLAN", Usage: typ.Usage()}}
 }
 
@@ -71,11 +75,11 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 	if err != nil {
 		return Description{}, err
 	}
-	if format == "json" || format == "xml" || format == "yaml" {
+	if format == "xml" || format == "yaml" {
 		_, err := validateExplainOptions(statement)
 		return Description{}, err
 	}
-	description.Results = e.explainSchemaLocked()
+	description.Results = e.explainSchemaLocked(format)
 	return description, nil
 }
 
@@ -121,7 +125,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, description.Parameters.Count)
 	}
-	schema := e.explainSchemaLocked()
+	schema := e.explainSchemaLocked(options.format)
 	// Rendering holds the catalog ownership window, but never captures rows or
 	// invokes expression providers, defaults, triggers, or fold publication.
 	renderer, err := newExplainRenderer(scope, auth, options)
@@ -178,12 +182,15 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
+	var summaries explainSummaries
 	if options.summary {
-		lines = append(lines, fmt.Sprintf("Planning Time: %.3f ms", float64(time.Since(planningStart))/1e6))
+		planning := time.Since(planningStart)
+		summaries.planning = &planning
 	}
-	rows := make([][]sqltype.Value, len(lines))
-	for i, line := range lines {
-		rows[i] = []sqltype.Value{sqltype.String(schema[0].Usage.Type, line)}
+	rows, err := explainOutput(scope, schema, options, []*explainRenderer{renderer}, lines, summaries)
+	if err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
 	}
 	if err := renderer.foreignFence(captured); err != nil {
 		e.Mu.Unlock()

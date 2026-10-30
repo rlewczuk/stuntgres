@@ -34,6 +34,8 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   supplement them. Absent/declined paths and unsafe semantic frontiers retain
   real base scans. Source cursor resources and fault/cancellation hooks reuse
   `fdwSQLScan`, rather than a canned composite-row implementation.
+  JSON plans use the same selected composite/fallback witnesses, preserving
+  provider property order/duplicates and actual selected-node measurements.
   Canceled direct/prepared INSERT SELECT consumes an admitted composite source,
   leaves its local target sentinel unchanged and publishes no affected result.
   Provider-level changed-parameter ReScan reopens a genuine source SQL cursor;

@@ -23,6 +23,7 @@ func (r *explainRenderer) sourcePruning(tree *explainTree, source *plan.SourceNo
 	}
 	if filter.Predicate.Properties().ParameterDependent {
 		tree.details = append(tree.details, "Pruning: unknown parameter values")
+		r.property(tree, "Pruning", "unknown parameter values")
 		return nil
 	}
 	if source.Occurrence < 0 || source.Occurrence >= len(r.leaves) {
@@ -74,10 +75,17 @@ func (r *explainRenderer) sourcePruning(tree *explainTree, source *plan.SourceNo
 	}
 	if len(excluded) > 0 {
 		names := make([]string, len(excluded))
+		var identities []map[string]any
 		for i, physical := range excluded {
 			names[i] = r.objectName(physical.Namespace(), physical.Name())
+			if r.options.format == "json" {
+				identity := &explainTree{}
+				r.relationProperties(identity, physical, physical.Name())
+				identities = append(identities, identity.properties)
+			}
 		}
 		tree.details = append(tree.details, "Pruned Sources: "+strings.Join(names, ", "))
+		r.property(tree, "Pruned Sources", identities)
 	}
 	return nil
 }

@@ -12,21 +12,22 @@ import (
 )
 
 type fdwAdvancedState struct {
-	mu           sync.Mutex
-	limit        int
-	sample       stuntgres.ForeignSample
-	requests     []stuntgres.ForeignRequest
-	scanRequests []stuntgres.ForeignRequest
-	queryPlans   []stuntgres.ForeignExplainQueryPlan
-	executedPlans []stuntgres.ForeignQueryPlan
-	executedRequests []stuntgres.ForeignQueryRequest
-	basePlans []stuntgres.ForeignExplainScanRequest
-	baseExecutions []fdwExplainBaseExecution
+	mu                sync.Mutex
+	limit             int
+	sample            stuntgres.ForeignSample
+	requests          []stuntgres.ForeignRequest
+	scanRequests      []stuntgres.ForeignRequest
+	queryPlans        []stuntgres.ForeignExplainQueryPlan
+	executedPlans     []stuntgres.ForeignQueryPlan
+	executedRequests  []stuntgres.ForeignQueryRequest
+	basePlans         []stuntgres.ForeignExplainScanRequest
+	baseExecutions    []fdwExplainBaseExecution
+	explainProperties []stuntgres.ForeignExplainProperty
 }
 
 type fdwExplainBaseExecution struct {
 	request stuntgres.ForeignRequest
-	plan stuntgres.ForeignPlan
+	plan    stuntgres.ForeignPlan
 }
 
 func fdwProjection(request stuntgres.ForeignRequest, attributes []int32) string {
@@ -62,6 +63,9 @@ func (r *fdwSQLReader) ExplainForeignScan(ctx context.Context, request stuntgres
 		r.advanced.basePlans = append(r.advanced.basePlans, request)
 	}
 	r.advanced.mu.Unlock()
+	r.advanced.mu.Lock()
+	extra := append([]stuntgres.ForeignExplainProperty(nil), r.advanced.explainProperties...)
+	r.advanced.mu.Unlock()
 	if request.Query != nil {
 		query := request.Query
 		r.advanced.mu.Lock()
@@ -71,8 +75,11 @@ func (r *fdwSQLReader) ExplainForeignScan(ctx context.Context, request stuntgres
 			return nil, fmt.Errorf("SQL reader: mismatched composite layout")
 		}
 		sql, _, err := fdwQuerySQL(query.Request, query.Request.Stage)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		properties := []stuntgres.ForeignExplainProperty{{Name: "Remote SQL", Value: sql}}
+		properties = append(properties, extra...)
 		return properties, r.call(ctx, "ExplainForeignScanResult")
 	}
 	remote, ok := request.Plan.Private.(string)
@@ -80,6 +87,7 @@ func (r *fdwSQLReader) ExplainForeignScan(ctx context.Context, request stuntgres
 		return nil, fmt.Errorf("SQL reader: missing actual planned source")
 	}
 	properties := []stuntgres.ForeignExplainProperty{{Name: "Remote SQL", Value: "SELECT " + fdwProjection(request.ForeignRequest, request.Plan.Attributes) + " FROM " + remote}}
+	properties = append(properties, extra...)
 	if request.RowMark != nil {
 		properties = append(properties, stuntgres.ForeignExplainProperty{Name: "Row mark", Value: fmt.Sprint(request.RowMark.Type)})
 		if request.Identity != nil {

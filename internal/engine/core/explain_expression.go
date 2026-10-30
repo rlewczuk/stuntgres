@@ -195,15 +195,20 @@ func (r *explainRenderer) frameRoot(root plan.Node, frame uint32) plan.Node {
 }
 
 func (r *explainRenderer) expressions(root plan.Node, expressions []expr.Expr) (string, error) {
+	parts, err := r.expressionParts(root, expressions)
+	return strings.Join(parts, ", "), err
+}
+
+func (r *explainRenderer) expressionParts(root plan.Node, expressions []expr.Expr) ([]string, error) {
 	parts := make([]string, len(expressions))
 	for i, expression := range expressions {
 		text, err := r.expression(root, expression)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		parts[i] = text
 	}
-	return strings.Join(parts, ", "), nil
+	return parts, nil
 }
 
 // Slot presentation follows the bound stage's actual output layout. It never
@@ -492,6 +497,11 @@ func explainContains(root, candidate plan.Node) bool {
 // A nil INSERT/MERGE bound cell is the command binder's DEFAULT request,
 // not a folded NULL or an expression to evaluate.
 func (r *explainRenderer) valueRow(root plan.Node, row []expr.Expr) (string, error) {
+	parts, err := r.valueParts(root, row)
+	return strings.Join(parts, ", "), err
+}
+
+func (r *explainRenderer) valueParts(root plan.Node, row []expr.Expr) ([]string, error) {
 	parts := make([]string, len(row))
 	for i, expression := range row {
 		if expression == nil {
@@ -500,9 +510,9 @@ func (r *explainRenderer) valueRow(root plan.Node, row []expr.Expr) (string, err
 		}
 		text, err := r.expression(root, expression)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		parts[i] = text
 	}
-	return strings.Join(parts, ", "), nil
+	return parts, nil
 }

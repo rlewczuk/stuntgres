@@ -18,14 +18,16 @@ import (
 )
 
 type explainTree struct {
-	label       string
-	details     []string
-	children    []*explainTree
-	estimate    plan.ExplainEstimate
-	restriction expr.Expr
+	label           string
+	nodeType        string
+	properties      map[string]any
+	details         []string
+	children        []*explainTree
+	estimate        plan.ExplainEstimate
+	restriction     expr.Expr
 	unknownEstimate bool
-	node        plan.Node
-	actual      *exec.Actual
+	node            plan.Node
+	actual          *exec.Actual
 }
 
 // These are execution's metadata-only composite eligibility facts. They do not
@@ -35,16 +37,16 @@ type explainForeignContext struct {
 }
 
 type explainSubplan struct {
-	query        *plan.Query
-	label        string
-	frames       map[uint32]plan.Node
-	occurrences  map[int]*plan.SourceNode
-	auth         AuthorizationView
-	leaves       []exec.Leaf
-	image        string
-	policyTarget ids.ObjectAddress
-	foreign      explainForeignContext
-	rowMarked    bool
+	query         *plan.Query
+	label         string
+	frames        map[uint32]plan.Node
+	occurrences   map[int]*plan.SourceNode
+	auth          AuthorizationView
+	leaves        []exec.Leaf
+	image         string
+	policyTarget  ids.ObjectAddress
+	foreign       explainForeignContext
+	rowMarked     bool
 	inheritedMark plan.RowMark
 	foreignOwners map[uint32]explainForeignContext
 }
@@ -173,11 +175,17 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		r.foreign.identityReads = r.foreign.identityReads || exec.QueryHasIdentityReads(project)
 		if project.CTEOwner {
-			if r.foreignOwners == nil { r.foreignOwners = make(map[uint32]explainForeignContext) }
+			if r.foreignOwners == nil {
+				r.foreignOwners = make(map[uint32]explainForeignContext)
+			}
 			prior, existed := r.foreignOwners[project.Frame]
 			r.foreignOwners[project.Frame] = r.foreign
 			defer func() {
-				if existed { r.foreignOwners[project.Frame] = prior } else { delete(r.foreignOwners, project.Frame) }
+				if existed {
+					r.foreignOwners[project.Frame] = prior
+				} else {
+					delete(r.foreignOwners, project.Frame)
+				}
 			}()
 		}
 		r.frame = project.Frame
@@ -249,6 +257,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		text, err := r.expression(context, expression)
 		if err == nil {
 			tree.details = append(tree.details, label+": "+text)
+			r.property(tree, label, text)
 		}
 		return err
 	}
@@ -256,9 +265,10 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		if len(expressions) == 0 {
 			return nil
 		}
-		text, err := r.expressions(context, expressions)
+		parts, err := r.expressionParts(context, expressions)
 		if err == nil {
-			tree.details = append(tree.details, label+": "+text)
+			tree.details = append(tree.details, label+": "+strings.Join(parts, ", "))
+			r.property(tree, label, parts)
 		}
 		return err
 	}
@@ -270,6 +280,8 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		tree.label = "Logical Scan on " + r.objectName(relation.Namespace(), relation.Name())
+		tree.nodeType = "Logical Scan"
+		r.relationProperties(tree, relation, n.RangeName)
 		if n.RangeName != "" && n.RangeName != relation.Name() {
 			tree.label += " AS " + catalog.Identifier(n.RangeName)
 		}
@@ -283,6 +295,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		if relation.Foreign != nil {
 			tree.label = "Foreign Scan on " + r.objectName(relation.Namespace(), relation.Name())
+			tree.nodeType = "Foreign Scan"
 			if n.RangeName != "" && n.RangeName != relation.Name() {
 				tree.label += " AS " + catalog.Identifier(n.RangeName)
 			}
@@ -301,31 +314,38 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.SingletonNode:
 		tree.label = "Singleton"
+		tree.nodeType = "Singleton"
 	case *plan.ValuesNode:
 		tree.label = "Values"
+		tree.nodeType = "Values"
 		if r.options.verbose {
 			for _, row := range n.Rows {
-				text, err := r.valueRow(root, row)
+				parts, err := r.valueParts(root, row)
 				if err != nil {
 					return nil, err
 				}
-				tree.details = append(tree.details, "Output: "+text)
+				tree.details = append(tree.details, "Output: "+strings.Join(parts, ", "))
+				r.repeated(tree, "Values", parts)
 			}
 		}
 	case *plan.FilterNode:
 		tree.label = "Filter"
+		tree.nodeType = "Filter"
 		if err := detail("Filter", n.Predicate, n.Child); err != nil {
 			return nil, err
 		}
 	case *plan.SortNode:
 		tree.label = "Sort"
-		keys, err := r.sortKeys(n.Child, n.Keys)
+		tree.nodeType = "Sort"
+		keys, err := r.sortKeyParts(n.Child, n.Keys)
 		if err != nil {
 			return nil, err
 		}
-		tree.details = append(tree.details, "Sort Key: "+keys)
+		tree.details = append(tree.details, "Sort Key: "+strings.Join(keys, ", "))
+		r.property(tree, "Sort Key", keys)
 	case *plan.ProjectNode:
 		tree.label = "Project"
+		tree.nodeType = "Project"
 		if r.options.verbose {
 			if err := list("Output", n.Expressions, n.Child); err != nil {
 				return nil, err
@@ -333,17 +353,20 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.EvaluationNode:
 		tree.label = "Evaluate"
+		tree.nodeType = "Evaluate"
 		if err := list("Expressions", n.Expressions, n.Child); err != nil {
 			return nil, err
 		}
 	case *plan.AggregateNode:
 		tree.label = "Aggregate"
+		tree.nodeType = "Aggregate"
 		if len(n.Keys) > 0 {
 			method := "hash grouping"
 			if r.scope.PlannerMethods.NoHashAgg {
 				method = "equality grouping"
 			}
 			tree.details = append(tree.details, "Method: "+method)
+			r.property(tree, "Method", method)
 		}
 		if err := list("Group Key", n.Keys, n.Child); err != nil {
 			return nil, err
@@ -355,11 +378,12 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				for j, key := range set {
 					keys[j] = n.Keys[key]
 				}
-				text, err := r.expressions(n.Child, keys)
+				parts, err := r.expressionParts(n.Child, keys)
 				if err != nil {
 					return nil, err
 				}
-				sets[i] = "(" + text + ")"
+				sets[i] = "(" + strings.Join(parts, ", ") + ")"
+				r.repeated(tree, "Grouping Sets", parts)
 			}
 			tree.details = append(tree.details, "Grouping Sets: "+strings.Join(sets, ", "))
 		}
@@ -369,19 +393,23 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				return nil, err
 			}
 			tree.details = append(tree.details, "Aggregate: "+text)
+			r.repeated(tree, "Aggregate", text)
 		}
 	case *plan.DistinctNode:
 		tree.label = "Distinct"
+		tree.nodeType = "Distinct"
 		method := "hash deduplication"
 		if r.scope.PlannerMethods.NoHashAgg {
 			method = "equality deduplication"
 		}
 		tree.details = append(tree.details, "Method: "+method)
+		r.property(tree, "Method", method)
 		if err := list("Distinct Key", n.Expressions, n.Child); err != nil {
 			return nil, err
 		}
 	case *plan.DistinctOnNode:
 		tree.label = "Distinct On"
+		tree.nodeType = "Distinct On"
 		if err := list("Distinct On Key", n.Expressions, n.Child); err != nil {
 			return nil, err
 		}
@@ -400,21 +428,28 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			}
 		}
 		tree.label = kind + " Join"
+		tree.nodeType = "Join"
+		r.property(tree, "Join Type", kind)
 		method := "nested-loop"
 		if !r.scope.PlannerMethods.NoHashJoin && exec.HashJoinEligible(n, r.frame) {
 			method = "hash-assisted"
 		}
 		tree.details = append(tree.details, "Method: "+method)
+		r.property(tree, "Method", method)
 		if n.CorrelatedRight {
 			tree.details = append(tree.details, "Lateral: correlated right input")
+			r.property(tree, "Lateral", "correlated right input")
 		}
 		if err := detail("Join Condition", n.Predicate, root); err != nil {
 			return nil, err
 		}
 	case *plan.DerivedNode:
 		tree.label = "Derived Scan"
+		tree.nodeType = "Derived Scan"
 		if n.CTE != nil {
 			tree.label = "CTE Scan on " + catalog.Identifier(n.CTE.Name)
+			tree.nodeType = "CTE Scan"
+			r.property(tree, "CTE Name", n.CTE.Name)
 			if !n.CTE.Folded() {
 				producer, err := r.cte(n.CTE)
 				if err != nil {
@@ -426,19 +461,28 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		if alias := explainDerivedAlias(n); alias != "" {
 			tree.details = append(tree.details, "Alias: "+catalog.Identifier(alias))
+			r.property(tree, "Alias", alias)
 		}
 	case *plan.WorktableScanNode:
 		tree.label = "Worktable Scan on " + catalog.Identifier(explainDerivedAlias(&n.DerivedNode))
+		tree.nodeType = "Worktable Scan"
+		r.property(tree, "CTE Name", n.CTE.Name)
+		r.property(tree, "Alias", explainDerivedAlias(&n.DerivedNode))
 		if rows, ok := r.worktables[n.CTE]; ok {
 			sourceRows = rows
 		}
 	case *plan.SetNode:
 		tree.label = strings.ToUpper(n.Operation)
+		tree.nodeType = "Set"
+		r.property(tree, "Operation", strings.ToUpper(n.Operation))
+		r.property(tree, "All", n.All)
 		if n.All {
 			tree.label += " ALL"
 		}
 	case *plan.RecursiveUnionNode:
 		tree.label = "Recursive Union"
+		tree.nodeType = "Recursive Union"
+		r.property(tree, "All", n.All)
 		if n.All {
 			tree.label += " ALL"
 		}
@@ -451,6 +495,13 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				direction = "BREADTH FIRST"
 			}
 			tree.details = append(tree.details, "SEARCH: "+direction+" BY "+explainIdentifiers(n.Search.Syntax.Keys)+" SET "+catalog.Identifier(n.Search.Syntax.Sequence.Text))
+			if r.options.format == "json" {
+				keys := make([]string, len(n.Search.Syntax.Keys))
+				for i, key := range n.Search.Syntax.Keys {
+					keys[i] = key.Text
+				}
+				r.property(tree, "Search", map[string]any{"Direction": direction, "Keys": keys, "Sequence": n.Search.Syntax.Sequence.Text})
+			}
 		}
 		if n.Cycle != nil {
 			if n.Cycle.Syntax == nil {
@@ -465,9 +516,18 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				return nil, err
 			}
 			tree.details = append(tree.details, "CYCLE: "+explainIdentifiers(n.Cycle.Syntax.Keys)+" SET "+catalog.Identifier(n.Cycle.Syntax.Mark.Text)+" TO "+mark+" DEFAULT "+fallback+" USING "+catalog.Identifier(n.Cycle.Syntax.Path.Text))
+			if r.options.format == "json" {
+				keys := make([]string, len(n.Cycle.Syntax.Keys))
+				for i, key := range n.Cycle.Syntax.Keys {
+					keys[i] = key.Text
+				}
+				r.property(tree, "Cycle", map[string]any{"Keys": keys, "Mark": n.Cycle.Syntax.Mark.Text, "Value": mark, "Default": fallback, "Path": n.Cycle.Syntax.Path.Text})
+			}
 		}
 	case *plan.LimitNode:
 		tree.label = "Limit"
+		tree.nodeType = "Limit"
+		r.property(tree, "With Ties", n.WithTies)
 		if n.WithTies {
 			tree.label += " WITH TIES"
 		}
@@ -479,6 +539,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.RowLockNode:
 		tree.label = "Row Lock"
+		tree.nodeType = "Row Lock"
 		for i, mark := range n.Marks {
 			if mark.Mode == 0 {
 				continue
@@ -495,9 +556,17 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				target = catalog.Identifier(source.RangeName)
 			}
 			tree.details = append(tree.details, mode+" OF "+target+" "+wait)
+			if r.options.format == "json" {
+				rawTarget := ""
+				if source := r.occurrences[i]; source != nil {
+					rawTarget = source.RangeName
+				}
+				r.repeated(tree, "Row Marks", map[string]any{"Mode": mode, "Source": i + 1, "Alias": rawTarget, "Wait": wait})
+			}
 		}
 	case *plan.WindowNode:
 		tree.label = "Window"
+		tree.nodeType = "Window"
 		for i, call := range n.Calls {
 			if call.AnalysisOnly {
 				continue
@@ -507,14 +576,18 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				return nil, err
 			}
 			tree.details = append(tree.details, "Window: "+text)
+			r.repeated(tree, "Window", text)
 		}
 	case *plan.FunctionFromNode:
 		tree.label = "Function Scan"
+		tree.nodeType = "Function Scan"
 		if n.Ordinality {
 			tree.details = append(tree.details, "Ordinality: true")
+			r.property(tree, "Ordinality", true)
 		}
 		if n.Correlated {
 			tree.details = append(tree.details, "Lateral: correlated function input")
+			r.property(tree, "Lateral", "correlated function input")
 		}
 		context := root
 		if n.Correlated && r.frames[n.Frame] != nil {
@@ -525,6 +598,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	case *plan.SetProjectNode:
 		tree.label = "Set Project"
+		tree.nodeType = "Set Project"
 		if err := list("Functions", n.Calls, n.Child); err != nil {
 			return nil, err
 		}
@@ -551,6 +625,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				outputs = append(outputs, text)
 			}
 			tree.details = append(tree.details, "Output: "+strings.Join(outputs, ", "))
+			r.property(tree, "Output", outputs)
 		}
 	}
 	estimate, err := plan.EstimateExplainNode(root, estimates, sourceRows)
@@ -577,11 +652,15 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	if root == r.scanFilter {
 		if r.scanDecision.Method == plan.HashCandidates {
 			tree.details = append(tree.details, "Access Method: Hash Candidates", "Index: "+r.scanDecision.IndexName)
+			r.property(tree, "Access Method", "Hash Candidates")
+			r.property(tree, "Index", r.scanDecision.IndexName)
 		} else {
 			tree.details = append(tree.details, "Access Method: Full Scan")
+			r.property(tree, "Access Method", "Full Scan")
 		}
 		if r.options.costs {
 			tree.details = append(tree.details, fmt.Sprintf("CPU Cost: %.6g", r.scanDecision.Cost()))
+			r.property(tree, "CPU Cost", r.scanDecision.Cost())
 		}
 	}
 	tree.estimate = estimate
@@ -605,19 +684,7 @@ func explainDerivedAlias(node *plan.DerivedNode) string {
 }
 
 func (r *explainRenderer) lines(tree *explainTree, depth int, lines *[]string) {
-	if r.observation != nil && (tree.node != nil || tree.actual != nil) {
-		if foreign, ok := r.observation.Foreign(tree.node); ok {
-			presentation := *tree
-			presentation.details = append(append([]string(nil), tree.details...), foreign.Details...)
-			if foreign.Composite {
-				presentation.label = "Foreign Scan"
-				presentation.children = nil
-				presentation.details = foreign.Details
-				presentation.unknownEstimate = true
-			}
-			tree = &presentation
-		}
-	}
+	tree = r.effective(tree)
 	indent := strings.Repeat("  ", depth)
 	line := indent + tree.label
 	if r.options.costs && !tree.unknownEstimate {

@@ -243,20 +243,40 @@ matching execution's presence-only demand without changing nil/full requests
 for modification targets or ANALYZE.
 Bound graphs and expression presentation remain
 activation-local; prepared descriptions retain only ordinary immutable
-dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT schema.
+dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT or JSON schema.
 Their fold owner is inert: ordinary EXPLAIN never grants child fold-publication
 rights, including during Describe or protocol Parse/Bind, and retains no accepted
 generation. The ordinary renderer describes actual logical stages and rewritten
 commands, with detached maintenance statistics or labelled deterministic
 heuristics. It never executes child expressions or opens child scans; providers
-may obtain genuine remote estimates during planning. Before publishing owned text
+may obtain genuine remote estimates during planning. Before publishing owned output
 it fences catalog, context and current authority again, including after unlocked
 typed comparisons.
+
+TEXT line rows and the single typed JSON document row publish through one output
+owner. JSON uses the catalog JSON input codec, never a TEXT datum retag or an
+adapter-specific conversion. FORMAT descriptor selection does not validate
+execution-only options early; ordered option validation still follows child
+analysis. Both encodings share the invocation's selected presentation trees and
+late actual foreign-composite substitution. JSON node types, raw identifiers and
+typed properties are captured at construction, never parsed from display strings.
+Lists retain expression boundaries, nested VALUES/grouping sets and ordered
+MERGE arms; provider properties are ordered Name/Value records with duplicates
+preserved, never structural object keys. Auxiliary roots remain ordered document
+entries. Logical estimates use Plan Rows/Logical Cost plus an Estimate Model;
+genuine provider estimates remain under Provider Estimates. Unknown quantities
+are omitted. VERBOSE adds output/qualification; COSTS gates estimates, not actual
+measurements. TEXT does not allocate JSON property maps.
+Named conflict constraints retain the raw syntax name already resolved by the
+binder to a relation-local constraint identity, rather than a descriptor lookup.
+Requested domain defaults retain their bound default origin and effective
+assignment expression in JSON without evaluating or deparsing the recipe again.
+
 
 EXPLAIN ANALYZE instead admits and executes the child through the canonical
 binding, typed-parameter import and rule/CTE/DML dispatcher in the same statement
 scope and write stage. It consumes and closes child output before returning
-detached QUERY PLAN text; output expressions and their errors still execute.
+detached QUERY PLAN output; output expressions and their errors still execute.
 INSERT VALUES and INSERT SELECT propagate the current invocation context,
 including the analyzed command's observer, through source selection and DML.
 They do not replace it with the enclosing operation's unobserved context.
@@ -288,6 +308,13 @@ finalized groups. Original HAVING/sort/projection identities retain the actual
 copied leader-wrapper work. Optional planning/execution summaries exclude plan
 transfer and outer transaction publication. Results complete with the non-counted
 EXPLAIN command tag; child affected rows are not the wrapper affected count.
+JSON Actual Rows and Actual Total Time are averages over Actual Loops; zero-loop
+nodes have numeric zero rows/loops and no elapsed field. Actual Total Time is the
+active inclusive/summed-worker elapsed measurement described above, not physical
+startup or wall critical-path time. TIMING gates node elapsed, SUMMARY gates the
+once-per-command Planning Time/Execution Time fields; neither removes row/loop
+measurements. Ordinary SUMMARY has planning only. Measurement Model explains
+the existing measurement semantics without inventing instrumentation.
 Single-source filter access details share execution's detached CPU decision.
 `CPU Cost` is separate from inclusive logical tree costs: it compares actual
 hash-candidate versus full-traversal work without changing unrelated estimates.

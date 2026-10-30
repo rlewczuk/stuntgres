@@ -12,7 +12,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func mustExplainCapabilityRows(t *testing.T, p *fixture.Pair, tx *sql.Tx, q string, prepared bool) *sql.Rows {
+func mustExplainCapabilityRows(t *testing.T, p *fixture.Pair, tx explainAnalyzeDB, q string, prepared bool) *sql.Rows {
 	t.Helper()
 	if prepared {
 		stmt, err := tx.PrepareContext(p.Ctx, q)
@@ -39,7 +39,6 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 		name, prefix, message, token, typ string
 		analyze                           bool
 	}{
-		{"json", "EXPLAIN (FORMAT JSON)", "EXPLAIN format JSON is not supported", "FORMAT", "JSON", false},
 		{"xml", "EXPLAIN (FORMAT XML)", "EXPLAIN format XML is not supported", "FORMAT", "XML", false},
 		{"yaml", "EXPLAIN (FORMAT YAML)", "EXPLAIN format YAML is not supported", "FORMAT", "TEXT", false},
 		{"settings", "EXPLAIN (SETTINGS)", "EXPLAIN option SETTINGS is not supported", "SETTINGS", "TEXT", false},
@@ -47,6 +46,8 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 		{"memory", "EXPLAIN (MEMORY)", "EXPLAIN option MEMORY is not supported", "MEMORY", "TEXT", false},
 		{"generic", "EXPLAIN (GENERIC_PLAN)", "EXPLAIN option GENERIC_PLAN is not supported", "GENERIC_PLAN", "TEXT", false},
 		{"wal", "EXPLAIN (ANALYZE, WAL)", "EXPLAIN option WAL is not supported", "WAL", "TEXT", true},
+		{"json-buffers", "EXPLAIN (FORMAT JSON, BUFFERS)", "EXPLAIN option BUFFERS is not supported", "BUFFERS", "JSON", false},
+		{"json-wal", "EXPLAIN (FORMAT JSON, ANALYZE, WAL)", "EXPLAIN option WAL is not supported", "WAL", "JSON", true},
 		{"serialize-text", "EXPLAIN (ANALYZE, SERIALIZE TEXT)", "EXPLAIN option SERIALIZE is not supported", "SERIALIZE", "TEXT", true},
 		{"serialize-binary", "EXPLAIN (ANALYZE, SERIALIZE BINARY)", "EXPLAIN option SERIALIZE is not supported", "SERIALIZE", "TEXT", true},
 	}
@@ -72,7 +73,7 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 								want.Position = fixture.Position(len([]rune(q[:strings.Index(q, c.token)])) + 1)
 								s := fixture.ErrorDiagnostic(q, want)
 								s.Prepared, s.SelectRows, s.ErrorStage = prepared, true, "execute"
-								if prepared && (c.name == "json" || c.name == "xml" || c.name == "yaml") {
+								if prepared && (c.name == "xml" || c.name == "yaml") {
 									s.ErrorStage = "prepare"
 								}
 								fixture.RunStep(t, p.Ctx, tx, b.Recorder, s)
@@ -105,7 +106,7 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 									t.Fatal("empty capability plan")
 								}
 								switch c.name {
-								case "json":
+								case "json-buffers", "json-wal":
 									var plans []struct{ Plan map[string]any }
 									if err := json.Unmarshal([]byte(text), &plans); err != nil || len(plans) != 1 || plans[0].Plan["Node Type"] == nil {
 										t.Fatalf("invalid JSON plan: %s, %v", text, err)
@@ -136,7 +137,11 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 								wantID := int64(1)
 								if c.analyze {
 									wantID = 2
-									explainContains(t, []string{text}, "actual time=", "Execution Time:")
+									if c.typ == "JSON" {
+										explainContains(t, []string{text}, `"Actual Rows"`, `"Execution Time"`)
+									} else {
+										explainContains(t, []string{text}, "actual time=", "Execution Time:")
+									}
 								}
 								fixture.RunStep(t, p.Ctx, tx, b.Recorder, fixture.Select("SELECT id FROM explain_cap", []string{"id"}, []string{"INT4"}, [][]any{{wantID}}))
 							}

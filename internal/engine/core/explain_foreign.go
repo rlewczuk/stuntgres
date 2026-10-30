@@ -17,12 +17,15 @@ func (r *explainRenderer) foreignOptions() catalog.ForeignExplainOptions {
 	return catalog.ForeignExplainOptions{Verbose: r.options.verbose, Costs: r.options.costs}
 }
 
-func foreignProperties(tree *explainTree, properties []catalog.ForeignExplainProperty) error {
+func (r *explainRenderer) foreignProperties(tree *explainTree, properties []catalog.ForeignExplainProperty) error {
 	for _, property := range properties {
 		if strings.TrimSpace(property.Name) == "" || strings.ContainsAny(property.Name, "\r\n:") || strings.ContainsAny(property.Value, "\r\n") {
 			return fmt.Errorf("stuntgres: invalid foreign EXPLAIN property")
 		}
 		tree.details = append(tree.details, property.Name+": "+property.Value)
+		if r.options.format == "json" {
+			r.repeated(tree, "Provider Properties", map[string]any{"Name": property.Name, "Value": property.Value})
+		}
 	}
 	return nil
 }
@@ -41,7 +44,9 @@ func (r *explainRenderer) foreignScan(tree *explainTree, node *plan.SourceNode, 
 		if leaf.Ref.Address == node.Ref.Address {
 			mark = exec.MergeQueryRowMark(mark, leaf.Mark)
 			uses = leaf.Uses
-			if uses == nil { uses = []int{} }
+			if uses == nil {
+				uses = []int{}
+			}
 		}
 		if leaf.Ref.Address == node.Ref.Address && leaf.Principal != (authorization.PrincipalRef{}) {
 			principal = leaf.Principal
@@ -90,11 +95,14 @@ func (r *explainRenderer) foreignScan(tree *explainTree, node *plan.SourceNode, 
 	if err = r.foreignFence(captured); err != nil {
 		return 0, err
 	}
-	if err = foreignProperties(tree, properties); err != nil {
+	if err = r.foreignProperties(tree, properties); err != nil {
 		return 0, err
 	}
 	if r.options.costs {
 		tree.details = append(tree.details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f rows=%.0f width=%.0f", execution.Path.StartupCost, execution.Path.TotalCost, execution.Size.Rows, execution.Size.Width))
+		if r.options.format == "json" {
+			r.property(tree, "Provider Estimates", map[string]float64{"Startup Cost": execution.Path.StartupCost, "Total Cost": execution.Path.TotalCost, "Plan Rows": execution.Size.Rows, "Plan Width": execution.Size.Width})
+		}
 	}
 	return execution.Size.Rows, nil
 }
@@ -146,5 +154,5 @@ func (r *explainRenderer) foreignModify(tree *explainTree, relation *catalog.Rel
 	targets := modification.Request.Targets
 	targets.Names = slices.Clone(targets.Names)
 	r.modifyIdentity = &targets
-	return foreignProperties(tree, properties)
+	return r.foreignProperties(tree, properties)
 }

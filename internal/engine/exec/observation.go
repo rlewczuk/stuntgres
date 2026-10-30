@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
 
@@ -14,16 +14,17 @@ import (
 // Each opened stage writes only its own record. The registry lock is used at
 // stage creation and after joined completion, never in the row loop.
 type Observation struct {
-	mu sync.Mutex
-	timing bool
-	records map[plan.Node][]*stageObservation
+	mu             sync.Mutex
+	timing         bool
+	records        map[plan.Node][]*stageObservation
 	foreignOptions catalog.ForeignExplainOptions
-	foreign map[plan.Node]ForeignObservation
+	foreignJSON    bool
+	foreign        map[plan.Node]ForeignObservation
 }
 
 type Actual struct {
 	Rows, Loops int64
-	Elapsed time.Duration
+	Elapsed     time.Duration
 }
 
 type observationKey struct{}
@@ -56,13 +57,19 @@ func (o *Observation) Context(ctx context.Context) context.Context {
 // Register admits genuine prepared graph identities, including never-demanded
 // descendants. Synthetic presentation-only DML scans are deliberately absent.
 func (o *Observation) Register(root plan.Node) {
-	if o == nil { return }
+	if o == nil {
+		return
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	var visit func(plan.Node)
 	visit = func(node plan.Node) {
-		if node == nil { return }
-		if _, exists := o.records[node]; exists { return }
+		if node == nil {
+			return
+		}
+		if _, exists := o.records[node]; exists {
+			return
+		}
 		o.records[node] = nil
 		left, right := plan.QueryInputs(node)
 		visit(left)
@@ -79,7 +86,9 @@ func (o *Observation) Register(root plan.Node) {
 }
 
 func (o *Observation) Known(node plan.Node) bool {
-	if o == nil || node == nil { return false }
+	if o == nil || node == nil {
+		return false
+	}
 	o.mu.Lock()
 	_, known := o.records[node]
 	o.mu.Unlock()
@@ -88,7 +97,9 @@ func (o *Observation) Known(node plan.Node) bool {
 
 func (o *Observation) Actual(node plan.Node) Actual {
 	var out Actual
-	if o == nil { return out }
+	if o == nil {
+		return out
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	for _, record := range o.records[node] {
@@ -100,13 +111,13 @@ func (o *Observation) Actual(node plan.Node) Actual {
 }
 
 type stageObservation struct {
-	timing bool
-	entered bool
-	frontier int
+	timing      bool
+	entered     bool
+	frontier    int
 	rows, loops int64
-	elapsed time.Duration
-	depth int
-	started time.Time
+	elapsed     time.Duration
+	depth       int
+	started     time.Time
 }
 
 func (o *Observation) stage(node plan.Node) *stageObservation {
@@ -120,19 +131,26 @@ func (o *Observation) stage(node plan.Node) *stageObservation {
 // start/end delimit active work, excluding time between consumer demands.
 // Reentrant projection/production calls share one inclusive span.
 func (r *stageObservation) start() {
-	if !r.entered { r.entered = true; r.loops++ }
+	if !r.entered {
+		r.entered = true
+		r.loops++
+	}
 	r.startWork()
 }
 
 // Partial aggregate work contributes elapsed time, not logical output or loops.
 func (r *stageObservation) startWork() {
-	if r.timing && r.depth == 0 { r.started = time.Now() }
+	if r.timing && r.depth == 0 {
+		r.started = time.Now()
+	}
 	r.depth++
 }
 
 func (r *stageObservation) end() {
 	r.depth--
-	if r.timing && r.depth == 0 { r.elapsed += time.Since(r.started) }
+	if r.timing && r.depth == 0 {
+		r.elapsed += time.Since(r.started)
+	}
 }
 
 func (r *stageObservation) emitted(ordinal int) {
@@ -143,23 +161,35 @@ func (r *stageObservation) emitted(ordinal int) {
 }
 
 func (s *Stage) observeStart() {
-	for _, r := range s.observations { r.start() }
+	for _, r := range s.observations {
+		r.start()
+	}
 }
 func (s *Stage) observeEnd() {
-	for _, r := range s.observations { r.end() }
+	for _, r := range s.observations {
+		r.end()
+	}
 }
 func (s *Stage) observeOutput(ordinal int) {
-	if s.projection != nil { s.projection.emitted(ordinal) }
-	for _, r := range s.observations { r.emitted(ordinal) }
+	if s.projection != nil {
+		s.projection.emitted(ordinal)
+	}
+	for _, r := range s.observations {
+		r.emitted(ordinal)
+	}
 }
 
 // Split projection consumers own evaluation after NextOccurrence returns.
 // Nesting with that pull shares one interval without inventing another output.
 func (s *Stage) beginProjectionWork() {
-	if s.projection != nil { s.projection.startWork() }
+	if s.projection != nil {
+		s.projection.startWork()
+	}
 }
 func (s *Stage) endProjectionWork() {
-	if s.projection != nil { s.projection.end() }
+	if s.projection != nil {
+		s.projection.end()
+	}
 }
 
 func (s *Stage) observeDrained(count int) {

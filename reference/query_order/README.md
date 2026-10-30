@@ -3,7 +3,7 @@
 Window functions and frames (ranking, lead/lag, ntile, value functions,
 ROWS/RANGE/GROUPS and EXCLUDE), ORDER BY, LIMIT/OFFSET/FETCH including WITH
 TIES, DISTINCT and DISTINCT ON, query-level aggregates including
-`COUNT(expr)`, and EXPLAIN text plans, options, nonexecution, actual execution and admission.
+`COUNT(expr)`, and EXPLAIN TEXT/JSON plans, options, nonexecution, actual execution and admission.
 Related families: set operations in
 [query_core](../query_core/README.md#testing); grouping sets and
 hypothetical-set aggregates in [aggregates](../aggregates/README.md#testing);
@@ -21,6 +21,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 - EXPLAIN helpers in `explain_text_test.go` validate owned, one-line-per-row
   `QUERY PLAN`/TEXT results. Assert native logical stages/details and independently
   valid PostgreSQL plans, never bytewise plan parity or fixed PostgreSQL costs.
+  JSON helpers independently require one typed JSON document row and structural
+  node/list/numeric fields. Native logical trees and PostgreSQL physical trees
+  have separate expectations; neither backend supplies the other's goldens.
   Capability tests assert exact native diagnostics separately from PostgreSQL's
   supported formats. ANALYZE cases assert emitted rows/loops, real effects,
   caller rollback, runtime failures and current prepared parameters independently;

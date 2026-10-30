@@ -40,7 +40,10 @@ selection, before runtime startup, rather than rediscovering paths for display.
 Composite observations retain the original replaced node key, not a synthetic
 scan identity; pushed children have no invented local measurements. Provider
 explain callbacks receive separate layout backing and the actual selected
-private token. Only owned presentation strings survive scan cleanup.
+private token. Only owned presentation strings and, for JSON, detached operation,
+source identities, provider estimates and ordered properties survive scan cleanup.
+Structured values are captured at that selection callback, not parsed from text;
+Foreign returns separate backing for all slices/maps under the observation lock.
 Composite discovery freezes current typed parameters once before provider
 selection. Explanation and initial Begin reuse that detached statement snapshot;
 runtime transaction/characteristics join later without replacing selected facts.

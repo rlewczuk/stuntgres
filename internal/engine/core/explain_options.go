@@ -11,6 +11,7 @@ import (
 
 type explainOptions struct {
 	costs, verbose, analyze, timing, summary bool
+	format                                   string
 }
 
 func explainError(code, message string, pos parser.Position) error {
@@ -53,7 +54,7 @@ func explainDescribeFormat(statement *parser.Explain) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			format = strings.ToLower(value)
+			format = value
 		}
 	}
 	return format, nil
@@ -63,14 +64,25 @@ func explainBoolean(option parser.ExplainOption) (bool, error) {
 	if option.Value == nil {
 		return true, nil
 	}
+	if literal, ok := option.Value.(parser.LiteralExpr); ok {
+		switch literal.Value.Kind {
+		case parser.IntegerValue:
+			if literal.Value.Integer == 0 || literal.Value.Integer == 1 {
+				return literal.Value.Integer == 1, nil
+			}
+			return false, explainError("42601", option.Name+" requires a Boolean value", parser.Position{})
+		case parser.NumericValue:
+			return false, explainError("42601", option.Name+" requires a Boolean value", parser.Position{})
+		}
+	}
 	text, err := explainOptionString(option)
 	if err != nil {
 		return false, err
 	}
 	switch strings.ToLower(text) {
-	case "true", "on", "1":
+	case "true", "on":
 		return true, nil
-	case "false", "off", "0":
+	case "false", "off":
 		return false, nil
 	}
 	return false, explainError("42601", strings.ToLower(option.Name)+" requires a Boolean value", parser.Position{})
@@ -93,7 +105,7 @@ const (
 var explainBooleanNames = [explainBooleanCount]string{"analyze", "verbose", "costs", "settings", "generic_plan", "buffers", "wal", "timing", "summary", "memory"}
 
 func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
-	options := explainOptions{costs: true}
+	options := explainOptions{costs: true, format: "text"}
 	booleans := [explainBooleanCount]bool{explainCosts: true}
 	var positions [explainBooleanCount]parser.Position
 	var formatPosition, serializePosition parser.Position
@@ -127,7 +139,10 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 					return options, err
 				}
 			}
-			lower := strings.ToLower(value)
+			lower := value
+			if name == "serialize" {
+				lower = strings.ToLower(value)
+			}
 			valid := name == "format" && (lower == "text" || lower == "json" || lower == "xml" || lower == "yaml") || name == "serialize" && (lower == "none" || lower == "text" || lower == "binary")
 			if !valid {
 				return options, explainError("22023", fmt.Sprintf("unrecognized value for EXPLAIN option %q: %q", name, value), option.Pos)
@@ -161,10 +176,11 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 	if serialize != "none" {
 		return options, explainError("0A000", "EXPLAIN option SERIALIZE is not supported", serializePosition)
 	}
-	if format != "text" {
+	if format != "text" && format != "json" {
 		return options, explainError("0A000", "EXPLAIN format "+strings.ToUpper(format)+" is not supported", formatPosition)
 	}
 	options.costs, options.verbose = booleans[explainCosts], booleans[explainVerbose]
+	options.format = format
 	options.analyze = booleans[explainAnalyze]
 	options.timing, options.summary = options.analyze, options.analyze
 	if specified[explainTiming] {

@@ -27,12 +27,18 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 	read := partition.CaptureCatalog(r.scope.inheritanceRead(r.auth.Catalog), r.scope.PartitionRelations, r.scope.PendingDetachSnapshot())
 	var rows float64
 	var names []string
+	var identities []map[string]any
 	var physicals []*catalog.Relation
 	visit := func(physical *catalog.Relation) error {
 		if r.scanFilter != nil && r.scanFilter.Child == source {
 			physicals = append(physicals, physical)
 		}
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
+		if r.options.format == "json" {
+			identity := &explainTree{}
+			r.relationProperties(identity, physical, physical.Name())
+			identities = append(identities, identity.properties)
+		}
 		estimate := plannerSourceRows(r.statisticsStorage(physical.Address()))
 		if metadata := r.statisticsMetadata(physical.Address()); metadata != nil && metadata.ForeignAnalyze != nil {
 			estimate = metadata.ForeignAnalyze.TotalRows
@@ -72,6 +78,7 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 	}
 	if len(names) > 1 || relation.RelationKind == catalog.PartitionedRelation {
 		tree.details = append(tree.details, "Planned Sources: "+strings.Join(names, ", "))
+		r.property(tree, "Planned Sources", identities)
 	}
 	if err := r.sourcePruning(tree, source, relation, read, physicals, !only && (len(physicals) > 1 || relation.Partition != nil)); err != nil {
 		return 0, err
@@ -146,7 +153,9 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 		// Imported planner facts use PostgreSQL's minimum row estimate for
 		// a nonempty input, including an explicitly supplied zero fraction.
 		// Wholly measured exact-count estimates retain their existing path.
-		if imported && inputRows > 0 { estimate.Rows = max(1, estimate.Rows) }
+		if imported && inputRows > 0 {
+			estimate.Rows = max(1, estimate.Rows)
+		}
 	}
 	return estimate, err
 }

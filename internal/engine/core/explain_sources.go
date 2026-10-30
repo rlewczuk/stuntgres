@@ -90,6 +90,7 @@ func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNo
 			outputs[i] = text
 		}
 		tree.details = append(tree.details, "Output: "+strings.Join(outputs, ", "))
+		r.property(tree, "Output", outputs)
 	}
 	command, reads := catalog.PolicySelect, false
 	if leaf.Mark.Mode != 0 {
@@ -112,6 +113,7 @@ func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNo
 			return err
 		}
 		tree.details = append(tree.details, "Row Security Filter: "+text)
+		r.property(tree, "Row Security Filter", text)
 		tree.restriction = condition
 	}
 	return nil
@@ -171,11 +173,16 @@ func (r *explainRenderer) rowSecurity(relation *catalog.Relation, command catalo
 }
 
 func (r *explainRenderer) sortKeys(root plan.Node, keys []plan.SortKey) (string, error) {
+	parts, err := r.sortKeyParts(root, keys)
+	return strings.Join(parts, ", "), err
+}
+
+func (r *explainRenderer) sortKeyParts(root plan.Node, keys []plan.SortKey) ([]string, error) {
 	parts := make([]string, len(keys))
 	for i, key := range keys {
 		text, err := r.expression(root, key.Expression)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if key.Desc {
 			text += " DESC"
@@ -189,7 +196,7 @@ func (r *explainRenderer) sortKeys(root plan.Node, keys []plan.SortKey) (string,
 		}
 		parts[i] = text
 	}
-	return strings.Join(parts, ", "), nil
+	return parts, nil
 }
 
 func (r *explainRenderer) windowCall(node *plan.WindowNode, index int) (string, error) {
