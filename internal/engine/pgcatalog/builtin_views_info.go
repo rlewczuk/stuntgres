@@ -588,6 +588,22 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("    "), viewIdentifier("authorization_identifier"), viewText("\n"),
 		viewText("   FROM "), viewClass("information_schema._pg_foreign_servers"), viewText(";"),
 	}},
+	// information_schema.foreign_table_options — REL_18_6 information_schema.sql.
+	{oid: InfoForeignTableOptionsOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("foreign_table_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_table_schema"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_table_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("ftoptions"), viewText("))."), viewIdentifier("option_name"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("option_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("ftoptions"), viewText("))."), viewIdentifier("option_value"), viewText(")::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_foreign_tables"), viewText(" "), viewIdentifier("t"), viewText(";"),
+	}, prettyParts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("foreign_table_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_table_schema"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_table_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("ftoptions"), viewText("))."), viewIdentifier("option_name"), viewText("::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("option_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("ftoptions"), viewText("))."), viewIdentifier("option_value"), viewText("::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_foreign_tables"), viewText(" "), viewIdentifier("t"), viewText(";"),
+	}},
 	// information_schema.user_mapping_options — REL_18_6 information_schema.sql.
 	{oid: InfoUserMappingOptionsOID, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("authorization_identifier"), viewText(",\n"),

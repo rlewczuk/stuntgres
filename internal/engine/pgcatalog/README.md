@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
-`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `key_column_usage`,
+`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `foreign_table_options`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
@@ -943,6 +943,19 @@ catalog writes or bypass a provider's independent backing-source checks.
   cancellation discards partial results. Options, mappings, tables and handler
   registration neither create nor multiply rows. Metadata never invokes handlers
   or performs remote I/O.
+- `information_schema.foreign_table_options`: one row per actual table option in
+  four nullable `sql_identifier` domains and one nullable `character_data` domain.
+  The shared `infoRelationVisible` predicate admits enabled ownership, any
+  qualifying table right or a qualifying right on any live positive attribute;
+  schema/server/wrapper USAGE and MAINTAIN alone do not qualify. Eligible readers
+  receive all keys and values, including passwords and empty strings; denied
+  readers receive no rows, never masked values. Only `Foreign.Options` contributes:
+  column/wrapper/server/mapping options are not inherited, and zero-column tables
+  still contribute their table options. Captured catalog, roles, database and
+  source-owned domains retain immutable rows across publication; cancellation
+  publishes no prefix. Metadata reads neither invoke handlers nor perform I/O.
+  Its annotated default and pretty definitions retain distinct released SRF-field
+  cast parentheses; neither format is synthesized from the other at runtime.
 - `key_column_usage`: foreign-key positions follow the supporting index's
   ordered keys; visibility is owner inheritance or a column privilege.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,

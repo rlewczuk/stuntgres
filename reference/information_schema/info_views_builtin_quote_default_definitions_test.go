@@ -2,6 +2,12 @@ package reference_test
 
 // Independent PostgreSQL 18.6 quote_all_identifiers definition expectations.
 var ivBuiltinQuoteDefaultDefinitions = map[string]string{
+	"information_schema.foreign_table_options": ` SELECT "foreign_table_catalog",
+    "foreign_table_schema",
+    "foreign_table_name",
+    (("pg_options_to_table"("ftoptions"))."option_name")::"information_schema"."sql_identifier" AS "option_name",
+    (("pg_options_to_table"("ftoptions"))."option_value")::"information_schema"."character_data" AS "option_value"
+   FROM "information_schema"."_pg_foreign_tables" "t";`,
 	"information_schema.foreign_servers": ` SELECT "foreign_server_catalog",
     "foreign_server_name",
     "foreign_data_wrapper_catalog",

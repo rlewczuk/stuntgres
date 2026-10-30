@@ -28,6 +28,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "schemata"},
 	{"information_schema", "column_options"},
 	{"information_schema", "foreign_data_wrapper_options"},
+	{"information_schema", "foreign_table_options"},
 	{"information_schema", "foreign_servers"},
 	{"information_schema", "table_constraints"},
 	{"information_schema", "transforms"},
@@ -75,6 +76,7 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 						"CREATE TABLE public.pg_namespace(n integer)",
 						"CREATE TABLE public.pg_attribute(n integer)",
 						"CREATE TABLE public._pg_foreign_servers(n integer)",
+						"CREATE TABLE public._pg_foreign_tables(n integer)",
 						"CREATE FUNCTION public.pg_get_userbyid(oid) RETURNS name BEGIN ATOMIC SELECT 'shadow'::name; END",
 					} {
 						run(fixture.Exec(q, 0))
@@ -147,7 +149,7 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 				for i, q := range directQueries {
 					heldDirect[i](fixture.Select(q, []string{"definition"}, []string{"TEXT"}, [][]any{{checkDefinition}}, "information_schema.check_constraints"))
 				}
-				for _, candidate := range []struct{ schema, name string }{{"information_schema", "foreign_servers"}, {"information_schema", "transforms"}, {"information_schema", "schemata"}, {"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "check_constraint_routine_usage"}, {"information_schema", "column_domain_usage"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "routine_privileges"}, {"information_schema", "role_udt_grants"}, {"information_schema", "role_usage_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}, {"information_schema", "routine_routine_usage"}} {
+				for _, candidate := range []struct{ schema, name string }{{"information_schema", "foreign_table_options"}, {"information_schema", "foreign_servers"}, {"information_schema", "transforms"}, {"information_schema", "schemata"}, {"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "check_constraint_routine_usage"}, {"information_schema", "column_domain_usage"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "routine_privileges"}, {"information_schema", "role_udt_grants"}, {"information_schema", "role_usage_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}, {"information_schema", "routine_routine_usage"}} {
 					update, insert := "NO", "NO"
 					if candidate.name == "pg_group" {
 						update, insert = "YES", "YES"

@@ -93,6 +93,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.schemata":       []string{"catalog_name", "schema_name", "schema_owner", "default_character_set_catalog", "default_character_set_schema", "default_character_set_name", "sql_path"},
 		"information_schema.column_options": fixture.COColumns,
 		"information_schema.foreign_data_wrapper_options":   fixture.FDWOColumns,
+		"information_schema.foreign_table_options":          ftoColumns,
 		"information_schema.foreign_data_wrappers":          fdwvColumns,
 		"information_schema.foreign_servers":                fsvColumns,
 		"information_schema.transforms":                     trColumns,

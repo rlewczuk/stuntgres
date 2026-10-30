@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`,
+`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `foreign_table_options`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
 `domain_constraints`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
@@ -64,6 +64,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign-wrapper options: `RUN='^TestReferenceInfoForeignDataWrapperOptions'`
 - Foreign-wrapper metadata: `RUN='^TestReferenceInfoForeignDataWrappers'`
 - Foreign-server metadata: `RUN='^TestReferenceInfoForeignServers'`
+- Foreign-table options: `RUN='^TestReferenceInfoForeignTableOptions'`
 - Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
@@ -87,6 +88,16 @@ option/identity/ACL publication, exact mutation diagnostics and atomicity.
 Native control phases retain actual eager rows across publication and Reset,
 and restore the same options into an independent Driver without reusing its
 catalog or type authority.
+
+Foreign-table option scenarios prescribe five nullable domain-backed columns,
+raw NAME/VARCHAR transport, empty/all-NULL descriptions and actual table-only
+option bags, including zero-column tables. Whole-table ownership or qualifying
+table/column privilege reveals every configured value, including passwords;
+unrelated USAGE, mapping and MAINTAIN rights reveal none. Direct, fresh-prepared
+and held consumers cover ACL/identity/option publication, transactions, complete
+diagnostics and failed mutation atomicity. Native control phases retain eager
+rows and restore actual options, ownership and table/column ACLs into independent
+Driver authority. All six builtin display inventories include the view.
 
 Foreign-wrapper metadata scenarios assert the five domain-backed fields over
 actual wrappers, including optionless inventory and permanent NULL library.

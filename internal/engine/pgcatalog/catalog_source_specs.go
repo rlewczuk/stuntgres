@@ -1011,6 +1011,7 @@ var Specs = [...]Spec{
 	{InfoForeignDataWrapperOptionsOID, 13229, "foreign_data_wrapper_options", infoForeignDataWrapperOptionsColumns, true, false, false, false, "stuntgres: missing foreign data wrapper options domain"},
 	{InfoForeignDataWrappersOID, 13229, "foreign_data_wrappers", infoForeignDataWrappersColumns, true, false, false, false, "stuntgres: missing foreign data wrappers domain"},
 	{InfoForeignServersOID, 13229, "foreign_servers", infoForeignServersColumns, true, false, false, false, "stuntgres: missing foreign servers domain"},
+	{InfoForeignTableOptionsOID, 13229, "foreign_table_options", infoForeignTableOptionsColumns, true, false, false, false, "stuntgres: missing foreign table options domain"},
 	{InfoTransformsOID, 13229, "transforms", infoTransformsColumns, true, false, true, true, "stuntgres: missing transforms domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},

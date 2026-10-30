@@ -10,6 +10,10 @@
   Preserve original UTF8 regions, phase-local cursor protections and all
   109 verb, 295 noun and 19 adjective rules without production dependencies.
 
+- Add `information_schema.foreign_table_options` over actual foreign-table
+  options, with nullable domain metadata, whole-table privilege visibility,
+  canonical view displays and retained native control round trips.
+
 - Add transactional column statistics targets and distinctness overrides, typed
   catalog metadata, per-column ANALYZE collection and signed planner estimates,
   with immutable publication and native logical Dump/Restore.

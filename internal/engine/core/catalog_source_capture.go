@@ -117,7 +117,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
 		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 		unlockBefore = true
-	case pgcatalog.InfoForeignDataWrapperOptionsOID, pgcatalog.InfoForeignDataWrappersOID, pgcatalog.InfoForeignServersOID:
+	case pgcatalog.InfoForeignDataWrapperOptionsOID, pgcatalog.InfoForeignDataWrappersOID, pgcatalog.InfoForeignServersOID, pgcatalog.InfoForeignTableOptionsOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
 		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)

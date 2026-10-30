@@ -3,6 +3,12 @@ package reference_test
 // Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinPathDefinitions = map[string]string{
+	"information_schema.foreign_table_options": ` SELECT foreign_table_catalog,
+    foreign_table_schema,
+    foreign_table_name,
+    ((pg_options_to_table(ftoptions)).option_name)::sql_identifier AS option_name,
+    ((pg_options_to_table(ftoptions)).option_value)::character_data AS option_value
+   FROM _pg_foreign_tables t;`,
 	"information_schema.foreign_servers": ` SELECT foreign_server_catalog,
     foreign_server_name,
     foreign_data_wrapper_catalog,
