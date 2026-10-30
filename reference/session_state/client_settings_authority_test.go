@@ -40,6 +40,11 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 						step := fixture.Select("SELECT sourcefile,sourceline FROM pg_settings WHERE name="+physicalLiteral(tc.name), []string{"sourcefile", "sourceline"}, []string{"TEXT", "INT4"}, [][]any{{nil, nil}})
 						step.Prepared = prepared
 						ordinary.run(step)
+						if tc.name == "session_replication_role" {
+							// Ordinary metadata reads need neither SET nor
+							// pg_read_all_settings authority.
+							ordinary.clientMetadata(tc, prepared)
+						}
 					}
 				}
 				if clientContext(tc.name) == "postmaster" {

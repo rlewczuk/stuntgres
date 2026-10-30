@@ -156,7 +156,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   covers all 46 selected settings, independently expected full metadata and
   diagnostics, direct/prepared routes, parameter SET grants versus restricted
   reads, catalog validation, LOCAL/savepoint/pool/native-control behavior and
-  the explicit setting-only safety boundary. Run both native and REFERENCE=1.
+  the explicit setting-only safety boundary for external mechanisms, not a claim
+  that session_replication_role is inert. Run both native and REFERENCE=1.
   SimulationSmoke is the new-feature smoke (8MB SHOW versus raw8192, XML alias,
   native FK/routine safety and unchanged logical rows), not a physical-effect
   claim. Native initialization is UTF8/C/UTC/simple FTS; the pinned 18.6
@@ -166,6 +167,28 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   NULL file fields; RESET restores the actual captured client/config source;
   unauthorized readers never see file fields. Ordinary-login scenarios use
   the fixture's role-core-fixture password convention.
+- Session replication role: run `make check RUN='^TestReferenceSessionReplicationRoleAcceptance$'`
+  and `make check RUN='^TestReferenceSessionReplicationRoleFeatureSmoke$'`, then
+  repeat both with `REFERENCE=1` (the pinned PostgreSQL 18.6 oracle).
+  The focused direct/retained-prepared fixture independently expects ordinary
+  BEFORE INSERT trigger results 105/5/105 for origin/replica/local, exact
+  SHOW/current_setting and all 17 pg_settings fields, physical-session isolation,
+  SET rollback/commit, SET LOCAL commit restoration and savepoint rollback with
+  exact retained/removed rows. local has origin's logical behavior but keeps its
+  distinct displayed value. FeatureSmoke also proves ordinary FK checks are
+  suppressed under replica: an accepted orphan remains after returning to origin,
+  while the next invalid insert fails with the exact 23503 diagnostic.
+  Selected `TestReferenceClientSettings(Inventory|Validation|Authority|Lifecycle)`
+  subtest `session_replication_role` supplies canonical enum validation, exact
+  22023/42501 English diagnostics (authority before validation), ordinary metadata
+  visibility, superuser/parameter SET grants and revocation. Run those four
+  bounded top-level tests in both modes, along with
+  `TestReferenceTriggerMode(Effects|Prepared|ForeignKeys)`. Avoid slash selectors
+  here: they select every reference package and unnecessarily start unrelated
+  oracle containers.
+  These are real logical trigger/FK effects through the existing provider, not
+  replication transport, WAL application or replication workers; those physical
+  mechanisms remain outside this setting's embedded SQL contract.
 - Resource settings: run each bounded `TestReferenceResourceSettingsInventory`,
   `TestReferenceResourceSettingsContext`, `TestReferenceResourceSettingsValidation`,
   `TestReferenceResourceSettingsAuthority` and `TestReferenceResourceSettingsLifecycle`
