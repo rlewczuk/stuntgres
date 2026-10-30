@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
-`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `key_column_usage`,
+`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
@@ -925,6 +925,14 @@ catalog writes or bypass a provider's independent backing-source checks.
   options and handler registration do not. Paired catalog/role captures and owned
   domain carriers survive later publication; cancellation discards every row.
   Metadata reads neither execute handlers nor contact foreign servers.
+- `information_schema.foreign_data_wrappers`: one row per actual wrapper, including
+  optionless wrappers, in three nullable `sql_identifier` domains and two nullable
+  `character_data` domains. Captured database, wrapper and owner names accompany
+  a typed NULL library and language `c`. Immediately inherited ownership or
+  effective wrapper USAGE admits the complete row; unrelated object rights do
+  not. Owned rows retain their paired catalog/role authority across publication.
+  Options, dependents and handler registration never create or multiply rows;
+  metadata reads do not execute handlers or contact foreign servers.
 - `key_column_usage`: foreign-key positions follow the supporting index's
   ordered keys; visibility is owner inheritance or a column privilege.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
@@ -1202,6 +1210,7 @@ a hash root alone does not select that access method.
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
 - Foreign-wrapper option producer units (core): `RUN='^TestInfoForeignDataWrapperOptions'`
+- Foreign-wrapper producer units (core): `RUN='^TestInfoForeignDataWrappers'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Type procedure dependency ownership and retirement (composed engine):
   `RUN='^TestTypeProcedureDependencies'`.
