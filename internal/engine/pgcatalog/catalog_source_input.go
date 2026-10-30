@@ -53,6 +53,12 @@ const (
 	ClassOIDColumn          = 0 // pg_class.oid
 	ClassNameColumn         = 1 // pg_class.relname
 	ProcedureOIDColumn      = 0 // pg_proc.oid
+
+	InfoRoutinesSpecificSchemaColumn   = 1 // information_schema.routines.specific_schema
+	InfoRoutinesSpecificNameColumn     = 2 // information_schema.routines.specific_name
+	InfoRoutinesSchemaColumn           = 4 // information_schema.routines.routine_schema
+	InfoParametersSpecificSchemaColumn = 1 // information_schema.parameters.specific_schema
+	InfoParametersSpecificNameColumn   = 2 // information_schema.parameters.specific_name
 )
 
 // KeyColumns lists the key columns of a system relation whose producer skips
@@ -67,6 +73,10 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{ClassOIDColumn, ClassNameColumn}
 	case ids.ProcedureClassID:
 		return []int{ProcedureOIDColumn}
+	case InfoRoutinesOID:
+		return []int{InfoRoutinesSpecificSchemaColumn, InfoRoutinesSpecificNameColumn, InfoRoutinesSchemaColumn}
+	case InfoParametersOID:
+		return []int{InfoParametersSpecificSchemaColumn, InfoParametersSpecificNameColumn}
 	}
 	return nil
 }

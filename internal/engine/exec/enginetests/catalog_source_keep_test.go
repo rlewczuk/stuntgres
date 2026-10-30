@@ -224,3 +224,69 @@ func TestCatalogSourceKeepOIDProbes(t *testing.T) {
 		})
 	}
 }
+
+// TestCatalogSourceKeepThroughCoercions checks a key column under coercions:
+// an information_schema sql_identifier column compares through its relabel to
+// name, and the test evaluates that chain on each cell. A chain that checks a
+// domain yields no test.
+func TestCatalogSourceKeepThroughCoercions(t *testing.T) {
+	read := engine.New().CatalogRead()
+	lookup := func(id sqltype.ID) *sqltype.Descriptor {
+		d, ok := read.LookupType(id)
+		if !ok {
+			t.Fatal("missing type", id)
+		}
+		return d
+	}
+	name, boolean, text, varchar := lookup(sqltype.Name), lookup(sqltype.Bool), lookup(sqltype.Text), lookup(sqltype.VarChar)
+	identifier, yesOrNo := lookup(13248), lookup(13256) // information_schema.sql_identifier, yes_or_no
+	plan1 := func(source, target *sqltype.Descriptor) sqltype.CoercionPlan {
+		p, err := sqltype.PlanCoercion(source.Usage(), target.Usage(), sqltype.Explicit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	equal := func(typ *sqltype.Descriptor) sqltype.ComparisonPredicate {
+		p, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, typ, typ, boolean, typ.Usage().Collation, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	domain := &ids.Domain{}
+	ref := domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16219})
+	column := func(typ *sqltype.Descriptor) plan.ColumnExpr {
+		return plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Origin: domain.Ref(1, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16219, SubID: 2}), Scope: 1, Frame: 1, Slot: 1}
+	}
+	coerce := func(child expr.Expr, source, target *sqltype.Descriptor) plan.CoercionExpr {
+		return plan.CoercionExpr{Info: expr.Info{Usage: target.Usage()}, Child: child, Plan: plan1(source, target)}
+	}
+	filtered := func(left expr.Expr, typ *sqltype.Descriptor, probe string) plan.Node {
+		literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.String(typ, probe)}
+		return &plan.FilterNode{Child: &plan.SourceNode{Ref: ref}, Predicate: plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: left, Right: literal, Predicate: equal(typ), Operator: "="}}
+	}
+	relabel := filtered(coerce(column(identifier), identifier, name), name, "public")
+	keep := exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, relabel, true, 0, ref, 1)
+	if keep == nil {
+		t.Fatal("missing row test through a domain relabel")
+	}
+	// Producers wrap the cells of a domain column in the domain.
+	cell := func(v sqltype.Value) sqltype.Value {
+		w, err := identifier.Wrap(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return w
+	}
+	if !keep(cell(sqltype.String(name, "public"))) || keep(cell(sqltype.String(name, "pg_catalog"))) || keep(cell(sqltype.String(name, "Public"))) || !keep(cell(sqltype.Null(name))) {
+		t.Fatal("row test does not match the relabeled conjunct")
+	}
+	if exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, relabel, true, 0, ref, 0) != nil {
+		t.Fatal("row test for another column")
+	}
+	checked := filtered(coerce(coerce(column(text), text, yesOrNo), yesOrNo, varchar), varchar, "YES")
+	if exec.CatalogSourceKeep(context.Background(), nil, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, checked, true, 0, ref, 1) != nil {
+		t.Fatal("row test through a domain check")
+	}
+}

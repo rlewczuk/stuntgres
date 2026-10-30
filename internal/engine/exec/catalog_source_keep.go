@@ -14,7 +14,9 @@ import (
 // that leaf occurrence of root scans, so its producer can skip rows the
 // statement's filter rejects. It applies only when root scans the occurrence
 // once, under a filter whose first-evaluated conjunct compares column slot of
-// that scan with non-NULL statement constants (text, or an oid probe such as a
+// that scan, directly or through non-volatile coercions that check no domain
+// (such as an information_schema domain column's relabel to its base type),
+// with non-NULL statement constants (text, or an oid probe such as a
 // bound 'name'::regclass literal): "=" or "= ANY" of a list, with a builtin
 // pg_catalog comparison. The test evaluates that comparison's own predicate
 // and rejects a cell only when the conjunct is FALSE: the filter then rejects
@@ -122,27 +124,57 @@ func catalogColumnKeep(evaluation *Context, e expr.Expr, occurrence int, ref ids
 		t, err := plan.TruthOf(result)
 		return err != nil || t != plan.False
 	}
+	// operand returns the comparison operand a key cell yields, or nil when x
+	// is not the key column. The column may sit under coercions, such as an
+	// information_schema domain column's relabel to its base type; the chain
+	// is evaluated with the cell in the column's place, and a failure keeps
+	// the row.
+	operand := func(x expr.Expr) func(sqltype.Value) (sqltype.Value, bool) {
+		if isColumn(x) {
+			return func(cell sqltype.Value) (sqltype.Value, bool) { return cell, true }
+		}
+		leaf := &keyCell{}
+		chain, ok := keyCoercions(x, isColumn, leaf)
+		if !ok {
+			return nil
+		}
+		return func(cell sqltype.Value) (sqltype.Value, bool) {
+			leaf.cell = cell
+			v, err := chain.Eval(evaluation)
+			return v, err == nil
+		}
+	}
 	switch c := e.(type) {
 	case plan.ComparisonExpr:
 		if c.Operator != "=" || !builtin(c.RoutineRef, c.Namespace, c.Properties()) {
 			return nil
 		}
-		if isColumn(c.Left) {
+		if key := operand(c.Left); key != nil {
 			probe, ok := constant(c.Right, c.Left)
 			if !ok {
 				return nil
 			}
-			return func(cell sqltype.Value) bool { return truth(c.Predicate, cell, probe) }
+			return func(cell sqltype.Value) bool {
+				v, ok := key(cell)
+				return !ok || truth(c.Predicate, v, probe)
+			}
 		}
-		if isColumn(c.Right) {
+		if key := operand(c.Right); key != nil {
 			probe, ok := constant(c.Left, c.Right)
 			if !ok {
 				return nil
 			}
-			return func(cell sqltype.Value) bool { return truth(c.Predicate, probe, cell) }
+			return func(cell sqltype.Value) bool {
+				v, ok := key(cell)
+				return !ok || truth(c.Predicate, probe, v)
+			}
 		}
 	case plan.ScalarArrayComparisonExpr:
-		if c.Operator != "=" || c.All || c.Array != nil || len(c.Items) == 0 || !builtin(c.RoutineRef, c.Namespace, c.Properties()) || !isColumn(c.Left) {
+		if c.Operator != "=" || c.All || c.Array != nil || len(c.Items) == 0 || !builtin(c.RoutineRef, c.Namespace, c.Properties()) {
+			return nil
+		}
+		key := operand(c.Left)
+		if key == nil {
 			return nil
 		}
 		probes := make([]sqltype.Value, len(c.Items))
@@ -154,8 +186,12 @@ func catalogColumnKeep(evaluation *Context, e expr.Expr, occurrence int, ref ids
 			probes[i] = probe
 		}
 		return func(cell sqltype.Value) bool {
+			v, ok := key(cell)
+			if !ok {
+				return true
+			}
 			for _, probe := range probes {
-				if truth(c.Predicate, cell, probe) {
+				if truth(c.Predicate, v, probe) {
 					return true
 				}
 			}
@@ -163,6 +199,41 @@ func catalogColumnKeep(evaluation *Context, e expr.Expr, occurrence int, ref ids
 		}
 	}
 	return nil
+}
+
+// keyCell stands for the key column in a coercion chain over it: it
+// evaluates to the cell under test.
+type keyCell struct {
+	expr.Info
+	cell sqltype.Value
+}
+
+func (k *keyCell) Eval(expr.Context) (sqltype.Value, error) { return k.cell, nil }
+
+// keyCoercions returns x, a chain of coercions over the key column, with leaf
+// in the column's place. Like a probe's coercions (statementConstant), each
+// must be non-volatile and check no domain, so that it depends on the cell
+// alone.
+func keyCoercions(x expr.Expr, isColumn func(expr.Expr) bool, leaf *keyCell) (expr.Expr, bool) {
+	c, ok := x.(plan.CoercionExpr)
+	if !ok {
+		return nil, false
+	}
+	p := c.Properties()
+	if c.Plan.ChecksDomain() || p.Volatility == expr.Volatile || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion {
+		return nil, false
+	}
+	if column, ok := c.Child.(plan.ColumnExpr); ok && isColumn(column) {
+		leaf.Info = column.Info
+		c.Child = leaf
+		return c, true
+	}
+	child, ok := keyCoercions(c.Child, isColumn, leaf)
+	if !ok {
+		return nil, false
+	}
+	c.Child = child
+	return c, true
 }
 
 // textConstant reports whether every expression of a statement constant's

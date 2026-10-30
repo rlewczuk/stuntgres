@@ -82,6 +82,14 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing routines namespace")
 		}
+		cell := func(i int, value string) func() (sqltype.Value, error) {
+			return func() (sqltype.Value, error) { return domainText(columns[i], value) }
+		}
+		if in.Keep.Rejects(InfoRoutinesSpecificSchemaColumn, cell(InfoRoutinesSpecificSchemaColumn, namespace.Name())) ||
+			in.Keep.Rejects(InfoRoutinesSpecificNameColumn, cell(InfoRoutinesSpecificNameColumn, routineSpecificName(routine.Name(), address.ObjectID))) ||
+			in.Keep.Rejects(InfoRoutinesSchemaColumn, cell(InfoRoutinesSchemaColumn, namespace.Name())) {
+			continue
+		}
 		row := slices.Clone(nulls)
 		text := func(i int, value string) {
 			row[i] = sqltype.String(in.Source.Columns[i].Usage.Type.BaseType(), value)

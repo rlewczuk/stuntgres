@@ -19,6 +19,12 @@ func domainNulls(columns []catalog.Column) ([]sqltype.Value, error) {
 	return row, nil
 }
 
+// domainText is the cell a producer writes for value in a text-based domain
+// column once wrapDomainCells wraps it.
+func domainText(column catalog.Column, value string) (sqltype.Value, error) {
+	return column.Usage.Type.Wrap(sqltype.String(column.Usage.Type.BaseType(), value))
+}
+
 // wrapDomainCells wraps the cells of a cloned domainNulls row that the
 // producer replaced with base-type values.
 func wrapDomainCells(columns []catalog.Column, row []sqltype.Value) error {

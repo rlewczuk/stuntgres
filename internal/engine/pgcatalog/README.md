@@ -286,7 +286,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   producer omits the rows it rejects, which the statement's own filter rejects
   anyway (`exec.CatalogSourceKeep`). `KeyColumns` lists them: `pg_settings.name`,
   `pg_attribute.attrelid` (one test per relation), `pg_class.oid` or
-  `relname`, and `pg_proc.oid`. Captures made with `Keep` are never shared; a
+  `relname`, `pg_proc.oid`, `information_schema.routines.specific_schema`,
+  `specific_name` or `routine_schema`, and `information_schema.parameters`'
+  `specific_schema` or `specific_name` (domain columns, compared through
+  their base-type relabel). Captures made with `Keep` are never shared; a
   statement with `Keep` may still read a shared full capture.
 - Rows are immutable once returned: the engine may share one capture across
   statements with the same inputs, so neither producers nor consumers write

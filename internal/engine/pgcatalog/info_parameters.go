@@ -115,6 +115,14 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing parameters namespace")
 		}
+		identity := routineSpecificName(d.Name(), address.ObjectID)
+		if in.Keep.Rejects(InfoParametersSpecificSchemaColumn, func() (sqltype.Value, error) {
+			return domainText(columns[InfoParametersSpecificSchemaColumn], namespace.Name())
+		}) || in.Keep.Rejects(InfoParametersSpecificNameColumn, func() (sqltype.Value, error) {
+			return domainText(columns[InfoParametersSpecificNameColumn], identity)
+		}) {
+			continue
+		}
 		names, err := ProcedureNameProjection(in.Catalog, d)
 		if err != nil {
 			return nil, err
@@ -142,7 +150,6 @@ func captureInfoParameters(in Input) ([][]sqltype.Value, error) {
 				}
 			}
 		}
-		identity := routineSpecificName(d.Name(), address.ObjectID)
 		err = VisitProcedureFormals(in.Context, d, sqltype.Value{}, func(f ProcedureFormal) error {
 			if f.Index >= names.count {
 				return fmt.Errorf("stuntgres: invalid formal name layout")
