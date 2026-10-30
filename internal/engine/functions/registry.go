@@ -94,6 +94,7 @@ var definitions = [...]Definition{
 	{Names: genericFileListNames[:], ExactSpelling: true, Bind: bindGenericFileList, NamedCall: namedGenericFileList},
 	{Names: genericFileReadNames[:], ExactSpelling: true, Bind: bindGenericFileRead, NamedCall: namedGenericFileRead},
 	{Names: logicalDecodingNames[:], ExactSpelling: true, Bind: bindLogicalDecoding, NamedCall: namedLogicalDecoding},
+	{Names: replicationSlotNames[:], ExactSpelling: true, Bind: bindReplicationSlot, NamedCall: namedReplicationSlot},
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: walSummaryNames[:], ExactSpelling: true, Bind: bindWALSummary, NamedCall: namedWALSummary},

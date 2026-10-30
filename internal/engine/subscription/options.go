@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/replication"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -110,7 +111,7 @@ func parseOptions(s *parser.Subscription, h Host) (options, error) {
 			}
 			value = optionString(option)
 			if name == "slot_name" && value != "none" {
-				if err := validateSlot(value); err != nil {
+				if err := replication.ValidateSlotName(value); err != nil {
 					return o, err
 				}
 			}
@@ -193,25 +194,6 @@ func parseOptions(s *parser.Subscription, h Host) (options, error) {
 		}
 	}
 	return o, nil
-}
-func validateSlot(name string) error {
-	if len(name) == 0 {
-		return failure("42602", `replication slot name "" is too short`)
-	}
-	if len(name) >= 64 {
-		return failure("42622", fmt.Sprintf(`replication slot name "%s" is too long`, name))
-	}
-	for _, c := range []byte(name) {
-		if c < 'a' || c > 'z' {
-			if c >= '0' && c <= '9' || c == '_' {
-				continue
-			}
-			e := failure("42602", fmt.Sprintf(`replication slot name "%s" contains invalid character`, name))
-			e.Hint = "Replication slot names may only contain lower case letters, numbers, and the underscore character."
-			return e
-		}
-	}
-	return nil
 }
 func (o options) apply(d *catalog.Subscription) {
 	for name, value := range o.values {

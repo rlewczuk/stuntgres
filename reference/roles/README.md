@@ -56,6 +56,15 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses
 `fixture.WithLogicalWAL()` for the package-owned oracle. The logical-decoding
 family uses `make check RUN='^TestReferenceLogicalDecoding'` for signatures,
 typed metadata, options, diagnostics, live authority and unchanged-state witnesses.
+The replication-slot lifecycle family uses
+`make check RUN='^TestReferenceReplicationSlot'` for nine catalog declarations,
+strict scalar/record metadata, diagnostics, live effective-actor and EXECUTE
+authority, prepared/control ownership and temporary-slot lifecycle. Real-slot
+effects use independently asserted PostgreSQL branches with bounded cleanup,
+source/create and copy catalog positions, option resets, and dynamic flush/insert
+bounds for beyond-current physical advancement. Raw plugin lists preserve literal
+embedded quotes in unquoted elements while rejecting malformed quoted suffixes;
+native creates reject unavailable machinery and never publish slot state.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
 The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.

@@ -2,6 +2,7 @@ package exec
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -30,8 +31,9 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 		return node, false, nil
 	}
 	switch node.(type) {
-	case plan.LiteralExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.ScalarArrayComparisonExpr, plan.RowComparisonExpr:
-		// These carriers can name an internal strict comparison without
+	case functions.ReplicationSlot, plan.LiteralExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.ScalarArrayComparisonExpr, plan.RowComparisonExpr:
+		// Slot calls retain EXECUTE admission even for strict NULL inputs.
+		// The other carriers can name an internal strict comparison without
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
 	}

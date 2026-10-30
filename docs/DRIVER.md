@@ -1162,6 +1162,29 @@ fixture independently runs PostgreSQL 18.6 (180006); its vendor banner is not
 native identity. Logical Reset/Dump/Restore neither serialize nor reset live
 preset values, and restoring tables cannot allocate their simulated resources.
 
+## Replication-slot lifecycle boundary
+
+The six create/drop/copy/advance families expose all nine PostgreSQL declarations
+through ordinary typed SQL, including create defaults, copy overloads, NAME/PG_LSN
+record fields and VOID drop results. Strict NULLs bypass internal replication
+checks but not ordinary EXECUTE admission; FROM returns one NULL-fields row.
+Non-NULL calls require the current effective actor's own superuser or REPLICATION
+attribute, not inherited role membership. Creation validates NAME-converted slot
+names; logical creation additionally checks temporary/failover and the current,
+exact `output_plugin_libraries` list.
+
+Embedded physical creation rejects unavailable replication-slot/WAL-reservation
+machinery with 0A000; logical creation rejects unavailable real decoding/WAL
+providers with 0A000. Even an unreserved or temporary request creates no slot,
+ownership record or LSN. Consequently drop and copy report missing slots (42704),
+with source lookup before destination/plugin checks. Advance rejects zero target
+(22023), otherwise reports missing slots; it never invents current WAL bounds.
+PostgreSQL instead creates real backend-owned temporary or persistent slots,
+copies actual source positions/options and advances against real WAL. Those
+effects and temporary-session cleanup are reference-only mechanism witnesses,
+not native simulated success. Logical Dump/Reset/Restore retains typed view
+recipes and routine privileges, never physical slots or replication positions.
+
 ## Server file access boundary
 
 The typed SQL surface includes `pg_ls_dir(text)` and

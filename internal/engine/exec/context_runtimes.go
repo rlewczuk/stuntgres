@@ -992,3 +992,9 @@ func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, 
 	}
 	return host.ConvertJSONTextSearch(c.Context, explicit, configuration, document, filter, filtered, result)
 }
+
+func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {
+	host := c.LiveHost()
+	if host == nil { return fmt.Errorf("stuntgres: missing replication slot host") }
+	return host.ReplicationSlot(kind, arity, values)
+}

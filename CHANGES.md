@@ -5,6 +5,14 @@
   token mappings, preserving typed prepared ownership, atomic publication and
   edited-stock logical replay.
 
+- Bind all nine replication-slot lifecycle declarations through typed scalar and
+  record expressions, with strict NULLs, live replication/EXECUTE authorization,
+  shared slot-name validation and exact plugin allowlisting, including literal
+  embedded quotes in unquoted list elements. Reject unavailable
+  physical/logical machinery explicitly without manufacturing slots or LSNs;
+  retain truthful missing-slot and zero-target diagnostics. Keep strict-NULL
+  EXECUTE admission and named/defaulted lifecycle view recipes through replay.
+
 - Consume `default_tablespace` at relation and index creation with live CREATE
   authority, temporary bypass, partition-default rejection and nested/session
   setting restoration. Distinguish synthesized partition indexes from reuse;

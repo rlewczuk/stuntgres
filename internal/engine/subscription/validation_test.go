@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/replication"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -151,7 +152,7 @@ func TestSubscriptionConnectionLexical(t *testing.T) {
 
 func TestSubscriptionSlotValidation(t *testing.T) {
 	for _, name := range []string{"0", "slot_1", strings.Repeat("s", 63)} {
-		if err := validateSlot(name); err != nil {
+		if err := replication.ValidateSlotName(name); err != nil {
 			t.Fatal(name, err)
 		}
 	}
@@ -163,7 +164,7 @@ func TestSubscriptionSlotValidation(t *testing.T) {
 	} {
 		want := failure(tc.code, tc.message)
 		want.Hint = tc.hint
-		if got := validateSlot(tc.name); !reflect.DeepEqual(got, want) {
+		if got := replication.ValidateSlotName(tc.name); !reflect.DeepEqual(got, want) {
 			t.Fatalf("slot %q = %#v", tc.name, got)
 		}
 	}

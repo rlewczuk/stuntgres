@@ -19,3 +19,12 @@
 3051	xml_is_well_formed	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	16	25	\N	\N	\N	false	\N	xml_is_well_formed	\N	false	\N
 3052	xml_is_well_formed_document	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	25	\N	\N	\N	false	\N	xml_is_well_formed_document	\N	false	\N
 3053	xml_is_well_formed_content	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	25	\N	\N	\N	false	\N	xml_is_well_formed_content	\N	false	\N
+3779	pg_create_physical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	3	2	2249	19 16 16	{19,16,16,19,3220}	{i,i,i,o,o}	{slot_name,immediately_reserve,temporary,slot_name,lsn}	true	\N	pg_create_physical_replication_slot	\N	false	\N
+3780	pg_drop_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	2278	19	\N	\N	\N	false	\N	pg_drop_replication_slot	\N	false	\N
+3786	pg_create_logical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	5	3	2249	19 19 16 16 16	{19,19,16,16,16,19,3220}	{i,i,i,i,i,o,o}	{slot_name,plugin,temporary,twophase,failover,slot_name,lsn}	true	\N	pg_create_logical_replication_slot	\N	false	\N
+3878	pg_replication_slot_advance	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2249	19 3220	{19,3220,19,3220}	{i,i,o,o}	{slot_name,upto_lsn,slot_name,end_lsn}	false	\N	pg_replication_slot_advance	\N	false	\N
+4220	pg_copy_physical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	3	0	2249	19 19 16	{19,19,16,19,3220}	{i,i,i,o,o}	{src_slot_name,dst_slot_name,temporary,slot_name,lsn}	false	\N	pg_copy_physical_replication_slot_a	\N	false	\N
+4221	pg_copy_physical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2249	19 19	{19,19,19,3220}	{i,i,o,o}	{src_slot_name,dst_slot_name,slot_name,lsn}	false	\N	pg_copy_physical_replication_slot_b	\N	false	\N
+4222	pg_copy_logical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	4	0	2249	19 19 16 19	{19,19,16,19,19,3220}	{i,i,i,i,o,o}	{src_slot_name,dst_slot_name,temporary,plugin,slot_name,lsn}	false	\N	pg_copy_logical_replication_slot_a	\N	false	\N
+4223	pg_copy_logical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	3	0	2249	19 19 16	{19,19,16,19,3220}	{i,i,i,o,o}	{src_slot_name,dst_slot_name,temporary,slot_name,lsn}	false	\N	pg_copy_logical_replication_slot_b	\N	false	\N
+4224	pg_copy_logical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2249	19 19	{19,19,19,3220}	{i,i,o,o}	{src_slot_name,dst_slot_name,slot_name,lsn}	false	\N	pg_copy_logical_replication_slot_c	\N	false	\N

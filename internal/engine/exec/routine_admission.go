@@ -120,7 +120,10 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	if err != nil || !auth.Live() {
 		return err
 	}
-	if StrictScalarRoutine(captured) {
+	// Slot STRICT semantics belong to invocation, after routine admission.
+	// In particular, a NULL drop parameter must not erase its EXECUTE check.
+	_, slotCall := node.(functions.ReplicationSlot)
+	if StrictScalarRoutine(captured) && !slotCall {
 		null := false
 		StrictRoutineArguments(node, func(child expr.Expr) {
 			if child != nil && RandomLiteralNull(child) && (!c.PreserveParameterDemand || !child.Properties().ParameterDependent) {

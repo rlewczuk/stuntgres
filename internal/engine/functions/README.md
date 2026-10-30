@@ -218,6 +218,18 @@ an actor attribute, not an inherited capability. Pure NULL/rank/element/count
 checks precede truthful missing-slot errors; no slot, decoder, cursor or authority
 is retained. Text and binary output descriptors differ only in their data member.
 
+`ReplicationSlot` owns the nine strict scalar lifecycle declarations, immutable
+written operands/formal mapping, occurrence-owned NAME/PG_LSN record shapes and
+ordinary routine provenance. Neither constant nor bound-parameter NULL planning
+erases EXECUTE admission, including the scalar VOID drop declaration.
+All written operands evaluate before runtime strict NULL handling; FROM emits
+one NULL-fields row, not an empty set. The used runtime bridge borrows current
+actor/settings, never a slot, WAL location, plugin handle or authority token.
+Create defaults belong to the routine inventory; copy options belong to distinct
+overloads. Capture/render/rebuild and stored SQL presentation preserve each
+written operand's name, formal destination and omission during dump/replay.
+
+
 `GenericFileRead` binds text/binary reads and scalar file metadata with fixed
 typed operands and written-to-formal slots. Scalar reads permit strict NULL
 planning erasure after required child work; RECORD stat calls remain admitted

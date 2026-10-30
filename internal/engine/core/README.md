@@ -21,6 +21,15 @@ retained snapshot frontier. A later committed target update or deletion raises
 serialization failure through the shared visibility conflict check; ordinary
 statement failure and savepoint recovery own the private-write rollback boundary.
 
+Replication-slot lifecycle calls borrow the current effective actor under
+Engine → Session lock order, requiring its own superuser/REPLICATION attribute.
+After strict operand handling and routine EXECUTE admission, create checks the
+shared slot-name rules; logical create also checks temporary/failover and the
+current exact plugin allowlist. Both reject unavailable WAL/decoding machinery
+with explicit 0A000 and publish no slot or session ownership state. Drop/copy
+truthfully report missing slots; advance rejects zero LSN before lookup.
+There is no provider, dummy slot store or synthesized replication position.
+
 
 Application-provisioned scalar host routines use the same typed frame, invocation
 depth, EXECUTE admission, security/settings environment, volatility policy and

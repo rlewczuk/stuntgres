@@ -17,6 +17,15 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	3779: {Language: catalog.InternalRoutineLanguage, Source: "pg_create_physical_replication_slot"},
+	3786: {Language: catalog.InternalRoutineLanguage, Source: "pg_create_logical_replication_slot"},
+	3780: {Language: catalog.InternalRoutineLanguage, Source: "pg_drop_replication_slot"},
+	3878: {Language: catalog.InternalRoutineLanguage, Source: "pg_replication_slot_advance"},
+	4220: {Language: catalog.InternalRoutineLanguage, Source: "pg_copy_physical_replication_slot_a"},
+	4221: {Language: catalog.InternalRoutineLanguage, Source: "pg_copy_physical_replication_slot_b"},
+	4222: {Language: catalog.InternalRoutineLanguage, Source: "pg_copy_logical_replication_slot_a"},
+	4223: {Language: catalog.InternalRoutineLanguage, Source: "pg_copy_logical_replication_slot_b"},
+	4224: {Language: catalog.InternalRoutineLanguage, Source: "pg_copy_logical_replication_slot_c"},
 	6183: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 100},
 	6184: {Language: catalog.SQLRoutineLanguage, Source: "", Cost: 100},
 	3689: {Language: catalog.InternalRoutineLanguage, Source: "ts_stat1", Cost: 10},
