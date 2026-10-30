@@ -96,6 +96,78 @@ func routineTypeDependents(state *catalog.State) map[ids.ObjectAddress][]routine
 
 // Unchanged declarations and payloads retain their immutable pointer identity.
 func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor, remap *catalog.RoutineRemap) error {
+	return reownRoutineDeclarations(view,state,typ,remap,nil)
+}
+
+// transformRoutineRefresh is a same-catalog definition operation, never a
+// registration/type import. Only its closed seed/dependent set gets new stamps.
+type transformRevisionChange struct { before,after ids.DefinitionRevision }
+type transformRoutineRefresh struct {
+	pair *catalog.Transform
+	revisions map[ids.ObjectAddress]transformRevisionChange
+	revision func()(ids.DefinitionRevision,error)
+}
+
+// RefreshTransformRoutines uses the existing stabilized declaration/capture
+// refresh owner and stored-expression owner. Every returned descriptor and mapped
+// payload is private; callers publish them together or discard the candidate.
+func RefreshTransformRoutines(source,target catalog.Read,pair *catalog.Transform,revision func()(ids.DefinitionRevision,error))([]catalog.Descriptor,error) {
+	if source.Owner()==nil || source.Owner()!=target.Owner() || source.Epoch()!=target.Epoch() { return nil,ids.ErrCatalogReplaced }
+	if pair==nil { return nil,ids.ErrCatalogReplaced }
+	previous,ok:=source.Get(pair.Address()).(*catalog.Transform)
+	if !ok || previous.Type!=pair.Type || previous.Language!=pair.Language || previous.SQLType!=pair.SQLType || previous.Runtime!=pair.Runtime { return nil,ids.ErrCatalogReplaced }
+	if err:=(catalog.TransformProvider{}).Validate(target,pair);err!=nil { return nil,err }
+	state:=catalog.CloneState(target.State())
+	view:=target.WithState(state)
+	operation:=&transformRoutineRefresh{pair:pair,revisions:make(map[ids.ObjectAddress]transformRevisionChange),revision:revision}
+	var validated map[*catalog.Procedure]bool
+	remap:=newRoutineRemap(view,nil,nil,nil,true,func(p *catalog.Procedure)error{
+		// Validate the original against the immutable pre-mutation source.
+		// This never substitutes a current body for a retained executable.
+		old,ok:=source.Procedure(p.Address())
+		if !ok || p.Revision()==0 || !exec.SameRoutineDeclaration(old,p) { return fmt.Errorf("stuntgres: stale original routine descriptor") }
+		if !validated[old] {
+			if err:=(ProcedureProvider{}).Validate(source,old);err!=nil { return err }
+			if validated==nil { validated=make(map[*catalog.Procedure]bool) }
+			validated[old]=true
+		}
+		return nil
+	},func(p *catalog.Procedure,hostFresh bool)error{
+		change,affected:=operation.revisions[p.Address()]
+		if !affected { return nil }
+		// Compatible historical COW captures retain their own body/revision.
+		if p.Revision()==change.before { p.ObjectRevision=change.after }
+		if p.Host!=nil && hostFresh {
+			layout:=*p.Host.Layout
+			if err:=layout.SetFormals(p.Host.Layout.Formals);err!=nil { return err }
+			resolved,err:=catalog.ResolveHostRoutine(view,&layout,p.Host.Program,p.Language,p.Transforms)
+			if err!=nil { return err }
+			// The existing hostDeclarations memo owns this unpublished copy.
+			// Mutating only it preserves sharing and maps each original once.
+			*p.Host=*resolved
+		}
+		return nil
+	})
+	remap.RefreshDependency=func(dependency catalog.ExpressionDependency)(catalog.ExpressionDependency,error){
+		if dependency.Ref.Domain()!=source.Owner().Domain || dependency.Ref.Epoch!=source.Epoch() { return catalog.ExpressionDependency{},ids.ErrCatalogReplaced }
+		if change,ok:=operation.revisions[dependency.Ref.Address];ok && dependency.Revision==change.before { dependency.Revision=change.after }
+		if dependency.Ref.Address==pair.Address() && dependency.Revision==previous.Revision() { dependency.Revision=pair.Revision() }
+		return dependency,nil
+	}
+	if err:=reownRoutineDeclarations(view,state,func(t *sqltype.Descriptor)*sqltype.Descriptor{return t},remap,operation);err!=nil { return nil,err }
+	if err:=reownExpressions(view,state,nil,true,remap,false,source);err!=nil { return nil,err }
+	var result []catalog.Descriptor
+	for address,descriptor:=range state.Descriptors() {
+		if target.Get(address)==descriptor { continue }
+		provider:=view.Owner().Provider(address.ClassID)
+		if provider==nil { return nil,ids.ErrCatalogReplaced }
+		if err:=provider.Validate(view,descriptor);err!=nil { return nil,err }
+		result=append(result,descriptor)
+	}
+	return result,nil
+}
+
+func reownRoutineDeclarations(view catalog.Read,state *catalog.State,typ func(*sqltype.Descriptor)*sqltype.Descriptor,remap *catalog.RoutineRemap,transform *transformRoutineRefresh)error {
 	type refresh struct {
 		source         *catalog.Procedure
 		definition     *proc.Definition
@@ -119,6 +191,16 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 		}
 		d, ok := descriptor.(*catalog.Procedure)
 		if !ok {
+			continue
+		}
+		if transform!=nil {
+			selected:=false
+			for i:=range d.Transforms.Len() { selected=selected || d.Transforms.At(i).Pair==transform.pair.Address() }
+			if selected {
+				if changes==nil { changes=make(map[ids.ObjectAddress]*refresh) }
+				changes[address]=&refresh{source:d,definition:d.RoutineDefinition(),defaults:d.SQLDefaults!=nil,body:d.SQLBody!=nil}
+				queue=append(queue,address)
+			}
 			continue
 		}
 		if d.HostConversion != nil {
@@ -206,6 +288,12 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 			}
 		}
 	}
+	if transform!=nil {
+		for address,change:=range changes {
+			stamp,err:=transform.revision();if err!=nil { return err }
+			transform.revisions[address]=transformRevisionChange{before:change.source.Revision(),after:stamp}
+		}
+	}
 	// Stabilize all affected callee handles before remapping either payload.
 	for address, change := range changes {
 		mapped, err := remap.Procedure(change.source)
@@ -218,11 +306,11 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 		}
 		// Keep the mapper's unpublished handle through deferred attachments.
 		next := mapped
-		if mapped.Host != nil {
+		if mapped.Host != nil && transform == nil {
 			host := *mapped.Host
 			if err := host.SetLayout(change.definition); err != nil { return err }
 			next.Host = &host
-		} else {
+		} else if mapped.Host == nil {
 			next.SQL = change.definition
 		}
 		state.SetDescriptor(address, next)

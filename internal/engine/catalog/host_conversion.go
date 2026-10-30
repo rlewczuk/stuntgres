@@ -21,7 +21,9 @@ type Transform struct {
 	Type, Language, From, To ids.ObjectAddress
 	SQLType                  *sqltype.Descriptor
 	Runtime                  *host.Runtime
-	Conversion               *host.Conversion
+	// SQLDefined records actual SQL declaration provenance, not ownership or a
+	// historical volatility promise. Bootstrap materialization leaves it false.
+	SQLDefined bool
 }
 
 func (d *Transform) Address() ids.ObjectAddress       { return d.ObjectAddress }
@@ -44,18 +46,18 @@ func (TransformProvider) ClassID() ids.OID { return ids.TransformClassID }
 func (TransformProvider) Validate(v Read, descriptor Descriptor) error {
 	d, ok := descriptor.(*Transform)
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid host conversion pair authority") }
-	if !ok || d == nil || d.Address().ClassID != ids.TransformClassID || d.Address().ObjectID == 0 || d.Revision() == 0 || v.Get(d.Address()) != d || v.NameAddress(DescriptorNameKey(d)) != d.Address() || !HostRuntimeInstalled(v, d.Runtime) || d.Conversion == nil || d.Conversion.Runtime() != d.Runtime || !d.Conversion.Definition().Bootstrap || d.From.ObjectID == 0 && d.To.ObjectID == 0 {
+	if !ok || d == nil || d.Address().ClassID != ids.TransformClassID || d.Address().ObjectID == 0 || d.Revision() == 0 || v.Get(d.Address()) != d || v.NameAddress(DescriptorNameKey(d)) != d.Address() || d.From.ObjectID == 0 && d.To.ObjectID == 0 {
 		return invalid()
 	}
-	if d.Address().SubID != 0 || d.From.ObjectID == 0 && d.From != (ids.ObjectAddress{}) || d.To.ObjectID == 0 && d.To != (ids.ObjectAddress{}) || d.Runtime.Conversion(d.Conversion.Definition().ID) != d.Conversion {
+	if d.Address().SubID != 0 || d.From.ObjectID == 0 && d.From != (ids.ObjectAddress{}) || d.To.ObjectID == 0 && d.To != (ids.ObjectAddress{}) {
 		return invalid()
 	}
 	t, ok := v.Type(d.Type)
-	if !ok || t.SQLType != d.SQLType || HostLogicalType(t.SQLType) != d.Conversion.Definition().Type {
+	if !ok || t.SQLType == nil || t.SQLType != d.SQLType || d.Type.ClassID != ids.TypeClassID || d.Type.SubID != 0 {
 		return invalid()
 	}
 	language, ok := v.Get(d.Language).(*Language)
-	if !ok || language.Host != d.Runtime || (LanguageProvider{}).Validate(v, language) != nil {
+	if !ok || language.Host != d.Runtime || d.Runtime != nil && !HostRuntimeInstalled(v, d.Runtime) || (LanguageProvider{}).Validate(v, language) != nil {
 		return invalid()
 	}
 	for _, direction := range []struct {
@@ -66,7 +68,10 @@ func (TransformProvider) Validate(v Read, descriptor Descriptor) error {
 			continue
 		}
 		p, ok := v.Procedure(direction.address)
-		if !ok || p.HostConversion == nil || p.HostConversion.Token != d.Conversion || p.HostConversion.Type != d.SQLType || p.HostConversion.From != direction.from || ValidateHostConversion(v, p) != nil {
+		if !ok || direction.address.ClassID != ids.ProcedureClassID || direction.address.SubID != 0 || p.Address() != direction.address || p.Revision() == 0 || v.NameAddress(DescriptorNameKey(p)) != p.Address() {
+			return invalid()
+		}
+		if c := p.HostConversion; c != nil && (c.Token == nil || d.Runtime != nil && c.Token.Runtime() != d.Runtime || c.Type != d.SQLType || c.From != direction.from || ValidateHostConversion(v, p) != nil) {
 			return invalid()
 		}
 	}

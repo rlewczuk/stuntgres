@@ -106,6 +106,8 @@ func TestEventTriggerClassification(t *testing.T) {
 		{"DROP INDEX", []parser.Statement{&parser.DropIndex{}}},
 		{"REINDEX", []parser.Statement{&parser.Reindex{Kind: parser.Identifier{Text: "table"}}}},
 		{"ALTER DEFAULT PRIVILEGES", []parser.Statement{&parser.AlterDefaultPrivileges{}}},
+		{"CREATE TRANSFORM", []parser.Statement{&parser.CreateTransform{}}},
+		{"DROP TRANSFORM", []parser.Statement{&parser.DropTransform{}}},
 		{"DROP OWNED", []parser.Statement{&parser.DropOwned{}}},
 		{"ALTER TABLE", []parser.Statement{&parser.AlterOwner{Kind: "table"}}},
 		{"COMMENT", []parser.Statement{&parser.Comment{Kind: parser.CommentTable}}},

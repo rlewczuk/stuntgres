@@ -20,7 +20,10 @@ func checkRoutineProviderAttributes(d *catalog.Procedure, attributes []parser.Ro
 				continue
 			}
 			return sqlError("0A000", "execution attributes are unsupported for native routine providers")
-		case "strict", "immutable", "stable", "volatile":
+		case "immutable", "stable", "volatile":
+			if d.HostConversion != nil { continue }
+			return sqlError("0A000", "execution attributes are unsupported for native routine providers")
+		case "strict":
 			return sqlError("0A000", "execution attributes are unsupported for native routine providers")
 		}
 	}

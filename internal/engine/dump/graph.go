@@ -33,6 +33,8 @@ const (
 	AttributeRetirement
 	AttributeConstruction
 	AttributeCompletion
+	TransformPromise
+	TransformCompletion
 )
 
 // Event is one emission step: a phase of the object with this OID.

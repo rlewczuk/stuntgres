@@ -97,6 +97,37 @@ procedures match their Program result to the member, not CALL's record result.
 Dump orders type/language prerequisites and renders normalized TRANSFORM lists;
 shared remapping reowns exact destination associations and display type IDs.
 
+`StageCreateTransform`/`StageDropTransform` own SQL transform definitions through
+the common schema candidate. Creation binds real type/language/callback
+descriptors and validates ownership, USAGE/EXECUTE, scalar INTERNAL signatures
+and current nonvolatile promises before duplicate admission. Replacement keeps
+the pair identity, clears omitted directions and invokes the existing stored
+declaration/capture refresh owner; failed rebuilds discard the entire candidate.
+`DDLHost.RefreshTransformConsumers` reaches that owner only through the mechanical
+`schemacmds.RoutineHost` adapter, preserving the existing stored→routine package
+direction. Routine stages all returned changed catalog descriptors, including
+stored relation/type carriers, in the same pair candidate; the adapter introduces
+no binder, store or publication owner. Missing languages use the ordinary
+language DDL target diagnostic, except that `DROP TRANSFORM IF EXISTS` treats
+an absent language as a missing pair. Conditional misses emit a notice without
+aborting the transaction; type/schema lookup still precedes language lookup.
+Early pseudo-type/domain errors and conditional pair notices retain parsed
+type-name components without SQL re-quoting. Duplicate and unguarded missing-pair
+errors retain resolved catalog naming. DROP uses type ownership and the ordinary
+dependency retirement closure.
+Callback owner/EXECUTE denials use raw written name components, including
+qualification, rather than the resolved short name. Pair and missing-language
+messages interpolate decoded language names inside literal quotes; they do not
+SQL-quote or Go-escape those names. These diagnostic rules are transform-local:
+ordinary routine lookup, language DDL and invocation diagnostics are unchanged.
+CREATE and DROP check ownership of the original transform type. A denied true
+array names its installed element using resolved type quoting and visibility;
+this changes neither the access decision nor the pair's type/dependency identity.
+Scalar, domain and catalog-vector diagnostics retain their existing paths.
+`TransformDumpStatement` is the single qualified logical serializer.
+Only genuine HostConversion callbacks admit explicit owner-authorized volatility
+ALTER; default registration volatility and all unrelated execution gates remain.
+
 
 Generic file declarations belong to the ordinary builtin inventory, including
 all read/binary/stat/tmpdir overloads and fixed record outputs.

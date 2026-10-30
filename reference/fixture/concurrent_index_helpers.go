@@ -52,33 +52,44 @@ func ConcurrentIndexUnique(table, index, detail string, building bool) Diagnosti
 
 func ConcurrentIndexState(t *testing.T, p *Pair, b Backend, name string) (stuntgres.IndexState, bool) {
 	t.Helper()
-	if !b.PG {
-		s, err := stuntgres.InspectIndex(p.Ctx, p.Native, "public", name)
-		if err != nil {
-			if err.Error() == "stuntgres: index \"public\".\""+name+"\" does not exist" {
-				return s, false
-			}
-			t.Fatal(err)
-		}
-		return s, true
-	}
-	var s stuntgres.IndexState
-	err := Admin.QueryRowContext(p.Ctx, `SELECT indisready, indisvalid, indislive FROM pg_index JOIN pg_class ON indexrelid=pg_class.oid JOIN pg_namespace ON relnamespace=pg_namespace.oid WHERE nspname='public' AND relname=$1`, name).Scan(&s.Ready, &s.Valid, &s.Live)
-	if errors.Is(err, sql.ErrNoRows) {
-		return s, false
-	}
+	s, found, err := concurrentIndexState(p.Ctx, p, b, name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s, true
+	return s, found
+}
+
+func concurrentIndexState(ctx context.Context, p *Pair, b Backend, name string) (stuntgres.IndexState, bool, error) {
+	if !b.PG {
+		s, err := stuntgres.InspectIndex(ctx, p.Native, "public", name)
+		if err != nil {
+			if err.Error() == "stuntgres: index \"public\".\""+name+"\" does not exist" {
+				return s, false, nil
+			}
+			return s, false, err
+		}
+		return s, true, nil
+	}
+	var s stuntgres.IndexState
+	err := Admin.QueryRowContext(ctx, `SELECT indisready, indisvalid, indislive FROM pg_index JOIN pg_class ON indexrelid=pg_class.oid JOIN pg_namespace ON relnamespace=pg_namespace.oid WHERE nspname='public' AND relname=$1`, name).Scan(&s.Ready, &s.Valid, &s.Live)
+	if errors.Is(err, sql.ErrNoRows) {
+		return s, false, nil
+	}
+	return s, err == nil, err
 }
 
 func ConcurrentIndexWait(t *testing.T, p *Pair, b Backend, name string, want stuntgres.IndexState, pid, holder int, phase string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
 	defer cancel()
+	var s stuntgres.IndexState
+	var found, observed bool
 	for {
-		s, found := ConcurrentIndexState(t, p, b, name)
+		next, exists, err := concurrentIndexState(ctx, p, b, name)
+		if err != nil {
+			t.Fatalf("index %s: want %+v phase %s: observed %t last state %+v found %t; observation error: %v; context: %v", name, want, phase, observed, s, found, err, ctx.Err())
+		}
+		s, found, observed = next, exists, true
 		durable := s
 		durable.WaitingForOlderSnapshots, durable.WaitingForWriters = false, false
 		flagsMatch := durable == want
@@ -104,7 +115,7 @@ func ConcurrentIndexWait(t *testing.T, p *Pair, b Backend, name string, want stu
 			if b.PG {
 				var waiting bool
 				if err := Admin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_progress_create_index WHERE pid=$1 AND phase=$2 AND current_locker_pid=$3)`, pid, phase, holder).Scan(&waiting); err != nil {
-					t.Fatal(err)
+					t.Fatalf("index %s: want %+v phase %s: observed %t last state %+v found %t; progress error: %v; context: %v", name, want, phase, observed, s, found, err, ctx.Err())
 				}
 				if waiting {
 					return
@@ -112,7 +123,7 @@ func ConcurrentIndexWait(t *testing.T, p *Pair, b Backend, name string, want stu
 			}
 		}
 		if ctx.Err() != nil {
-			t.Fatalf("index %s: want %+v phase %s: %v", name, want, phase, ctx.Err())
+			t.Fatalf("index %s: want %+v phase %s: observed %t last state %+v found %t; observation error: %v; context: %v", name, want, phase, observed, s, found, err, ctx.Err())
 		}
 		runtime.Gosched()
 	}

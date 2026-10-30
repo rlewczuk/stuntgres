@@ -59,6 +59,7 @@ type Capture struct {
 	AccessMethods         []*catalog.AccessMethod
 	OperatorFamilies      []catalog.Descriptor
 	OwnedRoutines         []*catalog.Procedure
+	Transforms            []*catalog.Transform
 	EventTriggers         []*catalog.EventTrigger
 	Subscriptions         []*catalog.Subscription
 	Publications          []*catalog.Publication

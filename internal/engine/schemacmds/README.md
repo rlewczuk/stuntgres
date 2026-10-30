@@ -77,6 +77,12 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   grant-time candidate recapture after epoch, identity and authorization fences;
   dependency-closure roots are not promoted to explicit SQL targets. Global
   language identities use ordinary definition-object locks, not relation aliases.
+  Transform CREATE/REPLACE/DROP use the same schema candidate, definition
+  mutation/retirement capture, lock admission, current-authority recapture and
+  single publication. Pair and refreshed consumer descriptors retire together;
+  failed/canceled rebuilding leaves the old root intact. Transform names use
+  the real type/language unique claim: an admitted concurrent collision reports
+  the catalog's 23505 constraint diagnostic, distinct from serial 42710.
   `RoutineHost.ValidateAggregateInitial` captures demanded type diagnostics and
   ACL authority before splitting ordinary input from domain input. A real
   aclitem INITCOND can therefore validate through `InputWithEnvironment`, emit

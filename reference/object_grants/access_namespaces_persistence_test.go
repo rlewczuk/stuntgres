@@ -202,6 +202,7 @@ func TestReferenceAccessNamespacesPersistence(t *testing.T) {
 	objectGrantScenario(t, []string{"an_persist", "an_persist_null", "an_persist_empty", "an_persist_equal"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		defer accessExecutionResetConnection(t, c)
 		if b.PG {
+			accessExecutionReplayRoutineCleanup(t, p, c)
 			accessNamespacesRetainedCleanup(t, p, c)
 			if emitted == "" {
 				t.Fatal("missing actual native dump")

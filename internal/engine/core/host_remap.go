@@ -102,7 +102,6 @@ func (e *Engine) hostReplacementMapper(state *catalog.State) (func(*catalog.Proc
 				return nil, err
 			}
 			copy.Runtime = r
-			copy.Conversion = r.Conversion(d.Conversion.Definition().ID)
 			state.SetDescriptor(address, &copy)
 		}
 	}

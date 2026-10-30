@@ -278,7 +278,7 @@ func (v View) Effective(env Environment, ref ids.ObjectRef, grantOptions bool) (
 	if d.Kind() == ids.TypeObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.UsagePrivilege
 	}
-	if language, ok := d.(*catalog.Language); ok && language.Trusted && !acl.Explicit && !grantOptions {
+	if d.Kind() == ids.LanguageObject && !acl.Explicit && !grantOptions {
 		rights |= authorization.UsagePrivilege
 	}
 	if ref.Address.SubID > 0 {

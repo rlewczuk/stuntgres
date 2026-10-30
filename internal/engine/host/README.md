@@ -36,7 +36,9 @@ Native replay preserves genuine current pair absences at a versioned,
 administrator-owned boundary after language replay and before consumers.
 The strict canonical envelope names provider/ABI, logical type, actual decoded
 SQL type name and language, never source OIDs or callback objects. It cannot
-create missing directions or implement SQL CREATE/DROP TRANSFORM definitions.
+create missing directions or bypass the routine owner's SQL CREATE/DROP
+TRANSFORM validation. Surviving explicit pairs replay as actual logical SQL
+after this absence boundary, without changing the native ABI envelope.
 Alias materialization resolves actual SQL type descriptors through authoritative
 installation provenance, independently of current extension membership. This
 preserves genuine TO-only pairs while replay temporarily detaches types; it does

@@ -97,8 +97,11 @@ type dumpCollector struct {
 // dumpCollectors lists the descriptor kinds Dump accepts, in check order.
 // A descriptor no entry matches is an unsupported kind.
 var dumpCollectors = [...]dumpCollector{
-	{"host conversion pair", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Transform); return ok }, func(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
-		return (catalog.TransformProvider{}).Validate(c.CatalogView, d)
+	{"transform", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Transform); return ok }, func(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, d catalog.Descriptor) error {
+		pair := d.(*catalog.Transform)
+		if err := (catalog.TransformProvider{}).Validate(c.CatalogView, pair); err != nil { return err }
+		c.Transforms = append(c.Transforms, pair)
+		return nil
 	}},
 	{"foreign object", isDumpForeign, collectForeignDump},
 	{"relation", isDumpRelation, collectRelationDump},

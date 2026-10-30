@@ -196,7 +196,7 @@ func (e *Engine) materializeHostConversions(stage *CatalogStage, createDirection
 				key := ids.NameKey{ClassID: ids.TransformClassID, Name: fmt.Sprintf("%d,%d", typ.ID(), language.Address().ObjectID)}
 				if old := read.Get(read.NameAddress(key)); old != nil {
 					pair, ok := old.(*catalog.Transform)
-					if !ok || pair.Runtime != runtime || pair.Conversion != token || pair.SQLType != typ {
+					if !ok || pair.Runtime != runtime || pair.SQLType != typ || (catalog.TransformProvider{}).Validate(read, pair) != nil {
 						return fmt.Errorf("stuntgres: incompatible existing host conversion pair")
 					}
 					continue
@@ -209,7 +209,7 @@ func (e *Engine) materializeHostConversions(stage *CatalogStage, createDirection
 				if err != nil {
 					return err
 				}
-				pair := &catalog.Transform{ObjectAddress: ids.ObjectAddress{ClassID: ids.TransformClassID, ObjectID: oid}, ObjectRevision: revision, Type: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}, SQLType: typ, Language: language.Address(), From: from, To: to, Runtime: runtime, Conversion: token}
+				pair := &catalog.Transform{ObjectAddress: ids.ObjectAddress{ClassID: ids.TransformClassID, ObjectID: oid}, ObjectRevision: revision, Type: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}, SQLType: typ, Language: language.Address(), From: from, To: to, Runtime: runtime}
 				if err = stage.Create(pair); err != nil {
 					return err
 				}

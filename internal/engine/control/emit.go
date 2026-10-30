@@ -99,6 +99,8 @@ var dumpPhaseEmitters = [...]dumpPhaseEmitter{
 	dump.AttributeRetirement:     {dumpBootstrapOwner, emitDumpAttributeRetirement},
 	dump.AttributeConstruction:   {dumpBootstrapOwner, emitDumpAttributeConstruction},
 	dump.AttributeCompletion:     {dumpBootstrapOwner, emitDumpAttributeCompletion},
+	dump.TransformPromise:       {dumpBootstrapOwner, emitTransformPromise},
+	dump.TransformCompletion:    {dumpBootstrapOwner, emitTransformCompletion},
 }
 
 // emitDumpEvents writes every ordered event through its phase's entry.

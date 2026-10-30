@@ -117,6 +117,11 @@ single-statement limit of driver calls) belong to callers.
   Query/source and mutation-target discovery inspect the child for planning;
   the wrapper itself is not modifying and exposes no executable WITH namespace.
   SQL PREPARE and SQL routine-body grammar do not gain utility eligibility.
+- Transform definition utilities retain a declared type, positioned language,
+  independently optional FROM/TO exact-or-bare function identities, OR REPLACE,
+  IF EXISTS and DROP mode. At least one direction is grammatical; both orders
+  are accepted, repeated/empty/third directions and trailing input are rejected
+  without a prefix effect. The ordinary typed utility resolver owns binding.
 - Routine signature types retain SETOF in the AST for declaration validation,
   including positioned named/mode-bearing formals. The lexer scopes its type
   token to formal declarations (excluding defaults), the first token of an actual

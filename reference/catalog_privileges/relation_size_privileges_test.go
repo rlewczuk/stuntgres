@@ -1,7 +1,11 @@
 package reference_test
 
 import (
+	"context"
+	"database/sql"
+	"strings"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -16,6 +20,7 @@ func TestReferenceRelationSizePrivileges(t *testing.T) {
 		conn,err:=b.DB.Conn(p.Ctx);if err!=nil {t.Fatal(err)};defer conn.Close()
 		run:=func(s fixture.Step){fixture.RunStep(t,p.Ctx,conn,b.Recorder,s)}
 		for _,role:=range roles {run(fixture.Exec("CREATE ROLE "+role,0))}
+		relationSizeRestoreTablespaceACL(t,p,b,roles)
 		run(fixture.Exec("CREATE DATABASE rs_size_target",0))
 		run(fixture.Exec("REVOKE CONNECT ON DATABASE rs_size_target FROM PUBLIC",0))
 		run(fixture.Exec("CREATE TABLE public.rs_secret(i INT)",0))
@@ -94,4 +99,35 @@ func TestReferenceRelationSizePrivileges(t *testing.T) {
 		run(fixture.Exec("RESET SESSION AUTHORIZATION",0))
 		run(fixture.Exec("GRANT EXECUTE ON FUNCTION pg_catalog.pg_relation_size(regclass,text) TO PUBLIC",0))
 	})}
+}
+
+// GRANT followed by REVOKE leaves an explicit owner ACL in PostgreSQL.
+// Restore the exact shared-object state after removing the scenario grants,
+// so later catalog assertions still observe the original NULL/default ACL.
+func relationSizeRestoreTablespaceACL(t *testing.T, p *fixture.Pair, b fixture.Backend, roles []string) {
+	t.Helper()
+	if !b.PG {
+		return
+	}
+	var acl sql.NullString
+	if err := b.DB.QueryRowContext(p.Ctx, "SELECT spcacl::text FROM pg_tablespace WHERE spcname='pg_global'").Scan(&acl); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		conn, err := b.DB.Conn(ctx)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		if _, err := conn.ExecContext(ctx, "REVOKE ALL ON TABLESPACE pg_global FROM "+strings.Join(roles, ",")+" CASCADE"); err != nil {
+			t.Error(err)
+			return
+		}
+		if _, err := conn.ExecContext(ctx, "UPDATE pg_tablespace SET spcacl=$1::aclitem[] WHERE spcname='pg_global'", acl); err != nil {
+			t.Error(err)
+		}
+	})
 }

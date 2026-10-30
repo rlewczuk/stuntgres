@@ -47,4 +47,7 @@ type RoutineRemap struct {
 	Defaults     func(RoutineDefaults) (RoutineDefaults, error)
 	Finish       func() error
 	Declarations func() error
+	// RefreshDependency is installed only by an explicit same-generation
+	// definition refresh. Ordinary type/import remapping retains its old stamps.
+	RefreshDependency func(ExpressionDependency) (ExpressionDependency,error)
 }

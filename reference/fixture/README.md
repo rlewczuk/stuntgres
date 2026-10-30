@@ -254,6 +254,13 @@ production dependency is involved.
   ExclusiveLock and blocker PID. It rejects premature completion and leaves
   release/cancellation/join ownership with the caller; it does not assume that
   a catalog owner update acquires a shared-object or name lock.
+- **Concurrent-index state.** `ConcurrentIndexWait` uses one five-second child
+  context for state and progress observations, retaining exact durable and
+  phase predicates. Failure diagnostics report whether any state observation
+  completed successfully, including observed absence, separately from the last
+  state/found values and observation/progress/context errors. Zero initialization
+  is not an observed absent index. `ConcurrentIndexState` remains a one-shot
+  observation using the scenario context.
 - **Active cancellation.** `BinaryConversionActiveCancel` takes a typed public
   `stuntgres.WorkClass`. Its native request-scoped admission policy grants all
   other classes and synchronously waits at the requested provider quantum until
@@ -366,10 +373,13 @@ production dependency is involved.
   with the same queue observation and joined-worker lifetime. Object queues include
   captured class/OID/subobject identity; no name-derived replacement is accepted.
   `DefinitionActiveCancel` cancels only after this admission and joins before
-  returning. `DefinitionIndexWaitDiagnostic` checks all portable error fields,
-  allowing only physical heap coordinates to vary in the anchored PostgreSQL
-  index-insertion Context; native Context remains empty. Consumers include the
-  collation, conversion and cast `TransactionConflicts` reference definitions.
+  returning. Its final explicit diagnostic callback is nil for the original
+  `DefinitionIndexWaitDiagnostic`, which checks all portable error fields and
+  varies only physical heap coordinates in anchored index-insertion Context.
+  Transform update/delete cancellation supplies an exact action/relation grammar
+  and every other57014 field; native cancellation remains ordinary without
+  fabricated physical Context. Consumers include conversion/cast transaction
+  conflicts, FTS parser lifecycle, deferred constraints and transform mutation.
   `DefinitionIdentityRows` captures every exposed catalog field and
   `DefinitionIdentityEqual` compares the full identity/settings rows.
   `DefinitionAlterIdentity` shares collation/conversion original-target cases:

@@ -5,8 +5,9 @@ import (
 	"strings"
 )
 
-// Cast names are the catalog's namespace-free, directed decimal endpoint pair.
-func validCastName(name string) bool {
+// Cast and transform names are namespace-free canonical decimal endpoint pairs:
+// source/target types for casts, SQL type/language for transforms.
+func validCatalogPairName(name string) bool {
 	source, target, ok := strings.Cut(name, ",")
 	if !ok {
 		return false

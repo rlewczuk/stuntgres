@@ -16,11 +16,11 @@ import (
 
 func RemapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	return remapRuleBinding(view, b, ref, typ, collation, 0, nil, procedure)
+	return remapRuleBinding(view, b, ref, typ, collation, 0, nil, procedure, nil)
 }
 
-func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper) (analyze.Binding, error) {
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, nil, procedure), routineFormals: routineFormals, addressMapper: addressMapper}
+func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, routineFormals int, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper, refresh dependencyRefresh) (analyze.Binding, error) {
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, nil, procedure), routineFormals: routineFormals, addressMapper: addressMapper, refreshDependency: refresh}
 	mapper.Mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
@@ -236,6 +236,7 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 	for i := range b.Dependencies {
 		b.Dependencies[i].Ref = ref(b.Dependencies[i].Ref)
 	}
+	if err := mapper.refreshDependency.apply(b.Dependencies); err != nil { return b, err }
 	b.Prepared.SequenceConstants = slices.Clone(b.Prepared.SequenceConstants)
 	for i := range b.Prepared.SequenceConstants {
 		b.Prepared.SequenceConstants[i].Ref = ref(b.Prepared.SequenceConstants[i].Ref)
@@ -304,10 +305,10 @@ func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.O
 
 func RemapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, supplied catalog.ProcedureRemapper) (*catalog.Relation, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	return remapRules(view, d, mapping, ref, typ, collation, supplied)
+	return remapRules(view, d, mapping, ref, typ, collation, supplied, nil)
 }
 
-func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, supplied catalog.ProcedureRemapper) (*catalog.Relation, error) {
+func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, supplied catalog.ProcedureRemapper, refresh dependencyRefresh) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {
@@ -348,13 +349,13 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 			}
 		}
 		if r.conditionPresentation != nil {
-			r.conditionPresentation, err = remapView(view, r.conditionPresentation, mapping, ref, typ, collation, nil, procedure)
+			r.conditionPresentation, err = remapView(view, r.conditionPresentation, mapping, ref, typ, collation, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if r.conditionBinding != nil {
-			next, err := remapRuleBinding(view, *r.conditionBinding, ref, typ, collation, 0, nil, procedure)
+			next, err := remapRuleBinding(view, *r.conditionBinding, ref, typ, collation, 0, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}
@@ -363,19 +364,19 @@ func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAd
 		r.actions = slices.Clone(r.actions)
 		for j := range r.actions {
 			action := &r.actions[j]
-			action.binding, err = remapRuleBinding(view, action.binding, ref, typ, collation, 0, nil, procedure)
+			action.binding, err = remapRuleBinding(view, action.binding, ref, typ, collation, 0, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}
 			if action.presentation != nil {
-				action.presentation, err = remapView(view, action.presentation, mapping, ref, typ, collation, nil, procedure)
+				action.presentation, err = remapView(view, action.presentation, mapping, ref, typ, collation, nil, procedure, refresh)
 				if err != nil {
 					return nil, err
 				}
 			}
 			action.modifierPresentations = maps.Clone(action.modifierPresentations)
 			for statement, presentation := range action.modifierPresentations {
-				mapped, err := remapView(view, presentation, mapping, ref, typ, collation, nil, procedure)
+				mapped, err := remapView(view, presentation, mapping, ref, typ, collation, nil, procedure, refresh)
 				if err != nil {
 					return nil, err
 				}

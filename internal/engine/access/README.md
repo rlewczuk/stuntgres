@@ -7,8 +7,12 @@ and the standard library. It never imports the engine. The role graph and ACL
 algorithms it applies live in [`authorization`](../authorization/README.md).
 
 Language descriptors use the ordinary owner/ACL/class-mask and paired role
-authority. Trusted default PUBLIC USAGE is distinct from explicit empty ACL;
-DO/CREATE admission checks USAGE while an existing call checks routine EXECUTE.
+authority. Implicit PUBLIC USAGE applies to both trusted and untrusted languages,
+distinct from explicit empty ACL and never implying a grant option. Routine-body
+admission separately requires superuser for untrusted languages; GRANT/REVOKE
+restrictions likewise remain separate. Existing calls check routine EXECUTE.
+Explicit empty ACL revokes even an owner's ordinary use, while ownership retains
+implicit grant authority; never infer ordinary privilege from a grant option.
 Language ACL entries participate in the same principal dependencies and cleanup.
 Bulk ownership roots include ordinary and genuinely installed procedural languages;
 only intrinsic language identities 12–14 are excluded. Extension membership

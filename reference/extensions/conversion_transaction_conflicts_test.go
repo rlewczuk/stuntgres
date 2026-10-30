@@ -28,7 +28,7 @@ func TestReferenceConversionTransactionConflicts(t *testing.T) {
 					fixture.DefinitionActiveCancel(t, p, b, c, holder, q, "transactionid", "ShareLock", 0, 0, "pg_conversion_name_nsp_index", func(ctx context.Context) {
 						fixture.RunStep(t, ctx, peer, b.Recorder, fixture.Exec("INSERT INTO conflict_unrelated VALUES(42)", 1))
 						fixture.RunStep(t, ctx, peer, b.Recorder, fixture.Select(`SELECT count(*) AS n FROM pg_conversion WHERE conname='conflict_one'`, []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
-					})
+					}, nil)
 					run(fixture.ErrorDiagnostic("SELECT 1", fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")))
 					run(fixture.Exec("ROLLBACK TO waiting", 0))
 					run(fixture.Exec("SET LOCAL lock_timeout='100ms'", 0))

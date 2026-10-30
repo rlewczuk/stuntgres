@@ -172,6 +172,11 @@ func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddres
 	}
 	dependencies := slices.Clone(p.dependencies)
 	for i := range dependencies {
+		if remap.RefreshDependency!=nil {
+			var err error
+			dependencies[i],err=remap.RefreshDependency(dependencies[i])
+			if err!=nil { return nil,err }
+		}
 		dependencies[i].Ref = ref(dependencies[i].Ref)
 	}
 	next, err := routineDefaultsWithChecks(context.Background(), view, nil, entries, dependencies)

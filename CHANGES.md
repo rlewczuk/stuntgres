@@ -49,6 +49,41 @@
   identities and locks out of prepared definitions and logical persistence;
   foreign two-phase preparation and distributed atomic commit remain unsupported.
 
+- Add SQL CREATE OR REPLACE/DROP TRANSFORM definitions over real type/language
+  and independently authenticated directional callbacks, with catalog/dependency
+  identity, owner/ACL checks, transactional definition fencing and atomic consumer
+  capture refresh. Admit explicit genuine-callback volatility promises without
+  changing registration defaults or external ABI boundaries. Preserve explicit
+  selections, missing directions, absence and final callback attributes through
+  destination-owned native logical replay. Fence exact namespace-free type/language
+  pair names and transform object readers/writers through the existing lock manager,
+  including real blocker transaction inquiry and database-local object tags.
+  Refresh stored view/default/CHECK and other expression carriers through the same
+  stabilized remapper and atomic candidate. Keep untrusted language admission
+  separate from its ordinary implicit PUBLIC USAGE ACL default.
+  Dependency cascade distinguishes parsed SQL-standard captures from deferred
+  quoted bodies, while default-only refresh preserves unchanged immutable bodies.
+  Keep native SAME-held direction refresh distinct from released PL/Python's
+  procedure-cache lifetime, with identical-source oracle cache-reset witnesses.
+  Honor conditional DROP with absent languages and preserve written type names
+  in early type-kind errors and conditional notices. Preserve written qualified
+  callback names in owner/EXECUTE denials and raw decoded language names in
+  transform diagnostics, including embedded quotes and backslashes, without
+  changing ordinary language DDL or invocation wording. CREATE/DROP ownership
+  denials for true arrays name the installed element while preserving the original
+  type ownership decision and transform dependency identity. Omit dependency rows to
+  authenticated fixed internal/c/sql languages, retaining unpinned language edges.
+  Bound concurrent-index state observations by their existing observer context
+  with actual-state diagnostics that distinguish no successful observation from
+  observed absence; verify comment replay retains retired slots
+  rather than expecting live-column compaction. Restore exact shared tablespace
+  ACLs after relation-size privilege scenarios without weakening catalog checks.
+  Restore original stock plpgsql routine owners and ACLs after actual native-dump
+  reference replay, repairing shared-role dependencies before fixture teardown.
+  Specify the pinned PostgreSQL Unicode error-cursor encoding defect separately
+  from intended native syntax diagnostics, retaining every malformed-input route
+  and atomicity assertion.
+
 - Apply `createrole_self_grant` at non-superuser role creation, preserving the
   bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
   Preserve raw setting presentation and typed session/transaction restoration.

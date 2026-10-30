@@ -14,6 +14,12 @@ import (
 // their types changed). view is the catalog view of next; its owner supplies
 // the reference domain.
 func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, routineRemap *catalog.RoutineRemap) error {
+	return reownExpressions(view, next, mapping, typesOnly, routineRemap, true, catalog.Read{})
+}
+
+// Transform refresh already stabilized its routine declarations and payloads.
+// Reuse the same expression owner without allocating another seed revision pass.
+func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, routineRemap *catalog.RoutineRemap, refreshRoutines bool, original catalog.Read) error {
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		return reownExpressionReference(view, next, mapping, typesOnly, old)
 	}
@@ -43,7 +49,8 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 	}
 	typ, collation, procedure := routineRemap.Type, routineRemap.Collation, routineRemap.Procedure
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Type: typ, Collation: collation, Procedure: procedure}
+	refresh := dependencyRefresh(routineRemap.RefreshDependency)
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Type: typ, Collation: collation, Procedure: procedure, refreshDependency: refresh}
 	retag := func(node expr.Expr) (expr.Expr, bool, error) {
 		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, collation)
 	}
@@ -58,7 +65,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		return retag(node)
 	}
-	if typesOnly {
+	if typesOnly && refreshRoutines {
 		if err := reownRoutineTypes(view, next, typ, routineRemap); err != nil {
 			return err
 		}
@@ -66,9 +73,27 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
+		if original.State() != nil {
+			validate := false
+			switch d := descriptor.(type) {
+			case *catalog.Relation:
+				validate = d.HasTriggers() || len(RulesOf(d)) != 0 || ExpressionDescriptorsChanged(view, d, typ)
+			case *catalog.Type:
+				validate = d.DomainDefault != nil || len(d.DomainChecks) != 0
+			case *catalog.Statistics:
+				validate = true
+			case *catalog.PublicationRelation:
+				validate = d.Filter != nil
+			}
+			if validate {
+				provider, old := original.Owner().Provider(address.ClassID), original.Get(address)
+				if provider == nil || old == nil { return ids.ErrCatalogReplaced }
+				if err := provider.Validate(original, old); err != nil { return err }
+			}
+		}
 		if publication, ok := descriptor.(*catalog.PublicationRelation); ok {
 			if condition := PolicyOf(publication.Filter); condition != nil {
-				frozen, err := remapView(view, condition.Presentation(), mapping, ref, typ, collation, nil, procedure)
+				frozen, err := remapView(view, condition.Presentation(), mapping, ref, typ, collation, nil, procedure, refresh)
 				if err != nil {
 					return err
 				}
@@ -125,7 +150,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			copy := *domain
 			if !installedDomainCheckRecipes(domain) {
 				var err error
-				copy.DomainChecks, err = reownDomainCheckDefinitions(view, domain.DomainChecks, ref, retag)
+				copy.DomainChecks, err = reownDomainCheckDefinitions(view, domain.DomainChecks, ref, retag, refresh)
 				if err != nil {
 					return err
 				}
@@ -156,7 +181,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if d.HasTriggers() {
 			var err error
-			d, err = RemapTriggers(view, d, mapping, ref, typ, collation, procedure)
+			d, err = remapTriggers(view, d, mapping, ref, typ, collation, procedure, refresh)
 			if err != nil {
 				return err
 			}
@@ -164,7 +189,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if len(RulesOf(d)) != 0 {
 			var err error
-			d, err = remapRules(view, d, mapping, ref, typ, collation, procedure)
+			d, err = remapRules(view, d, mapping, ref, typ, collation, procedure, refresh)
 			if err != nil {
 				return err
 			}
@@ -244,6 +269,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				for j := range c.Dependencies {
 					c.Dependencies[j].Ref = ref(c.Dependencies[j].Ref)
 				}
+				if err := refresh.apply(c.Dependencies); err != nil { return err }
 			}
 			if err := RefreshGenerationChecks(&copy, view); err != nil {
 				return err
@@ -332,7 +358,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		}
 		if len(d.Security.Policies) != 0 {
 			var err error
-			d, err = remapPolicies(view, d, mapping, ref, typ, collation, procedure)
+			d, err = remapPolicies(view, d, mapping, ref, typ, collation, procedure, refresh)
 			if err != nil {
 				return err
 			}
@@ -341,7 +367,7 @@ func ReownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 		if d.View == nil {
 			continue
 		}
-		definition, err := remapView(view, ViewOf(d), mapping, ref, typ, collation, nil, procedure)
+		definition, err := remapView(view, ViewOf(d), mapping, ref, typ, collation, nil, procedure, refresh)
 		if err != nil {
 			return err
 		}

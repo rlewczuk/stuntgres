@@ -62,6 +62,11 @@ constructing detached SQL output. Callbacks receive no frame or authority object
 alias events, so alias creation never reinstalls retired directional procedures.
 Routine SQL opt-in, not Program selectors, owns pair selection. Common declaration
 associations survive captures/remapping independently of boundary conversion slots.
+SQL transform replacement retains existing materialized definitions instead of
+reconstructing bootstrap choices. Its independently authenticated directions and
+immutable SQL declaration provenance survive runtime/type remapping. Transform
+definition-object locks and name claims use the ordinary schema publication
+fences, with no new singleton converter store or callback execution during DDL.
 For a supported single OUT/INOUT host procedure, the actual Program scalar result
 is converted as that member and wrapped by the shared `proc.PlanTuple` result
 owner into CALL's exact nonnull record; a NULL member is not an absent record.

@@ -134,6 +134,11 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 	if err := p.validateDependencySet(); err != nil {
 		return nil, err
 	}
+	if remap.RefreshDependency!=nil {
+		for _,dependency:=range p.dependencies {
+			if _,err:=remap.RefreshDependency(dependency);err!=nil { return nil,err }
+		}
+	}
 	var invalidReference bool
 	var domain *ids.Domain
 	var epoch ids.CatalogEpoch
@@ -161,6 +166,7 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		return view.Owner().Domain.Ref(view.Epoch(), addressMapper(old.Address))
 	}
 	typ, collation, procedure := remap.Type, remap.Collation, remap.Procedure
+	refresh := dependencyRefresh(remap.RefreshDependency)
 	actions := slices.Clone(p.actions)
 	for i := range actions {
 		a := &actions[i]
@@ -183,14 +189,14 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		if err := validateRoutineModifiers(*a, catalog.Read{}); err != nil {
 			return nil, err
 		}
-		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, collation, len(a.presentation.routineInputs), addressMapper, procedure)
+		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, collation, len(a.presentation.routineInputs), addressMapper, procedure, refresh)
 		if invalidReference {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err != nil {
 			return nil, err
 		}
-		a.presentation, err = remapView(view, a.presentation, mapping, ref, typ, collation, addressMapper, procedure)
+		a.presentation, err = remapView(view, a.presentation, mapping, ref, typ, collation, addressMapper, procedure, refresh)
 		if invalidReference {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -202,7 +208,7 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 			if err := validateRoutineScalars(presentation, catalog.Read{}); err != nil {
 				return nil, err
 			}
-			a.modifierPresentations[statement], err = remapView(view, presentation, mapping, ref, typ, collation, addressMapper, procedure)
+			a.modifierPresentations[statement], err = remapView(view, presentation, mapping, ref, typ, collation, addressMapper, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}

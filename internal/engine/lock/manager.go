@@ -606,7 +606,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			key.ClassID == ids.StatisticExtClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID ||
 			key.ClassID == ids.TSTemplateClassID || key.ClassID == ids.TSDictionaryClassID || key.ClassID == ids.TSConfigurationClassID || key.ClassID == ids.TSParserClassID) && validNamespace ||
 			key.ClassID == ids.NamespaceClassID && key.Namespace == (ids.ObjectAddress{}) ||
-			key.ClassID == ids.CastClassID && key.Namespace == (ids.ObjectAddress{}) && validCastName(key.Name)
+			(key.ClassID == ids.CastClassID || key.ClassID == ids.TransformClassID) && key.Namespace == (ids.ObjectAddress{}) && validCatalogPairName(key.Name)
 		switch key.ClassID {
 		case ids.PublicationClassID, ids.AccessMethodClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.EventTriggerClassID, ids.LanguageClassID:
 			validClass = key.Namespace == (ids.ObjectAddress{})
@@ -671,7 +671,7 @@ func (m *Manager) startAcquire(ctx context.Context, t *Ticket, ref Resource, mod
 			return nil, errors.New("stuntgres: invalid type lock request")
 		}
 	} else if ref.Address.ClassID == ids.StatisticExtClassID || ref.Address.ClassID == ids.CollationClassID || ref.Address.ClassID == ids.ConversionClassID ||
-		ref.Address.ClassID == ids.PublicationClassID || ref.Address.ClassID == ids.CastClassID || ref.Address.ClassID == ids.EventTriggerClassID || ref.Address.ClassID == ids.LanguageClassID ||
+		ref.Address.ClassID == ids.PublicationClassID || ref.Address.ClassID == ids.CastClassID || ref.Address.ClassID == ids.TransformClassID || ref.Address.ClassID == ids.EventTriggerClassID || ref.Address.ClassID == ids.LanguageClassID ||
 		ref.Address.ClassID == ids.TSTemplateClassID || ref.Address.ClassID == ids.TSDictionaryClassID || ref.Address.ClassID == ids.TSConfigurationClassID || ref.Address.ClassID == ids.TSParserClassID {
 		if ref.Domain() != t.ref.Domain() || ref.Epoch != t.ref.Epoch() || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 ||
 			ref.RoleTuple || ref.Row != 0 || ref.key != nil || mode != AccessShare && mode != AccessExclusive {

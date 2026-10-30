@@ -28,6 +28,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
 - Bare unresolved-parameter diagnostics use explicit Prepare. An argument-free
   `database/sql` call is not a PostgreSQL simple-query protocol witness; retain
   the adapter's ordinary inference and missing-argument contract separately.
+- The Unicode diagnostic matrices keep native `42601` messages, hints and
+  character positions, with exact PostgreSQL-only `22021` expectations for the
+  malformed doubled-quote/continued-string emoji fixtures whose error cursors
+  split UTF8 in pinned 18.6. All context/non-context exec/query/prepare routes,
+  prefix/multirow forms and failed-publication assertions remain covered; see
+  [the reproduction and released-source explanation](../../docs/POSTGRES_REGRESSION.md#unicode-escape-error-cursors-can-split-valid-utf8-input).
 
 Add `REFERENCE=1` for the oracle.
 

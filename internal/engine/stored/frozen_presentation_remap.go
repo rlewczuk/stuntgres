@@ -14,10 +14,16 @@ import (
 
 func RemapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*View, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	return remapView(view, original, mapping, ref, typ, collation, nil, procedure)
+	return remapView(view, original, mapping, ref, typ, collation, nil, procedure, nil)
 }
 
-func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper) (*View, error) {
+func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, addressMapper func(ids.ObjectAddress) ids.ObjectAddress, procedure catalog.ProcedureRemapper, refresh dependencyRefresh) (*View, error) {
+	if refresh != nil {
+		// The frozen query supplies the actual retained executable manifest.
+		// Check its original lanes/stamps before any authorized stamp change;
+		// the operation's Procedure mapper separately checks source ownership.
+		if err := validateRoutineCapture(RuleAction{presentation: original}, original.dependencies, catalog.Read{}); err != nil { return nil, err }
+	}
 	definition := *original
 	definition.routineInputs = slices.Clone(original.routineInputs)
 	for i, usage := range definition.routineInputs {
@@ -122,7 +128,8 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	for i := range definition.dependencies {
 		definition.dependencies[i].Ref = ref(definition.dependencies[i].Ref)
 	}
-	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper}
+	if err := refresh.apply(definition.dependencies); err != nil { return nil, err }
+	mapper := &ViewQueryRemapper{Catalog: view, Ref: ref, Type: typ, Collation: collation, Procedure: originalProcedureMapper(view, mapping, procedure), routineFormals: len(original.routineInputs), addressMapper: addressMapper, refreshDependency: refresh}
 	var root plan.Node
 	var err error
 	if _, project := original.query.Root.(*plan.ProjectNode); project {

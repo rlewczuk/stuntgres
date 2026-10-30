@@ -199,7 +199,7 @@ func TestReferenceFTSParserDDLLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer holder.ExecContext(p.Ctx, "ROLLBACK")
-		fixture.DefinitionActiveCancel(t, p, b, c, holder, "ALTER TEXT SEARCH PARSER public.parser_lifecycle RENAME TO parser_canceled", "object", "AccessExclusiveLock", 3601, parserOID, "", nil)
+		fixture.DefinitionActiveCancel(t, p, b, c, holder, "ALTER TEXT SEARCH PARSER public.parser_lifecycle RENAME TO parser_canceled", "object", "AccessExclusiveLock", 3601, parserOID, "", nil, nil)
 		if _, err := holder.ExecContext(p.Ctx, "ROLLBACK"); err != nil {
 			t.Fatal(err)
 		}

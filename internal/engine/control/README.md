@@ -788,6 +788,19 @@ database identity while retaining other databases' committed subscriptions.
   The shared expression visitor validates the actual host default receipt;
   SQL-standard body collection remains SQL-specific.
 
+Surviving transform pairs are actual collected declarations. `transform.go`
+orders their common `routine.TransformDumpStatement` SQL after real type,
+callback identity/attribute/owner and language/absence replay, then before
+associated declarations. Only authenticated exact bootstrap-equivalent
+selections omit SQL. Mixed/nonbootstrap/cleared-direction selections are explicit.
+Genuine referenced final-VOLATILE callbacks requiring explicit replay use
+`TransformPromise`/`TransformCompletion` graph events: temporary SQL STABLE is
+bounded around all affected pair declarations, exact VOLATILE is restored before
+host consumers or publication, and no callback executes inside that interval.
+This is private atomic replay sequencing, not public CREATE admission relaxation,
+registration purity relabeling, fabricated history or non-host callback admission.
+The prerequisite/absence envelopes and strict source owner imports are unchanged.
+
 ### Host contract
 
 `Host` is the engine's side of one Restore (root `restoreHost`):

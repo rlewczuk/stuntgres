@@ -72,8 +72,10 @@ func DefinitionIndexWaitDiagnostic(t *testing.T, err error, code, message, index
 }
 
 // DefinitionActiveCancel observes the exact queue, permits independent peer
-// work, then cancels and joins while preserving the physical SQL owner.
-func DefinitionActiveCancel(t *testing.T, p *Pair, b Backend, c, holder *sql.Conn, query, kind, mode string, class, object int64, index string, admitted func(context.Context)) {
+// work, then cancels and joins while preserving the physical SQL owner. A nil
+// diagnostic retains the existing index-wait assertion; explicit callbacks own
+// every PostgreSQL diagnostic field for other independently specified contexts.
+func DefinitionActiveCancel(t *testing.T, p *Pair, b Backend, c, holder *sql.Conn, query, kind, mode string, class, object int64, index string, admitted func(context.Context), diagnostic func(*testing.T, error)) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(p.Ctx)
 	defer cancel()
@@ -102,7 +104,11 @@ func DefinitionActiveCancel(t *testing.T, p *Pair, b Backend, c, holder *sql.Con
 		t.Fatal("canceled definition returned result")
 	}
 	if b.PG {
-		DefinitionIndexWaitDiagnostic(t, outcome.Err, "57014", "canceling statement due to user request", index, true)
+		if diagnostic != nil {
+			diagnostic(t, outcome.Err)
+		} else {
+			DefinitionIndexWaitDiagnostic(t, outcome.Err, "57014", "canceling statement due to user request", index, true)
+		}
 	} else {
 		LexicalOrdinary(t, outcome.Err, context.Canceled)
 	}

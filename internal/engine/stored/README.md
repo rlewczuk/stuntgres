@@ -600,6 +600,32 @@ host methods.
   preserves sharing/cycles and source immutability; pending payloads complete and
   validate before publication. Normal type evolution rebinds affected current
   payloads while leaving unaffected originals intact.
+  Explicit transform replacement uses this same reverse capture owner through
+  `RefreshTransformRoutines`, not a parallel graph copier. Real associated
+  declaration seeds and their complete default/body/aggregate-support dependents
+  stabilize before Declarations, payload rebinding and Finish. Only this
+  same-owner/epoch operation advances its closed procedure/pair stamp set and
+  re-resolves genuine host directions into fresh owned formal/converter windows.
+  The optional `RoutineRemap.RefreshDependency` validates original source lifetime
+  authority and advances owned checked-default, binding and frozen-presentation
+  stamps by exact original revision; ordinary type/import remapping leaves it nil
+  and retains its original once-only identity/provenance semantics.
+  Revision changes match the exact (address, original current-seed revision);
+  compatible historical COW carriers keep their own body/default identity,
+  revision and matching dependency stamp. Every original is checked against the
+  immutable pre-mutation source and the full existing provider validator before
+  attachment. Incompatible historical SQL-standard bodies, foreign lifetimes,
+  tombstones and malformed signatures/types are rejected, never canonicalized
+  or repaired by a current-address lookup. The existing host-declaration memo
+  owns each refreshed layout/converter window once and retains original sharing.
+  The same stabilized remapper then enters the existing `ReownExpressions` owner
+  for domain/table defaults, CHECK/generated expressions, views, rules, triggers,
+  partitions, policies, publication filters and statistics. Its explicit internal
+  mode skips only the already completed routine pass; ordinary callers are
+  unchanged. Validate original selected carriers before remapping and all changed
+  output descriptors before returning them to the one schema candidate. No
+  intermediate transform seed host copy may split the original-identity memo.
+  Failed graph rebuilding never publishes any candidate descriptor.
   Generated range constructors participate in the same declaration-stabilization
   phase: the operation memo owns their destination type/provider, exact signature
   and result. No separate post-principal COW pass creates unregistered target
@@ -820,8 +846,11 @@ host methods.
 
 - **Catalog relation pinning** (`catalog_pinning.go`): bootstrap catalog
   tables stay pinned, while catalog views such as `pg_views` record ordinary
-  SELECT-rule dependency edges. Relation refs in the immutable source and
-  dependency manifests, including attributes, are validated before the
+  SELECT-rule dependency edges. Fixed nonprocedural `internal`/`c`/`sql` languages
+  are pinned only through genuine `LanguageProvider` authority, including their
+  exact validators; installed `plpgsql` and user language aliases retain ordinary
+  dependencies. Relation refs in the immutable source and dependency manifests,
+  including attributes, are validated before the
   address-only dependency pass. Runtime view-reference capture checks
   cancellation first, then requires the exact live consumer and a concrete
   non-nil stored view definition; an invalid consumer returns

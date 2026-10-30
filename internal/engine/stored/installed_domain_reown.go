@@ -69,7 +69,7 @@ func ReownInstalledDomainChecks(view catalog.Read, next *catalog.State, mapping 
 		retag := func(node expr.Expr) (expr.Expr, bool, error) {
 			return RetagTypes(view, node, remap.Type, remap.Collation)
 		}
-		checks, err := reownDomainCheckDefinitions(view, d.DomainChecks, ref, retag)
+		checks, err := reownDomainCheckDefinitions(view, d.DomainChecks, ref, retag, dependencyRefresh(remap.RefreshDependency))
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func ReownInstalledDomainChecks(view catalog.Read, next *catalog.State, mapping 
 	return nil
 }
 
-func reownDomainCheckDefinitions(view catalog.Read, original []catalog.DomainCheckConstraint, ref func(ids.ObjectRef) ids.ObjectRef, retag func(expr.Expr) (expr.Expr, bool, error)) ([]catalog.DomainCheckConstraint, error) {
+func reownDomainCheckDefinitions(view catalog.Read, original []catalog.DomainCheckConstraint, ref func(ids.ObjectRef) ids.ObjectRef, retag func(expr.Expr) (expr.Expr, bool, error), refresh dependencyRefresh) ([]catalog.DomainCheckConstraint, error) {
 	checks := append([]catalog.DomainCheckConstraint(nil), original...)
 	for i := range checks {
 		check := &checks[i]
@@ -102,6 +102,7 @@ func reownDomainCheckDefinitions(view catalog.Read, original []catalog.DomainChe
 				check.Dependencies[j].Revision = provider.Revision()
 			}
 		}
+		if err := refresh.apply(check.Dependencies); err != nil { return nil, err }
 	}
 	return checks, nil
 }

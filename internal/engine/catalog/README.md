@@ -73,6 +73,17 @@ neither owns catalog authority.
   type/language/converter authority. Language defaults are not pair rows.
   Registry tokens are engine-owned and immutable, and names never supply an
   invocation-time callback fallback.
+  A pair has no singleton conversion capability: each selected direction
+  independently authenticates its actual callback/type/runtime token. Ordinary
+  supported callback metadata needs no host token; it cannot execute as a host
+  converter. Zero means the genuine missing-direction default, not unavailable
+  nonzero metadata. `TransformBootstrapEquivalent` authenticates the exact
+  untouched registered selection before replay may omit its declaration.
+  Immutable `SQLDefined` records real SQL CREATE/OR REPLACE provenance, including
+  an equivalent replacement selecting original bootstrap callbacks. Bootstrap
+  leaves it false; real replay SQL reconstructs it. It never grants callback
+  authority, owns an ACL, or asserts historical volatility. Explicit and
+  one-direction definitions always replay their real selections.
   `Procedure.Transforms` owns immutable ordered type/pair/revision associations,
   independently of `HostRoutine` boundary converters. It agrees exactly with the
   existing immutable display list, retains duplicates and unused associations,

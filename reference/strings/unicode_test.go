@@ -64,8 +64,11 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 			run(fixture.Exec("INSERT INTO t VALUES ('seed')", 1))
 			run(fixture.Exec("CREATE TABLE source_rows(x TEXT)", 0))
 			run(fixture.Exec("INSERT INTO source_rows VALUES ('source')", 1))
-			check := func(q string, diag fixture.Diagnostic) {
+			check := func(q string, diag fixture.Diagnostic, postgres *fixture.Diagnostic) {
 				t.Helper()
+				if backend.PG && postgres != nil {
+					diag = *postgres
+				}
 				for _, op := range []string{"exec", "query", "prepare"} {
 					s := fixture.ErrorDiagnostic(q, diag)
 					s.SelectRows, s.Prepared, s.ErrorStage = op == "query", op == "prepare", "execute"
@@ -85,10 +88,10 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 					if prefix != "" {
 						n += 6
 					}
-					check(prefix+"INSERT INTO t VALUES ("+tc.source, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n), Hint: tc.hint})
+					check(prefix+"INSERT INTO t VALUES ("+tc.source, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n), Hint: tc.hint}, unicodeEscapePostgresDiagnostic(tc.source))
 				}
 				n, _ := strconv.Atoi(tc.position)
-				check("INSERT INTO t VALUES ('valid'),("+tc.source, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n + 10), Hint: tc.hint})
+				check("INSERT INTO t VALUES ('valid'),("+tc.source, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n + 10), Hint: tc.hint}, unicodeEscapePostgresDiagnostic(tc.source))
 			}
 			for _, tc := range []struct{ q, message, position, hint string }{
 				{`CREATE TABLE U&"a""\061"(x TEXT)`, "invalid Unicode escape", "19", `Unicode escapes must be \XXXX or \+XXXXXX.`},
@@ -99,9 +102,14 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 				{`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061')`, "invalid Unicode escape", "62", `Unicode escapes must be \XXXX or \+XXXXXX.`},
 				{`INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`, "invalid Unicode escape", "67", `Unicode escapes must be \XXXX or \+XXXXXX.`},
 			} {
-				check(tc.q, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: tc.position, Hint: tc.hint})
+				check(tc.q, fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: tc.position, Hint: tc.hint}, unicodeEscapePostgresDiagnostic(tc.q))
 			}
-			staged := fixture.ImplicitError(`CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'a''😀\061')`, fixture.Diagnostic{Code: "42601", Message: "invalid Unicode escape", Position: "101", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`})
+			const stagedSQL = `CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'a''😀\061')`
+			stagedDiagnostic := fixture.Diagnostic{Code: "42601", Message: "invalid Unicode escape", Position: "101", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
+			if backend.PG {
+				stagedDiagnostic = *unicodeEscapePostgresDiagnostic(stagedSQL)
+			}
+			staged := fixture.ImplicitError(stagedSQL, stagedDiagnostic)
 			staged.ErrorStage = "execute"
 			run(staged)
 			for _, name := range []string{"fresh", "staged"} {

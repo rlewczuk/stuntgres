@@ -57,6 +57,7 @@ type ViewQueryRemapper struct {
 	Mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
 	routineFormals int // Private provenance from a frozen routine presentation.
 	addressMapper  func(ids.ObjectAddress) ids.ObjectAddress
+	refreshDependency dependencyRefresh // Exact stamps only for explicit transform refresh.
 }
 
 // Fresh copies the mapping policy into a new operation without accepted roots.

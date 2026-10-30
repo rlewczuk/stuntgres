@@ -31,6 +31,64 @@ docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
 
+## Unicode escape error cursors can split valid UTF8 input
+
+On 2026-10-30 the pinned PostgreSQL 18.6 oracle above (`server_version_num`
+`180006`, UTF8, C locale) replaced the intended malformed-escape syntax error
+with an encoding error for these valid-UTF8 SQL inputs:
+
+```sql
+CREATE TABLE t(x TEXT NOT NULL);
+INSERT INTO t VALUES ('seed');
+INSERT INTO t VALUES (U&'a''😀\061');
+INSERT INTO t VALUES (U&'a'
+'😀x\061');
+SELECT * FROM U&"a""😀\061";
+CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061');
+CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'a''😀\061');
+```
+
+Each failing command reports `ERROR`, SQLSTATE `22021`,
+`invalid byte sequence for encoding "UTF8": 0xf0 0x9f 0x98`.
+The continued-string command instead ends in `0xf0 0x9f`. Detail, hint,
+position, internal position/query, context and all object fields are empty;
+the public `pq.Error` source fields are `mbutils.c`, line `1849`,
+`report_invalid_encoding_int`. Exec, query and prepare observed the same
+diagnostic for the corresponding existing fixtures; the staged stream keeps
+its existing exec route. Prefixing the INSERT with `/*é*/ ` or `/*😀*/ `,
+or adding the first row as `VALUES ('valid'),(...)`, retains the respective
+three-byte or two-byte diagnostic. Neither the seed nor source rows change,
+and neither `fresh` nor `staged` is created.
+
+The released-source explanation is:
+
+- [`REL_18_6` scan.l, lines 586–593 and 632–636](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/parser/scan.l#L586-L636)
+  omits continuation delimiters and collapses doubled quotes in cooked tokens.
+- [`parser.c`, lines 407–408](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/parser/parser.c#L407-L408)
+  computes the cursor callback offset as `in - str + position + 3`, mixing
+  the cooked-token offset with the raw SQL token location.
+  Lines 490–493 construct the intended `42601` and Unicode-escape hint.
+- [`scan.l`, lines 1137–1149](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/parser/scan.l#L1137-L1149)
+  passes that raw prefix to `pg_mbstrlen_with_len`.
+  [`mbutils.c`, lines 1101–1109, 1178–1194 and 1826–1849](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/mb/mbutils.c#L1101-L1194)
+  strictly bounds character reads and raises `22021` on the truncated emoji.
+
+For the first INSERT, the raw prefix length is 31 bytes but the emoji starts
+at byte 28 (zero-based), leaving only three of its four valid bytes. This is
+an error-cursor defect, not corrupt client input. The exact introducing minor
+release is not established: the strict counting code is already present in
+`REL_18_4`; no claim that the defect originated in 18.6 is made.
+
+`TestReferenceUnicodeEscapesDiagnosticsAtomicity` and
+`TestReferenceUnicodeEscapesSourceDiagnostics` specify this PostgreSQL-only
+diagnostic for just these exact malformed fixtures, including the existing
+prefix/multirow forms. Native retains every intended `42601`, English message,
+hint and character position. Both scenarios retain exec/query/prepare stages
+and atomicity assertions; the staged stream also asserts the exact PostgreSQL
+diagnostic. The `U&'é\061'` and invalid `UESCAPE '😀'` controls still require
+`42601` on both backends. This is not a general exception for emoji or malformed
+escapes. When a fixed oracle is pinned, remove these bounded alternates.
+
 ## XMLTABLE view definitions lose alias-column renames
 
 The pinned PostgreSQL 18.6 fixture above exposed this defect on 2026-10-30
@@ -79,6 +137,50 @@ FROM (SELECT * FROM XMLTABLE('/r'
 When a fixed PostgreSQL release is pinned, remove the bounded diagnostic
 branch and require successful recreation on both backends. Do not make native
 rendering discard its alias-column list to match the upstream defect.
+
+## PL/Python retains transform converters until its procedure cache rebuilds
+
+On 2026-10-30, the pinned PostgreSQL 18.6 image above, with genuine
+`postgresql-plpython3-18` 18.6-1.pgdg12+2 and `hstore_plpython3u`, retained the
+old FROM converter after a real `CREATE OR REPLACE TRANSFORM` omitted FROM.
+`TestReferenceRoutineTransformDefinitionDirectionReplacement` first creates
+an opted-in hstore function, then calls the SAME held statement before and
+after replacing its transform with a TO-only declaration. The current
+`pg_transform` fields and dependency edges match the TO-only declaration,
+but the Python argument remains a dictionary: the observed result is
+`a=8, b=NULL, c=3`, without the `mode=entries` marker that the same source
+adds when it receives and parses the default string representation.
+
+This is a released handler-cache difference, not evidence that catalog
+replacement failed. In REL_18_6,
+[`PLy_procedure_valid`](https://github.com/postgres/postgres/blob/REL_18_6/src/pl/plpython/plpy_procedure.c#L413-L425)
+checks only its `pg_proc` tuple xmin and tuple identity.
+[`PLy_procedure_get`](https://github.com/postgres/postgres/blob/REL_18_6/src/pl/plpython/plpy_procedure.c#L65-L111)
+reuses an otherwise valid procedure. Its argument and result structures
+already contain the independently resolved
+[FROM](https://github.com/postgres/postgres/blob/REL_18_6/src/pl/plpython/plpy_typeio.c#L484-L489)
+and [TO](https://github.com/postgres/postgres/blob/REL_18_6/src/pl/plpython/plpy_typeio.c#L369-L374)
+conversion functions.
+
+The scenario explicitly asserts that PostgreSQL cache result, then performs
+an actual `CREATE OR REPLACE FUNCTION` with identical signature, source,
+language and transform opt-in before executing the SAME held statement.
+The observed result now includes `mode=entries`. After FROM is restored,
+the cached default persists until another identical function replacement
+rebuilds the procedure, then the dictionary result returns. Fresh paired
+pinned-oracle runs on 2026-10-30 established both cache-reset/restoration
+phases, including reuse of the SAME held statement. These observations
+confirm the release-source prediction; no behavior on another PostgreSQL
+release is inferred.
+
+Native assertions require omission and restoration to take effect on the
+SAME held statement without either function replacement. No fresh prepared
+statement or altered program substitutes for that native lifecycle proof.
+Run the paired scenario with:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceRoutineTransformDefinitionDirectionReplacement$'
+```
 
 ## UPC output discards invalid markers
 

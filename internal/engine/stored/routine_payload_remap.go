@@ -17,6 +17,10 @@ import (
 // NewRoutineRemap shares mappings by original immutable payload identity, not
 // routine address. Declarations are stabilized before any body is rebound.
 func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, typ func(*sqltype.Descriptor) *sqltype.Descriptor, principal catalog.ProcedureRemapper, typesOnly bool) *catalog.RoutineRemap {
+	return newRoutineRemap(view,mapping,typ,principal,typesOnly,nil,nil)
+}
+
+func newRoutineRemap(view catalog.Read,mapping map[ids.ObjectAddress]ids.ObjectAddress,typ func(*sqltype.Descriptor)*sqltype.Descriptor,principal catalog.ProcedureRemapper,typesOnly bool,original func(*catalog.Procedure)error,refresh func(*catalog.Procedure,bool)error)*catalog.RoutineRemap {
 	collation := typedef.RemappedCollationCapabilities(view.State(), mapping)
 	if typ == nil {
 		typ = func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -103,6 +107,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		return mapped, nil
 	}
 	attach := func(p *catalog.Procedure) error {
+		hostFresh:=false
 		if original := p.Transforms; original != nil {
 			mapped := transformDeclarations[original]
 			if mapped == nil {
@@ -176,6 +181,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		if h := p.Host; h != nil {
 			mapped := hostDeclarations[h]
 			if mapped == nil {
+				hostFresh=true
 				copy := *h
 				if err := copy.SetLayout(definition); err != nil { return err }
 				copy.Converters = append([]ids.ObjectAddress(nil), h.Converters...)
@@ -223,11 +229,13 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 				p.SQLDefaults = mapped
 			}
 		}
+		if refresh!=nil { return refresh(p,hostFresh) }
 		return nil
 	}
 	var ready bool
 	var declarations []*catalog.Procedure
 	prepare := func(p *catalog.Procedure) error {
+		if original!=nil { if err:=original(p);err!=nil { return err } }
 		if ready {
 			return attach(p)
 		}

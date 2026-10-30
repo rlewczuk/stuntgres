@@ -44,6 +44,9 @@ func bindingDuplicate(claim BindingClaim) error {
 	}
 	var table, constraint, detail string
 	switch key.ClassID {
+	case ids.TransformClassID:
+		typ, language, _ := strings.Cut(key.Name, ",")
+		table, constraint, detail = "pg_transform", "pg_transform_type_lang_index", fmt.Sprintf("Key (trftype, trflang)=(%s, %s) already exists.", typ, language)
 	case ids.LanguageClassID:
 		table, constraint, detail = "pg_language", "pg_language_name_index", fmt.Sprintf("Key (lanname)=(%s) already exists.", key.Name)
 	case ids.SubscriptionClassID:

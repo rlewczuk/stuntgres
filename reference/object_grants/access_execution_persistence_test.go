@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	"stuntgres"
 	"stuntgres/reference/fixture"
 )
@@ -96,11 +97,53 @@ func accessExecutionPersistCheck(t *testing.T, p *fixture.Pair, db fixture.Execu
 	run(fixture.Select("SELECT ae_sum(v) AS v FROM (VALUES(1),(2)) s(v)", []string{"v"}, []string{"INT4"}, [][]any{{int64(3)}}))
 }
 
+// Native installation replay transfers these preexisting extension members to
+// its real source owner. PostgreSQL's public-schema reset cannot retire them.
+func accessExecutionReplayRoutineCleanup(t *testing.T, p *fixture.Pair, c *sql.Conn) {
+	t.Helper()
+	for _, identity := range []string{
+		"pg_catalog.plpgsql_call_handler()",
+		"pg_catalog.plpgsql_inline_handler(pg_catalog.internal)",
+		"pg_catalog.plpgsql_validator(pg_catalog.oid)",
+	} {
+		var owner string
+		var acl sql.NullString
+		if err := c.QueryRowContext(p.Ctx, "SELECT proowner::regrole::text,proacl::text FROM pg_catalog.pg_proc WHERE oid=$1::regprocedure", identity).Scan(&owner, &acl); err != nil {
+			t.Fatal("capture retained replay routine", identity, err)
+		}
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			admin, err := fixture.Admin.Conn(ctx)
+			if err != nil {
+				t.Error("retained replay routine admin", err)
+				return
+			}
+			defer admin.Close()
+			// This independent connection is not replay's possibly aborted or
+			// reauthorized session. DDL repairs shared-role dependencies before
+			// restoring exact NULL/empty ACL provenance and original grantors.
+			for _, query := range []string{
+				"ALTER FUNCTION " + identity + " OWNER TO " + pq.QuoteIdentifier(owner),
+				"REVOKE ALL ON FUNCTION " + identity + " FROM postgres,og_object_reader,og_object_other CASCADE",
+			} {
+				if _, err := admin.ExecContext(ctx, query); err != nil {
+					t.Error("restore retained replay routine", query, err)
+				}
+			}
+			if _, err := admin.ExecContext(ctx, "UPDATE pg_catalog.pg_proc SET proacl=$1::aclitem[] WHERE oid=$2::regprocedure", acl, identity); err != nil {
+				t.Error("restore retained replay routine ACL", identity, err)
+			}
+		})
+	}
+}
+
 func TestReferenceAccessExecutionPersistence(t *testing.T) {
 	var emitted string
 	objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		defer accessExecutionResetConnection(t, c)
 		if b.PG {
+			accessExecutionReplayRoutineCleanup(t, p, c)
 			var originalACL sql.NullString
 			var originalOwner string
 			if err := c.QueryRowContext(p.Ctx, "SELECT lanacl::text,lanowner::regrole::text FROM pg_language WHERE lanname='sql'").Scan(&originalACL, &originalOwner); err != nil {

@@ -96,6 +96,30 @@ schema creation and replacement ownership retain their ordinary checks.
 `ALTER FUNCTION/PROCEDURE ... TRANSFORM` is invalid syntax. Use CREATE OR REPLACE;
 omitting the clause removes the old association without changing routine identity.
 
+SQL `CREATE [OR REPLACE] TRANSFORM FOR type LANGUAGE language (...)` and
+`DROP TRANSFORM [IF EXISTS] FOR type LANGUAGE language [RESTRICT|CASCADE]`
+manage actual catalog definitions. FROM SQL and TO SQL independently name normal
+scalar one-INTERNAL-argument functions: FROM returns INTERNAL; TO returns the
+transform type. At least one direction is required; replacement clears omitted
+directions and preserves the pair OID. CREATE checks type ownership/USAGE,
+language USAGE, and each callback's ownership/EXECUTE. DROP checks type ownership,
+not language ownership. Pseudo-types and domains cannot define transform pairs.
+Pairs have normal type/language/callback dependencies but no owner, ACL or
+invented extension membership. RESTRICT and CASCADE use the ordinary dependency
+graph, including associated routines and their actual dependent objects.
+
+Registered callbacks remain VOLATILE by default. An owner who can truthfully
+promise purity may explicitly `ALTER FUNCTION callback(internal) STABLE` or
+`IMMUTABLE` before CREATE TRANSFORM. A current VOLATILE function is rejected at
+CREATE even when an existing pair lawfully survives a later ALTER VOLATILE.
+This exception admits volatility only for genuine registered directional
+callbacks; STRICT, security and unrelated provider restrictions are unchanged.
+Different genuine conversion IDs may supply the two directions. A declared
+non-host callback can be honest metadata, but cannot acquire a native callback
+ABI: a nonzero unavailable direction errors instead of using a default.
+Replacement atomically refreshes associated declarations, captured defaults and
+bodies, and later held-call admissions without mutating older accepted artifacts.
+
 Callbacks use only context and plain Go carriers:
 
 - `HostSQLValue` contains a logical type, SQL-null flag and one matching
@@ -138,9 +162,13 @@ real surviving directions rather than re-installing them from names. The strict
 `stuntgres-host-runtime-v2` prerequisite envelope intentionally rejects old v1
 streams after removal of Program selector fields; no legacy interpretation or
 compatibility shim is provided. The unchanged versioned absence boundary
-preserves missing pairs before declarations consume them. SQL CREATE/DROP
-TRANSFORM definition lifecycle remains separate; this API does not load external
-libraries or persist runtime objects.
+preserves missing pairs before declarations consume them. Logical transform SQL
+then restores surviving explicit direction selections after callback/language
+identity and owner replay. Genuine final-VOLATILE callbacks needed by explicit
+pair replay receive a bounded private STABLE annotation around those declarations,
+then return to VOLATILE before consumers or publication; no callback runs between.
+Strict destination registration and owner import remain required. This API never
+loads external libraries or persists runtime objects.
 
 
 ### Selecting a logical database
@@ -484,6 +512,8 @@ physical owner; use an independent connection for other work.
   semantic no-ops) with `0A000` before publication; they do not acquire an
   invented SQL/PL invocation wrapper. Their admitted parallel/cost/rows patches
   are real SQL-visible declaration metadata, separate from execution behavior.
+  The narrow genuine HostConversion volatility exception described above does
+  not supply such a wrapper or relax any other provider attribute.
   ROWS changes the estimate, not intrinsic set capability or returned rows;
   defaults remain provider-owned until explicitly changed. Declaration-time
   setting normalization is non-installing; native injected callbacks run outside

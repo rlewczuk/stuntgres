@@ -13,6 +13,10 @@ import (
 // RemapTriggers maps each identity and type exactly once into the destination
 // catalog, leaving every source descriptor, recipe and frame untouched.
 func RemapTriggers(read catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
+	return remapTriggers(read, d, mapping, ref, typ, collation, procedure, nil)
+}
+
+func remapTriggers(read catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper, refresh dependencyRefresh) (*catalog.Relation, error) {
 	if !d.HasTriggers() {
 		return d, nil
 	}
@@ -54,11 +58,11 @@ func RemapTriggers(read catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 			if err != nil {
 				return nil, err
 			}
-			p.Presentation, err = RemapView(read, p.Presentation, mapping, ref, typ, collation, procedure)
+			p.Presentation, err = remapView(read, p.Presentation, mapping, ref, typ, collation, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}
-			binding, err := RemapRuleBinding(read, *p.Binding, ref, typ, collation, procedure)
+			binding, err := remapRuleBinding(read, *p.Binding, ref, typ, collation, 0, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}

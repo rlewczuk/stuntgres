@@ -126,6 +126,27 @@ type DropLanguage struct {
 
 func (*DropLanguage) statement() {}
 
+// CreateTransform selects independently optional directional callback identities.
+// A nil direction means the language default, not a synthetic identity function.
+type CreateTransform struct {
+	Type TypeName
+	Language Identifier
+	From, To *GrantRoutineTarget
+	FromPos, ToPos Position
+	Replace bool
+	Pos Position
+}
+func (*CreateTransform) statement() {}
+
+type DropTransform struct {
+	Type TypeName
+	Language Identifier
+	IfExists bool
+	Mode DropMode
+	Pos Position
+}
+func (*DropTransform) statement() {}
+
 // BodyPos is the position immediately preceding the decoded body. Keep the
 // actual quote delimiter width, rather than assuming every body uses $$.
 func routineBodyPosition(token lexeme) Position {

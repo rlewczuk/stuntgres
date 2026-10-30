@@ -17,6 +17,7 @@ func TestReferenceAccessExecutionTemporaryPersistence(t *testing.T) {
 	objectGrantScenario(t,nil,func(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Conn,run func(fixture.Step),prepared bool){
 		defer accessExecutionResetConnection(t,c)
 		if b.PG {
+			accessExecutionReplayRoutineCleanup(t, p, c)
 			if emitted=="" {t.Fatal("missing actual temporary-omission native stream")}
 			run(fixture.Exec("GRANT USAGE ON SCHEMA public TO PUBLIC",0))
 			if _,err:=c.ExecContext(p.Ctx,emitted);err!=nil {t.Fatal(err)}

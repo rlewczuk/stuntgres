@@ -63,6 +63,9 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 		}
 		next.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, next.Owner)
 	case "attributes":
+		if d.HostConversion != nil {
+			if err = catalog.ValidateHostConversion(view.Catalog, d); err != nil { return err }
+		}
 		if err = checkRoutineProviderAttributes(d, s.Attributes); err != nil {
 			return err
 		}

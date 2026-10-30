@@ -340,6 +340,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.Explain:
 		return e.describeExplain(scope, s)
+	case *parser.CreateTransform, *parser.DropTransform:
+		return Description{}, nil
 	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateCast, *parser.DropCast:
 		return Description{}, nil
 	case *parser.ForeignDDL:

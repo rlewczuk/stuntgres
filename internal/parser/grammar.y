@@ -79,6 +79,7 @@ package parser
  routineAttributes []RoutineAttribute
  routineAttribute RoutineAttribute
  createLanguage *CreateLanguage
+ transform *CreateTransform
  plBlock *PLBlock
  plDeclarations []PLDeclaration
  plDeclaration *PLDeclaration
@@ -587,6 +588,9 @@ package parser
 %type <identifiers> configuration_tokens
 %type <stmt> create_function create_aggregate drop_routine alter_routine
 %type <stmt> create_language alter_language drop_language
+%type <stmt> create_transform drop_transform
+%type <transform> transform_directions transform_from transform_to
+%type <tok> transform_sql_word
 %type <createLanguage> language_head language_flags
 %type <objectName> language_inline language_validator
 %type <routineAS> routine_as
@@ -1088,6 +1092,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | alter_operator | drop_operator
  | drop_routine | alter_routine
  | alter_language | drop_language
+ | drop_transform
  | create_cast | drop_cast
  | alter_operator_family | drop_operator_family
  | alter_operator_class | drop_operator_class
@@ -1839,6 +1844,7 @@ create: create_table { $$=$1 }
  | create_parser { $$=$1 }
  | create_function { $$=$1 }
  | create_language { $$=$1 }
+ | create_transform { $$=$1 }
  | create_aggregate { $$=$1 }
  | create_operator { $$=$1 }
  | create_operator_family { $$=$1 }
@@ -2102,6 +2108,20 @@ alter_language: ALTER language_keyword name RENAME TO name {$$=&AlterLanguage{Na
  | ALTER language_keyword name OWNER TO schema_owner {$$=&AlterLanguage{Name:Identifier{Text:$3.text,Pos:$3.pos},Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}} ;
 drop_language: DROP language_keyword view_names drop_mode {$$=&DropLanguage{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP language_keyword IF EXISTS view_names drop_mode {$$=&DropLanguage{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
+create_transform: CREATE ROUTINE_TRANSFORM FOR declared_type LANGUAGE name '(' transform_directions ')' {
+ $$=$8;node:=$$.(*CreateTransform);node.Type=standaloneType($4);node.Language=Identifier{Text:$6.text,Pos:$6.pos};node.Pos=$1.pos
+} | CREATE OR replace_word ROUTINE_TRANSFORM FOR declared_type LANGUAGE name '(' transform_directions ')' {
+ $$=$10;node:=$$.(*CreateTransform);node.Type=standaloneType($6);node.Language=Identifier{Text:$8.text,Pos:$8.pos};node.Replace=true;node.Pos=$1.pos
+} ;
+transform_directions: transform_from {$$=$1}
+ | transform_to {$$=$1}
+ | transform_from ',' transform_to {$$=$1;$$.To=$3.To;$$.ToPos=$3.ToPos}
+ | transform_to ',' transform_from {$$=$1;$$.From=$3.From;$$.FromPos=$3.FromPos} ;
+transform_sql_word: name {if $1.text!="sql" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+transform_from: FROM transform_sql_word WITH FUNCTION grant_routine {target:=routineUtilityTarget($5);$$=&CreateTransform{From:&target,FromPos:$1.pos}} ;
+transform_to: TO transform_sql_word WITH FUNCTION grant_routine {target:=routineUtilityTarget($5);$$=&CreateTransform{To:&target,ToPos:$1.pos}} ;
+drop_transform: DROP ROUTINE_TRANSFORM FOR declared_type LANGUAGE name drop_mode {$$=&DropTransform{Type:standaloneType($4),Language:Identifier{Text:$6.text,Pos:$6.pos},Mode:$7,Pos:$1.pos}}
+ | DROP ROUTINE_TRANSFORM IF EXISTS FOR declared_type LANGUAGE name drop_mode {$$=&DropTransform{Type:standaloneType($6),Language:Identifier{Text:$8.text,Pos:$8.pos},Mode:$9,IfExists:true,Pos:$1.pos}} ;
 do_statement: DO STRING {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:"plpgsql"},Pos:$1.pos}}
  | DO LANGUAGE name STRING {$$=&Do{Body:$4.text,BodyPos:routineBodyPosition($4),Language:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
  | DO STRING LANGUAGE name {$$=&Do{Body:$2.text,BodyPos:routineBodyPosition($2),Language:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}} ;

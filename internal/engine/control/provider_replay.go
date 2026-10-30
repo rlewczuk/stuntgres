@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,6 +41,7 @@ type providerReplay struct {
 	objectKind        string // Empty is the ordinary FUNCTION planner.
 	options           string // Rendered dictionary ALTER clause, after identity replay.
 	parallel          byte
+	volatility        byte // Explicit genuine HostConversion promise; zero keeps bootstrap VOLATILE.
 	cost, rows        float32
 	securityDefiner   bool
 	configuration     *catalog.RoutineConfiguration
@@ -94,6 +96,10 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		}
 		r.original = providerKey{name.Schema, name.Name, p.Signature}
 		r.hostConversion = true
+		switch p.Volatility {
+		case expr.Stable: r.volatility = 's'
+		case expr.Immutable: r.volatility = 'i'
+		}
 	} else if p.Foreign != nil {
 		r.original = providerKey{p.Foreign.Name.Schema, p.Foreign.Name.Name, p.Signature}
 	} else {
@@ -120,7 +126,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		}
 		r.owner = owner.Name
 	}
-	if (r.original != r.current || r.ownerChanged || r.parallel != 0 || r.cost != 0 || r.rows > 0) && p.Signature != "" {
+	if (r.original != r.current || r.ownerChanged || r.parallel != 0 || r.volatility != 0 || r.cost != 0 || r.rows > 0) && p.Signature != "" {
 		var args strings.Builder
 		for raw := range strings.SplitSeq(string(p.Signature), ",") {
 			id, err := strconv.ParseUint(raw, 10, 32)
@@ -151,7 +157,7 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 // collects every builtin provider, and usually none changed.
 func unchangedProviders(providers []providerReplay) bool {
 	for _, p := range providers {
-		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.cost != 0 || p.rows > 0 || p.securityDefiner || p.configuration != nil {
+		if p.original != p.current || p.ownerChanged || p.options != "" || p.parallel != 0 || p.volatility != 0 || p.cost != 0 || p.rows > 0 || p.securityDefiner || p.configuration != nil {
 			return false
 		}
 	}
@@ -303,6 +309,11 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 	for _, p := range providers {
 		if p.options != "" {
 			statements = append(statements, alter(p, p.current)+p.options+";\n")
+		}
+		if p.volatility != 0 {
+			promise := "STABLE"
+			if p.volatility == 'i' { promise = "IMMUTABLE" }
+			statements = append(statements, alter(p, p.current)+" "+promise+";\n")
 		}
 		if p.securityDefiner {
 			statements = append(statements, alter(p, p.current)+" SECURITY DEFINER;\n")

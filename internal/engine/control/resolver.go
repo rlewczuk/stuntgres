@@ -53,6 +53,9 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return address.ObjectID, nil
 	}
+	if pair, ok := object.(*catalog.Transform); ok {
+		return pair.Address().ObjectID, nil
+	}
 	if cast, ok := object.(*catalog.Cast); ok {
 		if cast.GeneratedRange != (ids.ObjectAddress{}) {
 			if err := (catalog.CastProvider{}).Validate(view, cast); err != nil {

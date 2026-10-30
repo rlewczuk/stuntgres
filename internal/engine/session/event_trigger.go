@@ -77,6 +77,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast,
+		*parser.CreateTransform, *parser.DropTransform,
 		*parser.CreateAggregate, *parser.AlterRoutine, *parser.DropRoutine,
 		*parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator,
 		*parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily,

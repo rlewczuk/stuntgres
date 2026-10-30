@@ -103,8 +103,14 @@ func TestReferenceAlterDropColumnComments(t *testing.T) {
 			}()
 			var sub int
 			var comment string
-			if err = p.Postgres.QueryRowContext(p.Ctx, `SELECT attnum,col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid='t'::regclass AND attname='c' AND NOT attisdropped`).Scan(&sub, &comment); err != nil || sub != 2 || comment != "updated survivor" {
+			// Logical replay preserves the retired slot as well as the live
+			// column's name and comment; it must not compact c from 3 to 2.
+			if err = p.Postgres.QueryRowContext(p.Ctx, `SELECT attnum,col_description(attrelid,attnum) FROM pg_attribute WHERE attrelid='t'::regclass AND attname='c' AND NOT attisdropped`).Scan(&sub, &comment); err != nil || sub != 3 || comment != "updated survivor" {
 				t.Fatal("replayed named survivor metadata", sub, comment, err)
+			}
+			var retired bool
+			if err = p.Postgres.QueryRowContext(p.Ctx, `SELECT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='t'::regclass AND attnum=2 AND attisdropped)`).Scan(&retired); err != nil || !retired {
+				t.Fatal("replayed retired attribute slot", retired, err)
 			}
 			if err = p.Postgres.QueryRowContext(p.Ctx, `SELECT obj_description('t'::regclass,'pg_class')`).Scan(&comment); err != nil || comment != "table keep" {
 				t.Fatal("replayed table metadata", comment, err)

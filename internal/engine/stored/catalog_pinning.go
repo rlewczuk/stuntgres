@@ -27,6 +27,10 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 		return catalog.AccessMethodSeeded(d)
 	case *catalog.Type:
 		return catalog.TypePinned(view, reader, d)
+	case *catalog.Language:
+		// The provider authenticates only the fixed nonprocedural
+		// internal/c/sql authorities. Installed languages are not pinned.
+		return !d.Procedural && (catalog.LanguageProvider{}).Validate(view, d) == nil
 	case *catalog.Collation:
 		return d.Seeded()
 	case *catalog.Conversion:

@@ -1,6 +1,9 @@
 package reference_test
 
-import "strings"
+import (
+	"strings"
+	"stuntgres/reference/fixture"
+)
 
 // Independent Unicode expectations copied from driver_test.go.
 // Unicode expectations are literal release specifications, not decoder output.
@@ -90,6 +93,30 @@ func unicodeEscapeErrors() []struct{ source, message, position, hint string } {
 		}
 	}
 	return out
+}
+
+// These exact malformed fixtures split an emoji while PostgreSQL 18.6 builds
+// its error cursor from cooked-token offsets into raw SQL. These are independent
+// release expectations, not a rule for malformed escapes or emoji generally.
+// See docs/POSTGRES_REGRESSION.md for the released-source explanation.
+func unicodeEscapePostgresDiagnostic(source string) *fixture.Diagnostic {
+	switch source {
+	case `U&'a''😀\061')`,
+		`SELECT * FROM U&"a""😀\061"`,
+		`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061')`,
+		`CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'a''😀\061')`:
+		return &fixture.Diagnostic{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22021",
+			Message: `invalid byte sequence for encoding "UTF8": 0xf0 0x9f 0x98`,
+		}
+	case "U&'a'\n'😀x\\061')":
+		return &fixture.Diagnostic{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22021",
+			Message: `invalid byte sequence for encoding "UTF8": 0xf0 0x9f`,
+		}
+	default:
+		return nil
+	}
 }
 
 func unicodeEscapeNames() []struct{ source, name string } {

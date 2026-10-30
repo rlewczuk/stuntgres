@@ -196,6 +196,10 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "DROP CONVERSION"
 	case *parser.CreateAggregate:
 		return "CREATE AGGREGATE"
+	case *parser.CreateTransform:
+		return "CREATE TRANSFORM"
+	case *parser.DropTransform:
+		return "DROP TRANSFORM"
 	case *parser.CreateCast:
 		return "CREATE CAST"
 	case *parser.DropCast:
@@ -317,6 +321,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
+	case *parser.CreateTransform, *parser.DropTransform:
+		return true
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateFunction, *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return true
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
@@ -345,6 +351,8 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	case *parser.Subscription, *parser.Publication:
 		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
+		return true
+	case *parser.CreateTransform, *parser.DropTransform:
 		return true
 	case *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage:
 		return true

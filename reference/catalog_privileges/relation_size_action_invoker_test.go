@@ -26,6 +26,7 @@ func TestReferenceRelationSizeActionInvoker(t *testing.T) {
 			defer cleanup("rs_action_owner")
 			run(fixture.Exec("CREATE ROLE rs_action_caller", 0))
 			defer cleanup("rs_action_caller")
+			relationSizeRestoreTablespaceACL(t, p, b, []string{"rs_action_owner", "rs_action_caller"})
 			for _, q := range []string{
 				"GRANT USAGE ON SCHEMA public TO rs_action_owner,rs_action_caller",
 				"CREATE DATABASE rs_action_target",

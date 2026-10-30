@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.PublicationClassID || class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
+	return class == ids.TransformClassID || class == ids.PublicationClassID || class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -30,6 +30,8 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 	addresses := scratch[:0]
 	for _, descriptor := range stage.Descriptors() {
 		switch d := descriptor.(type) {
+		case *catalog.Transform:
+			d.Dependencies(func(a ids.ObjectAddress) bool { addresses = append(addresses, a); return true })
 		case *catalog.Language:
 			if d.Procedural {
 				for _, handler := range [...]ids.ObjectAddress{d.Call, d.Inline, d.Validator} {

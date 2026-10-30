@@ -29,6 +29,10 @@ var (
 	_ index.FamilyDDLHost = RoutineHost{}
 )
 
+func (h RoutineHost) RefreshTransformConsumers(source catalog.Read,pair *catalog.Transform)([]catalog.Descriptor,error) {
+	return stored.RefreshTransformRoutines(source,h.StageRead(),pair,h.Revision)
+}
+
 func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return core.DDLAuthorityOf(a).DefinitionType(id)
 }

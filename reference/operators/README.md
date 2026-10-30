@@ -75,8 +75,42 @@ Compiled host-routine scenarios share independently specified object/null,
 authority, failure and cancellation outcomes with actual PL/Python scalar and
 hstore dict programs on the pinned oracle. Native setup explicitly registers real
 compiled Go programs and directional primitive/map/default converters; it does not
-interpret Python. Both backends use actual routine TRANSFORM opt-in; native
-bootstrap registration, not SQL CREATE TRANSFORM, supplies genuine pairs.
+interpret Python. Both backends use actual routine TRANSFORM opt-in. The retained
+`RoutineTransforms` cohort starts with genuine registered bootstrap pairs;
+`TestReferenceRoutineTransformDefinition` independently covers SQL CREATE,
+OR REPLACE and DROP, full catalog/dependency identity, signature/ACL diagnostics,
+protocol phases, transaction/cancellation/concurrency and native logical replay.
+The definition metadata/protocol boundary uses genuine shipped
+`pg_catalog.dsimple_init(internal) RETURNS internal`, not a lookup-only optimizer
+support identity. Its dictionary initialization capability does not authorize
+host conversion; pinned builtin dependencies are omitted, and an explicitly
+selected unavailable host direction must still reject invocation.
+The genuine four-INTERNAL-argument `dsimple_lexize` declaration supplies the arity
+boundary without inventing aggregate transition support. Language-default
+witnesses distinguish implicit untrusted USAGE from routine admission and
+GRANT/REVOKE, plus explicit ACLs and grant options. Pure stored-default consumers
+carry explicit SQL stability promises; failure/cancel programs retain their
+ordinary contracts. Native destination SQL assertions use the recording pool
+paired to that connector, while Dump/Restore retain the raw control pool.
+Smoke cascade consumers use parsed SQL-standard RETURN bodies for genuine
+zero-argument/support dependencies. Quoted PL wrappers retain their lawful
+deferred lifetime and are asserted separately; they are explicitly retired
+before standalone recreation. Direction-replacement Python reads `args[0]` into
+a fresh local so real default string parsing never shadows a named SQL argument.
+The direction-replacement scenario separately asserts released PL/Python's
+cached converters and rebuilds them using an identical function declaration
+on PostgreSQL only, retaining the SAME held statement. Native omission and
+restoration must take effect without routine redefinition; see the source and
+observed release difference in [POSTGRES_REGRESSION.md](../../docs/POSTGRES_REGRESSION.md#plpython-retains-transform-converters-until-its-procedure-cache-rebuilds).
+Standalone replay provisions only actually missing destination roles and checks
+their non-superuser/NOINHERIT attributes, since source Reset preserves roles;
+schema grants and all actual ACL controls remain explicit.
+Mutation cancellation compares every portable57014 field and fixes the exact
+pg_transform update/delete action, varying only anchored physical coordinates.
+Released C/PLPython oracle aliases are value-preserving: the SAME program/held
+query returns a8+c3 across mixed-ID replacement. The separate native semantic
+phase uses actual scaling/projection callbacks and the SAME program/held query
+changes to a71+c3+zout. No changed Python program substitutes for that witness.
 The `TestReferenceRoutineTransforms` definitions independently cover ordered and
 normalized declarations, same-program defaults versus maps, directional fallback,
 single-output CALL, privileges, full diagnostics/phase, reassociation, dependencies,

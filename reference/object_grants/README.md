@@ -139,6 +139,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   server ownership and NULL versus empty ACLs. Temporary-routine cases verify
   their declarations and ACL repairs are omitted together while persistent
   authority survives fresh native and actual-stream PostgreSQL replay.
+  Before actual-stream replay, capture the three retained stock `plpgsql`
+  functions' original owner and ACL. Bounded independent-admin cleanup restores
+  ownership and revokes scenario grants through ordinary DDL before repairing
+  the exact raw ACL, so extension members retain no temporary-role dependencies.
   Persistent routine OIDs come from public regprocedure identities; temporary
   OIDs come directly from the public catalog because existing text routine
   selection excludes temporary namespaces, even with qualification. The

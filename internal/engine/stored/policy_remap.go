@@ -11,10 +11,10 @@ import (
 
 func RemapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
-	return remapPolicies(view, d, mapping, ref, typ, collation, procedure)
+	return remapPolicies(view, d, mapping, ref, typ, collation, procedure, nil)
 }
 
-func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper) (*catalog.Relation, error) {
+func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, procedure catalog.ProcedureRemapper, refresh dependencyRefresh) (*catalog.Relation, error) {
 	if len(d.Security.Policies) == 0 {
 		return d, nil
 	}
@@ -27,7 +27,7 @@ func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 				continue
 			}
 			expression := PolicyOf(*slot)
-			frozen, err := remapView(view, expression.Presentation(), mapping, ref, typ, collation, nil, procedure)
+			frozen, err := remapView(view, expression.Presentation(), mapping, ref, typ, collation, nil, procedure, refresh)
 			if err != nil {
 				return nil, err
 			}

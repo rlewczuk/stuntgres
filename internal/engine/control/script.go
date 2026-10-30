@@ -60,6 +60,7 @@ type dumpScript struct {
 	hostProviderStatements, hostConverterDrops []string
 	hostHandlerDrops                           []string
 	hostAbsenceComment                         string
+	transformPromises, transformFinalVolatility map[ids.OID]string
 	installationTypeReplay                     *installationTypeReplay
 	typeReplayEpilogues                        map[ids.OID]string
 	rangeCreations                             map[ids.OID]*rangeReplayCreation
@@ -281,6 +282,7 @@ func (s *dumpScript) addDeclarationEdges(ctx context.Context) error {
 	if err := s.castEvents(); err != nil {
 		return err
 	}
+	if err := s.transformEvents(); err != nil { return err }
 	for event, predecessors := range s.Graph {
 		id := event.OID
 		relation, ok := s.CatalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id})
@@ -337,7 +339,12 @@ func (s *dumpScript) renderTypeStatements(ctx context.Context) error {
 func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if s.DeferDefaults {
 		for oid, predecessors := range s.InlinePredecessors {
-			s.Graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
+			event:=dump.Event{OID:oid}
+			deferred:=dump.DeclarationEvents(predecessors)
+			for _,dependency:=range s.Graph[event] {
+				if dependency.Phase==dump.TransformCompletion { deferred=append(deferred,dependency) }
+			}
+			s.Graph[event]=deferred
 		}
 	}
 	if err := s.orderExtensionTypes(ctx); err != nil {
@@ -361,7 +368,12 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	declarationOrder, err := dump.Order(ctx, s.Graph, priorities)
 	if err != nil && !s.DeferDefaults && ctx.Err() == nil && len(s.InlinePredecessors) != 0 {
 		for oid, predecessors := range s.InlinePredecessors {
-			s.Graph[dump.Event{OID: oid}] = dump.DeclarationEvents(predecessors)
+			event:=dump.Event{OID:oid}
+			deferred:=dump.DeclarationEvents(predecessors)
+			for _,dependency:=range s.Graph[event] {
+				if dependency.Phase==dump.TransformCompletion { deferred=append(deferred,dependency) }
+			}
+			s.Graph[event]=deferred
 		}
 		if err := table.PhysicalNotNullDumpDependencies(Resolver{}, s.OriginalCatalog, s.Graph); err != nil {
 			return nil, err
@@ -499,6 +511,11 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 			return err
 		}
 		s.declarations[config.Address().ObjectID] = declaration
+	}
+	for _, pair := range s.Transforms {
+		declaration, err := routine.TransformDumpStatement(s.CatalogView, pair, pair.Runtime != nil)
+		if err != nil { return err }
+		s.declarations[pair.Address().ObjectID] = declaration
 	}
 	for _, d := range s.OwnedRoutines {
 		declaration, err := routine.RoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)

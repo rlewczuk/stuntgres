@@ -83,7 +83,7 @@ func TestRoutineNestedRemapExactlyOnce(t *testing.T) {
 	})
 	t.Run("mutation", func(t *testing.T) {
 		binding := analyze.Binding{Update: &analyze.UpdateBinding{Assignments: []expr.Expr{subquery}}}
-		mapped, err := remapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil, 1, nil, nil)
+		mapped, err := remapRuleBinding(catalog.Read{}, binding, ref, nonidempotentType, nil, 1, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

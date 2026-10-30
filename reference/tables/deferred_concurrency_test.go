@@ -105,7 +105,7 @@ func TestReferenceDeferredConstraintCancellation(t *testing.T) {
 		fixture.DefinitionActiveCancel(t, p, b, peer, a, "SET CONSTRAINTS u IMMEDIATE", "transactionid", "ShareLock", 0, 0, "u", func(ctx context.Context) {
 			// A separate key progresses while the conflicting recheck is parked.
 			fixture.RunStep(t, ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO t VALUES(9)", 1))
-		})
+		}, nil)
 		step(fixture.Exec("ROLLBACK TO s", 0))
 		step(fixture.Exec("INSERT INTO t VALUES(2)", 1))
 		step(fixture.Exec("SET CONSTRAINTS u IMMEDIATE", 0))
