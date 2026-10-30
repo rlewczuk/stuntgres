@@ -58,3 +58,51 @@ func TestXMLSerializeCallDiagnostics(t *testing.T) {
 		}
 	}
 }
+
+func TestXMLSerializeGeneratedQualification(t *testing.T) {
+	ctx := context.Background()
+	value, err := ConstructElement(ctx, "r", nil, []string{"\x01"})
+	if err != nil || !value.Valid() || value.Original() != "<r>\x01</r>" {
+		t.Fatal(value, err)
+	}
+	before := value
+	backing := unsafe.StringData(value.Original())
+	raw, events, err := Serialize(ctx, value, SerializeOptions{})
+	if err != nil || len(events) != 0 || raw != value.Original() || unsafe.StringData(raw) != backing {
+		t.Fatal(raw, events, err)
+	}
+	for _, opts := range []SerializeOptions{
+		{Mode: Content, Indent: true},
+		{Mode: Document},
+		{Mode: Document, Indent: true},
+	} {
+		out, events, err := Serialize(ctx, value, opts)
+		var nd *NotDocumentError
+		var pe *ParseError
+		if out != "" || !errors.As(err, &nd) || errors.As(err, &pe) || err.Error() != "not an XML document" {
+			t.Fatal(opts, out, err)
+		}
+		// Qualification still reports this call's real parser events; only
+		// the error classification changes, not the event collection.
+		if len(events) == 0 {
+			t.Fatal("qualification discarded parser events")
+		}
+		if !reflect.DeepEqual(before, value) || unsafe.StringData(value.Original()) != backing {
+			t.Fatal("failed qualification changed accepted generated value")
+		}
+	}
+	for _, mode := range []Mode{Content, Document} {
+		rejected, err := Parse(ctx, value.Original(), Options{Mode: mode})
+		var pe *ParseError
+		if rejected.Valid() || !errors.As(err, &pe) || pe.RequestedMode != mode || pe.Detail() != "line 1: PCDATA invalid Char value 1\n<r>\x01</r>\n   ^" {
+			t.Fatal(mode, rejected, err)
+		}
+	}
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		c := &phaseContext{Context: ctx, phase: "Serialize", after: 1, cause: cause}
+		out, events, err := Serialize(c, value, SerializeOptions{Indent: true})
+		if out != "" || len(events) != 0 || !errors.Is(err, cause) {
+			t.Fatal(out, events, err)
+		}
+	}
+}

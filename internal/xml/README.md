@@ -407,9 +407,12 @@ terminal CR/LF; DOCTYPE-promoted CONTENT retains the document saver’s final LF
 Notation records precede ordinary declarations in deterministic binding order.
 
 `*NotDocumentError` has exactly `not an XML document` as its message, without
-SQLSTATE, detail, hint or a fabricated parser diagnostic. It identifies soft
-document qualification/custom declaration failures. Hard grammar failures retain
-`*ParseError`; context, size and invalid-argument failures remain ordinary errors.
+SQLSTATE, detail, hint or a fabricated parser diagnostic. Every structured
+`*ParseError` from this call's qualification parse becomes `*NotDocumentError`,
+for both DOCUMENT qualification and CONTENT INDENT, regardless of parse category.
+Explicit `Parse` retains its structured `*ParseError`; CONTENT NO INDENT bypasses
+qualification. Context, size, encoding and invalid-argument failures remain
+ordinary errors, and qualification events are preserved independently.
 Every failure returns empty output and leaves the accepted value unchanged.
 
 Typed output is separate: `OutputText`/`OutputBinary` normalize declaration

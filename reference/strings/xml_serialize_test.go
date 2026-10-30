@@ -170,3 +170,51 @@ func xmlSerializeCatalogSource(t *testing.T) {
 		}
 	})
 }
+
+func TestReferenceXMLSerializeGeneratedQualification(t *testing.T) {
+	xmlScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, _ *sql.Conn) {
+		var notices []fixture.Diagnostic
+		_, c, rec := fixture.NoticeReferencePool(t, p, b.PG, &notices)
+		b.Recorder = rec
+		// The checked SQL constructor deliberately preserves the control
+		// character. XML input would reject it before serialization.
+		const generated = `xmlelement(NAME r, chr($1::integer))`
+		for _, option := range []string{"", " NO INDENT"} {
+			s := xmlSelect("SELECT XMLSERIALIZE(CONTENT "+generated+" AS text"+option+") AS v", "TEXT", "<r>\x01</r>")
+			s.Args = []any{1}
+			xmlBoth(t, p, b, c, s)
+		}
+		for _, tc := range []struct {
+			expr, code, message, detail string
+		}{
+			{"XMLSERIALIZE(CONTENT " + generated + " AS text INDENT)", "2200L", "not an XML document", ""},
+			{"XMLSERIALIZE(DOCUMENT " + generated + " AS text INDENT)", "2200L", "not an XML document", ""},
+			{"XMLSERIALIZE(DOCUMENT " + generated + " AS text NO INDENT)", "2200L", "not an XML document", ""},
+			{"XMLPARSE(CONTENT XMLSERIALIZE(CONTENT " + generated + " AS text NO INDENT))::text", "2200N", "invalid XML content", "line 1: PCDATA invalid Char value 1\n<r>\x01</r>\n   ^"},
+			{"XMLPARSE(DOCUMENT XMLSERIALIZE(CONTENT " + generated + " AS text NO INDENT))::text", "2200M", "invalid XML document", "line 1: PCDATA invalid Char value 1\n<r>\x01</r>\n   ^"},
+		} {
+			q := "SELECT " + tc.expr + " AS v"
+			failure := fixture.ErrorDiagnostic(q, xmlError(tc.code, tc.message, tc.detail, 0), 1)
+			failure.SelectRows, failure.ErrorStage = true, "execute"
+			fixture.RunStep(t, p.Ctx, c, rec, failure)
+			stmt, err := c.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+			// Reuse the same prepared definition across failed qualification,
+			// healthy execution and another failure, not fresh prepares.
+			fixture.RunStep(t, p.Ctx, held, rec, failure)
+			healthy := xmlSelect(q, "TEXT", "<r>A</r>")
+			healthy.Args = []any{65}
+			fixture.RunStep(t, p.Ctx, held, rec, healthy)
+			fixture.RunStep(t, p.Ctx, held, rec, failure)
+			if err := stmt.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if len(notices) != 0 {
+			t.Fatalf("generated serialization emitted notices %#v", notices)
+		}
+	})
+}

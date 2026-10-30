@@ -35,7 +35,7 @@ func Serialize(ctx context.Context, value Result, opts SerializeOptions) (string
 	parsed, tree, events, err := parseConfigured(ctx, value.original, Options{Mode: opts.Mode}, parsePolicy{collect: opts.Indent, ignoreBlanks: opts.Indent})
 	if err != nil {
 		var pe *ParseError
-		if errors.As(err, &pe) && (opts.Mode == Document || pe.Category == DeclarationError) {
+		if errors.As(err, &pe) {
 			return "", events, &NotDocumentError{}
 		}
 		return "", events, err
