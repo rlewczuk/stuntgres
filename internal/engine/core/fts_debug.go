@@ -3,17 +3,25 @@ package core
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
-// Engine.Mu precedes settings capture. Detached callbacks use one immutable
-// catalog generation and invocation-private acquisition until the final fence.
-func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (textSearchCapture, error) {
+// textSearchInput owns an immutable catalog generation and the configuration
+// identity resolved within it, but no parser/dictionary acquisition.
+type textSearchInput struct {
+	read catalog.Read
+	oid  uint32
+}
+
+// Engine.Mu precedes effective settings capture. The returned input retains no
+// mutable session state; runtime acquisition and callbacks use its generation.
+func (h *statementHost) resolveTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value) (textSearchInput, error) {
 	if err := ctx.Err(); err != nil {
-		return textSearchCapture{}, err
+		return textSearchInput{}, err
 	}
 	s := h.scope()
 	var oid uint32
@@ -21,7 +29,7 @@ func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit boo
 	if explicit {
 		oid, err = value.RegTSOID()
 		if err != nil {
-			return textSearchCapture{}, err
+			return textSearchInput{}, err
 		}
 	}
 	e := s.Engine()
@@ -37,18 +45,26 @@ func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit boo
 		err = failure
 		if err == nil {
 			name, _ := s.Op.Setting("default_text_search_config")
-			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveRegconfig(ctx, name)
+			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveDefaultConfig(ctx, name)
 		}
 	}
+	if err != nil {
+		return textSearchInput{}, err
+	}
+	return textSearchInput{read: read, oid: oid}, nil
+}
+
+func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (textSearchCapture, error) {
+	input, err := h.resolveTextSearchInput(ctx, explicit, value)
 	if err != nil {
 		return textSearchCapture{}, err
 	}
 	if missingEmpty {
-		if _, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)}); !ok {
+		if _, ok := input.read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(input.oid)}); !ok {
 			return textSearchCapture{}, nil
 		}
 	}
-	return captureTextSearch(ctx, read, oid)
+	return captureTextSearch(ctx, input.read, input.oid)
 }
 func (h *statementHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (rows []sqltype.Value, err error) {
 	// Provider failures arise inside the actual SQL-standard debug statement,

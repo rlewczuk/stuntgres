@@ -658,19 +658,23 @@ Fresh eligible transactions may move retained output; old live transaction
 execution and commit still fail at the ordinary replacement fence.
 
 
-Text-search conversion captures immutable configuration, checked parser capability
-and catalog metadata under `Engine.Mu`, then releases it before tokenization,
-resource compilation, lexization or notice callbacks. Capture does not initialize
-mapped dictionaries. Omitted configuration reads the operation's effective
-`default_text_search_config` at execution, with Engine-before-settings lock order.
-Mapping changes publish through ordinary schema stages and definition locks.
-JSON conversion validates its filter before traversal and lazily captures at the
-first selected item, including an empty string. All items share that generation
-and acquisition, but reset parser/phrase state per item. One cumulative position
-counter includes stopwords; only an item emitting lexemes adds an artificial gap.
-No selected item yields a typed empty vector without configuration lookup or
-dictionary receipts. Traversal, lexical work and final acceptance remain detached
-and cancellation-fenced; no partial vector or acquisition escapes a failure.
+Text-search conversion captures an immutable catalog generation and configuration
+identity under `Engine.Mu`, then releases it before runtime acquisition,
+tokenization, resource compilation, lexization or notice callbacks. Capture does
+not initialize mapped dictionaries. Omitted configuration resolves the current
+`default_text_search_config` name from operation-effective settings at execution,
+with Engine-before-settings lock order and semantic missing-schema/configuration
+errors. Mapping changes publish through ordinary schema stages and definition locks.
+JSON conversion validates its filter first, then resolves an omitted default
+identity before traversal, even if no item is selected. Explicit configurations
+retain lazy identity demand. Both forms acquire parser/dictionary runtime only
+at the first selected item, including an empty string. All selected items share
+one immutable catalog generation and acquisition, but reset parser/phrase state
+per item. One cumulative position counter includes stopwords; only an item
+emitting lexemes adds an artificial gap. No selected item yields a typed empty
+vector without dictionary receipts. Traversal, lexical work and final acceptance
+remain detached and cancellation-fenced; no partial vector or acquisition escapes
+a failure.
 Debug borrows the same coherent capture/default resolver and acquisition fence,
 but independently lexizes every mapped dictionary against each original token.
 Its complete ordered mapping arrays and recognized-empty/unknown distinctions

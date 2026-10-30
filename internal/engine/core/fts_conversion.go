@@ -79,8 +79,8 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 	return value, nil
 }
 
-// textSearchCapture owns one immutable configuration generation. Capturing
-// requires Engine.Mu; walking never holds it across parser/dictionary callbacks.
+// textSearchCapture owns one immutable configuration generation. Acquisition
+// uses a captured catalog read; parser/dictionary callbacks run detached.
 type textSearchCapture struct {
 	config      *catalog.TSConfiguration
 	parser      fts.ParserRuntime

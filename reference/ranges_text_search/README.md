@@ -158,6 +158,11 @@ COPY test in reference/dml.
   callbacks own pinned-session settings, typed metadata and held statements.
   Exact diagnostics distinguish input/coercion from constructor execution;
   notice phases distinguish first-only immutable folds from stable/runtime calls.
+- Text-search settings: `RUN='^TestReferenceTextSearchSetting'`; an independently
+  specified overload inventory shares pinned-session direct, fresh-prepared and
+  held constant/parameter routes. Configuration lifetime, session restoration,
+  eager omitted JSON identity, lazy explicit acquisition, typed NULL metadata
+  and complete phase-specific diagnostics reuse the conversion/inspection helpers.
 - Text search document parser: `RUN='^TestReferenceFTSParser'`
   Parser definition lifecycle, checked callback execution, diagnostics, privileges,
   dependencies and native replacement/replay share `RUN='^TestReferenceFTSParserDDL'`.

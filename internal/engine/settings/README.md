@@ -373,8 +373,13 @@ Already captured callbacks complete even if a callback changes the setting.
 SET privileges and session, transaction, savepoint and routine-local restoration
 belong to the shared settings owner, not an event-specific store.
 
+`default_text_search_config` validates an actual configuration descriptor and
+stores its canonical schema-qualified name. Omitted-configuration text-search
+calls resolve that name from operation-effective settings at execution, including
+session, transaction, savepoint and routine-local restoration. Explicit
+configuration arguments remain independent of the setting.
+
 The following are **setting-only simulations**, not operational switches:
-`default_text_search_config`,
 `dynamic_library_path`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,

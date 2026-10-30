@@ -70,6 +70,11 @@ import it.
   ACL inquiry functions), `CollectOperatorGroups`, `VisibleOperators`,
   `SelectRoutine`, `SelectExactRoutine`, `RoutineIdentityByOID`,
   `RoutineDescriptorOwner`.
+  `TextSearchInput` (`regts_input.go`) shares captured name parsing and namespace
+  authority across configuration consumers. `ResolveRegconfig` preserves
+  missing-schema input errors; `ResolveDefaultConfig` instead demands semantic
+  namespace existence. `ResolveTriggerConfig` also requires explicit schema
+  qualification. These modes share catalog lookup, not error provenance.
   Exact selection reads represented descriptors first. Its released fallback
   suppresses stale aliases when that identity's current name, namespace or
   signature has changed, then continues the normal namespace path. Genuinely

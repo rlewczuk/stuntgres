@@ -6,13 +6,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ConvertJSONTextSearch traverses detached input and captures one configuration
-// generation lazily, at the first selected item (including an empty string).
+// ConvertJSONTextSearch resolves an omitted default after flag validation and
+// before traversal. Parser/dictionary acquisition remains lazy for both forms.
 func (h *statementHost) ConvertJSONTextSearch(ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	flags := sqltype.JSONTextSearchString
 	if filtered {
 		var err error
 		flags, err = sqltype.ParseJSONTextSearchFlags(ctx, filter)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+	}
+	var input textSearchInput
+	if !explicit {
+		var err error
+		input, err = h.resolveTextSearchInput(ctx, false, config)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -23,7 +31,11 @@ func (h *statementHost) ConvertJSONTextSearch(ctx context.Context, explicit bool
 	err := sqltype.WalkJSONTextSearch(ctx, document, flags, func(text string) error {
 		if captured.acquisition == nil {
 			var err error
-			captured, err = h.captureTextSearchInput(ctx, explicit, config, false)
+			if explicit {
+				captured, err = h.captureTextSearchInput(ctx, true, config, false)
+			} else {
+				captured, err = captureTextSearch(ctx, input.read, input.oid)
+			}
 			if err != nil {
 				return err
 			}
