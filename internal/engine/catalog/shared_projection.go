@@ -45,7 +45,7 @@ func (s *Store) ProjectSharedLocked(next *State, stores iter.Seq[*Store]) Shared
 		return nil
 	}
 	shared := func(address ids.ObjectAddress) bool {
-		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ParameterClassID
+		return address.ClassID == ids.DatabaseClassID || address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ReplicationOriginClassID || address.ClassID == ids.ParameterClassID
 	}
 	// A pure direct traversal avoids heap-owned range-over-function adapters
 	// on the common local-only publication path, including race builds.
@@ -127,7 +127,7 @@ func DatabaseOIDLocked(start ids.OID, target *Store, others iter.Seq[*Store]) (i
 	}
 	used := func(s *Store) bool {
 		for address, descriptor := range s.State.Descriptors() {
-			if (address.ClassID != ids.LargeObjectClassID && address.ObjectID == oid) || DefinitionOIDUsed(descriptor, oid) {
+			if (address.ClassID != ids.LargeObjectClassID && address.ClassID != ids.ReplicationOriginClassID && address.ObjectID == oid) || DefinitionOIDUsed(descriptor, oid) {
 				return true
 			}
 		}

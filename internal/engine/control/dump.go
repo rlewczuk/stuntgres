@@ -62,6 +62,8 @@ type Capture struct {
 	Transforms            []*catalog.Transform
 	EventTriggers         []*catalog.EventTrigger
 	Subscriptions         []*catalog.Subscription
+	ReplicationOrigins    []*catalog.ReplicationOrigin
+	OriginProgress        map[ids.OID]uint64
 	Publications          []*catalog.Publication
 	PublicationRelations  []*catalog.PublicationRelation
 	PublicationNamespaces []*catalog.PublicationNamespace
@@ -71,8 +73,8 @@ type Capture struct {
 	Parsers               []*catalog.TSParser
 	Statistics            []*catalog.Statistics
 	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
-	AttributeStatistics []storage.AttributeStatisticsSnapshot
-	RelationStatistics []storage.RelationStatisticsSnapshot
+	AttributeStatistics   []storage.AttributeStatisticsSnapshot
+	RelationStatistics    []storage.RelationStatisticsSnapshot
 	Providers             []providerReplay
 	Tables                []table.DumpRelation
 	LargeObjects          []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

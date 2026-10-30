@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.TransformClassID || class == ids.PublicationClassID || class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
+	return class == ids.TransformClassID || class == ids.ReplicationOriginClassID || class == ids.PublicationClassID || class == ids.LanguageClassID || class == ids.SubscriptionClassID || class == ids.StatisticExtClassID || class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID || class == ids.TSParserClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -137,7 +137,11 @@ func (s *StatementScope) acquireRetiredDefinitionObjects(base catalog.Read, targ
 	addresses = slices.Compact(addresses)
 	for _, address := range addresses {
 		resource := lock.Resource{ObjectRef: s.Engine().Catalog.Domain.Ref(base.Epoch(), address)}
-		if s.Engine().Locks.Holds(s.LockTicket, resource, lock.AccessExclusive) {
+		claim := resource
+		if address.ClassID == ids.ReplicationOriginClassID || address.ClassID == ids.SubscriptionClassID {
+			claim.ObjectRef = s.Engine().Cluster.RoleDomain.Ref(1, address)
+		}
+		if s.Engine().Locks.Holds(s.LockTicket, claim, lock.AccessExclusive) {
 			continue
 		}
 		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {

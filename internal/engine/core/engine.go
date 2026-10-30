@@ -46,30 +46,31 @@ type Engine struct {
 	Analysis      BindingHost                  // Binding host without an operation; immutable after New.
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	ReplacementMu              replacementAdmission
-	Catalog                    catalog.Store
-	DatabaseName               string
-	DatabaseNameError          error
-	Storage                    storage.Store
-	sessionMu                  sync.Mutex
-	sessions                   map[ids.SessionToken]*session.Session
-	Settings                   settings.Registry // Immutable, initialized once before publication.
-	Authority                  AuthorityInputs   // Points at settings and storage; shared by engine-built views.
-	Visibility                 visibility.Registry
-	IndexWaits                 index.WaitRegistry
-	Exclusions                 index.ExclusionRegistry
-	prepared                   session.PreparedRegistry
-	RoleStore                  *access.RoleStore
-	Cluster                    *DatabaseCluster
-	ImportTargets              map[authorization.PrincipalRef]authorization.PrincipalRef
-	ImportParameterPredecessor *catalog.State // Parameter authority captured before Restore input.
-	Foreign                    fdw.Registry
-	TextSearchFiles            *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
-	DatabaseFrozenXID          uint64
-	VacuumProgress             map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
-	catalogCaptures            catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
-	Statements                 Statements                   // Family dispatch; set by the composition, shared by every target.
-	Factory                    EngineFactory                // Composed constructor; set by the composition, shared by every target.
+	ReplacementMu                   replacementAdmission
+	Catalog                         catalog.Store
+	DatabaseName                    string
+	DatabaseNameError               error
+	Storage                         storage.Store
+	sessionMu                       sync.Mutex
+	sessions                        map[ids.SessionToken]*session.Session
+	Settings                        settings.Registry // Immutable, initialized once before publication.
+	Authority                       AuthorityInputs   // Points at settings and storage; shared by engine-built views.
+	Visibility                      visibility.Registry
+	IndexWaits                      index.WaitRegistry
+	Exclusions                      index.ExclusionRegistry
+	prepared                        session.PreparedRegistry
+	RoleStore                       *access.RoleStore
+	Cluster                         *DatabaseCluster
+	ImportTargets                   map[authorization.PrincipalRef]authorization.PrincipalRef
+	ImportParameterPredecessor      *catalog.State // Parameter authority captured before Restore input.
+	importOriginProgressPredecessor *originProgressPredecessor
+	Foreign                         fdw.Registry
+	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
+	DatabaseFrozenXID               uint64
+	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	catalogCaptures                 catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
+	Statements                      Statements                   // Family dispatch; set by the composition, shared by every target.
+	Factory                         EngineFactory                // Composed constructor; set by the composition, shared by every target.
 }
 
 // EngineFactory builds a fresh composed engine, as NewWithSettings does: the
@@ -181,6 +182,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.SubscriptionProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(catalog.ReplicationOriginProvider{}); err != nil {
+		return nil, err
+	}
 	if err := e.RegisterCatalogProvider(catalog.PublicationProvider{}); err != nil {
 		return nil, err
 	}
@@ -232,6 +236,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	routine.SeedGenericFileACLs(procedures, bootstrap, principals.LookupRef("pg_monitor"))
 	routine.SeedRecoveryControlACLs(procedures, bootstrap)
 	routine.SeedServerSignalACLs(procedures, bootstrap)
+	routine.SeedReplicationOriginACLs(procedures, bootstrap)
 	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), procedures, routine.NativeAccessMethodProcedures(bootstrap), routine.SharedMemoryProcedures(bootstrap, principals.LookupRef("pg_read_all_stats")))
 	catalog.InstallBuiltinDictionaries(e.Catalog.State, bootstrap, functions.DefaultSimpleDictionary)
 	catalog.InstallBuiltinTSParsers(e.Catalog.State)

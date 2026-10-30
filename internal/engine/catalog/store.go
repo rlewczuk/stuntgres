@@ -59,7 +59,7 @@ func (s *Store) allocatedOIDUsedLocked(id ids.OID) bool {
 	}
 	if state.bulk != nil {
 		for address, descriptor := range state.Descriptors() {
-			if address.ClassID != ids.LargeObjectClassID && address.ObjectID == id || DefinitionOIDUsed(descriptor, id) {
+			if address.ClassID != ids.LargeObjectClassID && address.ClassID != ids.ReplicationOriginClassID && address.ObjectID == id || DefinitionOIDUsed(descriptor, id) {
 				return true
 			}
 		}
@@ -68,7 +68,7 @@ func (s *Store) allocatedOIDUsedLocked(id ids.OID) bool {
 	if !s.allocatedOIDs.valid || s.allocatedOIDs.descriptors != state.descriptors {
 		used := make(map[ids.OID]bool, state.DescriptorCount())
 		for address, descriptor := range state.Descriptors() {
-			if address.ClassID != ids.LargeObjectClassID {
+			if address.ClassID != ids.LargeObjectClassID && address.ClassID != ids.ReplicationOriginClassID {
 				used[address.ObjectID] = true
 			}
 			ReserveDefinitionOIDs(used, descriptor)

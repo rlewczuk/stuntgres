@@ -160,10 +160,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// ordinary XML construction identities xmlcomment/xmltext, five
 	// strict/volatile/parallel-safe recovery-control declarations,
 	// three strict/volatile/parallel-unsafe logical-message/sync declarations,
-	// three strict/volatile/parallel-safe server-signal declarations, and eight
-	// table/query/cursor XML row/schema mapping identities.
-	if len(facts) != 2141 {
-		t.Fatalf("released represented overloads: got %d, want 2141", len(facts))
+	// three strict/volatile/parallel-safe server-signal declarations, eight
+	// table/query/cursor XML row/schema mapping identities, and five
+	// origin identity/progress routines.
+	if len(facts) != 2146 {
+		t.Fatalf("released represented overloads: got %d, want 2146", len(facts))
 	}
 	return facts
 }

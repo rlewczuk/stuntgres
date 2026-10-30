@@ -32,12 +32,21 @@ func PersistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: view.State().ProcedureNames()}
 	for a, d := range view.Descriptors() {
+		sharedPeer := false
+		switch shared := d.(type) {
+		case *catalog.Subscription:
+			sharedPeer = shared.Database != view.Owner().DatabaseAddress()
+		case *catalog.ReplicationOrigin:
+			if subscription, ok := view.Get(shared.Subscription).(*catalog.Subscription); ok {
+				sharedPeer = subscription.Database != view.Owner().DatabaseAddress()
+			}
+		}
 		ns, isNamespace := d.(*catalog.Namespace)
 		parent, hasParent := view.Namespace(d.Namespace())
 		if namespace := catalog.OperatorFamilyNamespace(view, d); namespace != (ids.ObjectAddress{}) {
 			parent, hasParent = view.Namespace(namespace)
 		}
-		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
+		if sharedPeer || isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
 			operators.Replace(d, nil)
 			procedures.Replace(d, nil)
 			next.RemoveDescriptor(a)

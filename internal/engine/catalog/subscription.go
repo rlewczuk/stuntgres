@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
-	"strconv"
 	"unicode/utf8"
 )
 
@@ -94,18 +94,4 @@ func (s *State) updateSubscriptions(old, next Descriptor) {
 	if is {
 		s.subscriptions = s.subscriptions.Set(b.Address(), b)
 	}
-}
-
-// ValidateReplicationOrigins checks complete-candidate uniqueness once, rather
-// than rescanning the subscription index for every emitted catalog row.
-func ValidateReplicationOrigins(v Read) error {
-	var occupied [1024]uint64
-	for _, d := range v.Subscriptions() {
-		id := d.ReplicationOriginID
-		if id == 0 || id >= 65535 || occupied[id/64]&(uint64(1)<<(id%64)) != 0 {
-			return fmt.Errorf("stuntgres: invalid replication origin registration authority")
-		}
-		occupied[id/64] |= uint64(1) << (id % 64)
-	}
-	return nil
 }

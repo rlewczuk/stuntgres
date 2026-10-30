@@ -38,8 +38,10 @@ type DatabaseCluster struct {
 	// Active commands across every target, guarded by the shared engine mutex.
 	copyProgress  map[ids.SessionID]*copyProgress
 	indexProgress map[ids.SessionID]*indexProgress
-	// Transient exclusion only; registered identities live in subscriptions.
-	replicationOrigins map[ids.OID]replicationOriginReservation
+	// Transient exclusion only; live registrations belong to the catalog.
+	replicationOrigins                  map[ids.OID]replicationOriginReservation
+	replicationOriginProgress           map[ids.OID]uint64
+	replicationOriginProgressGeneration map[ids.ObjectAddress]uint64
 	// Seed initialization never holds mu and never invokes host callbacks.
 	SeedOnce  sync.Once
 	SeedError error

@@ -25,21 +25,18 @@ func capturePGReplicationOrigin(in Input) ([][]sqltype.Value, error) {
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, d := range in.Catalog.Subscriptions() {
+	for _, d := range in.Catalog.ReplicationOrigins() {
 		if err := in.Context.Err(); err != nil {
 			return nil, err
 		}
-		if err := (catalog.SubscriptionProvider{}).Validate(in.Catalog, d); err != nil {
+		if err := (catalog.ReplicationOriginProvider{}).Validate(in.Catalog, d); err != nil {
 			return nil, err
 		}
-		if err := in.Runtime.ValidateACL(in.Roles, d); err != nil {
-			return nil, err
-		}
-		id, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.ReplicationOriginID))
+		id, err := sqltype.OIDValue(in.Source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, []sqltype.Value{id, sqltype.String(in.Source.Columns[1].Usage.Type, d.ReplicationOriginName())})
+		rows = append(rows, []sqltype.Value{id, sqltype.String(in.Source.Columns[1].Usage.Type, d.Name())})
 	}
 	if err := in.Context.Err(); err != nil {
 		return nil, err

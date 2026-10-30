@@ -218,6 +218,7 @@ func (c *Candidate) State() *State {
 	next.defaultClasses = base.defaultClasses
 	next.eventTriggers = base.eventTriggers
 	next.subscriptions = base.subscriptions
+	next.replicationOrigins = base.replicationOrigins
 	next.publications = base.publications
 	next.publicationRelations = base.publicationRelations
 	next.publicationNamespaces = base.publicationNamespaces
@@ -230,6 +231,7 @@ func (c *Candidate) State() *State {
 		next.updateDefaultClasses(c.Base.Get(a), nil)
 		next.updateEventTriggers(c.Base.Get(a), nil)
 		next.updateSubscriptions(c.Base.Get(a), nil)
+		next.updateReplicationOrigins(c.Base.Get(a), nil)
 		next.updatePublications(c.Base.Get(a), nil)
 		next.updateHelperOwners(c.Base.Get(a), nil)
 		next.updateExtensionMembers(a, c.Base.Get(a), nil)
@@ -239,6 +241,7 @@ func (c *Candidate) State() *State {
 		next.updateDefaultClasses(c.Base.Get(a), d)
 		next.updateEventTriggers(c.Base.Get(a), d)
 		next.updateSubscriptions(c.Base.Get(a), d)
+		next.updateReplicationOrigins(c.Base.Get(a), d)
 		next.updatePublications(c.Base.Get(a), d)
 		next.updateHelperOwners(c.Base.Get(a), d)
 		next.updateExtensionMembers(a, c.Base.Get(a), d)

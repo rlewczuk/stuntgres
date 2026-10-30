@@ -85,6 +85,11 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3577, "pg_logical_emit_message", "pg_logical_emit_message_text", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3578, "pg_logical_emit_message", "pg_logical_emit_message_bytea", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6344, "pg_sync_replication_slots", "pg_sync_replication_slots", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6003, "pg_replication_origin_create", "pg_replication_origin_create", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6004, "pg_replication_origin_drop", "pg_replication_origin_drop", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6005, "pg_replication_origin_oid", "pg_replication_origin_oid", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6012, "pg_replication_origin_advance", "pg_replication_origin_advance", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6013, "pg_replication_origin_progress", "pg_replication_origin_progress", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3820, "pg_last_wal_receive_lsn", "pg_last_wal_receive_lsn", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3821, "pg_last_wal_replay_lsn", "pg_last_wal_replay_lsn", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3830, "pg_last_xact_replay_timestamp", "pg_last_xact_replay_timestamp", "INTERNAL", "INVOKER"},
@@ -104,8 +109,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1772 {
-		t.Fatalf("released represented inventory: got %d, want 1772", len(facts))
+	if len(facts) != 1777 {
+		t.Fatalf("released represented inventory: got %d, want 1777", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

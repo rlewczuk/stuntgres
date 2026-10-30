@@ -63,6 +63,7 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 		Frontier:         e.Visibility.CommitSeq(),
 		Bootstrap:        e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID),
 		Foreign:          e.Foreign,
+		OriginProgress:   e.CopyReplicationOriginProgressLocked(),
 	})
 	if err != nil {
 		return nil, err
@@ -72,9 +73,13 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 		return nil, err
 	}
 	capture.AttributeStatistics, err = storage.CaptureAttributeStatisticsSnapshots(ctx, originalCatalog, e.Storage.RelationMetadata, core.StatisticsSnapshotCodec(ctx, e, originalCatalog))
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	capture.RelationStatistics, err = storage.CaptureRelationStatisticsSnapshots(ctx, originalCatalog, e.Storage.RelationMetadata)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	capture.InitialPrivileges, err = control.CaptureInitialPrivileges(ctx, originalCatalog, originalRoles)
 	if err != nil {
 		return nil, err

@@ -41,7 +41,7 @@ func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode
 func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
 	// These unique-index claims project a real blocker transaction, including
 	// the interval before an implicit statement reaches catalog publication.
-	if resource.Name.ClassID == ids.TransformClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.StatisticExtClassID || resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
+	if resource.Name.ClassID == ids.TransformClassID || resource.Name.ClassID == ids.ReplicationOriginClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.StatisticExtClassID || resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
 		e := s.Engine()
 		e.Mu.Lock()
 		err := e.AssignTransactionXIDLocked(s.TxRef)
@@ -51,7 +51,7 @@ func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode loc
 		}
 	}
 	claim := resource
-	if resource.Address.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
+	if resource.Address.ClassID == ids.ReplicationOriginClassID || resource.Name.ClassID == ids.ReplicationOriginClassID || resource.Address.ClassID == ids.ParameterClassID || resource.Name.ClassID == ids.ParameterClassID || resource.Address.ClassID == ids.SubscriptionClassID || resource.Name.ClassID == ids.SubscriptionClassID {
 		claim.ObjectRef = s.Engine().Cluster.RoleDomain.Ref(1, resource.Address)
 	}
 	if err := s.acquireTransactionResource(claim, mode); err != nil {
@@ -79,7 +79,7 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	namespaces := namespaceScratch[:0]
 	for key, address := range stage.Names() {
 		definition := key.ClassID == ids.AccessMethodClassID || key.ClassID == ids.OperatorFamilyClassID || key.ClassID == ids.OperatorClassCatalogID || key.ClassID == ids.AccessMethodOperatorClassID || key.ClassID == ids.AccessMethodProcedureClassID
-		supported := definition || key.ClassID == ids.TransformClassID || key.ClassID == ids.PublicationClassID || key.ClassID == ids.LanguageClassID || key.ClassID == ids.SubscriptionClassID || key.ClassID == ids.StatisticExtClassID || key.ClassID == ids.NamespaceClassID || key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID || key.ClassID == ids.CastClassID
+		supported := definition || key.ClassID == ids.TransformClassID || key.ClassID == ids.ReplicationOriginClassID || key.ClassID == ids.PublicationClassID || key.ClassID == ids.LanguageClassID || key.ClassID == ids.SubscriptionClassID || key.ClassID == ids.StatisticExtClassID || key.ClassID == ids.NamespaceClassID || key.ClassID == ids.RelationClassID || key.ClassID == ids.TypeClassID || key.ClassID == ids.ProcedureClassID || key.ClassID == ids.OperatorClassID || key.ClassID == ids.CollationClassID || key.ClassID == ids.ConversionClassID || key.ClassID == ids.CastClassID
 		if !supported || stage.Base.NameAddress(key) == address {
 			continue
 		}

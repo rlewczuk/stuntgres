@@ -138,7 +138,7 @@ func ValidateDefinitionOIDs(view Read) error {
 	// Sized for every descriptor, so the scan below never grows the set.
 	used := make(map[ids.OID]struct{}, view.DescriptorCount())
 	for address := range view.Descriptors() {
-		if address.ClassID != ids.LargeObjectClassID {
+		if address.ClassID != ids.LargeObjectClassID && address.ClassID != ids.ReplicationOriginClassID {
 			used[address.ObjectID] = struct{}{}
 		}
 	}
@@ -175,7 +175,7 @@ func (c *Candidate) ValidateStagedDefinitionOIDs(read Read) error {
 	ceiling := base.oidCeiling
 	addresses := make(map[ids.OID]struct{}, len(c.descriptors))
 	for a, d := range c.descriptors {
-		if d == nil || a.ClassID == ids.LargeObjectClassID {
+		if d == nil || a.ClassID == ids.LargeObjectClassID || a.ClassID == ids.ReplicationOriginClassID {
 			continue
 		}
 		if _, existed := base.findDescriptor(a); !existed && a.ObjectID <= ceiling {

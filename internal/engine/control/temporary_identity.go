@@ -76,7 +76,7 @@ func visitTemporaryCollisions(ctx context.Context, next *catalog.State, retained
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if address.ClassID == ids.LargeObjectClassID {
+		if address.ClassID == ids.LargeObjectClassID || address.ClassID == ids.ReplicationOriginClassID {
 			continue
 		}
 		if retained[address.ObjectID] {

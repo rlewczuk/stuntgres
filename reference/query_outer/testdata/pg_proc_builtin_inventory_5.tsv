@@ -57,3 +57,8 @@
 2928	cursor_to_xmlschema	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	1790 16 16 25	\N	\N	{cursor,nulls,tableforest,targetns}	false	\N	cursor_to_xmlschema	\N	false	\N
 2929	table_to_xml_and_xmlschema	11	12	100	0	0	0	f	false	false	true	false	s	r	4	0	142	2205 16 16 25	\N	\N	{tbl,nulls,tableforest,targetns}	false	\N	table_to_xml_and_xmlschema	\N	false	\N
 2930	query_to_xml_and_xmlschema	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	25 16 16 25	\N	\N	{query,nulls,tableforest,targetns}	false	\N	query_to_xml_and_xmlschema	\N	false	\N
+6003	pg_replication_origin_create	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	26	25	\N	\N	\N	false	\N	pg_replication_origin_create	\N	false	\N
+6004	pg_replication_origin_drop	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	2278	25	\N	\N	\N	false	\N	pg_replication_origin_drop	\N	false	\N
+6005	pg_replication_origin_oid	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	26	25	\N	\N	\N	false	\N	pg_replication_origin_oid	\N	false	\N
+6012	pg_replication_origin_advance	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2278	25 3220	\N	\N	\N	false	\N	pg_replication_origin_advance	\N	false	\N
+6013	pg_replication_origin_progress	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	3220	25 16	\N	\N	\N	false	\N	pg_replication_origin_progress	\N	false	\N

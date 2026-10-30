@@ -164,9 +164,9 @@ func CheckAlterTableDefault(s *parser.AlterTableDefault) error {
 	return nil
 }
 
-// CheckSelect admits only generated sequence or large object state.
+// CheckSelect admits only generated sequence, large object or origin state.
 func CheckSelect(s *parser.Select) error {
-	if !sequence.RestoresState(s) && !largeobject.RestoresBytes(s) {
+	if !sequence.RestoresState(s) && !largeobject.RestoresBytes(s) && !RestoresReplicationOrigin(s) {
 		return sqlError("0A000", "restore accepts only generated sequence or large object state")
 	}
 	return nil

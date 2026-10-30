@@ -6,6 +6,16 @@
   false with the PostgreSQL warning; authorized physical requests reject with
   explicit `0A000`, never simulated reloads, rotations or memory-context logs.
 
+- Add typed replication-origin create/drop/lookup/advance/progress functions on
+  one explicit shared catalog authority, including subscription caller migration,
+  ordinary restricted routine ACLs and exact diagnostics. Separate transactional
+  identity from immediate unsigned logical progress and its active-slot capacity.
+  Native controls coherently replay/remint logical state while preserving published
+  and transaction-private peer progress, including allocated zero and savepoint
+  claims. Validate the full retained/imported active-slot union before atomic
+  publication; overcapacity rejects without changing destination state. Physical
+  WAL flushing remains an explicit `0A000` boundary.
+
 - Add the PostgreSQL 18 relation-location signatures through typed binding,
   strict NULLs, catalog authority and ordinary EXECUTE/schema admission.
   Storage-less and missing relations return NULL; stored forward inquiries

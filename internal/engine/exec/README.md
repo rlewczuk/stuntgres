@@ -465,6 +465,12 @@ host capabilities such as `PgcryptoNotice` are resolved through `LiveHost` per
 delivery; the engine appends owned notice records and never calls user handlers
 under engine locks.
 
+The typed `ReplicationOrigin` capability resolves through `LiveHost` for each
+surviving invocation, after common routine admission and strict operand handling.
+Its bridge carries only kind, two typed values and the result descriptor; neither
+prepared recipes nor contexts retain a second origin store or captured actor.
+
+
 ## Preparation
 
 Domain checks and preflight also run with no statement scope (generated

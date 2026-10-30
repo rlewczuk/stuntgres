@@ -152,6 +152,15 @@ executing host to distinguish an unknown cluster session (false plus warning)
 from an authorized physical mechanism (`0A000`). Calls never retain a session
 pointer, signal request, file or fabricated memory-context output.
 
+`ReplicationOrigin` retains only one of five exact typed OID/VOID/PG_LSN recipes
+and up to two positional children in written order; released inputs have no names
+or defaults. Lookup is STABLE, the other calls VOLATILE; none planning-folds live
+origin state. Ordinary routine admission precedes surviving operand evaluation
+and strict typed NULL handling. Non-NULL demand borrows the narrow live
+`ReplicationOrigin` capability without retaining catalog, progress or actor state.
+Checked capture, reconstruction and rendering preserve original operand ownership.
+
+
 `WALSummary` retains immutable typed RECORD recipes, written operands and formal
 slots for two set sources and one scalar state inquiry. All written operands
 evaluate before strict NULL yields an exhausted typed contents source; timeline

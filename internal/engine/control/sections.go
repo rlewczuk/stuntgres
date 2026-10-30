@@ -57,6 +57,7 @@ var dumpSections = [...]dumpSection{
 	{"raw codec completion", emitDumpRawCodecCompletion},
 	{"publications", emitDumpPublications},
 	{"subscriptions", emitDumpSubscriptions},
+	{"replication origin state", emitDumpReplicationOrigins},
 	{"event triggers", emitDumpEventTriggers},
 	{"extended statistics snapshots", emitDumpExtendedStatistics},
 	{"attribute statistics snapshots", emitDumpAttributeStatistics},

@@ -10,7 +10,7 @@ import "stuntgres/internal/engine/ids"
 // definition-identity checks skip the catalog scan.
 
 func (s *State) raiseOIDCeiling(a ids.ObjectAddress, d Descriptor) {
-	if a.ClassID != ids.LargeObjectClassID && a.ObjectID > s.oidCeiling {
+	if a.ClassID != ids.LargeObjectClassID && a.ClassID != ids.ReplicationOriginClassID && a.ObjectID > s.oidCeiling {
 		s.oidCeiling = a.ObjectID
 	}
 	_ = VisitDefinitionOIDs(d, func(id ids.OID) error {

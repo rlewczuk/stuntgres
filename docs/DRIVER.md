@@ -883,6 +883,20 @@ including empty targets. Publication filters do not restrict local reads or
 writes. Dump/Reset/Restore preserve or atomically replace this logical metadata;
 there is no WAL streaming, network replication or data-transport API.
 
+## Replication origin state
+
+The five `pg_replication_origin_create/drop/oid/advance/progress` functions use
+ordinary typed scalar results and mutable routine EXECUTE grants. Registrations
+are cluster-global and transactional, including subscription-created canonical
+origins. Exact unsigned logical progress is immediate shared state: backward and
+zero assignments survive rollback, and rolling back a drop restores identity but
+not cleared progress. `progress(name,false)` reads logical state; `flush=true`
+explicitly rejects with `0A000` because embedded execution has no durable WAL
+flush mechanism. A zero position reads as typed PG_LSN NULL without freeing its
+active slot. Native controls capture/replay logical state without transporting
+source IDs, physical WAL or durability guarantees.
+
+
 ## COPY
 
 `stuntgres.CopyFrom(ctx, conn, "COPY t FROM STDIN ...", reader)` and

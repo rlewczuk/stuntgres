@@ -364,6 +364,12 @@ func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
 		return nil
 	}
 	stage := p.Stage
+	if origin, ok := d.(*catalog.ReplicationOrigin); ok && p.Owner.Cluster != nil {
+		if _, active := p.Owner.Cluster.replicationOriginProgress[origin.Address().ObjectID]; active {
+			delete(p.Owner.Cluster.replicationOriginProgress, origin.Address().ObjectID)
+			p.Owner.bumpOriginProgressLocked(p.Base, origin)
+		}
+	}
 	stage.RecordRemoval(ref, d)
 	stage.CaptureRemoval(ref.Address, records)
 	if p.InternalRemoval {

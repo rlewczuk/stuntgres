@@ -204,9 +204,10 @@ call live here.
   and admitted typed-table ownership; it never discovers a second closure.
   `CheckRemovalLocked` admits whole-object removal under `Engine.Mu`;
   `ClosureTargetClass` and `RetiredProviderClass` classify retirement providers.
-  Subscriptions are whole-object retirement providers too: a local NULL-slot
-  DROP validates the installed provider and removes the descriptor/name through
-  the same retirement pass, rather than merely marking a drop target.
+  Subscriptions and explicit replication-origin registrations are whole-object
+  retirement providers: local NULL-slot subscription DROP removes the subscription
+  and any live canonical-name registration through the same retirement pass.
+  A stale creation ID never selects an unrelated registration after ID reuse.
   Text-search configurations are whole-object retirement providers, including
   dictionary-dependent CASCADE and DROP OWNED; their genuine seeded simple
   configuration remains system-required. Captured REGCONFIG default operands

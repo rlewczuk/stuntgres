@@ -133,16 +133,35 @@ and catalog journals. Shared catalog projections prepare replacement roots for
 every database under the cluster mutex before the installation fence; no
 callbacks, connection attempts or external I/O occur there. Definition ownership
 is database-local, visibility is shared, and ENABLE is desired metadata only.
-Each subscription owns an immutable allocated replication-origin ID (1..65534);
-the main origin name uses its actual subscription OID. The cluster mutex guards
-lazy pending exclusions, transferred from stage to statement journal, retained
-through savepoints/internal exception statement journals and prepared ownership,
-and released at canonical disposal. They are never catalog rows or public locks.
-Reset/Restore remint selected subscription addresses and origin registrations
-against retained peers and pending allocations. Final preparation rechecks
-candidate uniqueness, exact peer predecessors and live exclusions. Failed
-replacement changes neither roots nor reservation ownership. Detached catalog
-reads keep their original immutable backing.
+Origin registrations use explicit immutable `catalog.ReplicationOrigin`
+descriptors, including the canonical registration created with each subscription.
+The subscription's immutable creation ID is not proof of a currently live origin.
+Exact origin-name writers, including empty TEXT names, and class6000 object
+AS/AX grants use the shared cluster lock domain through ordinary catalog
+admission; the caller retains its local catalog epoch for post-wait validation.
+Subscription cascades and standalone retirement acquire the same object grant;
+retained grants are queried using that shared identity, not a local alias.
+The cluster mutex guards first-free 1..65534 allocation and lazy exclusions,
+transferred from stages to origin descriptor journals and retained through
+savepoints, internal exception journals and prepared ownership until disposal.
+Each subscription reservation carries immutable database scope, not a second
+registration authority; reconciliation reads only the admitted owner's journals.
+The separate sparse progress map stores unsigned logical positions immediately:
+backward and zero assignments survive statement/transaction rollback; zero still
+consumes a slot. Drop clears progress before transactional identity removal.
+Every function demand resolves its name against current private catalog authority;
+ordinary mutable procedure EXECUTE ACLs, not replication attributes, admit calls.
+Reset/Restore remint standalone and selected subscription registrations against
+retained peers and pending claims. After the last preparation unlock, replacement
+merges current published and scoped pending-peer slots with remapped imports,
+including allocated zero, and validates the complete union against destination
+active-slot capacity before publishing any catalog, storage or progress state.
+The prepared map installs infallibly under the same cluster mutex. Pre-input
+standalone descriptor and standalone/selected-database progress generations fence
+stale replacement; pending-peer writes use reservation scope and remain allowed.
+Once a claim is released, orphan writes become globally relevant again. Drop-clear
+never resurrects a slot from saved identity backing. External I/O and lock waits
+never hold that mutex. Acquired rows retain their immutable backing.
 The source-opening policy captures operation authorization explicitly for
 `pg_replication_origin`, pairing its private catalog and role roots with the
 engine-backed runtime. CREATE DATABASE's unregistered replacement runtime has
@@ -163,11 +182,11 @@ ordinary competing UPDATE publications remain conflicts.
 Replacement remints imported identities privately and prepares all peer roots
 before installation; local data, destination database authority and roles remain
 independent. Reader/writer I/O and lock waits stay outside the cluster mutex.
-The pre-input replacement predecessor fences only Parameter incarnation,
-descriptors and canonical name bindings. It does not fence unrelated catalog
-edits during reader I/O or override existing principal remap, TEMP compatibility
-and provider-validation diagnostics. Prepared-generation and allocation
-preconditions still guard the final installation boundary.
+The pre-input replacement predecessor fences Parameter incarnation, descriptors
+and canonical bindings, standalone origin registrations, and standalone/selected
+subscription progress writes. It does not fence unrelated local catalog edits or
+peer subscription progress during reader I/O. Existing principal remap, TEMP,
+provider, prepared-generation and allocation fences remain independently required.
 Cooperative execution-pause requests are dormant during binding and catalog
 capture. Audited detached owners call `StatementScope.ActivateRuntime` after
 their final capture unlock, including recipe preflight, index preparation,

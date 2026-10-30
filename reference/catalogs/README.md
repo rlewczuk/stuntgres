@@ -57,11 +57,22 @@ Select the family with
 Publisher connections, remote slot changes/removal, workers and synchronization
 are separate external mechanisms, never inferred from stored enabled metadata.
 
-Replication-origin scenarios independently assert typed public catalog shape,
-real offline registration, first-free identity reuse, immutable identity across
-ALTER, transactional/shared visibility, diagnostics, and portable native control
-remint against peer and pending registrations. Acquired rows retain old values;
-held statements recapture current state. Select the family with
+Replication-origin scenarios independently assert explicit standalone and
+subscription-created identity, typed five-function declarations/results, exact
+diagnostics/strictness and mutable routine ACLs. Initial privileges retain the
+actual initdb bootstrap grantor, independently of the fixture's later login role,
+and stay unchanged through grants/revokes. Admitted cancellation validates the
+complete PostgreSQL index-insertion context with only physical coordinates
+variable; native context cancellation claims no physical tuple.
+Identity journals and immediate unsigned progress have separate rollback witnesses,
+including executed advances surviving later expression and caught exception failures.
+The denied runtime-NULL witness reads a granted, public-qualified table independently
+of session-role search paths. Native controls prove coherent deterministic canonical
+logical replay/remint, raw absent/empty/granted routine ACL repair and rejected
+widened repairs, retained rows, stale replacement fences and preserved peer
+progress/pending exclusions, private peer savepoint/commit survival and atomic
+retained/imported capacity admission including allocated zero. Held statements
+recapture current state. Select the family with
 `make check RUN='^TestReferenceReplicationOrigin'` (add `REFERENCE=1`).
 
 Subscription scenarios cover the exact eighteen-column empty schema, shared

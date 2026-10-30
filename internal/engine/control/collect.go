@@ -34,12 +34,13 @@ type Source struct {
 	// RecipePlan is the captured generation replay plan, by table.
 	RecipePlan map[ids.ObjectAddress]*table.DumpRelation
 
-	State     *catalog.State
-	Relations map[ids.ObjectAddress]*storage.Relation
-	Sequences map[ids.ObjectAddress]*storage.SequenceGenerator
-	Frontier  ids.CommitSeq
-	Bootstrap authorization.PrincipalRef
-	Foreign   fdw.Registry
+	State          *catalog.State
+	Relations      map[ids.ObjectAddress]*storage.Relation
+	Sequences      map[ids.ObjectAddress]*storage.SequenceGenerator
+	Frontier       ids.CommitSeq
+	Bootstrap      authorization.PrincipalRef
+	Foreign        fdw.Registry
+	OriginProgress map[ids.OID]uint64
 }
 
 // dumpCollection is one Collect pass: the capture the collectors fill and
@@ -75,6 +76,7 @@ func Collect(ctx context.Context, source Source) (*Capture, error) {
 			IndexIndices:     make(map[ids.OID]int),
 			Composites:       make(map[ids.OID]*catalog.Relation),
 			Graph:            make(dump.Graph),
+			OriginProgress:   source.OriginProgress,
 		},
 		source: source,
 	}
@@ -111,6 +113,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"language", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Language); return ok }, collectLanguageDump},
 	{"event trigger", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.EventTrigger); return ok }, collectEventTriggerDump},
 	{"subscription", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.Subscription); return ok }, collectSubscriptionDump},
+	{"replication origin", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.ReplicationOrigin); return ok }, collectReplicationOriginDump},
 	{"publication", isDumpPublication, collectPublicationDump},
 	{"large object", isDumpLargeObject, collectLargeObjectDump},
 	{"access method", isDumpAccessMethod, collectAccessMethodDump},

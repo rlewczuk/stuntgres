@@ -159,10 +159,12 @@ silently consume an imported parameter's reserved destination identity.
 
 Restricted builtin routine ACLs use the same object-ACL repair owner. Exact seed
 authority needs no emitted SQL; raw absence is emitted as
-`NULL::pg_catalog.aclitem[]`, distinct from an explicit empty array. Isolated
-Restore recognizes that canonical typed literal and preserves ordinary default
-ACL semantics without reapplying the destination's restricted seed. Untyped
-catalog updates do not acquire this replay capability.
+`NULL::pg_catalog.aclitem[]`, distinct from an explicit empty array. Empty ACLs
+use the fixed `pg_catalog.acldefault('c'::pg_catalog."char",0::pg_catalog.oid)`
+constructor cast to `pg_catalog.aclitem[]`; a literal `'{}'` is noncanonical.
+Isolated Restore preserves these raw states without reapplying the destination's
+restricted seed. Untyped or widened catalog updates do not acquire this replay
+capability.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.
 Unchanged bootstrap definitions need no replay; changed handler metadata and
@@ -294,6 +296,25 @@ cannot collide. This preserves uppercase, UTF8 and literal `none` slots without
 explicit slot-option conversion or a restore-only bypass. Replay never reconnects,
 refreshes tables or alters a remote slot. Replacement remints imported object and
 database identity while retaining other databases' committed subscriptions.
+
+Replication-origin collection captures live descriptors and detached sparse
+progress in the same locked window. Standalone registrations sort by exact name
+and replay as bounded typed create/advance scalars, including allocated zero.
+Subscription state repairs follow final renames: their exact generated scalar
+form resolves the replay registration through the final subscription name, never
+through a donor numeric ID. Missing canonical registrations replay as drops.
+Ordinary subscription-only dumps add no origin statements. Restore admits only
+these bounded shapes through ordinary typed execution and consumes exactly one
+nonnull scalar result, rejecting absent or ambiguous subscription resolution.
+Replacement privately remints identities/rekeys progress before final publication;
+failed readers, SQL, cancellation or predecessor fences mutate neither target.
+Successful controls replace standalone and selected-database registration/progress
+while retaining exact peer subscriptions and current published or transaction-private
+peer slots, including zero. Final preparation validates the complete retained/imported
+slot union against destination capacity before any publication; overcapacity returns
+53400 with the required/current slot counts and the ordinary increase-capacity hint.
+No physical WAL position or flush guarantee is serialized.
+
 
 - **Collect tables** (`collect*.go`): `dumpCollectors` is an ordered list of
   `{name, matches, collect}`. Temporary-namespace objects are skipped, the first

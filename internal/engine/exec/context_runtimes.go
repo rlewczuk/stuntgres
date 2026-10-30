@@ -1036,6 +1036,14 @@ func (c *Context) SyncReplicationSlots() error {
 	return host.SyncReplicationSlots()
 }
 
+func (c *Context) ReplicationOrigin(kind functions.ReplicationOriginKind, values [2]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing replication origin host")
+	}
+	return host.ReplicationOrigin(kind, values, result)
+}
+
 func (c *Context) AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error) {
 	host := c.LiveHost()
 	if host == nil {

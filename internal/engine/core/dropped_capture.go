@@ -81,7 +81,7 @@ func (p *DropProvider) captureDropped(address ids.ObjectAddress, descriptor cata
 		return nil, nil
 	}
 	switch address.ClassID {
-	case ids.DatabaseClassID, ids.RoleClassID, ids.TablespaceClassID, ids.ParameterClassID, ids.EventTriggerClassID:
+	case ids.ReplicationOriginClassID, ids.DatabaseClassID, ids.RoleClassID, ids.TablespaceClassID, ids.ParameterClassID, ids.EventTriggerClassID:
 		return nil, nil
 	}
 	view := p.Base

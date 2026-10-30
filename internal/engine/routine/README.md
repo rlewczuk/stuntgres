@@ -152,6 +152,16 @@ preserves explicitly replaced raw NULL ACLs rather than reapplying restrictions.
 Only exact restricted identity, bootstrap owner and one ordered owner-EXECUTE
 entry are omitted as reconstructed authority; untouched seeds add no dump repairs.
 
+`SeedReplicationOriginACLs` installs the five released owner-only EXECUTE seeds
+before initial-privilege capture. Their unnamed strict scalar declarations retain
+exact fixed OIDs, formals and results; only lookup is STABLE/parallel-safe.
+Ordinary GRANT/REVOKE and the same exact restricted-seed reconstruction rules
+own later access and replay, including raw NULL and explicit-empty ACLs.
+The initial-privilege owner captures all five restricted seeds independently of
+the live ACL backing; ordinary grants, revokes and raw ACL replacement do not
+rewrite those bootstrap records.
+
+
 Logical-message text/bytea declarations retain released identities 3577/3578,
 input names `transactional,prefix,message,flush` and one literal BOOL false
 default; three supplied arguments use the same four-input identity. The zero-input

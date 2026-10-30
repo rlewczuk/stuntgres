@@ -103,7 +103,7 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			if recoveryControlACLReconstructed(d, bootstrap.Ref) || serverSignalACLReconstructed(d, bootstrap.Ref) {
 				continue
 			}
-			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil && d.Address().ObjectID != 5052 && d.Address().ObjectID != 4100 && !routine.GenericFileRoutine(d.Address().ObjectID) && !routine.RestrictedRecoveryControlRoutine(d.Address().ObjectID) && !routine.RestrictedServerSignalRoutine(d.Address().ObjectID) {
+			if !acl.Explicit && d.SQL == nil && d.Aggregate == nil && d.Address().ObjectID != 5052 && d.Address().ObjectID != 4100 && !routine.GenericFileRoutine(d.Address().ObjectID) && !routine.RestrictedRecoveryControlRoutine(d.Address().ObjectID) && !routine.RestrictedServerSignalRoutine(d.Address().ObjectID) && !routine.RestrictedReplicationOriginRoutine(d.Address().ObjectID) {
 				continue
 			}
 			ns, ok := c.OriginalCatalog.Namespace(d.Namespace())

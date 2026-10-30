@@ -68,6 +68,13 @@ engine.
   epoch and immutable parameter predecessor/incarnation fences across waits.
   These internal claims expose real blocker XIDs through existing inquiry,
   never synthetic physical tuple or index records.
+  Replication-origin name writers likewise use the stable cluster domain, zero
+  namespace and no signature. Their exact TEXT key may be empty; this exception
+  does not admit empty SQL identifier names. They share ordinary transaction
+  queues and expose blocker XIDs, not physical index tuples. Origin object
+  grants use real class6000 IDs 1..65534 in that same shared domain, with AS/AX
+  modes and database-zero object tags, never relation aliases. Subscription
+  retirement and standalone retirement use this single object authority.
 - **Queues and waits.** `StartAcquire` grants at once or returns the queued
   `Request`, which the caller waits on (`Wait`) after releasing its own
   locks. `Policy` carries NOWAIT, the lock timeout, the statement deadline,

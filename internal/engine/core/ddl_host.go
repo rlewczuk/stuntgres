@@ -217,7 +217,7 @@ func (h DDLHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []acc
 		}
 		var dependencies []access.RoleDependency
 		for address, descriptor := range target.Catalog.State.Descriptors() {
-			if address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ParameterClassID {
+			if address.ClassID == ids.SubscriptionClassID || address.ClassID == ids.ReplicationOriginClassID || address.ClassID == ids.ParameterClassID {
 				continue
 			}
 			if address.ClassID != ids.DatabaseClassID {

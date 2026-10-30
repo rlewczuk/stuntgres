@@ -67,7 +67,7 @@ func RemapPrincipals(state *State, m PrincipalRemap) error {
 				return err
 			}
 			state.SetDescriptor(addr, &n)
-		case *Database, *AccessMethod, *TSParser, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport, *Cast:
+		case *ReplicationOrigin, *Database, *AccessMethod, *TSParser, *TSTemplate, *OperatorFamilyOperator, *OperatorFamilySupport, *Cast:
 			// Attachment authority is local. Global access methods, parsers,
 			// templates, family members and casts have no principals. Object
 			// references use the separate address remapper, not a fabricated owner.

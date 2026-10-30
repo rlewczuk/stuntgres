@@ -21,6 +21,7 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // restoreRun is the state of one native Restore: the parsed script, the
@@ -51,8 +52,8 @@ type restoreRun struct {
 	extensionOwners          []extension.OwnerRecord
 	snapshots                []view.MaterializedSnapshot
 	extendedStatistics       []storage.ExtendedStatisticsSnapshot
-	attributeStatistics []storage.AttributeStatisticsSnapshot
-	relationStatistics []storage.RelationStatisticsSnapshot
+	attributeStatistics      []storage.AttributeStatisticsSnapshot
+	relationStatistics       []storage.RelationStatisticsSnapshot
 	initialPrivileges        *control.InitialPrivilegesMetadata
 	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
 	comparison               control.ComparisonRestore
@@ -243,6 +244,24 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	core.OperationReplay(op).PartitionCheck = nil
 	core.OperationReplay(op).PartitionUsingIndex = nil
 	core.OperationReplay(op).PartitionUnique = nil
+	if selected, ok := stmt.(*parser.Select); ok && control.RestoresReplicationOrigin(selected) && err == nil {
+		if result.Rows == nil {
+			err = core.SQLError("0A000", "restore replication origin state requires exactly one scalar result")
+		} else {
+			var value [1]sqltype.Value
+			var next bool
+			next, err = result.Rows.Next(op.Context(), value[:])
+			if err == nil && (!next || value[0].IsNull()) {
+				err = core.SQLError("0A000", "restore replication origin state requires exactly one nonnull scalar result")
+			}
+			if err == nil {
+				next, err = result.Rows.Next(op.Context(), value[:])
+				if err == nil && next {
+					err = core.SQLError("0A000", "restore replication origin state requires exactly one scalar result")
+				}
+			}
+		}
+	}
 	if result.Rows != nil {
 		closeErr := result.Rows.Close()
 		if err == nil {

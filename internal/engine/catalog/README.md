@@ -350,15 +350,16 @@ neither owns catalog authority.
   parameter incarnation fences even absent-to-absent replacement, and is retained
   by state clones, private journals and peer roots. Failed replacement publishes
   neither roots nor reserved frontiers. Subscription replacement retains other
-  databases' subscriptions and their immutable descriptor-derived read index.
-  A subscription's immutable `ReplicationOriginID` owns its main registration;
-  `Origin` remains its independent filtering option. Complete candidates validate
-  bounded nonzero registration IDs and uniqueness. Renames/owner/options clone
-  the stored ID; generic removal retires registration with its sole descriptor.
-  Shared inheritance preserves the same registration, never reallocating it.
-  SQL DROP OWNED excludes shared subscriptions; detached DROP and native
-  replacement remove them. Generic removal still retires their registration
-  whenever the owning descriptor is actually selected for removal.
+  databases' subscriptions and their exact live registrations.
+  `ReplicationOrigin` descriptors and their immutable read index are the sole
+  cluster-global registration authority, including standalone exact TEXT names.
+  The 16-bit class-local ID does not consume the ordinary global OID frontier.
+  A subscription's immutable `ReplicationOriginID` is creation correlation only;
+  public origin drop can retire its canonical registration independently. Rename,
+  owner and option updates never regenerate it. Complete candidates validate
+  bounded IDs and exact name/index authority. Normal subscription removal resolves
+  its canonical name rather than deleting an unrelated registration at a reused ID.
+  Shared attachment inherits live descriptors without reallocating them.
   Parameter remint reservations retain the registered peer-store set and allocation
   frontiers as transient preconditions. Final installation rejects a peer-local
   allocation or attachment racing unlocked provider preparation, without retry.

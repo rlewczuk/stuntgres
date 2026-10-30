@@ -182,6 +182,7 @@ type State struct {
 	defaultClasses        util.PersistentMap[defaultClassPair, []ids.OID]
 	eventTriggers         util.PersistentMap[ids.ObjectAddress, *EventTrigger]
 	subscriptions         util.PersistentMap[ids.ObjectAddress, *Subscription]
+	replicationOrigins    util.PersistentMap[ids.ObjectAddress, *ReplicationOrigin]
 	publications          util.PersistentMap[ids.ObjectAddress, *Publication]
 	publicationRelations  util.PersistentMap[ids.ObjectAddress, *PublicationRelation]
 	publicationNamespaces util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]
@@ -291,6 +292,7 @@ func CloneState(s *State) *State {
 	n.defaultClasses = s.defaultClasses
 	n.eventTriggers = s.eventTriggers
 	n.subscriptions = s.subscriptions
+	n.replicationOrigins = s.replicationOrigins
 	n.publications = s.publications
 	n.publicationRelations = s.publicationRelations
 	n.publicationNamespaces = s.publicationNamespaces

@@ -534,6 +534,8 @@ func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 	// Ownerless descriptors have no principal or role-owned ACL. Their
 	// catalog providers validate structural authority and referenced objects.
 	switch t := d.(type) {
+	case *catalog.ReplicationOrigin:
+		return nil
 	case *catalog.ForeignObject:
 		if t.Address().ClassID == ids.ForeignMappingClassID {
 			if t.MappedRole == (authorization.PrincipalRef{}) {

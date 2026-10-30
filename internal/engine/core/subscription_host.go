@@ -26,17 +26,9 @@ func (h DDLHost) SubscriptionInBlock() bool { return h.Op.Session.Transactions.I
 // Portable replay creates registrations; replacement remints both the catalog
 // address and the allocated main origin against retained peers and live claims.
 func (e *Engine) remintSubscriptionsLocked(ctx context.Context, next *catalog.State, oids *catalog.OIDReservation) error {
-	hasSubscriptions := false
-	for range e.Catalog.Read(next).Subscriptions() {
-		hasSubscriptions = true
-		break
-	}
-	if !hasSubscriptions {
-		return nil
-	}
 	floor := oids.Next
 	for address := range next.Descriptors() {
-		if address.ObjectID >= floor {
+		if address.ClassID != ids.ReplicationOriginClassID && address.ObjectID >= floor {
 			floor = address.ObjectID + 1
 			if floor == 0 {
 				return catalog.Conflict{}
@@ -44,13 +36,35 @@ func (e *Engine) remintSubscriptionsLocked(ctx context.Context, next *catalog.St
 		}
 	}
 	occupancy := e.replicationOriginOccupancyLocked(true)
+	origins := make([]*catalog.ReplicationOrigin, 0)
+	for _, d := range e.Catalog.Read(next).ReplicationOrigins() {
+		origins = append(origins, d)
+	}
+	slices.SortFunc(origins, func(a, b *catalog.ReplicationOrigin) int {
+		if a.Name() < b.Name() {
+			return -1
+		}
+		if a.Name() > b.Name() {
+			return 1
+		}
+		return 0
+	})
+	for _, d := range origins {
+		next.UnbindName(catalog.DescriptorNameKey(d))
+		next.RemoveDescriptor(d.Address())
+	}
+	subscriptions := make(map[ids.ObjectAddress]*catalog.Subscription)
 	addresses := make([]ids.ObjectAddress, 0)
 	for address := range e.Catalog.Read(next).Subscriptions() {
 		addresses = append(addresses, address)
 	}
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int {
-		if a.ObjectID < b.ObjectID { return -1 }
-		if a.ObjectID > b.ObjectID { return 1 }
+		if a.ObjectID < b.ObjectID {
+			return -1
+		}
+		if a.ObjectID > b.ObjectID {
+			return 1
+		}
 		return 0
 	})
 	for _, address := range addresses {
@@ -62,17 +76,33 @@ func (e *Engine) remintSubscriptionsLocked(ctx context.Context, next *catalog.St
 		n := *d
 		n.ObjectAddress.ObjectID = oid
 		n.Database = e.Catalog.DatabaseAddress()
-		n.ReplicationOriginID, err = occupancy.allocate(ctx)
-		if err != nil { return err }
 		next.UnbindName(catalog.DescriptorNameKey(d))
 		next.RemoveDescriptor(address)
-		next.SetDescriptor(n.Address(), &n)
-		next.BindName(catalog.DescriptorNameKey(&n), n.Address())
+		subscriptions[address] = &n
 		floor = oid + 1
 		if floor == 0 {
 			return catalog.Conflict{}
 		}
 		oids.Next = max(oids.Next, floor)
+	}
+	for _, d := range origins {
+		id, err := occupancy.allocate(ctx)
+		if err != nil {
+			return err
+		}
+		n := *d
+		n.ObjectAddress.ObjectID = id
+		if subscription := subscriptions[d.Subscription]; subscription != nil {
+			n.Subscription = subscription.Address()
+			n.ObjectName = subscription.ReplicationOriginName()
+			subscription.ReplicationOriginID = id
+		}
+		next.SetDescriptor(n.Address(), &n)
+		next.BindName(catalog.DescriptorNameKey(&n), n.Address())
+	}
+	for _, d := range subscriptions {
+		next.SetDescriptor(d.Address(), d)
+		next.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	return nil
 }

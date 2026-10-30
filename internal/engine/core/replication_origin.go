@@ -15,6 +15,9 @@ type replicationOriginReservation struct {
 	Address  ids.ObjectAddress
 	Stage    *CatalogStage
 	Prepared bool
+	// Zero denotes a standalone claim; subscription claims retain this scope
+	// through journal, savepoint and prepared ownership transfers.
+	SubscriptionDatabase ids.ObjectAddress
 }
 
 type replicationOriginOccupancy [1024]uint64
@@ -42,9 +45,10 @@ func (b *replicationOriginOccupancy) allocate(ctx context.Context) (ids.OID, err
 // claims: their old transaction may still own recoverable journal backing.
 func (e *Engine) replicationOriginOccupancyLocked(replacingSelected bool) replicationOriginOccupancy {
 	var occupied replicationOriginOccupancy
-	for _, d := range e.Catalog.Current().Subscriptions() {
-		if !replacingSelected || d.Database != e.Catalog.DatabaseAddress() {
-			occupied.add(d.ReplicationOriginID)
+	for _, d := range e.Catalog.Current().ReplicationOrigins() {
+		sub, _ := e.Catalog.Current().Get(d.Subscription).(*catalog.Subscription)
+		if !replacingSelected || sub != nil && sub.Database != e.Catalog.DatabaseAddress() {
+			occupied.add(d.Address().ObjectID)
 		}
 	}
 	if e.Cluster != nil {
@@ -55,10 +59,10 @@ func (e *Engine) replicationOriginOccupancyLocked(replacingSelected bool) replic
 	return occupied
 }
 
-func (h DDLHost) AllocateReplicationOrigin(address ids.ObjectAddress) (ids.OID, error) {
+func (h DDLHost) AllocateReplicationOrigin() (ids.OID, error) {
 	occupied := h.E.replicationOriginOccupancyLocked(false)
-	for _, d := range h.StageRead().Subscriptions() {
-		occupied.add(d.ReplicationOriginID)
+	for _, d := range h.StageRead().ReplicationOrigins() {
+		occupied.add(d.Address().ObjectID)
 	}
 	id, err := occupied.allocate(h.Context())
 	if err != nil {
@@ -72,7 +76,7 @@ func (h DDLHost) AllocateReplicationOrigin(address ids.ObjectAddress) (ids.OID, 
 	if h.E.Cluster.replicationOrigins == nil {
 		h.E.Cluster.replicationOrigins = make(map[ids.OID]replicationOriginReservation)
 	}
-	h.E.Cluster.replicationOrigins[id] = replicationOriginReservation{Ref: ref, Address: address, Stage: stage}
+	h.E.Cluster.replicationOrigins[id] = replicationOriginReservation{Ref: ref, Address: ids.ObjectAddress{ClassID: ids.ReplicationOriginClassID, ObjectID: id}, Stage: stage, SubscriptionDatabase: h.E.Catalog.DatabaseAddress()}
 	stage.replicationOrigins = append(stage.replicationOrigins, id)
 	return id, nil
 }
@@ -104,8 +108,8 @@ func journalOwnsReplicationOrigin(journal *session.Journal, id ids.OID, address 
 	if journal == nil {
 		return false
 	}
-	d, ok := journal.Descriptors[address].(*catalog.Subscription)
-	return ok && d.ReplicationOriginID == id
+	d, ok := journal.Descriptors[address].(*catalog.ReplicationOrigin)
+	return ok && d.Address().ObjectID == id
 }
 
 // The caller owns t.Mu/admission; never inspect another transaction's journal.
@@ -170,20 +174,29 @@ func (e *Engine) validateReplacementReplicationOriginsLocked(next *catalog.State
 	if err := catalog.ValidateReplicationOrigins(read); err != nil {
 		return err
 	}
-	for _, d := range read.Subscriptions() {
-		if d.Database != e.Catalog.DatabaseAddress() {
+	for _, d := range read.ReplicationOrigins() {
+		sub, _ := read.Get(d.Subscription).(*catalog.Subscription)
+		if sub != nil && sub.Database != e.Catalog.DatabaseAddress() {
 			continue
 		}
 		if e.Cluster != nil {
-			if _, exists := e.Cluster.replicationOrigins[d.ReplicationOriginID]; exists {
+			if _, exists := e.Cluster.replicationOrigins[d.Address().ObjectID]; exists {
 				return ids.ErrCatalogReplaced
 			}
 		}
 	}
 	// Retained peers must still be their exact current immutable descriptors.
 	for address, d := range e.Catalog.Current().Subscriptions() {
-		if d.Database != e.Catalog.DatabaseAddress() && read.Get(address) != d {
+		if d.Database == e.Catalog.DatabaseAddress() {
+			continue
+		}
+		if read.Get(address) != d {
 			return ids.ErrCatalogReplaced
+		}
+		for originAddress, origin := range e.Catalog.Current().ReplicationOrigins() {
+			if origin.Subscription == address && read.Get(originAddress) != origin {
+				return ids.ErrCatalogReplaced
+			}
 		}
 	}
 	return nil

@@ -36,6 +36,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: deferred physical primary owner", Before: beforeRestoreDeferredPhysicalOwner},
 	{Name: "table: physical import index base", Before: beforeRestorePhysicalIndexBase},
 	{Name: "owner directive snapshot", Before: beforeRestoreOwnerSnapshot},
+	{Name: "replication origin canonical selection", Before: beforeRestoreReplicationOrigin},
 	{Name: "table: staged foreign key", Before: beforeRestoreAttributeForeignKey},
 	{Name: "inheritance: inherited foreign key", Before: beforeRestoreInheritedForeignKey},
 	{Name: "table: physical self foreign key", Before: beforeRestorePhysicalSelfForeignKey},

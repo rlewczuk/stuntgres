@@ -207,12 +207,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   projection through its validated type descriptor, without a fabricated
   relation reader. Ordinary unbacked composites remain authority errors.
 - `pg_replication_origin` (6000) is a real shared public catalog with non-null
-  OID `roident` and TEXT `roname`. It projects only actual subscription-owned
-  registrations from the captured immutable shared index, including private
-  transaction effects. Canonical names use actual subscription OIDs; IDs are
-  allocated state, not derived from OIDs or fabricated on reads. Capture checks
-  exact source/type/role/engine authority and returns no partial rows on failure.
-  Registration is separate from replay progress and standalone origin commands.
+  OID `roident` and TEXT `roname`. It projects actual explicit standalone and
+  subscription-created registrations from the captured immutable shared index,
+  including transaction-private effects. Canonical names use actual subscription
+  OIDs, but subscription correlation alone never synthesizes a missing row. IDs
+  are allocated class-local state. Capture validates exact source/type/role/engine
+  authority and complete registration/name-index coherence before exposing rows.
+  Replay progress remains separate immediate cluster state, not catalog columns.
 - `pg_subscription` (6100, row6101/array10112) is a real shared catalog with
   eighteen owned typed attributes and an explicit owner-only table ACL with
   all table privileges and no grant options. PUBLIC has column SELECT on the

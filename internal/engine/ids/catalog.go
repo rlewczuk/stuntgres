@@ -39,6 +39,7 @@ const (
 	TriggerClassID               OID = 2620
 	EventTriggerClassID          OID = 3466
 	SubscriptionClassID          OID = 6100
+	ReplicationOriginClassID     OID = 6000
 	PublicationClassID           OID = 6104
 	PublicationRelationClassID   OID = 6106
 	PublicationNamespaceClassID  OID = 6237
@@ -112,4 +113,5 @@ const (
 	PublicationObject
 	PublicationRelationObject
 	PublicationNamespaceObject
+	ReplicationOriginObject
 )

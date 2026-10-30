@@ -84,6 +84,7 @@ func (e *Engine) RestoreStage() *Engine {
 	sourceRoles := e.RoleStore.CaptureLocked()
 	database := e.Catalog.State.MustDatabase(e.Catalog.DatabaseAddress())
 	parameterPredecessor := e.Catalog.State
+	originPredecessor := e.originProgressPredecessorLocked()
 	e.Mu.Unlock()
 	stage, err := e.Factory(nil, e.DatabaseName, false)
 	if err != nil {
@@ -98,6 +99,7 @@ func (e *Engine) RestoreStage() *Engine {
 	stage.TextSearchFiles = e.TextSearchFiles
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
 	stage.ImportParameterPredecessor = parameterPredecessor
+	stage.importOriginProgressPredecessor = &originPredecessor
 	retainedDatabase := *database
 	// The private staging engine has its own principal authority, but retains
 	// the selected database address rather than silently reverting to default.

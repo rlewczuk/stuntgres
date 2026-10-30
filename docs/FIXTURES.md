@@ -59,6 +59,11 @@ database, including future attachments. Local data in other databases survives.
 Pending parameter writes cannot cross replacement, including a first grant
 whose parameter was absent before and after replacement. Unrelated peer-local
 work retains its ordinary transaction lifecycle.
+Standalone replication-origin registrations and progress are replaced cluster-wide;
+only the selected database's subscription registrations/progress are replaced.
+Peer subscriptions and their current progress survive, including transaction-private
+and savepoint-retained peer slots. Pending peer claims retain their allocation
+exclusions and immutable database scope; no foreign journal inspection is required.
 
 ## Dump
 
@@ -167,6 +172,21 @@ ignores the native comment rather than importing its historical catalog state.
   Unrelated subscription/statistics/local-object edits during reader I/O retain
   the ordinary replacement behavior; existing principal and live-TEMP validation
   errors keep their precedence.
+- Replication origins replay exact names and logical positions, including allocated
+  zero-progress slots. IDs are reminted against peer/pending registrations.
+  Subscription canonical names resolve from final replay subscription identity;
+  independently dropped canonical origins stay absent. Ordinary subscription-only
+  dumps remain unchanged. Standalone registration and standalone/selected-database
+  progress writes racing the pre-input replacement predecessor reject publication;
+  peer subscription progress writes remain allowed and are preserved. No durable
+  WAL state or physical flush promise is imported.
+  Final preparation merges current retained peer slots (published and pending) with
+  remapped imports and counts allocated zero against destination capacity before
+  publishing anything. An overfull union returns `53400`,
+  `could not replace replication origin progress: replacement requires R active replication state slots, but "max_active_replication_origins" is C`,
+  with hint `Increase "max_active_replication_origins" and try again.` and no
+  position or object fields. All catalog, data, progress, claims and frontiers remain
+  unchanged on rejection; an exact-capacity union installs atomically.
 - Logical publication definitions replay after referenced schemas, columns,
   final indexes and replica identities. Dump preserves options, owners, explicit
   ONLY memberships, schema edges, stable column lists and retained normal
