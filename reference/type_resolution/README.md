@@ -125,7 +125,7 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
-- RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem/basque_stem/danish_stem, standalone dictionary definitions and
+- RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem/basque_stem/danish_stem/dutch_stem, standalone dictionary definitions and
   installed unaccent identities through `pg_ts_dict`; alias rows use the local
   `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
   scenarios independently check typed TEXT[] output, ordered options, current
@@ -213,6 +213,9 @@ for invocation-local scratch and immutable runtime ownership proof.
 Danish Snowball morphology, original-region/stage-order boundaries, independently
 specified stopwords, resource isolation, typed prepared ownership and native replay:
 `RUN='^TestReferenceDanishSnowball'`. Replay consumes actual native-emitted bytes.
+Dutch historical Porter morphology, fixed suffix/region/accent boundaries,
+101 literal stopwords, resource isolation, typed prepared ownership and native replay:
+`RUN='^TestReferenceDutchSnowball'`. Edited-stock replay consumes actual native bytes.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

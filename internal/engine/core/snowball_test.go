@@ -27,6 +27,7 @@ func snowballUnitDictionary(t *testing.T, e interface{ CatalogRead() catalog.Rea
 
 func TestSnowballSeedAuthority(t *testing.T) {
 	t.Run("danish", snowballDanishSeedAuthority)
+	t.Run("dutch", snowballDutchSeedAuthority)
 	e := engine.New()
 	v := e.CatalogRead()
 	d := snowballUnitDictionary(t, e)
@@ -150,6 +151,7 @@ func snowballUnitCreate(name string) *parser.CreateDictionary {
 func TestSnowballPublication(t *testing.T) {
 	t.Run("english", func(t *testing.T) { snowballPublication(t, "english", "RATS", "rat") })
 	t.Run("danish", func(t *testing.T) { snowballPublication(t, "danish", "HUNDENE", "hund") })
+	t.Run("dutch", func(t *testing.T) { snowballPublication(t, "dutch", "HONDEN", "hond") })
 }
 
 func snowballPublication(t *testing.T, language, input, want string) {
@@ -242,6 +244,10 @@ func snowballPublication(t *testing.T, language, input, want string) {
 			if value.Lexemes[0].Text != want || value.Lexemes[0].Prefix || value.Lexemes[0].Variant != 0 {
 				t.Fatal(value)
 			}
+			retained, err := old.Lexize(t.Context(), input)
+			if err != nil || !retained.Recognized || len(retained.Lexemes) != 1 || retained.Lexemes[0].Text != want || retained.Lexemes[0].Prefix || retained.Lexemes[0].Variant != 0 {
+				t.Fatal("rejected publication changed incumbent execution", retained, err)
+			}
 		})
 	}
 }
@@ -249,6 +255,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 func TestSnowballPreparedOwnership(t *testing.T) {
 	t.Run("english", func(t *testing.T) { snowballPreparedOwnership(t, "english", "ONLY", "onli") })
 	t.Run("danish", func(t *testing.T) { snowballPreparedOwnership(t, "danish", "OG", "og") })
+	t.Run("dutch", func(t *testing.T) { snowballPreparedOwnership(t, "dutch", "DE", "de") })
 }
 
 func snowballPreparedOwnership(t *testing.T, language, input, want string) {

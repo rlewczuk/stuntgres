@@ -182,6 +182,10 @@ COPY test in reference/dml.
   dictionary chains, copied configurations and owned seed replay:
   `RUN='^TestReferenceFTSDanishSnowball'`. Six word aliases use Danish, including
   ASCII; stopwords terminate chains while preserving document positions.
+- Dutch Snowball configuration mappings, typed debug/vector results, ordered
+  dictionary chains, copied configurations and owned seed replay:
+  `RUN='^TestReferenceFTSDutchSnowball'`. All six word aliases use Dutch, including
+  ASCII; the thirteen simple aliases and stopword positions are independently specified.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

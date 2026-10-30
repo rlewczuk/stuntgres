@@ -1,5 +1,10 @@
 # Changes
 
+- Add release-matched historical Dutch Porter Snowball stemming and its verbatim
+  101-word stoplist, genuine `dutch_stem`/`dutch` bootstrap identities and nineteen
+  token mappings, preserving typed prepared ownership, atomic publication and
+  edited-stock logical replay.
+
 - Consume `default_tablespace` at relation and index creation with live CREATE
   authority, temporary bypass, partition-default rejection and nested/session
   setting restoration. Distinguish synthesized partition indexes from reuse;
