@@ -350,7 +350,15 @@ target's contents; it never merges. Empty input clears all user relations.
 - This boundary is not a sandbox for registered Go code. Authentic destination
   FDW option validators remain trusted declaration callbacks: they run normally,
   and their original errors abort publication. Their own external effects cannot
-  be rolled back. Foreign definitions carry no remote rows or callback state.
+  be rolled back. Foreign definitions carry no remote rows, sampled statistics,
+  private plans or callback state. Restore requires authentic destination provider
+  registration; later EXPLAIN/ANALYZE uses that destination implementation.
+  Composite selected query paths and effective row-mark/identity requests are
+  invocation-local planning products as well: replay never discovers paths,
+  negotiates marks, explains a plan, enlists or begins a foreign scan.
+  Imported persistent identities need fresh ANALYZE. Failed/canceled replacement
+  preserves existing statistics and saved results; genuine retained destination
+  TEMP identities keep only their compatible existing metadata backing.
 - Live target sessions and their settings survive replacement; session settings
   are not imported. Routine-body validation deferral and authenticated comparison
   replay windows are operation-local exceptions, not general SET admission.

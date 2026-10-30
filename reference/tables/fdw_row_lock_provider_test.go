@@ -19,9 +19,12 @@ type fdwSQLRowLocker struct {
 	recheck       func(context.Context, stuntgres.ForeignRow) (bool, error)
 	afterRefetch  func(context.Context, stuntgres.ForeignRowMarkRequest, stuntgres.ForeignRow) (stuntgres.ForeignRow, error)
 	planHook      func(stuntgres.ForeignRowMarkPlan) stuntgres.ForeignRowMarkPlan
+	markRequestHook func(stuntgres.ForeignRowMarkRequest)
 }
 
 func (w *fdwSQLRowLocker) GetForeignRowMarkType(ctx context.Context, r stuntgres.ForeignRowMarkRequest) (stuntgres.ForeignRowMarkPlan, error) {
+	if err := w.call(ctx, "GetForeignRowMarkType"); err != nil { return stuntgres.ForeignRowMarkPlan{}, err }
+	if w.markRequestHook != nil { w.markRequestHook(r) }
 	kind := w.sibling
 	switch r.Strength {
 	case stuntgres.ForeignLockKeyShare:
@@ -41,6 +44,18 @@ func (w *fdwSQLRowLocker) GetForeignRowMarkType(ctx context.Context, r stuntgres
 		plan = w.planHook(plan)
 	}
 	return plan, ctx.Err()
+}
+
+func (w *fdwSQLRowLocker) ExplainForeignScan(ctx context.Context, request stuntgres.ForeignExplainScanRequest) ([]stuntgres.ForeignExplainProperty, error) {
+	properties, err := w.fdwSQLReader.ExplainForeignScan(ctx, request)
+	if err != nil { return nil, err }
+	if request.Query == nil && request.Options.Verbose && w.advanced != nil {
+		query, _ := fdwWriterScanSQL(request.ForeignRequest, request.Plan, w.orderedScans)
+		for i := range properties {
+			if properties[i].Name == "Remote SQL" { properties[i].Value = query }
+		}
+	}
+	return properties, nil
 }
 
 func (w *fdwSQLRowLocker) RefetchForeignRow(ctx context.Context, r stuntgres.ForeignRowMarkRequest, identity stuntgres.ForeignRowIdentity) (stuntgres.ForeignRefetchResult, error) {

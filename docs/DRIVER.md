@@ -1350,6 +1350,40 @@ registered provider.
   Begin resources join the existing statement/cursor owner, including nonnil
   scans returned with an error. Plans and `Private` data must be immutable and
   contain no live resources; neither is serialized by Dump.
+- **Plain EXPLAIN.** Optional `ForeignExplainScanProvider` and
+  `ForeignExplainModifyProvider` return ordered single-line `ForeignExplainProperty`
+  values. Base scan requests carry the actual relation estimate, first least-total-cost
+  path and immutable selected plan. For selected join/upper pushdown, `Query`
+  carries an owned `ForeignExplainQueryPlan` with the genuine complete request and
+  selected `Path.Plan`; base `Size`/`Path`/`Plan` are unused zero values. The
+  embedded request anchors the first real source; all occurrences are in
+  `Query.Request.Sources`. Composite costs are genuine, not invented base rows or
+  width. Selection precedes replaced-child planning, exactly as in execution.
+  Eligibility also preserves execution's contextual outer/invocation/identity
+  barriers: an uncorrelated scalar subquery is not automatically a top-level
+  pushdown candidate. Presence-only bound leaves retain an empty required
+  projection (and composite Unused slots), not nil/full-column demand.
+  Row-marked graphs negotiate the same effective mark, complete declared tuple
+  and non-COPY identity before base planning, including zero-strength sibling
+  COPY/REFERENCE marks. No refetch, recheck or remote tuple locking occurs.
+  Modification requests carry the genuine operation/identity/plan.
+  Effective `Verbose`/`Costs` options are forwarded.
+  Missing interfaces omit properties, not ordinary planning. Prepare is
+  metadata-only; execution plans without Begin, iteration, transaction enlistment
+  or modification callbacks. Never format opaque private plans or mapping secrets.
+- **ANALYZE.** Optional `ForeignAnalyzeProvider.AnalyzeForeignTable` negotiates
+  capability with owned relation metadata and owner identity, but empty mapping
+  fields and no transaction. It must not perform mapping-dependent I/O.
+  Unsupported capability emits the ordinary warning without requiring a mapping.
+  Supported capability supplies a nonnil `ForeignSampleRowsFunc`; acquisition
+  receives the table owner's exact-then-PUBLIC mapping, not the MAINTAIN actor's.
+  Return at most the requested number of genuine random sample rows in required
+  attribute order, and separate finite nonnegative `TotalRows`, `TotalDeadRows`
+  and `TotalPages` estimates. Close all external resources before returning,
+  including on cancellation/error. No scan fallback, repeated rows or padding
+  supplies absent samples. Column counts/fractions describe the actual sample;
+  population estimates never become exact heap counters. Failed collection or
+  final authority checks preserve the prior target's facts.
 - **Writes.** Optional interfaces enable each command: `ForeignInserter`,
   `ForeignUpdater`, `ForeignDeleter`, `ForeignTruncater`, batching
   (`ForeignBatchSizer` + `ForeignBatchInserter`), and row identity for UPDATE/DELETE

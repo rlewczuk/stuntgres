@@ -108,6 +108,30 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   independently established early-lock RR snapshot instead raises `40001`
   before projection, with exact remote Context and zero sequence invocations.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
+- Foreign explain and sampled analysis: `RUN='^TestReferenceFDW(Explain|Analyze)'`.
+  The real SQL reader uses reservoir sampling with separate population estimates;
+  explain plans share execution's actual non-first minimum path. Gated native
+  capability phases prove lock-free callbacks and failed-publication boundaries;
+  Modification explain gates also cover provider errors, cancellation and
+  authority replacement without writing startup. Foreign statistics options
+  exercise default/-1, exact clamp warnings and atomic invalid-option rejection;
+  unsupported negotiation preserves precedence through direct/fresh/held routes.
+  PostgreSQL uses genuine loopback postgres_fdw estimates and sampling.
+  `TestReferenceFDWExplainCompositePlans` enables the real join/upper provider,
+  ties execution to explained stages and distinguishes local residual/declined/
+  incompatible fallback. `TestReferenceFDWExplainRowMarkPlans` checks projected
+  full-tuple/identity planning and COPY/REFERENCE sibling occurrences against
+  real source revisions and independent tuple-lock witnesses. Detached selection
+  and explanation gates live in `TestReferenceFDWExplainPlanningLifecycle`.
+  `TestReferenceFDWExplainIntegratedFeatureSmoke` combines both genuine fixture
+  families. Select each changed definition in native and `REFERENCE=1` modes.
+  CompositePlans and integrated smoke also distinguish genuine count(*) upper
+  selection from scalar/derived contextual exclusion and declined presence-only
+  base scans, with exact empty attribute demand/Unused slots and actual count5.
+  Stored and materialized-CTE producer contexts are independent of scalar readers;
+  folded CTEs preserve ordinary derived exclusions. Lifecycle gates normalized
+  base and count-upper properties after production, retaining final-authority and
+  nonmutation witnesses.
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 
 Also in this package: `make check RUN='^TestReferenceSeriesCheckRestrictions$'`

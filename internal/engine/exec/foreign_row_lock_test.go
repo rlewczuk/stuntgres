@@ -141,11 +141,40 @@ func TestForeignRowMarkRequestOwnership(t *testing.T) {
 	}
 }
 
+func TestForeignRowMarkPlanningOwnership(t *testing.T) {
+	ctx := context.Background()
+	for _, kind := range []catalog.ForeignRowMarkType{catalog.ForeignRowMarkCopy, catalog.ForeignRowMarkReference, catalog.ForeignRowMarkUpdate} {
+		p := &rowMarkProbe{selected: catalog.ForeignRowMarkPlan{Type: kind, Identity: catalog.ForeignUpdateTargets{Names: []string{"rid"}}}}
+		input := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{1}, Characteristics: &catalog.ForeignTransactionCharacteristics{Isolation: "serializable"}, Transaction: &rowMarkTransactionProbe{}}
+		mark := plan.RowMark{}
+		if kind == catalog.ForeignRowMarkUpdate { mark.Mode = lock.ForUpdate }
+		selected, err := PlanForeignRowMark(ctx, p, input, mark)
+		if err != nil { t.Fatal(err) }
+		if selected.Transaction != nil || selected.Characteristics != nil || p.seen.Transaction != nil || p.seen.Characteristics != nil || !reflect.DeepEqual(selected.RequiredAttributes, []int32{1, 3}) { t.Fatal("runtime state or narrowed tuple in planning", selected, p.seen) }
+		execution := &ForeignExecution{}
+		source := &ForeignQuerySource{Wrapper: p}
+		if err := source.Plan(ctx, selected, execution); err != nil { t.Fatal(err) }
+		for _, request := range p.planning {
+			if request.RowMark == nil || request.RowMark.Type != kind || request.Transaction != nil || request.Characteristics != nil || !reflect.DeepEqual(request.RequiredAttributes, []int32{1,3}) { t.Fatal("planning callbacks disagree",request) }
+			request.RequiredAttributes[0] = 99
+			request.RowMark.Identity.Names[0] = "callback"
+		}
+		if selected.RequiredAttributes[0] != 1 || selected.RowMark.Identity.Names[0] != "rid" || input.RequiredAttributes[0] != 1 || p.selected.Identity.Names[0] != "rid" { t.Fatal("planning backing aliases callback or caller") }
+		if kind == catalog.ForeignRowMarkCopy {
+			if selected.Identity != nil { t.Fatal("COPY acquired identity") }
+		} else {
+			selected.Identity.Names[0] = "identity-only"
+			if selected.RowMark.Identity.Names[0] != "rid" { t.Fatal("identity aliases selected rowmark") }
+		}
+		if p.refetches != 0 || p.begin.RowMark != nil { t.Fatal("planning entered runtime") }
+	}
+}
+
 func TestForeignRowMarkCapabilities(t *testing.T) {
 	ctx := context.Background()
-	f := &ForeignQuerySource{}
 	request := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 2}}}
-	if err := f.selectRowMark(ctx, &request, plan.RowMark{Mode: lock.ForUpdate}); err != nil || request.RowMark.Type != catalog.ForeignRowMarkCopy || request.Identity != nil || !reflect.DeepEqual(request.RequiredAttributes, []int32{1, 2}) {
+	request, err := PlanForeignRowMark(ctx, nil, request, plan.RowMark{Mode: lock.ForUpdate})
+	if err != nil || request.RowMark.Type != catalog.ForeignRowMarkCopy || request.Identity != nil || !reflect.DeepEqual(request.RequiredAttributes, []int32{1, 2}) {
 		t.Fatal("missing optional provider must select COPY/full tuple", request, err)
 	}
 	p := &rowMarkProbe{}

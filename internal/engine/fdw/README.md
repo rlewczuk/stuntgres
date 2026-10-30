@@ -94,6 +94,12 @@ The foreign owner completes its existing kind/server payload before validation.
   `ImportError`), foreign-table syntax checks (`CheckTableDeclaration`,
   `TableSyntax`, `AlterAdmission`) and scan requests (`ScanRequest`,
   `RequiredAttributes`).
+  `AnalyzeRequest` shares scan request construction but deliberately omits mapping
+  resolution/options during optional capability negotiation. Supported acquisition
+  then receives `ScanRequest` under the foreign table owner, exact role before
+  PUBLIC. Plain EXPLAIN uses `PlanModification` only: never Modification.Begin
+  or any writing participant. Optional explain properties are owned single-line
+  values; private plans and credentials are never engine-stringified.
 - **DDL decisions** (`host.go`, `stage.go`, `stage_drop.go`, `handler.go`,
   `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
   `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus

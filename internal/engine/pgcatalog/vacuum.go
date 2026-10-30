@@ -32,6 +32,8 @@ type MaintenanceFact struct {
 	LastAnalyze                                            time.Time
 	InheritedScanned                                       bool
 	InheritedTuples                                        int64
+	ForeignAnalyzed                                        bool
+	ForeignRows, ForeignDeadRows, ForeignPages             float64
 }
 type VacuumProgressFact struct {
 	PID                                                                 int64

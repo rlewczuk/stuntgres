@@ -239,12 +239,19 @@ func (s *State) Evaluation(ctx context.Context) Context {
 	return evaluation
 }
 
-func queryBoundValue(ctx context.Context, state *State, expr expr.Expr, clause string) (int64, bool, error) {
-	if expr == nil {
+func queryBoundValue(ctx context.Context, state *State, bound expr.Expr, clause string) (int64, bool, error) {
+	if bound == nil {
 		return 0, false, nil
 	}
 	evaluation := state.Evaluation(ctx)
-	value, err := expr.Eval(&evaluation)
+	return queryBoundEvaluation(ctx, &evaluation, bound, clause)
+}
+
+func queryBoundEvaluation(ctx context.Context, evaluation expr.Context, bound expr.Expr, clause string) (int64, bool, error) {
+	if bound == nil {
+		return 0, false, nil
+	}
+	value, err := bound.Eval(evaluation)
 	if err != nil {
 		return 0, false, err
 	}

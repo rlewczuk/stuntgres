@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 type explainTree struct {
@@ -22,6 +23,13 @@ type explainTree struct {
 	children    []*explainTree
 	estimate    plan.ExplainEstimate
 	restriction expr.Expr
+	unknownEstimate bool
+}
+
+// These are execution's metadata-only composite eligibility facts. They do not
+// grant an invocation, an outer row, identity reads or runtime admission.
+type explainForeignContext struct {
+	outer, invocation, identityReads bool
 }
 
 type explainSubplan struct {
@@ -33,6 +41,10 @@ type explainSubplan struct {
 	leaves       []exec.Leaf
 	image        string
 	policyTarget ids.ObjectAddress
+	foreign      explainForeignContext
+	rowMarked    bool
+	inheritedMark plan.RowMark
+	foreignOwners map[uint32]explainForeignContext
 }
 
 type explainRenderer struct {
@@ -59,6 +71,14 @@ type explainRenderer struct {
 	scanFilter                   *plan.FilterNode
 	scanDecision                 plan.ScanDecision
 	frame                        uint32
+	parameters                   catalog.ForeignScanParameters
+	modifyIdentity               *catalog.ForeignUpdateTargets
+	exportValue                  exec.ForeignValueExporter
+	typedParameters              []sqltype.Value
+	rowMarked                    bool
+	inheritedMark                plan.RowMark
+	foreign                      explainForeignContext
+	foreignOwners                map[uint32]explainForeignContext
 }
 
 func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explainOptions) (*explainRenderer, error) {
@@ -98,13 +118,14 @@ func (r *explainRenderer) register(root plan.Node) {
 }
 
 func (r *explainRenderer) subplan(query *plan.Query) string {
+	foreign := explainForeignContext{outer: true} // Scalar/initplan creates a fresh State with Outer.
 	for _, subplan := range r.subplans {
-		if subplan.query == query && subplan.image == r.image && subplan.policyTarget == r.policyTarget {
+		if subplan.query == query && subplan.image == r.image && subplan.policyTarget == r.policyTarget && subplan.foreign == foreign && subplan.rowMarked == r.rowMarked && subplan.inheritedMark == r.inheritedMark {
 			return subplan.label
 		}
 	}
 	label := fmt.Sprintf("SubPlan %d", len(r.subplans)+1)
-	r.subplans = append(r.subplans, explainSubplan{query: query, label: label, frames: maps.Clone(r.frames), occurrences: maps.Clone(r.occurrences), auth: r.auth, leaves: r.leaves, image: r.image, policyTarget: r.policyTarget})
+	r.subplans = append(r.subplans, explainSubplan{query: query, label: label, frames: maps.Clone(r.frames), occurrences: maps.Clone(r.occurrences), auth: r.auth, leaves: r.leaves, image: r.image, policyTarget: r.policyTarget, foreign: foreign, rowMarked: r.rowMarked, inheritedMark: r.inheritedMark, foreignOwners: maps.Clone(r.foreignOwners)})
 	return label
 }
 
@@ -112,6 +133,13 @@ func (r *explainRenderer) query(query *plan.Query) (*explainTree, error) {
 	if query == nil || query.Root == nil {
 		return nil, fmt.Errorf("stuntgres: missing logical EXPLAIN query")
 	}
+	demand, err := view.QueryLocks(r.auth.Catalog, query.Root, r.leaves)
+	if err != nil {
+		return nil, err
+	}
+	previousMarked := r.rowMarked
+	r.rowMarked = r.rowMarked || demand.Marked || r.inheritedMark.Mode != 0
+	defer func() { r.rowMarked = previousMarked }()
 	previousFilter, previousDecision := r.scanFilter, r.scanDecision
 	defer func() { r.scanFilter, r.scanDecision = previousFilter, previousDecision }()
 	r.scanFilter = exec.HashQueryFilter(query.Root)
@@ -135,14 +163,30 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	}
 	if project, ok := root.(*plan.ProjectNode); ok {
 		saved := r.frame
+		foreign := r.foreign
+		if project.RuleInvocation {
+			r.foreign.outer = r.foreign.invocation
+		}
+		r.foreign.identityReads = r.foreign.identityReads || exec.QueryHasIdentityReads(project)
+		if project.CTEOwner {
+			if r.foreignOwners == nil { r.foreignOwners = make(map[uint32]explainForeignContext) }
+			prior, existed := r.foreignOwners[project.Frame]
+			r.foreignOwners[project.Frame] = r.foreign
+			defer func() {
+				if existed { r.foreignOwners[project.Frame] = prior } else { delete(r.foreignOwners, project.Frame) }
+			}()
+		}
 		r.frame = project.Frame
 		if r.frame == 0 {
 			r.frame = 1
 		}
-		defer func() { r.frame = saved }()
+		defer func() { r.frame, r.foreign = saved, foreign }()
+	}
+	if tree, selected, err := r.foreignQuery(root); selected || err != nil {
+		return tree, err
 	}
 	left, right := plan.QueryInputs(root)
-	if derived, ok := root.(*plan.DerivedNode); ok && derived.CTE != nil {
+	if derived, ok := root.(*plan.DerivedNode); ok && derived.CTE != nil && !derived.CTE.Folded() {
 		left, right = nil, nil
 	}
 	if project, ok := root.(*plan.ProjectNode); ok && r.frames[project.Frame] == nil {
@@ -172,7 +216,15 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		if child == nil {
 			continue
 		}
+		foreign := r.foreign
+		if derived, ok := root.(*plan.DerivedNode); ok && (derived.CTE == nil || derived.CTE.Folded()) {
+			r.foreign.identityReads = false // OpenDerivedNode constructs a fresh State.
+		}
+		if join, ok := root.(*plan.JoinNode); ok && join.CorrelatedRight && child == right {
+			r.foreign.invocation = true
+		}
 		childTree, err := r.node(child)
+		r.foreign = foreign
 		if err != nil {
 			return nil, err
 		}
@@ -221,6 +273,16 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		if err := r.sourceDetails(tree, n, relation); err != nil {
 			return nil, err
+		}
+		if relation.Foreign != nil {
+			tree.label = "Foreign Scan on " + r.objectName(relation.Namespace(), relation.Name())
+			if n.RangeName != "" && n.RangeName != relation.Name() {
+				tree.label += " AS " + catalog.Identifier(n.RangeName)
+			}
+			sourceRows, err = r.foreignScan(tree, n, relation)
+			if err != nil {
+				return nil, err
+			}
 		}
 		for _, child := range tree.children {
 			estimates = append(estimates, child.estimate)
@@ -342,13 +404,14 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		tree.label = "Derived Scan"
 		if n.CTE != nil {
 			tree.label = "CTE Scan on " + catalog.Identifier(n.CTE.Name)
-			producer, err := r.cte(n.CTE)
-			if err != nil {
-				return nil, err
+			if !n.CTE.Folded() {
+				producer, err := r.cte(n.CTE)
+				if err != nil {
+					return nil, err
+				}
+				// Producer work contributes once at command level.
+				estimates = append(estimates[:0], plan.ExplainEstimate{Rows: producer.estimate.Rows})
 			}
-			// Producer work contributes once at command level, not once per
-			// reference. Each scan still has its own linear local work.
-			estimates = append(estimates[:0], plan.ExplainEstimate{Rows: producer.estimate.Rows})
 		}
 		if alias := explainDerivedAlias(n); alias != "" {
 			tree.details = append(tree.details, "Alias: "+catalog.Identifier(alias))
@@ -511,6 +574,9 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 	}
 	tree.estimate = estimate
+	for _, child := range tree.children {
+		tree.unknownEstimate = tree.unknownEstimate || child.unknownEstimate
+	}
 	return tree, nil
 }
 
@@ -530,7 +596,7 @@ func explainDerivedAlias(node *plan.DerivedNode) string {
 func (r *explainRenderer) lines(tree *explainTree, depth int, lines *[]string) {
 	indent := strings.Repeat("  ", depth)
 	line := indent + tree.label
-	if r.options.costs {
+	if r.options.costs && !tree.unknownEstimate {
 		line += fmt.Sprintf(" (estimated rows=%.0f logical cost=%.2f)", tree.estimate.RoundedRows(), tree.estimate.Cost)
 	}
 	*lines = append(*lines, line)

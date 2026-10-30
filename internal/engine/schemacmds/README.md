@@ -22,6 +22,10 @@ publication. Input relation lifetime uses the shared relation lock owner;
 Bounded SET STATISTICS targets use `ddl.StageAlterStatisticsTarget` and the same
 definition mutation locks, revision fences and current-authority recapture.
 validation preserves duplicate-conditional precedence and immutable stable keys.
+ALTER FOREIGN TABLE reuses `table.ColumnStatisticsCandidate` for column targets
+and n_distinct SET/RESET options, with the same clamp warning and ordinary
+foreign-definition stage/revision/publication. These metadata-only actions never
+acquire local heap storage or invoke provider validation.
 `CaptureRestoredStatisticsOwner` and `RestoreStatisticsOwner` admit only the
 private import authority and exact fresh descriptor/namespace/principal pair.
 Capture and owner-only COW replacement revalidate under one catalog lock;

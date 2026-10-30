@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -115,23 +116,64 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	lines, err := renderer.command(child, bound)
+	captured := auth.Catalog.State()
+	_, exportValue, _ := e.Foreign.Codecs()
+	renderer.exportValue = exportValue
 	e.Mu.Unlock()
-	if err != nil {
-		return Result{}, err
-	}
-	// Keep the public argument-count/type boundary without using values to fold
-	// or estimate the plan. No typed parameter frame escapes this activation.
+	scope.foreignUnlocked()
+	// Import arguments before provider planning, without evaluating expressions.
 	frame := make([]sqltype.Value, description.Parameters.Count)
 	if importFrame != nil {
 		if err := importFrame(scope.executionContext(), description.Parameters, frame, scope.Input); err != nil {
 			return Result{}, err
 		}
 	}
+	renderer.typedParameters = frame
+	if exportValue != nil {
+		for _, value := range frame {
+			cell, err := exportValue(scope.executionContext(), value, scope.Output)
+			if err != nil {
+				return Result{}, err
+			}
+			if bytes, ok := cell.([]byte); ok {
+				cell = slices.Clone(bytes)
+			}
+			renderer.parameters.Values = append(renderer.parameters.Values, cell)
+		}
+	}
+	e.Mu.Lock()
+	if err := renderer.foreignFence(captured); err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
+	lines, err := renderer.command(child, bound)
+	if err == nil {
+		err = renderer.foreignFence(captured)
+	}
+	if err == nil {
+		err = scope.RefreshRelationGrantsLocked(e)
+	}
+	if err == nil {
+		current, authorityErr := scope.statementAuthorizationLocked(child)
+		err = authorityErr
+		if err == nil {
+			var finalBound explainBound
+			_, err = e.describeBoundOperationLocked(scope, child, current, &finalBound)
+		}
+	}
+	if err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
 	rows := make([][]sqltype.Value, len(lines))
 	for i, line := range lines {
 		rows[i] = []sqltype.Value{sqltype.String(schema[0].Usage.Type, line)}
 	}
+	if err := renderer.foreignFence(captured); err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
+	e.Mu.Unlock()
 	if err := scope.beginProtocolSimplePortal(); err != nil {
 		return Result{}, err
 	}

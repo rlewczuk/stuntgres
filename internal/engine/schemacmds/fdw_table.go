@@ -9,9 +9,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL) (core.Result, error) {
@@ -121,6 +123,11 @@ func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *par
 			a := *action.Ordinary
 			var candidate *catalog.Relation
 			switch a.Action {
+			case parser.SetColumnStatistics, parser.SetColumnOptions, parser.ResetColumnOptions:
+				candidate, err = table.ColumnStatisticsCandidate(&next, a)
+				if err == nil && a.Action == parser.SetColumnStatistics && a.StatisticsTarget > 10000 {
+					scope.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "lowering statistics target to 10000"})
+				}
 			case parser.SetStorage, parser.SetCompression:
 				err = table.AlterTableActionKind(&next, a.Action)
 				if err == nil {

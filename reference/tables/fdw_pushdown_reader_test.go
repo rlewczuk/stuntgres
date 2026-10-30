@@ -16,11 +16,12 @@ func (r *fdwSQLReader) queryPaths(ctx context.Context, request stuntgres.Foreign
 	}
 	r.mu.Lock()
 	enabled := r.queryPushdown
+	incompatible := r.queryIncompatible
 	r.mu.Unlock()
 	if !enabled {
 		return nil, nil
 	}
-	return []stuntgres.ForeignQueryPath{{TotalCost: 1, Compatibility: stuntgres.ForeignQueryCompatibility{Expressions: true, Collations: true, StatementVisibility: true}, Plan: stuntgres.ForeignQueryPlan{Slots: append([]stuntgres.ForeignQuerySlot{}, request.Stage.Slots...)}}}, nil
+	return []stuntgres.ForeignQueryPath{{TotalCost: 1, Compatibility: stuntgres.ForeignQueryCompatibility{Expressions: !incompatible, Collations: true, StatementVisibility: true}, Plan: stuntgres.ForeignQueryPlan{Slots: append([]stuntgres.ForeignQuerySlot{}, request.Stage.Slots...)}}}, nil
 }
 
 func (r *fdwSQLReader) GetForeignJoinPaths(ctx context.Context, request stuntgres.ForeignQueryRequest) ([]stuntgres.ForeignQueryPath, error) {
@@ -31,6 +32,11 @@ func (r *fdwSQLReader) GetForeignUpperPaths(ctx context.Context, request stuntgr
 }
 
 func (r *fdwSQLReader) BeginForeignQueryScan(ctx context.Context, request stuntgres.ForeignQueryRequest, plan stuntgres.ForeignQueryPlan) (stuntgres.ForeignScan, error) {
+	if r.advanced != nil {
+		r.advanced.mu.Lock()
+		r.advanced.executedPlans = append(r.advanced.executedPlans, plan)
+		r.advanced.mu.Unlock()
+	}
 	query, _, err := fdwQuerySQL(request, request.Stage)
 	if err != nil {
 		return nil, err

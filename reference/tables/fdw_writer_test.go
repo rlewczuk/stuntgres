@@ -371,31 +371,28 @@ func (w *fdwSQLWriter) BeginForeignScan(ctx context.Context, r stuntgres.Foreign
 	if err != nil {
 		return nil, err
 	}
+	query, visible := fdwWriterScanSQL(r, plan, w.orderedScans)
+	w.begins++
+	return &fdwWriterScan{writer: w, tx: tx, query: query, visible: visible, identity: r.Identity != nil}, w.writeCall(ctx, "BeginForeignScan")
+}
+
+// Shared by scan startup and planning-only row-lock explanation.
+func fdwWriterScanSQL(r stuntgres.ForeignRequest, plan stuntgres.ForeignPlan, ordered bool) (string, int) {
 	columns := fdwWriterColumns(r)
 	var projection []string
 	for _, a := range plan.Attributes {
 		for i, c := range r.Columns {
-			if c.Attribute == a {
-				projection = append(projection, columns[i])
-				break
-			}
+			if c.Attribute == a { projection = append(projection, columns[i]); break }
 		}
 	}
 	visible := len(projection)
 	if r.Identity != nil {
-		for _, name := range r.Identity.Names {
-			projection = append(projection, fdwQuote(name))
-		}
+		for _, name := range r.Identity.Names { projection = append(projection, fdwQuote(name)) }
 	}
-	if len(projection) == 0 {
-		projection = append(projection, "1")
-	}
-	w.begins++
+	if len(projection) == 0 { projection = append(projection, "1") }
 	query := "SELECT " + strings.Join(projection, ",") + " FROM " + fdwRemote(r)
-	if w.orderedScans {
-		query += " ORDER BY id"
-	}
-	return &fdwWriterScan{writer: w, tx: tx, query: query, visible: visible, identity: r.Identity != nil}, w.writeCall(ctx, "BeginForeignScan")
+	if ordered { query += " ORDER BY id" }
+	return query, visible
 }
 
 type fdwWriterScan struct {

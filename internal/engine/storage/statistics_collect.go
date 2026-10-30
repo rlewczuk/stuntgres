@@ -3,21 +3,24 @@ package storage
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
 // StatisticsTarget is the fixed expression-summary target. Base columns use
 // their captured default or per-column Target instead.
 const StatisticsTarget = 100
-
 
 type StatisticsColumn struct {
 	Key    StatisticsKey
 	Usage  sqltype.Usage
 	Slot   int
 	Target int // Captured default or column-specific target, inclusive 1..10000.
+	// SamplePopulation is optional; nil retains exact full-input semantics.
+	SamplePopulation *float64
 }
 
 type statisticsGroup struct {
@@ -55,6 +58,9 @@ func CollectStatistics(ctx context.Context, columns []StatisticsColumn, rows fun
 	for i, column := range columns {
 		if column.Key.Attribute <= 0 || column.Slot < 0 || column.Target < 1 || column.Target > 10000 || column.Usage.Type == nil || !column.Usage.Type.Concrete() || seen[column.Key] {
 			return nil, 0, fmt.Errorf("invalid statistics column layout")
+		}
+		if population := column.SamplePopulation; population != nil && (*population < 0 || math.IsNaN(*population) || math.IsInf(*population, 0)) {
+			return nil, 0, fmt.Errorf("invalid statistics sample population")
 		}
 		seen[column.Key] = true
 		if err := collectors[i].initialize(column.Usage); err != nil {
@@ -168,6 +174,29 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 		return ctx.Err()
 	}
 	c.stats.DistinctCount = uint64(len(c.groups))
+	if population := c.column.SamplePopulation; population != nil && *population > 0 && c.stats.Rows != 0 {
+		n := float64(c.stats.Rows - c.stats.NullCount)
+		d := float64(c.stats.DistinctCount)
+		N := max(n, *population*(1-c.stats.NullFraction()))
+		D := d
+		if float64(c.stats.Rows) != *population && n > 0 {
+			var singletons float64
+			for _, group := range c.groups {
+				if group.count == 1 {
+					singletons++
+				}
+			}
+			if singletons > 0 {
+				D = math.Round(n * d / ((n - singletons) + singletons*n/N))
+			}
+			D = max(d, min(N, D))
+		}
+		if D > *population/10 {
+			c.stats.DistinctOverride = -D / *population
+		} else {
+			c.stats.DistinctOverride = D
+		}
+	}
 	// This order makes tied membership deterministic by first visible occurrence.
 	sort.Slice(c.groups, func(i, j int) bool {
 		if c.groups[i].count != c.groups[j].count {
@@ -176,7 +205,9 @@ func (c *statisticsCollector) finish(ctx context.Context) error {
 		return c.groups[i].first < c.groups[j].first
 	})
 	target := c.column.Target
-	if target == 0 { target = StatisticsTarget }
+	if target == 0 {
+		target = StatisticsTarget
+	}
 	retained := 0
 	for retained < len(c.groups) && retained < target && c.groups[retained].count > 1 {
 		g := c.groups[retained]

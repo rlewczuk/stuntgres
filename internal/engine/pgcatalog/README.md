@@ -753,6 +753,10 @@ facts and owned tree carriers from the actual relation payload; the distinct
 `VisitTriggerDefinitions` retains information_schema presentation and disclosure.
 Maintenance-aware projections need an adapter backed by a real engine;
 an empty adapter is not an initialized maintenance capture.
+`MaintenanceFact.ForeignAnalyzed` distinguishes genuine foreign population/page
+estimates from absent information and exact heap tuples. `pg_class.reltuples`
+uses the separate floating TotalRows, never sample size; `relpages` converts the
+provider's page estimate to the catalog's bounded integer representation.
 
 `pg_prepared_statements` is captured fresh from the admitted physical session,
 never cached by catalog revision. The engine releases its mutex before visiting

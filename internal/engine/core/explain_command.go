@@ -57,11 +57,17 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 		subplan := r.subplans[i]
 		frames, occurrences, auth, leaves := r.frames, r.occurrences, r.auth, r.leaves
 		image, target := r.image, r.policyTarget
+		foreign, marked, inherited := r.foreign, r.rowMarked, r.inheritedMark
+		owners := r.foreignOwners
+		r.foreignOwners = maps.Clone(subplan.foreignOwners)
+		r.foreign, r.rowMarked, r.inheritedMark = subplan.foreign, subplan.rowMarked, subplan.inheritedMark
 		r.image, r.policyTarget = subplan.image, subplan.policyTarget
 		r.frames, r.occurrences, r.auth, r.leaves = maps.Clone(subplan.frames), maps.Clone(subplan.occurrences), subplan.auth, subplan.leaves
 		tree, err := r.query(subplan.query)
 		r.frames, r.occurrences, r.auth, r.leaves = frames, occurrences, auth, leaves
 		r.image, r.policyTarget = image, target
+		r.foreign, r.rowMarked, r.inheritedMark = foreign, marked, inherited
+		r.foreignOwners = owners
 		if err != nil {
 			return nil, err
 		}
@@ -91,6 +97,9 @@ func (r *explainRenderer) cte(definition *plan.CTEDefinition) (*explainTree, err
 	}
 	tree := &explainTree{label: "CTE " + catalog.Identifier(definition.Name)}
 	r.ctes[definition] = tree
+	foreign := r.foreign
+	if owner, ok := r.foreignOwners[definition.Owner]; ok { r.foreign = owner }
+	defer func() { r.foreign = foreign }()
 	frames, occurrences, auth := r.frames, r.occurrences, r.auth
 	r.frames, r.occurrences = maps.Clone(frames), maps.Clone(occurrences)
 	defer func() { r.frames, r.occurrences, r.auth = frames, occurrences, auth }()
@@ -225,6 +234,29 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 	// Mutation expressions use the same target-plus-FROM candidate frame as
 	// their binder, not a fabricated independent SELECT projection.
 	r.frames[1] = source
+	identity := r.modifyIdentity
+	r.modifyIdentity = nil
+	defer func() { r.modifyIdentity = identity }()
+	modificationTree := &explainTree{}
+	if binding.Relation.Foreign != nil {
+		var operation catalog.ForeignModifyOperation
+		supported := true
+		switch statement.(type) {
+		case *parser.Insert:
+			operation = catalog.ForeignInsert
+		case *parser.Update:
+			operation = catalog.ForeignUpdate
+		case *parser.Delete:
+			operation = catalog.ForeignDelete
+		default:
+			supported = false
+		}
+		if supported {
+			if err := r.foreignModify(modificationTree, binding.Relation, operation); err != nil {
+				return nil, err
+			}
+		}
+	}
 	var child *explainTree
 	var err error
 	if binding.CurrentOf != "" {
@@ -242,6 +274,7 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 		return nil, err
 	}
 	tree := &explainTree{label: label + " on " + r.objectName(binding.Relation.Namespace(), binding.Relation.Name()), children: []*explainTree{child}, estimate: plan.ExplainMutationEstimate(child.estimate, binding.Returning != nil)}
+	tree.details = append(tree.details, modificationTree.details...)
 	if original != binding.Relation {
 		tree.details = append(tree.details, "Writable View: "+r.objectName(original.Namespace(), original.Name()))
 	}

@@ -86,29 +86,37 @@ func validateForeignMark(wrapper catalog.ForeignDataWrapper, request catalog.For
 	}
 	return nil
 }
-func (f *ForeignQuerySource) selectRowMark(ctx context.Context, request *catalog.ForeignRequest, mark plan.RowMark) error {
+// PlanForeignRowMark negotiates scan metadata without starting a scan or transaction.
+func PlanForeignRowMark(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, mark plan.RowMark) (catalog.ForeignRequest, error) {
+	request = CopyForeignRequest(request)
+	request.Transaction = nil
+	request.Characteristics = nil
 	selected := catalog.ForeignRowMarkPlan{}
-	if provider, ok := f.Wrapper.(catalog.ForeignRowMarkProvider); ok {
+	if provider, ok := wrapper.(catalog.ForeignRowMarkProvider); ok {
 		var err error
-		selected, err = provider.GetForeignRowMarkType(ctx, foreignMarkRequest(*request, mark))
+		selected, err = provider.GetForeignRowMarkType(ctx, foreignMarkRequest(request, mark))
 		if err != nil {
-			return ForeignCallbackError(err)
+			return catalog.ForeignRequest{}, ForeignCallbackError(err)
 		}
 	}
-	if err := validateForeignMark(f.Wrapper, foreignMarkRequest(*request, mark), selected); err != nil {
-		return err
+	if err := validateForeignMark(wrapper, foreignMarkRequest(request, mark), selected); err != nil {
+		return catalog.ForeignRequest{}, err
 	}
 	selected.Identity.Names = slices.Clone(selected.Identity.Names)
 	request.RowMark = &selected
 	if selected.Type != catalog.ForeignRowMarkCopy {
-		request.Identity = &selected.Identity
+		identity := selected.Identity
+		identity.Names = slices.Clone(identity.Names)
+		request.Identity = &identity
+	} else {
+		request.Identity = nil
 	}
 	// EPQ and public refetch both require the complete declared tuple.
 	request.RequiredAttributes = make([]int32, len(request.Columns))
 	for i, column := range request.Columns {
 		request.RequiredAttributes[i] = column.Attribute
 	}
-	return nil
+	return request, nil
 }
 
 func validateForeignIdentity(identity catalog.ForeignRowIdentity, descriptor *catalog.ForeignUpdateTargets) error {

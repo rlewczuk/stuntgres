@@ -42,6 +42,10 @@ func (r EngineCatalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.
 	if metadata != nil {
 		fact.AnalyzeCount, fact.LastAnalyze = metadata.AnalyzeCount, metadata.LastAnalyze
 		fact.InheritedScanned, fact.InheritedTuples = metadata.InheritedScanned, metadata.InheritedTuples
+		if foreign := metadata.ForeignAnalyze; foreign != nil {
+			fact.ForeignAnalyzed = true
+			fact.ForeignRows, fact.ForeignDeadRows, fact.ForeignPages = foreign.TotalRows, foreign.TotalDeadRows, foreign.TotalPages
+		}
 		if store == nil {
 			fact.Scanned, fact.Tuples = metadata.Scanned, metadata.Tuples
 		}

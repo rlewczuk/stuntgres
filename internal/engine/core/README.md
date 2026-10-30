@@ -221,16 +221,36 @@ deparsing matches retained recipes independently of source object addresses.
 
 EXPLAIN shares the description-only binder, source admission and rule/view
 validation with Prepare. Its command boundary returns before execution fold
-planning, source capture, provider callbacks, DML startup, modifying CTE
-activation and tuple locking. Bound graphs and expression presentation remain
+planning, source execution, DML startup, modifying CTE activation and tuple
+locking. Foreign occurrences instead obtain actual selected provider plans and
+optional explain properties, detached from engine/replacement locks.
+Composite eligibility/translation/compatible minimum selection is shared with
+execution and attempted before replaced children. Selected composites expose an
+owned query/path payload rather than invented base estimates. Metadata-only
+query-lock demand and stored-view effective marks feed shared row-mark planning
+before base size/path/plan callbacks, including COPY/REFERENCE siblings. These
+paths never capture runtime admission, enlist, begin, refetch, recheck or acquire
+remote tuple locks; the ordinary final grants/rebind/authority fence still runs.
+Value-only Outer/Invocation/IdentityReads metadata follows the actual fresh or
+copied State boundary: scalar subplans set Outer; ordinary/folded derived inputs
+preserve Outer/Invocation and rederive identity; correlated right inputs establish
+Invocation; stored producers reset all three; materialized CTE producers use
+their captured definition-owner context, not a later scalar reader's context.
+RuleInvocation assigns Outer from Invocation rather than monotonically adding a
+nested-depth exclusion. Bound query leaves alone normalize nil Uses to empty,
+matching execution's presence-only demand without changing nil/full requests
+for modification targets or ANALYZE.
+Bound graphs and expression presentation remain
 activation-local; prepared descriptions retain only ordinary immutable
 dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT schema.
 Their fold owner is inert: EXPLAIN never grants child fold-publication rights,
 even during Describe or protocol Parse/Bind, and retains no accepted generation.
 The renderer describes actual logical stages and rewritten commands, with
 detached maintenance statistics or labelled deterministic heuristics. It never
-counts child rows or evaluates expressions to produce a plan. Results own their
-text lines and complete with the non-counted EXPLAIN command tag.
+executes child expressions or opens child scans; providers may obtain genuine
+remote estimates during planning. Before publishing owned text it fences catalog,
+context and current authority again, including after unlocked typed comparisons.
+Results complete with the non-counted EXPLAIN command tag.
 Single-source filter access details share execution's detached CPU decision.
 `CPU Cost` is separate from inclusive logical tree costs: it compares actual
 hash-candidate versus full-traversal work without changing unrelated estimates.
@@ -265,7 +285,7 @@ input-query labels. OLD/NEW presentation does not replace source ownership.
 
 ANALYZE column facts resolve through the statement/transaction Journal overlay
 of `storage.Store.RelationMetadata`, the single canonical ANALYZE metadata root
-for heap and partition relations alike. Statistics-only commits validate epoch,
+for heap, partition and foreign relations alike. Statistics-only commits validate epoch,
 committed descriptor and optional real-heap identity, then merge selected
 compatible attributes at the no-failure boundary without row-root replacement
 or DML counters. Clone/savepoint/prepared ownership
@@ -273,7 +293,8 @@ uses the ordinary Journal lifecycle. Relation scan estimates remain independent
 nontransactional maintenance metadata. EXPLAIN captures immutable compatible
 typed facts by stable attribute and SQL occurrence, compares detached values
 without evaluating expressions, and preserves fallback estimates for unsupported
-predicates. Equality/NULL inputs are exact; bounded distribution/range and
+predicates. Equality/NULL inputs use actual collected-row fractions; foreign
+samples have a separate population record. Bounded distribution/range and
 independence assumptions are logical approximations, not physical plan costs.
 Partition parents never own entries in the physical `Storage.Relations` map.
 Their statistics, row estimates and analyze counters live in the same metadata
@@ -2404,6 +2425,16 @@ Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'
 Publication units use real provider barriers and exact namespace/name resources,
 join workers before cleanup, and reject retirement or competing bindings without
 adopting successors. Use `RACE=1` for the publication family.
+Foreign selected-plan backing and canonical/journal sampled-statistics ownership
+use `RUN='^Test(FDWExplain|AnalyzeForeign)'`. Public dual-mode scenarios remain
+in `reference/tables`; prepared definitions retain no provider plans or sampler
+closures.
+Detached foreign publication units gate actual typed comparison entry with the
+existing installed-comparison context seam. Peer work must complete during the
+gate; failures preserve complete canonical headers, count/time, population and
+selected/unselected backing with no journal delta or tuple allocation. Native
+replacement is checked against its newly admitted state as well as immutable
+old records, not against intentionally retired persistent statistics.
 
 Logical EXPLAIN ownership/presentation and nonexecution boundary units use
 `RUN='^TestExplain'`. Their real prepared owners must retain no accepted child

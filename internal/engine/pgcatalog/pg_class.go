@@ -123,6 +123,7 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 		tablespace = 1664
 	}
 	tuples := float64(-1)
+	pages := int64(0)
 	if kind == "S" {
 		tuples = 1
 	}
@@ -131,6 +132,10 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 		if fact, ok := in.Runtime.Maintenance(relation.Address()); ok {
 			if fact.Scanned {
 				tuples = float64(fact.Tuples)
+			}
+			if fact.ForeignAnalyzed {
+				tuples = fact.ForeignRows
+				pages = int64(min(float64(2147483647), fact.ForeignPages))
 			}
 			frozenXID = uint32(fact.FrozenXID)
 		}
@@ -167,7 +172,7 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 	row := []sqltype.Value{
 		oid(0, uint32(relation.Address().ObjectID)), text(1, relation.Name()), oid(2, uint32(relation.Namespace().ObjectID)),
 		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
-		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
+		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, pages), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, ClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.Constraints.Check))),
 		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, hasTriggers), boolean(22, relation.History.HasSubclasses),

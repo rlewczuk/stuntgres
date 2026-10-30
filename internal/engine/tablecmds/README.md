@@ -244,6 +244,22 @@ the executor's visible-head selection once per physical segment, including own
 replacement substitution; a raw union filtered only by LiveVersion would count
 replaced committed predecessors twice.
 
+Explicit foreign targets negotiate optional analysis from owned metadata before
+resolving a mapping. Unsupported capability warns without sampling. Acquisition
+uses the table owner's exact-then-PUBLIC mapping, independently of the caller's
+MAINTAIN authority. Both callbacks and codec/grouping/ordering work run outside
+engine/replacement locks. The target is at least100, otherwise300 times the
+greatest enabled scalar statistics target. Actual bounded sample rows feed the
+shared collector; separate provider population/pages and literal sample size
+publish on the same canonical RelationMetadata, never a synthetic heap.
+Final catalog, owner/handler/mapping/type/permission/context fences precede the
+atomic selected-column/count/time/population publication. Empty samples retain
+compatible old distributions while updating genuine relation estimates.
+An explicit zero n_distinct option retains the collector's normal sample
+estimator, just like RESET; only a nonzero user option replaces that estimate.
+Literal sample counts and MCV frequencies remain unchanged by every override.
+
+
 Standalone column facts install per completed target; explicit transactions
 record immutable selected-attribute Journal deltas. Maintenance row estimates
 and actual analyze count/time update independently and survive rollback for

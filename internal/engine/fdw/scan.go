@@ -17,6 +17,16 @@ import (
 // mapping, and builds the scan request. A non-zero invoker replaces the
 // view's current user. It reads only the captured view and calls no wrapper.
 func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int, restricted settings.RestrictedRelationKinds) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
+	return relationRequest(view, invoker, relation, uses, true, restricted)
+}
+
+// AnalyzeRequest negotiates optional analysis without requiring a user mapping.
+// The successful sampler later receives ScanRequest under the owner's mapping.
+func AnalyzeRequest(view access.View, owner authorization.PrincipalRef, relation *catalog.Relation, restricted settings.RestrictedRelationKinds) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
+	return relationRequest(view, owner, relation, nil, false, restricted)
+}
+
+func relationRequest(view access.View, invoker authorization.PrincipalRef, relation *catalog.Relation, uses []int, mapped bool, restricted settings.RestrictedRelationKinds) (*catalog.ForeignProcedure, catalog.ForeignRequest, error) {
 	if invoker != (authorization.PrincipalRef{}) {
 		view.State.CurrentUser = invoker
 	}
@@ -32,17 +42,20 @@ func ScanRequest(view access.View, invoker authorization.PrincipalRef, relation 
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
-	mapping, err := MappingFor(view, server)
-	if err != nil {
-		return nil, catalog.ForeignRequest{}, err
-	}
 	role, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return nil, catalog.ForeignRequest{}, err
 	}
-	request := catalog.ForeignRequest{Schema: view.Catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	request := catalog.ForeignRequest{Schema: view.Catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options)}
 	request.ServerOID = uint32(server.Address().ObjectID)
-	request.MappingOID = uint32(mapping.Address().ObjectID)
+	if mapped {
+		mapping, err := MappingFor(view, server)
+		if err != nil {
+			return nil, catalog.ForeignRequest{}, err
+		}
+		request.MappingOID = uint32(mapping.Address().ObjectID)
+		request.MappingOptions = slices.Clone(mapping.Options)
+	}
 	request.HandlerOID = uint32(wrapper.Handler.ObjectID)
 	for i, column := range relation.Columns {
 		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})

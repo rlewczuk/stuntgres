@@ -34,6 +34,8 @@ type fdwSQLReader struct {
 	importDefinitionHook                                                                      func(context.Context, *stuntgres.ForeignTableDefinition) error
 	queryPushdown                                                                             bool
 	queryRequestHook                                                                          func(stuntgres.ForeignQueryRequest)
+	queryIncompatible                                                                         bool
+	advanced                                                                                  *fdwAdvancedState
 }
 
 func newFDWSQLReader(t *testing.T) *fdwSQLReader {
@@ -232,6 +234,13 @@ func (r *fdwSQLReader) GetForeignPaths(ctx context.Context, request stuntgres.Fo
 	if err := r.call(ctx, "GetForeignPaths"); err != nil {
 		return nil, err
 	}
+	if r.advanced != nil {
+		return []stuntgres.ForeignPath{
+			{TotalCost: size.Rows + 100, Attributes: append([]int32{}, request.RequiredAttributes...), Private: fdwRemote(request) + " /* expensive first */"},
+			{TotalCost: size.Rows, Attributes: append([]int32{}, request.RequiredAttributes...), Private: fdwRemote(request) + " /* chosen second */"},
+			{TotalCost: size.Rows, Attributes: append([]int32{}, request.RequiredAttributes...), Private: fdwRemote(request) + " /* tied third */"},
+		}, nil
+	}
 	return []stuntgres.ForeignPath{{TotalCost: size.Rows, Attributes: append([]int32{}, request.RequiredAttributes...), Private: fdwRemote(request)}}, nil
 }
 func (r *fdwSQLReader) GetForeignPlan(ctx context.Context, request stuntgres.ForeignRequest, path stuntgres.ForeignPath) (stuntgres.ForeignPlan, error) {
@@ -241,6 +250,11 @@ func (r *fdwSQLReader) GetForeignPlan(ctx context.Context, request stuntgres.For
 	return stuntgres.ForeignPlan{Attributes: append([]int32{}, path.Attributes...), Private: path.Private}, nil
 }
 func (r *fdwSQLReader) BeginForeignScan(ctx context.Context, request stuntgres.ForeignRequest, plan stuntgres.ForeignPlan) (stuntgres.ForeignScan, error) {
+	if r.advanced != nil {
+		r.advanced.mu.Lock()
+		r.advanced.baseExecutions = append(r.advanced.baseExecutions, fdwExplainBaseExecution{request: request, plan: plan})
+		r.advanced.mu.Unlock()
+	}
 	pool, err := r.pool(request.MappingOptions)
 	if err != nil {
 		return nil, err

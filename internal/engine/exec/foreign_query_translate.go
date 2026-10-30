@@ -18,7 +18,8 @@ type foreignTranslation struct {
 
 type foreignTranslator struct {
 	ctx     context.Context
-	state   *State
+	input   ForeignPlanningInput
+	owner   any
 	sources []catalog.ForeignQuerySource
 	first   *ForeignQuerySource
 	err     error
@@ -29,7 +30,7 @@ func foreignReference(slot int, typ catalog.ForeignQuerySlot) catalog.ForeignQue
 }
 
 func (t *foreignTranslator) expression(e expr.Expr, width int) (catalog.ForeignQueryExpression, bool) {
-	value, ok, err := foreignExpression(t.ctx, t.state, e, width)
+	value, ok, err := foreignExpression(t.ctx, t.input, e, width)
 	if err != nil {
 		t.err = err
 	}
@@ -43,21 +44,23 @@ func (t *foreignTranslator) translate(root plan.Node) (foreignTranslation, bool,
 	var child plan.Node
 	switch n := root.(type) {
 	case *plan.SourceNode:
-		s := QuerySourceAt(t.state.Source, n.Occurrence)
-		if s == nil || s.Foreign == nil || s.RLS != nil || s.RlsDenied || s.Input != nil || s.Final != nil || s.NestedRoot != nil || s.Inheritance != nil || s.StoredRef.Address.ObjectID != 0 || s.Foreign.Request.Identity != nil || s.Foreign.lifetimeOwner == nil || len(s.Foreign.Columns) != out.width {
+		if t.input.Occurrence == nil { return out, false, nil }
+		occurrence := t.input.Occurrence(n.Occurrence)
+		f := occurrence.Source
+		if !occurrence.Eligible || occurrence.Owner == nil || f == nil || len(f.Columns) != out.width {
 			return out, false, nil
 		}
-		f := s.Foreign
 		if _, ok := f.Wrapper.(catalog.ForeignQueryScanProvider); !ok {
 			return out, false, nil
 		}
 		if t.first != nil {
 			a, b := t.first.Request, f.Request
-			if a.ServerOID != b.ServerOID || a.MappingOID != b.MappingOID || a.HandlerOID != b.HandlerOID || a.RoleOID != b.RoleOID || a.Role != b.Role || t.first.lifetimeOwner != f.lifetimeOwner {
+			if a.ServerOID != b.ServerOID || a.MappingOID != b.MappingOID || a.HandlerOID != b.HandlerOID || a.RoleOID != b.RoleOID || a.Role != b.Role || t.owner != occurrence.Owner {
 				return out, false, nil
 			}
 		} else {
 			t.first = f
+			t.owner = occurrence.Owner
 		}
 		out.stage.Kind = "source"
 		out.stage.Occurrence = n.Occurrence
@@ -361,11 +364,12 @@ func (t *foreignTranslator) translate(root plan.Node) (foreignTranslation, bool,
 		if !foreignBound(n.Offset) || !foreignBound(n.Count) {
 			return out, false, nil
 		}
-		offset, _, err := queryBoundValue(t.ctx, t.state, n.Offset, "OFFSET")
+		evaluation := Context{EvalStatement: EvalStatement{Context: t.ctx, Parameters: t.input.Parameters, Input: t.input.Input, Output: t.input.Output}}
+		offset, _, err := queryBoundEvaluation(t.ctx, &evaluation, n.Offset, "OFFSET")
 		if err != nil {
 			return out, false, err
 		}
-		count, finite, err := queryBoundValue(t.ctx, t.state, n.Count, "LIMIT")
+		count, finite, err := queryBoundEvaluation(t.ctx, &evaluation, n.Count, "LIMIT")
 		if err != nil {
 			return out, false, err
 		}

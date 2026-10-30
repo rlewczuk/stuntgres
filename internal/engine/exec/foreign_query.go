@@ -11,7 +11,7 @@ import (
 
 type foreignComposite struct {
 	request      catalog.ForeignQueryRequest
-	plan         catalog.ForeignQueryPlan
+	path         catalog.ForeignQueryPath
 	width, cache int
 }
 
@@ -85,48 +85,46 @@ func validateForeignQueryPath(request catalog.ForeignQueryRequest, path catalog.
 	return nil
 }
 
-func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Stage, bool, error) {
+// PlanForeignQuery discovers and selects a composite without runtime startup.
+func PlanForeignQuery(ctx context.Context, input ForeignPlanningInput, node plan.Node) (*ForeignQuerySelection, bool, error) {
 	switch node.(type) {
 	case *plan.JoinNode, *plan.AggregateNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
 	default:
-		return Stage{}, false, nil
+		return nil, false, nil
 	}
-	if state.Source == nil || state.Invocation != nil || state.Outer != nil || state.IdentityReads || state.Locking || state.Source.Locks.RowMarked() || state.inherited.Mode != 0 || state.ScanRange || state.aggregatePartials != nil || state.asyncFrontier != nil {
-		return Stage{}, false, nil
+	if input.Excluded {
+		return nil, false, nil
 	}
-	t := foreignTranslator{ctx: ctx, state: state}
+	t := foreignTranslator{ctx: ctx, input: input}
 	translated, ok, err := t.translate(node)
 	if t.err != nil {
-		return Stage{}, false, t.err
+		return nil, false, t.err
 	}
 	if err != nil || !ok || t.first == nil {
-		return Stage{}, false, err
+		return nil, false, err
 	}
 	request := catalog.ForeignQueryRequest{Stage: translated.stage, Sources: t.sources}
-	if host := state.Source.LiveHost(); host != nil {
-		host.ReleaseReplacementRead()
-	}
 	var paths []catalog.ForeignQueryPath
 	if request.Stage.Kind == "join" {
 		provider, ok := t.first.Wrapper.(catalog.ForeignJoinPathProvider)
 		if !ok {
-			return Stage{}, false, nil
+			return nil, false, nil
 		}
 		paths, err = provider.GetForeignJoinPaths(ctx, CopyForeignQueryRequest(request))
 	} else {
 		provider, ok := t.first.Wrapper.(catalog.ForeignUpperPathProvider)
 		if !ok {
-			return Stage{}, false, nil
+			return nil, false, nil
 		}
 		paths, err = provider.GetForeignUpperPaths(ctx, CopyForeignQueryRequest(request))
 	}
 	if err != nil {
-		return Stage{}, false, ForeignCallbackError(err)
+		return nil, false, ForeignCallbackError(err)
 	}
 	selected := -1
 	for i, path := range paths {
 		if err := validateForeignQueryPath(request, path); err != nil {
-			return Stage{}, false, err
+			return nil, false, err
 		}
 		c := path.Compatibility
 		if !c.Expressions || !c.Collations || !c.StatementVisibility {
@@ -137,13 +135,34 @@ func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Sta
 		}
 	}
 	if selected < 0 {
+		return nil, false, nil
+	}
+	chosen := paths[selected]
+	chosen.Plan.Slots = slices.Clone(chosen.Plan.Slots)
+	return &ForeignQuerySelection{Request: request, Path: chosen, Source: t.first, Columns: slices.Clone(translated.columns), Width: translated.width, Cache: translated.cache}, true, nil
+}
+
+func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Stage, bool, error) {
+	switch node.(type) {
+	case *plan.JoinNode, *plan.AggregateNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
+	default:
 		return Stage{}, false, nil
 	}
-	chosen := paths[selected].Plan
-	chosen.Slots = slices.Clone(chosen.Slots)
-	f := &ForeignQuerySource{Wrapper: t.first.Wrapper, Request: CopyForeignRequest(t.first.Request), Columns: slices.Clone(translated.columns), ImportValue: t.first.ImportValue, ExportValue: t.first.ExportValue, Query: &foreignComposite{request: request, plan: chosen, width: translated.width, cache: translated.cache}}
-	t.first.lifetimeOwner.Add(f)
-	source := &Source{Foreign: f, Materialized: true, FlatWidth: translated.width, Anonymous: [][]sqltype.Value{}, Authority: state.Source.Authority, Host: state.Source.Host}
+	input := foreignPlanningInput(state)
+	if !input.Excluded {
+		if host := state.Source.LiveHost(); host != nil {
+			host.ReleaseReplacementRead()
+		}
+	}
+	selected, ok, err := PlanForeignQuery(ctx, input, node)
+	if err != nil || !ok {
+		return Stage{}, ok, err
+	}
+	first := selected.Source
+	request := selected.Request
+	f := &ForeignQuerySource{Wrapper: first.Wrapper, Request: CopyForeignRequest(first.Request), Columns: selected.Columns, ImportValue: first.ImportValue, ExportValue: first.ExportValue, Query: &foreignComposite{request: request, path: selected.Path, width: selected.Width, cache: selected.Cache}}
+	first.lifetimeOwner.Add(f)
+	source := &Source{Foreign: f, Materialized: true, FlatWidth: selected.Width, Anonymous: [][]sqltype.Value{}, Authority: state.Source.Authority, Host: state.Source.Host}
 	for _, slot := range request.Stage.Slots {
 		if slot.Presence > len(source.PresenceSlots) {
 			source.PresenceSlots = append(source.PresenceSlots, make([]int, slot.Presence-len(source.PresenceSlots))...)

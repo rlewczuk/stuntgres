@@ -27,7 +27,7 @@ func foreignComparable(e expr.Expr) bool {
 	return u.Type != nil && (u.Type.ID() != sqltype.Text || u.Collation.ID == 950 && u.Collation.Valid())
 }
 
-func foreignExpression(ctx context.Context, state *State, e expr.Expr, width int) (out catalog.ForeignQueryExpression, eligible bool, failure error) {
+func foreignExpression(ctx context.Context, input ForeignPlanningInput, e expr.Expr, width int) (out catalog.ForeignQueryExpression, eligible bool, failure error) {
 	var childError error
 	defer func() {
 		if childError != nil {
@@ -49,7 +49,7 @@ func foreignExpression(ctx context.Context, state *State, e expr.Expr, width int
 	out.Type = typ
 	out.Position = e.SourcePosition().Character
 	child := func(value expr.Expr) bool {
-		v, valid, err := foreignExpression(ctx, state, value, width)
+		v, valid, err := foreignExpression(ctx, input, value, width)
 		if err != nil || !valid {
 			childError = err
 			return false
@@ -59,12 +59,12 @@ func foreignExpression(ctx context.Context, state *State, e expr.Expr, width int
 	}
 	switch n := e.(type) {
 	case plan.ColumnExpr:
-		if n.Virtual != nil || n.Scope != 1 || n.Frame != state.Frame || n.Slot < 0 || n.Slot >= width || n.MergeSource {
+		if n.Virtual != nil || n.Scope != 1 || n.Frame != input.Frame || n.Slot < 0 || n.Slot >= width || n.MergeSource {
 			return out, false, nil
 		}
 		out.Kind, out.Slot = "slot", n.Slot
 	case plan.GroupExpr:
-		if n.Frame != state.Frame || n.Slot < 0 || n.Slot >= width {
+		if n.Frame != input.Frame || n.Slot < 0 || n.Slot >= width {
 			return out, false, nil
 		}
 		out.Kind, out.Slot = "slot", n.Slot
@@ -74,7 +74,7 @@ func foreignExpression(ctx context.Context, state *State, e expr.Expr, width int
 		}
 		out.Kind, out.Slot = "slot", width+n.Slot
 	case plan.LiteralExpr:
-		cell, err := firstForeignExporter(state)(ctx, n.Value, state.Output)
+		cell, err := input.ExportValue(ctx, n.Value, input.Output)
 		if err != nil {
 			return out, false, err
 		}

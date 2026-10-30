@@ -44,13 +44,36 @@ func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNo
 		}
 		r.viewActive[relation.Address()] = true
 		frames, occurrences, priorAuth, leaves := r.frames, r.occurrences, r.auth, r.leaves
+		priorInherited := r.inheritedMark
+		priorForeign := r.foreign
+		priorOwners := r.foreignOwners
+		r.foreignOwners = nil
+		// A stored producer resets all three flags. An ordinary derived query
+		// preserves Outer/Invocation but recomputes identity demand.
+		r.foreign = explainForeignContext{}
+		inherited := exec.MergeQueryRowMark(r.inheritedMark, leaf.Mark)
+		r.inheritedMark = plan.RowMark{}
 		r.frames, r.occurrences, r.auth = maps.Clone(frames), maps.Clone(occurrences), auth
 		r.leaves = make([]exec.Leaf, len(definition.Sources()))
 		for i, leaf := range definition.Sources() {
-			r.leaves[i] = exec.Leaf{Ref: leaf.Ref, Only: leaf.Only}
+			r.leaves[i] = exec.Leaf{Ref: leaf.Ref, Only: leaf.Only, Mark: stored.ViewLeafRowMark(definition, i, inherited)}
+			if relation, ok := auth.Catalog.Relation(leaf.Ref.Address); ok {
+				r.leaves[i].Relation = relation
+				r.leaves[i].Uses = make([]int, 0, len(leaf.Reads))
+				for _, attribute := range leaf.Reads {
+					slot := relation.IndexForAttribute(attribute)
+					if slot < 0 {
+						return fmt.Errorf("stuntgres: invalid stored EXPLAIN attribute")
+					}
+					r.leaves[i].Uses = append(r.leaves[i].Uses, slot)
+				}
+			}
 		}
 		child, err := r.query(definition.Query())
 		r.frames, r.occurrences, r.auth, r.leaves = frames, occurrences, priorAuth, leaves
+		r.inheritedMark = priorInherited
+		r.foreign = priorForeign
+		r.foreignOwners = priorOwners
 		delete(r.viewActive, relation.Address())
 		if err != nil {
 			return err

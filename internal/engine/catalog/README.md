@@ -23,6 +23,16 @@ neither owns catalog authority.
   collation and statement-visibility semantics; optional absence means decline,
   not SQL rejection. Execution, authority admission, codecs and handle ownership
   remain with exec/core rather than these records.
+  Optional explain interfaces receive owned actual selected plans and plain TEXT
+  options, not runtime state.
+  Composite scan explanation carries the entire selected query request/path in
+  `ForeignExplainQueryPlan`; its base estimate/path/plan fields are unused.
+  Required attributes, mark and identity reflect planning's effective complete
+  tuple, never runtime locking or a synthetic joined relation.
+  Optional analysis first negotiates from metadata with owner identity and no
+  mapping; its sampler receives full owner mapping authority.
+  ForeignSample owns actual required-attribute rows and separate live/dead/page
+  estimates. No callback, private plan or sample is persistent catalog data.
 
 - **Descriptors.** `Descriptor` is the identity contract (`Address`, `Revision`,
   `Namespace`, `Name`, `Kind`) of every kind (namespaces, relations, types,

@@ -69,12 +69,17 @@ and never the engine.
   local/inherited flavor, plus successful scan cardinality/count/time facts.
   `CollectStatistics` consumes caller-owned visible/layout-mapped borrowed rows
   outside engine locks. Actual grouping/hash/ordering bind once per column.
-  Population, NULLs, supported non-NULL distinct and MCV counts are exact
-  full-data facts. Unknown distinct is not measured zero.
+  NULLs, supported non-NULL distinct and MCV counts describe actual collector
+  input: full visible heap rows or genuine foreign sample rows. ForeignAnalyze
+  separately owns sample size and estimated live/dead/page population, never
+  fake heap maintenance. Unknown distinct is not measured zero.
   `DistinctOverride` is a separate signed estimate: it never changes measured
   distinct/NULL/MCV counts or histogram construction. Zero retains ordinary
   measured encoding; negative estimates require current source-population
   authority from the planner caller.
+  SamplePopulation enables singleton-sensitive sampled-distinct estimation from
+  the collector's existing groups without changing literal counts. NULL/MCV
+  frequencies always use sample Rows; empty samples replace no distributions.
   Each StatisticsColumn carries the admitted target (1..10000): at most target repeated MCV groups and
   target+1 weighted residual quantile endpoints are retained. Target1 still
   collects statistics. Deterministic membership/ties and residual summaries are
@@ -275,6 +280,8 @@ recipes live in external `enginetests/`, avoiding a storage→plan→storage tes
 variant import cycle. Pure collector and snapshot-codec units remain local.
 MCV collection, full marginals, typed collision chains and immutable construction
 facts use `make check RUN='^TestStatisticsMCVCollection$'`.
+Sample-versus-population scalar counts, singleton estimation and empty/canceled
+collection mechanics use `RUN='^TestForeignAnalyze'`.
 
 Package units pin the allocators, `IndexRootsCurrent`, index identity and
 truncate lineage. Engine witnesses cover storage-map publication

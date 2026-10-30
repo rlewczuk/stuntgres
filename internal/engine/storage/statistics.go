@@ -25,8 +25,9 @@ type StatisticsHierarchy struct {
 	Session   ids.SessionToken // Captured TEMP-namespace visibility authority.
 }
 
-// ColumnStatistics is immutable after collection. Counts are exact full-data
-// facts; bounded MCV membership and histogram ranks are distribution summaries.
+// ColumnStatistics is immutable after collection. Counts describe actual input
+// rows: all visible rows for heaps, genuine acquired sample rows for foreign
+// tables. Bounded MCV/histogram values summarize that input, never fake rows.
 // DistinctKnown distinguishes unavailable equality from measured zero.
 type ColumnStatistics struct {
 	Usage                          sqltype.Usage

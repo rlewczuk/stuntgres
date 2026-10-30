@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
@@ -94,4 +96,13 @@ func ScopePendingForeignConstructions(s *StatementScope) int {
 
 func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
 	return t.scope != nil || t.expected != nil || t.foreign != nil || t.columns != nil
+}
+
+// ExplainBoundForTest renders the actual retained binding under the ordinary
+// renderer. Enter and leave with Mu held, as at the production command boundary.
+func ExplainBoundForTest(scope *StatementScope, auth AuthorizationView, statement parser.Statement, binding analyze.Binding) ([]string, error) {
+	r, err := newExplainRenderer(scope, auth, explainOptions{verbose: true})
+	if err != nil { return nil, err }
+	_, r.exportValue, _ = scope.Engine().Foreign.Codecs()
+	return r.command(statement, explainBound{Binding: binding})
 }

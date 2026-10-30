@@ -189,6 +189,18 @@ typmods; naming is captured only on failure and is never retained in result tupl
   restart; source rows and packed presence remain append-only with stable
   occurrence identities. Correlated/repeated invocation shapes requiring a
   different parameterized plan are declined before composite discovery.
+  `ForeignQuerySource.Plan` is shared with plain EXPLAIN: validate genuine size,
+  every path and final layout, choose the first minimum TotalCost, and retain
+  owned Size/Path/Plan/Slots. Returned layouts and subsequent callback arguments
+  have separate backing; immutable opaque Private values remain provider-owned.
+  This planning entry never begins a scan or enlists a transaction.
+  `PlanForeignQuery` shares detached eligibility, typed translation, all-path
+  validation and first compatible minimum selection with EXPLAIN. Its input
+  contains occurrence authority and codec metadata, not live rows. Execution
+  alone installs the retained complete selected path into a scan owner and opens
+  it. `PlanForeignRowMark` similarly owns mark/identity/full-tuple metadata,
+  including COPY and REFERENCE siblings in a marked graph, without transaction
+  characteristics, enlistment, refetch or recheck.
 - **Private row owners** (`nested_query_rows.go`, `cte_owned_rows.go`,
   `fts_rewrite_rules.go`). `OpenNestedQueryRows` is the all-row producer that
   PL/pgSQL static query loops, bounded static SELECT capture, `ts_rewrite` and

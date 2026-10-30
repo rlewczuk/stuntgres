@@ -38,6 +38,8 @@ type ForeignExecution struct {
 	active, ended bool
 	Scan          catalog.ForeignScan
 	Plan          catalog.ForeignPlan
+	Size          catalog.ForeignRelSize
+	Path          catalog.ForeignPath
 	Slots         []int
 	planned       bool
 	closeError    error
@@ -117,8 +119,8 @@ func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 
 func (f *ForeignQuerySource) Plan(ctx context.Context, request catalog.ForeignRequest, execution *ForeignExecution) error {
 	if f.Query != nil {
-		execution.Plan.Attributes = make([]int32, len(f.Query.plan.Slots))
-		execution.Slots = make([]int, len(f.Query.plan.Slots))
+		execution.Plan.Attributes = make([]int32, len(f.Query.path.Plan.Slots))
+		execution.Slots = make([]int, len(f.Query.path.Plan.Slots))
 		for i := range execution.Slots {
 			execution.Slots[i] = i
 			execution.Plan.Attributes[i] = int32(i)
@@ -152,16 +154,23 @@ func (f *ForeignQuerySource) Plan(ctx context.Context, request catalog.ForeignRe
 			selected = i
 		}
 	}
+	// Own the selected layout before another callback can reuse provider memory.
+	path := paths[selected]
+	path.Attributes = slices.Clone(path.Attributes)
 	if execution.asyncProbe {
 		if provider, ok := f.Wrapper.(catalog.ForeignAsyncScanProvider); ok {
-			capable, err := provider.IsForeignPathAsyncCapable(ctx, CopyForeignRequest(request), paths[selected])
+			probe := path
+			probe.Attributes = slices.Clone(path.Attributes)
+			capable, err := provider.IsForeignPathAsyncCapable(ctx, CopyForeignRequest(request), probe)
 			if err != nil {
 				return ForeignCallbackError(err)
 			}
 			execution.async.capable = capable
 		}
 	}
-	plan, err := f.Wrapper.GetForeignPlan(ctx, CopyForeignRequest(request), paths[selected])
+	plannedPath := path
+	plannedPath.Attributes = slices.Clone(path.Attributes)
+	plan, err := f.Wrapper.GetForeignPlan(ctx, CopyForeignRequest(request), plannedPath)
 	if err != nil {
 		return ForeignCallbackError(err)
 	}
@@ -170,6 +179,8 @@ func (f *ForeignQuerySource) Plan(ctx context.Context, request catalog.ForeignRe
 	}
 	plan.Attributes = slices.Clone(plan.Attributes)
 	execution.Plan = plan
+	execution.Size = size
+	execution.Path = path
 	execution.planned = true
 	execution.Slots = make([]int, len(plan.Attributes))
 	for i, attribute := range plan.Attributes {
@@ -225,6 +236,8 @@ func (execution *ForeignExecution) end(ctx context.Context) error {
 		execution.Scan = nil
 	}
 	execution.Plan = catalog.ForeignPlan{}
+	execution.Path = catalog.ForeignPath{}
+	execution.Size = catalog.ForeignRelSize{}
 	execution.Slots = nil
 	execution.owner = nil
 	execution.async = foreignAsyncState{}
@@ -289,9 +302,12 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 				}
 			}
 			execution.rowMark = mark
-			if err := f.selectRowMark(ctx, &request, mark); err != nil {
+			characteristics := request.Characteristics
+			request, err = PlanForeignRowMark(ctx, f.Wrapper, request, mark)
+			if err != nil {
 				return err
 			}
+			request.Characteristics = characteristics
 		}
 		if !execution.planned {
 			planning := CopyForeignRequest(request)
@@ -339,7 +355,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			var scan catalog.ForeignScan
 			var err error
 			if f.Query != nil {
-				scan, err = f.Wrapper.(catalog.ForeignQueryScanProvider).BeginForeignQueryScan(ctx, f.Query.executionRequest(request), catalog.ForeignQueryPlan{Slots: slices.Clone(f.Query.plan.Slots), Private: f.Query.plan.Private})
+				scan, err = f.Wrapper.(catalog.ForeignQueryScanProvider).BeginForeignQueryScan(ctx, f.Query.executionRequest(request), catalog.ForeignQueryPlan{Slots: slices.Clone(f.Query.path.Plan.Slots), Private: f.Query.path.Plan.Private})
 			} else {
 				scan, err = f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
 			}
@@ -383,10 +399,10 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			}
 			for i, value := range values {
 				column := f.Columns[i]
-				if f.Query.plan.Slots[i].Unused && !value.IsNull() {
+				if f.Query.path.Plan.Slots[i].Unused && !value.IsNull() {
 					return nil, fmt.Errorf("stuntgres: foreign query returned a value for an unused padding slot")
 				}
-				if value.IsNull() && column.NullabilityKnown && !column.Nullable && !f.Query.plan.Slots[i].Unused {
+				if value.IsNull() && column.NullabilityKnown && !column.Nullable && !f.Query.path.Plan.Slots[i].Unused {
 					return nil, fmt.Errorf("stuntgres: foreign query returned NULL for a nonnullable output slot")
 				}
 			}
@@ -394,7 +410,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			for range source.PresenceCount {
 				source.presenceFlat = append(source.presenceFlat, false)
 			}
-			for i, slot := range f.Query.plan.Slots {
+			for i, slot := range f.Query.path.Plan.Slots {
 				if slot.Presence == 0 {
 					continue
 				}

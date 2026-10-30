@@ -34,6 +34,9 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 		}
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
 		estimate := plannerSourceRows(r.statisticsStorage(physical.Address()))
+		if metadata := r.statisticsMetadata(physical.Address()); metadata != nil && metadata.ForeignAnalyze != nil {
+			estimate = metadata.ForeignAnalyze.TotalRows
+		}
 		rows = min(plan.ExplainEstimateLimit, rows+estimate)
 		return nil
 	}
@@ -119,6 +122,9 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 		if facts != nil {
 			if fact := facts.Columns[storage.StatisticsKey{Attribute: attribute, Inherited: inherited}]; fact != nil {
 				population := plannerSourceRows(r.statisticsStorage(address))
+				if metadata != nil && metadata.ForeignAnalyze != nil {
+					population = metadata.ForeignAnalyze.TotalRows
+				}
 				if inherited && metadata != nil && metadata.InheritedScanned {
 					population = min(plan.ExplainEstimateLimit, float64(metadata.InheritedTuples))
 				}

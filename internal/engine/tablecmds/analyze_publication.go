@@ -5,7 +5,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -50,23 +49,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		return nil
 	}
 	if relation.Foreign != nil {
-		server, ok := auth.Catalog.Foreign(relation.Foreign.Server)
-		if !ok {
-			e.Mu.Unlock()
-			return ids.ErrCatalogReplaced
-		}
-		wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
-		if !ok {
-			e.Mu.Unlock()
-			return ids.ErrCatalogReplaced
-		}
-		_, err := fdw.HandlerFor(auth.Catalog, wrapper, auth.RestrictedRelations())
-		e.Mu.Unlock()
-		if err != nil {
-			return err
-		}
-		analyzeWarning(s, "01000", fmt.Sprintf(`skipping "%s" --- cannot analyze this foreign table`, relation.Name()))
-		return nil
+		return analyzeForeign(e, s, target, options, auth, relation)
 	}
 	if relation.Foreign != nil || !table.VacuumHeap(relation) && relation.Partition == nil {
 		e.Mu.Unlock()
