@@ -26,9 +26,9 @@ func (e *Engine) initializeInitialPrivileges() error {
 	// initdb snapshots privileges before setup_schema creates information_schema.
 	// Its later explicit current grants are not bootstrap historical records.
 	informationSchema, _ := state.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "information_schema"})
-	for address, descriptor := range state.Descriptors() {
-		if address == informationSchema || descriptor.Namespace() == informationSchema {
-			continue
+	visit := func(address ids.ObjectAddress, descriptor catalog.Descriptor) {
+		if descriptor == nil || address == informationSchema || descriptor.Namespace() == informationSchema {
+			return
 		}
 		switch d := descriptor.(type) {
 		case *catalog.Namespace:
@@ -40,7 +40,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			}
 		case *catalog.Relation:
 			if d.RelationKind != catalog.CatalogRelation {
-				continue
+				return
 			}
 			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: d.Owner}, Privileges: authorization.TableGrantPrivileges},
@@ -67,6 +67,22 @@ func (e *Engine) initializeInitialPrivileges() error {
 				}
 			}
 		}
+	}
+	// The seed's privilege-bearing objects are its namespaces, the restricted
+	// routines and its catalog relations; visit only those.
+	for address := range catalog.BuiltinNamespaces() {
+		visit(address, state.Get(address))
+	}
+	for oid := range routine.GenericFileRoutines() {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+		visit(address, state.Get(address))
+	}
+	for _, oid := range [...]ids.OID{5052, 4100} {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+		visit(address, state.Get(address))
+	}
+	for address, relation := range state.Relations() {
+		visit(address, relation)
 	}
 	state.SetInitialPrivileges(records)
 	if err := catalog.ValidateInitialPrivileges(roles, e.Catalog.Current()); err != nil {

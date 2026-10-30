@@ -34,3 +34,25 @@ func TestBuiltinSeedDefinitionOIDs(t *testing.T) {
 		t.Fatal("seed allocated no definition OIDs")
 	}
 }
+
+// Initial privileges visit the builtin namespaces instead of every seeded
+// descriptor. That is complete only while the seed installs exactly those.
+func TestBuiltinSeedNamespaces(t *testing.T) {
+	view := engine.New().CatalogRead()
+	want := make(map[ids.ObjectAddress]bool)
+	for address := range catalog.BuiltinNamespaces() {
+		want[address] = true
+	}
+	for address, d := range view.Descriptors() {
+		if _, ok := d.(*catalog.Namespace); !ok {
+			continue
+		}
+		if !want[address] {
+			t.Errorf("seeded namespace %v is not a catalog.BuiltinNamespaces entry", address)
+		}
+		delete(want, address)
+	}
+	for address := range want {
+		t.Errorf("builtin namespace %v is not seeded", address)
+	}
+}

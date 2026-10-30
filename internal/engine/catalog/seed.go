@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"iter"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -16,13 +18,28 @@ func installSeedDescriptor(state *State, d Descriptor) {
 	state.bindSeedName(d)
 }
 
+// builtinNamespaces are the namespaces the builtin seed installs.
+var builtinNamespaces = [...]struct {
+	oid  ids.OID
+	name string
+}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}}
+
+// BuiltinNamespaces iterates the addresses of the namespaces
+// InstallBuiltinNamespaces installs, the only namespaces of a builtin seed.
+func BuiltinNamespaces() iter.Seq[ids.ObjectAddress] {
+	return func(yield func(ids.ObjectAddress) bool) {
+		for _, ns := range builtinNamespaces {
+			if !yield(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}) {
+				return
+			}
+		}
+	}
+}
+
 // InstallBuiltinNamespaces installs pg_catalog, pg_toast, public and
 // information_schema. publicOwner owns public; owner owns the rest.
 func InstallBuiltinNamespaces(state *State, owner, publicOwner authorization.PrincipalRef) {
-	for _, ns := range []struct {
-		oid  ids.OID
-		name string
-	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
+	for _, ns := range builtinNamespaces {
 		owner := owner
 		if ns.oid == ids.PublicNamespaceOID {
 			owner = publicOwner

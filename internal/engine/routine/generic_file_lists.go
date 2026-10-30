@@ -1,21 +1,31 @@
 package routine
 
 import (
+	"iter"
+	"slices"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-// GenericFileRoutine identifies restricted file access and logfile inquiries
-// whose raw NULL ACL must survive Dump/Restore instead of bootstrap reseeding.
-func GenericFileRoutine(oid ids.OID) bool {
-	switch oid {
-	case 2625, 3297, 3353, 3354, 6271, 6270, 6272, 6400, 5031,
-		3826, 6208, 2624, 3293, 3828, 6209, 3827, 3295, 2623, 3307, 5029, 5030, 3800, 3801:
-		return true
-	}
-	return false
+// genericFileRoutines lists, in OID order, the restricted file access and
+// logfile inquiries whose raw NULL ACL must survive Dump/Restore instead of
+// bootstrap reseeding.
+var genericFileRoutines = [...]ids.OID{
+	2623, 2624, 2625, 3293, 3295, 3297, 3307, 3353, 3354, 3800, 3801, 3826,
+	3827, 3828, 5029, 5030, 5031, 6208, 6209, 6270, 6271, 6272, 6400,
 }
+
+// GenericFileRoutine identifies a routine of GenericFileRoutines.
+func GenericFileRoutine(oid ids.OID) bool {
+	_, found := slices.BinarySearch(genericFileRoutines[:], oid)
+	return found
+}
+
+// GenericFileRoutines iterates the OIDs of the restricted file access and
+// logfile inquiry routines.
+func GenericFileRoutines() iter.Seq[ids.OID] { return slices.Values(genericFileRoutines[:]) }
 
 // SeedGenericFileACLs modifies only fresh, engine-owned builtin descriptors.
 // Grants remain ordinary mutable procedure ACLs after installation.
