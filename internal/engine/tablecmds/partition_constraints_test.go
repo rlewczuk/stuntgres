@@ -416,8 +416,10 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
+	auth, err := core.OperationAuthorization(op)
+	if err != nil { t.Fatal(err) }
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -631,8 +633,10 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
+	auth, err := core.OperationAuthorization(op)
+	if err != nil { t.Fatal(err) }
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -2317,6 +2317,9 @@ environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
 
+TEMP tablespace preparation, admission and composed-creation units use
+`RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.
+
 Publication descriptor/filter/membership/capture ownership units use
 `make check RUN='^TestPublication'`; public SQL scenarios remain in `reference/`.
 

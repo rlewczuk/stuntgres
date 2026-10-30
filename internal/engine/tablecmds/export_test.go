@@ -13,8 +13,10 @@ var (
 	AlterInheritanceLocked            = alterInheritanceLocked
 	BindCreateDefaults                = bindCreateDefaults
 	BindCreateGenerations             = bindCreateGenerations
-	BindIndexExpression               = bindIndexExpression
-	BindIndexPredicate                = bindIndexPredicate
+	TransformIndexExpression          = transformIndexExpression
+	CompleteIndexExpression           = completeIndexExpression
+	TransformIndexPredicate           = transformIndexPredicate
+	CompleteIndexPredicate            = completeIndexPredicate
 	DropDiscoveryInput                = dropDiscoveryInput
 	ForeignKeysOrZero                 = foreignKeysOrZero
 	HoldsColumnDropGrant              = holdsColumnDropGrant

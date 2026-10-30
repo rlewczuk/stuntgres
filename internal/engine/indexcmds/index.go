@@ -91,7 +91,7 @@ func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 				return failStage(err)
 			}
 		}
-		err = index.StageCreate(h, parent, d, s.Only)
+		err = index.StageCreate(h, auth, parent, d, s.Only)
 		if err == nil && parent.Partition != nil {
 			stage.Indexes().Progress.PartitionTree(h.StageRead(), h.StageBase(), d.Address())
 		}

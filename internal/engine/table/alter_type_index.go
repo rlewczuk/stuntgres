@@ -124,14 +124,23 @@ func RebindAlterTypeIndexes(h AlterHost, auth ddl.Authority, parent *catalog.Rel
 			return err
 		}
 		if pending.Predicate {
-			predicate, err := h.BindIndexPredicate(auth, parent, syntax[0].(*parser.CreateIndex).Predicate, h.Input())
+			transformed, err := h.TransformIndexPredicate(auth, parent, syntax[0].(*parser.CreateIndex).Predicate, h.Input())
+			if err != nil {
+				return err
+			}
+			predicate, err := h.CompleteIndexPredicate(auth, parent, transformed)
 			if err != nil {
 				return err
 			}
 			definition.Predicate = predicate
 		}
 		for _, slot := range pending.Keys {
-			derived, _, err := h.BindIndexExpression(auth, parent, syntax[0].(*parser.CreateIndex).Keys[slot].Expression, nil, h.Input())
+			raw := syntax[0].(*parser.CreateIndex).Keys[slot].Expression
+			transformed, err := h.TransformIndexExpression(auth, parent, raw, nil, h.Input())
+			if err != nil {
+				return err
+			}
+			derived, _, err := h.CompleteIndexExpression(auth, parent, raw, transformed)
 			if err != nil {
 				return err
 			}

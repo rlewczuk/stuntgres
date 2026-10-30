@@ -77,6 +77,7 @@ type TransactionOwner struct {
 	Catalog             *Journal
 	Savepoints          []SavepointMark
 	AccessedTemporary   bool
+	TempTablespaces     TempTablespaceSelector
 	RetainedMessage     bool           // Admission spans a direct multi-command message.
 	ProtocolCycle       *ProtocolCycle // Retention only; never owns admission.
 	IdentityEntry       authorization.RoleState

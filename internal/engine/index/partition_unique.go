@@ -340,7 +340,7 @@ func PartitionIndexDeclarationOrder(view catalog.Read, table *catalog.Relation) 
 // StagePartitionIndexChild attaches or creates the index of partition child
 // that corresponds to parentIndex of table, with its backing constraint, and
 // recurses into a partitioned child.
-func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relation, allowIncompleteVirtual bool) (*catalog.Relation, error) {
+func StagePartitionIndexChild(h Host, auth ddl.Authority, table, parentIndex, child *catalog.Relation, allowIncompleteVirtual bool) (*catalog.Relation, error) {
 	view := h.StageRead()
 	ctx := regobj.ACLItemOutputContext(h.Context(), h.ACLOutput(view))
 	if h.StageBase().Get(parentIndex.Address()) != nil {
@@ -434,7 +434,7 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 	}
 	// Reusing an equivalent child above performs no creation. Only synthesis
 	// consults the current default; PostgreSQL skips CREATE ACL checks here.
-	if err := ddl.CheckClonedIndexTablespaceCreation(view, h.DefaultTablespace(), child.Persistence, child.Partition != nil); err != nil {
+	if err := h.CheckClonedIndexTablespaceCreation(auth, view, child.Persistence, child.Partition != nil); err != nil {
 		return nil, err
 	}
 	labels := make([]string, len(parentIndex.Columns))
@@ -517,7 +517,7 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 		return nil, err
 	}
 	if child.Partition != nil {
-		if err = StagePartitionIndexChildren(h, child, idx, allowIncompleteVirtual); err != nil {
+		if err = StagePartitionIndexChildren(h, auth, child, idx, allowIncompleteVirtual); err != nil {
 			return nil, err
 		}
 	}
@@ -526,13 +526,13 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 
 // StagePartitionIndexChildren stages the child indexes of idx on every
 // partition of table, then records whether idx covers them all.
-func StagePartitionIndexChildren(h Host, table, idx *catalog.Relation, allowIncompleteVirtual bool) error {
+func StagePartitionIndexChildren(h Host, auth ddl.Authority, table, idx *catalog.Relation, allowIncompleteVirtual bool) error {
 	if original, ok := h.StageBase().Relation(table.Address()); ok {
 		h.AddDomainBase(original)
 	}
 	for _, address := range table.Partition.Children {
 		child := h.StageRead().MustRelation(address)
-		if _, err := StagePartitionIndexChild(h, table, idx, child, allowIncompleteVirtual); err != nil {
+		if _, err := StagePartitionIndexChild(h, auth, table, idx, child, allowIncompleteVirtual); err != nil {
 			return err
 		}
 	}

@@ -89,7 +89,7 @@ func StageCreateCompositeLocked(h StageHost, auth ddl.Authority, s *parser.Creat
 		h.AddDomainBase(view.Catalog.Get(ref.Address))
 		columns[i] = catalog.Column{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
-	if err := ddl.CheckDefaultTablespaceCreation(view, auth, h.DefaultTablespace(), "", false); err != nil {
+	if err := h.CheckCreationTablespace(auth, "", false); err != nil {
 		return err
 	}
 	relation, err := h.NewCompositeRelation(ns.Address, name, view.State.CurrentUser, columns, index)

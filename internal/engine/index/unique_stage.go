@@ -17,8 +17,8 @@ import (
 //
 // The caller records each declaration's LIKE source first.
 func StageUniqueDefinitions(h Host, auth ddl.Authority, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
-	if len(declarations) != 0 {
-		if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), d.Persistence, d.Partition != nil); err != nil {
+	if len(declarations) != 0 && d.Persistence != "temporary" {
+		if err := h.CheckCreationTablespace(auth, d.Persistence, d.Partition != nil); err != nil {
 			return err
 		}
 	}
@@ -70,6 +70,11 @@ func StageUniqueDefinitions(h Host, auth ddl.Authority, d *catalog.Relation, dec
 	used[d.Name()] = true
 	indices := make([]*catalog.Relation, 0, len(declarations))
 	for i := start; i < len(d.Constraints.Unique); i++ {
+		if d.Persistence == "temporary" {
+			if err := h.CheckCreationTablespace(auth, d.Persistence, d.Partition != nil); err != nil {
+				return err
+			}
+		}
 		c := &d.Constraints.Unique[i]
 		if c.Name == d.Name() {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))

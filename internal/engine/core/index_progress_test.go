@@ -163,7 +163,7 @@ func indexProgressStage(t *testing.T, e *core.Engine, worker *session.Session, c
 		host := tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 		created, err := index.PrepareCreate(host, auth, parent, syntax, scope.Input, nil)
 		if err == nil {
-			err = index.StageCreate(host, parent, created.Relation, syntax.Only)
+			err = index.StageCreate(host, auth, parent, created.Relation, syntax.Only)
 		}
 		if err != nil {
 			t.Fatal(err)

@@ -18,7 +18,7 @@ import (
 // the stage's catalog and the host's index binder; EXCLUDE introduces no
 // alternate type, expression, predicate or method provider.
 func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
-	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), parent.Persistence, parent.Partition != nil); err != nil {
+	if err := h.CheckCreationTablespace(auth, parent.Persistence, parent.Partition != nil); err != nil {
 		return err
 	}
 	s := raw.Index
@@ -43,11 +43,15 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	}
 	auth = h.Recapture(auth, h.StageRead())
 	view := h.AccessView(auth).Catalog
-	predicate, err := h.BindIndexPredicate(auth, parent, s.Predicate, input)
+	transformed, err := h.TransformIndexPredicate(auth, parent, s.Predicate, input)
 	if err != nil {
 		return err
 	}
-	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, &s, method)
+	predicate, err := h.CompleteIndexPredicate(auth, parent, transformed)
+	if err != nil {
+		return err
+	}
+	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, &s, method, nil)
 	if err != nil {
 		return err
 	}
@@ -190,7 +194,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 			definition.Valid = len(parent.Partition.Children) == 0
 			return nil
 		}
-		return DefaultClassDiagnostic(h, auth, StagePartitionIndexChildren(h, parent, backing, true))
+		return DefaultClassDiagnostic(h, auth, StagePartitionIndexChildren(h, auth, parent, backing, true))
 	}
 	return nil
 }

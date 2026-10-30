@@ -16,23 +16,31 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Caller holds engine.mu and supplies final parent/catalog authority.
-func bindIndexPredicate(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
+// transformIndexPredicate performs the early WHERE transformation, before
+// expression keys and before TEMP destination consumption.
+func transformIndexPredicate(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr) (index.ExpressionTransform, error) {
 	if raw == nil {
-		return nil, nil
+		return index.ExpressionTransform{}, nil
 	}
 	binder := e.IndexExpressionBinder(op, input, auth, parent)
 	binder.Consumer.IndexPredicateConsumer = true
 	definition, err := binder.BindBoolean(raw, analyze.FilterContext, "WHERE")
 	if err != nil {
+		return index.ExpressionTransform{}, err
+	}
+	return index.ExpressionTransform{Definition: definition, Input: binder.Input, Dependencies: binder.Dependencies, Uses: binder.Query.Sources[0].Uses}, nil
+}
+
+func completeIndexPredicate(op *session.Operation, auth core.AuthorizationView, parent *catalog.Relation, transformed index.ExpressionTransform) (*catalog.IndexPredicate, error) {
+	definition := transformed.Definition
+	if definition == nil {
+		return nil, nil
+	}
+	if err := index.RejectVirtualUses(parent, transformed.Uses); err != nil {
 		return nil, err
 	}
-	if err := index.RejectVirtualUses(parent, binder.Query.Sources[0].Uses); err != nil {
-		return nil, err
-	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
-	evaluation.RoutineRecipe = true
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: transformed.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, transformed.Dependencies
 	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, err

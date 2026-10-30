@@ -15,23 +15,27 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Caller holds engine.mu and supplies the same final catalog/parent authority
-// used by the enclosing CREATE or TYPE owner.
-// Ordering admission belongs to the caller's final selected class/collation,
-// not an expression-only default comparator.
-func bindIndexExpression(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
+// transformIndexExpression performs only method-independent parse analysis.
+// Caller holds Engine.Mu and retains the result within this CREATE operation.
+func transformIndexExpression(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (index.ExpressionTransform, error) {
 	binder := e.IndexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
 	definition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
+		return index.ExpressionTransform{}, err
+	}
+	return index.ExpressionTransform{Definition: definition, Input: binder.Input, Dependencies: binder.Dependencies, Uses: binder.Query.Sources[0].Uses}, nil
+}
+
+// completeIndexExpression admits the physical expression after destination and
+// method selection. Ordering belongs to the caller's selected class/collation.
+func completeIndexExpression(op *session.Operation, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, transformed index.ExpressionTransform) (*catalog.DerivedIndexKey, string, error) {
+	definition := transformed.Definition
+	if err := index.RejectVirtualUses(parent, transformed.Uses); err != nil {
 		return nil, "", err
 	}
-	if err := index.RejectVirtualUses(parent, binder.Query.Sources[0].Uses); err != nil {
-		return nil, "", err
-	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.Dependencies
-	evaluation.RoutineRecipe = true
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: transformed.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, transformed.Dependencies
 	execution, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, "", err

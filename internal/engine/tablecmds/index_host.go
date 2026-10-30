@@ -43,10 +43,18 @@ func (h TableHost) ValidityTarget() index.ValidityTarget {
 	return core.StageDropProvider(context.Background(), h.CatalogStage, nil, nil, nil)
 }
 
-func (h TableHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
-	return bindIndexExpression(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw, literals)
+func (h TableHost) TransformIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (index.ExpressionTransform, error) {
+	return transformIndexExpression(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw, literals)
 }
 
-func (h TableHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
-	return bindIndexPredicate(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw)
+func (h TableHost) CompleteIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, transformed index.ExpressionTransform) (*catalog.DerivedIndexKey, string, error) {
+	return completeIndexExpression(h.Op, core.DDLAuthorityOf(a), parent, raw, transformed)
+}
+
+func (h TableHost) TransformIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (index.ExpressionTransform, error) {
+	return transformIndexPredicate(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw)
+}
+
+func (h TableHost) CompleteIndexPredicate(a ddl.Authority, parent *catalog.Relation, transformed index.ExpressionTransform) (*catalog.IndexPredicate, error) {
+	return completeIndexPredicate(h.Op, core.DDLAuthorityOf(a), parent, transformed)
 }

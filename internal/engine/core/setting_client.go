@@ -55,22 +55,7 @@ func checkClientSettingAuthority(auth AuthorizationView, d settings.Definition, 
 			}
 		}
 	case "temp_tablespaces":
-		names, err := settings.ParseIdentifierList(d.Name, v.Text)
-		if err != nil {
-			return err
-		}
-		for _, name := range names {
-			if name == "" {
-				continue
-			}
-			ref, err := ddl.TablespaceRef(auth.View, name)
-			if err != nil {
-				return err
-			}
-			if err := ddl.CheckAlterTablespaceCreate(auth.View, auth, ref); err != nil {
-				return err
-			}
-		}
+		return ddl.ValidateTempTablespaces(auth.View, auth, v.Text)
 	case "default_text_search_config":
 		name, err := parser.ParseRegclassName(v.Text)
 		if err != nil {

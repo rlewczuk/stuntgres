@@ -11,7 +11,7 @@ import (
 
 // StageCreateSerials stages the owned sequence of every serial column and
 // gives the column its nextval DEFAULT.
-func StageCreateSerials(h Host, relation *catalog.Relation, declarations []analyze.ColumnDeclaration) error {
+func StageCreateSerials(h Host, auth ddl.Authority, relation *catalog.Relation, declarations []analyze.ColumnDeclaration) error {
 	for slot, declaration := range declarations {
 		if !declaration.Serial {
 			continue
@@ -24,6 +24,9 @@ func StageCreateSerials(h Host, relation *catalog.Relation, declarations []analy
 		options.Persistence = EffectivePersistence(read, relation)
 		if read.MustNamespace(relation.Namespace()).Temporary != (ids.SessionToken{}) {
 			options.Persistence = "temporary"
+		}
+		if err := h.CheckCreationTablespace(auth, options.Persistence, false); err != nil {
+			return err
 		}
 		name := ownedSequenceName(relation.Name(), relation.Columns[slot].Name, func(name string) bool {
 			return name == relation.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: relation.Namespace(), Name: name})) != 0

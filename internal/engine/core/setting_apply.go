@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -61,11 +62,13 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 			}
 			return "", err
 		}
-		if err := checkClientSetting(op, d, &v); err != nil {
-			if parseNotice != nil {
-				op.EmitNotice(session.LevelNotice, *parseNotice)
+		if d.Name != "temp_tablespaces" {
+			if err := checkClientSetting(op, d, &v); err != nil {
+				if parseNotice != nil {
+					op.EmitNotice(session.LevelNotice, *parseNotice)
+				}
+				return "", err
 			}
-			return "", err
 		}
 		value, notice = &v, parseNotice
 		if d.Normalize != nil {
@@ -78,6 +81,18 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	var tempAssignment *session.TempTablespaceAssignment
+	if d.Name == "temp_tablespaces" && value != nil {
+		auth, err := e.AuthorizationLocked(op)
+		if err != nil {
+			return "", err
+		}
+		spaces, err := ddl.PrepareTempTablespaces(auth.View, auth, value.Text, true)
+		if err != nil {
+			return "", err
+		}
+		tempAssignment = session.NewTempTablespaceAssignment(op.Session.Transactions.Ref, spaces)
+	}
 	var clientPolicy sqltype.ClientEncodingPolicy
 	if d.Name == "client_encoding" && value != nil {
 		clientPolicy, err = e.prepareClientEncodingLocked(op, value.ClientEncoding)
@@ -111,6 +126,9 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	defer op.Session.Mu.Unlock()
 	result, err := owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, action)
 	if err == nil {
+		if d.Name == "temp_tablespaces" {
+			owner.AcceptTempTablespacesLocked(tempAssignment)
+		}
 		if d.Name == "client_encoding" && value != nil {
 			owner.AcceptClientEncodingLocked(clientPolicy)
 		}

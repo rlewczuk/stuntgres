@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -362,10 +363,10 @@ func AttachDescriptors(parent, child *catalog.Relation, bound *catalog.Partition
 // through the stage after each one. CREATE allows incomplete virtual
 // children; ATTACH does not, and then runs the partitioned-index validity
 // pass. It runs with Engine.mu held and never waits.
-func StageIndexChildren(h index.Host, parent *catalog.Relation, child ids.ObjectAddress, attach bool) error {
+func StageIndexChildren(h index.Host, auth ddl.Authority, parent *catalog.Relation, child ids.ObjectAddress, attach bool) error {
 	for _, idx := range index.PartitionIndexDeclarationOrder(h.StageBase(), parent) {
 		current := h.StageRead().MustRelation(child)
-		if _, err := index.StagePartitionIndexChild(h, parent, idx, current, !attach); err != nil {
+		if _, err := index.StagePartitionIndexChild(h, auth, parent, idx, current, !attach); err != nil {
 			return err
 		}
 	}

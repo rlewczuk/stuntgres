@@ -62,8 +62,9 @@ type Host interface {
 
 	Context() context.Context
 	EmitNotice(session.NoticeLevel, sqlstate.Error)
-	// DefaultTablespace is captured at admission and refreshed on routine entry.
-	DefaultTablespace() string
+	// Creation policy consumes admitted settings and already-coherent authority.
+	CheckCreationTablespace(Authority, string, bool) error
+	CheckClonedIndexTablespaceCreation(Authority, catalog.Read, string, bool) error
 
 	// AccessView returns the catalog, roles, state and owner of auth.
 	AccessView(Authority) access.View

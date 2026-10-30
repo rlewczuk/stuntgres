@@ -47,7 +47,7 @@ func executePartitionUniqueReplayLocked(e *core.Engine, scope *core.StatementSco
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
 	}
 	e.Mu.Lock()
-	err = stagePartitionIndexChildren(e, op, stage, next, idx, true)
+	err = stagePartitionIndexChildren(e, op, stage, auth, next, idx, true)
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)

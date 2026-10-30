@@ -187,8 +187,10 @@ func partitionExclusionAdoptionIneligible(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			auth, err := core.OperationAuthorization(op)
+			if err != nil { t.Fatal(err) }
 			e.Mu.Lock()
-			fresh, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, before.MustRelation(parent.SQLIndex.Parent), parent, table, true)
+			fresh, err := index.StagePartitionIndexChild(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, before.MustRelation(parent.SQLIndex.Parent), parent, table, true)
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

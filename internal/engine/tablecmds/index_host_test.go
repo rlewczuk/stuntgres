@@ -3,6 +3,7 @@ package tablecmds_test
 import (
 	"context"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
@@ -47,11 +48,19 @@ func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
 	predicate := raw[0].(*parser.CreateIndex).Predicate
 	f.e.Mu.Lock()
 	defer f.e.Mu.Unlock()
-	want, err := tablecmds.BindIndexPredicate(f.e, h.Op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
+	wantTransform, err := tablecmds.TransformIndexPredicate(f.e, h.Op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := h.BindIndexPredicate(auth, f.parent, predicate, sqltype.InputEnvironment{})
+	want, err := tablecmds.CompleteIndexPredicate(h.Op, auth, f.parent, wantTransform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotTransform, err := h.TransformIndexPredicate(auth, f.parent, predicate, sqltype.InputEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.CompleteIndexPredicate(auth, f.parent, gotTransform)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,3 +143,32 @@ func ddlHostName(parts ...string) parser.ObjectName {
 func operatorFamilyTestRead() catalog.Read { return operatorFamilyUnitSeed() }
 
 var operatorFamilyUnitSeed = sync.OnceValue(func() catalog.Read { return engine.New().CatalogRead() })
+
+func TestIndexHostTransformCompletionOwnsAnalysis(t *testing.T) {
+	h, auth, f := indexHostFixture(t)
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
+	raw := parser.ColumnExpr{Name: ddlHostName("k")}
+	transformed, err := h.TransformIndexExpression(auth, f.parent, raw, nil, sqltype.InputEnvironment{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	slot := f.parent.Index["k"]
+	column, ok := transformed.Definition.(plan.ColumnExpr)
+	if !ok || column.Slot != slot || !slices.Contains(transformed.Uses, slot) {
+		t.Fatal("transformation lost its actual column identity/use", transformed.Definition, transformed.Uses)
+	}
+	uses := slices.Clone(transformed.Uses)
+	// Completion consumes analyzed facts, not a second binder over source.
+	// A now-invalid raw name may affect the label, never the bound column.
+	raw.Name = ddlHostName("missing_after_transform")
+	key, label, err := h.CompleteIndexExpression(auth, f.parent, raw, transformed)
+	if err != nil {
+		t.Fatal("completion rebound the changed source", err)
+	}
+	if key == nil || label != "missing_after_transform" || !reflect.DeepEqual(key.Definition, transformed.Definition) ||
+		key.Execution.ResultUsage().Type.ID() != f.parent.Columns[slot].Usage.Type.ID() ||
+		!slices.Equal(transformed.Uses, uses) {
+		t.Fatal("completion lost/mutated retained definition, type or column-use facts")
+	}
+}

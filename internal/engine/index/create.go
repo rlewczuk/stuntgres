@@ -23,11 +23,10 @@ type CreatePlan struct {
 	Skip      bool
 }
 
-// PrepareCreate makes the CREATE INDEX decisions on parent in PostgreSQL's
-// order: Restore authority, column limit, relation kind, CREATE privilege,
-// method, clauses, predicate and attributes, name, operator class options,
-// unique providers, partition coverage, then the new identities. A
-// CONCURRENTLY index starts neither ready nor valid.
+// PrepareCreate keeps parse transformation separate from physical-definition
+// admission. TEMP predicate/key transformation precedes destination consumption;
+// destination checks precede method lookup, physical clauses and provider work.
+// Permanent creation retains its existing admission order.
 func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *parser.CreateIndex, input sqltype.InputEnvironment, reservedNames []ids.NameKey) (CreatePlan, error) {
 	trusted, err := h.TrustedRestoreDestination(auth, "index")
 	if err != nil {
@@ -49,6 +48,29 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return CreatePlan{}, err
 	}
+	var predicateTransform ExpressionTransform
+	var keyTransforms []ExpressionTransform
+	if parent.Persistence == "temporary" {
+		predicateTransform, err = h.TransformIndexPredicate(auth, parent, s.Predicate, input)
+		if err != nil {
+			return CreatePlan{}, err
+		}
+		for i, raw := range s.Keys {
+			if raw.Expression == nil {
+				continue
+			}
+			if keyTransforms == nil {
+				keyTransforms = make([]ExpressionTransform, len(s.Keys))
+			}
+			keyTransforms[i], err = h.TransformIndexExpression(auth, parent, raw.Expression, nil, input)
+			if err != nil {
+				return CreatePlan{}, err
+			}
+		}
+		if err := h.CheckCreationTablespace(auth, parent.Persistence, parent.Partition != nil); err != nil {
+			return CreatePlan{}, err
+		}
+	}
 	method, err := ResolveIndexMethod(h.AccessView(auth).Catalog, s)
 	if err != nil {
 		return CreatePlan{}, err
@@ -62,11 +84,17 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 			return CreatePlan{}, err
 		}
 	}
-	predicate, err := h.BindIndexPredicate(auth, parent, s.Predicate, input)
+	if parent.Persistence != "temporary" {
+		predicateTransform, err = h.TransformIndexPredicate(auth, parent, s.Predicate, input)
+		if err != nil {
+			return CreatePlan{}, err
+		}
+	}
+	predicate, err := h.CompleteIndexPredicate(auth, parent, predicateTransform)
 	if err != nil {
 		return CreatePlan{}, err
 	}
-	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, s, method)
+	definition, columns, attributes, lookup, err := bindAttributes(h, auth, input, parent, s, method, keyTransforms)
 	if err != nil {
 		return CreatePlan{}, err
 	}
@@ -97,8 +125,10 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 		}
 		return CreatePlan{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
-	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), parent.Persistence, parent.Partition != nil); err != nil {
-		return CreatePlan{}, err
+	if parent.Persistence != "temporary" {
+		if err := h.CheckCreationTablespace(auth, parent.Persistence, parent.Partition != nil); err != nil {
+			return CreatePlan{}, err
+		}
 	}
 	// The released provider-options phase follows catalog name admission.
 	for i, raw := range s.Keys {
@@ -154,7 +184,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 // StageCreate stages a prepared index on parent. On a partitioned parent,
 // ONLY leaves it valid only without partitions; otherwise every partition
 // gets an attached child
-func StageCreate(h Host, parent, idx *catalog.Relation, only bool) error {
+func StageCreate(h Host, auth ddl.Authority, parent, idx *catalog.Relation, only bool) error {
 	if err := ddl.CreateCommand(h.Stage(), "CREATE INDEX", idx); err != nil {
 		return err
 	}
@@ -166,5 +196,5 @@ func StageCreate(h Host, parent, idx *catalog.Relation, only bool) error {
 		idx.SQLIndex.Valid = len(parent.Partition.Children) == 0
 		return nil
 	}
-	return StagePartitionIndexChildren(h, parent, idx, true)
+	return StagePartitionIndexChildren(h, auth, parent, idx, true)
 }

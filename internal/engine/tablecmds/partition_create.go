@@ -113,5 +113,5 @@ func (p *PendingPartitionDefinition) finish(scope *core.StatementScope) error {
 	e := scope.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return partition.StageIndexChildren(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: p.Stage}}, p.Parent, p.Child.Address(), false)
+	return partition.StageIndexChildren(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: p.Stage}}, p.Auth, p.Parent, p.Child.Address(), false)
 }

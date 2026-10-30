@@ -115,7 +115,7 @@ func snapshotProgressScope(t *testing.T, e *core.Engine, builder *session.Sessio
 		if err := e.VisibilityWriteLocked(scope.TxRef); err != nil {
 			t.Fatal(err)
 		}
-		if err := index.StageCreate(host, parent, created.Relation, syntax.Only); err != nil {
+		if err := index.StageCreate(host, auth, parent, created.Relation, syntax.Only); err != nil {
 			t.Fatal(err)
 		}
 	}()

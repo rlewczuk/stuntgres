@@ -12,7 +12,7 @@ it never stages catalog, data or physical statistics changes.
 It sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
 above `session` (it names `session.NoticeLevel`), below the feature packages.
-It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
+It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings`,
 `session`, `sqlstate`, `sqltype` and the standard library, and never
 `analyze`, a feature package or the engine.
 
@@ -37,6 +37,12 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   the creation ACL, drop targets, notices and the statement context.
   `Host.RecordDependencyPath` records the path and returns its error; DROP
   SCHEMA stops on it, the other handlers ignore it.
+  Creation tablespace policy consumes admitted operation settings and supplied
+  coherent authority; the host owns TEMP transaction/list selection. Synthesis
+  carries the same authority through partition-index staging, preserving the
+  permanent clone's separate no-CREATE-check path. `PrepareTempTablespaces`
+  shares provider resolution between interactive validation and retained filtering;
+  destination checking consumes only the selected member, never the whole list.
 - **Helpers**: `Check(h, auth, req)` pairs a view with its own authority as
   the environment, `ObjectRef(h, auth, a)` stamps a reference with the view's
   catalog epoch, and `Notice(h, code, message)` emits a NOTICE.

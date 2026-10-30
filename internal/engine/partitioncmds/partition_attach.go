@@ -189,7 +189,7 @@ func AttachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
-	err = partition.StageIndexChildren(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child.Address(), true)
+	err = partition.StageIndexChildren(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, parent, child.Address(), true)
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

@@ -137,7 +137,7 @@ func StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView, old *cat
 		if temporary {
 			persistence = "temporary"
 		}
-		if err := ddl.CheckDefaultTablespaceCreation(catalogAccess, auth, h.DefaultTablespace(), persistence, false); err != nil {
+		if err := h.CheckCreationTablespace(auth, persistence, false); err != nil {
 			return err
 		}
 		available, err := h.DisplaceAssociatedArray(ns.Address, name)

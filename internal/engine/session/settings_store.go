@@ -36,6 +36,7 @@ type SettingsStore struct {
 	temporaryBufferOwner *SettingsStore
 	clientEncoding       clientEncodingState
 	clientEncodingOwner  *SettingsStore
+	TempTablespaces      *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -65,6 +66,7 @@ type settingOverride struct {
 	Present bool
 	Text    string
 	Typed   settings.Value
+	TempTablespaces *TempTablespaceAssignment
 }
 type settingAction struct {
 	original  settingOverride
@@ -142,7 +144,11 @@ func (s *SettingsStore) RestoreIdentityLocked(target authorization.RoleState) {
 
 func (s *SettingsStore) override(name string) settingOverride {
 	text, present := s.Values[name]
-	return settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
+	v := settingOverride{Present: present, Text: text, Typed: s.Typed[name]}
+	if name == "temp_tablespaces" {
+		v.TempTablespaces = s.TempTablespaces
+	}
+	return v
 }
 func (s *SettingsStore) Restore(name string, v settingOverride) {
 	beforeRole := ""
@@ -158,6 +164,9 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 	}
 	if name == "session_replication_role" {
 		s.RuleRoleChanged(beforeRole)
+	}
+	if name == "temp_tablespaces" {
+		s.restoreTempTablespaces(v.TempTablespaces)
 	}
 }
 
@@ -208,7 +217,7 @@ func (s *SettingsStore) Touch(name string, action SettingAction) {
 		a.kind = settingSessionLocal
 		a.candidate = s.override(name)
 		if !a.candidate.Present {
-			a.candidate = settingOverride{Present: true, Text: s.Value(name), Typed: s.TypedValue(name)}
+			a.candidate.Present, a.candidate.Text, a.candidate.Typed = true, s.Value(name), s.TypedValue(name)
 		}
 	}
 	s.Actions[name] = a

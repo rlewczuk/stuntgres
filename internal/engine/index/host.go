@@ -67,12 +67,12 @@ type Host interface {
 	// validity pass.
 	ValidityTarget() ValidityTarget
 
-	// BindIndexExpression binds, preflights and renders one index key
-	// expression of parent, and returns its column label.
-	BindIndexExpression(auth ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error)
-	// BindIndexPredicate binds, preflights and renders a partial index
-	// predicate of parent; nil when raw is nil or the constant TRUE.
-	BindIndexPredicate(auth ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error)
+	// Transform performs method-independent parse analysis. Complete performs
+	// late virtual-column, coercion, volatility and stored-rendering checks.
+	TransformIndexExpression(auth ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (ExpressionTransform, error)
+	CompleteIndexExpression(auth ddl.Authority, parent *catalog.Relation, raw parser.Expr, transformed ExpressionTransform) (*catalog.DerivedIndexKey, string, error)
+	TransformIndexPredicate(auth ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (ExpressionTransform, error)
+	CompleteIndexPredicate(auth ddl.Authority, parent *catalog.Relation, transformed ExpressionTransform) (*catalog.IndexPredicate, error)
 }
 
 // DropStage is what DROP INDEX staging needs. It runs without Engine.mu;

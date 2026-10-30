@@ -81,7 +81,7 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 // StageIdentitySequence stages an identity sequence with already resolved
 // persistence: its OID, revision, creation ACL and initial generator.
 func StageIdentitySequence(h Host, auth ddl.Authority, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
-	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), options.Persistence, false); err != nil {
+	if err := h.CheckCreationTablespace(auth, options.Persistence, false); err != nil {
 		return err
 	}
 	oid, err := h.AllocateOID()

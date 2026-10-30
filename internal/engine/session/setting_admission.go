@@ -39,6 +39,8 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.ConstraintExclusion = s.Settings.Value("constraint_exclusion")
 	op.TableAccessMethod = s.Settings.Value("default_table_access_method")
 	op.DefaultTablespace = s.Settings.Value("default_tablespace")
+	op.TempTablespaces = s.Settings.Value("temp_tablespaces")
+	op.TempTablespaceAssignment = s.Settings.TempTablespaces
 	op.CursorTupleFraction = s.Settings.TypedValue("cursor_tuple_fraction").Number
 	op.RecursiveWorktableFactor = s.Settings.TypedValue("recursive_worktable_factor").Number
 	op.AsyncAppend = s.Settings.TypedValue("enable_async_append").Boolean

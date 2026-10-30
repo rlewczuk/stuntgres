@@ -100,6 +100,9 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 		s.Touch(key, SettingSet)
 		delete(s.Values, key)
 		delete(s.Typed, key)
+		if key == "temp_tablespaces" {
+			s.AcceptTempTablespacesLocked(nil)
+		}
 		switch key {
 		case "transaction_timeout":
 			timeoutChanged, transactionAssignment = true, true

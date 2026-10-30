@@ -127,6 +127,8 @@ type Operation struct {
 	ConstraintExclusion      string
 	TableAccessMethod        string // Captured current default for execution-time DDL.
 	DefaultTablespace        string // Captured execution-time creation policy.
+	TempTablespaces          string
+	TempTablespaceAssignment *TempTablespaceAssignment
 	CursorTupleFraction      float64
 	RecursiveWorktableFactor float64
 	AsyncAppend              bool                // Immutable prior-setting snapshot at command admission.
@@ -189,6 +191,8 @@ func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
 		s.Settings.Mu.Lock()
 		op.TableAccessMethod = s.Settings.Value("default_table_access_method")
 		op.DefaultTablespace = s.Settings.Value("default_tablespace")
+		op.TempTablespaces = s.Settings.Value("temp_tablespaces")
+		op.TempTablespaceAssignment = s.Settings.TempTablespaces
 		s.Settings.Mu.Unlock()
 	}
 	return op, err

@@ -13,6 +13,10 @@ characteristics (SET TRANSACTION, isolation defaults) in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rules.
 
+Temporary tablespace policy uses `RUN='^TestReferenceTempTablespaces'` in both
+fixture modes, covering live creation effects, metadata, diagnostics, authority,
+transaction and routine lifetimes, list selection and the physical boundary.
+
 - Default tablespace effects: `make check RUN='^TestReferenceDefaultTablespace'`
   and `make check REFERENCE=1 RUN='^TestReferenceDefaultTablespace'` cover empty
   versus `pg_global` creation, full metadata/diagnostics, normal CREATE authority,

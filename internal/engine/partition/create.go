@@ -160,7 +160,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 		return nil, d
 	}
 	view := h.AccessView(auth)
-	if err := ddl.CheckDefaultTablespaceCreation(view, auth, h.DefaultTablespace(), syntax.Persistence, syntax.PartitionBy != nil); err != nil {
+	if err := h.CheckCreationTablespace(auth, syntax.Persistence, syntax.PartitionBy != nil); err != nil {
 		return nil, err
 	}
 	for _, column := range parent.Columns {

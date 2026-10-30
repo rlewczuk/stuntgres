@@ -585,7 +585,12 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	derived, _, err := tablecmds.BindIndexExpression(e, bindOp, sqltype.InputEnvironment{}, auth, parentInput, parser.ColumnExpr{Name: primaryKeyUnitName("a")}, nil)
+	rawExpression := parser.ColumnExpr{Name: primaryKeyUnitName("a")}
+	transformed, err := tablecmds.TransformIndexExpression(e, bindOp, sqltype.InputEnvironment{}, auth, parentInput, rawExpression, nil)
+	var derived *catalog.DerivedIndexKey
+	if err == nil {
+		derived, _, err = tablecmds.CompleteIndexExpression(bindOp, auth, parentInput, rawExpression, transformed)
+	}
 	e.Mu.Unlock()
 	bindOp.Done()
 	if err != nil {

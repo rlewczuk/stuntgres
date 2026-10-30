@@ -67,7 +67,13 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()
-	predicate, err := tablecmds.BindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, core.AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	bindingOp := &session.Operation{Ctx: ctx}
+	bindingAuth := core.AuthorizationView{View: access.View{Catalog: capture}}
+	transformed, err := tablecmds.TransformIndexPredicate(f.e, bindingOp, sqltype.InputEnvironment{}, bindingAuth, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	var predicate *catalog.IndexPredicate
+	if err == nil {
+		predicate, err = tablecmds.CompleteIndexPredicate(bindingOp, bindingAuth, f.parent, transformed)
+	}
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +121,13 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()
-	predicate, err := tablecmds.BindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, core.AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	bindingOp := &session.Operation{Ctx: ctx}
+	bindingAuth := core.AuthorizationView{View: access.View{Catalog: capture}}
+	transformed, err := tablecmds.TransformIndexPredicate(f.e, bindingOp, sqltype.InputEnvironment{}, bindingAuth, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	var predicate *catalog.IndexPredicate
+	if err == nil {
+		predicate, err = tablecmds.CompleteIndexPredicate(bindingOp, bindingAuth, f.parent, transformed)
+	}
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

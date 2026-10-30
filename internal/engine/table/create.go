@@ -155,7 +155,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	}
 	input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
 	view := h.AccessView(auth)
-	if err := ddl.CheckDefaultTablespaceCreation(view, auth, h.DefaultTablespace(), s.Persistence, kind == catalog.PartitionedRelation); err != nil {
+	if err := h.CheckCreationTablespace(auth, s.Persistence, kind == catalog.PartitionedRelation); err != nil {
 		return err
 	}
 	for _, column := range b.Create.Columns {
@@ -198,7 +198,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	if err := StageCreateIdentities(h, auth, d, s); err != nil {
 		return err
 	}
-	if err := StageCreateSerials(h, d, b.Create.Declarations); err != nil {
+	if err := StageCreateSerials(h, auth, d, b.Create.Declarations); err != nil {
 		return err
 	}
 	if err := StageLikeColumns(h, auth, d, b.Create.Likes); err != nil {

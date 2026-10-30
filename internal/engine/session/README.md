@@ -108,6 +108,16 @@ nontransactional.
   callers serialize owner inspection through admission or the owner mutex
   (`transaction_characteristics.go`). `SerializableWriteSurvives` tells rollback
   which serializable write evidence survives.
+  The same owner holds the TEMP tablespace selector: immutable builtin OIDs,
+  assignment identity, transaction identity and a circular cursor, serialized by
+  statement admission. Failed creation consumes a destination; unchanged savepoint
+  restoration does not rewind it. The settings journal retains only immutable
+  assignment tokens, with new identities for detached populated policies.
+  Untouched empty settings preserve their nil journal image; retained nonempty
+  text has an unprepared identity, never fabricated accepted OIDs. Changed
+  restoration invalidates the selector; the host lazily prepares retained values
+  once per transaction/assignment using current coherent authority. Clear/abort
+  retire the cursor without changing physical-session reset semantics.
   Stable isolation retains immutable tuple roots, the commit frontier, sequence
   catalog and public transaction snapshot as one acquisition on this owner.
   Supporting unique index roots retain only immutable descriptor/root pointers
@@ -509,6 +519,9 @@ wrappers, the root fence types and the fence check order, and the root slot
 types.
 
 ## Testing
+
+TEMP selector, immutable-assignment ownership and lifecycle units use
+`RUN='^TestTempTablespaces'` from the external `enginetests` package.
 
 New-operation workload activation/source-identity units use `RUN='^TestWorkAdmission'`.
 

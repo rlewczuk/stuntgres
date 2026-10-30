@@ -18,6 +18,7 @@ func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 		Session: source.Session, Invocation: true,
 		temporaryBufferOwner: source.temporaryBufferAuthority(),
 		clientEncodingOwner:  source.clientEncodingAuthority(),
+		TempTablespaces: cloneTempTablespaceAssignment(source.TempTablespaces, source.Value("temp_tablespaces")),
 		Defaults:             maps.Clone(source.Defaults), Values: maps.Clone(source.Values),
 		Typed: maps.Clone(source.Typed), DefaultTyped: maps.Clone(source.DefaultTyped),
 		Placeholders: maps.Clone(source.Placeholders), ProviderDefaults: maps.Clone(source.ProviderDefaults),

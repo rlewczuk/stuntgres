@@ -140,10 +140,21 @@ builds a binder.
 `Host` serves CREATE INDEX, ALTER/DROP INDEX, REINDEX and constraint-index
 staging for one statement: `ddl.Host` plus object removal, diagnostics, the
 stage and its index slot, `ACLOutput`, `DefinitionReader`, `ValidityTarget` and
-the binders `BindIndexExpression`/`BindIndexPredicate` (the engine builds
-binders; this package never does). `tablecmds.TableHost` (`index_host.go`)
+the `TransformIndexExpression`/`TransformIndexPredicate` and matching `Complete`
+methods (the engine builds binders; this package never does). `tablecmds.TableHost`
+(`index_host.go`)
 implements it. **Every method runs with `Engine.Mu` held, never takes or
-releases it, and never waits.** Narrower contracts:
+releases it, and never waits.**
+
+TEMP creation transforms its predicate, then expression keys, before consuming a
+tablespace destination. It selects/checks that destination before access-method
+lookup and physical-definition validation. `ExpressionTransform` holds analyzed
+definition, input, dependencies and column uses only for this operation; completion
+performs late virtual-use, coercion, volatility and rendering checks without
+rebinding. Only completed recipes enter descriptors. Permanent admission order
+and noncreation reconstruction semantics remain unchanged.
+
+Narrower contracts:
 
 - `KeyHost`: key binding and operator class lookup, no stage (the analysis host
   and partition key binding pass a stage-less core `DDLHost`).

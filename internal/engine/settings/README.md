@@ -387,8 +387,7 @@ defaults, overrides and transaction/savepoint restoration use the shared store.
 The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
-`session_preload_libraries`,
-`temp_tablespaces`, `xmlbinary` and `xmloption`.
+`session_preload_libraries`, `xmlbinary` and `xmloption`.
 `default_table_access_method` instead selects a genuine installed table-method
 identity for ordinary and query-derived creation and stored-relation ALTER
 DEFAULT. Explicit partition defaults override it; zero defaults use it only for
@@ -401,7 +400,7 @@ nondefault destinations before rejecting `pg_global`; setting the name itself
 requires no CREATE privilege. Newly synthesized partition indexes also consume
 the default, but their inherited `check_rights=false` policy skips the CREATE
 ACL check; attaching an equivalent existing index creates nothing and bypasses
-selection. Temporary relations use their existing `temp_tablespaces` path.
+selection.
 Empty or no-longer-resolvable captured provider defaults fall back to the
 database default; interactive assignment to a missing name still fails.
 `pg_default` is valid for ordinary creation but is rejected for partitioned
@@ -409,6 +408,17 @@ relations. The genuine builtin-only catalog supplies no filesystem placement:
 CREATE TABLESPACE physical locations and physical relocation remain explicitly
 unsupported, never successful no-ops. Session, LOCAL, savepoint and nested
 routine restoration reuse the shared settings store and admission refresh.
+`temp_tablespaces` uses the real builtin tablespace catalog for each new TEMP
+table, sequence, view or index, including owned sequences and constraint indexes.
+Interactive assignment validates every member and CREATE privilege before
+publication; first use in a later transaction filters retained missing or denied
+members without changing SHOW. Empty/default members select the database default;
+selecting `pg_global` rejects ordinary TEMP creation. The physical transaction
+owner keeps a random initial phase followed by circular list consumption, including
+failed creation. The shared setting journal restores immutable assignment identity,
+not cursor position; effective-store and routine refresh use admitted policy.
+No filesystem placement, custom-space directories/symlinks or sort/hash spill-file
+distribution is implemented by this logical selector.
 Text-search configuration names resolve
 actual configuration descriptors under current namespace authority; no language
 names succeed without their genuine providers. The setting does not select the

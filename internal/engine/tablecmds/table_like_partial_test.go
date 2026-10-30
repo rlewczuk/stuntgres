@@ -300,7 +300,11 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	var created *catalog.Relation
 	if err == nil {
 		var predicate *catalog.IndexPredicate
-		predicate, err = tablecmds.BindIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
+		transformed, transformErr := tablecmds.TransformIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
+		err = transformErr
+		if err == nil {
+			predicate, err = tablecmds.CompleteIndexPredicate(op, auth, source, transformed)
+		}
 		if err == nil {
 			definition, columns, attributes, lookup, bindErr := index.BindAttributes(tablecmds.TableHost{core.DDLHost{E: e, Op: op}}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr

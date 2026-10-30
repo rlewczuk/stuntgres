@@ -40,6 +40,7 @@ func (t *TransactionOwner) Clear() {
 	}
 	t.State = TxIdle
 	t.Ref = ids.TxRef{}
+	t.TempTablespaces = TempTablespaceSelector{}
 	t.Command = 0
 	t.Writes = nil
 	t.Deletes = nil
@@ -64,6 +65,7 @@ func (t *TransactionOwner) Abort() *lock.Ticket {
 	t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
 	t.Deferrable = t.EntryDeferrable
 	t.State = TxAborted
+	t.TempTablespaces = TempTablespaceSelector{}
 	t.Writes = nil
 	t.Deletes = nil
 	t.Roots = nil
