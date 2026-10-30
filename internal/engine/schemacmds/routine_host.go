@@ -107,11 +107,10 @@ func (h RoutineHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.O
 	return ids.OID(id), err
 }
 
-// BindSQLRoutine binds d's body with the stage's definitions in place of the
-// operation's. Private replay leaves quoted SQL names for reached invocation;
-// declaration parsing, checked bodies, defaults and PL keep their own checks.
-func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if core.OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
+// BindSQLRoutine uses the declaration's scoped validator policy. Private replay
+// and checked-PL leases retain their independent admission rules.
+func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment, validateBody bool) error {
+	if !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody && (!validateBody || core.OperationReplayOrZero(h.Op).SQLBodies) {
 		return nil
 	}
 	previous := h.Op.Definition
@@ -139,12 +138,12 @@ func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input
 			capture.Consumed = true
 			return nil
 		}
-		if language.Validator == (ids.ObjectAddress{}) {
+		if language.Validator == (ids.ObjectAddress{}) || !validateBody && !core.OperationReplayOrZero(h.Op).SQLBodies {
 			return nil
 		}
 		return h.E.CompilePLRoutineLocked(h.Op, auth, d)
 	}
-	_, _, err := BindSQLRoutineLocked(h.E, h.Op, auth, d, input, nil)
+	_, _, err := BindSQLRoutineLocked(h.E, h.Op, auth, d, input, validateBody)
 	return err
 }
 

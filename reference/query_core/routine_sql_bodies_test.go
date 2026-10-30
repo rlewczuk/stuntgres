@@ -3,7 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"reflect"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -173,11 +172,7 @@ func sqlBodiesDiagnostic(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, q
 			if stage != wantStage {
 				t.Errorf("diagnostic stage=%s want=%s query=%s", stage, wantStage, q)
 			}
-			native := want
-			if want.Code == "42702" && strings.HasPrefix(q, "CREATE FUNCTION body_ambiguous(") {
-				native.Position, native.Context = "8", "SQL function \"body_ambiguous\""
-			}
-			fixture.CheckDiagnostic(t, err, fixture.Step{Diagnostic: &native, PostgresDiagnostic: &want, ErrorStage: wantStage}, stage)
+			fixture.CheckDiagnostic(t, err, fixture.Step{Diagnostic: &want, ErrorStage: wantStage}, stage)
 		})
 	}
 }

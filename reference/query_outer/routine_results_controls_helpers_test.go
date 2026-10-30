@@ -37,17 +37,22 @@ func resultsNativeReplayRound(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	return dump.Bytes()
 }
 
-// Quoted output shape is invocation semantics, not persistent declaration
-// structure. Native controls use an isolated destination so failed invocations
-// cannot replace the persistence scenario's incumbent catalog.
-func resultsDeferredOutputReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name string, procedure bool) {
+// Deferred output validation belongs to invocation for quoted and standard SQL;
+// standard declarations still retain genuine frozen actions. Native controls use
+// an isolated destination, leaving the persistence scenario's incumbent intact.
+func resultsDeferredOutputReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, name string, procedure, standard bool) {
 	t.Helper()
 	kind, command, query := "f", "FUNCTION", "SELECT * FROM "+name+"()"
 	if procedure {
 		kind, command, query = "p", "PROCEDURE", "CALL "+name+"(NULL,NULL)"
 	}
-	declaration := command + " " + name + "(OUT a integer,OUT b integer) LANGUAGE SQL AS 'SELECT 1'"
+	source, body := "SELECT 1", "AS 'SELECT 1'"
+	if standard {
+		source, body = "", "BEGIN ATOMIC SELECT 1; END"
+	}
+	declaration := command + " " + name + "(OUT a integer,OUT b integer) LANGUAGE SQL " + body
 	stream := "SET check_function_bodies = false; CREATE " + declaration + ";"
+	var replayTarget *sql.DB
 	if b.PG {
 		resultsExec(t, p, b, c, "SET check_function_bodies=false")
 		defer c.ExecContext(p.Ctx, "SET check_function_bodies=true")
@@ -61,6 +66,7 @@ func resultsDeferredOutputReplay(t *testing.T, p *fixture.Pair, b fixture.Backen
 		}
 		raw := sql.OpenDB(connector)
 		defer raw.Close()
+		replayTarget = raw
 		recorded, recorder := fixture.RecordedNativePool(t, connector)
 		if err := stuntgres.Restore(p.Ctx, raw, strings.NewReader(stream)); err != nil {
 			t.Fatal("quoted output declaration replay", err)
@@ -72,11 +78,22 @@ func resultsDeferredOutputReplay(t *testing.T, p *fixture.Pair, b fixture.Backen
 		defer c.Close()
 		b = fixture.Backend{Recorder: recorder}
 	}
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select(
-		"SELECT prosrc,prokind::text AS kind,proargnames::text AS names,proargmodes::text AS modes,proallargtypes::text AS types,pronargs::integer AS inputs,prorettype=2249 AS record FROM pg_proc WHERE oid='"+name+"()'::regprocedure",
-		[]string{"prosrc", "kind", "names", "modes", "types", "inputs", "record"},
-		[]string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "INT4", "BOOL"},
-		[][]any{{"SELECT 1", kind, "{a,b}", "{o,o}", "{23,23}", int64(0), true}}))
+	facts := fixture.Select(
+		"SELECT prosrc,prokind::text AS kind,proargnames::text AS names,proargmodes::text AS modes,proallargtypes::text AS types,pronargs::integer AS inputs,prorettype=2249 AS record,prosqlbody IS NOT NULL AS standard FROM pg_proc WHERE oid='"+name+"()'::regprocedure",
+		[]string{"prosrc", "kind", "names", "modes", "types", "inputs", "record", "standard"},
+		[]string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "INT4", "BOOL", "BOOL"},
+		[][]any{{source, kind, "{a,b}", "{o,o}", "{23,23}", int64(0), true, standard}})
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, facts)
+	if replayTarget != nil {
+		var dump bytes.Buffer
+		if err := stuntgres.Dump(p.Ctx, replayTarget, &dump); err != nil {
+			t.Fatal(err)
+		}
+		if err := stuntgres.Restore(p.Ctx, replayTarget, bytes.NewReader(dump.Bytes())); err != nil {
+			t.Fatal("deferred output roundtrip", err)
+		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, facts)
+	}
 	want := fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return record")
 	want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "`+name+`" statement 1`
 	s := fixture.ErrorDiagnostic(query, want)

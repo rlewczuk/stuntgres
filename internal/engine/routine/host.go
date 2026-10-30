@@ -30,12 +30,13 @@ type DDLHost interface {
 	// it. It may suspend the ordered command, release all publication locks for
 	// Normalize, then reacquire Engine.Mu and readmit its exact live authority.
 	ValidateRoutineSetting(auth ddl.Authority, clause *parser.Set) (name string, value string, remove bool, err error)
-	// ValidateRoutineConfiguration admits CREATE/REPLACE validator SAVE actions
-	// without installing settings. ALTER does not invoke a language validator.
-	ValidateRoutineConfiguration(d *catalog.Procedure) error
-	// BindSQLRoutine binds d's body against the stage. It returns nil during
-	// Restore SQL body replay.
-	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error
+	// ValidateRoutineConfiguration preflights validator SAVE actions using the
+	// entry setting, then returns the derived body policy without installing
+	// configuration. ALTER does not invoke a language validator.
+	ValidateRoutineConfiguration(d *catalog.Procedure) (validateBody bool, err error)
+	// BindSQLRoutine always analyzes/freezes standard bodies; validateBody
+	// controls language-validator body checks, independently of private replay.
+	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment, validateBody bool) error
 	BindSQLDefaults(ddl.Authority, *catalog.Procedure, []parser.RoutineParameter, sqltype.InputEnvironment) error
 	MaterializeHostConversions() error
 }

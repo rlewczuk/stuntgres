@@ -41,7 +41,7 @@ func TestReferenceRoutineQuotedReplayPersistence(t *testing.T) {
 		routineExec(t, p, b, c, "ALTER TABLE qrr.source RENAME COLUMN a TO renamed_a")
 		quotedReplayFailure(t, p, b, c, nil, q, "soft", quotedReplaySource, "65", "42703", "column \"a\" does not exist", "", "")
 		routineExec(t, p, b, c, "ALTER TABLE qrr.source RENAME TO saved", "DROP TABLE qrr.dropped RESTRICT")
-		check := func(conn *sql.Conn, backend fixture.Backend) {
+		check := func(conn *sql.Conn, backend fixture.Backend, initializing bool) {
 			t.Helper()
 			routineValue(t, p, backend, conn, "SELECT qrr.hard() AS v", "v", "INT4", int64(7))
 			routineValue(t, p, backend, conn, "SELECT qrr.with_default() AS v", "v", "INT8", int64(1001))
@@ -63,13 +63,19 @@ func TestReferenceRoutineQuotedReplayPersistence(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Select(
 				"SELECT refobjsubid,deptype FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='qrr.with_default(bigint)'::regprocedure AND refclassid='pg_proc'::regclass AND refobjid='qrr.captured(bigint)'::regprocedure ORDER BY refobjsubid,deptype",
 				[]string{"refobjsubid", "deptype"}, []string{"INT4", "CHAR"}, [][]any{{int64(0), "n"}}))
-			quotedReplayFailure(t, p, backend, conn, nil, q, "soft", quotedReplaySource, "72", "42P01", "relation \"qrr.source\" does not exist", "", "")
-			quotedReplayFailure(t, p, backend, conn, nil, "SELECT qrr.dropped_soft() AS v", "dropped_soft", "SELECT a FROM qrr.dropped", "15", "42P01", "relation \"qrr.dropped\" does not exist", "", "")
+			if initializing {
+				want := quotedReplayDiagnostic(true, "soft", quotedReplaySource, "72", "42P01", "relation \"qrr.source\" does not exist", "", "", false)
+				checkBodiesFailure(t, p, backend, conn, q, want, true)
+			} else {
+				quotedReplayFailure(t, p, backend, conn, nil, q, "soft", quotedReplaySource, "72", "42P01", "relation \"qrr.source\" does not exist", "", "")
+			}
+			want := quotedReplayDiagnostic(true, "dropped_soft", "SELECT a FROM qrr.dropped", "15", "42P01", "relation \"qrr.dropped\" does not exist", "", "", false)
+			checkBodiesFailure(t, p, backend, conn, "SELECT qrr.dropped_soft() AS v", want, true)
 			for _, query := range []string{"DROP TABLE qrr.saved RESTRICT", "DROP FUNCTION qrr.captured(bigint) RESTRICT"} {
 				fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Error(query, "2BP01"))
 			}
 		}
-		check(c, b)
+		check(c, b, false)
 		if !b.PG {
 			old, err := c.QueryContext(p.Ctx, "SELECT qrr.hard() AS v")
 			if err != nil {
@@ -130,8 +136,8 @@ func TestReferenceRoutineQuotedReplayPersistence(t *testing.T) {
 						}
 					}()
 				}
-				check(c, b)
-				check(fc, fixture.Backend{Recorder: freshRecorder})
+				check(c, b, true)
+				check(fc, fixture.Backend{Recorder: freshRecorder}, true)
 				if p.Postgres != nil {
 					pg, err := p.Postgres.Conn(p.Ctx)
 					if err != nil {
@@ -152,7 +158,7 @@ func TestReferenceRoutineQuotedReplayPersistence(t *testing.T) {
 					if _, err := pg.ExecContext(p.Ctx, dump.String()); err != nil {
 						t.Fatal("unchanged emitted PostgreSQL replay", err)
 					}
-					check(pg, fixture.Backend{PG: true, Recorder: p.PostgresRecord})
+					check(pg, fixture.Backend{PG: true, Recorder: p.PostgresRecord}, true)
 					if _, err := pg.ExecContext(p.Ctx, "SET check_function_bodies=true; DROP SCHEMA qrr CASCADE; DROP ROLE qrr_owner"); err != nil {
 						t.Fatal(err)
 					}

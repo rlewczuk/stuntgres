@@ -244,7 +244,7 @@ func dropClosureRoutineCycleCatalog(t *testing.T, e *core.Engine, base catalog.R
 	defer e.Mu.Unlock()
 	auth := enginetest.CatalogAuthorization(e, read)
 	for _, procedure := range procedures {
-		if _, _, err := schemacmds.BindSQLRoutineLocked(e, op, auth, procedure, sqltype.InputEnvironment{}, nil); err != nil {
+		if _, _, err := schemacmds.BindSQLRoutineLocked(e, op, auth, procedure, sqltype.InputEnvironment{}, true); err != nil {
 			t.Fatal("binding closed routine fixture", procedure.Name(), err)
 		}
 	}

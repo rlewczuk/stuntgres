@@ -7,9 +7,8 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-// Ordinary enabled CREATE expectations remain distinct from reached invocation:
-// parse failures name enclosing CREATE coordinates; native producer-free CREATE
-// binding retains body coordinates and a non-runtime function Context.
+// Body diagnostics share independently specified SQLSTATE/text fields. CREATE
+// callers supply enclosing coordinates; reached callers supply internal source.
 func routineDropReplayBodyDiagnostic(body, createSQL string) fixture.Diagnostic {
 	var d fixture.Diagnostic
 	switch body {
@@ -77,18 +76,16 @@ func TestReferenceRoutineDropReplayDiagnostics(t *testing.T) {
 					if body == "SELECT $2" {
 						contractBody = "SELECT rd_missing(1), $2"
 					}
-					native := routineDropReplayBodyDiagnostic(contractBody, q)
-					pg := native
+					d := routineDropReplayBodyDiagnostic(contractBody, q)
 					if body == "SELECT x FROM rd_missing_table" {
-						pg.Position = fixture.Position(strings.Index(q, "rd_missing_table") + 1)
-						pg.Context = ""
+						d.Position = fixture.Position(strings.Index(q, "rd_missing_table") + 1)
+						d.Context = ""
 					}
 					if body == "SELECT 1 OPERATOR(public.###) 2" {
-						pg.Position = fixture.Position(strings.Index(q, "OPERATOR") + 1)
-						pg.Context = ""
+						d.Position = fixture.Position(strings.Index(q, "OPERATOR") + 1)
+						d.Context = ""
 					}
-					s := fixture.ErrorDiagnostic(q, native)
-					s.PostgresDiagnostic = &pg
+					s := fixture.ErrorDiagnostic(q, d)
 					s.ErrorStage = "execute"
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
@@ -110,23 +107,19 @@ func TestReferenceRoutineDropReplayDiagnostics(t *testing.T) {
 				routineExec(t, p, b, c, "CREATE ROLE rd_replay_denied", "CREATE SCHEMA rd_private_source", "CREATE SCHEMA rd_private_schema AUTHORIZATION rd_replay_denied", "SET SESSION AUTHORIZATION rd_replay_denied")
 				defer c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
 				q := "CREATE FUNCTION rd_private_schema.rd_denied() RETURNS integer LANGUAGE SQL AS $$SELECT rd_private_source.rd_missing(1)$$"
-				native := routineDropReplayLookupDiagnostic(true)
-				pg := native
-				pg.Position = fixture.Position(strings.Index(q, "rd_private_source.rd_missing") + 1)
-				pg.Context = ""
-				s := fixture.ErrorDiagnostic(q, native)
-				s.PostgresDiagnostic = &pg
+				d := routineDropReplayLookupDiagnostic(true)
+				d.Position = fixture.Position(strings.Index(q, "rd_private_source.rd_missing") + 1)
+				d.Context = ""
+				s := fixture.ErrorDiagnostic(q, d)
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 				routineExec(t, p, b, c, "RESET SESSION AUTHORIZATION", "CREATE FUNCTION public.rd_amb(integer) RETURNS integer LANGUAGE SQL AS $$SELECT 1$$", "CREATE FUNCTION public.rd_amb(bigint) RETURNS integer LANGUAGE SQL AS $$SELECT 2$$")
 				q = "CREATE FUNCTION public.rd_amb_caller() RETURNS integer LANGUAGE SQL AS $$SELECT public.rd_amb(NULL)$$"
-				native = routineDropReplayLookupDiagnostic(false)
-				pg = native
-				pg.Position = fixture.Position(strings.Index(q, "public.rd_amb(NULL)") + 1)
-				pg.Context = ""
-				s = fixture.ErrorDiagnostic(q, native)
-				s.PostgresDiagnostic = &pg
+				d = routineDropReplayLookupDiagnostic(false)
+				d.Position = fixture.Position(strings.Index(q, "public.rd_amb(NULL)") + 1)
+				d.Context = ""
+				s = fixture.ErrorDiagnostic(q, d)
 				s.ErrorStage = "execute"
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))

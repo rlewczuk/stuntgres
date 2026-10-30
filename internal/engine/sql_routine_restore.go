@@ -45,7 +45,7 @@ func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *sessio
 			if core.OperationReplayOrZero(op).SQLBodies && !d.SQL.Standard {
 				continue
 			}
-			_, _, bindErr := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
+			_, _, bindErr := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, true)
 			if bindErr != nil {
 				return bindErr
 			}

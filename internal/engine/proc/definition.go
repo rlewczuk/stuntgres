@@ -51,11 +51,23 @@ type Definition struct {
 	PolymorphicResult bool
 }
 
+// New parses a checked SQL declaration. NewSource retains a declaration whose
+// quoted body will instead be parsed when invoked.
 func New(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {
 	statements, err := parser.ParseWithOptions(source, parser.Options{StandardConformingStrings: true, ClosedRoutineFormals: true, FormalCount: len(inputs)})
 	if err != nil {
 		return nil, err
 	}
+	d, err := NewSource(source, position, inputs, result)
+	if err != nil {
+		return nil, err
+	}
+	d.Statements = statements
+	return d, nil
+}
+
+// NewSource validates declaration usages without parsing the quoted body.
+func NewSource(source string, position parser.Position, inputs []sqltype.Usage, result sqltype.Usage) (*Definition, error) {
 	if !DeclarationUsage(result) {
 		return nil, fmt.Errorf("invalid SQL routine result usage")
 	}
@@ -64,7 +76,7 @@ func New(source string, position parser.Position, inputs []sqltype.Usage, result
 			return nil, fmt.Errorf("invalid SQL routine input usage")
 		}
 	}
-	return &Definition{Source: source, Position: position, Statements: statements, Inputs: inputs, Result: result}, nil
+	return &Definition{Source: source, Position: position, Inputs: inputs, Result: result}, nil
 }
 
 func (d *Definition) Void() bool { return d.Result.Type.ID() == sqltype.Void }

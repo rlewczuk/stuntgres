@@ -35,9 +35,8 @@ func quotedReplayFormalDiagnostic(q, body string) fixture.Diagnostic {
 }
 
 func TestReferenceRoutineQuotedReplayAdmission(t *testing.T) {
-	// Enabled public CREATE independently exercises the syntax/formal boundary.
-	// PostgreSQL's disabled validator does NOT parse string bodies; the stricter
-	// reconstruction checks below therefore are explicit native-control phases.
+	// Enabled public CREATE independently exercises syntax/formals. Off replay
+	// retains the same source; only reached invocation checks its body.
 	for _, body := range []string{"SELECT $1", "SELECT $2", "SELECT 1 +", "SELECT (SELECT $1), rd_unit_missing(1)"} {
 		t.Run(body, func(t *testing.T) {
 			routineScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -88,7 +87,15 @@ func TestReferenceRoutineQuotedReplayAdmission(t *testing.T) {
 			stream := prefix + tc.tail
 			d := quotedReplayDeclarationDiagnostic(stream, tc.code, tc.message, tc.token)
 			if tc.body != "" {
-				d = quotedReplayFormalDiagnostic(stream, tc.body)
+				routineDropStoredReplay(t, p, stream, tc.body)
+				d = quotedReplayFormalDiagnostic(tc.body, tc.body)
+				d.InternalPosition, d.InternalQuery, d.Position = d.Position, tc.body, ""
+				name := "rd_bad_replay"
+				if strings.HasPrefix(tc.tail, "CREATE FUNCTION qr_bad(") {
+					name = "qr_bad"
+				}
+				d.Context = `SQL function "` + name + `" during inlining`
+				stream += " CREATE TABLE qr_reached(v integer DEFAULT " + name + "()); INSERT INTO qr_reached DEFAULT VALUES;"
 			}
 			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(stream)), &d)
 			var after bytes.Buffer

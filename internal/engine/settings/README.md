@@ -340,8 +340,17 @@ successfully but fails transport admission without the required defaults.
 The typed setting stores the encoding ID, so rollback and reset restore the
 ID without repeating catalog lookup or calling a session-default provider.
 
+`check_function_bodies` controls CREATE FUNCTION/PROCEDURE quoted SQL and PL body
+validation through the routine DDL owner. Off retains source for real first-use
+parsing, binding and result checks; declaration, provider and authority checks
+remain mandatory. Standard SQL bodies always analyze and freeze their actions,
+while validator return checks follow the effective body-validation policy.
+CREATE reads the operation's effective entry value. Only entry on admits
+validator SAVE actions and applies the routine's own normalized
+check_function_bodies override to that scoped policy; no live settings mutate.
+
 The following are **setting-only simulations**, not operational switches:
-`check_function_bodies`, `createrole_self_grant`,
+`createrole_self_grant`,
 `default_tablespace`, `default_text_search_config`, `default_toast_compression`,
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
@@ -363,9 +372,9 @@ No compressors, GIN truncation/pending lists, physical placement, automatic
 role membership, relation restrictions, XML execution or event-trigger
 mechanisms are implied. `session_replication_role` instead controls real user
 and per-event foreign-key trigger execution through their stored O/D/R/A modes;
-effective changes use the shared prepared-plan discard generation. Invalid
-routines cannot publish with check_function_bodies off. `SET XML OPTION DOCUMENT/CONTENT` (including
-SESSION/LOCAL) is syntax for the same xmloption value.
+effective changes use the shared prepared-plan discard generation.
+`SET XML OPTION DOCUMENT/CONTENT` (including SESSION/LOCAL) is syntax for the
+same xmloption value.
 
 Library/path settings never probe or load files. Preload SET argument lists
 are quote-reconstructed, but raw malformed set_config strings are accepted

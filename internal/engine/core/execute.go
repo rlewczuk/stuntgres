@@ -225,7 +225,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result, auth, scope.sqlRoutine.definition)
 		if err != nil {
 			e.Mu.Unlock()
-			return Result{}, err
+			return Result{}, &sqlRoutineTerminalError{err: err, definition: scope.sqlRoutine.definition, simple: sqlRoutineSimpleTerminal(stmt, b)}
 		}
 	}
 	// Preserve the raw caller's capture group before attaching stored recipes.

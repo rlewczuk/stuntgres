@@ -129,7 +129,10 @@ return.
 
 Restore hooks: `ImportExtensionOwners` (below) and `BindSQLRoutineLocked`.
 The private SQL-body directive defers catalog-dependent quoted SQL analysis to
-invocation; checked standard bodies and PL compilation retain their validation.
+invocation and preserves legitimate source-only declarations, including malformed
+quoted SQL/PL. Standard analysis/freezing and hard defaults retain their checks.
+Public CREATE uses its scoped check_function_bodies policy for quoted validation
+and standard terminal results, never to bypass standard analysis or admission.
 `RoutineHost.BindSQLRoutine` also consumes an exact private Restore checked-PL
 lease when a previously checked declaration's final validator is absent.
 The root pairs the full CREATE header with the immediate actual owner transfer;

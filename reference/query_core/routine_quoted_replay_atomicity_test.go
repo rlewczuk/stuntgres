@@ -35,8 +35,8 @@ func TestReferenceRoutineQuotedReplayAtomicity(t *testing.T) {
 				if mismatch {
 					position = ""
 				}
-				quotedReplayFailure(t, p, b, c, nil, q, "qr_bad", "SELECT x FROM qr_source", position, code, message, detail, "")
-				want := quotedReplayDiagnostic(b.PG, "qr_bad", "SELECT x FROM qr_source", position, code, message, detail, "", false)
+				want := quotedReplayDiagnostic(true, "qr_bad", "SELECT x FROM qr_source", position, code, message, detail, "", false)
+				checkBodiesFailure(t, p, b, c, q, want, true)
 				routineExec(t, p, b, c, "CREATE TABLE qr_destination(x integer DEFAULT qr_bad())")
 				s := fixture.ErrorDiagnostic("INSERT INTO qr_destination DEFAULT VALUES", want)
 				s.ErrorStage = "execute"

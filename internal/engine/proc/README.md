@@ -15,6 +15,10 @@ Published syntax/metadata is immutable. Standard RETURN is a SELECT expression;
 BEGIN ATOMIC is an ordered SQL program, not a transaction or procedural return.
 Checked standard-body and declaration-default recipes live in `stored`, above
 this package, never as cached values or catalog dependencies in proc.
+`New` validates declaration usages and parses checked quoted SQL with closed
+formals. `NewSource` shares usage admission but retains genuine source without
+syntax; the runtime owns its first-use parsing. Neither constructor grants
+provider, catalog or execution authority.
 `NewRoutineDeclarationBody` acquires one closed release-analyzed typed-parts
 recipe for every represented builtin/installed SQL-standard declaration. The
 same owner retains its private structural AST and records RETURN versus atomic
@@ -106,18 +110,19 @@ expression-return prohibition and ordinary nonvoid return requirements.
 Compiler/provider/layout validation retains the invocation kind through copying,
 definition replacement and remapping.
 
-Complete parsing closes positional formals even after an unresolved call stops
-semantic binding. Private Restore reconstructs quoted SQL declarations without
-catalog-dependent body analysis or result checking; ordinary reached invocation
-owns those checks. Complete syntax, formals and persistent declaration structure
-remain validated, as do checked standard programs and hard defaults.
-Quoted strings/comments are not formals, and unused declared inputs are valid.
+Checked parsing closes positional formals even after an unresolved call stops
+semantic binding. Source-only quoted SQL/PL retains original text without claiming
+syntax validation. Private Restore preserves that state and reconstructs quoted
+declarations without catalog-dependent SQL analysis or result checking; reached
+invocation owns those checks. Persistent declaration structure, checked standard
+programs and hard defaults remain validated. Quoted strings/comments are not
+formals, and unused declared inputs are valid.
 
 The shared binder closes positional formals even with zero inputs. Named,
 routine-qualified and `$n` references use the same typed slots; real columns
-and genuine column ambiguities take precedence over formal fallback. CREATE
-checks all commands without producers. Quoted bodies are prepared sequentially
-at invocation, so an earlier command can run before a later reanalysis error.
+and genuine column ambiguities take precedence over formal fallback. Checked
+CREATE inspects all commands without producers. Quoted bodies are prepared
+sequentially at invocation, so an earlier command can run before a later reanalysis error.
 Standard commands refresh checked recipes by identity, never render/reparse or
 reselect source names/overloads at invocation.
 

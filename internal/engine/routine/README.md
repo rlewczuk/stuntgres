@@ -63,6 +63,14 @@ External Normalize suspends the same command with all publication locks released
 exact live readmission resumes it once, or rejects stale authority without
 replaying callbacks. No session settings are installed, and rejected declarations
 publish no partial state.
+CREATE reads current effective check_function_bodies at execution, including
+routine-local settings. Entry on preflights validator SAVE actions, then derives
+the body policy from the routine's own normalized override without changing live
+settings. Entry off skips both operations. Off stores source-only quoted SQL/PL
+without eager parsing or compilation; signature, provider, authority and default
+checks remain independent. Standard bodies always analyze/freeze real actions,
+with only validator terminal-result checks conditional. Reached invocation still
+parses, binds, compiles and checks results under current call authority.
 Reached invocation uses live authority; optimizer-elided strict NULL calls do
 not acquire a runtime invocation. Parallel safety/cost/rows are declaration facts,
 not an operational worker-scheduling capability.
@@ -123,8 +131,9 @@ unlocked implicit invocation; no replication modes or helper SRFs are fabricated
 binders as creation. Exact name/namespace/input identity retains OID, owner, ACL
 and extension membership. Owner/kind/result checks, existing named inputs and
 trailing default compatibility precede tentative replacement; body-validation
-failure leaves the checked predecessor intact. SQL/PL language changes keep
-ordinary validation. Builtin/externally implemented function replacement and
+failure leaves the checked predecessor intact. SQL/PL language changes use the
+same conditional body policy and unconditional declaration checks.
+Builtin/externally implemented function replacement and
 language lifecycle retain their separate admission contracts.
 
 ## Routine ALTER contract

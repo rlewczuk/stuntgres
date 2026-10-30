@@ -42,7 +42,8 @@ func TestReferenceRoutineResultsPersistence(t *testing.T) {
 		}
 		check(c, b)
 		resultsPersistenceAllocationCheck(t, p, b, c)
-		resultsDeferredOutputReplay(t, p, b, c, "rr_late_bad", false)
+		resultsDeferredOutputReplay(t, p, b, c, "rr_late_bad", false, false)
+		resultsDeferredOutputReplay(t, p, b, c, "rr_standard_late_bad", false, true)
 		if b.PG {
 			return
 		}
@@ -141,14 +142,15 @@ func TestReferenceRoutineResultsPersistence(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
 			t.Fatal(err)
 		}
-		// Checked result recipes retain declaration-time shape validation.
-		// Quoted declarations are exercised separately above at invocation.
-		bad := before.String() + "; CREATE TABLE rr_prefix(v integer); CREATE FUNCTION rr_late_bad(OUT a integer,OUT b integer) BEGIN ATOMIC SELECT 1; END;"
+		// Off replay retains frozen standard actions; a reached DEFAULT, not
+		// declaration loading, must reject their incompatible result shape.
+		bad := before.String() + "; CREATE TABLE rr_prefix(v integer); CREATE FUNCTION rr_late_bad(OUT a integer,OUT b integer) BEGIN ATOMIC SELECT 1; END; CREATE TABLE rr_reached(v integer DEFAULT (rr_late_bad()).a); INSERT INTO rr_reached DEFAULT VALUES;"
 		want := fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return record")
-		want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "rr_late_bad"`
+		want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "rr_late_bad" statement 1`
 		fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
 		check(c, b)
-		resultsCountBoth(t, p, b, c, "SELECT count(*) AS v FROM pg_class WHERE relname='rr_prefix'", 0)
+		resultsCountBoth(t, p, b, c, "SELECT count(*) AS v FROM pg_class WHERE relname IN ('rr_prefix','rr_reached')", 0)
+		resultsCountBoth(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE proname='rr_late_bad'", 0)
 		// A stored DEFAULT field projection genuinely invokes the deferred
 		// record routine; declaration loading alone must not reject it.
 		bad = before.String() + "; CREATE TABLE rr_prefix(v integer); CREATE FUNCTION rr_late_bad(OUT a integer,OUT b integer) LANGUAGE SQL AS 'SELECT 1'; CREATE TABLE rr_reached(v integer DEFAULT (rr_late_bad()).a); INSERT INTO rr_reached DEFAULT VALUES;"

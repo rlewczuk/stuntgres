@@ -30,13 +30,13 @@ it does not install a procedural interpreter or early-exit operation.
 policy. It does not import catalog/analyze/engine. DDL resolves concrete inputs,
 permits VOID only as a result, rejects duplicate formal names, and preserves
 namespace/owner/ACL/OID/signature authorities. Standard syntax defaults to SQL.
-CREATE checks all commands without data producers or expression effects.
-Quoted validation remains enabled by default. Restore's private compatible
-`SET check_function_bodies = false;` reconstructs quoted SQL declarations without
-catalog-dependent body analysis or result checking. Complete body parsing and
-closed formals remain required; declaration types, language, owner and persistent
-structure are checked independently. Public SET behavior and PL policy do not
-follow this private directive.
+With body checks enabled, CREATE checks all commands without data producers or
+expression effects. Public `check_function_bodies = off` and Restore's private
+compatible directive retain quoted SQL source without parsing, catalog-dependent
+analysis or result checking; reached execution performs those checks with closed
+formals. Declaration types, language, owner and persistent structure are checked
+independently. Standard SQL always analyzes and freezes its program. PL validation
+and checked replay remain owned by their language provider.
 
 The shared binder carries a routine lexical policy independent of row demand.
 Column and outer-column lookup, including ambiguity, occurs before formal

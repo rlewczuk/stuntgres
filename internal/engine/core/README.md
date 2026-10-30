@@ -610,6 +610,19 @@ completion count is zero regardless of body effects. Quoted SQL-body CALL with
 outputs fails before producers; no-output calls use the ordinary command runner.
 Unquoted SQL bodies reject CALL during definition validation.
 
+SQL-body initialization diagnostics refer to the retained body and the current
+declaration's result category. RECORD and composite results retain their
+statement/startup context rather than acquiring scalar inlining context.
+Parsing and name analysis retain their attempted-inlining phase independently
+of later query-shape rejection. Actual terminal-validator failures carry their
+definition owner and simple-expression eligibility from the current binding:
+only a single scalar projection over a singleton, without disqualifying query
+clauses or aggregate/window/set/subquery structure, uses the inlining frame.
+This classification neither rebinds nor executes an expression, and does not
+apply later volatility/effect restrictions to return-validation diagnostics.
+Reached-command reanalysis keeps its actual command ordinal independently of
+whether the declaration was originally checked or source-only.
+
 PL transaction control rotates the existing root owner through the same checked
 stage merge and end/publication path as SQL controls. A successor is implicit,
 not a new root statement; the statement budget and lexical PL frame remain.

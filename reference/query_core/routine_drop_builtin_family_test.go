@@ -9,7 +9,7 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-func routineDropBuiltinFamilyMissing(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, family string) {
+func routineDropBuiltinFamilyMissing(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, family string, initializing bool) {
 	t.Helper()
 	body := "SELECT public." + family + "()"
 	q := "SELECT rd_family_caller() AS v"
@@ -22,6 +22,9 @@ func routineDropBuiltinFamilyMissing(t *testing.T, p *fixture.Pair, b fixture.Ba
 	pg.InternalPosition = "8"
 	pg.InternalQuery = body
 	pg.Context = "SQL function \"rd_family_caller\" during inlining"
+	if initializing {
+		native = pg
+	}
 	for _, prepared := range []bool{false, true} {
 		s := fixture.ErrorDiagnostic(q, native)
 		s.PostgresDiagnostic = &pg
@@ -53,7 +56,7 @@ func TestReferenceRoutineDropBuiltinFamilyQuotedBody(t *testing.T) {
 					routineDropHeld(t, p, b, c, held, q, "INT4", int64(7))
 					routineExec(t, p, b, c, "DROP FUNCTION public."+family+"() RESTRICT")
 					routineDropNotices(t, &notices)
-					routineDropBuiltinFamilyMissing(t, p, b, c, family)
+					routineDropBuiltinFamilyMissing(t, p, b, c, family, false)
 					if !b.PG {
 						var dump bytes.Buffer
 						if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
@@ -65,7 +68,7 @@ func TestReferenceRoutineDropBuiltinFamilyQuotedBody(t *testing.T) {
 						if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 							t.Fatal("builtin-family dangling caller replay", err)
 						}
-						routineDropBuiltinFamilyMissing(t, p, b, c, family)
+						routineDropBuiltinFamilyMissing(t, p, b, c, family, true)
 						if p.Postgres != nil {
 							pg, err := p.Postgres.Conn(p.Ctx)
 							if err != nil {
@@ -79,7 +82,7 @@ func TestReferenceRoutineDropBuiltinFamilyQuotedBody(t *testing.T) {
 								t.Fatal("exact builtin-family emitted replay", err)
 							}
 							pb := fixture.Backend{PG: true, Recorder: p.PostgresRecord}
-							routineDropBuiltinFamilyMissing(t, p, pb, pg, family)
+							routineDropBuiltinFamilyMissing(t, p, pb, pg, family, true)
 							routineExec(t, p, pb, pg, "CREATE FUNCTION public."+family+"() RETURNS integer LANGUAGE SQL AS $$SELECT 17$$", "SET check_function_bodies = true")
 							routineValue(t, p, pb, pg, q, "v", "INT4", int64(17))
 							if _, err := pg.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {

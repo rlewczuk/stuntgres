@@ -113,7 +113,8 @@ func TestReferenceRoutineProceduresPersistence(t *testing.T) {
 			proceduresPersistSetup(t, p, b, c)
 			check := func(conn *sql.Conn, backend fixture.Backend) { proceduresPersistCheck(t, p, backend, conn) }
 			check(c, b)
-			resultsDeferredOutputReplay(t, p, b, c, "pc_restore_bad", true)
+			resultsDeferredOutputReplay(t, p, b, c, "pc_restore_bad", true, false)
+			resultsDeferredOutputReplay(t, p, b, c, "pc_restore_standard_bad", true, true)
 			if b.PG {
 				return
 			} // Native controls have no PG API counterpart.
@@ -186,13 +187,19 @@ func TestReferenceRoutineProceduresPersistence(t *testing.T) {
 			if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
 				t.Fatal(err)
 			}
-			// Checked bodies still reject output-shape corruption while loading;
-			// the quoted counterpart above stores and fails only when CALL runs.
+			// Private false replay preserves analyzed standard actions while
+			// deferring the validator's output-shape check to actual CALL.
 			bad := before.String() + ";CREATE TABLE pc_restore_prefix(v integer);CREATE PROCEDURE pc_restore_bad(OUT a integer,OUT b integer) BEGIN ATOMIC SELECT 1; END;"
+			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err != nil {
+				t.Fatal("deferred standard procedure replay", err)
+			}
 			want := fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return record")
-			want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "pc_restore_bad"`
-			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
+			want.Detail, want.Context = "Final statement returns too few columns.", `SQL function "pc_restore_bad" statement 1`
+			resultsError(t, p, c, "CALL pc_restore_bad(NULL,NULL)", true, "execute", want)
 			check(c, b)
+			proceduresCount(t, p, b, c, "pg_class WHERE relname='pc_restore_prefix'", 1)
+			proceduresCount(t, p, b, c, "pg_proc WHERE proname='pc_restore_bad'", 1)
+			resultsExec(t, p, b, c, "DROP PROCEDURE pc_restore_bad()", "DROP TABLE pc_restore_prefix")
 			proceduresCount(t, p, b, c, "pg_class WHERE relname='pc_restore_prefix'", 0)
 			proceduresCount(t, p, b, c, "pg_proc WHERE proname='pc_restore_bad'", 0)
 			// Top-level CALL is not emitted by Dump and remains outside Restore

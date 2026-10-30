@@ -15,20 +15,23 @@ func routineDropCallerSetup(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	routineExec(t, p, b, c, "CREATE FUNCTION rd_callee(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$", "CREATE FUNCTION rd_caller() RETURNS integer LANGUAGE SQL AS $$SELECT rd_callee(4)$$", "CREATE VIEW rd_caller_view AS SELECT rd_caller() AS v")
 }
 
-func routineDropCallerMissing(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+func routineDropCallerMissing(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, initializing bool) {
 	t.Helper()
 	q := "SELECT rd_caller() AS v"
 	d := fixture.ControlsReferenceDiagnostic("42883", "function rd_callee(integer) does not exist")
 	d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	d.Context = "SQL function \"rd_caller\" statement 1"
-	// Inherited SQL-body coordinate boundary: native reports the body position
-	// directly; PostgreSQL supplies its inlining internal-query coordinates.
+	// Reached reanalysis retains its statement frame; first-use validation uses
+	// the independently specified inlining coordinates on either backend.
 	d.Position = "8"
 	pg := d
 	pg.Position = ""
 	pg.Context = "SQL function \"rd_caller\" during inlining"
 	pg.InternalQuery = "SELECT rd_callee(4)"
 	pg.InternalPosition = "8"
+	if initializing {
+		d = pg
+	}
 	for _, prepared := range []bool{false, true} {
 		s := fixture.ErrorDiagnostic(q, d)
 		s.PostgresDiagnostic = &pg
@@ -53,7 +56,7 @@ func TestReferenceRoutineDropQuotedBody(t *testing.T) {
 				routineValue(t, p, b, c, q, "v", "INT4", int64(5))
 				routineExec(t, p, b, c, "DROP FUNCTION rd_callee(integer) "+mode)
 				routineDropNotices(t, n)
-				routineDropCallerMissing(t, p, b, c)
+				routineDropCallerMissing(t, p, b, c, false)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT count(*) AS n FROM pg_catalog.pg_class WHERE relname='rd_caller_view'", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 				routineExec(t, p, b, c, "CREATE FUNCTION rd_callee(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+10$$")
 				routineValue(t, p, b, c, q, "v", "INT4", int64(14))
@@ -81,7 +84,7 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		t.Fatal("dangling quoted-body Restore", err)
 	}
 	routineDropDependencySurvivors(t, p, b, c)
-	routineDropCallerMissing(t, p, b, c)
+	routineDropCallerMissing(t, p, b, c, true)
 	if p.Postgres != nil {
 		pg, err := p.Postgres.Conn(p.Ctx)
 		if err != nil {
@@ -96,7 +99,7 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		}
 		pb := fixture.Backend{PG: true, Recorder: p.PostgresRecord}
 		routineDropDependencySurvivors(t, p, pb, pg)
-		routineDropCallerMissing(t, p, pb, pg)
+		routineDropCallerMissing(t, p, pb, pg, true)
 		routineExec(t, p, pb, pg, "CREATE FUNCTION rd_callee(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+10$$", "SET check_function_bodies = true")
 		routineValue(t, p, pb, pg, "SELECT rd_caller() AS v", "v", "INT4", int64(14))
 		// The ordinary PG phase below starts from an empty scenario schema.
@@ -104,9 +107,8 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 			t.Fatal(err)
 		}
 	}
-	// Closed formals and complete syntax remain reconstruction requirements,
-	// even after an earlier missing callable. Semantic failures are reached
-	// through a real default invocation instead of final declaration binding.
+	// Every quoted source can be reconstructed without validation; actual
+	// invocation still enforces complete syntax, closed formals and semantics.
 	for _, body := range []string{
 		"SELECT rd_missing(1), $1",
 		"SELECT rd_missing(1), $2",
@@ -117,14 +119,29 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 	} {
 		before := dump.String()
 		bad := "SET check_function_bodies = false; CREATE FUNCTION public.rd_bad_replay() RETURNS integer LANGUAGE SQL AS $$" + body + "$$;"
-		semantic := body == "SELECT 'x'::text" || body == "SELECT x FROM rd_missing_table" || body == "SELECT 1 OPERATOR(public.###) 2"
-		if semantic {
-			routineDropStoredReplay(t, p, bad, body)
-			bad += " CREATE TABLE rd_reached(v integer DEFAULT public.rd_bad_replay()); INSERT INTO rd_reached DEFAULT VALUES;"
-		}
+		routineDropStoredReplay(t, p, bad, body)
+		bad += " CREATE TABLE rd_reached(v integer DEFAULT public.rd_bad_replay()); INSERT INTO rd_reached DEFAULT VALUES;"
 		err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad))
 		want := routineDropReplayBodyDiagnostic(body, bad)
-		if semantic { want.Context = "SQL function \"rd_bad_replay\" statement 1" }
+		position := ""
+		switch body {
+		case "SELECT rd_missing(1), $1":
+			position = fixture.Position(strings.Index(body, "$1") + 1)
+		case "SELECT rd_missing(1), $2":
+			position = fixture.Position(strings.Index(body, "$2") + 1)
+		case "SELECT 1 +":
+			position = fixture.Position(len(body) + 1)
+		case "SELECT x FROM rd_missing_table":
+			position = "15"
+		case "SELECT 1 OPERATOR(public.###) 2":
+			position = "10"
+		}
+		want.Position = ""
+		want.InternalPosition, want.InternalQuery = position, ""
+		if position != "" {
+			want.InternalQuery = body
+		}
+		want.Context = "SQL function \"rd_bad_replay\" during inlining"
 		fixture.AssertDiagnostic(t, err, &want)
 		var after bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
@@ -144,7 +161,9 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		{"CREATE FUNCTION public.rd_amb(integer) RETURNS integer LANGUAGE SQL AS $$SELECT 1$$; CREATE FUNCTION public.rd_amb(bigint) RETURNS integer LANGUAGE SQL AS $$SELECT 2$$; CREATE FUNCTION public.rd_amb_caller() RETURNS integer LANGUAGE SQL AS $$SELECT public.rd_amb(NULL)$$;", false},
 	} {
 		body := "SELECT public.rd_amb(NULL)"
-		if tc.denied { body = "SELECT rd_private_source.rd_missing(1)" }
+		if tc.denied {
+			body = "SELECT rd_private_source.rd_missing(1)"
+		}
 		routineDropStoredReplay(t, p, "SET check_function_bodies = false; "+tc.sql, body)
 		invoke := "CREATE TABLE public.rd_reached(v integer DEFAULT public.rd_amb_caller()); INSERT INTO public.rd_reached DEFAULT VALUES;"
 		if tc.denied {
@@ -152,7 +171,11 @@ func routineDropRoundtrip(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		}
 		err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("SET check_function_bodies = false; "+tc.sql+invoke))
 		want := routineDropReplayLookupDiagnostic(tc.denied)
-		want.Context += " statement 1"
+		want.InternalPosition, want.InternalQuery, want.Position = want.Position, body, ""
+		want.Context = "SQL function \"rd_amb_caller\" during inlining"
+		if tc.denied {
+			want.Context = "SQL function \"rd_denied\" during inlining"
+		}
 		fixture.AssertDiagnostic(t, err, &want)
 		var after bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
@@ -188,7 +211,7 @@ func TestReferenceRoutineDropPersistence(t *testing.T) {
 		routineExec(t, p, b, c, "DROP FUNCTION rd_dep(integer) CASCADE", "DROP FUNCTION rd_callee(integer)")
 		routineDropNotices(t, n, routineDropDependencyCascadeNotice())
 		routineDropDependencySurvivors(t, p, b, c)
-		routineDropCallerMissing(t, p, b, c)
+		routineDropCallerMissing(t, p, b, c, true)
 		routineDropRoundtrip(t, p, b, c)
 		routineExec(t, p, b, c, "CREATE FUNCTION rd_callee(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+10$$")
 		routineValue(t, p, b, c, "SELECT rd_caller() AS v", "v", "INT4", int64(14))
@@ -214,7 +237,7 @@ func TestReferenceRoutineDropFeatureSmoke(t *testing.T) {
 		routineDropNotices(t, n, routineDropDependencyCascadeNotice(), routineDropNotice("function rd_missing() does not exist, skipping"))
 		routineDropDependencySurvivors(t, p, b, c)
 		routineDropHeld(t, p, b, c, s, q, "INT8", int64(104))
-		routineDropCallerMissing(t, p, b, c)
+		routineDropCallerMissing(t, p, b, c, true)
 		routineDropRoundtrip(t, p, b, c)
 		routineExec(t, p, b, c, "CREATE FUNCTION rd_callee(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+10$$")
 		routineValue(t, p, b, c, "SELECT rd_caller() AS v", "v", "INT4", int64(14))

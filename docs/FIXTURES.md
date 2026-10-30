@@ -124,6 +124,10 @@ ignores the native comment rather than importing its historical catalog state.
   cardinality, with actual quoted or checked standard bodies. Named result and
   formal child types precede their routines; anonymous output records are
   reconstructed from formals, never emitted as independent named types.
+  Source-only quoted SQL and PL retain exact source even when malformed; replay
+  does not turn them into checked programs. Their real parsing, compilation and
+  result checks remain invocation-owned. Checked PL replay leases, standard-body
+  analysis and hard defaults retain their independent admission checks.
   Replacement maps each original record occurrence through the same context as
   stored calls/views, preserving immutable old rows and current child ownership.
   Volatility, strictness, security mode, parallel/cost/rows metadata and ordered

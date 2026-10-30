@@ -18,8 +18,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
-// body against the stage, except during Restore SQL body replay.
+// StageCreateFunction stages a routine declaration and conditionally validates
+// its body. Standard SQL analysis and declaration admission are unconditional.
 func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
@@ -190,7 +190,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err = normalizeRoutineAttributes(h, auth, d, s.Attributes, layout.ReturnsSet); err != nil {
 		return err
 	}
-	if err = h.ValidateRoutineConfiguration(d); err != nil {
+	validateBody, err := h.ValidateRoutineConfiguration(d)
+	if err != nil {
 		return err
 	}
 	if execution == catalog.HostLanguage {
@@ -264,7 +265,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	var definition *proc.Definition
 	if bodyKind == proc.PLpgSQLBody {
 		var syntax *parser.PLBlock
-		if language.Validator != (ids.ObjectAddress{}) {
+		if validateBody && language.Validator != (ids.ObjectAddress{}) {
 			syntax, err = parser.ParsePLpgSQL(s.Body, proc.PLReturnPolicy(result, len(layout.OutputFormals), s.Procedure))
 		}
 		invocation := proc.OrdinaryInvocation
@@ -275,8 +276,10 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			invocation = proc.EventTriggerInvocation
 		}
 		definition = &proc.Definition{Kind: proc.PLpgSQLBody, Invocation: invocation, Source: s.Body, Position: s.BodyPos, Inputs: inputs, Result: result, PLSyntax: syntax}
-	} else {
+	} else if validateBody && s.Standard == nil {
 		definition, err = proc.New(s.Body, s.BodyPos, inputs, result)
+	} else {
+		definition, err = proc.NewSource(s.Body, s.BodyPos, inputs, result)
 	}
 	if err != nil && bodyKind == proc.PLpgSQLBody {
 		return parser.PLBodyError(err, s.BodyPos)
@@ -340,9 +343,9 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if !s.Procedure {
 		ddl.RecordCommand(h.Stage(), "CREATE FUNCTION", d.Address())
 	}
-	err = h.BindSQLRoutine(auth, d, input)
+	err = h.BindSQLRoutine(auth, d, input, validateBody)
 	var diagnostic *sqlstate.Error
-	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" && !d.SQL.Standard {
+	if errors.As(err, &diagnostic) && d.SQL.Kind == proc.SQLBody && !d.SQL.Standard && diagnostic.Position != "" {
 		copy := *diagnostic
 		if n, parseErr := strconv.Atoi(copy.Position); parseErr == nil {
 			copy.Position = strconv.Itoa(s.BodyPos.Character + n)

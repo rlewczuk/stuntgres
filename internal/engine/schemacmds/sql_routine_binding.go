@@ -25,8 +25,9 @@ func ExecuteSQLRoutineDDL(e *core.Engine, scope *core.StatementScope, s parser.S
 }
 
 // CREATE and Restore inspect the complete body without opening any producer.
-// Runtime text binding uses only the reached command, never this validator.
-func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *core.StatementScope) (last analyze.Binding, resultPlan proc.ResultPlan, err error) {
+// Standard analysis/freezing is unconditional; validateBody controls only the
+// validator's terminal-result checks. Runtime binds only the reached command.
+func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, validateBody bool) (last analyze.Binding, resultPlan proc.ResultPlan, err error) {
 	if d.SQLBody != nil {
 		if err := d.SQLBody.ValidateDefinition(d); err != nil {
 			return last, resultPlan, err
@@ -85,14 +86,14 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 				actions = append(actions, action)
 			}
 		}
-		if i == len(d.SQL.Statements)-1 && !d.SQL.Void() {
+		if validateBody && i == len(d.SQL.Statements)-1 && !d.SQL.Void() {
 			resultPlan, err = core.ValidateSQLRoutineTerminal(statement, last, d.SQL.Result, auth, d.SQL)
 			if err != nil {
 				return last, resultPlan, exec.SQLRoutineContext(err, d.Name(), false)
 			}
 		}
 	}
-	if len(d.SQL.Statements) == 0 && !d.SQL.Void() {
+	if validateBody && len(d.SQL.Statements) == 0 && !d.SQL.Void() {
 		name, err := core.CaptureTypeDiagnosticName(auth)
 		if err != nil {
 			return last, resultPlan, err

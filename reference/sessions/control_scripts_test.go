@@ -216,7 +216,7 @@ func TestReferenceControlScriptsAtomicFailures(t *testing.T) {
 				src = strings.NewReader("SET check_function_bodies = false; CREATE TABLE must_not_publish(v integer); CREATE FUNCTION cs_bad() RETURNS integer LANGUAGE SQL AS $$SELECT 'x'::text$$; CREATE TABLE cs_reached(v integer DEFAULT cs_bad()); INSERT INTO cs_reached DEFAULT VALUES;")
 				want = fixture.ControlsReferenceDiagnostic("42P13", "return type mismatch in function declared to return integer")
 				want.Detail = "Actual return type is text."
-				want.Context = "SQL function \"cs_bad\" statement 1"
+				want.Context = "SQL function \"cs_bad\" during inlining"
 			case "reader prefix":
 				src = &controlScriptsPrefixReader{err: ioFailure}
 				ordinary = ioFailure

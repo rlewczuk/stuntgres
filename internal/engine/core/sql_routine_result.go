@@ -3,12 +3,59 @@ package core
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+// sqlRoutineTerminalError carries the reached validator's phase, not a new
+// validation result. Nested routine failures retain their own definition owner.
+type sqlRoutineTerminalError struct {
+	err        error
+	definition *proc.Definition
+	simple     bool
+}
+
+func (e *sqlRoutineTerminalError) Error() string { return e.err.Error() }
+func (e *sqlRoutineTerminalError) Unwrap() error { return e.err }
+
+// Terminal return checking follows the attempted inlining analysis, but only a
+// simple scalar projection reaches that check while still in the inline path.
+// Syntax guards preserve structure that analyzed plans may legitimately erase;
+// analyzed project flags and typed expression walking reject real aggregate,
+// window, set and subquery structure without source-name guesses or rebinding.
+func sqlRoutineSimpleTerminal(statement parser.Statement, b analyze.Binding) bool {
+	query, ok := statement.(*parser.Select)
+	if !ok || len(query.Targets) != 1 || query.From != nil || query.Values != nil ||
+		len(query.With) != 0 || query.WithRecursive || query.Where != nil ||
+		query.GroupBy != nil || query.Having != nil || len(query.Windows) != 0 ||
+		query.Distinct != nil || query.Order != nil || query.Into != nil ||
+		len(query.Locking) != 0 || query.Bounds != nil || query.Set != nil {
+		return false
+	}
+	if b.Query == nil {
+		return false
+	}
+	project, ok := b.Query.Root.(*plan.ProjectNode)
+	if !ok || len(project.Expressions) != 1 || project.HasTargetSet {
+		return false
+	}
+	if _, singleton := project.Child.(*plan.SingletonNode); !singleton {
+		return false
+	}
+	simple := true
+	plan.WalkExpression(project.Expressions[0], func(node expr.Expr) {
+		switch node.(type) {
+		case plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr, plan.SubqueryExpr:
+			simple = false
+		}
+	})
+	return simple
+}
 
 func RoutineCommandTag(statement parser.Statement) string {
 	if transaction, ok := statement.(*parser.TransactionControl); ok {

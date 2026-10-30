@@ -175,32 +175,43 @@ func (h DDLHost) ValidateRoutineSetting(actor ddl.Authority, clause *parser.Set)
 	return settings.FoldName(d.Name), d.Format(parsed), false, nil
 }
 
-// ValidateRoutineConfiguration preflights the SAVE actions that precede the
-// default language validator during CREATE/REPLACE. The normalizer has already
-// checked values and declaration authority. No setting or transaction journal
-// is installed while Engine.Mu is held, including on partial admission failure.
-func (h DDLHost) ValidateRoutineConfiguration(d *catalog.Procedure) error {
+// ValidateRoutineConfiguration preflights validator SAVE actions only when
+// checks are on at entry, then returns the scoped body policy after normalized
+// configuration. Only the effective settings mutex is borrowed under Engine.Mu;
+// no live settings or transaction journals are installed. Private replay keeps
+// its separate source-only SQL and checked-PL admission contracts.
+func (h DDLHost) ValidateRoutineConfiguration(d *catalog.Procedure) (bool, error) {
 	if OperationReplayOrZero(h.Op).SQLBodies {
-		return nil
+		return false, nil
 	}
 	store := h.Op.EffectiveSettings()
+	store.Mu.Lock()
+	entry := store.TypedValue("check_function_bodies").Boolean
+	store.Mu.Unlock()
+	if !entry {
+		return false, nil
+	}
+	validateBody := true
 	for i := 0; d.Configuration != nil && i < d.Configuration.Len(); i++ {
 		name, input, valid := strings.Cut(d.Configuration.At(i), "=")
 		if !valid {
-			return fmt.Errorf("stuntgres: malformed routine configuration")
+			return false, fmt.Errorf("stuntgres: malformed routine configuration")
 		}
 		store.Mu.Lock()
 		definition, err := store.LookupDefinition(h.E.Settings, name, true)
 		store.Mu.Unlock()
 		if err != nil {
-			return err
+			return false, err
 		}
 		if err := restrictedParameter(h.Op, name); err != nil {
-			return err
+			return false, err
 		}
 		if err := settingActionEligibility(definition, &input, session.SettingSave); err != nil {
-			return err
+			return false, err
+		}
+		if name == "check_function_bodies" {
+			validateBody = input == "on"
 		}
 	}
-	return nil
+	return validateBody, nil
 }

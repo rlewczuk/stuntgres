@@ -39,16 +39,15 @@ func TestReferenceClientSettingsSimulationSmoke(t *testing.T) {
 			s.run(insert)
 			s.run(fixture.Select("SELECT v FROM client_smoke_child WHERE v=99", []string{"v"}, []string{"INT4"}, [][]any{{int64(99)}}))
 			s.run(fixture.Exec("DELETE FROM client_smoke_child WHERE v=99", 1))
-			if s.pg {
-				// Quoted-body routine validation remains a separate setting boundary.
-				s.run(fixture.Exec(invalidRoutine, 0))
-				s.run(fixture.Exec("DROP FUNCTION client_smoke_invalid()", 0))
-			} else {
-				d := physicalDiagnostic("42P13", "return type mismatch in function declared to return integer")
-				d.Detail, d.Context = "Actual return type is text.", `SQL function "client_smoke_invalid"`
-				s.run(physicalError(invalidRoutine, d, prepared, false))
-				s.run(fixture.Select("SELECT proname FROM pg_proc WHERE proname='client_smoke_invalid'", []string{"proname"}, []string{"NAME"}, nil))
-			}
+			create := fixture.Exec(invalidRoutine, 0)
+			create.Prepared = prepared
+			s.run(create)
+			s.run(fixture.Select("SELECT prosrc FROM pg_proc WHERE proname='client_smoke_invalid' AND pronamespace='public'::regnamespace", []string{"prosrc"}, []string{"TEXT"}, [][]any{{"SELECT 'x'::text"}}))
+			d := physicalDiagnostic("42P13", "return type mismatch in function declared to return integer")
+			d.Detail, d.Context = "Actual return type is text.", `SQL function "client_smoke_invalid" during inlining`
+			s.run(physicalError("SELECT client_smoke_invalid()", d, prepared, true))
+			s.run(fixture.Exec("DROP FUNCTION client_smoke_invalid()", 0))
+			s.run(fixture.Select("SELECT proname FROM pg_proc WHERE proname='client_smoke_invalid' AND pronamespace='public'::regnamespace", []string{"proname"}, []string{"NAME"}, nil))
 			for _, name := range []string{"dynamic_library_path", "extension_control_path", "local_preload_libraries", "session_preload_libraries"} {
 				input := `../absent_client_module,"unclosed`
 				step := clientText("SELECT set_config("+physicalLiteral(name)+","+physicalLiteral(input)+",false)", "set_config", input)

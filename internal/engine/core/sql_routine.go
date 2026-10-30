@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -164,6 +165,9 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	// the caller's policy on every exit; direct PL CALL/DO chains bypass this.
 	parent.plAtomic = true
 	statements := d.SQL.Statements
+	// The invocation-analysis owner distinguishes initial body validation from
+	// subsequent reached-command reanalysis, independently of source provenance.
+	initializing := retained.definition != d.SQL
 	if d.SQL.Standard {
 		// SQL-standard bodies retain their creation-analyzed parameter semantics.
 		inputCollation = sqltype.CollationRef{}
@@ -182,7 +186,7 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 		// analysis still happens only as each command is reached.
 		statements, err = parser.ParseWithOptions(d.SQL.Source, parser.Options{StandardConformingStrings: true, ClosedRoutineFormals: true, FormalCount: len(d.SQL.Inputs)})
 		if err != nil {
-			return value, exec.SQLRoutineStatementContext(err, d.Name(), 1)
+			return value, sqlRoutineInitializationError(err, d, nil, 0)
 		}
 	}
 	if len(statements) == 0 && !d.SQL.Void() {
@@ -207,13 +211,20 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	for i, statement := range statements {
 		live.statement = i + 1
 		terminal := i == len(statements)-1 && !d.SQL.Void()
-		value, err = parent.executeSQLRoutineCommand(d, retained.activation, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values)
+		binding := initializing
+		value, err = parent.executeSQLRoutineCommand(d, retained.activation, program, frame, statement, i, terminal, read, &retained.descriptions[i], resultUsage, inputCollation, assignmentPlanning, values, &binding)
 		if err != nil {
 			// Preserve the reached support statement frame when the root's
 			// genuine statement timer fires. Only CommandError classifies the
 			// root cause; sibling/caller cancellation remains an ordinary error.
 			if parent.invocationContext != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(parent.Op.Context()), session.StatementTimeoutCause) {
 				err = parent.Op.CommandError(err)
+			}
+			var diagnostic *sqlstate.Error
+			var terminalFailure *sqlRoutineTerminalError
+			terminalResult := terminal && errors.As(err, &terminalFailure) && terminalFailure.definition == retained.activation
+			if initializing && errors.As(err, &diagnostic) && (binding && diagnostic.Position != "" || terminalResult) {
+				return value, sqlRoutineInitializationError(err, d, statements, i+1)
 			}
 			return value, exec.SQLRoutineStatementContext(err, d.Name(), i+1)
 		}
@@ -227,7 +238,39 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	return value, nil
 }
 
-func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activation *proc.Definition, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
+// Initialization errors refer to the retained body, not the caller's SQL. Own
+// configuration/security and procedure calls use statement/startup validation
+// rather than the scalar function inlining context.
+func sqlRoutineInitializationError(err error, d *catalog.Procedure, statements []parser.Statement, ordinal int) error {
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) {
+		return err
+	}
+	next := *diagnostic
+	if next.Position != "" {
+		next.InternalPosition, next.InternalQuery = next.Position, d.SQL.Source
+		next.Position = ""
+	}
+	phase := "during startup"
+	if ordinal != 0 {
+		phase = "statement " + strconv.Itoa(ordinal)
+	}
+	if d.RoutineKind == catalog.FunctionRoutine && !d.SecurityDefiner && d.Configuration == nil && !d.SQL.ReturnsSet && d.SQL.Result.Type.ID() != 2249 && !d.SQL.Result.Type.BaseType().IsComposite() && (ordinal == 0 || len(statements) == 1) {
+		phase = "during inlining"
+		var terminalFailure *sqlRoutineTerminalError
+		if ordinal != 0 && errors.As(err, &terminalFailure) && !terminalFailure.simple {
+			phase = "statement " + strconv.Itoa(ordinal)
+		}
+	}
+	frame := "SQL function " + strconv.Quote(d.Name()) + " " + phase
+	if next.Context != "" {
+		next.Context += "\n"
+	}
+	next.Context += frame
+	return sqlstate.WithDiagnostic(err, &next)
+}
+
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activation *proc.Definition, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool, values *[]sqltype.Value, initializing *bool) (value sqltype.Value, err error) {
 	if err := s.parallelExecutionEligibility(statement); err != nil {
 		return value, err
 	}
@@ -301,6 +344,7 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, activati
 	} else {
 		count = s.Expected.Parameters.Count
 	}
+	*initializing = false
 	result, err := e.executeStatement(s, statement, count, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, frame.Parameters)
 		return nil

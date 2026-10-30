@@ -71,7 +71,7 @@ func TestRoutineDropReplayBindingDiagnostics(t *testing.T) {
 		}
 		d := &catalog.Procedure{ObjectName: "rd_unit_replay", SQL: definition, Result: 23}
 		before := auth.Catalog.State()
-		_, _, err = schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
+		_, _, err = schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, true)
 		var diagnostic *sqlstate.Error
 		if tc.code == "" {
 			if err != nil {

@@ -49,17 +49,12 @@ func TestReferenceAggregateLifecycleDependencies(t *testing.T) {
 			lifecycleExec(t, p, b, c, "DROP AGGREGATE al_unique(integer) CASCADE")
 			createAggregateBoth(t, p, b, c, fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN('al_hard','al_soft_missing')", []string{"proname"}, []string{"NAME"}, [][]any{{"al_soft_missing"}}))
 			for _, prepared := range []bool{false, true} {
-				native := fixture.ControlsReferenceDiagnostic("42883", "function al_unique(integer) does not exist")
-				native.Position = "8"
-				native.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-				native.Context = "SQL function \"al_soft_missing\" statement 1"
-				pg := native
-				pg.Position = ""
-				pg.InternalPosition = "8"
-				pg.InternalQuery = "SELECT al_unique(x) FROM al_input"
-				pg.Context = "SQL function \"al_soft_missing\" during inlining"
-				s := fixture.ErrorDiagnostic("SELECT al_soft_missing() AS v", native)
-				s.PostgresDiagnostic = &pg
+				d := fixture.ControlsReferenceDiagnostic("42883", "function al_unique(integer) does not exist")
+				d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+				d.InternalPosition = "8"
+				d.InternalQuery = "SELECT al_unique(x) FROM al_input"
+				d.Context = "SQL function \"al_soft_missing\" during inlining"
+				s := fixture.ErrorDiagnostic("SELECT al_soft_missing() AS v", d)
 				s.Prepared = prepared
 				s.SelectRows = true
 				s.ErrorStage = "execute"

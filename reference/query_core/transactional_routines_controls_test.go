@@ -49,7 +49,7 @@ func TestReferenceTransactionalRoutinesNativeControls(t *testing.T) {
 					t.Fatal("reader failure accepted")
 				}
 				bad := "SET check_function_bodies = false; CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$; CREATE TABLE txr_reached(v integer DEFAULT invalid_sql()); INSERT INTO txr_reached DEFAULT VALUES;"
-				want := quotedReplayDiagnostic(false, "invalid_sql", "SELECT x FROM missing_table", "15", "42P01", "relation \"missing_table\" does not exist", "", "", false)
+				want := quotedReplayDiagnostic(true, "invalid_sql", "SELECT x FROM missing_table", "15", "42P01", "relation \"missing_table\" does not exist", "", "", false)
 				fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: s, SQL: q}, b.Recorder, fixture.Select(q, []string{"v"}, []string{"INT4"}, [][]any{{int64(5)}}))
 				routineValue(t, p, b, c, "SELECT txr_private() AS v", "v", "INT4", int64(99))

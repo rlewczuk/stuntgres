@@ -91,7 +91,7 @@ func TestReferenceRoutineQuotedReplayDiagnostics(t *testing.T) {
 					// Explicit invalidation makes this same warmed handle analyze
 					// the ambiguous body again; ordinary retained-plan success
 					// above remains a separate PostgreSQL outcome.
-					want := quotedReplayDiagnostic(b.PG, "qr_test", tc.body, position, tc.code, tc.message, tc.detail, tc.hint, false)
+					want := quotedReplayDiagnostic(true, "qr_test", tc.body, position, tc.code, tc.message, tc.detail, tc.hint, false)
 					s := fixture.ErrorDiagnostic(q, want)
 					s.SelectRows, s.ErrorStage = true, "execute"
 					fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, b.Recorder, s)
@@ -157,7 +157,8 @@ func TestReferenceRoutineQuotedReplayDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			q := "SELECT qr_unresolved() AS v"
-			quotedReplayFailure(t, p, b, c, nil, q, "qr_unresolved", "SELECT x FROM qr_absent", "15", "42P01", "relation \"qr_absent\" does not exist", "", "")
+			initial := quotedReplayDiagnostic(true, "qr_unresolved", "SELECT x FROM qr_absent", "15", "42P01", "relation \"qr_absent\" does not exist", "", "", false)
+			checkBodiesFailure(t, p, b, c, q, initial, true)
 			// Prepare while invalid when the backend permits it; a genuinely
 			// held, previously valid handle is covered in every lawful-DDL case.
 			routineExec(t, p, b, c, "CREATE TABLE qr_absent(x integer)")
