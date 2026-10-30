@@ -126,6 +126,7 @@ type Operation struct {
 	StatisticsTarget         int
 	ConstraintExclusion      string
 	TableAccessMethod        string // Captured current default for execution-time DDL.
+	DefaultTablespace        string // Captured execution-time creation policy.
 	CursorTupleFraction      float64
 	RecursiveWorktableFactor float64
 	AsyncAppend              bool                // Immutable prior-setting snapshot at command admission.
@@ -187,6 +188,7 @@ func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
 	if err == nil && s.Settings != nil {
 		s.Settings.Mu.Lock()
 		op.TableAccessMethod = s.Settings.Value("default_table_access_method")
+		op.DefaultTablespace = s.Settings.Value("default_tablespace")
 		s.Settings.Mu.Unlock()
 	}
 	return op, err

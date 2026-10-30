@@ -79,7 +79,7 @@ func StageLikeColumns(h Host, auth ddl.Authority, destination *catalog.Relation,
 					name := ownedSequenceName(destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, func(n string) bool {
 						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0
 					})
-					if err := StageIdentitySequence(h, destination, in.TargetSlot(slot), name, identity.Mode, options, nil); err != nil {
+					if err := StageIdentitySequence(h, auth, destination, in.TargetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
 					}
 				}

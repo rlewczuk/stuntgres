@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
@@ -430,6 +431,11 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 			return nil, err
 		}
 		return &next, nil
+	}
+	// Reusing an equivalent child above performs no creation. Only synthesis
+	// consults the current default; PostgreSQL skips CREATE ACL checks here.
+	if err := ddl.CheckClonedIndexTablespaceCreation(view, h.DefaultTablespace(), child.Persistence, child.Partition != nil); err != nil {
+		return nil, err
 	}
 	labels := make([]string, len(parentIndex.Columns))
 	for i, c := range parentIndex.Columns {

@@ -16,7 +16,12 @@ import (
 // only new groups and replaces the existing parent instead of creating it.
 //
 // The caller records each declaration's LIKE source first.
-func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
+func StageUniqueDefinitions(h Host, auth ddl.Authority, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
+	if len(declarations) != 0 {
+		if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), d.Persistence, d.Partition != nil); err != nil {
+			return err
+		}
+	}
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
 			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
@@ -216,6 +221,6 @@ func StageUniqueDefinitions(h Host, d *catalog.Relation, declarations []analyze.
 
 // StageCreateUniques stages the UNIQUE and PRIMARY KEY constraints of a new
 // table d with their backing indexes.
-func StageCreateUniques(h Host, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
-	return StageUniqueDefinitions(h, d, declarations, false)
+func StageCreateUniques(h Host, auth ddl.Authority, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
+	return StageUniqueDefinitions(h, auth, d, declarations, false)
 }

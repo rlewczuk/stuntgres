@@ -133,6 +133,13 @@ func StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView, old *cat
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	catalogAccess := h.AccessView(auth)
 	if old == nil {
+		persistence := ""
+		if temporary {
+			persistence = "temporary"
+		}
+		if err := ddl.CheckDefaultTablespaceCreation(catalogAccess, auth, h.DefaultTablespace(), persistence, false); err != nil {
+			return err
+		}
 		available, err := h.DisplaceAssociatedArray(ns.Address, name)
 		if err != nil {
 			return err

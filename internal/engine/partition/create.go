@@ -160,6 +160,9 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 		return nil, d
 	}
 	view := h.AccessView(auth)
+	if err := ddl.CheckDefaultTablespaceCreation(view, auth, h.DefaultTablespace(), syntax.Persistence, syntax.PartitionBy != nil); err != nil {
+		return nil, err
+	}
 	for _, column := range parent.Columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
@@ -345,7 +348,7 @@ func stageChild(h Host, auth ddl.Authority, parent *catalog.Relation, syntax *pa
 			h.TableStage().CaptureLikeSource(declaration.Source)
 		}
 	}
-	if err = index.StageCreateUniques(h, d, uniques); err != nil {
+	if err = index.StageCreateUniques(h, auth, d, uniques); err != nil {
 		return nil, index.DefaultClassDiagnostic(h, auth, err)
 	}
 	if err = index.StageCreateExclusions(h, auth, input, d, syntax); err != nil {

@@ -65,6 +65,46 @@ func CheckAlterTablespaceCreate(view access.View, env access.Environment, ref id
 	return view.CheckCreate(env, ref)
 }
 
+// CheckDefaultTablespaceCreation consumes the operation's captured setting.
+// A trusted startup default may have disappeared since capture; PostgreSQL
+// falls back to the database default in that case. Interactive SET validates
+// existence separately. No successful builtin selection simulates placement.
+func CheckDefaultTablespaceCreation(view access.View, env access.Environment, name, persistence string, partitioned bool) error {
+	return checkDefaultTablespaceCreation(view, env, name, persistence, partitioned, true)
+}
+
+// CheckClonedIndexTablespaceCreation is DefineIndex's check_rights=false path:
+// an inherited default-space index has no explicit destination, but synthesis
+// still rejects pg_global. Reusing an existing index must not call this.
+func CheckClonedIndexTablespaceCreation(read catalog.Read, name, persistence string, partitioned bool) error {
+	return checkDefaultTablespaceCreation(access.View{Catalog: read}, nil, name, persistence, partitioned, false)
+}
+
+func checkDefaultTablespaceCreation(view access.View, env access.Environment, name, persistence string, partitioned, checkCreate bool) error {
+	if persistence == "temporary" || name == "" {
+		return nil
+	}
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
+	if address == (ids.ObjectAddress{}) {
+		return nil
+	}
+	if address.ObjectID == 1663 {
+		if partitioned {
+			return sqlError("0A000", "cannot specify default tablespace for partitioned relations")
+		}
+		return nil
+	}
+	if checkCreate {
+		if err := view.CheckCreate(env, view.Ref(address)); err != nil {
+			return err
+		}
+	}
+	if address.ObjectID == 1664 {
+		return sqlError("22023", "only shared relations can be placed in pg_global tablespace")
+	}
+	return nil
+}
+
 // AlterAllTablespace decides ALTER ... ALL IN TABLESPACE. Bulk same-space
 // assignment returns before relation selection or locking. With builtin-only
 // identities every distinct pair includes forbidden pg_global.

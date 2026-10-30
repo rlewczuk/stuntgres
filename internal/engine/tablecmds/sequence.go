@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -115,6 +116,10 @@ func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.
 				e.Mu.Unlock()
 				return core.Result{}, err
 			}
+		}
+		if err := ddl.CheckDefaultTablespaceCreation(auth.View, auth, (core.DDLHost{E: e, Op: op}).DefaultTablespace(), persistence, false); err != nil {
+			e.Mu.Unlock()
+			return core.Result{}, err
 		}
 		options.Persistence = persistence
 		oid, err := e.Catalog.AllocateOIDLocked()

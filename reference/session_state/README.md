@@ -13,6 +13,15 @@ characteristics (SET TRANSACTION, isolation defaults) in
 
 Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rules.
 
+- Default tablespace effects: `make check RUN='^TestReferenceDefaultTablespace'`
+  and `make check REFERENCE=1 RUN='^TestReferenceDefaultTablespace'` cover empty
+  versus `pg_global` creation, full metadata/diagnostics, normal CREATE authority,
+  partition-index synthesis versus reuse, temporary/partition defaults,
+  prepared execution, transaction/savepoint and nested settings. The durable
+  feature smoke is `RUN='^TestReferenceDefaultTablespaceFeatureSmoke$$'` in both
+  modes. Physical CREATE TABLESPACE remains an explicit native capability
+  boundary rather than simulated placement.
+
 Current-source, physical identity, event clocks and native-control scenarios use
 `RUN='^TestReferenceSessionActivity'` in both fixture modes.
 

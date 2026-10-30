@@ -155,6 +155,9 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 	}
 	input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
 	view := h.AccessView(auth)
+	if err := ddl.CheckDefaultTablespaceCreation(view, auth, h.DefaultTablespace(), s.Persistence, kind == catalog.PartitionedRelation); err != nil {
+		return err
+	}
 	for _, column := range b.Create.Columns {
 		ref := view.Ref(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
 		if b.Create.OfType == nil {
@@ -274,7 +277,7 @@ func StageCreateTable(h Host, auth ddl.Authority, s *parser.CreateTable, ns ids.
 			h.TableStage().CaptureLikeSource(declaration.Source)
 		}
 	}
-	if err := index.StageCreateUniques(h, d, b.Create.Uniques); err != nil {
+	if err := index.StageCreateUniques(h, auth, d, b.Create.Uniques); err != nil {
 		return index.DefaultClassDiagnostic(h, auth, err)
 	}
 	if err := index.StageCreateExclusions(h, auth, input, d, s); err != nil {

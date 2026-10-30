@@ -52,7 +52,7 @@ func stageAddedUnique(e *core.Engine, op *session.Operation, auth core.Authoriza
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	h := TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
-	next, err := table.StageAddedUnique(h, op, parent, raw)
+	next, err := table.StageAddedUnique(h, auth, op, parent, raw)
 	if err != nil {
 		return nil, index.DefaultClassDiagnostic(h, auth, err)
 	}

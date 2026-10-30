@@ -38,6 +38,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.StatisticsTarget = int(s.Settings.TypedValue("default_statistics_target").Number)
 	op.ConstraintExclusion = s.Settings.Value("constraint_exclusion")
 	op.TableAccessMethod = s.Settings.Value("default_table_access_method")
+	op.DefaultTablespace = s.Settings.Value("default_tablespace")
 	op.CursorTupleFraction = s.Settings.TypedValue("cursor_tuple_fraction").Number
 	op.RecursiveWorktableFactor = s.Settings.TypedValue("recursive_worktable_factor").Number
 	op.AsyncAppend = s.Settings.TypedValue("enable_async_append").Boolean

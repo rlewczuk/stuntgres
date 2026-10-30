@@ -359,7 +359,7 @@ Session defaults, overrides, detached invocations and transaction/savepoint
 restoration carry the same typed value; no CREATE-time text parsing is needed.
 
 The following are **setting-only simulations**, not operational switches:
-`default_tablespace`, `default_text_search_config`, `default_toast_compression`,
+`default_text_search_config`, `default_toast_compression`,
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,
@@ -369,6 +369,21 @@ identity for ordinary and query-derived creation and stored-relation ALTER
 DEFAULT. Explicit partition defaults override it; zero defaults use it only for
 new physical children, not virtual partition roots. Tablespace names use actual
 catalog identities and temporary tablespaces check CREATE privileges.
+`default_tablespace` is instead consumed from the operation's effective setting
+at relation creation, including query-derived tables, new views/composite types,
+sequences and explicit or implicit indexes. Ordinary creation checks CREATE on
+nondefault destinations before rejecting `pg_global`; setting the name itself
+requires no CREATE privilege. Newly synthesized partition indexes also consume
+the default, but their inherited `check_rights=false` policy skips the CREATE
+ACL check; attaching an equivalent existing index creates nothing and bypasses
+selection. Temporary relations use their existing `temp_tablespaces` path.
+Empty or no-longer-resolvable captured provider defaults fall back to the
+database default; interactive assignment to a missing name still fails.
+`pg_default` is valid for ordinary creation but is rejected for partitioned
+relations. The genuine builtin-only catalog supplies no filesystem placement:
+CREATE TABLESPACE physical locations and physical relocation remain explicitly
+unsupported, never successful no-ops. Session, LOCAL, savepoint and nested
+routine restoration reuse the shared settings store and admission refresh.
 Text-search configuration names resolve
 actual configuration descriptors under current namespace authority; no language
 names succeed without their genuine providers. The setting does not select the

@@ -18,6 +18,9 @@ import (
 // the stage's catalog and the host's index binder; EXCLUDE introduces no
 // alternate type, expression, predicate or method provider.
 func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
+	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), parent.Persistence, parent.Partition != nil); err != nil {
+		return err
+	}
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")

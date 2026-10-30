@@ -1,5 +1,10 @@
 # Changes
 
+- Consume `default_tablespace` at relation and index creation with live CREATE
+  authority, temporary bypass, partition-default rejection and nested/session
+  setting restoration. Distinguish synthesized partition indexes from reuse;
+  retain the explicit unsupported physical tablespace boundary.
+
 - Apply `createrole_self_grant` at non-superuser role creation, preserving the
   bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
   Preserve raw setting presentation and typed session/transaction restoration.

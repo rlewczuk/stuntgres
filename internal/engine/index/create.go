@@ -97,6 +97,9 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 		}
 		return CreatePlan{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
+	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), parent.Persistence, parent.Partition != nil); err != nil {
+		return CreatePlan{}, err
+	}
 	// The released provider-options phase follows catalog name admission.
 	for i, raw := range s.Keys {
 		options, err := BindClassOptions(view, definition.Keys[i].Class, raw.Options)

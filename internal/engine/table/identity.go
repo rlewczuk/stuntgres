@@ -70,7 +70,7 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 					return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 				}
 			}
-			if err := StageIdentitySequence(h, relation, slot, name, definition.Mode, options, restart); err != nil {
+			if err := StageIdentitySequence(h, auth, relation, slot, name, definition.Mode, options, restart); err != nil {
 				return err
 			}
 		}
@@ -80,7 +80,10 @@ func StageCreateIdentities(h Host, auth ddl.Authority, relation *catalog.Relatio
 
 // StageIdentitySequence stages an identity sequence with already resolved
 // persistence: its OID, revision, creation ACL and initial generator.
-func StageIdentitySequence(h Host, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
+func StageIdentitySequence(h Host, auth ddl.Authority, relation *catalog.Relation, slot int, name string, mode parser.IdentityMode, options catalog.SequenceOptions, restart *int64) error {
+	if err := ddl.CheckDefaultTablespaceCreation(h.AccessView(auth), auth, h.DefaultTablespace(), options.Persistence, false); err != nil {
+		return err
+	}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		return err

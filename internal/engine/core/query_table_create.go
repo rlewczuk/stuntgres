@@ -49,6 +49,9 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
+	if err := ddl.CheckDefaultTablespaceCreation(auth.View, auth, (DDLHost{E: e, Op: op}).DefaultTablespace(), "", false); err != nil {
+		return nil, nil, false, err
+	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.CreationName = s.Name
 	stage.AuthorizeLocked(auth, op.Session)

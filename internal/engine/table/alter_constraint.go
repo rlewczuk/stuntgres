@@ -151,7 +151,7 @@ func PrepareAddedChecks(h AlterHost, plan *InheritanceAlterPlan, auth ddl.Author
 
 // StageAddedUnique stages ADD UNIQUE or PRIMARY KEY on parent; a raw PRIMARY
 // KEY first adds the NOT NULLs it implies.
-func StageAddedUnique(h Host, op *session.Operation, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
+func StageAddedUnique(h Host, auth ddl.Authority, op *session.Operation, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	if raw.Primary {
 		for _, c := range parent.Constraints.Unique {
 			if c.Primary {
@@ -181,7 +181,7 @@ func StageAddedUnique(h Host, op *session.Operation, parent *catalog.Relation, r
 		}
 	}
 	next := *parent
-	err = index.StageUniqueDefinitions(h, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
+	err = index.StageUniqueDefinitions(h, auth, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
 	if err != nil {
 		return nil, err
 	}
