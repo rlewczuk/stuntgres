@@ -2417,7 +2417,7 @@ also with `RACE=1`. The composed cases inspect real accepted bindings, private
 producer frames and immutable fold generations rather than SQL equality.
 
 XML retained-description and accepted-binding generation/backing proofs use
-`RUN='^TestXMLSQLPrepared(Portal)?Ownership$'`, also with `RACE=1`.
+`RUN='^TestXML(SQLPrepared(Portal)?Ownership|Produce(PreparedFoldOwnership|UnknownParameterAdmission))$'`, also with `RACE=1`.
 
 Type-path backing and COPY predicate/retained-recipe demand units use
 `RUN='^TestTypeDescribe(CapturedTypePath|CopySnapshotDemand|RetainedSnapshotDemand)$'`.

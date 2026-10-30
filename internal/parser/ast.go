@@ -1744,6 +1744,9 @@ type queryTail struct {
 
 func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
+	case XMLConstructExpr:
+		for _,child:=range e.Children(){if !singletonArgument(child){return false}}
+		return true
 	case XMLDocumentPredicateExpr:
 		return singletonArgument(e.Child)
 	case XMLParseExpr:

@@ -41,7 +41,8 @@ type Declaration struct {
 	End             int
 }
 
-// Result contains only immutable character spelling and small parsing metadata.
+// Result contains immutable characters and factual input/construction metadata.
+// A genuine generated value need not be a well-formed document or fragment.
 // A zero Result is not an accepted empty CONTENT value.
 type Result struct {
 	original             string
@@ -58,7 +59,7 @@ func (r Result) Declaration() Declaration  { return r.declaration }
 func (r Result) Diagnostics() []Diagnostic { return append([]Diagnostic(nil), r.diagnostics...) }
 
 // Valid reports genuine parser acceptance or checked accepted-value construction,
-// including empty CONTENT. It does not promise a constructed concat is reparsable.
+// including empty CONTENT. It does not promise a constructed value is reparsable.
 func (r Result) Valid() bool { return r.valid }
 
 func Parse(ctx context.Context, input string, opts Options) (Result, error) {

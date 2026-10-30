@@ -34,3 +34,5 @@
 3454	pg_filenode_relation	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	2205	26 26	\N	\N	\N	false	\N	pg_filenode_relation	\N	false	\N
 6363	pg_restore_attribute_stats	11	12	1	0	2276	0	f	false	false	false	false	v	u	1	0	16	2276	\N	{v}	{kwargs}	false	\N	pg_restore_attribute_stats	\N	false	\N
 6398	pg_clear_attribute_stats	11	12	1	0	0	0	f	false	false	false	false	v	u	4	0	2278	25 25 25 16	\N	\N	{schemaname,relname,attname,inherited}	false	\N	pg_clear_attribute_stats	\N	false	\N
+2895	xmlcomment	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	142	25	\N	\N	\N	false	\N	xmlcomment	\N	false	\N
+3813	xmltext	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	142	25	\N	\N	\N	false	\N	xmltext	\N	false	\N

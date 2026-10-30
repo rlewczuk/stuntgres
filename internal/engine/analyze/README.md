@@ -15,6 +15,19 @@ Cancellation, deadline, cause, unrelated values and the inert request policy are
 unchanged; only a later known-unlocked runtime owner may activate that policy.
 Pure unlocked execution preflight is not blanket-disabled by package location.
 
+XML constructor analysis uses assignment conversions only for XML source and
+TEXT PI/version operands. Named operands bind before name inference/duplicate
+checks; element/forest retain actual SQL types for runtime mapping. Ordinary
+xmltext/comment calls keep registry resolution, coercion and routine authority.
+All constructor children participate in stored normalization and source capture.
+Unresolved mapped parameter occurrences use `RetainUntypedParameter` and ordinary
+`Finish`: name checks and later analysis errors precede finalization; a later
+typed occurrence cannot retroactively type an earlier UNKNOWN occurrence.
+The private provisional XML composite carries ordered children only until that
+required rejection. It has no provider/capture authority and cannot execute or
+enter a successful description; genuine constructor admission stays fully typed.
+
+
 Installed autoinc scalar binding resolves the actual stock provider and sealed
 zero-input declaration, then attaches its identity to an unfolded TRIGGER recipe.
 The selected public name may move or change; intrinsic builtin visibility never
@@ -167,8 +180,9 @@ operand as the selected conversion's recipe. Source and DEFAULT user-cast calls
 therefore retain ordinary frame/source-keyed routine occurrences. The accepted
 written-family witness seals only after every source capture completes, including
 late builtin provider annotations, and before publishing the relational node.
-Scalar XML callers keep their existing synthetic source-spine presentation rather
-than acquiring relational replay recipes.
+Scalar XML callers, including constructor arguments and XMLROOT versions, keep
+their existing synthetic source-spine presentation rather than acquiring
+relational replay recipes.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before

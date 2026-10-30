@@ -91,6 +91,17 @@ the unsuffixed validator is Stable and reads execution's XML mode each time;
 explicit document/content validators are Immutable. Rebuild and retag preserve
 conversion authority without retaining a DOM or session mode.
 
+`XMLConstruct` owns the five special constructor kinds, encoded names, distinct
+root options and immutable operand vectors. All SQL child evaluations finish
+before any type mapping. These parents remain execution-demanded and unfolded;
+element/forest mapping borrows live XML-only output presentation. `XMLTextCall`
+instead uses ordinary strict immutable folding for xmltext/xmlcomment, retaining
+the actual routine/EXECUTE authority and conditional planning behavior.
+Constructor rendering derives every named operand's explicit AS label and
+element/PI NAME from the accepted encoded name via the release presentation
+inverse, without changing original syntax facts or immutable provider names.
+
+
 `ArrayTransform` evaluates its child operands before parent transformation.
 `array_to_string` consumes one `WorkArrayTransform` runtime admission grant per
 input element, after strict NULL handling and separator/replacement conversion.
@@ -1103,7 +1114,7 @@ Visibility inquiry binding/protocol and composed capture ownership use
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
-use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand)'`.
+use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

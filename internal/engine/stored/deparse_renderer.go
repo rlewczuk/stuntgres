@@ -235,6 +235,11 @@ func (r Deparser) literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 	if v.Type().ContainsRegproc() || v.Type().ContainsOperatorAlias() {
 		return regobj.Literal(ctx, r.View, n)
 	}
+	if v.Type().BaseType().ID()==sqltype.XML {
+		// XML's literal owner preserves original spelling and requested mode;
+		// typed output may normalize declarations and emit call-local warnings.
+		return v.Type().SQLLiteral(ctx,v)
+	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
 		return "", err

@@ -15,6 +15,13 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
+	for _,name:=range []string{"xmltext","xmlcomment"}{
+		definition,ok:=Lookup(name)
+		if !ok||definition.Bind==nil||!definition.ExactSpelling||!definition.SharedGates{t.Fatalf("XML ordinary routine %q not registered",name)}
+	}
+	for _,name:=range []string{"XMLTEXT","XmlComment","xmlconcat","xmlelement","xmlforest","xmlpi","xmlroot"}{
+		if definition,ok:=Lookup(name);ok{t.Fatalf("XML special/spelling %q claimed as ordinary routine: %v",name,definition.Names)}
+	}
 	// Families that sat in the engine's final name switch keep its exact
 	// spelling and its shared label/ResolutionOnly gates.
 	for _, name := range []string{"abs", "width_bucket", "log10", "atan2d", "trim_scale"} {

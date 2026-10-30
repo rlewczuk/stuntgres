@@ -1333,6 +1333,11 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			text = "(" + text + ")"
 		}
 		return text, nil
+	case parser.XMLConstructExpr:
+		captured,err:=v.capturedXML(path,e);if err!=nil{return "",err}
+		texts:=make([]string,0,len(e.Named)+len(e.Args)+1)
+		for _,operand:=range e.Children(){text,err:=child(operand);if err!=nil{return "",err};texts=append(texts,text)}
+		return xmlConstructRecipe(e,texts,captured)
 	case parser.XMLDocumentPredicateExpr:
 		text, err := child(e.Child)
 		if err != nil {

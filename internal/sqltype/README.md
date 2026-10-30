@@ -91,11 +91,11 @@ admission and removes it before nested binding.
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
   independently of SQL equality. NULL belongs to the caller's framing, not to
   empty text, empty bytes or the zero `Value`.
-- XML values retain one immutable, successfully accepted `xml.Result` payload,
-  shared by copies, domain wrapping and compatible retags. Zero provider results
-  are not empty CONTENT. `SameDatum` preserves acceptance backing identity;
-  `SamePayload` compares accepted modes and original spelling in cancellable chunks;
-  declaration metadata is derived from that accepted spelling and mode.
+- XML values retain one immutable, genuinely parsed or generated `xml.Result`
+  payload, shared by copies, domain wrapping and compatible retags. Zero provider
+  results are not empty CONTENT. `SameDatum` preserves acceptance backing identity;
+  `SamePayload` compares modes and original spelling in cancellable chunks.
+  Generated declaration metadata records construction facts, not a successful parse.
   Neither grants XML SQL comparison or executable companion arrays.
   `XMLInput` overrides the session mode for explicit parse operations;
   `XMLSerialize` owns raw character conversion and this-call parser notices.
@@ -121,6 +121,21 @@ admission and removes it before nested binding.
   concatenation. Its mutable state belongs to one execution/group, skips typed
   NULLs and preserves the lone non-NULL Value's datum identity. Constructed values
   contain only an immutable checked XML result, never the accumulator or context.
+  Constructor bridges privately adopt genuine provider results without reparsing.
+  Value mapping unwraps domains, flattens arrays and uses genuine descriptor
+  output, with XML's binary/XSD/boolean profiles and call-local XML notices.
+  BYTEA's encoded content is already XML-safe and retains base64 CRLF separators;
+  attribute mapping still applies the complete attribute escape profile.
+  `OutputEnvironment.XMLBinaryHex` and Zone are borrowed on mapping demand;
+  neither presentation authority nor settings enter the resulting value.
+  Array mapping and constructor NULL-skipping loops poll before each 256-element
+  batch, including all-NULL arrays and long sparse runs. Mapping failures publish
+  neither partial characters nor a generated datum; immutable source payloads
+  remain reusable. `TestXMLProduceSQLMappingCancellation` exercises actual
+  mid-mapping cancellation and healthy reuse, also with `RACE=1`.
+  `TestXMLProduceSQLMappingCompletionCancellation` sweeps every actual checkpoint
+  for nonempty array/XML/BYTEA output, including the final publication check;
+  every canceled call discards characters and preserves healthy source reuse.
 - `ReadBrinPage` borrows immutable caller bytes and checks released page
   headers without consulting table rows. Per-column `BrinStoredColumn` values
   validate the original admitted input/class and capture the actual opclass
@@ -802,7 +817,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 [docs/TESTING.md](../../docs/TESTING.md). Tests of types, operators, casts,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
-XML value ownership and codec units use `RUN='^TestXMLSQL'`.
+XML datum ownership, mapping and codec units use `RUN='^TestXML(SQL|ProduceSQL)'`.
 XMLTABLE target-input adapter units use `RUN='^TestXMLTableTypeInput$'`.
 ISO interval lexical/ERANGE units use `RUN='^TestIntervalISO'`.
 Cooperative provider admission, class precision and failure ownership use

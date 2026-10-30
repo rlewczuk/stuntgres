@@ -23,6 +23,8 @@ func firstDefaultIndexProperty(raw Expr) (Position, bool) {
 	}
 	var args []Expr
 	switch e := raw.(type) {
+	case XMLConstructExpr:
+		for _,operand:=range e.Children(){child(operand)}
 	case XMLDocumentPredicateExpr:
 		child(e.Child)
 	case XMLParseExpr:

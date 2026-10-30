@@ -84,6 +84,22 @@ validating captured occurrences. Raw output TypeName spelling grants no type
 authority; rendering continues to use the provider's checked field usages.
 Selected source and DEFAULT assignment casts retain their genuine routine-call
 recipes, not a stripped operand or a newly selected target cast on replay.
+Special XML constructors authenticate the exact accepted operation/name/options
+and ordered source occurrences in their owning query frame. Their normal typed
+renderer and raw recipe presenter derive an explicit AS label for every named
+operand from its accepted encoded name using the release presentation inverse.
+Raw presentation first authenticates those names against the actual captured
+provider; original explicit/inferred syntax facts remain immutable. Generic
+mapping preserves selected casts and ordinary xmltext/comment identities.
+The existing literal validator's shared ordinal identifies each child's exact
+root, including later operands after nested subtrees. Erased same-Usage CAST
+checks consume only that child's authenticated cast annotations; parent matching
+never estimates subtree sizes or substitutes raw spelling for selected authority.
+Constructor parent matching owns only its syntax/options and ordered occurrence
+slots. Descendant routine annotations may finalize during ordinary capture;
+the exact-child validator, not a recursive parent syntax comparison, owns them.
+Parseable produced datums replay through existing XML literals; generated value
+provenance alone does not promise that arbitrary malformed characters can reinput.
 
 `TestXMLPredicateFrozenOwnership` also checks a real implicit catalog-cast operand
 under ordinary XMLEXISTS: selected procedure association, invocation descriptor
@@ -1062,7 +1078,7 @@ redump/replacement, renamed providers/attributes and retained payload ownership.
 
 XML frozen target/operand occurrence authority, selected conversion association
 and hidden conversion generations use
-`RUN='^(TestXMLFrozenCaptureOwnership|TestXMLSerializationAssociation)$'`.
+`RUN='^TestXML(FrozenCaptureOwnership|SerializationAssociation|ProduceFrozenOwnership|ProduceSelectedCastOwnership|ProduceErasedChildCastOwnership|ProduceNameRenderOwnership)$'`.
 XMLTABLE written-family capture, immutable backing and relational rendering use
 `RUN='^TestXMLTableStoredTraversal$'`.
 

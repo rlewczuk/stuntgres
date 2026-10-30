@@ -14,6 +14,7 @@ func (s *SettingsStore) Presentation() (input sqltype.InputEnvironment, output s
 	if s.Value("bytea_output") == "escape" {
 		output.ByteaOutput = sqltype.ByteaEscape
 	}
+	output.XMLBinaryHex = s.Value("xmlbinary") == "hex"
 	output.QuoteAllIdentifiers = s.Value("quote_all_identifiers") == "on"
 	_, output.ClientEncoding = sqltype.ClientEncodingName(s.Value("client_encoding"))
 	input.Transport = s.clientEncodingLocked()

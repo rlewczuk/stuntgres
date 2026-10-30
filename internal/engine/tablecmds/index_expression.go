@@ -55,6 +55,8 @@ func completeIndexExpression(op *session.Operation, auth core.AuthorizationView,
 	}
 	label := "expr"
 	switch r := raw.(type) {
+	case parser.XMLConstructExpr:
+		label=r.Kind.String()
 	case parser.XMLDocumentPredicateExpr:
 		label = "xml_is_document"
 	case parser.XMLParseExpr:

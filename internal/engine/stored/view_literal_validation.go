@@ -474,26 +474,38 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		}
 		return nil
 	}
+	xmlChildren:=func(raw []parser.Expr,captured xmlCapture)error{
+		if len(raw)!=len(captured.Sources){return fmt.Errorf("stuntgres: mismatched frozen XML operand count")}
+		for i,operand:=range raw{
+			childPath:=path
+			childPath.Argument=0
+			childPath.Node=*ordinal
+			if !v.xmlSourceOccurrenceAt(childPath,operand,captured.Sources[i]){
+				return fmt.Errorf("stuntgres: mismatched frozen XML source occurrence")
+			}
+			if err:=child(operand);err!=nil{return err}
+		}
+		return nil
+	}
 	switch r := raw.(type) {
+	case parser.XMLConstructExpr:
+		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
+		return xmlChildren(r.Children(),captured)
 	case parser.XMLDocumentPredicateExpr:
-		if _, err := v.capturedXML(path, r); err != nil {
-			return err
-		}
-		return child(r.Child)
+		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
+		return xmlChildren([]parser.Expr{r.Child},captured)
 	case parser.XMLParseExpr:
-		if _, err := v.capturedXML(path, r); err != nil {
-			return err
-		}
-		return child(r.Child)
+		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
+		return xmlChildren([]parser.Expr{r.Child},captured)
 	case parser.XMLSerializeExpr:
-		usage, err := v.capturedXML(path, r)
+		occurrence, err := v.capturedXML(path, r)
 		if err != nil {
 			return err
 		}
-		if captured, ok := v.castUsages[path]; !ok || captured != usage {
+		if captured, ok := v.castUsages[path]; !ok || captured != occurrence.Usage {
 			return fmt.Errorf("stuntgres: mismatched frozen XMLSERIALIZE target")
 		}
-		return child(r.Child)
+		return xmlChildren([]parser.Expr{r.Child},occurrence)
 	case parser.GroupingExpr:
 		return args(r.Args)
 	case parser.InListExpr:

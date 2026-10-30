@@ -278,6 +278,9 @@ func selectedScalarOperators(l sqlLexer, expr Expr) bool {
 		return true
 	}
 	switch e := expr.(type) {
+	case XMLConstructExpr:
+		for _,child:=range e.Children(){if !selectedScalarOperators(l,child){return false}}
+		return true
 	case XMLDocumentPredicateExpr:
 		return selectedScalarOperators(l, e.Child)
 	case XMLParseExpr:
@@ -510,7 +513,7 @@ func (l *lexer) capability(tok lexeme, words map[string]bool, message string) {
 
 // These C-keywords have dedicated release expression productions, not generic
 // function-name legality. Recognizing the capability never executes a call.
-var specialCalls = wordSet("coalesce greatest grouping least nullif row treat xmlconcat xmlelement xmlexists xmlforest xmlpi xmlroot json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_value merge_action exists")
+var specialCalls = wordSet("coalesce greatest grouping least nullif row treat xmlexists json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_value merge_action exists")
 
 func (l *lexer) call(callee, opener lexeme) {
 	if callee.keyword.typeFunctionName() {
@@ -607,6 +610,9 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case XMLConstructExpr:
+		for _,child:=range r.Children(){if !l.scalarInputTree(child){return false}}
+		return true
 	case XMLDocumentPredicateExpr:
 		return l.scalarInputTree(r.Child)
 	case XMLParseExpr:

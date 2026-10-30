@@ -75,6 +75,20 @@ rescans separator whitespace, and skips collector-only work in validation mode.
 Result is not accepted empty CONTENT and cannot be output. All failures return
 zero Result and no partial transient document.
 
+`ConstructText`, `ConstructComment`, `ConstructConcat`, `ConstructElement`,
+`ConstructForest`, `ConstructPI` and `ConstructRoot` publish genuine generated
+values without input revalidation. Validity is value provenance, not a promise
+of well-formed characters: document qualification still reparses independently.
+Construction retains no tree, recipe or environment. Escape profiles and legacy
+identifier ranges are distinct from input grammar and serializer escaping.
+`UnmapName` is a presentation-only, single-pass inverse for exactly four hex
+digits after lowercase `_x`; it supplies neither input nor construction authority.
+Concat/root consume original declaration/body characters; typed output owns its
+separate normalization and warnings. All construction failures publish zero.
+Both join passes poll outer fragments, including empty fragments; emission cannot
+skip cancellation merely because a fragment contributes no characters.
+
+
 `Declaration` distinguishes absent and present-empty encoding/version properties,
 retains written labels and has an exclusive UTF8-original byte `End`. CONTENT's
 custom declaration is stripped only from transient scanner input. Its diagnostic
@@ -536,7 +550,7 @@ projection is extended with source-derived three/four-byte alignments, tokenized
 attributes and cancellation during valid and already-failed string decoding.
 
 ```sh
-make check RUN='^TestXMLCore'
+make check RUN='^TestXML(Core|Produce)'
 make check RUN='^TestXMLDTD'
 make check RUN='^TestXMLSerialize'
 make check RUN='^Test(XMLPredicate|XPath)'

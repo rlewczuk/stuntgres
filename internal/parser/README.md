@@ -71,6 +71,13 @@ single-statement limit of driver calls) belong to callers.
   tokens use lexer syntax, not the session setting integer consumer.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
+- XML construction syntax retains a closed operation kind, positioned named
+  operands, expression-valued VERSION, explicit versus absent PI data and four
+  standalone states. Contextual constructor keywords never globally reserve
+  NAME/VERSION/STANDALONE. Every raw child participates in ordinary discovery.
+  Leading CONTENT/DOCUMENT belongs only to XMLPARSE/XMLSERIALIZE; only XMLPARSE
+  owns PRESERVE/STRIP WHITESPACE. Nested form state never reserves those words
+  in constructor operands or XMLTABLE sources.
 - Column expressions share one-, two- and three-component syntax in every
   expression consumer, including casts, calls and grouped operands. Each
   identifier retains its normalized spelling and source position; grouping
@@ -465,7 +472,7 @@ feature prefix.
 - Keywords and ordinary keyword calls: `RUN='^Test(Keyword|OrdinaryKeywordCallHeads)'`
 - Scratch receivers: `RUN='^TestParseScratch'` (also with `RACE=1`)
 - SQL/JSON and JSON_TABLE: `RUN='^Test(SQLJSONQueryParser|JSONTableParser|JSONBPathOpsParser)$'`
-- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal|TableParser)$'`
+- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal|TableParser|ProduceGrammar|ProduceTraversal|ProduceLexicalOwnership)$'`
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`

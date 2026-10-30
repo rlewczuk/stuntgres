@@ -412,7 +412,7 @@ func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolic
 	case parser.InListExpr, parser.ArrayComparisonExpr:
 	case parser.RowExpr, parser.FieldExpr, parser.StarExpr, parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.ArrayExpr, parser.SubscriptExpr, parser.FunctionExpr, parser.AggregateExpr, parser.GroupingExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	case parser.SQLJSONExpr, parser.SQLJSONQueryExpr, parser.JSONPredicateExpr:
-	case parser.XMLParseExpr, parser.XMLSerializeExpr, parser.XMLDocumentPredicateExpr:
+	case parser.XMLParseExpr, parser.XMLSerializeExpr, parser.XMLDocumentPredicateExpr, parser.XMLConstructExpr:
 	case parser.MergeActionExpr:
 	default:
 		return ComparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")

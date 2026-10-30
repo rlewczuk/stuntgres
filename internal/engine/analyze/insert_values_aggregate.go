@@ -11,6 +11,9 @@ import (
 func ContainsValuesAggregateAnalysis(raw parser.Expr) bool {
 	var children []parser.Expr
 	switch e := raw.(type) {
+	case parser.XMLConstructExpr:
+		for _,child:=range e.Children(){if ContainsValuesAggregateAnalysis(child){return true}}
+		return false
 	case parser.XMLDocumentPredicateExpr:
 		return ContainsValuesAggregateAnalysis(e.Child)
 	case parser.XMLParseExpr:

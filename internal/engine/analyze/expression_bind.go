@@ -373,6 +373,10 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if err != nil {
 				return nil, err
 			}
+		case parser.XMLConstructExpr:
+			var err error
+			node,err=b.bindXMLConstruct(r)
+			if err!=nil{return nil,err}
 		case parser.XMLParseExpr:
 			var err error
 			node, err = b.bindXMLParse(r)

@@ -27,6 +27,18 @@ func (c *Context) presentedOutput() sqltype.OutputEnvironment {
 	return output
 }
 
+// XML value mapping alone borrows live binary and zone settings on demand.
+func (c *Context) FunctionXMLOutput() sqltype.OutputEnvironment {
+	output:=c.presentedOutput()
+	if c.ClosedEvaluation==nil {
+		if host:=c.LiveHost();host!=nil {
+			_,current:=host.Environments()
+			output.XMLBinaryHex,output.Zone=current.XMLBinaryHex,current.Zone
+		}
+	}
+	return output
+}
+
 func (c *Context) ApplyCoercion(plan sqltype.CoercionPlan, value sqltype.Value, domainChecks bool) (sqltype.Value, error) {
 	output := c.presentedOutput()
 	input := c.FunctionInput()

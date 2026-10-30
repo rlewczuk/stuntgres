@@ -37,6 +37,8 @@ type RegclassFormatter interface {
 
 type OutputEnvironment struct {
 	ByteaOutput         ByteaOutput
+	// XMLBinaryHex selects XML's uppercase hex mapping instead of base64.
+	XMLBinaryHex        bool
 	Zone                *Zone
 	DateStyle           DateStyle
 	IntervalStyle       IntervalStyle

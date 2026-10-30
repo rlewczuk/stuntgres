@@ -18,6 +18,7 @@ const (
 	CaptureXMLParse
 	CaptureXMLSerialize
 	CaptureXMLDocument
+	CaptureXMLConstruct
 )
 
 // Capturable explicitly admits a raw syntax kind. It must not evaluate, render,

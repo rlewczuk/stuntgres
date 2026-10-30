@@ -71,6 +71,12 @@ func xmlError(err error) error {
 	if err == nil {
 		return nil
 	}
+	var constructor *xml.ConstructError
+	if errors.As(err, &constructor) {
+		code := "2200S"
+		if constructor.PI { code = "2200T" }
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: constructor.Message, Detail: constructor.Detail}
+	}
 	var xp *xml.XPathError
 	if errors.As(err, &xp) {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "10608", Message: xp.Error(), Detail: xp.Detail}

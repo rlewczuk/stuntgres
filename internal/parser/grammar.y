@@ -3,6 +3,10 @@ package parser
 %}
 %union {
  tok lexeme
+ xmlConstruct *XMLConstructExpr
+ xmlNamed []XMLNamedOperand
+ xmlOperand XMLNamedOperand
+ xmlStandalone xmlStandaloneOption
  stmt Statement
  explainOptions []ExplainOption
  explainOption ExplainOption
@@ -341,6 +345,7 @@ package parser
 %token <tok> XML_PARSE XML_SERIALIZE XML_MODE XML_SPACE XML_WHITESPACE XML_INDENT
 %token <tok> XML_EXISTS XML_DOCUMENT XML_PASSING XML_PASS_KIND
 %token <tok> XML_TABLE XML_NAMESPACES XML_COLUMNS XML_PATH
+%token <tok> XML_CONCAT XML_ELEMENT XML_FOREST XML_PI XML_ROOT XML_ATTRIBUTES XML_NAME XML_VERSION XML_STANDALONE XML_YES
 %token <tok> GRANT REVOKE ADMIN INHERIT OPTION GRANTED
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
@@ -880,6 +885,13 @@ package parser
 %type <expr> xml_expression
 %type <tok> xml_parse_head xml_serialize_head xml_mode xml_whitespace xml_indent
 %type <tok> xml_exists_head xml_passing
+%type <tok> xml_concat_head xml_element_head xml_forest_head xml_pi_head xml_root_head xml_attributes_head
+%type <xmlStandalone> xml_standalone
+%type <xmlConstruct> xml_element_tail
+%type <xmlNamed> xml_named_list
+%type <xmlOperand> xml_named
+%type <row> xml_args
+%type <expr> xml_version
 %type <expr> sqljson_query
 %type <tok> sqljson_query_head sqljson_wrapper sqljson_quotes sqljson_wrapper_kind sqljson_scalar_string
 %type <sqljsonPassing> sqljson_passing sqljson_bindings
@@ -3100,6 +3112,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="box" && $1.text!="point" && $1.text!="circle" && $1.text!="line" && $1.text!="lseg" && $1.text!="path" && $1.text!="polygon" && $1.text!="tsvector" && $1.text!="tsquery" && $1.text!="tid" && $1.text!="macaddr" && $1.text!="macaddr8" && $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" && $1.text!="pg_lsn";$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
  | KW_U STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:$1.text!="path"} }
  | XML STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
+ | TEXT STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | EXPLAIN STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
  | KW_C STRING { if $1.text!="json" {sqllex.(*lexer).syntax($2);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | column_reference %prec NAME_LIST { $$=$1 }
@@ -3641,7 +3654,7 @@ json_null_policy: /* empty */ { $$=&JSONAggregateOptions{Absent:true} }
  | JSON_NULL ON NULL { $$=&JSONAggregateOptions{NullPos:$1.pos} } ;
 json_returning: /* empty */ { $$=&JSONAggregateOptions{} }
  | RETURNING json_return_type json_format { typ:=$2;$$=&JSONAggregateOptions{Returning:&typ,Output:$3,ReturningPos:$1.pos} } ;
-xml_parse_head: XML_PARSE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth});$$=$1} ;
+xml_parse_head: XML_PARSE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Parse:true});$$=$1} ;
 xml_serialize_head: XML_SERIALIZE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Serialize:true});$$=$1} ;
 xml_exists_head: XML_EXISTS '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Exists:true});$$=$1} ;
 xml_passing: /* empty */ {$$=lexeme{}} | BY XML_PASS_KIND {$$=$2} ;
@@ -3650,7 +3663,31 @@ xml_whitespace: /* empty */ {$$=lexeme{}} | XML_SPACE XML_WHITESPACE {$$=$1} ;
 xml_indent: /* empty */ {$$=lexeme{}} | XML_INDENT {$$=$1} | NO XML_INDENT {$$=$1;$$.text="no indent"} ;
 xml_expression: xml_parse_head xml_mode target_or xml_whitespace ')' {$$=XMLParseExpr{Child:$3,Document:$2.text=="document",Whitespace:$4.text,Pos:$1.pos}}
  | xml_serialize_head xml_mode target_or AS declaration_type_base xml_indent ')' {$$=XMLSerializeExpr{Child:$3,Document:$2.text=="document",Target:$5,Indent:$6.text,Pos:$1.pos}}
- | xml_exists_head c_expression XML_PASSING xml_passing c_expression xml_passing ')' {$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"xmlexists",Pos:$1.pos}}},Args:[]Expr{$2,$5},Syntax:OrdinaryFunctionSyntax,Pos:$1.pos}} ;
+ | xml_exists_head c_expression XML_PASSING xml_passing c_expression xml_passing ')' {$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"pg_catalog",Pos:$1.pos},{Text:"xmlexists",Pos:$1.pos}}},Args:[]Expr{$2,$5},Syntax:OrdinaryFunctionSyntax,Pos:$1.pos}}
+ | xml_concat_head xml_args ')' {$$=XMLConstructExpr{Kind:XMLConcat,Args:append([]Expr(nil),$2...),Pos:$1.pos}}
+ | xml_element_head XML_NAME col_label xml_element_tail ')' {n:=*$4;n.Kind=XMLElement;n.Name=Identifier{Text:$3.text,Pos:$3.pos};n.Pos=$1.pos;$$=n}
+ | xml_forest_head xml_named_list ')' {$$=XMLConstructExpr{Kind:XMLForest,Named:append([]XMLNamedOperand(nil),$2...),Pos:$1.pos}}
+ | xml_pi_head XML_NAME col_label ')' {$$=XMLConstructExpr{Kind:XMLPI,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
+ | xml_pi_head XML_NAME col_label ',' target_or ')' {$$=XMLConstructExpr{Kind:XMLPI,Name:Identifier{Text:$3.text,Pos:$3.pos},Args:[]Expr{$5},Pos:$1.pos}}
+ | xml_root_head target_or ',' XML_VERSION xml_version xml_standalone ')' {$$=XMLConstructExpr{Kind:XMLRoot,Args:[]Expr{$2},Version:$5,VersionPos:$4.pos,Standalone:$6.Kind,StandalonePos:$6.Pos,Pos:$1.pos}} ;
+xml_concat_head: XML_CONCAT '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Construct:$1.text});$$=$1} ;
+xml_element_head: XML_ELEMENT '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Construct:$1.text});$$=$1} ;
+xml_forest_head: XML_FOREST '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Construct:$1.text});$$=$1} ;
+xml_pi_head: XML_PI '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Construct:$1.text});$$=$1} ;
+xml_root_head: XML_ROOT '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Construct:$1.text});$$=$1} ;
+xml_element_tail: /* empty */ {$$=&XMLConstructExpr{}}
+ | ',' xml_args {$$=&XMLConstructExpr{Args:append([]Expr(nil),$2...)}}
+ | ',' xml_attributes_head xml_named_list ')' {$$=&XMLConstructExpr{Named:append([]XMLNamedOperand(nil),$3...)}}
+ | ',' xml_attributes_head xml_named_list ')' ',' xml_args {$$=&XMLConstructExpr{Named:append([]XMLNamedOperand(nil),$3...),Args:append([]Expr(nil),$6...)}} ;
+xml_attributes_head: XML_ATTRIBUTES '(' {$$=$1} ;
+xml_args: target_or {$$=[]Expr{$1}} | xml_args ',' target_or {$$=append($1,$3)} ;
+xml_named_list: xml_named {$$=[]XMLNamedOperand{$1}} | xml_named_list ',' xml_named {$$=append($1,$3)} ;
+xml_named: target_or {$$=XMLNamedOperand{Expr:$1,Pos:ExpressionStart($1)}} | target_or AS col_label {name:=Identifier{Text:$3.text,Pos:$3.pos};$$=XMLNamedOperand{Expr:$1,Name:&name,Pos:ExpressionStart($1)}} ;
+xml_version: target_or {$$=$1} | NO VALUE {$$=nil} ;
+xml_standalone: /* empty */ {$$=xmlStandaloneOption{}}
+ | ',' XML_STANDALONE NO VALUE {$$=xmlStandaloneOption{Kind:1,Pos:$2.pos}}
+ | ',' XML_STANDALONE XML_YES {$$=xmlStandaloneOption{Kind:2,Pos:$2.pos}}
+ | ',' XML_STANDALONE NO {$$=xmlStandaloneOption{Kind:3,Pos:$2.pos}} ;
 json_return_type: type { $$=$1 } | SETOF_TYPE type { $$=$2;$$.Setof=true } ;
 sqljson_array_head: SQLJSON_ARRAY '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);$$=$1 } ;
 sqljson_object_head: SQLJSON_OBJECT '(' { l:=sqllex.(*lexer);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonObjectFirst=true;$$=$1 } ;
@@ -3847,6 +3884,11 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | XML_PARSE %prec NAME_LIST {$$=$1}
  | XML_SERIALIZE %prec NAME_LIST {$$=$1}
  | XML_EXISTS %prec NAME_LIST {$$=$1}
+ | XML_CONCAT %prec NAME_LIST {$$=$1}
+ | XML_ELEMENT %prec NAME_LIST {$$=$1}
+ | XML_FOREST %prec NAME_LIST {$$=$1}
+ | XML_PI %prec NAME_LIST {$$=$1}
+ | XML_ROOT %prec NAME_LIST {$$=$1}
  | JSON_TABLE_FUNC %prec NAME_LIST {$$=$1}
  | XML_TABLE %prec NAME_LIST {$$=$1}
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;

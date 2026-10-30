@@ -27,6 +27,7 @@ type Context interface {
 	FunctionInput() sqltype.InputEnvironment
 	FunctionOutput() sqltype.OutputEnvironment
 	FunctionJSONOutput() sqltype.OutputEnvironment
+	FunctionXMLOutput() sqltype.OutputEnvironment
 	FunctionStringOutput() sqltype.OutputEnvironment
 	FunctionFormatOutput() sqltype.OutputEnvironment
 	FunctionJSONBRecordInput() sqltype.InputEnvironment

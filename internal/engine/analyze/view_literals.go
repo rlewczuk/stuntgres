@@ -131,6 +131,10 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.XMLConstructExpr:
+		n,ok:=bound.(functions.XMLConstruct)
+		if !ok||!n.MatchesSyntax(r){return fmt.Errorf("stuntgres: mismatched XML constructor occurrence")}
+		return protocol(expr.CaptureXMLConstruct,r.Children())
 	case parser.XMLDocumentPredicateExpr:
 		n, ok := bound.(functions.XMLDocumentPredicate)
 		if !ok || n.Negated != r.Negated {

@@ -15,12 +15,11 @@ import (
 // starts before its surviving operand, unlike postfix syntax. Follow only the
 // exact frozen annotations of such erased boundaries, retaining the original
 // source position and the accepted operand's complete Usage as authority.
-func (v *View) xmlSourceOccurrence(path analyze.ViewLiteralPath, raw parser.Expr, bound expr.Expr) bool {
+func (v *View) xmlSourceOccurrenceAt(path analyze.ViewLiteralPath, raw parser.Expr, bound expr.Expr) bool {
 	if raw == nil || bound == nil {
 		return false
 	}
 	path.Argument = 0
-	path.Node++ // The XML operation's first written operand.
 	for raw.SourcePosition() != bound.SourcePosition() {
 		cast, ok := raw.(parser.CastExpr)
 		if !ok || cast.FrozenMethod != "" {
@@ -38,59 +37,59 @@ func (v *View) xmlSourceOccurrence(path analyze.ViewLiteralPath, raw parser.Expr
 	return true
 }
 
-// Authenticate syntax against the actual accepted node in the owning frame,
-// independently of the presentation target map. Raw type names are not authority.
-func (v *View) capturedXML(path analyze.ViewLiteralPath, raw parser.Expr) (sqltype.Usage, error) {
+type xmlCapture struct {
+	Usage sqltype.Usage
+	Sources []expr.Expr
+	Name string
+	Names []string
+}
+
+// Authenticate the parent in its actual owning frame. Source occurrence checks
+// run in validateLiteralTree, where each child's exact ordinal is already known.
+func (v *View) capturedXML(path analyze.ViewLiteralPath, raw parser.Expr) (xmlCapture, error) {
 	found := false
-	var usage sqltype.Usage
+	var captured xmlCapture
 	var failure error
+	accept := func(usage sqltype.Usage, children []expr.Expr, opener parser.Position, name string, names []string) {
+		sources:=make([]expr.Expr,len(children))
+		for i,child:=range children {
+			var err error
+			sources[i],err=plan.XMLSourceOperand(child,opener)
+			if err!=nil{failure=err;return}
+		}
+		if found&&(captured.Usage!=usage||!reflect.DeepEqual(captured.Sources,sources)||captured.Name!=name||!reflect.DeepEqual(captured.Names,names)){
+			failure=fmt.Errorf("stuntgres: ambiguous frozen XML occurrence")
+			return
+		}
+		captured=xmlCapture{Usage:usage,Sources:sources,Name:name,Names:names}
+		found=true
+	}
 	check := func(node expr.Expr) {
-		match := false
-		switch n := node.(type) {
+		if failure!=nil{return}
+		switch n:=node.(type) {
+		case functions.XMLConstruct:
+			if r,ok:=raw.(parser.XMLConstructExpr);ok&&n.SourcePosition()==r.Pos&&n.MatchesSyntax(r){
+				failure=n.ValidateStoredProvider()
+				if failure==nil{accept(n.ResultUsage(),n.Children(),n.Pos,n.Name(),n.Names())}
+			}
 		case functions.XMLDocumentPredicate:
-			if r, ok := raw.(parser.XMLDocumentPredicateExpr); ok && reflect.DeepEqual(n.Syntax, r) && n.SourcePosition() == r.Pos && n.Negated == r.Negated {
-				written, err := plan.XMLSourceOperand(n.Child, n.Pos)
-				match = err == nil && v.xmlSourceOccurrence(path, r.Child, written)
-				if match {
-					failure = n.ValidateStoredProvider()
-				}
+			if r,ok:=raw.(parser.XMLDocumentPredicateExpr);ok&&reflect.DeepEqual(n.Syntax,r)&&n.SourcePosition()==r.Pos&&n.Negated==r.Negated{
+				failure=n.ValidateStoredProvider()
+				if failure==nil{accept(n.ResultUsage(),[]expr.Expr{n.Child},n.Pos,"",nil)}
 			}
 		case functions.XMLParse:
-			if r, ok := raw.(parser.XMLParseExpr); ok && reflect.DeepEqual(n.Syntax, r) && n.SourcePosition() == r.Pos {
-				written, err := plan.XMLSourceOperand(n.Child, n.Pos)
-				match = err == nil && v.xmlSourceOccurrence(path, r.Child, written) && n.Document == r.Document && n.Whitespace == r.Whitespace
-				if match {
-					failure = n.ValidateStoredProvider()
-				}
+			if r,ok:=raw.(parser.XMLParseExpr);ok&&reflect.DeepEqual(n.Syntax,r)&&n.SourcePosition()==r.Pos&&n.Document==r.Document&&n.Whitespace==r.Whitespace{
+				failure=n.ValidateStoredProvider()
+				if failure==nil{accept(n.ResultUsage(),[]expr.Expr{n.Child},n.Pos,"",nil)}
 			}
 		case plan.CoercionExpr:
-			if !n.XMLSerializeResult {
-				break
+			if !n.XMLSerializeResult{return}
+			source,target,err:=plan.XMLSerialization(n)
+			if err!=nil{failure=err;return}
+			if r,ok:=raw.(parser.XMLSerializeExpr);ok&&reflect.DeepEqual(source.Syntax,r)&&n.SourcePosition()==r.Pos&&source.Document==r.Document&&source.Indent==r.Indent{
+				accept(target,[]expr.Expr{source.Child},source.Pos,"",nil)
 			}
-			source, target, err := plan.XMLSerialization(n)
-			if err != nil {
-				failure = err
-				return
-			}
-			if r, ok := raw.(parser.XMLSerializeExpr); ok && reflect.DeepEqual(source.Syntax, r) && n.SourcePosition() == r.Pos {
-				match = source.Document == r.Document && source.Indent == r.Indent
-				if match {
-					if found && usage != target {
-						failure = fmt.Errorf("stuntgres: ambiguous frozen XML occurrence")
-					}
-					usage, found = target, true
-				}
-			}
-			return
 		}
-		if !match {
-			return
-		}
-		if found && usage != node.ResultUsage() {
-			failure = fmt.Errorf("stuntgres: ambiguous frozen XML occurrence")
-		}
-		usage = node.ResultUsage()
-		found = true
 	}
 	var walk func(plan.Node)
 	walk = func(node plan.Node) {
@@ -107,10 +106,10 @@ func (v *View) capturedXML(path analyze.ViewLiteralPath, raw parser.Expr) (sqlty
 	}
 	walk(v.frames[path.Query])
 	if failure != nil {
-		return sqltype.Usage{}, failure
+		return xmlCapture{}, failure
 	}
 	if !found {
-		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing frozen XML occurrence")
+		return xmlCapture{}, fmt.Errorf("stuntgres: missing frozen XML occurrence")
 	}
-	return usage, nil
+	return captured, nil
 }

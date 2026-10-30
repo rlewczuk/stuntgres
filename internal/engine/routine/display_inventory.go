@@ -942,6 +942,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	6210: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_is_valid"},
 	6211: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_error_info"},
 	2614: {Language: catalog.InternalRoutineLanguage, Source: "xmlexists"},
+	3813: {Language: catalog.InternalRoutineLanguage, Source: "xmltext"},
+	2895: {Language: catalog.InternalRoutineLanguage, Source: "xmlcomment"},
 	3051: {Language: catalog.InternalRoutineLanguage, Source: "xml_is_well_formed"},
 	3052: {Language: catalog.InternalRoutineLanguage, Source: "xml_is_well_formed_document"},
 	3053: {Language: catalog.InternalRoutineLanguage, Source: "xml_is_well_formed_content"},

@@ -1191,6 +1191,27 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
+		switch token.lexeme.text {
+		case "xmlconcat", "xmlelement", "xmlforest", "xmlpi", "xmlroot":
+			next:=l.nextRaw();l.lookahead,l.hasLookahead=next,true
+			if next.code==int('(') {
+				switch token.lexeme.text {case "xmlconcat":token.code=XML_CONCAT;case "xmlelement":token.code=XML_ELEMENT;case "xmlforest":token.code=XML_FOREST;case "xmlpi":token.code=XML_PI;case "xmlroot":token.code=XML_ROOT}
+			}
+		}
+		if len(l.xmlDepths)>0 {
+			state:=&l.xmlDepths[len(l.xmlDepths)-1]
+			if state.Construct!="" {
+				if l.jsonParenDepth==state.Depth {
+					switch token.lexeme.text {
+					case "name":if l.previousToken==int('(')&&(state.Construct=="xmlelement"||state.Construct=="xmlpi"){token.code=XML_NAME}
+					case "version":if l.previousToken==int(',')&&state.Construct=="xmlroot"{token.code=XML_VERSION}
+					case "standalone":if l.previousToken==int(',')&&state.Construct=="xmlroot"{token.code=XML_STANDALONE}
+					case "yes":if l.previousToken==XML_STANDALONE{token.code=XML_YES}
+					case "xmlattributes":if l.previousToken==int(',')&&state.Construct=="xmlelement"{token.code=XML_ATTRIBUTES}
+					}
+				}
+			}
+		}
 		if token.lexeme.text == "xmlparse" || token.lexeme.text == "xmlserialize" || token.lexeme.text == "xmlexists" {
 			next := l.nextRaw()
 			l.lookahead, l.hasLookahead = next, true
@@ -1246,21 +1267,23 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			if l.previousToken != AS {
 				switch token.lexeme.text {
 				case "document", "content":
-					if l.previousToken == int('(') {
+					if (state.Parse || state.Serialize) && l.previousToken == int('(') {
 						token.code = XML_MODE
 					}
 				case "preserve", "strip":
-					next := l.nextRaw()
-					l.lookahead, l.hasLookahead = next, true
-					if next.lexeme.keyword != nil && next.lexeme.text == "whitespace" {
-						token.code = XML_SPACE
+					if state.Parse {
+						next := l.nextRaw()
+						l.lookahead, l.hasLookahead = next, true
+						if next.lexeme.keyword != nil && next.lexeme.text == "whitespace" {
+							token.code = XML_SPACE
+						}
 					}
 				case "whitespace":
-					if l.previousToken == XML_SPACE {
+					if state.Parse && l.previousToken == XML_SPACE {
 						token.code = XML_WHITESPACE
 					}
 				case "indent":
-					if state.Target {
+					if state.Serialize && state.Target {
 						token.code = XML_INDENT
 					}
 				}

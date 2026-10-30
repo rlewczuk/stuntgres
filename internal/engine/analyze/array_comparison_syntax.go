@@ -113,6 +113,12 @@ func (b *Binder) NormalizeInListExpression(raw parser.Expr) (parser.Expr, bool) 
 		}
 	}
 	switch r := raw.(type) {
+	case parser.XMLConstructExpr:
+		r.Args=args(r.Args)
+		if r.Version!=nil {r.Version=child(r.Version)}
+		named:=append([]parser.XMLNamedOperand(nil),r.Named...)
+		for i:=range named {named[i].Expr=child(named[i].Expr);if named[i].Name!=nil{name:=*named[i].Name;named[i].Name=&name}}
+		if changed {r.Named=named;return r,true}
 	case parser.XMLDocumentPredicateExpr:
 		r.Child = child(r.Child)
 		if changed {
