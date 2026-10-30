@@ -216,6 +216,12 @@ specified stopwords, resource isolation, typed prepared ownership and native rep
 Dutch historical Porter morphology, fixed suffix/region/accent boundaries,
 101 literal stopwords, resource isolation, typed prepared ownership and native replay:
 `RUN='^TestReferenceDutchSnowball'`. Edited-stock replay consumes actual native bytes.
+Estonian release morphology, original-R1 and stage-order boundaries, language-only
+stock defaults, explicit stopwords, typed prepared ownership, admitted cancellation
+and native dictionary/seed replay: `RUN='^TestReferenceEstonianSnowball'`.
+Literal expectations are independent of provider tables; replay consumes actual
+native-emitted SQL. Private kernel/provider and publication ownership witnesses
+share `RUN='^TestSnowballEstonian'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

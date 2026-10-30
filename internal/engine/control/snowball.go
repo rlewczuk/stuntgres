@@ -30,7 +30,7 @@ func seedDictionaryOptionDelta(d *catalog.TSDictionary) string {
 }
 
 // Identity replay precedes declaration/mapping replay; use the ordinary
-// collision planner so simple/English/Arabic/Armenian/Basque/Danish/Dutch name cycles remain real SQL.
+// collision planner so simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian name cycles remain real SQL.
 func (s *dumpScript) configurationProviderReplays() ([]providerReplay, error) {
 	var out []providerReplay
 	originalNS := s.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})

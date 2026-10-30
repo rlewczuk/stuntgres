@@ -839,11 +839,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish and historical Dutch Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter and Estonian kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian and Basque have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque and Estonian have no stock
   stopword resource. English, Danish and Dutch stock lists contain 127, 94 and 101 words;
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
@@ -869,6 +869,12 @@ publication and lock-manager tickets stay in the engine.
   three-codepoint minimum; R2 starts from natural R1. Its e-removal flag and
   dd/kk/tt-only undoubling belong to the historical Porter stage order, not the
   modern Dutch algorithm. One invocation-local rune buffer owns all edits.
+  Estonian preserves original R1 without a minimum clamp. Its 290 whole-token
+  exceptions precede emphasis, verb-or-substantive and final kk/pp/tt undoubling.
+  Each substantive stage resumes at the current end; suffix selection is confined
+  to original R1, while predecessor predicates inspect the unrestricted prefix.
+  A failed selected predicate does not retry shorter suffixes. Deletion-only
+  paths reuse input slices; replacements allocate only changed output strings.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.

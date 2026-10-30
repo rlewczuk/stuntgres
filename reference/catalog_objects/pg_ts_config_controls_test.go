@@ -47,7 +47,11 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='dutch' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&dutch); err != nil || dutch <= 0 || dutch == 3748 || dutch == english || dutch == arabic || dutch == armenian || dutch == basque || dutch == danish {
 				t.Fatal("actual distinct Dutch configuration identity", dutch, err)
 			}
-			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
+			var estonian int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='estonian' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&estonian); err != nil || estonian <= 0 || estonian == 3748 || estonian == english || estonian == arabic || estonian == armenian || estonian == basque || estonian == danish || estonian == dutch {
+				t.Fatal("actual distinct Estonian configuration identity", estonian, err)
+			}
+			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}, {estonian, "estonian", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
 		}
 		catalog := func() {
 			pgTSConfigInventory(t, p, b, b.DB)
@@ -55,7 +59,7 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		}
 		check := func() {
 			catalog()
-			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','simple') ORDER BY cfgname"
+			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','estonian','simple') ORDER BY cfgname"
 			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, seedRows()))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
