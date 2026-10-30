@@ -907,9 +907,14 @@ only. If a query-table source function stages actual row writes or deletions,
 the destination joins the existing catalog overlay and those effects publish
 together at ordinary `Finish`, just as for a writable CTE. Collector scratch
 alone does not delay ordinary utility publication or allocate that journal.
-Each matching phase recaptures current authority and invokes checked functions
-in name order unlocked. Prepared handles retain neither callback lists nor
-function bodies nor a cached replica bit.
+Each phase reads the operation-effective typed `event_triggers` Boolean before
+capturing callbacks; off suppresses every firing mode. Collection scratch and
+the command journal remain independent of that execution switch. Each enabled
+phase recaptures current authority and invokes checked functions in name order
+unlocked, without rechecking the Boolean between already captured callbacks.
+Later phases see callback setting changes and routine-local restoration.
+Prepared handles retain neither callback lists, function bodies, a cached
+replica bit nor a cached event-trigger Boolean.
 Exact command drop capture uses the same effective role/TAG gate; catalog-only
 capture remains a conservative session-independent O/R/A superset. Exception
 checkpoints restore command-local drop facts alongside catalog, row and effect

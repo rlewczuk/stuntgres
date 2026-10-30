@@ -167,6 +167,14 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 		e.Mu.Unlock()
 		return err
 	}
+	currentSettings := s.Op.EffectiveSettings()
+	currentSettings.Mu.Lock()
+	enabled := currentSettings.TypedValue("event_triggers").Boolean
+	currentSettings.Mu.Unlock()
+	if !enabled {
+		e.Mu.Unlock()
+		return nil
+	}
 	var list []*catalog.EventTrigger
 	replica := auth.RuleReplica()
 	for _, d := range auth.Catalog.EventTriggers() {

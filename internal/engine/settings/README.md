@@ -366,9 +366,16 @@ provider returns NULL for NULL input, permits preparation and undemanded calls,
 and rejects demanded non-NULL inspection explicitly. It never reports the GUC as
 measured compression or resolves a column's default policy at CREATE time.
 
+`event_triggers` is the real Boolean execution switch for all four installed
+event-trigger phases. Each phase reads the operation-effective typed value;
+off suppresses every firing mode without changing declarations or collection.
+Already captured callbacks complete even if a callback changes the setting.
+SET privileges and session, transaction, savepoint and routine-local restoration
+belong to the shared settings owner, not an event-specific store.
+
 The following are **setting-only simulations**, not operational switches:
 `default_text_search_config`,
-`dynamic_library_path`, `event_triggers`, `extension_control_path`,
+`dynamic_library_path`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,
 `temp_tablespaces`, `xmlbinary` and `xmloption`.
@@ -400,7 +407,7 @@ Missing configurations, including names qualified by a nonexistent schema, use
 the setting's invalid-value diagnostic (22023); namespace permission failures
 retain their authority diagnostic instead of being hidden as invalid values.
 No compressors, GIN truncation/pending lists, physical placement, relation
-restrictions, XML execution or event-trigger mechanisms are implied.
+restrictions or XML execution are implied.
 `session_replication_role` instead controls real user
 and per-event foreign-key trigger execution through their stored O/D/R/A modes;
 effective changes use the shared prepared-plan discard generation.
