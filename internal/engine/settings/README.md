@@ -358,8 +358,16 @@ do not add either optional grant or retroactively change existing grants.
 Session defaults, overrides, detached invocations and transaction/savepoint
 restoration carry the same typed value; no CREATE-time text parsing is needed.
 
+`default_toast_compression` uses the shared enum and session/transaction settings
+owner, including savepoint restoration. Logical data and unspecified column
+`attcompression` remain unchanged by setting changes. Physical TOAST compression
+and inspection are outside embedded storage: the typed `pg_column_compression`
+provider returns NULL for NULL input, permits preparation and undemanded calls,
+and rejects demanded non-NULL inspection explicitly. It never reports the GUC as
+measured compression or resolves a column's default policy at CREATE time.
+
 The following are **setting-only simulations**, not operational switches:
-`default_text_search_config`, `default_toast_compression`,
+`default_text_search_config`,
 `dynamic_library_path`, `event_triggers`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,

@@ -499,6 +499,7 @@
 1081	format_type	11	12	1	0	0	0	f	false	false	false	false	s	s	2	0	25	26 23	\N	\N	\N	false	\N	format_type	\N	false	\N
 1619	pg_typeof	11	12	1	0	0	0	f	false	false	false	false	s	s	1	0	2206	2276	\N	\N	\N	false	\N	pg_typeof	\N	false	\N
 6315	pg_basetype	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2206	2206	\N	\N	\N	false	\N	pg_basetype	\N	false	\N
+2121	pg_column_compression	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	2276	\N	\N	\N	false	\N	pg_column_compression	\N	false	\N
 3782	pg_logical_slot_get_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,25}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_get_changes	\N	false	\N
 3783	pg_logical_slot_get_binary_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,17}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_get_binary_changes	\N	false	\N
 3784	pg_logical_slot_peek_changes	11	12	1000	1000	25	0	f	false	false	false	true	v	u	4	1	2249	19 3220 23 1009	{19,3220,23,1009,3220,28,25}	{i,i,i,v,o,o,o}	{slot_name,upto_lsn,upto_nchanges,options,lsn,xid,data}	true	\N	pg_logical_slot_peek_changes	\N	false	\N

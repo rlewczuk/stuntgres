@@ -193,6 +193,15 @@ authorize a foreign descriptor generation.
 `CatalogInquiryRuntime.FormatType` and `BaseType` borrow captured catalog/path
 authority; `pg_typeof` uses its validated logical witness without a catalog read.
 
+`ColumnCompression` binds `pg_column_compression(any)` through the ordinary
+catalog routine provider. Its immutable one-child TEXT recipe preserves the
+operand's concrete type, remains STABLE and planning-unfolded, and preflights
+only child work. Evaluation returns typed NULL for a NULL operand; demanded
+non-NULL inspection reports `0A000` because physical TOAST compression inspection
+is unsupported in embedded mode. Prepare and undemanded expressions do not
+inspect physical storage. Stored views use ordinary reconstruction, capture,
+rendering and native-control replay, with no retained GUC or measured metadata.
+
 `GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
 sources, retaining only a closed kind, immutable operands and result shape.
 Ordinary EXECUTE admission precedes runtime NULL handling; all written operands
@@ -1035,6 +1044,9 @@ use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand)'`.
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.
 Public SQL and metadata scenarios live in `reference/domain_types`.
+Compression inquiry declaration, immutable protocol and demand units use
+`RUN='^TestColumnCompressionProtocol$'`; public scenarios live in
+`reference/session_state`.
 
 Leaf units of nodes, kernels, providers and the registry live here. Tests of
 builtin functions and aggregates that bind through the real analyzer or run on

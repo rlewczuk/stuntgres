@@ -52,6 +52,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{1081, ids.PGCatalogNamespaceOID, "format_type", "26,23"}, catalog.FunctionRoutine, 25, false, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{6315, ids.PGCatalogNamespaceOID, "pg_basetype", "2206"}, catalog.FunctionRoutine, 2206, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{1619, ids.PGCatalogNamespaceOID, "pg_typeof", "2276"}, catalog.FunctionRoutine, 2206, false, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{2121, ids.PGCatalogNamespaceOID, "pg_column_compression", "2276"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3355, ids.PGCatalogNamespaceOID, "pg_ndistinct_in", "2275"}, catalog.FunctionRoutine, 3361, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{3356, ids.PGCatalogNamespaceOID, "pg_ndistinct_out", "3361"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, functions.EmbeddedRoutineProvider, nil},
 	{catalog.RoutineIdentity{3357, ids.PGCatalogNamespaceOID, "pg_ndistinct_recv", "2281"}, catalog.FunctionRoutine, 3361, true, expr.Stable, 's', false, 0, 0, 0, nil},
