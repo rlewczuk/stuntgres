@@ -3,11 +3,18 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`,
+`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
 `domain_constraints`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
+
+Foreign-server inquiry covers seven source-owned nullable domains, actual
+server/wrapper/owner associations and current server ownership/USAGE visibility.
+Stored NULL and empty type/version values remain distinct; options and dependent
+mappings/tables do not multiply server rows. Reads use captured metadata without
+invoking foreign handlers. Native control phases retain supported owner/ACL
+associations and old rows independently of replacement.
 
 ## Testing
 
@@ -56,6 +63,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign-column options: `RUN='^TestReferenceInfoColumnOptions'`
 - Foreign-wrapper options: `RUN='^TestReferenceInfoForeignDataWrapperOptions'`
 - Foreign-wrapper metadata: `RUN='^TestReferenceInfoForeignDataWrappers'`
+- Foreign-server metadata: `RUN='^TestReferenceInfoForeignServers'`
 - Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`

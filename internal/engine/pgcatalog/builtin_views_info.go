@@ -577,6 +577,17 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("    "), viewIdentifier("foreign_data_wrapper_language"), viewText("\n"),
 		viewText("   FROM "), viewClass("information_schema._pg_foreign_data_wrappers"), viewText(" "), viewIdentifier("w"), viewText(";"),
 	}},
+	// information_schema.foreign_servers — pinned PostgreSQL 18.6 display.
+	{oid: InfoForeignServersOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("foreign_server_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_server_name"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_data_wrapper_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_data_wrapper_name"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_server_type"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_server_version"), viewText(",\n"),
+		viewText("    "), viewIdentifier("authorization_identifier"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_foreign_servers"), viewText(";"),
+	}},
 	// information_schema.user_mapping_options — REL_18_6 information_schema.sql.
 	{oid: InfoUserMappingOptionsOID, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("authorization_identifier"), viewText(",\n"),

@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
-`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `key_column_usage`,
+`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
@@ -933,6 +933,16 @@ catalog writes or bypass a provider's independent backing-source checks.
   not. Owned rows retain their paired catalog/role authority across publication.
   Options, dependents and handler registration never create or multiply rows;
   metadata reads do not execute handlers or contact foreign servers.
+- `information_schema.foreign_servers`: one row per actual server joined to its
+  wrapper and server owner, in five nullable source-owned `sql_identifier` and
+  two nullable `character_data` domains. Captured database and names accompany
+  the stored type/version; absent values remain typed NULL, distinct from empty
+  strings. Immediately inherited server ownership or effective server USAGE
+  admits the complete row, independently of wrapper or dependent-object rights.
+  Paired immutable catalog/role captures retain owned rows across publication;
+  cancellation discards partial results. Options, mappings, tables and handler
+  registration neither create nor multiply rows. Metadata never invokes handlers
+  or performs remote I/O.
 - `key_column_usage`: foreign-key positions follow the supporting index's
   ordered keys; visibility is owner inheritance or a column privilege.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
@@ -1211,6 +1221,7 @@ a hash root alone does not select that access method.
 - Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
 - Foreign-wrapper option producer units (core): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (core): `RUN='^TestInfoForeignDataWrappers'`
+- Foreign-server producer units (core): `RUN='^TestInfoForeignServers'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Type procedure dependency ownership and retirement (composed engine):
   `RUN='^TestTypeProcedureDependencies'`.
