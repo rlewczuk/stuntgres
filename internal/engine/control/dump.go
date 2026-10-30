@@ -71,6 +71,7 @@ type Capture struct {
 	Statistics            []*catalog.Statistics
 	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
 	AttributeStatistics []storage.AttributeStatisticsSnapshot
+	RelationStatistics []storage.RelationStatisticsSnapshot
 	Providers             []providerReplay
 	Tables                []table.DumpRelation
 	LargeObjects          []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

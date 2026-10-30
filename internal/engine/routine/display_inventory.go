@@ -20,6 +20,8 @@ type builtinDisplayFacts struct {
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	6363: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_attribute_stats", OmitAllArgTypes: true},
 	6398: {Language: catalog.InternalRoutineLanguage, Source: "pg_clear_attribute_stats"},
+	6362: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_relation_stats", OmitAllArgTypes: true},
+	6397: {Language: catalog.InternalRoutineLanguage, Source: "pg_clear_relation_stats"},
 	3779: {Language: catalog.InternalRoutineLanguage, Source: "pg_create_physical_replication_slot"},
 	3786: {Language: catalog.InternalRoutineLanguage, Source: "pg_create_logical_replication_slot"},
 	3780: {Language: catalog.InternalRoutineLanguage, Source: "pg_drop_replication_slot"},

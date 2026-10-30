@@ -35,6 +35,24 @@ separately from the pure-lineage `Truncated` flag. Compatible successors carry
 the actual private heap's post-truncate scan witness; savepoints/prepared owners
 retain that physical maintenance authority without making column facts
 nontransactional.
+Imported relation fields use the same journal with `ImportedReset` field masks
+and surviving later `Imported` writes. Semantic new-file staging discards earlier
+writes for reset fields and records defaults only for currently present imports;
+no-import operations do not manufacture overrides of native maintenance.
+Owner reads and commit remove reset canonical bits before merging later writes.
+`ImportedStorage` is the opaque last-new-file token, not the latest heap pointer.
+Compared with the innermost retained subtransaction entry, it distinguishes a
+new-file TRUNCATE from an in-place one that preserves statistics. Creation uses
+entry catalog absence; compatible heap transports and ordinary writes do not
+advance the token. RELEASE, rollback, internal statement marks and prepared
+owners preserve/reclassify the same immutable journal state. No token is
+published to canonical metadata or native snapshots, and historical storage
+flags never erase later restore/clear.
+`ImportedAnalyzeCount` borrows the existing canonical ANALYZE count as write
+provenance. Successful maintenance survives savepoint rollback, so old saved
+tuple writes (also foreign pages) are ignored when that baseline has changed.
+Actual restore/reset filters old writes before refreshing its baseline, including
+unrelated page/visibility updates. No new canonical counter is introduced.
 
 
 ## What it owns

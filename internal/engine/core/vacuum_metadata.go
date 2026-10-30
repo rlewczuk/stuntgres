@@ -50,7 +50,9 @@ func (r EngineCatalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.
 			fact.Scanned, fact.Tuples = metadata.Scanned, metadata.Tuples
 		}
 	}
-	return fact, store != nil || metadata != nil
+	imported := session.ResolveRelationStatistics(r.Auth.PendingCatalog(), address, metadata)
+	if imported != nil { fact.Imported = *imported }
+	return fact, store != nil || metadata != nil || imported != nil
 }
 func (r EngineCatalogRuntime) DatabaseFrozenXID() uint64 { return r.engine.DatabaseFrozenXID }
 func (r EngineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgcatalog.VacuumProgressFact) error) error {

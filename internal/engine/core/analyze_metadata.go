@@ -55,6 +55,8 @@ func (e *Engine) prepareRelationMetadataLocked(next *catalog.State, journal *ses
 			}
 			entry.Statistics = storage.CompatibleStatistics(storage.MergeExtendedStatistics(storage.MergeStatistics(entry.Statistics, change.Columns), change.Extended), relation)
 			entry.Statistics = storage.CompatibleExtendedStatistics(entry.Statistics, relation, e.Catalog.Read(next))
+			entry.Imported = storage.WithoutImportedRelationStatistics(entry.Imported, change.ImportedReset)
+			entry.Imported = storage.MergeImportedRelationStatistics(entry.Imported, change.ImportedWrites(&entry))
 			metadata[address] = &entry
 		}
 	}

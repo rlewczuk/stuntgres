@@ -326,6 +326,11 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if previous != nil {
 		*metadata = *previous
 	}
+	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationTuples)
+	if pending := s.PendingCatalog(); pending != nil {
+		if s.Catalog == nil { s.Catalog = pending.Clone() }
+		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationTuples)
+	}
 	metadata.AnalyzeCount++
 	metadata.LastAnalyze = completed
 	if !relation.RelationKind.Stored() {

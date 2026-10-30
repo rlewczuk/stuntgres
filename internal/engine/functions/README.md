@@ -273,6 +273,20 @@ labels remain resolution errors. Unresolved ANY parameters retain ordinary
 prepare-time type-determination diagnostics. Permission errors use the effective
 target's relation kind, including the parent of an index.
 
+`RelationStatistics` follows the same typed expression path for
+`pg_restore_relation_stats` and the two-TEXT-formal `pg_clear_relation_stats`.
+The heterogeneous restore decoder requires exact INT4/FLOAT4 field types,
+matches ASCII keys bytewise without Unicode folding, keeps ordered warnings,
+and never infers unresolved ANY parameter types from Go
+arguments. Both routines are volatile, non-strict and nonfolding; Describe and
+LIMIT 0 do not execute them. Named clear operands evaluate once in formal
+order (schemaname, relname); written operands and labels remain intact for
+stored rendering/capture. Named explicit VARIADIC calls retain their labels.
+The host journals immutable four-bit field deltas; BOOL and nonnull VOID use
+normal result metadata. Recipe units use `TestRelationStatisticsRecipeOwnership`;
+public R1–R7 scenarios use `make check RUN='^TestReferenceRelationStatistics'`
+in native and `REFERENCE=1` modes.
+
 `StatisticsIO` binds the released internal statistics input/output/send
 declarations through the ordinary signature and coercion owners. Calls are
 strict; non-NULL input delegates to the rejecting concrete codec. Output uses

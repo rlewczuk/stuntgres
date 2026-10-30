@@ -1010,3 +1010,9 @@ func (c *Context) AttributeStatistics(clear, variadic bool, values []sqltype.Val
 	if host == nil { return false, fmt.Errorf("stuntgres: missing attribute statistics host") }
 	return host.AttributeStatistics(clear, variadic, values)
 }
+
+func (c *Context) RelationStatistics(clear, variadic bool, values []sqltype.Value) (bool, error) {
+	host := c.LiveHost()
+	if host == nil { return false, fmt.Errorf("stuntgres: missing relation statistics host") }
+	return host.RelationStatistics(clear, variadic, values)
+}

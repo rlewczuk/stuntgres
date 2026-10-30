@@ -32,7 +32,7 @@ func EngineCatalogAuthorityPreflightLocked(x *Engine, a *session.CatalogAuthorit
 
 // EngineInstallForeignCatalogLocked calls x.installForeignCatalogLocked.
 func EngineInstallForeignCatalogLocked(x *Engine, ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation) error {
-	return x.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, nil, nil)
+	return x.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, nil, nil, nil)
 }
 
 // EnginePrepareCatalogOverlayIndexes calls x.prepareCatalogOverlayIndexes.

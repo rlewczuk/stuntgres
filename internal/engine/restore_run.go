@@ -52,6 +52,7 @@ type restoreRun struct {
 	snapshots                []view.MaterializedSnapshot
 	extendedStatistics       []storage.ExtendedStatisticsSnapshot
 	attributeStatistics []storage.AttributeStatisticsSnapshot
+	relationStatistics []storage.RelationStatisticsSnapshot
 	initialPrivileges        *control.InitialPrivilegesMetadata
 	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
 	comparison               control.ComparisonRestore

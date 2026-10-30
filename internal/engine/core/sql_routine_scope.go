@@ -4,6 +4,7 @@ import (
 	"maps"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -46,6 +47,7 @@ type sqlRoutineScratch struct {
 	activeViews         []ids.ObjectAddress
 	inheritance         inheritanceScope
 	materialized        *view.MaterializedRefreshScope
+	truncate            *dml.TruncateScope
 	largeObjectRead     catalog.Read
 	authority           *exec.Authority
 	routineAuth         AuthorizationView
@@ -80,6 +82,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.ViewCreationOrZero().Active, inheritance: s.Inheritance,
 		materialized: s.MaterializedSlot,
+		truncate:     s.truncateSlot,
 		authority:    s.authority, routineAuth: s.RoutineAuth, expected: s.Expected,
 		routineDependencies: s.RoutineDependencies,
 		prepared:            s.prepared, admissionWaited: s.admissionWaited,
@@ -101,6 +104,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.setActiveViews(c.activeViews)
 	s.Inheritance = c.inheritance
 	s.MaterializedSlot = c.materialized
+	s.truncateSlot = c.truncate
 	s.authority, s.RoutineAuth, s.Expected = c.authority, c.routineAuth, c.expected
 	s.RoutineDependencies = c.routineDependencies
 	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited

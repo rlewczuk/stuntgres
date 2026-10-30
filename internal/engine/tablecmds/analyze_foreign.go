@@ -210,6 +210,11 @@ func analyzeForeign(e *core.Engine, s *core.StatementScope, target analyzeTarget
 	if previous != nil {
 		*metadata = *previous
 	}
+	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationPages | storage.RelationTuples)
+	if pending := s.PendingCatalog(); pending != nil {
+		if s.Catalog == nil { s.Catalog = pending.Clone() }
+		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationPages | storage.RelationTuples)
+	}
 	metadata.ForeignAnalyze = &storage.ForeignAnalyzeStatistics{SampleRows: count, TotalRows: sample.TotalRows, TotalDeadRows: sample.TotalDeadRows, TotalPages: sample.TotalPages}
 	metadata.AnalyzeCount++
 	metadata.LastAnalyze = completed

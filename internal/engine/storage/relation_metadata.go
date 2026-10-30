@@ -12,6 +12,7 @@ import "time"
 // publication authority. Neither publication replaces physical row roots.
 type RelationMetadata struct {
 	Statistics       *RelationStatistics
+	Imported         *ImportedRelationStatistics
 	ForeignAnalyze   *ForeignAnalyzeStatistics
 	Scanned          bool
 	Tuples           int64

@@ -88,6 +88,7 @@ type Host interface {
 	LogicalDecoding(sqltype.Value, sqltype.Value) error
 	ReplicationSlot(functions.ReplicationSlotKind, uint8, [5]sqltype.Value) error
 	AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
+	RelationStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
 	GenericFileTmpdir(uint32) error
 	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)

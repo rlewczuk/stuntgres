@@ -111,9 +111,22 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 		changes.Roles = stage.RoleCandidateRecord
 	}
 	changes.RecordRowShapes(stage.RowShapes, &stage.Candidate)
+	for address, shape := range stage.RowShapes {
+		if shape.Rewritten {
+			relation := changes.Storage[address].Relation
+			if relation != nil && relation.RelationKind == catalog.TableRelation {
+				e.resetImportedRelationStatisticsLocked(changes, relation, storage.ImportedRelationStatistics{Mask: storage.RelationStatisticsAll, Tuples: -1}, shape.Replacement)
+			}
+		}
+	}
 	if r := stage.MaterializedOrZero().Replacement; r != nil {
 		a := r.Original.Address()
 		changes.RecordMaterializedRefresh(session.MaterializedRefresh{Address: a, Predecessor: r.Predecessor, Storage: r.Storage, Ends: r.Ends, Generation: r.Generation, Descriptor: r.Descriptor, Concurrent: r.Concurrent, Committed: r.Predecessor == e.Storage.Relations[a], Frontier: e.Visibility.CommitSeq()})
+		if !r.Concurrent {
+			replacement := storage.ImportedRelationStatistics{Mask: storage.RelationStatisticsAll, Tuples: -1}
+			if r.Storage.Maintenance.Scanned { replacement.Tuples = float32(r.Storage.Maintenance.Tuples) }
+			e.resetImportedRelationStatisticsLocked(changes, r.Descriptor, replacement, r.Storage)
+		}
 	}
 	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)

@@ -184,3 +184,34 @@ parent diagnostics. Planner coverage exercises non-MCV equality after explicit
 zero distinctness. Native corruptions replace the original record (never append
 a duplicate), including scalar/unequatable-element histograms and wrong retained
 typmod/collation; every rejection preserves destination statistics and sentinel.
+
+Relation statistics restoration has eight independent shared scenarios:
+`TestReferenceRelationStatisticsRestoreClear`, `Validation`,
+`BindingDiagnostics`, `TypedLifecycle`, `TargetsPrivileges`, `Transactions`,
+`ResetOrdering` and `NativeControls` (each suffix shares the same full prefix). They pin exact
+four-field estimates, BOOL/VOID metadata, warning order and partial false,
+required selectors/typed ANY failures, live MAINTAIN/database-owner/index-parent
+authority, locks/cancellation, transaction/savepoint/2PC publication and physical
+row independence. Native phases prove independent-driver symbolic replay,
+stable redump, malformed/canceled replacement atomicity, TEMP retention and old
+captured catalog rows. Expectations derive from REL_18_6 relation_stats.c and
+stat_utils.c; no expected value is learned from native output.
+ResetOrdering covers imported→new-file TRUNCATE and TRUNCATE→restore/clear,
+same-subtransaction repeat/created-here preservation, own/peer readback, nested
+savepoint allocation, RELEASE/ROLLBACK and both prepared completions. Ordinary
+ALTER TYPE rewrites exercise both operation orders and rewrite→restore→in-place
+TRUNCATE. A real PL/pgSQL exception block exercises an internal entry captured
+after enclosing statement writes. Physical rows remain independently asserted.
+Validation rejects Unicode confusables in schema/version keys with full
+warning/error diagnostics under C/UTF8.
+The maintenance companion rolls back selected ANALYZE facts to a saved reset
+journal, then restores pages only: the measured tuple estimate must remain2,
+not resurrect the old imported-1. A genuine later tuple restore still wins.
+Existing `TestReferenceAnalyzeTruncateOrdering` and
+`TestReferenceAnalyzeTruncateRewriteOrdering` retain their independent native
+maintenance versus PostgreSQL physical-rewrite expectations unchanged; run both
+in native and `REFERENCE=1` modes when changing these shared journal seams.
+
+Select with `make check RUN='^TestReferenceRelationStatistics'` and again with
+`REFERENCE=1`. Focused feature smoke is
+`make check RUN='^(TestReferenceRelationStatisticsRestoreClear|TestReferenceRelationStatisticsValidation|TestReferenceRelationStatisticsResetOrdering|TestReferenceRelationStatisticsNativeControls)$'`.

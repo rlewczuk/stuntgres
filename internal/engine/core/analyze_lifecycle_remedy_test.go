@@ -241,8 +241,9 @@ func TestAnalyzeTruncateJournalOrdering(t *testing.T) {
 				if sequence == "savepoint_discards_typed_scan" {
 					enginetest.SessionSQL(t, s, "ROLLBACK TO before_scan")
 					journal = s.Transactions.Catalog
-					if _, retained := journal.Statistics[ref.Address]; retained || journal.Storage[ref.Address].Replacement != shape.Replacement {
-						t.Fatal("savepoint failed to discard typed delta while retaining earlier TRUNCATE storage")
+					reset, retained := journal.Statistics[ref.Address]
+					if !retained || len(reset.Columns) != 0 || len(reset.Extended) != 0 || reset.Imported.Mask != 0 || reset.ImportedReset != storage.RelationStatisticsAll || reset.ImportedStorage != shape.Replacement || reset.ImportedAnalyzeCount != baseline.AnalyzeCount || journal.Storage[ref.Address].Replacement != shape.Replacement {
+						t.Fatal("savepoint failed to discard collected facts while retaining earlier TRUNCATE reset/storage ownership")
 					}
 					wantFact = baseline.Statistics.Columns[key]
 				}

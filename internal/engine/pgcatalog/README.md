@@ -416,8 +416,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   one typed-array materializer.
   Released declaration presence is independent: `RoutineDisplay.OmitAllArgTypes`
   preserves SQL NULL `proallargtypes` while retaining non-NULL `proargmodes`.
-  It defaults false and is set for attribute-statistics restore's released
-  declaration only. The shared projector still visits/validates every formal,
+  It defaults false and is set for relation- and attribute-statistics restore's
+  released declarations. The shared projector still visits/validates every formal,
   but does not allocate or materialize an omitted type array. Existing ANY
   variadics retain their explicitly declared all-argument arrays.
   `pronargdefaults` reads SQL/PL `Formals` through `DefaultCount`, or the captured
@@ -763,6 +763,15 @@ an empty adapter is not an initialized maintenance capture.
 estimates from absent information and exact heap tuples. `pg_class.reltuples`
 uses the separate floating TotalRows, never sample size; `relpages` converts the
 provider's page estimate to the catalog's bounded integer representation.
+`MaintenanceFact.Imported` carries all four exact imported relation fields from
+the same capture frontier, including transaction-private masked deltas.
+`pg_class` derives ordinary defaults/maintenance first, then overrides only
+present fields, preserving INT4/FLOAT4/INT4/INT4 result metadata. Explicit clear
+produces `(0,-1,0,0)`; an absent mask remains ordinary derived state. Fractional
+tuples and negative integer fields are estimates, never physical row counts.
+Publication/immutable snapshot units use `make check RUN='^TestRelationStatistics'`;
+public coverage is `make check RUN='^TestReferenceRelationStatistics'` in both
+native and pinned-reference modes.
 
 `pg_prepared_statements` is captured fresh from the admitted physical session,
 never cached by catalog revision. The engine releases its mutex before visiting

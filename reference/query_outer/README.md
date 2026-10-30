@@ -87,6 +87,10 @@ cost 10 in the exact inventory and all projected metadata fields.
 The physical compression inquiry retains OID2121, its one-any strict/STABLE/
 parallel-safe TEXT signature, cost 1 and internal implementation symbol.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
+Relation statistics restore/clear adds released OIDs6362/6397, non-strict
+VOLATILE/parallel-unsafe BOOL/VOID signatures, kwargs and two text input names,
+and restore's `{v}` modes with NULL all-argument types. Membership and complete
+property projections include both records.
 The rule and trigger definition functions add four independently released
 `REL_18_6` overload records (1573, 1662, 2504, 2730), including their strict,
 stable, parallel-safe defaults and internal implementation names. Membership

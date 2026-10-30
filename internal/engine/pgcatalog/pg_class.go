@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -124,6 +125,7 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 	}
 	tuples := float64(-1)
 	pages := int64(0)
+	allVisible, allFrozen := int64(0), int64(0)
 	if kind == "S" {
 		tuples = 1
 	}
@@ -138,6 +140,11 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 				pages = int64(min(float64(2147483647), fact.ForeignPages))
 			}
 			frozenXID = uint32(fact.FrozenXID)
+			imported := fact.Imported
+			if imported.Mask & storage.RelationPages != 0 { pages = int64(imported.Pages) }
+			if imported.Mask & storage.RelationTuples != 0 { tuples = float64(imported.Tuples) }
+			if imported.Mask & storage.RelationAllVisible != 0 { allVisible = int64(imported.AllVisible) }
+			if imported.Mask & storage.RelationAllFrozen != 0 { allFrozen = int64(imported.AllFrozen) }
 		}
 	}
 	replica := string(byte(relation.EffectiveReplicaIdentity()))
@@ -173,7 +180,7 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 		oid(0, uint32(relation.Address().ObjectID)), text(1, relation.Name()), oid(2, uint32(relation.Namespace().ObjectID)),
 		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, pages), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
-		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
+		integer(11, allVisible), integer(12, allFrozen), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, ClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.Constraints.Check))),
 		boolean(20, relation.HasRules() || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, hasTriggers), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),

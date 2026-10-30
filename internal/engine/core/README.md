@@ -1074,7 +1074,12 @@ The opaque ninth field owns bounded immutable command facts, not lexical state.
 `ProjectedRoots` and `WriteStage.Replacing`
 distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
 uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh
-lexical admission and restores the exact outer `MaterializedSlot` once on exit.
+lexical admission and restores the exact outer `MaterializedSlot` and TRUNCATE
+manifest pointers once on exit. Each nested command starts with no TRUNCATE
+admission scratch, so prior Relations/Names/storage references cannot leak into
+its fresh selection. The shared catalog/statistics journal and physical effects
+remain root-owned. Exception checkpoints retain their independent rollback
+snapshot; transaction rotation discards obsolete utility admission.
 Volatile nested commands snapshot complete projected private roots instead of
 merging their removed entries with older transaction writes. Thus AFTER TRUNCATE
 reads the staged empty target even when earlier commands wrote it in the same

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqlstate"
 	"time"
@@ -136,6 +137,11 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 		if err := s.Op.Context().Err(); err != nil {
 			e.Mu.Unlock()
 			return err
+		}
+		if previous := e.Storage.RelationMetadata[target.relation.Address()]; previous != nil && previous.Imported != nil {
+			next := *previous
+			next.Imported = storage.WithoutImportedRelationStatistics(next.Imported, storage.RelationStatisticsAll)
+			e.Storage.RelationMetadata[target.relation.Address()] = &next
 		}
 		target.store.Versions, target.store.Ends, target.store.Generation = pass.Candidate.Versions, pass.Candidate.Ends, pass.Generation
 		for address, root := range pass.Roots {

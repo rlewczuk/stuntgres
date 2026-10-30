@@ -11,6 +11,8 @@ import (
 var builtinRoutineInputNames = map[ids.OID]*catalog.RoutineInputNames{
 	6363: catalog.NewRoutineInputNames("kwargs"),
 	6398: catalog.NewRoutineInputNames("schemaname", "relname", "attname", "inherited"),
+	6362: catalog.NewRoutineInputNames("kwargs"),
+	6397: catalog.NewRoutineInputNames("schemaname", "relname"),
 	1268: catalog.NewRoutineInputNames("str", "strict"),                                             // parse_ident
 	2284: catalog.NewRoutineInputNames("string", "pattern", "replacement"),                          // regexp_replace
 	2285: catalog.NewRoutineInputNames("string", "pattern", "replacement", "flags"),                 // regexp_replace

@@ -1158,6 +1158,8 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	extendedStatistics, captureErr := storage.CaptureExtendedStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement))
 	var attributeStatistics []storage.AttributeStatisticsSnapshot
 	if captureErr == nil { attributeStatistics, captureErr = storage.CaptureAttributeStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement)) }
+	var relationStatistics []storage.RelationStatisticsSnapshot
+	if captureErr == nil { relationStatistics, captureErr = storage.CaptureRelationStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata) }
 	source.Mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1203,7 +1205,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	if !e.Catalog.State.ParametersUnchanged(parameterPredecessor) {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics, attributeStatistics); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics, attributeStatistics, relationStatistics); err != nil {
 		return ChangeSet{}, err
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
@@ -1216,7 +1218,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot, attributeStatistics []storage.AttributeStatisticsSnapshot) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot, attributeStatistics []storage.AttributeStatisticsSnapshot, relationStatistics []storage.RelationStatisticsSnapshot) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
 	}
@@ -1248,6 +1250,9 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 			metadata[address] = entry
 		}
 	}
+	relationMetadata, err := storage.RestoreRelationStatisticsSnapshots(ctx, read, relationStatistics)
+	if err != nil { return err }
+	metadata = storage.MergeRelationStatisticsMetadata(metadata, relationMetadata)
 	if err := ctx.Err(); err != nil {
 		return err
 	}

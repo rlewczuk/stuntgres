@@ -73,6 +73,8 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	}
 	capture.AttributeStatistics, err = storage.CaptureAttributeStatisticsSnapshots(ctx, originalCatalog, e.Storage.RelationMetadata, core.StatisticsSnapshotCodec(ctx, e, originalCatalog))
 	if err != nil { return nil, err }
+	capture.RelationStatistics, err = storage.CaptureRelationStatisticsSnapshots(ctx, originalCatalog, e.Storage.RelationMetadata)
+	if err != nil { return nil, err }
 	capture.InitialPrivileges, err = control.CaptureInitialPrivileges(ctx, originalCatalog, originalRoles)
 	if err != nil {
 		return nil, err

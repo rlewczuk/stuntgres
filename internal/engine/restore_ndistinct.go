@@ -9,6 +9,9 @@ import (
 )
 
 func decodeRestoreExtendedStatistics(r *restoreRun, comment string, _ parser.Position) (bool, error) {
+	relation, recognized, err := storage.DecodeRelationStatisticsSnapshot(comment)
+	if err != nil { return recognized, err }
+	if recognized { r.relationStatistics = append(r.relationStatistics, relation); return true, nil }
 	attribute, recognized, err := storage.DecodeAttributeStatisticsSnapshot(comment)
 	if err != nil { return recognized, err }
 	if recognized { r.attributeStatistics = append(r.attributeStatistics, attribute); return true, nil }
@@ -42,6 +45,9 @@ func finishRestoreExtendedStatistics(r *restoreRun, ctx context.Context, op *ses
 			metadata[address] = entry
 		}
 	}
+	relations, err := storage.RestoreRelationStatisticsSnapshots(ctx, read, r.relationStatistics)
+	if err != nil { return err }
+	metadata = storage.MergeRelationStatisticsMetadata(metadata, relations)
 	if err := ctx.Err(); err != nil {
 		return err
 	}

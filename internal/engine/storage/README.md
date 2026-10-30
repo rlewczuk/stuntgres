@@ -292,6 +292,26 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   B-tree remapping. BRIN compaction dispatches through the index owner's
   conservative destination-range reconstruction, never generic entry remapping.
   No-change passes retain roots; no row/version IDs are minted.
+- **Imported relation estimates.** `RelationMetadata.Imported` owns immutable
+  INT4/FLOAT4/INT4/INT4 values with independent presence bits. Partial imports
+  merge without changing heaps, scan cardinality, live/dead counts or allocator
+  frontiers. ANALYZE replaces tuples (and foreign pages), while VACUUM replaces
+  its affected overrides. Semantic new-file TRUNCATE/heap-rewrite staging records
+  ordered field resets/defaults bounded to current imported presence; operations
+  without imports retain native maintenance authority. Saved private writes
+  cannot hide newer successful ANALYZE after rollback: the journal validates
+  replaced fields against the existing AnalyzeCount before resolution or merge.
+  Later restore/clear remains authoritative. An in-place TRUNCATE on a heap created/new-file
+  in the same subtransaction empties rows without resetting estimates. Its
+  transient journal provenance is separate from immutable heap transports and
+  never enters snapshots. Versioned snapshot
+  comments preserve signed integers and exact float32 bits, resolve symbolic
+  schema/relation names after remint, and reject malformed/duplicate/unsupported
+  records before atomic publication. Record preparation checks cancellation
+  during actual record work; the engine owns the final cancellation observation
+  before indivisible installation, including catalogs with no imported records.
+  Explicit defaults remain distinct from missing fields. Codec/masked-state
+  tests use `make check RUN='^TestRelationStatistics'`.
 
 ## What stays in the engine
 

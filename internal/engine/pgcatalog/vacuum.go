@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"time"
 )
@@ -21,6 +22,7 @@ const (
 )
 
 type MaintenanceFact struct {
+	Imported storage.ImportedRelationStatistics
 	FrozenXID                                              uint64
 	Scanned                                                bool
 	Live, Dead                                             int64

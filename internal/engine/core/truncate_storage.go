@@ -87,6 +87,7 @@ func (s *StatementScope) stageTruncate() error {
 			err = fmt.Errorf("stuntgres: storage generation exhausted")
 			break
 		}
+		resetStatistics := s.truncateResetsImportedStatisticsLocked(changes, ref.Address)
 		shape, exists := changes.Storage[ref.Address]
 		if !exists {
 			original := e.Storage.Relations[ref.Address]
@@ -110,6 +111,9 @@ func (s *StatementScope) stageTruncate() error {
 		shape.Snapshot, shape.HasSnapshot = nil, false
 		shape.Fills = nil
 		changes.Storage[ref.Address] = shape
+		if resetStatistics {
+			e.resetImportedRelationStatisticsLocked(changes, d, storage.ImportedRelationStatistics{Mask: storage.RelationStatisticsAll, Tuples: -1}, shape.Replacement)
+		}
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
 		if err = e.SerializableWriteLocked(s, ref, []visibility.SerializableWrite{{Rewrite: true}}); err != nil {
 			break

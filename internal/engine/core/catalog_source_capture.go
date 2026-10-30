@@ -38,6 +38,14 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.ClassOID:
+		auth, err := e.AuthorizationLocked(scope.Op)
+		if err != nil {
+			e.Mu.Unlock()
+			return nil, err
+		}
+		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		runtime.Auth = auth
 	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

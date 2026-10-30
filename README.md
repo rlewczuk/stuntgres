@@ -173,10 +173,30 @@ stay stale after DML and unselected columns retain their facts; empty refresh
 retains old column distributions but refreshes row estimates to zero.
 `BUFFER_USAGE_LIMIT` is validated but its physical buffer-strategy control is
 inapplicable in this in-memory engine. No pages, WAL, sampling workers or
-autovacuum are implied. Full `pg_statistic`/`pg_stats` SQL readers are separate
-coverage; existing `pg_class` and table-statistics views publish real maintenance
-facts. Logical Dump/Restore transports data and checked extended statistics
-state; it does not import ordinary single-column planner distributions.
+autovacuum are implied. `pg_class` and table-statistics views publish real
+maintenance facts. Logical Dump/Restore transports checked extended and
+single-column statistics alongside data.
+
+`pg_restore_relation_stats(VARIADIC kwargs "any")` restores exact logical
+`pg_class` estimates: `relpages`, `relallvisible` and `relallfrozen` require
+`integer`, and `reltuples` requires `real` (use explicit casts). Required
+`schemaname` and `relname` selectors are text name/value pairs. Invalid optional
+fields warn and are skipped independently, returning false while valid fields
+are retained; successful restoration returns true. `pg_clear_relation_stats`
+returns nonnull VOID and writes newly-created defaults `(0,-1,0,0)`, without
+clearing attribute statistics. Both routines require MAINTAIN or database
+ownership; indexes use their parent table's authority. Imports are transactional,
+including savepoints and prepared transactions, and never manufacture heap rows
+or change physical counters. Logical Dump/Restore persists masked exact values
+by symbolic identity, atomically replacing persistent state while retaining
+destination TEMP state. Later ANALYZE/VACUUM may replace imported estimates.
+TRUNCATE's new-file branch and ordinary heap rewrites reset estimates in
+operation order, so later restore/clear survives commit. In-place TRUNCATE on a
+heap created or assigned a new file in the same subtransaction preserves its
+statistics while emptying rows. Nested savepoints retain that distinction.
+Argument names
+match ASCII case-insensitively under the C/UTF8 contract; Unicode lookalikes
+are unknown names, not aliases for required selectors or `version`.
 
 The fifteen-column read-only `pg_stat_progress_vacuum` view reports real admitted
 VACUUM workers, actual phases and completed logical work. Authorized counters
