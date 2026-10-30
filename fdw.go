@@ -71,6 +71,33 @@ type ForeignTransactionCapabilities = catalog.ForeignTransactionCapabilities
 type ForeignTransactionProvider = catalog.ForeignTransactionProvider
 type ForeignTransaction = catalog.ForeignTransaction
 type ForeignTransactionSavepoints = catalog.ForeignTransactionSavepoints
+type ForeignRowMarkType = catalog.ForeignRowMarkType
+type ForeignLockStrength = catalog.ForeignLockStrength
+type ForeignLockWaitPolicy = catalog.ForeignLockWaitPolicy
+type ForeignTransactionCharacteristics = catalog.ForeignTransactionCharacteristics
+type ForeignRowMarkRequest = catalog.ForeignRowMarkRequest
+type ForeignRowMarkPlan = catalog.ForeignRowMarkPlan
+type ForeignRowMarkProvider = catalog.ForeignRowMarkProvider
+type ForeignRefetchResult = catalog.ForeignRefetchResult
+type ForeignRowRefetcher = catalog.ForeignRowRefetcher
+type ForeignScanRechecker = catalog.ForeignScanRechecker
+
+const (
+	ForeignRowMarkCopy        = catalog.ForeignRowMarkCopy
+	ForeignRowMarkReference   = catalog.ForeignRowMarkReference
+	ForeignRowMarkKeyShare    = catalog.ForeignRowMarkKeyShare
+	ForeignRowMarkShare       = catalog.ForeignRowMarkShare
+	ForeignRowMarkNoKeyUpdate = catalog.ForeignRowMarkNoKeyUpdate
+	ForeignRowMarkUpdate      = catalog.ForeignRowMarkUpdate
+	ForeignLockNone           = catalog.ForeignLockNone
+	ForeignLockKeyShare       = catalog.ForeignLockKeyShare
+	ForeignLockShare          = catalog.ForeignLockShare
+	ForeignLockNoKeyUpdate    = catalog.ForeignLockNoKeyUpdate
+	ForeignLockUpdate         = catalog.ForeignLockUpdate
+	ForeignLockBlock          = catalog.ForeignLockBlock
+	ForeignLockNoWait         = catalog.ForeignLockNoWait
+	ForeignLockSkipLocked     = catalog.ForeignLockSkipLocked
+)
 
 const (
 	ForeignInsert = catalog.ForeignInsert

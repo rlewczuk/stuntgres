@@ -43,6 +43,7 @@ type Host interface {
 	ReleaseReplacementRead()
 	TouchForeignScan(ctx context.Context, source *ForeignQuerySource) error
 	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+	ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error)
 	AsyncAppendEnabled() bool
 	AdmittedPlannerMethods() plan.PlannerMethods
 

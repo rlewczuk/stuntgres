@@ -29,6 +29,7 @@ type fdwSQLReader struct {
 	rowTransform                                                                              func(context.Context, stuntgres.ForeignRow) (stuntgres.ForeignRow, error)
 	hook                                                                                      func(context.Context, string) error
 	writer                                                                                    *fdwSQLWriter
+	rowLocker                                                                                 *fdwSQLRowLocker
 	parallel                                                                                  *fdwParallelReader
 	importDefinitionHook                                                                      func(context.Context, *stuntgres.ForeignTableDefinition) error
 	queryPushdown                                                                             bool
@@ -59,6 +60,9 @@ func (r *fdwSQLReader) configure(d *stuntgres.Driver) error {
 	if r.writer != nil {
 		wrapper = r.writer
 	}
+	if r.rowLocker != nil {
+		wrapper = r.rowLocker
+	}
 	if r.parallel != nil {
 		wrapper = r.parallel
 		if r.parallel.transaction != nil {
@@ -73,6 +77,11 @@ func (r *fdwSQLReader) configure(d *stuntgres.Driver) error {
 	}
 	if r.writer != nil {
 		if err := r.writer.registerVariants(d); err != nil {
+			return err
+		}
+	}
+	if r.rowLocker != nil {
+		if err := r.rowLocker.registerRowMarkVariants(d); err != nil {
 			return err
 		}
 	}

@@ -364,6 +364,12 @@ target's contents; it never merges. Empty input clears all user relations.
   when invoked, including by replay data; empty VOID bodies remain valid.
 - Foreign data wrappers referenced by the dump need matching registrations on the
   target Driver (see [DRIVER.md](DRIVER.md#foreign-data-wrappers)).
+  Foreign row marks add no persistent execution state: stored locking clauses
+  replay as SQL definitions, but identities/version buffers, scans, provider
+  transactions and real source locks are never serialized. Dump does not release
+  an existing owner's locks. Executing a restored locking query obtains a fresh
+  destination provider transaction and real locks; it does not inherit the source
+  owner's lock authority. Restore itself does not execute foreign locking scans.
 - Commit timestamp history is cleared by Reset and Restore; the startup
   `track_commit_timestamp` mode is kept.
 

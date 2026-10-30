@@ -1343,6 +1343,120 @@ registered provider.
   (they are converted to ordinary errors). Native Dump includes user-mapping
   options, including credentials: protect dump output.
 
+### Foreign row marks and actual locks
+
+Foreign row locking is a provider capability, not a lock on a synthetic local
+heap row. The optional `ForeignRowMarkProvider.GetForeignRowMarkType` selects a
+`ForeignRowMarkPlan{Type, Identity}` for each relevant foreign occurrence:
+
+| Selected type | Meaning |
+| --- | --- |
+| `ForeignRowMarkCopy` (default without the optional interface) | Retain the captured tuple for local concurrent-update rechecks; **no remote lock is promised**. This is a row-mark strategy, unrelated to SQL `COPY`. |
+| `ForeignRowMarkReference` | Capture an opaque identity and refetch without locking when local concurrent-update rechecking needs that occurrence. |
+| `ForeignRowMarkKeyShare`, `ForeignRowMarkShare`, `ForeignRowMarkNoKeyUpdate`, `ForeignRowMarkUpdate` | Refetch and acquire the corresponding genuine provider row lock in the enlisted transaction. |
+
+`ForeignRowMarkRequest` embeds `ForeignRequest` and carries SQL `Strength`
+(`ForeignLockNone`, `ForeignLockKeyShare`, `ForeignLockShare`,
+`ForeignLockNoKeyUpdate`, `ForeignLockUpdate`) separately from the selected mark
+strategy. `WaitPolicy` is `ForeignLockBlock`, `ForeignLockNoWait` or
+`ForeignLockSkipLocked`. Unlocked sibling occurrences can be needed for a join
+recheck; `ForeignLockNone` must not be turned into a locking mark. Selection is
+resource-free. REFERENCE and locking marks require a valid `Identity` descriptor,
+`ForeignIdentityScan` and `ForeignRowRefetcher`; actual locking additionally
+requires `ForeignTransactionProvider` with truthful rollback capabilities.
+SELECT locking does not require UPDATE/DELETE callbacks. Missing required
+capabilities fail with `0A000`, rather than inventing local remote locks.
+
+The execution-only `ForeignRequest.RowMark` carries the selected descriptor.
+`ForeignRowRefetcher.RefetchForeignRow(ctx, req, identity)` receives the original
+`ForeignRowIdentity` and the same `req.Transaction` used by the scan. Its
+`ForeignRefetchResult` contains a full declared `Row` plus separate `Present`
+and `Updated` flags. `Present=false` means missing, no longer identifiable, or
+skipped because of a lock conflict; a present empty or all-NULL tuple is not
+absence. An error vetoes every returned field. `Updated=true` requests
+requalification against the replacement tuple; an uncertain version comparison
+must conservatively return true. The normal codecs, typmods and domains still
+apply. Optional `ForeignScanRechecker.RecheckForeignScan` can reject that actual
+tuple or return an error; it supplements, never replaces, local WHERE, join,
+projection and row-security rechecks.
+
+Identity is separate from visible result columns and must identify the original
+logical row throughout the execution, not a replacement that recycled a mutable
+key. Providers must retain enough genuine source identity/version information to
+detect intervening changes. A mutable key alone is insufficient. Identity cells
+must satisfy the declared arity and driver-value/comparability contract; byte
+cells are copied by the engine. Keep returned row/identity buffers valid until
+the next callback. Scan close or rescan must not invalidate already captured
+identities. Prepared statements retain no live identities, scans or transaction
+handles, and expose no hidden identity columns. Identity-dependent scans use the
+serial scan path; join/upper pushdown, async and parallel capabilities do not
+bypass this boundary.
+
+### Foreign transaction characteristics and lifetime
+
+Execution requests carry
+`Characteristics *ForeignTransactionCharacteristics{Isolation, ReadOnly,
+Deferrable}` captured from the sole local transaction owner. Planning requests
+have no live transaction or characteristics. `Isolation` is the resolved local
+string (`read uncommitted`, `read committed`, `repeatable read`, `serializable`),
+not a claim that the source uses that exact isolation. Providers must explicitly
+apply or reject the requested access/deferrability characteristics and document
+their remote isolation policy. Later statements reuse the enlisted participant;
+they do not silently start or reconfigure another remote transaction.
+
+For PostgreSQL's `postgres_fdw`, the source transaction uses REPEATABLE READ
+unless the local transaction is SERIALIZABLE. It does not propagate local READ
+ONLY or DEFERRABLE: those source characteristics follow source/session defaults
+(both off in the reference fixture). The native SQL fixture deliberately applies
+owner ReadOnly through transaction options and Deferrable through actual SQL;
+this is not postgres_fdw parity. Its separate late-locking policy can support
+READ COMMITTED refetch: a concurrent change can then produce a replacement tuple
+that no longer qualifies, rather than a successful stale row.
+Under a repeatable source snapshot, concurrent changes can instead raise
+serialization failure (`40001`). Do not infer source isolation merely from the
+local setting or callback request.
+
+PostgreSQL 18 `postgres_fdw` locks early and can use stronger source modes:
+KEY SHARE becomes SHARE and NO KEY UPDATE becomes UPDATE. It does not propagate
+NOWAIT or SKIP LOCKED to source SQL, so those clauses can still wait on the
+source. A native late-locking provider honoring `ForeignLockNoWait` can return
+`55P03` immediately, and `ForeignLockSkipLocked` can omit just the conflicting
+row. These are distinct provider policies, not interchangeable expected results.
+See PostgreSQL's [FDW row locking](https://www.postgresql.org/docs/18/fdw-row-locking.html)
+and [postgres_fdw transaction management](https://www.postgresql.org/docs/18/postgres-fdw.html#POSTGRES-FDW-TRANSACTION-MANAGEMENT).
+
+In an explicit transaction, closing `Rows`, a prepared statement or a foreign
+scan does **not** release source locks. Successful `EndStatement(true)` releases
+the statement savepoint, not its locks: they survive later reads until actual
+COMMIT/ROLLBACK. An implicit eager query settles its transaction at statement
+completion; retaining its buffered `Rows` does not retain implicit locks.
+Savepoint rollback releases the genuine source suffix according to the provider's
+transaction implementation; earlier successful effects/locks remain owned until
+their enclosing transaction ends.
+
+Blocked operations use the current call's context. Scan termination and
+transaction rollback use cancellation-detached cleanup so cancellation cannot
+abandon locks. Refetch, recheck, conversion, projection or terminal callback
+failure prevents a successful result/count and rolls back the statement suffix;
+the explicit owner's ordinary abort policy still applies. SQL-origin errors
+preserve their diagnostic fields, while ordinary Go context/I/O errors remain
+ordinary errors. No automatic retry or conversion of errors to missing rows is
+performed.
+
+`PREPARE TRANSACTION` after foreign participation fails with `0A000`,
+`cannot PREPARE a transaction that has operated on foreign tables`; no remote
+prepare or prepared GID is published. Roll back the failed owner to release
+remaining resources. This is not distributed commit: remote-first commits can
+leave an earlier provider committed if a later provider or local publication
+fails, and a failed commit can have unknown outcome. No compensating undo after
+a successful remote commit is promised.
+
+Logical Dump/Restore persists foreign declarations/options and stored SQL locking
+clauses, never live identities, tuple buffers, scans, transactions or locks.
+Dump does not release the source owner's locks. A destination needs compatible
+registered providers, and subsequent execution acquires a fresh participant and
+real locks there; restoring metadata cannot transfer lock ownership.
+
 ## Index state
 
 `stuntgres.InspectIndex(ctx, db, schema, name)` reports an index's publication

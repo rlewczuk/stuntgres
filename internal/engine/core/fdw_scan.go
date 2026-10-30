@@ -19,9 +19,6 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err := CheckRestoreEffect(scope.Op); err != nil {
 		return nil, err
 	}
-	if mark.Mode != 0 {
-		return nil, SQLError("0A000", "foreign row locking is unsupported in embedded mode")
-	}
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err

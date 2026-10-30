@@ -26,6 +26,8 @@ type fdwSQLWriter struct {
 	resultHook                                                                   func(stuntgres.ForeignRow) stuntgres.ForeignRow
 	batchHook                                                                    func([]stuntgres.ForeignRow) []stuntgres.ForeignRow
 	identityHook                                                                 func(stuntgres.ForeignRowIdentity) stuntgres.ForeignRowIdentity
+	lateIsolation                                                                bool
+	incrementRevision                                                            bool
 }
 
 func (w *fdwSQLWriter) writeCall(ctx context.Context, name string) error {
@@ -44,10 +46,34 @@ func (w *fdwSQLWriter) BeginForeignTransaction(ctx context.Context, r stuntgres.
 	}
 	// Owner completion, not the first statement's cancellation context, owns
 	// the transaction lifetime. Every SQL operation still uses its current ctx.
-	tx, err := pool.BeginTx(context.WithoutCancel(ctx), nil)
+	if r.Characteristics == nil {
+		pool.Close()
+		return nil, errors.New("SQL writer: missing owner transaction characteristics")
+	}
+	isolation := sql.LevelRepeatableRead
+	switch r.Characteristics.Isolation {
+	case "serializable":
+		isolation = sql.LevelSerializable
+	case "read committed", "read uncommitted":
+		if w.lateIsolation {
+			isolation = sql.LevelReadCommitted
+		}
+	case "repeatable read":
+	default:
+		pool.Close()
+		return nil, fmt.Errorf("SQL writer: unsupported isolation %q", r.Characteristics.Isolation)
+	}
+	tx, err := pool.BeginTx(context.WithoutCancel(ctx), &sql.TxOptions{Isolation: isolation, ReadOnly: r.Characteristics.ReadOnly})
 	if err != nil {
 		pool.Close()
 		return nil, err
+	}
+	if r.Characteristics.Deferrable {
+		if _, err := tx.ExecContext(ctx, "SET TRANSACTION DEFERRABLE"); err != nil {
+			tx.Rollback()
+			pool.Close()
+			return nil, err
+		}
 	}
 	w.transactions++
 	return &fdwWriterTransaction{Tx: tx, pool: pool, writer: w}, w.writeCall(ctx, "BeginTransaction")
@@ -293,6 +319,9 @@ func (w *fdwSQLWriter) ExecForeignUpdate(ctx context.Context, r stuntgres.Foreig
 	for i, c := range columns {
 		assignments[i] = c + "=$" + strconv.Itoa(i+1)
 	}
+	if w.incrementRevision {
+		assignments = append(assignments, "revision=revision+1")
+	}
 	args := append(fdwWriterValues(row), identity[0])
 	return w.returning(ctx, tx, "UPDATE "+fdwRemote(r.ForeignRequest)+" SET "+strings.Join(assignments, ",")+" WHERE "+fdwQuote(r.Targets.Names[0])+"=$"+strconv.Itoa(len(args))+" RETURNING "+strings.Join(columns, ","), args, len(columns))
 }
@@ -354,7 +383,9 @@ func (w *fdwSQLWriter) BeginForeignScan(ctx context.Context, r stuntgres.Foreign
 	}
 	visible := len(projection)
 	if r.Identity != nil {
-		projection = append(projection, fdwQuote(r.Identity.Names[0]))
+		for _, name := range r.Identity.Names {
+			projection = append(projection, fdwQuote(name))
+		}
 	}
 	if len(projection) == 0 {
 		projection = append(projection, "1")
@@ -430,7 +461,7 @@ func (s *fdwWriterScan) IterateForeignIdentity(ctx context.Context) (stuntgres.F
 	s.index++
 	var identity stuntgres.ForeignRowIdentity
 	if s.identity {
-		identity = stuntgres.ForeignRowIdentity{row[s.visible]}
+		identity = append(stuntgres.ForeignRowIdentity(nil), row[s.visible:]...)
 	}
 	if s.identity && s.writer.identityHook != nil {
 		identity = s.writer.identityHook(identity)

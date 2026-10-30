@@ -30,6 +30,7 @@ type ForeignQuerySource struct {
 	LifetimeClosed bool
 	Query          *foreignComposite
 	closeError     error
+	captured       []foreignCapturedRow
 }
 
 type ForeignExecution struct {
@@ -42,6 +43,9 @@ type ForeignExecution struct {
 	closeError    error
 	asyncProbe    bool
 	async         foreignAsyncState
+	rowMark       plan.RowMark
+	request       catalog.ForeignRequest
+	markRequest   *catalog.ForeignRowMarkRequest
 }
 
 func CopyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
@@ -60,6 +64,15 @@ func CopyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 		targets := *request.Identity
 		targets.Names = slices.Clone(targets.Names)
 		request.Identity = &targets
+	}
+	if request.RowMark != nil {
+		selected := *request.RowMark
+		selected.Identity.Names = slices.Clone(selected.Identity.Names)
+		request.RowMark = &selected
+	}
+	if request.Characteristics != nil {
+		modes := *request.Characteristics
+		request.Characteristics = &modes
 	}
 	return request
 }
@@ -261,8 +274,30 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 		}
 		request := CopyForeignRequest(f.Request)
 		request.Parameters = parameters
+		if host := source.LiveHost(); host != nil {
+			request.Characteristics, err = host.ForeignCharacteristics()
+			if err != nil {
+				return err
+			}
+		}
+		marked := state.Source != nil && state.Source.Locks.RowMarked()
+		if marked {
+			mark := plan.RowMark{}
+			for _, entry := range state.Source.Locks.Leaves {
+				if entry.Source.Foreign == f {
+					mark = MergeQueryRowMark(mark, entry.Mark)
+				}
+			}
+			execution.rowMark = mark
+			if err := f.selectRowMark(ctx, &request, mark); err != nil {
+				return err
+			}
+		}
 		if !execution.planned {
-			if err = f.Plan(ctx, request, execution); err != nil {
+			planning := CopyForeignRequest(request)
+			planning.Characteristics = nil
+			planning.Transaction = nil
+			if err = f.Plan(ctx, planning, execution); err != nil {
 				return err
 			}
 		}
@@ -277,8 +312,9 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 				}
 			}
 		}
+		execution.snapshotRequest(request)
 		if execution.Scan == nil {
-			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && f.Query == nil && !execution.async.capable && state.foreignParallelMaximum >= 2 {
+			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && f.Query == nil && request.RowMark == nil && !execution.async.capable && state.foreignParallelMaximum >= 2 {
 				safe, err := provider.IsForeignScanParallelSafe(ctx, CopyForeignRequest(request), execution.Plan)
 				if err != nil {
 					return ForeignCallbackError(err)
@@ -303,7 +339,7 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			var scan catalog.ForeignScan
 			var err error
 			if f.Query != nil {
-				scan, err = f.Wrapper.(catalog.ForeignQueryScanProvider).BeginForeignQueryScan(ctx, f.Query.executionRequest(parameters, request.Transaction), catalog.ForeignQueryPlan{Slots: slices.Clone(f.Query.plan.Slots), Private: f.Query.plan.Private})
+				scan, err = f.Wrapper.(catalog.ForeignQueryScanProvider).BeginForeignQueryScan(ctx, f.Query.executionRequest(request), catalog.ForeignQueryPlan{Slots: slices.Clone(f.Query.plan.Slots), Private: f.Query.plan.Private})
 			} else {
 				scan, err = f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
 			}
@@ -313,6 +349,11 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			}
 			if scan == nil {
 				return fmt.Errorf("stuntgres: foreign-data wrapper returned a nil scan")
+			}
+			if request.Identity != nil {
+				if _, ok := scan.(catalog.ForeignIdentityScan); !ok {
+					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "foreign row mark scan does not supply row identity"}
+				}
 			}
 		} else {
 			if err = execution.Scan.ReScanForeignScan(ctx, parameters); err != nil {
@@ -400,9 +441,25 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			values = execution.async.values
 			execution.async.values, execution.async.buffered = nil, false
 		} else {
-			row, present, err := execution.Scan.IterateForeignScan(ctx)
+			var row catalog.ForeignRow
+			var identity catalog.ForeignRowIdentity
+			var present bool
+			var err error
+			if execution.request.Identity != nil {
+				row, identity, present, err = execution.Scan.(catalog.ForeignIdentityScan).IterateForeignIdentity(ctx)
+			} else {
+				row, present, err = execution.Scan.IterateForeignScan(ctx)
+			}
 			if err != nil || !present {
 				return false, ForeignCallbackError(err)
+			}
+			if execution.request.Identity != nil {
+				if err := validateForeignIdentity(identity, execution.request.Identity); err != nil {
+					return false, err
+				}
+			}
+			if execution.request.RowMark != nil {
+				f.captured = append(f.captured, foreignCapturedRow{identity: CopyForeignCells(identity), request: execution.markRequest})
 			}
 			values, err = importRow(ctx, row)
 			if err != nil {
@@ -441,6 +498,9 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			if err != nil {
 				return false, err
 			}
+			request := execution.request
+			request.Parameters = parameters
+			execution.snapshotRequest(request)
 			if err = execution.Scan.ReScanForeignScan(ctx, parameters); err != nil {
 				return false, ForeignCallbackError(err)
 			}

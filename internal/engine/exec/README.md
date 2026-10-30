@@ -166,6 +166,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
 - **Row locks** (`query_locks.go`, `query_pending_locks.go`, `query_lock_*.go`):
   view-row arbitration, recheck of locked rows, pending marks and locked-order
   refresh.
+  Stored producers settle pending foreign marks before evaluating their output
+  expressions, retaining the effective tuple versions in their existing lineage.
+  Enclosing arbitration reuses those settled versions without projecting again.
+  Local view marks keep their enclosing qualification frontier; neither path
+  rescans sources, changes frozen contributors, or reorders captured rows.
 - **Cursors and other sources**: `RowCursor` and `RowResult` (read by the
   driver), the foreign scan stage (`foreign_*.go`) and the `pg_sequences` stage.
   Optional typed foreign query paths replace an admitted join/aggregate/order/limit

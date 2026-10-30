@@ -155,7 +155,7 @@ func (s *State) CaptureAsyncAdmission() {
 // They borrow the ordinary reusable frontier rather than admitting new async
 // executions. The sticky fact survives child constructors that omit frames.
 func (s *State) asyncAppendEligible() bool {
-	return s.AsyncAppend && !s.asyncInvocation && s.Outer == nil && s.Invocation == nil
+	return s.AsyncAppend && !s.asyncInvocation && s.Outer == nil && s.Invocation == nil && (s.Source == nil || !s.Source.Locks.RowMarked())
 }
 
 func (s *State) inheritAsyncAdmission(parent *State) {

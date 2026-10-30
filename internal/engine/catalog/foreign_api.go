@@ -45,8 +45,10 @@ type ForeignRequest struct {
 	// Stable catalog identities key participation under the sole SQL owner.
 	ServerOID, MappingOID, HandlerOID uint32
 	// Execution-only; planning requests never contain a provider transaction.
-	Transaction ForeignTransaction
-	Identity    *ForeignUpdateTargets
+	Transaction     ForeignTransaction
+	Identity        *ForeignUpdateTargets
+	RowMark         *ForeignRowMarkPlan
+	Characteristics *ForeignTransactionCharacteristics
 }
 
 type ForeignRelSize struct{ Rows, Width float64 }

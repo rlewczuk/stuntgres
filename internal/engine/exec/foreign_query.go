@@ -159,13 +159,17 @@ func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Sta
 	return out, true, err
 }
 
-func (q *foreignComposite) executionRequest(parameters catalog.ForeignScanParameters, transaction catalog.ForeignTransaction) catalog.ForeignQueryRequest {
+func (q *foreignComposite) executionRequest(request catalog.ForeignRequest) catalog.ForeignQueryRequest {
 	r := CopyForeignQueryRequest(q.request)
-	r.Parameters = parameters
-	r.Transaction = transaction
+	r.Parameters = request.Parameters
+	r.Transaction = request.Transaction
 	for i := range r.Sources {
-		r.Sources[i].Request.Parameters = parameters
-		r.Sources[i].Request.Transaction = transaction
+		r.Sources[i].Request.Parameters = request.Parameters
+		r.Sources[i].Request.Transaction = request.Transaction
+		if request.Characteristics != nil {
+			modes := *request.Characteristics
+			r.Sources[i].Request.Characteristics = &modes
+		}
 	}
 	return r
 }

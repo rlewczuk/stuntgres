@@ -177,6 +177,97 @@ scans. Finite cursor motions settle requests into owned source rows before
 detaching authority. Provider options remain opaque catalog data, including a
 provider's own async capability policy; Dump/Restore never starts requests.
 
+
+## Foreign row marks and refetch
+
+The public optional interfaces live in `catalog/foreign_row_lock_api.go` and are
+aliased by the driver. `ForeignRowMarkProvider.GetForeignRowMarkType` selects
+`ForeignRowMarkPlan{Type, Identity}` without acquiring resources. Missing selection
+defaults to `ForeignRowMarkCopy`: preserve the captured tuple during local
+concurrent-update recheck, **not** promise a remote lock. This COPY strategy is
+unrelated to SQL COPY. `ForeignRowMarkReference` instead refreshes the original
+identity without locking when local recheck needs it. The KeyShare, Share,
+NoKeyUpdate and Update mark types require actual provider locks.
+
+`ForeignRowMarkRequest` embeds `ForeignRequest`, with separate SQL `Strength`
+and `WaitPolicy`; the selected plan is `ForeignRequest.RowMark`. REFERENCE and
+locking require `ForeignIdentityScan` and `ForeignRowRefetcher`; locking also
+requires the genuine rollback-capable transaction handshake, not write methods.
+The engine keeps identities aligned with original source occurrences, separate
+from visible tuples and local heap RowIDs. An identity must re-identify the
+original logical row throughout execution, never a replacement reusing its visible
+key. Providers must detect version changes using genuine source information.
+Identity arity/value/comparability validation and copied byte-cell ownership use
+the existing foreign identity contract. Returned buffers survive until the next
+callback; captured identities survive scan End/ReScan.
+
+`RefetchForeignRow` uses the scan's enlisted `Transaction` and returns a full
+declared tuple in `ForeignRefetchResult{Row, Present, Updated}`. Missing or skipped
+rows have `Present=false`, unlike present empty/all-NULL tuples. Errors veto all
+fields; uncertain version comparison must set `Updated=true`. Replacement cells
+pass normal import/type/domain checks before local predicate/join/projection/RLS
+requalification. Optional `ForeignScanRechecker.RecheckForeignScan` evaluates
+provider conditions against the actual tuple, without replacing it or bypassing
+local recheck. COPY keeps the captured sibling tuple; REFERENCE refreshes only
+when local rechecking needs it. No relation rescan or synthetic local lock
+substitutes for refetch. Identity-demanding scans remain serial and retain the
+existing no-join/upper-pushdown boundary.
+
+Execution-only `ForeignRequest.Characteristics` is a
+`ForeignTransactionCharacteristics` capture of the SQL owner's resolved
+`Isolation`, `ReadOnly` and `Deferrable`; planning has neither live characteristics
+nor transaction. These describe local requested modes, not a universal remote
+isolation policy. Enrollment, scan and refetch share the same participant, and
+later statements do not reopen/reconfigure it. Providers must apply or reject
+access/deferrability characteristics honestly.
+
+The genuine SQL reference provider in
+`reference/tables/fdw_row_lock_provider_test.go` uses source-owned
+`(rid, generation, captured revision)` identity. Refetch locates `rid/generation`
+in the same `sql.Tx`, reads actual revision and full tuple, and issues real
+FOR KEY SHARE/SHARE/NO KEY UPDATE/UPDATE with NOWAIT/SKIP LOCKED when requested.
+Mutations explicitly advance revision; reinsertion uses a new generation, so a
+recycled visible key cannot identify the original row. This is a fixture contract,
+not an engine-generated version or a general provider identity encoding.
+The shared SQL writer maps local non-SERIALIZABLE modes to real REPEATABLE READ,
+SERIALIZABLE to real SERIALIZABLE, ReadOnly to transaction options and Deferrable
+to actual SQL. Its separate late-isolation policy maps local RC/RU to real READ
+COMMITTED for replacement/requalification witnesses.
+This native access/deferrability propagation is deliberately not postgres_fdw
+parity: PostgreSQL 18 propagates isolation but not local READ ONLY or DEFERRABLE.
+Those remote characteristics follow source/session defaults (both off in the
+reference fixture).
+
+PostgreSQL 18 `postgres_fdw` uses early locking, remote REPEATABLE READ unless local
+SERIALIZABLE, stronger SHARE for KEY SHARE and UPDATE for NO KEY UPDATE, and does
+not propagate NOWAIT/SKIP LOCKED. Its source conflicts can therefore wait even
+when the foreign SQL contains those clauses. Native late-lock NOWAIT (`55P03`),
+SKIP omission and READ COMMITTED replacement outcomes are deliberately distinct
+from that oracle's blocking/serialization outcomes. See
+[PostgreSQL FDW row locking](https://www.postgresql.org/docs/18/fdw-row-locking.html)
+and [postgres_fdw](https://www.postgresql.org/docs/18/postgres-fdw.html).
+
+Scan End, Rows.Close and Stmt.Close close resources, not the explicit
+participant. Successful statement savepoint release retains real locks until
+COMMIT/ROLLBACK; later ordinary reads do not release them. Implicit eager query
+completion settles the transaction before buffered rows are consumed. Savepoint
+rollback delegates genuine suffix restoration/lock release to the participant.
+Blocked calls use the operation context; End and rollback detach cancellation.
+Failed refetch/recheck/import/projection/End rolls back the statement suffix
+before any successful result/count; normal explicit-owner abort rules remain.
+SQL-origin diagnostics are preserved, ordinary Go errors remain ordinary, and
+neither retry nor error-to-absence conversion is allowed.
+
+Foreign participation refuses PREPARE TRANSACTION with `0A000`,
+`cannot PREPARE a transaction that has operated on foreign tables`, without
+remote preparation or GID publication. Remote-first commit is not distributed
+atomic commit: an earlier provider can remain committed after a later failure,
+and a failed commit can have unknown outcome. No compensation is promised.
+Dump/Restore retains declarations/options and stored locking SQL only, never
+identities, buffers, active scans, transactions or locks. Dump does not settle a
+live owner; destination execution binds its registered provider and obtains new
+transactions/locks.
+
 ## Invariants
 
 - **No locks, no callbacks under locks.** The package adds no mutex.
@@ -256,3 +347,17 @@ Destination-owned registration lifecycle proof:
 Public Reset/callback observations use
 `make check RUN='^TestReferenceFDWNativeControls$'` in native and `REFERENCE=1`
 modes; replacement does not invoke application callbacks to reconstruct tokens.
+
+Foreign row-mark/public real-source proof uses `^TestReferenceFDWRowLock`;
+native and `REFERENCE=1` modes have independent late-lock versus postgres_fdw
+expectations. A focused ownership/refetch smoke is:
+
+```sh
+make check RUN='^TestReferenceFDWRowLockSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceFDWRowLockSmoke$'
+```
+
+It must observe an actual source waiter, unaffected nonconflicting rows,
+explicit-lock retention after result close and release at rollback, not just
+callback counts. `^TestForeignRowMark` selects structural callback-contract
+coverage; it supplements rather than replaces real two-session source effects.

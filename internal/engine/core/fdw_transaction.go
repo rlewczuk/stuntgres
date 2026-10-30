@@ -12,6 +12,29 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
+func (s *StatementScope) foreignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error) {
+	t := s.Owner
+	t.Mu.Lock()
+	defer t.Mu.Unlock()
+	if err := t.Validate(s.TxRef); err != nil {
+		return nil, err
+	}
+	isolation := "read committed"
+	switch t.Isolation {
+	case session.ReadUncommitted:
+		isolation = "read uncommitted"
+	case session.RepeatableRead:
+		isolation = "repeatable read"
+	case session.Serializable:
+		isolation = "serializable"
+	}
+	return &catalog.ForeignTransactionCharacteristics{Isolation: isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}, nil
+}
+
+func (h *statementHost) ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error) {
+	return h.scope().foreignCharacteristics()
+}
+
 // A live cursor's producer spans requests, but each FETCH/ReScan touches the
 // current statement's participant mark. Do not cache an old request context or
 // allocate another mark for each row in the same eager batch.
@@ -44,6 +67,11 @@ func (s *StatementScope) foreignUnlocked() {
 // fences, never application I/O. No registry or context outlives this owner.
 func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
 	s.foreignUnlocked()
+	characteristics, err := s.foreignCharacteristics()
+	if err != nil {
+		return nil, err
+	}
+	request.Characteristics = characteristics
 	provider, ok := wrapper.(catalog.ForeignTransactionProvider)
 	if !ok {
 		if writing {

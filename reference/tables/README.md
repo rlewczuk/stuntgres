@@ -97,6 +97,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `column "picked" of foreign table "f"` followed by
   `SQL function "fdw_alias_conversion_run" statement 1`. Restore/progress checks
   retain the unchanged three-column remote row and balanced actual scan ownership.
+  `TestReferenceFDWRowLockFailureAtomicity` checks complete `22P02` diagnostics
+  for invalid integer refetch import (empty Context, unlike ordinary scan import),
+  retaining real source/local rollback and suffix-lock reacquisition witnesses.
+  `TestReferenceFDWRowLockRecheck/changed-projection` covers genuine postcapture
+  source mutation through inner/outer marked derived queries and stored views,
+  direct and twice on one prepared statement. Native late refetch returns the
+  changed qualifying row with exactly one volatile invocation; a nontransactional
+  sequence also detects duplicate evaluations surviving rollback. PostgreSQL's
+  independently established early-lock RR snapshot instead raises `40001`
+  before projection, with exact remote Context and zero sequence invocations.
 - Async foreign scans: `RUN='^TestReferenceFDWAsync'`
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 

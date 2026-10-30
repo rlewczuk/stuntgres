@@ -32,6 +32,13 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 			return nil, err
 		}
 		g.SetTransaction(tx)
+		characteristics, err := s.foreignCharacteristics()
+		if err != nil {
+			return nil, err
+		}
+		for j := range g.Request.Tables {
+			g.Request.Tables[j].Characteristics = characteristics
+		}
 	}
 	return groups, nil
 }

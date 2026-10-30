@@ -214,6 +214,7 @@ func foreignTargetRows(ctx context.Context, h Host, m *fdw.Modification) ([]Fore
 	execution := &exec.ForeignExecution{}
 	planning := exec.CopyForeignRequest(r)
 	planning.Transaction = nil
+	planning.Characteristics = nil
 	if err := f.Plan(ctx, planning, execution); err != nil {
 		return nil, err
 	}

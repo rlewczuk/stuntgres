@@ -10,6 +10,14 @@
   stopword backing by exact resource without changing English; preserve typed
   prepared ownership, atomic publication and edited-stock logical replay.
 
+- Add optional foreign row-mark selection, identity refetch and scan recheck,
+  distinguishing captured COPY tuples and unlocked REFERENCE refresh from genuine
+  provider row locks. Carry owner-derived transaction characteristics through the
+  enlisted participant, retain explicit locks beyond result/scan close and use
+  real rollback/savepoint cleanup on failure or cancellation. Keep runtime
+  identities and locks out of prepared definitions and logical persistence;
+  foreign two-phase preparation and distributed atomic commit remain unsupported.
+
 - Apply `createrole_self_grant` at non-superuser role creation, preserving the
   bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
   Preserve raw setting presentation and typed session/transaction restoration.

@@ -106,6 +106,21 @@ func pendingSourceMarks(source *Source, dst []queryPendingMark) []queryPendingMa
 	}
 	return dst
 }
+
+// Stored producers own foreign tuple consumption, while local physical marks
+// retain their enclosing qualification frontier. Borrow immutable occurrence
+// slices from the existing manifest; only the selected manifest is new.
+func pendingForeignQueryMarks(pending []queryPendingMark, locks *LockContext) []queryPendingMark {
+	var foreign []queryPendingMark
+	for _, mark := range pending {
+		for i, occurrence := range mark.Occurrences {
+			if locks.Leaves[occurrence].Source.Foreign != nil {
+				foreign = append(foreign, queryPendingMark{Occurrences: mark.Occurrences[i : i+1], Mark: mark.Mark})
+			}
+		}
+	}
+	return foreign
+}
 func SettlePendingQueryMarks(ctx context.Context, state *State, node plan.Node, child Stage) (Stage, error) {
 	if len(child.Pending) == 0 {
 		return child, nil

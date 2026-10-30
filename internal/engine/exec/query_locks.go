@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -252,6 +253,9 @@ func RecheckLockedQuery(node plan.Node, inputs *Source, rows [][]sqltype.Value, 
 		*offset += len(frame)
 		leftAbsent := absentLockedQuery(n.Left, inputs, evaluation.LiveHost().QueryLocks())
 		rightAbsent := absentLockedQuery(n.Right, inputs, evaluation.LiveHost().QueryLocks())
+		if leftAbsent && n.Kind != parser.JoinRight && n.Kind != parser.JoinFull || rightAbsent && n.Kind != parser.JoinLeft && n.Kind != parser.JoinFull {
+			return nil, false, nil
+		}
 		if leftAbsent {
 			for i := range n.LeftWidth {
 				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
@@ -286,8 +290,8 @@ func RecheckLockedQuery(node plan.Node, inputs *Source, rows [][]sqltype.Value, 
 }
 
 // Arbitrate the qualified physical input before projection or aggregation
-// consumes its provenance. Scalar view layers defer to their nearest owning
-// frontier, including an outer join's local input producer.
+// consumes its provenance. Scalar view layers defer local marks to their nearest
+// owning frontier; their producers settle foreign marks before projecting.
 func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child Stage) (Stage, error) {
 	locks := state.Source.Locks
 	due := make([]plan.RowMark, len(locks.Leaves))
@@ -351,6 +355,27 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 					continue
 				}
 				mark := due[occurrence]
+				if foreign := entry.Source.Foreign; foreign != nil {
+					current, present, updated, err := foreign.refetchRow(ctx, entry.Source, visible, mark, false)
+					if err != nil {
+						return false, err
+					}
+					// A nested frontier may already carry this exact owned
+					// replacement. Keep multiplicities, but do not reevaluate
+					// its volatile projection a second time.
+					if len(current) != 0 && len(versions[j].Values) != 0 && &current[0] == &versions[j].Values[0] {
+						updated = false
+					}
+					versions[j].Values = current
+					currentRows[occurrence] = current
+					locks.Leaves[occurrence].Changed = updated
+					changed = changed || updated
+					live = live && present
+					if !live {
+						break
+					}
+					continue
+				}
 				locator := entry.Source.PhysicalRow(visible, entry.Leaf, versions[j])
 				if mark.Mode == 0 {
 					currentRows[occurrence] = locator.Values(versions[j])
@@ -381,6 +406,40 @@ func ArbitrateViewQuery(ctx context.Context, state *State, node plan.Node, child
 			}
 			evaluation.setQueryPresence(child.Source, index)
 			if changed {
+				// Only an actual EPQ event refreshes unmarked REFERENCE
+				// siblings. COPY retains its original captured tuple.
+				for j, occurrence := range occurrences {
+					entry := &locks.Leaves[occurrence]
+					foreign := entry.Source.Foreign
+					visible := provenance[j]
+					if foreign == nil || visible == AbsentQueryIndex {
+						continue
+					}
+					if foreign.captured[visible].request.RowMark.Type == catalog.ForeignRowMarkReference {
+						current, present, _, err := foreign.refetchRow(ctx, entry.Source, visible, plan.RowMark{}, true)
+						if err != nil {
+							return false, err
+						}
+						if !present {
+							entry.Absent, entry.Changed = true, true
+							currentRows[occurrence] = nil
+							continue
+						}
+						currentRows[occurrence] = current
+						entry.Changed = true
+					}
+					pass, err := foreign.recheckRow(ctx, entry.Source, visible, currentRows[occurrence])
+					if err != nil {
+						return false, err
+					}
+					if !pass {
+						live = false
+						break
+					}
+				}
+				if !live {
+					continue
+				}
 				evaluation.OrderValues = child.OrderRow(i)
 				offset := 0
 				previousRows := evaluation.QueryCurrentRows

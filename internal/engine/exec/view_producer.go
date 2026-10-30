@@ -149,6 +149,19 @@ func openSourceStage(ctx context.Context, state *State, source *Source, schema [
 			if err != nil {
 				return false, err
 			}
+			// Local view marks still belong to the enclosing qualification
+			// frontier. Foreign marks must settle before this producer consumes
+			// their tuple in its projection; otherwise outer EPQ would first
+			// observe the stale projected value and then evaluate it again.
+			// Keep the reader's complete pending manifest for outer demand.
+			pending := pendingForeignQueryMarks(inner.Pending, source.Locks)
+			if len(pending) != 0 {
+				inner.Pending = pending
+				inner, err = SettlePendingQueryMarks(ctx, innerState, project.Child, inner)
+				if err != nil {
+					return false, err
+				}
+			}
 			for _, expression := range inner.Expressions {
 				if expression.Properties().Volatility != expr.Volatile {
 					continue

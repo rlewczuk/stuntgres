@@ -28,15 +28,15 @@ func fdwConfiguredScenario(t *testing.T, writable bool, body func(*testing.T, *f
 	fdwConfiguredGraphScenario(t, writable, false, body)
 }
 
-func fdwConfiguredGraphScenario(t *testing.T, writable, graph bool, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
+func fdwConfiguredGraphScenario(t *testing.T, writable, graph bool, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step)), configure ...func(*fdwSQLReader)) {
 	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"fdw_reader", "fdw_other", "fdw_owner"})
-	fixture.SchemaReferenceCleanup(t, "fdw_source")
-	fixture.SchemaReferenceCleanup(t, "fdw_import")
-	fixture.SchemaReferenceCleanup(t, "fdw_empty")
 	reader := newFDWSQLReader(t)
 	if writable {
 		reader.writer = &fdwSQLWriter{fdwSQLReader: reader, batchSize: 2}
+	}
+	for _, configureReader := range configure {
+		configureReader(reader)
 	}
 	p := fixture.NewScenarioWithDriverConfig(t, func(d *stuntgres.Driver) error {
 		if err := reader.configure(d); err != nil {
@@ -49,6 +49,10 @@ func fdwConfiguredGraphScenario(t *testing.T, writable, graph bool, body func(*t
 	})
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
+			// Each backend body owns its source schemas. A caller can run
+			// several scenarios under the same parent test before its cleanup.
+			// Register first so its connections/transactions settle before DROP.
+			fixture.SchemaReferenceCleanup(t, "fdw_source", "fdw_import", "fdw_empty")
 			c, err := b.DB.Conn(p.Ctx)
 			if err != nil {
 				t.Fatal(err)

@@ -17,6 +17,7 @@ import (
 // value environments. The engine's statementHost implements it.
 type WriteRuntime interface {
 	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+	ForeignCharacteristics() (*catalog.ForeignTransactionCharacteristics, error)
 	TrackForeignModification(m *Modification)
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
 }
@@ -77,6 +78,11 @@ func ModifyAdmission(view catalog.Read, relation *catalog.Relation, operation ca
 }
 
 func (m *Modification) Begin(ctx context.Context, rt WriteRuntime) error {
+	characteristics, err := rt.ForeignCharacteristics()
+	if err != nil {
+		return err
+	}
+	m.Request.Characteristics = characteristics
 	tx, err := rt.EnlistForeign(ctx, m.Source.Wrapper, m.Request.ForeignRequest, true)
 	if err != nil {
 		return err
