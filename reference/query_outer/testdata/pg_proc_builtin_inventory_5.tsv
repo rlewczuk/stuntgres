@@ -49,3 +49,11 @@
 2621	pg_reload_conf	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_reload_conf	\N	false	\N
 2622	pg_rotate_logfile	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_rotate_logfile	\N	false	\N
 4543	pg_log_backend_memory_contexts	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	16	23	\N	\N	\N	false	\N	pg_log_backend_memory_contexts	\N	false	\N
+2923	table_to_xml	11	12	100	0	0	0	f	false	false	true	false	s	r	4	0	142	2205 16 16 25	\N	\N	{tbl,nulls,tableforest,targetns}	false	\N	table_to_xml	\N	false	\N
+2924	query_to_xml	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	25 16 16 25	\N	\N	{query,nulls,tableforest,targetns}	false	\N	query_to_xml	\N	false	\N
+2925	cursor_to_xml	11	12	100	0	0	0	f	false	false	true	false	v	u	5	0	142	1790 23 16 16 25	\N	\N	{cursor,count,nulls,tableforest,targetns}	false	\N	cursor_to_xml	\N	false	\N
+2926	table_to_xmlschema	11	12	100	0	0	0	f	false	false	true	false	s	r	4	0	142	2205 16 16 25	\N	\N	{tbl,nulls,tableforest,targetns}	false	\N	table_to_xmlschema	\N	false	\N
+2927	query_to_xmlschema	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	25 16 16 25	\N	\N	{query,nulls,tableforest,targetns}	false	\N	query_to_xmlschema	\N	false	\N
+2928	cursor_to_xmlschema	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	1790 16 16 25	\N	\N	{cursor,nulls,tableforest,targetns}	false	\N	cursor_to_xmlschema	\N	false	\N
+2929	table_to_xml_and_xmlschema	11	12	100	0	0	0	f	false	false	true	false	s	r	4	0	142	2205 16 16 25	\N	\N	{tbl,nulls,tableforest,targetns}	false	\N	table_to_xml_and_xmlschema	\N	false	\N
+2930	query_to_xml_and_xmlschema	11	12	100	0	0	0	f	false	false	true	false	v	u	4	0	142	25 16 16 25	\N	\N	{query,nulls,tableforest,targetns}	false	\N	query_to_xml_and_xmlschema	\N	false	\N

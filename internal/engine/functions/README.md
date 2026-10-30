@@ -22,6 +22,13 @@ binding. Array transformation uses a stable work point; lower typed providers
 own their corresponding points. Attached requests are dormant until runtime
 admission, and nested binders remove that permission before constant capture.
 
+`XMLMapping` owns the eight fixed strict relation/query/cursor row and schema
+signatures. Its recipe keeps only typed children, their written-to-formal order
+and normal routine provenance. Named replay preserves written evaluation order.
+Table operations are STABLE; query/cursor operations are VOLATILE. None is
+planning-folded. Demanded calls borrow the live XML output policy and forward to
+`XMLMappingRuntime`; strict NULL never requests relation, SQL or portal authority.
+
 
 `EmbeddedVersionBanner` is the pure native product/version identity shared by
 `version()` and implementation-information metadata; it retains no runtime or
@@ -1177,6 +1184,8 @@ Session activity leaf and composed authority units use `RUN='^TestSessionActivit
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
 use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.
+Row-mapping routine provenance, named replay and strict authority demand use
+`RUN='^TestXMLMapRowsProvider$'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.

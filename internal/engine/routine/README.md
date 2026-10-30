@@ -16,6 +16,12 @@ and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`
 does not gain execution capability.
 
+The eight row/schema XML mapping declarations use their released OIDs and fixed
+named formals with ordinary `XMLMappingRoutineProvider` membership. Each returns
+XML and is strict with cost 100; table variants are STABLE/parallel-restricted,
+query/cursor variants VOLATILE/unsafe. Catalog identities alone grant neither
+execution nor additional schema/database mapping functions.
+
 `OperatorProvider` validates a nonzero current extension link against its parent
 before ordinary operand, result and backer checks. A zero link is locally
 detached; extension-class validation separately rejects any parent bag that
@@ -603,6 +609,8 @@ Statistics I/O declaration/display and complete seed materialization use
 and strict calls belong to the statistics family in `reference/catalogs`.
 Settings/options declaration, display and complete seed materialization use
 `RUN='^TestSettingsOptionsRoutineDeclarations$'`.
+XML row-mapping declaration/display/input-name ownership uses
+`RUN='^TestXMLMapRowsRoutineDeclarations$'`.
 
 Ordered declaration units distinguish canonical lookup from expanded execution:
 `FinalDeclarationVectors` checks independent storage and collapsed ANY slots;

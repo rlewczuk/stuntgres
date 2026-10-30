@@ -180,8 +180,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 		s.RoutineDependencies = nil
 		authority.Host = nil
 		if err != nil {
-			c.Place = exec.CursorFailed
-			_ = c.dispose(s.Op.Context())
+			_ = c.failProducer(s.Op.Context())
 		}
 	}()
 	if err = s.authorizeSQLCursor(c); err != nil {
@@ -281,8 +280,7 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor) (result Result, err error) {
 	defer func() {
 		if err != nil {
-			c.Place = exec.CursorFailed
-			_ = c.dispose(s.Op.Context())
+			_ = c.failProducer(s.Op.Context())
 		}
 	}()
 	var rows *exec.FinalRows

@@ -136,6 +136,12 @@ admission and removes it before nested binding.
   `TestXMLProduceSQLMappingCompletionCancellation` sweeps every actual checkpoint
   for nonempty array/XML/BYTEA output, including the final publication check;
   every canceled call discards characters and preserves healthy source reuse.
+  `XMLRowMapping` reuses that same typed output for each borrowed row and clears
+  its reusable field vector after every append. A conversion failure poisons the
+  whole invocation; Finish cannot publish an earlier prefix. Schema adoption
+  accepts only the XML owner's opaque checked schema token. Completed values
+  share immutable payload backing across copies, compatible retags and domains;
+  neither row scratch nor the builder survives in them.
 - `ReadBrinPage` borrows immutable caller bytes and checks released page
   headers without consulting table rows. Per-column `BrinStoredColumn` values
   validate the original admitted input/class and capture the actual opclass
@@ -819,6 +825,7 @@ comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 XML datum ownership, mapping and codec units use `RUN='^TestXML(SQL|ProduceSQL)'`.
 XMLTABLE target-input adapter units use `RUN='^TestXMLTableTypeInput$'`.
+Row-mapper datum sharing and failure ownership use `RUN='^TestXMLMapRowsOwnership$'`.
 ISO interval lexical/ERANGE units use `RUN='^TestIntervalISO'`.
 Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;

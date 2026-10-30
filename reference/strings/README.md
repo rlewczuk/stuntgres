@@ -63,6 +63,10 @@ Add `REFERENCE=1` for the oracle.
   successful parseable replay and separately exercises a persisted malformed
   generated datum's actual dump failing atomically in an independent destination,
   with unchanged source reader metadata/raw spelling and actual output warning.
+- XML relation/query/cursor row mapping, exact schemas and combined output,
+  SPI diagnostics and caller-policy restoration, ACLs, and genuine SQL/PL/protocol
+  cursor lifetimes, active-motion rejection and nonmoving active descriptors:
+  `RUN='^TestReferenceXMLMapRows'`.
 - BIT and VARBIT types: `RUN='^TestReferenceBitstring'`
 - Bit-string operators: `RUN='^TestReferenceBitOperators'`
 - Bit-string functions (`bit_count`, `length`, `position`, `substring`, `overlay`, ...): `RUN='^TestReferenceBitStringFunctions'`

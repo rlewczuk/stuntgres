@@ -60,6 +60,10 @@ and all generic-file read/binary/stat/tmpdir overloads. Twelve metadata-only RI
 trigger functions retain their released volatile classification and defaults.
 Release-owned TSV facts preserve exact membership and all 28 projected fields,
 including tmpdir's explicit cost 10 and row estimate 20.
+The eight XML row/schema mapping declarations (2923–2930) retain explicit cost
+100, strict XML results and named all-IN formals. Table functions are STABLE/
+parallel-restricted; query and cursor functions are VOLATILE/parallel-unsafe.
+Exact membership and all 28 direct/prepared metadata projections include them.
 The nine database/relation size overloads retain their released strict volatile
 metadata; the one-argument SQL wrapper has a declaration body and retained
 released cost 1, as do the internal implementations.

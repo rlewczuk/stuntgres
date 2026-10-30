@@ -32,6 +32,7 @@ type sqlCursor struct {
 	hold, promoted bool
 	pinned         bool // Active cursor FOR owns user-drop protection.
 	plReadOnly     bool // Canonical SELECT strategy; row locking is still ONE_SELECT.
+	running        bool // Shared SQL/PL motion admission; descriptor reads remain legal.
 	statement      string
 	created        sqltype.Value
 	values         []sqltype.Value
@@ -122,6 +123,16 @@ func (c *sqlCursor) dispose(ctx context.Context) error {
 	err := c.releaseProducer(ctx)
 	c.values = nil
 	c.schema, c.recordShape = nil, nil
+	c.count, c.storeOffset = 0, 0
+	return err
+}
+
+// A failed but still registered portal keeps its immutable tuple descriptor.
+// Only terminal close/transaction retirement disposes that metadata.
+func (c *sqlCursor) failProducer(ctx context.Context) error {
+	c.Place, c.pinned = exec.CursorFailed, false
+	err := c.releaseProducer(ctx)
+	c.values = nil
 	c.count, c.storeOffset = 0, 0
 	return err
 }
@@ -368,14 +379,22 @@ func (s *StatementScope) fetchCursor(fetch *parser.FetchCursor) (result Result, 
 // A retained handle must still be this physical session's exact registered
 // portal; matching names cannot redirect it to a replacement.
 func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
+	if err := s.validateCursorIdentity(c, name); err != nil {
+		return err
+	}
+	if c.Place == exec.CursorFailed || c.running {
+		return SQLError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
+	}
+	return nil
+}
+
+// Descriptor inspection shares identity/lifetime validation, not runnable state.
+func (s *StatementScope) validateCursorIdentity(c *sqlCursor, name string) error {
 	if c == nil || PayloadOf(s.Op.Session).Cursors.Entries[name] != c || (!c.promoted && c.tx != s.TxRef) {
 		return missingSQLCursor(name)
 	}
 	if !c.promoted && c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
-	}
-	if c.Place == exec.CursorFailed {
-		return SQLError("55000", fmt.Sprintf("portal %q cannot be run", name))
 	}
 	return nil
 }
@@ -394,6 +413,8 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	if err := s.validateCursorPortal(c, fetch.Name.Text); err != nil {
 		return Result{}, err
 	}
+	c.running = true
+	defer func() { c.running = false }()
 	if c.promoted {
 		return s.fetchHeldCursor(c, fetch)
 	}
@@ -403,8 +424,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 		s.RoutineAuth = AuthorizationView{}
 		s.RoutineDependencies = nil
 		if err != nil {
-			c.Place = exec.CursorFailed
-			err = plCleanupFailure(err, c.dispose(s.Op.Context()), nil)
+			err = plCleanupFailure(err, c.failProducer(s.Op.Context()), nil)
 		}
 		c.authority.Host = nil
 	}()

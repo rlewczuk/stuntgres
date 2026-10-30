@@ -46,7 +46,7 @@ func (s *StatementScope) activateRoutineCommandPolicy(d *catalog.Procedure, cons
 // Optimizable commands must reach analysis before the readonly decision; in
 // particular row marks and modifying CTEs belong to the executable binding.
 func (s *StatementScope) routineUtilityEligibility(statement parser.Statement) error {
-	if !s.sqlRoutine.policy.readOnly {
+	if !s.sqlRoutine.policy.readOnly && !s.sqlRoutine.readOnlySPI {
 		return nil
 	}
 	switch statement.(type) {

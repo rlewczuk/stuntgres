@@ -88,6 +88,16 @@ separate normalization and warnings. All construction failures publish zero.
 Both join passes poll outer fragments, including empty fragments; emission cannot
 skip cancellation merely because a fragment contributes no characters.
 
+`RowMapping` is a single-invocation checked row assembler: it maps raw SQL
+identifiers once, appends already typed-output field characters into one bounded
+buffer, and publishes immutable CONTENT only on successful Finish. NULL skips,
+zero-width rows, growth copies and final publication remain cancellable.
+Namespace spelling is literal generated data, not parser admission.
+`ConstructMappingSchema` owns the released XSD templates and returns opaque
+`MappingSchemaResult` authority. Only that token may supply an embedded schema;
+exposing its immutable Result for typed adoption cannot mint another token.
+Schema facts contain ordered SQL type identities, never SQL callbacks or a DOM.
+
 
 `Declaration` distinguishes absent and present-empty encoding/version properties,
 retains written labels and has an exclusive UTF8-original byte `End`. CONTENT's
@@ -500,6 +510,8 @@ typed-text/binary-send observations, distinct from raw character casts.
 
 XMLTABLE invocation, namespace, node-output and cancellation units use
 `RUN='^TestXMLTableProvider$'`.
+Row/schema construction, poisoned failure and cancellation proof use
+`RUN='^TestXMLMapRows(Construction|Cancellation)$'`.
 Projected XPath text nodes retain their invocation-local source kind: adjacent
 CDATA still coalesces for XPath string values and cardinality, while XMLTABLE
 XML output serializes CDATA through the common node serializer, including

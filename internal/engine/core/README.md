@@ -2139,6 +2139,30 @@ Producers, the OID registry and descriptor specs live in
 runtime bodies (`*_runtime.go`) keep the authority. No prepared node caches an
 owner.
 
+`xml_map_rows_*` borrows ordinary nested SQL execution, relation locks and
+SQL/PL/protocol portal identities. Data SPI parses the complete input, then
+analyzes and executes commands sequentially; schema SPI opens one prepared
+cursor and closes it without FETCH. Combined output performs those stages
+separately. Table schema introspection holds a real relation lifetime without
+SELECT permission, while data passes normal SELECT/ACL/RLS admission.
+SPI admission reports semantic query-creation tags, including normalized SELECT
+INTO, rather than the SELECT wire completion tag used for their produced rows.
+Schema preparation analyzes canonical query-bearing statements in written order;
+raw utilities bypass generic binding. Cursor opening rejects noncursor/multiple
+plans without executing utilities or inheriting runtime readonly admission.
+Cursor schema inspects an existing descriptor even while its producer is active
+or failed; data movement alone enforces runnable state. Named protocol mapping
+and wire Execute share typed startup and the same genuine producer position.
+SQL FETCH, PL refcursor motion and mapping share one balanced active-motion
+guard in the SQL cursor owner, including held motion. Recursive producer demand
+is rejected before admission or scratch mutation; descriptor inspection does
+not acquire that guard. Preparation activates under the original caller policy
+before suppressing readonly scratch, preserving its private write/delete
+frontier and restoring the complete lexical owner on success and failure.
+Failed SQL/held portals release executor and stored rows while retaining their
+immutable tuple descriptors until terminal close or transaction retirement.
+Mapping retains no catalog, row, session or output environment in XML values.
+
 `session_activity_runtime.go` reads the current operation's original frontend SQL
 and physical session token. `DatabaseCluster` owns immutable microsecond startup
 and configuration-load stamps, captured at cluster construction and actual initial
@@ -2401,6 +2425,10 @@ environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 TEMP tablespace preparation, admission and composed-creation units use
 `RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.
+
+XML row-mapping accepted graph/fold/definition lifetime units use
+`RUN='^TestXMLMapRows'`; public SQL and protocol outcomes remain in
+`reference/strings`.
 
 Publication descriptor/filter/membership/capture ownership units use
 `make check RUN='^TestPublication'`; public SQL scenarios remain in `reference/`.

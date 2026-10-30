@@ -154,6 +154,12 @@ func ScopeSQLRoutineLexicalScratch(x *StatementScope) sqlRoutineScratch {
 	return c
 }
 
+// InquirySearchPathResults exposes only the actor-dependent cache retained in
+// routine scratch, so ownership tests can distinguish its deliberate reset.
+func InquirySearchPathResults(x *inquirySnapshot) *[2]sqltype.Value {
+	return &x.searchPathResults
+}
+
 // CommandRoutineProgramRi returns x.ri.
 func CommandRoutineProgramRi(x *commandRoutineProgram) bool { return x.ri }
 

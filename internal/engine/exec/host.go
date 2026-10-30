@@ -160,6 +160,7 @@ type Host interface {
 	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) (sqltype.Value, error)
 	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error)
 	RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
+	MapXMLRows(functions.XMLMappingOperation, [5]sqltype.Value, *sqltype.Descriptor, sqltype.OutputEnvironment) (sqltype.Value, error)
 	LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	ConvertJSONTextSearch(ctx context.Context, explicit bool, configuration, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error)

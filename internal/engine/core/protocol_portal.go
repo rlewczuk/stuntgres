@@ -39,6 +39,8 @@ type protocolPortal struct {
 	producer          *sqlCursor
 	rows              exec.RowResult
 	started           bool
+	running           bool
+	rowPosition       exec.CursorPosition // Sole position for eager non-producer tuple results.
 	state             protocolPortalState
 	tag               string
 	completionBase    string // Actual executed command, independent of outer syntax/resources.
@@ -372,6 +374,11 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	if p.state == protocolPortalDone || p.state == protocolPortalFailed {
 		return out, SQLError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
 	}
+	if p.running {
+		return out, SQLError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
+	}
+	p.running = true
+	defer func() { p.running = false }()
 	defer func() {
 		if err != nil {
 			p.state = protocolPortalFailed
@@ -382,32 +389,11 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		out.CommandTag = p.completionTag(0)
 		return out, nil
 	}
-	if !p.started {
-		p.started = true
-		if p.producer == nil {
-			s.Expected = &p.Entry.Description
-			s.protocol().execute = p
-			defer func() { s.protocol().execute = nil }()
-			previousPortal := s.plExecutingPortal
-			s.plExecutingPortal = p
-			defer func() { s.plExecutingPortal = previousPortal }()
-			stream := protocolCopyExecution{source: source, destination: destination, hooks: hooks}
-			result, e := s.execute(p.Entry.Body, len(p.values), func(_ context.Context, _ analyze.ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
-				copy(frame, p.values)
-				return nil
-			}, &stream)
-			if e != nil {
-				return out, e
-			}
-			p.rows, p.tag = result.Rows, result.CommandTag
-			if p.rows == nil {
-				p.state = protocolPortalDone
-				out.CommandTag = p.tag
-				out.Count = result.Count
-				return out, nil
-			}
-			p.retainCompletion(result.CommandTag)
-		}
+	if terminal, result, failure := s.startProtocolPortal(p, source, destination, hooks); failure != nil {
+		return out, failure
+	} else if terminal {
+		out.CommandTag, out.Count = result.CommandTag, result.Count
+		return out, nil
 	}
 	var values []sqltype.Value
 	var catalog catalog.Read
@@ -505,9 +491,43 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	return out, nil
 }
 
+// startProtocolPortal owns typed producer startup for wire Execute and nested
+// SQL/XML cursor demand. Neither caller decodes wire fields to recover values.
+func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (bool, Result, error) {
+	if p.started { return p.state == protocolPortalDone, Result{CommandTag: p.tag}, nil }
+	p.started = true
+	if p.producer != nil { return false, Result{}, nil }
+	s.Expected = &p.Entry.Description
+	s.protocol().execute = p
+	defer func() { s.protocol().execute = nil }()
+	previousPortal := s.plExecutingPortal
+	s.plExecutingPortal = p
+	defer func() { s.plExecutingPortal = previousPortal }()
+	stream := protocolCopyExecution{source: source, destination: destination, hooks: hooks}
+	result, err := s.execute(p.Entry.Body, len(p.values), func(_ context.Context, _ analyze.ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
+		copy(frame, p.values)
+		return nil
+	}, &stream)
+	if err != nil { return false, Result{}, err }
+	p.rows, p.tag = result.Rows, result.CommandTag
+	if p.rows == nil {
+		p.state = protocolPortalDone
+		return true, result, nil
+	}
+	p.retainCompletion(result.CommandTag)
+	return false, Result{}, nil
+}
+
 func (p *protocolPortal) next(ctx context.Context, values []sqltype.Value) (bool, error) {
 	if p.producer == nil {
-		return p.rows.Next(ctx, values)
+		present, err := p.rows.Next(ctx, values)
+		if present && err == nil {
+			p.rowPosition.OrdinalPosition++
+			p.rowPosition.Place, p.rowPosition.AtEnd = exec.CursorOn, false
+		} else if err == nil {
+			p.rowPosition.Place, p.rowPosition.AtEnd = exec.CursorAfter, true
+		}
+		return present, err
 	}
 	return p.producer.nextProtocolRow(ctx, values)
 }
@@ -516,6 +536,9 @@ func (c *sqlCursor) nextProtocolRow(ctx context.Context, values []sqltype.Value)
 	present, err := c.stage.ProjectOrdinal(ctx, int(c.OrdinalPosition), values)
 	if present && err == nil {
 		c.OrdinalPosition++
+		c.Place, c.AtEnd = exec.CursorOn, false
+	} else if err == nil {
+		c.Place, c.AtEnd = exec.CursorAfter, true
 	}
 	return present, err
 }

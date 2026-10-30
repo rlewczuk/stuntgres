@@ -58,6 +58,11 @@ func sqlRoutineSimpleTerminal(statement parser.Statement, b analyze.Binding) boo
 }
 
 func RoutineCommandTag(statement parser.Statement) string {
+	// Query-table creation completes with SELECT, but SPI diagnostics use
+	// its semantic command identity (including normalized SELECT INTO).
+	if _, ok := statement.(*parser.CreateQueryTable); ok {
+		return session.ModifyingTag(statement)
+	}
 	if transaction, ok := statement.(*parser.TransactionControl); ok {
 		switch transaction.Kind {
 		case parser.KindCommit:

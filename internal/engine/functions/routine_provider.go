@@ -45,4 +45,5 @@ const (
 	FTSVectorRoutineProvider
 	AggregateContextRoutineProvider
 	FTSInspectionRoutineProvider
+	XMLMappingRoutineProvider
 )

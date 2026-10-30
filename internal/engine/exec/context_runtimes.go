@@ -982,6 +982,16 @@ func (c *Context) RewriteQuerySQL(query sqltype.Value, text string, result *sqlt
 	return host.RewriteQuerySQL(query, text, result)
 }
 
+var _ functions.XMLMappingRuntime = (*Context)(nil)
+
+func (c *Context) MapXMLRows(op functions.XMLMappingOperation, args [5]sqltype.Value, result *sqltype.Descriptor, output sqltype.OutputEnvironment) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: XML row mapping lacks statement authority")
+	}
+	return host.MapXMLRows(op, args, result, output)
+}
+
 var _ functions.DictionaryRuntime = (*Context)(nil)
 
 func (c *Context) LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
