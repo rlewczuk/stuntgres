@@ -258,7 +258,11 @@ neither owns catalog authority.
   `*Relation`; `SetDescriptor`, `RemoveDescriptor` and `Candidate.State`
   maintain it, and copies share it. The helper-owner map
   (`helper_owner_index.go`) follows the same writes; writers set `Aggregate`
-  and `Implementation` only on new descriptor copies. Whole-catalog writers (bootstrap seed,
+  and `Implementation` only on new descriptor copies. So does the extension
+  member map (`extension_member_index.go`): every descriptor whose
+  `ExtensionMembership` is set, with that extension, which
+  `ValidateExtensionMembership` checks a member list against instead of every
+  descriptor; writers set `Extension` only on new copies. Whole-catalog writers (bootstrap seed,
   `RemapPrincipals`, replacement remap) bracket the work with
   `BeginBulkLoad`/`EndBulkLoad`; a state in a bulk load is private to its writer
   and copying it panics.

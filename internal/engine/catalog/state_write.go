@@ -47,6 +47,7 @@ func (s *State) replaceDescriptor(a ids.ObjectAddress, old, d Descriptor) {
 	s.updateSubscriptions(old, d)
 	s.updatePublications(old, d)
 	s.updateHelperOwners(old, d)
+	s.updateExtensionMembers(a, old, d)
 	s.updateTemporaryNamespaces(old, d)
 	s.raiseOIDCeiling(a, d)
 }
@@ -62,6 +63,7 @@ func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	s.updateSubscriptions(old, nil)
 	s.updatePublications(old, nil)
 	s.updateHelperOwners(old, nil)
+	s.updateExtensionMembers(a, old, nil)
 	s.updateTemporaryNamespaces(old, nil)
 	s.dropDescriptor(a)
 }
@@ -87,6 +89,7 @@ func (s *State) ResetDescriptors() {
 	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
 	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
+	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
 	s.oidCeiling = 0
 }
@@ -109,6 +112,7 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.publicationRelations = util.PersistentMap[ids.ObjectAddress, *PublicationRelation]{}
 	s.publicationNamespaces = util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]{}
 	s.helperOwners = util.PersistentMap[ids.ObjectAddress, *Procedure]{}
+	s.extensionMembers = util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress]{}
 	s.temporaryNamespaces = util.PersistentMap[ids.ObjectAddress, *Namespace]{}
 	s.oidCeiling = 0
 	return previous.All()

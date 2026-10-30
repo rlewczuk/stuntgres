@@ -222,6 +222,7 @@ func (c *Candidate) State() *State {
 	next.publicationRelations = base.publicationRelations
 	next.publicationNamespaces = base.publicationNamespaces
 	next.helperOwners = base.helperOwners
+	next.extensionMembers = base.extensionMembers
 	next.temporaryNamespaces = base.temporaryNamespaces
 	next.oidCeiling = base.oidCeiling
 	next.unseeded, next.unseededAll, next.seedCeiling = us.Persistent(), base.unseededAll, base.seedCeiling
@@ -231,6 +232,7 @@ func (c *Candidate) State() *State {
 		next.updateSubscriptions(c.Base.Get(a), nil)
 		next.updatePublications(c.Base.Get(a), nil)
 		next.updateHelperOwners(c.Base.Get(a), nil)
+		next.updateExtensionMembers(a, c.Base.Get(a), nil)
 		next.updateTemporaryNamespaces(c.Base.Get(a), nil)
 	}
 	for a, d := range c.descriptors {
@@ -239,6 +241,7 @@ func (c *Candidate) State() *State {
 		next.updateSubscriptions(c.Base.Get(a), d)
 		next.updatePublications(c.Base.Get(a), d)
 		next.updateHelperOwners(c.Base.Get(a), d)
+		next.updateExtensionMembers(a, c.Base.Get(a), d)
 		next.updateTemporaryNamespaces(c.Base.Get(a), d)
 		next.raiseOIDCeiling(a, d)
 	}

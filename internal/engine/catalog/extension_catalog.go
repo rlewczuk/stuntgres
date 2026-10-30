@@ -267,8 +267,8 @@ func ValidateExtensionMembership(view Read, d Descriptor) error {
 				return fmt.Errorf("stuntgres: invalid reciprocal extension member")
 			}
 		}
-		for address, member := range view.Descriptors() {
-			if ExtensionMembership(member) == ext.Address() && !seen[address] {
+		for address, claimed := range view.extensionClaims() {
+			if claimed == ext.Address() && !seen[address] {
 				return fmt.Errorf("stuntgres: missing reciprocal extension membership")
 			}
 		}
