@@ -6,7 +6,7 @@ ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION, CONVERSION, TEXT SEARCH CONFIGUR
 LANGUAGE and ALTER/DROP LANGUAGE; ALTER DOMAIN RENAME and SET SCHEMA; CREATE FUNCTION, PROCEDURE and
 AGGREGATE, ALTER and DROP ROUTINE; cast, operator, operator family, operator
 class and access method DDL; COMMENT; CREATE TABLESPACE and ALTER TABLE ALL IN
-TABLESPACE; LOAD; CREATE, ALTER and DROP EXTENSION; the
+TABLESPACE; LOAD and CHECKPOINT; CREATE, ALTER and DROP EXTENSION; the
 foreign-data DDL (wrappers, servers, user mappings, foreign tables, IMPORT
 FOREIGN SCHEMA) and its GRANT and REVOKE; the extension owner import of a
 native Restore; and the family hosts `RoutineHost`, `SchemaHost` and
@@ -58,7 +58,7 @@ participant enlistment, and the builtin catalog seed.
 
 Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteSchema` runs every schema-element statement listed above except
-  the routine, COMMENT, tablespace, LOAD, extension and foreign-data ones. It
+  the routine, COMMENT, tablespace, LOAD, CHECKPOINT, extension and foreign-data ones. It
   stages under `Engine.Mu` (`stageSchemaLocked`: the capture, the early actor
   read that gates every staged statement, one call per statement; DROP
   SCHEMA first takes its namespace removal locks and CREATE COLLATION its
@@ -99,9 +99,9 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   records actual procedure inputs in the publication fences.
 - `ExecuteComment` stages the comment (the locked-relation check, the
   private role record installation or object stage) and publishes it.
-- `ExecuteCreateTablespace` and `ExecuteLoad` keep the argument count, the
-  mutex and a fresh authority capture around `ddl.CreateTablespace` and
-  `ddl.Load`; neither publishes.
+- `ExecuteCreateTablespace`, `ExecuteLoad` and `ExecuteCheckpoint` keep the
+  argument count, mutex and fresh authority capture around `ddl.CreateTablespace`,
+  `ddl.Load` and `ddl.Checkpoint`; none publishes or marks a utility complete.
 - `ExecuteExtension`, `ExecuteExtensionUpdate`, `ExecuteExtensionAlter` and
   `ExecuteDropExtension` (see [Extensions](#extensions)).
 - `ExecuteForeignDDL` stages through `fdw.StageDDL` on `TableHost`, releases
@@ -249,7 +249,7 @@ Public SQL lives in
 classes and families, access methods).
 
 ```sh
-make check RUN='^Test(Schema|Comment|Collation|Conversion|Tablespace|Load|Transactional)'  # schema elements, COMMENT, tablespace, LOAD
+make check RUN='^Test(Schema|Comment|Collation|Conversion|Tablespace|Load|Checkpoint|Transactional)'  # schema elements and physical utility boundaries
 make check RUN='^Test(Domain|Enum|Composite|TypeLifecycle|Geometry)'  # types and domains staged through the schema statements
 make check RUN='^Test(User|Operator|Routine|SQLRoutine|Cast|CreateAggregate|Aggregate|OrderedSet|Access)'  # routine, operator and access method DDL
 make check RUN='^Test(Extension|AvailableExtension|Citext|Cube|Earth|Isn|Intagg|Intarray|Lo|Pgcrypto|Pgrowlocks|UUIDOssp|Fuzzystrmatch|Levenshtein|Soundex|Metaphone|Daitch)'  # extensions and providers

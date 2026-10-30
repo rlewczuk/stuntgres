@@ -1125,6 +1125,17 @@ workers. Logical data, constraints, transactions and ACLs remain active.
 External startup relationships (archive command versus library, WAL level and
 mutually exclusive recovery targets) do not establish a native startup API.
 
+`CHECKPOINT` accepts no operands or options. Preparation has no physical effect
+and defers authority checks to execution: the effective current user must be a
+superuser or inherit privileges of `pg_checkpoint` (SET and ADMIN alone do not
+grant execution). Active read-write and read-only transactions reach this check;
+an already failed transaction instead reports `25P02`, after complete syntax
+parsing. Authorized native execution reports `0A000`:
+`CHECKPOINT physical WAL and fsync operations are unsupported in embedded mode`.
+It never flushes data, publishes private writes, erases committed rows, returns
+a successful completion tag, or increments physical checkpoint statistics.
+The error follows ordinary transaction failure and savepoint recovery rules.
+
 The initialized Linux profile presents `archive_command` as `(disabled)` with
 empty boot/reset, and `wal_buffers` as 4MB/raw512 with boot -1 and reset512.
 `checkpoint_flush_after` is 256kB/raw32 and `wal_summary_keep_time` is 10d/raw14400.

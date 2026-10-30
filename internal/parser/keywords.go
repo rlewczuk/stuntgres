@@ -158,7 +158,7 @@ var keywords = [...]keyword{
 	{"character", ColumnName, false, CHARACTER_TYPE},
 	{"characteristics", Unreserved, true, 0},
 	{"check", Reserved, true, CHECK},
-	{"checkpoint", Unreserved, true, 0},
+	{"checkpoint", Unreserved, true, CHECKPOINT},
 	{"class", Unreserved, true, 0},
 	{"close", Unreserved, true, CLOSE},
 	{"cluster", Unreserved, true, 0},

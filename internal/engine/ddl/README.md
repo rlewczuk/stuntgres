@@ -5,7 +5,9 @@ engine: the statement authority, the stage, the allocator and the host
 methods `routine`, `typedef`, `extension`, `fdw` and `role` need. Feature
 hosts embed these instead of declaring their own. The package also holds the
 schema-level DDL decisions, the CREATE DATABASE decisions and the tablespace
-and LOAD validators.
+and LOAD/CHECKPOINT validators. CHECKPOINT uses the current principal's existing
+INHERIT closure for `pg_checkpoint`, then rejects unavailable WAL/fsync work;
+it never stages catalog, data or physical statistics changes.
 
 It sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture):
@@ -152,6 +154,11 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   or allocates catalog identities. `schemacmds.ExecuteLoad` owns the
   argument count, the mutex and fresh authority capture; Prepare performs none
   of these execution checks.
+- **CHECKPOINT**: `Checkpoint(ctx, view, s)` checks current inherited
+  `pg_checkpoint` authority, then returns `CheckpointUnsupported` without
+  performing physical work. `schemacmds.ExecuteCheckpoint` captures fresh
+  authority under the engine mutex; preparation checks neither permission nor
+  physical availability.
 - **CREATE DATABASE** (`database.go`): `ParseCreateDatabaseOptions` checks
   the option list (duplicates, unknown names, malformed values) with nothing
   held and before any authority check, and returns `CreateDatabaseOptions`.
@@ -224,7 +231,7 @@ TABLESPACE accepts, that `TablespaceDatabase` returns its warning and the
 CREATE DATABASE admission order (`TestCheckCreateDatabaseOrder`). Engine tests pin the adapter (`TestDDLHost*` in
 `ddl_host_test.go`; `TestDDLHostStageSchemaTableKeepsAuthority` checks that
 `StageSchemaTable` leaves the caller's authority unchanged and stages the
-table with the given owner and namespace), LOAD validation and executor
+table with the given owner and namespace), LOAD/CHECKPOINT validation and executor
 non-publication and CREATE TABLESPACE non-publication (in
 `internal/engine/schemacmds`), the tablespace inquiry adapter
 (`TestTablespaceInfo*`, in `internal/engine/core`) and CREATE DATABASE
@@ -232,8 +239,8 @@ publication (`TestDatabaseCreate*`, in `internal/engine/rolecmds`).
 
 ```sh
 make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning|CheckCreateDatabaseOrder)$$'
-make check RUN='^Test(DDLHost|Load(Validation|ExecutorNoPublication)$$|TablespaceExecutorNoPublication$$)'
-make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load|DatabaseCreate)'
+make check RUN='^Test(DDLHost|Load(Validation|ExecutorNoPublication)$$|CheckpointExecutorNoPublication$$|TablespaceExecutorNoPublication$$)'
+make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load|Checkpoint|DatabaseCreate)'
 ```
 
 Public LOAD scenarios are in

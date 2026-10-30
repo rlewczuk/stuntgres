@@ -76,6 +76,13 @@ type Load struct {
 
 func (*Load) statement() {}
 
+// Checkpoint requests a physical checkpoint without operands.
+type Checkpoint struct {
+	Pos Position
+}
+
+func (*Checkpoint) statement() {}
+
 // AlterSystem is syntax-only external configuration, never a session setting.
 // Values are deliberately not retained or normalized.
 type AlterSystem struct {

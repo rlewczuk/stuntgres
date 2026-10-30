@@ -22,7 +22,7 @@ func predefinedMissingFunction(s *fixture.RoleMembershipScenario, q, signature s
 
 func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 	s.T.Helper()
-	for _, q := range []string{"CHECKPOINT", "CLUSTER t"} {
+	for _, q := range []string{"CLUSTER t"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
 	}
 	for _, q := range []string{"COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'"} {
@@ -56,10 +56,10 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(-1)}})
 		predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "42501", Message: "permission denied to create subscription", Detail: `Only roles with privileges of the "pg_create_subscription" role may create subscriptions.`}, false, "execute")
 		predefinedSubscriptionAbsent(s)
+		predefinedFailure(s, "CHECKPOINT", checkpointDenied, false, "execute")
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
-			predefinedFailure(s, "CHECKPOINT", fixture.Diagnostic{Code: "42501", Message: "permission denied to execute CHECKPOINT command", Detail: `Only roles with privileges of the "pg_checkpoint" role may execute this command.`}, false, "execute")
 			for _, tc := range []struct{ q, message, detail string }{
 				{"COPY t FROM '/nonexistent'", "permission denied to COPY from a file", `Only roles with privileges of the "pg_read_server_files" role may COPY from a file.`},
 				{"COPY t TO '/nonexistent'", "permission denied to COPY to a file", `Only roles with privileges of the "pg_write_server_files" role may COPY to a file.`},
@@ -92,11 +92,11 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		}
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}})
 		predefinedSubscriptionCapability(s)
+		checkpointRun(s, true)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
 			// Safe PG-only local capability consumers, not native WAL/network proof.
-			s.Exec("CHECKPOINT")
 			for _, function := range []string{"pg_cancel_backend", "pg_terminate_backend"} {
 				s.ClearNotices()
 				predefinedSelect(s, "SELECT "+function+"(2147483647)", []string{function}, []string{"BOOL"}, [][]any{{false}})
@@ -254,10 +254,8 @@ func TestReferencePredefinedBoundaryFeatureSmoke(t *testing.T) {
 		s.Fail("GRANT pg_database_owner TO pdef_actor", "0A000", `role "pg_database_owner" cannot have explicit members`, "")
 		s.Exec("GRANT pg_checkpoint,pg_create_subscription,pg_execute_server_program TO pdef_actor")
 		s.Actor("pdef_actor")
-		if s.Backend.PG {
-			s.Exec("CHECKPOINT")
-		} else {
-			predefinedFailure(s, "CHECKPOINT", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
+		checkpointRun(s, true)
+		if !s.Backend.PG {
 			predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
 		}
 		predefinedSubscriptionCapability(s)

@@ -122,7 +122,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		&parser.RenameRole{}, &parser.AlterRoleSettings{}, &parser.AlterDatabaseSettings{},
 		&parser.Call{}, &parser.Insert{}, &parser.Update{}, &parser.Delete{}, &parser.Merge{}, &parser.Select{}, &parser.Copy{},
 		&parser.Explain{Statement: &parser.Insert{}},
-		&parser.Do{}, &parser.Load{}, &parser.Vacuum{}, &parser.Analyze{}, &parser.Truncate{}, &parser.LockTable{},
+		&parser.Do{}, &parser.Load{}, &parser.Checkpoint{}, &parser.Vacuum{}, &parser.Analyze{}, &parser.Truncate{}, &parser.LockTable{},
 		&parser.PrepareSQL{}, &parser.ExecuteSQL{}, &parser.DeallocateSQL{}, &parser.DeclareCursor{}, &parser.FetchCursor{}, &parser.CloseCursor{},
 		&parser.Listen{}, &parser.Unlisten{}, &parser.Notify{}, &parser.Discard{},
 		&parser.Set{}, &parser.Reset{}, &parser.Show{}, &parser.RoleSelection{}, &parser.SessionAuthorization{},

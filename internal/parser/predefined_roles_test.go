@@ -10,7 +10,6 @@ import (
 
 func TestPredefinedUnavailableSyntax(t *testing.T) {
 	for _, tc := range []struct{ query, message, position, code string }{
-		{"CHECKPOINT", "statement is unsupported", "1", "0A000"},
 		{"CLUSTER t", "statement is unsupported", "1", "0A000"},
 		{"CREATE VACUUM", `syntax error at or near "VACUUM"`, "8", "42601"},
 	} {

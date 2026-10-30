@@ -67,6 +67,11 @@ embedded quotes in unquoted elements while rejecting malformed quoted suffixes;
 native creates reject unavailable machinery and never publish slot state.
 Role-grant actors, permission diagnostics and notice helpers are the fixture's
 `RoleGrant*` helpers ([fixture README](../fixture/README.md#helpers)).
+The CHECKPOINT family uses `make check RUN='^TestReferenceCheckpoint'` for exact
+syntax and diagnostics, live inherited current-user authority, held preparation,
+active/read-only and failed transactions, peer isolation and native controls.
+It independently expects PostgreSQL physical success and native physical
+rejection; it does not compare asynchronous global checkpoint counter deltas.
 The file-list family uses `make check RUN='^TestReferenceGenericFileLists'`.
 WAL summary ACL and control scenarios use `RUN='^TestReferenceWALSummary'`.
 Control-file live EXECUTE and stored-view/native-control scenarios use

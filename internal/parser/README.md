@@ -52,6 +52,9 @@ single-statement limit of driver calls) belong to callers.
   `TestPredefinedUnavailableSyntax` deliberately accepts the subscription role
   consumer as a structured AST; only remaining unavailable utilities retain
   generic syntax exclusions.
+- CHECKPOINT retains only its command position and has no operand grammar.
+  It remains an unreserved identifier; SQL PREPARE and EXPLAIN do not admit it.
+  Privileges and the physical boundary belong to execution, not parsing.
 - Publication utilities retain positioned table/schema groups, ONLY/star,
   absent versus explicit column lists, normal filter syntax, ordered options
   and multi-object drops. Grammar owns full-input consumption; current
@@ -421,6 +424,8 @@ retains an expression and ordered USING list, not a second SQL parser; diagnosti
 text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
+
+CHECKPOINT complete syntax, identifiers and positions use `RUN='^TestCheckpointSyntax$'`.
 
 Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSParser'`.
 Publication utility AST, source positions and complete-input units use

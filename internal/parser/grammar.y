@@ -373,7 +373,7 @@ package parser
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
 %token <tok> POLICY
-%token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD
+%token <tok> RULE ALSO INSTEAD NOTIFY LISTEN UNLISTEN LOAD CHECKPOINT
 %token <tok> FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT
 %token <tok> LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE
 %token <tok> TS_CONFIGURATION TS_TEMPLATE TS_PARSER
@@ -423,8 +423,8 @@ package parser
  * existing type-tail decision, exactly as for REINDEX above. */
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
-/* LISTEN/UNLISTEN/LOAD also retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION TS_TEMPLATE TS_PARSER RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD '.'
+/* LISTEN/UNLISTEN/LOAD/CHECKPOINT retain their former KW_U type-tail precedence. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION TS_TEMPLATE TS_PARSER RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD CHECKPOINT '.'
 %nonassoc EXPLAIN
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
@@ -1002,7 +1002,7 @@ package parser
 %type <tok> grant_external_name_word
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
-%type <stmt> notify listen unlisten load
+%type <stmt> notify listen unlisten load checkpoint
 %type <stmt> alter_system
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
@@ -1072,7 +1072,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | publication
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
- | notify | listen | unlisten | load
+ | notify | listen | unlisten | load | checkpoint
  | alter_system
  ;
 explain: EXPLAIN explainable { $$=&Explain{Statement:$2,Pos:$1.pos} }
@@ -1101,6 +1101,7 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
  | TRUE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$1.pos}} }
  | FALSE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Pos:$1.pos}} } ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
+checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
 } ;
@@ -3791,7 +3792,7 @@ setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: window_name | PARTITION | FRAME_UNIT | MATCH | PERIOD ;
-window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
+window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX | OVER | POLICY | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD | CHECKPOINT
  | TRIGGER | EVENT
  | VACUUM | EXPLAIN
  | FRAME_START %prec NAME_LIST | FRAME_EDGE %prec NAME_LIST
@@ -3846,7 +3847,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | COLLATION
  | EXCLUDE
  | POLICY
- | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD
+ | RULE | ALSO | INSTEAD | NOTIFY | LISTEN | UNLISTEN | LOAD | CHECKPOINT
  | EXTRACT | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC | TX_TIME_FUNC | FILTER | WITHIN | OVERLAPS | OVER | PARTITION | FRAME_UNIT | FRAME_EDGE | FRAME_START
  | MATERIALIZED
  | GROUPING | SETS | ROLLUP | CUBE ;
