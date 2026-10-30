@@ -31,6 +31,8 @@ type fdwSQLReader struct {
 	writer                                                                                    *fdwSQLWriter
 	parallel                                                                                  *fdwParallelReader
 	importDefinitionHook                                                                      func(context.Context, *stuntgres.ForeignTableDefinition) error
+	queryPushdown                                                                             bool
+	queryRequestHook                                                                          func(stuntgres.ForeignQueryRequest)
 }
 
 func newFDWSQLReader(t *testing.T) *fdwSQLReader {
@@ -268,6 +270,7 @@ type fdwSQLScan struct {
 	conn               *sql.Conn
 	query              string
 	width              int
+	queryForParameters func(stuntgres.ForeignScanParameters) (string, error)
 	cursor, eof, ended bool
 }
 
@@ -382,6 +385,13 @@ func (s *fdwSQLScan) ReScanForeignScan(ctx context.Context, parameters stuntgres
 	s.reader.mu.Unlock()
 	if err := s.reader.call(ctx, "ReScanForeignScan"); err != nil {
 		return err
+	}
+	if s.queryForParameters != nil {
+		query, err := s.queryForParameters(parameters)
+		if err != nil {
+			return err
+		}
+		s.query = query
 	}
 	return s.open(ctx)
 }

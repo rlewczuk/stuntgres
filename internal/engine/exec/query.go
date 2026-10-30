@@ -564,6 +564,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 	if err := ctx.Err(); err != nil {
 		return Stage{}, err
 	}
+	if replacement, selected, failure := tryOpenForeignQuery(ctx, state, node); selected || failure != nil {
+		return replacement, failure
+	}
 	switch n := node.(type) {
 	case *plan.FunctionFromNode:
 		return OpenFunctionFromNode(ctx, state, n)

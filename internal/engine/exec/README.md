@@ -168,6 +168,22 @@ typmods; naming is captured only on failure and is never retained in result tupl
   refresh.
 - **Cursors and other sources**: `RowCursor` and `RowResult` (read by the
   driver), the foreign scan stage (`foreign_*.go`) and the `pg_sequences` stage.
+  Optional typed foreign query paths replace an admitted join/aggregate/order/limit
+  subtree at its opener, before opening absorbed children. Translation uses bound
+  identities and full frame/cache/presence layouts; unknown expressions, local
+  restrictions and incompatible mappings retain the incumbent local frontier.
+  Ordinary grouping ships its single complete canonical set, preserving the
+  aggregate frame's hidden typed INT4 occurrence-zero cell after keys/calls.
+  Aggregate output expressions address the key/call result frame rather than
+  the input frame; partial, repeated and multiple grouping sets remain local.
+  Discovery and Begin run unlocked. Composite scans use the same codec importer,
+  transaction enlistment and `ForeignScanOwner` as base scans, without a second
+  cleanup registry. Private replacements never enter retained IR or persistence.
+  Rewind re-exports the invocation's statement parameters under the current demand
+  context and calls ReScan on the owned scan. Selection and order-cache demand
+  restart; source rows and packed presence remain append-only with stable
+  occurrence identities. Correlated/repeated invocation shapes requiring a
+  different parameterized plan are declined before composite discovery.
 - **Private row owners** (`nested_query_rows.go`, `cte_owned_rows.go`,
   `fts_rewrite_rules.go`). `OpenNestedQueryRows` is the all-row producer that
   PL/pgSQL static query loops, bounded static SELECT capture, `ts_rewrite` and
@@ -660,6 +676,8 @@ settled callback counts, never elapsed time, establish backpressure.
 Async protocol, cleanup, filtered-frontier and cursor-boundary units use
 `RUN='^TestFDWAsync'`; public authentic-transport scenarios live in
 `reference/tables` (`RUN='^TestReferenceFDWAsync'`).
+Typed foreign query contract, layout, request-copy and resource units use
+`RUN='^TestFDWQuery'`, including composed prepared-owner coverage in core.
 Query source identity units use `RUN='^TestQueryTableOID'`; virtual recipe
 consumers additionally use `RUN='^TestGeneratedVirtual'`. Catalog key index units
 here and candidate admission units in `internal/engine/core` use

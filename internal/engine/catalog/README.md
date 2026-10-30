@@ -15,6 +15,15 @@ neither owns catalog authority.
 
 ## What it owns
 
+- **Foreign callback records.** `foreign_api.go` keeps mandatory base scans
+  independent of optional typed query paths in `foreign_query_api.go`.
+  Composite requests describe immutable relational stages and dense typed output
+  slots, not catalog relations or physical attributes. They expose standard Go
+  metadata only. Per-request compatibility promises include exact expression,
+  collation and statement-visibility semantics; optional absence means decline,
+  not SQL rejection. Execution, authority admission, codecs and handle ownership
+  remain with exec/core rather than these records.
+
 - **Descriptors.** `Descriptor` is the identity contract (`Address`, `Revision`,
   `Namespace`, `Name`, `Kind`) of every kind (namespaces, relations, types,
   procedures, operators, collations, conversions, extensions, foreign objects,

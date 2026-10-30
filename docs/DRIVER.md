@@ -1263,8 +1263,30 @@ registered provider.
   `ForeignScan` provides `IterateForeignScan`, `ReScanForeignScan` and
   `EndForeignScan`. A `ForeignRow` is `[]driver.Value` in the plan's attribute order
   (nil is NULL; the separate Boolean distinguishes a row from EOF). Keep returned
-  buffers valid until the next callback. All quals are rechecked locally. A non-nil
-  `BeginForeignScan` result is always ended exactly once.
+  buffers valid until the next callback. Base scan quals are rechecked locally.
+  A non-nil `BeginForeignScan` result is always ended exactly once.
+  
+- **Join and upper paths.** Optional `ForeignJoinPathProvider` and
+  `ForeignUpperPathProvider` discover alternatives for typed bound subtrees;
+  `ForeignQueryScanProvider.BeginForeignQueryScan` executes a selected alternative
+  using the same `ForeignScan` lifecycle and value codecs. Discovery receives
+  copied occurrence, expression, type, collation and full output-slot metadata,
+  not query text or a synthetic table. Slot IDs are distinct from base attribute
+  numbers; hidden ordering and nonnull presence cells do not alter public metadata.
+  Unrequested base attributes remain typed-NULL frame padding (`Unused`), never
+  additional remote column reads. Required local recheck inputs are still read.
+  Empty paths or absent interfaces retain local execution. Every advertised
+  layout must match exactly and costs must be finite and nonnegative.
+  `ForeignQueryCompatibility` promises exact expression/collation equivalence and
+  a common statement-visible snapshot, including applicable read-your-writes.
+  These are trusted per-request provider promises, not overrides of engine
+  authority, mapping, volatility, RLS or identity barriers. Unsupported expressions
+  and boundaries remain local; unsafe outer ON predicates cannot become
+  post-join WHERE rechecks. A selected subtree is evaluated remotely exactly once.
+  Errors after selection propagate without local retry. Discovery owns no handles;
+  Begin resources join the existing statement/cursor owner, including nonnil
+  scans returned with an error. Plans and `Private` data must be immutable and
+  contain no live resources; neither is serialized by Dump.
 - **Writes.** Optional interfaces enable each command: `ForeignInserter`,
   `ForeignUpdater`, `ForeignDeleter`, `ForeignTruncater`, batching
   (`ForeignBatchSizer` + `ForeignBatchInserter`), and row identity for UPDATE/DELETE

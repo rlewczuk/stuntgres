@@ -28,6 +28,7 @@ type ForeignQuerySource struct {
 	Executions     []*ForeignExecution
 	lifetimeOwner  *ForeignScanOwner
 	LifetimeClosed bool
+	Query          *foreignComposite
 	closeError     error
 }
 
@@ -102,6 +103,16 @@ func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 }
 
 func (f *ForeignQuerySource) Plan(ctx context.Context, request catalog.ForeignRequest, execution *ForeignExecution) error {
+	if f.Query != nil {
+		execution.Plan.Attributes = make([]int32, len(f.Query.plan.Slots))
+		execution.Slots = make([]int, len(f.Query.plan.Slots))
+		for i := range execution.Slots {
+			execution.Slots[i] = i
+			execution.Plan.Attributes[i] = int32(i)
+		}
+		execution.planned = true
+		return nil
+	}
 	size, err := f.Wrapper.GetForeignRelSize(ctx, CopyForeignRequest(request))
 	if err != nil {
 		return ForeignCallbackError(err)
@@ -208,6 +219,10 @@ func (execution *ForeignExecution) end(ctx context.Context) error {
 }
 
 func OpenForeignStage(ctx context.Context, state *State, source *Source, node *plan.SourceNode) (Stage, error) {
+	return openForeignStage(ctx, state, source, node, node.Schema())
+}
+
+func openForeignStage(ctx context.Context, state *State, source *Source, node *plan.SourceNode, columns []catalog.Column) (Stage, error) {
 	f := source.Foreign
 	if f.LifetimeClosed {
 		return Stage{}, fmt.Errorf("stuntgres: foreign scan owner has ended")
@@ -231,7 +246,10 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		f.Executions = append(f.Executions, execution)
 	}
 	execution.active = true
-	out := Stage{Source: source, Columns: node.Schema(), Selection: []int{}}
+	out := Stage{Source: source, Columns: columns, Selection: []int{}}
+	if f.Query != nil {
+		out.CacheWidth = f.Query.cache
+	}
 	started := false
 	start := func(ctx context.Context) error {
 		if host := source.LiveHost(); host != nil {
@@ -260,7 +278,7 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 			}
 		}
 		if execution.Scan == nil {
-			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && !execution.async.capable && state.foreignParallelMaximum >= 2 {
+			if provider, ok := f.Wrapper.(catalog.ForeignParallelScanProvider); ok && f.Query == nil && !execution.async.capable && state.foreignParallelMaximum >= 2 {
 				safe, err := provider.IsForeignScanParallelSafe(ctx, CopyForeignRequest(request), execution.Plan)
 				if err != nil {
 					return ForeignCallbackError(err)
@@ -282,7 +300,13 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 					return nil
 				}
 			}
-			scan, err := f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
+			var scan catalog.ForeignScan
+			var err error
+			if f.Query != nil {
+				scan, err = f.Wrapper.(catalog.ForeignQueryScanProvider).BeginForeignQueryScan(ctx, f.Query.executionRequest(parameters, request.Transaction), catalog.ForeignQueryPlan{Slots: slices.Clone(f.Query.plan.Slots), Private: f.Query.plan.Private})
+			} else {
+				scan, err = f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
+			}
 			execution.Scan = scan
 			if err != nil {
 				return ForeignCallbackError(err)
@@ -309,6 +333,37 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 		input, output := state.Input, state.Output
 		if host := source.LiveHost(); host != nil {
 			input, output = host.Environments()
+		}
+		if f.Query != nil {
+			dataWidth := len(f.Columns)
+			values, err := f.ImportValues(ctx, row[:dataWidth], execution.Slots[:dataWidth], input, output, nil, nil)
+			if err != nil {
+				return nil, err
+			}
+			for i, value := range values {
+				column := f.Columns[i]
+				if f.Query.plan.Slots[i].Unused && !value.IsNull() {
+					return nil, fmt.Errorf("stuntgres: foreign query returned a value for an unused padding slot")
+				}
+				if value.IsNull() && column.NullabilityKnown && !column.Nullable && !f.Query.plan.Slots[i].Unused {
+					return nil, fmt.Errorf("stuntgres: foreign query returned NULL for a nonnullable output slot")
+				}
+			}
+			presenceStart := len(source.presenceFlat)
+			for range source.PresenceCount {
+				source.presenceFlat = append(source.presenceFlat, false)
+			}
+			for i, slot := range f.Query.plan.Slots {
+				if slot.Presence == 0 {
+					continue
+				}
+				value, ok := row[i].(bool)
+				if !ok {
+					return nil, fmt.Errorf("stuntgres: foreign query presence cell must be a nonnull boolean")
+				}
+				source.presenceFlat[presenceStart+source.PresenceSlots[slot.Presence-1]-1] = value
+			}
+			return values, nil
 		}
 		return f.ImportValues(ctx, row, execution.Slots, input, output, node, occurrence)
 	}
@@ -354,8 +409,15 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 				return false, err
 			}
 		}
+		if f.Query != nil {
+			out.OrderValues = append(out.OrderValues, values[f.Query.width:]...)
+			values = values[:f.Query.width]
+		}
 		index := len(source.Anonymous)
 		source.Anonymous = append(source.Anonymous, values)
+		if f.Query != nil {
+			source.FlatCount++
+		}
 		out.Selection = append(out.Selection, index)
 		return true, nil
 	}
@@ -384,6 +446,7 @@ func OpenForeignStage(ctx context.Context, state *State, source *Source, node *p
 			}
 		}
 		out.Selection = out.Selection[:0]
+		out.OrderValues = out.OrderValues[:0]
 		out.Done = false
 		return true, nil
 	}

@@ -27,6 +27,18 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   `fdwCleanup` runs on the case's own connection under a fresh 15-second
   context (ROLLBACK, RESET ROLE, then drops), so it still works after the case
   context is canceled.
+  Typed query scenarios (`fdw_pushdown*_test.go`) deparse the provider's bound
+  occurrence/slot tree into genuine SQL against these independent sources.
+  Their quoted source identifiers differ from foreign names. Direct/prepared
+  public results are independent expectations; selected-stage observations only
+  supplement them. Absent/declined paths and unsafe semantic frontiers retain
+  real base scans. Source cursor resources and fault/cancellation hooks reuse
+  `fdwSQLScan`, rather than a canned composite-row implementation.
+  Canceled direct/prepared INSERT SELECT consumes an admitted composite source,
+  leaves its local target sentinel unchanged and publishes no affected result.
+  Provider-level changed-parameter ReScan reopens a genuine source SQL cursor;
+  owning `exec/enginetests` separately exercises engine Stage.Rewind and its
+  current-context parameter export, selection/cache reset and error ownership.
   Async scenarios (`fdw_async_*_test.go`) use a test-only HTTP provider that
   advances independent real source SQL cursors. PostgreSQL uses two loopback
   servers and an advisory-lock gate in a volatile fetched target; admission
