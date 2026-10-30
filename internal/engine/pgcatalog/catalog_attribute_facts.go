@@ -55,7 +55,7 @@ func InitializeAttributes(d *catalog.Relation) {
 				fact.NotNull = !column.Nullable
 			case 2610:
 				fact.NotNull = !column.Nullable
-			case PartitionedTableOID, ids.TriggerClassID, ids.EventTriggerClassID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, ids.PolicyClassID:
+			case PartitionedTableOID, ids.TriggerClassID, ids.EventTriggerClassID, StatisticExtOID, StatisticExtDataOID, SubscriptionOID, SubscriptionRelOID, PublicationRelationOID, ids.PolicyClassID:
 				fact.NotNull = !column.Nullable
 			case ids.ProcedureClassID:
 				fact.NotNull = !column.Nullable

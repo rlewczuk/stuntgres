@@ -229,8 +229,39 @@ type Producer func(Input) ([][]sqltype.Value, error)
   even when empty. Its explicit owner/PUBLIC ACL has no column grants. Population
   contains actual schema-publication mappings; ordinary schema/table DDL and
   subscription names never infer edges.
-  `pg_publication_rel` exposes only explicit table mappings, retaining stable
-  attribute vectors and genuine normal-expression tree carriers.
+- `pg_publication_rel` (6106) is a real database-local catalog with exactly five
+  fields in PG18.6 order: nonnullable OID `oid`, `prpubid`, `prrelid`, nullable
+  PG_NODE_TREE `prqual`, and nullable INT2VECTOR `prattrs`. The owning
+  `pg_attribute` facts preserve that same nullability: only the first three
+  fields have `attnotnull` set. It exposes only actual
+  explicit table-publication edges, never inferred schema/all-table or implicit
+  partition edges. Explicit lists retain sorted stable attribute numbers; absent
+  lists and filters are typed NULL rather than empty payloads. Owner privileges
+  and PUBLIC SELECT are explicit, with no column grants or per-edge visibility
+  filtering. Reading membership does not implement or start replication.
+  Capture authenticates paired catalog/role roots, engine/source identity and
+  owned type generations. Invalid sources/mappings and cancellation expose no
+  partial rows through either the producer or the shared anonymous-source wrapper.
+  Genuine immutable `stored.PolicyCarrier` values retain the actual bound filter
+  expression and frozen presentation. Native structural output is BoundTree
+  encoding, not PostgreSQL nodeToString byte compatibility; raw tree bytes are
+  opaque across backends. Retained vectors/carriers survive accepted mapping
+  replacement/removal while fresh captures observe current membership.
+  Dedicated private definitions in `core/pg_publication_rel_test.go` cover
+  registration/ACL/type relationships, empty and populated capture ownership,
+  malformed current descriptors and mappings, retained predecessor/successor
+  identity, cancellation at the validated-candidate final publication fence,
+  and canceled populated captures. Select them with:
+
+  ```sh
+  make check RUN='^TestPGPublicationRel(RegistrationFacts|CaptureOwnership|MalformedMapping|CaptureLifetime|RejectedPublication|CaptureCancellation)$'
+  make check RACE=1 RUN='^TestPGPublicationRel(CaptureOwnership|CaptureLifetime|RejectedPublication|CaptureCancellation)$'
+  ```
+
+  Dedicated external `TestReferencePGPublicationRel` shape, payload, lifecycle,
+  privilege and feature-smoke definitions own public SQL/diagnostic proof; the
+  broader publication command families remain supporting coverage.
+- Publication membership inquiries reuse the same protected capture boundary.
   `pg_publication_tables` resolves current effective membership, including
   implicit partition descendants and current/future schema/all-table coverage.
   Its native relation identity is source-specific, not a PostgreSQL allocator

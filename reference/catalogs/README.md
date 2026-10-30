@@ -105,6 +105,43 @@ catalog/ACL roots and native replacement. Ordinary schema/table DDL never create
 publication memberships. Select with
 `make check RUN='^TestReferencePGPublicationNamespace'` (add `REFERENCE=1`).
 
+Dedicated relation-edge scenarios (`pg_publication_rel*_test.go`) retain the
+existing fourteen publication-command families unchanged. They independently
+specify PostgreSQL 18.6's five fields (`oid`, `prpubid`, `prrelid`, `prqual`,
+`prattrs`), raw driver cell types and metadata on empty, populated, limited,
+prepared and retained reads. Many-to-many relationships resolve actual
+publication/table identities; generated OIDs are not cross-backend constants.
+The stable attribute vector includes dropped-column holes, uses zero-based
+subscripts, and distinguishes an omitted list from an explicit all-column list.
+Filters retain genuine opaque `pg_node_tree` carriers with independently
+specified `pg_get_expr` semantics. Native BoundTree encoding is not claimed to
+equal PostgreSQL nodeToString bytes; raw bytes are checked only within a backend.
+
+Raw rows represent explicit edges, not synthesized schema/all-table or partition
+child coverage. Broader ordinary-inheritance command expansion remains covered by
+`TestReferencePublicationInheritancePartitions`. Lifecycle coverage exercises
+ADD/DROP/SET, peer isolation, savepoint/full rollback, committed visibility,
+failed multi-table ADD atomicity, table/publication drops, captured predecessor
+rows and actual native Dump/Reset/Restore. Current catalog ACLs govern direct,
+newly prepared and already-held execution even for zero-row/count projections;
+catalog SELECT does not require ownership or SELECT on the published table.
+Complete diagnostic records cover permission, duplicate/missing membership,
+unknown column and invalid OID errors. Local negative/NULL sentinel rows remain
+unfiltered: this is catalog metadata, not simulated replication.
+
+Run both selected modes before review/integration:
+
+- `make check RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges)$'`
+- `make check REFERENCE=1 RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges)$'`
+- `make check RUN='^TestReferencePGPublicationRelFeatureSmoke$'`
+- `make check REFERENCE=1 RUN='^TestReferencePGPublicationRelFeatureSmoke$'`
+
+The distinct feature smoke checks five-field raw metadata, stable vector/filter
+payloads, unchanged local data, rollback, exact duplicate rejection with unchanged
+edge identity, and native replacement. For oracle-first discovery use
+`make check REFERENCE=1 RUN='^TestReferencePGPublicationRel(Shape|Payloads|Lifecycle|Privileges|FeatureSmoke)$/^postgres$'`;
+this does not replace complete selected dual-mode proof.
+
 Publication command scenarios (`publication_*_test.go`) populate the existing
 `pg_publication` and `pg_publication_namespace` producers and observe actual
 effective membership through `pg_publication_tables`. Existing empty-source
