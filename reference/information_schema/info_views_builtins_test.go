@@ -27,6 +27,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "collations"},
 	{"information_schema", "schemata"},
 	{"information_schema", "column_options"},
+	{"information_schema", "foreign_data_wrapper_options"},
 	{"information_schema", "table_constraints"},
 	{"information_schema", "transforms"},
 	{"information_schema", "check_constraint_routine_usage"},

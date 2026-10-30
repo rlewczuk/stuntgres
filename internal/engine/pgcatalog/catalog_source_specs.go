@@ -1008,6 +1008,7 @@ var Specs = [...]Spec{
 	}, true, false, false, false, "stuntgres: missing schemata metadata domain"},
 	{InfoColumnOptionsOID, 13229, "column_options", infoColumnOptionsColumns, true, false, false, false, "stuntgres: missing column options domain"},
 	{InfoUserMappingOptionsOID, 13229, "user_mapping_options", infoUserMappingOptionsColumns, true, false, false, false, "stuntgres: missing user mapping options domain"},
+	{InfoForeignDataWrapperOptionsOID, 13229, "foreign_data_wrapper_options", infoForeignDataWrapperOptionsColumns, true, false, false, false, "stuntgres: missing foreign data wrapper options domain"},
 	{InfoTransformsOID, 13229, "transforms", infoTransformsColumns, true, false, true, true, "stuntgres: missing transforms domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},

@@ -3,6 +3,11 @@ package reference_test
 // Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinPathDefinitions = map[string]string{
+	"information_schema.foreign_data_wrapper_options": ` SELECT foreign_data_wrapper_catalog,
+    foreign_data_wrapper_name,
+    ((pg_options_to_table(fdwoptions)).option_name)::sql_identifier AS option_name,
+    ((pg_options_to_table(fdwoptions)).option_value)::character_data AS option_value
+   FROM _pg_foreign_data_wrappers w;`,
 	"information_schema.triggers":              itPathDefinition,
 	"information_schema.routine_routine_usage": " SELECT DISTINCT (current_database())::sql_identifier AS specific_catalog,\n    (np.nspname)::sql_identifier AS specific_schema,\n    (nameconcatoid(p.proname, p.oid))::sql_identifier AS specific_name,\n    (current_database())::sql_identifier AS routine_catalog,\n    (np1.nspname)::sql_identifier AS routine_schema,\n    (nameconcatoid(p1.proname, p1.oid))::sql_identifier AS routine_name\n   FROM pg_namespace np,\n    pg_proc p,\n    pg_depend d,\n    pg_proc p1,\n    pg_namespace np1\n  WHERE ((np.oid = p.pronamespace) AND (p.oid = d.objid) AND (d.classid = ('pg_proc'::regclass)::oid) AND (d.refobjid = p1.oid) AND (d.refclassid = ('pg_proc'::regclass)::oid) AND (p1.pronamespace = np1.oid) AND (p.prokind = ANY (ARRAY['f'::\"char\", 'p'::\"char\"])) AND (p1.prokind = ANY (ARRAY['f'::\"char\", 'p'::\"char\"])) AND pg_has_role(p1.proowner, 'USAGE'::text));",
 	"information_schema.parameters":            ipView_information_schema_path,

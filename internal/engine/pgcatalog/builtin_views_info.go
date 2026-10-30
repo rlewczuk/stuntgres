@@ -560,6 +560,14 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("attfdwoptions"), viewText("))."), viewIdentifier("option_value"), viewText(")::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
 		viewText("   FROM "), viewClass("information_schema._pg_foreign_table_columns"), viewText(" "), viewIdentifier("c"), viewText(";"),
 	}},
+	// information_schema.foreign_data_wrapper_options — REL_18_6 information_schema.sql.
+	{oid: InfoForeignDataWrapperOptionsOID, parts: []builtinViewPart{
+		viewText(" SELECT "), viewIdentifier("foreign_data_wrapper_catalog"), viewText(",\n"),
+		viewText("    "), viewIdentifier("foreign_data_wrapper_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("fdwoptions"), viewText("))."), viewIdentifier("option_name"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("option_name"), viewText(",\n"),
+		viewText("    (("), viewRoutine("pg_options_to_table", "1009"), viewText("("), viewIdentifier("fdwoptions"), viewText("))."), viewIdentifier("option_value"), viewText(")::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("option_value"), viewText("\n"),
+		viewText("   FROM "), viewClass("information_schema._pg_foreign_data_wrappers"), viewText(" "), viewIdentifier("w"), viewText(";"),
+	}},
 	// information_schema.user_mapping_options — REL_18_6 information_schema.sql.
 	{oid: InfoUserMappingOptionsOID, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("authorization_identifier"), viewText(",\n"),

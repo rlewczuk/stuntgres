@@ -145,6 +145,7 @@ var producers = [...]Registration{
 	{InfoTableConstraintsOID, captureInfoTableConstraints},
 	{InfoCheckConstraintsOID, captureInfoCheckConstraints},
 	{InfoTransformsOID, captureInfoTransforms},
+	{InfoForeignDataWrapperOptionsOID, captureInfoForeignDataWrapperOptions},
 	{PreparedStatementsOID, capturePGPreparedStatements},
 }
 

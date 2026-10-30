@@ -69,3 +69,5 @@ var SZColumns = []string{"sizing_id", "sizing_name", "supported_value", "comment
 var IUMColumns = []string{"authorization_identifier", "foreign_server_catalog", "foreign_server_name"}
 
 var COColumns = []string{"table_catalog", "table_schema", "table_name", "column_name", "option_name", "option_value"}
+
+var FDWOColumns = []string{"foreign_data_wrapper_catalog", "foreign_data_wrapper_name", "option_name", "option_value"}
