@@ -257,6 +257,15 @@ dictionary/seed replay share `RUN='^TestReferenceHindiSnowball'`.
 The dictionary never applies English rules: RATS becomes rats, while the stock
 configuration uses English for ASCII. Feature smoke is in the same family;
 private kernel/provider/authority/publication proofs use `RUN='^TestSnowballHindi'`.
+Irish's single initial mutation, fixed UTF8 regions and ordered suffix stages,
+resource-free stock provider, optional English stoplist, complete diagnostics,
+typed prepared ownership, admitted cancellation and actual native seed/carrier
+replay share `RUN='^TestReferenceIrishSnowball'`. All nineteen stock mappings use
+Irish or simple, never an English backup. Private rules, immutable resources,
+seed authority, publication fences and accepted folds use `RUN='^TestSnowballIrish'`.
+Irish stock-cycle cleanup resolves original objects by OID, restores their captured
+owners as well as names, and checks the original options and mapping bags before
+fixture teardown. Mapping repair also tolerates an interrupted mutation sequence.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

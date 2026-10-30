@@ -77,7 +77,16 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 					t.Fatal("Hungarian configuration identity reused", hungarian)
 				}
 			}
-			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}, {estonian, "estonian", int64(11), int64(10), int64(3722)}, {german, "german", int64(11), int64(10), int64(3722)}, {greek, "greek", int64(11), int64(10), int64(3722)}, {hindi, "hindi", int64(11), int64(10), int64(3722)}, {hungarian, "hungarian", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
+			var irish int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='irish' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&irish); err != nil || irish <= 0 {
+				t.Fatal("actual Irish configuration identity", irish, err)
+			}
+			for _, earlier := range []int64{3748, english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian} {
+				if irish == earlier {
+					t.Fatal("Irish configuration identity reused", irish)
+				}
+			}
+			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}, {estonian, "estonian", int64(11), int64(10), int64(3722)}, {german, "german", int64(11), int64(10), int64(3722)}, {greek, "greek", int64(11), int64(10), int64(3722)}, {hindi, "hindi", int64(11), int64(10), int64(3722)}, {hungarian, "hungarian", int64(11), int64(10), int64(3722)}, {irish, "irish", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
 		}
 		catalog := func() {
 			pgTSConfigInventory(t, p, b, b.DB)
@@ -85,7 +94,7 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		}
 		check := func() {
 			catalog()
-			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','estonian','german','greek','hindi','hungarian','simple') ORDER BY cfgname"
+			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','estonian','german','greek','hindi','hungarian','irish','simple') ORDER BY cfgname"
 			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, seedRows()))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)

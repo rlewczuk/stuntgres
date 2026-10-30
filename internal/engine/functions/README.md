@@ -943,11 +943,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi and Hungarian kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian and Irish kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek and Hindi have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi and Irish have no stock
   stopword resource. English, Danish, Dutch, German and Hungarian stock lists contain 127, 94, 101, 231 and 199 entries (Hungarian retains the released duplicate);
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
@@ -959,6 +959,10 @@ publication and lock-manager tickets stay in the engine.
   Instrumental/factive remove the penultimate codepoint of a released double;
   later stages process the exposed ending without recomputing R1. There is no
   accent normalization, Unicode case folding or English ASCII backup.
+  Irish applies one longest initial mutation, marks UTF8 RV/R1/R2, then applies
+  noun, derivation and verb suffix stages once each. Region checks follow global
+  longest-match selection, and offsets remain fixed during suffix edits. Irish
+  has neither a stock stoplist nor an English ASCII backup.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

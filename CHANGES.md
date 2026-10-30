@@ -1,5 +1,13 @@
 # Changes
 
+- Add release-matched Irish Snowball morphology, genuine `irish_stem`/`irish`
+  seeds and nineteen token mappings, with optional configured stoplists, typed
+  prepared ownership, atomic publication and native edited-stock replay.
+  Stock Irish has no stopword resource or English backup; canonical stock dumps
+  emit no delta, while its allocated seeds retain genuine normal dependencies.
+  Reference cycle replay restores original stock identities, names and owners,
+  including pinned simple objects, and checks options/maps before fixture cleanup.
+
 - Add typed `pg_reload_conf()`, `pg_rotate_logfile()` and
   `pg_log_backend_memory_contexts(integer)` with released metadata, live mutable
   EXECUTE ACLs and ACL-only native persistence. Unknown cluster session IDs return

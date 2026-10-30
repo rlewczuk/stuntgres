@@ -1,0 +1,105 @@
+package reference_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"strings"
+	"testing"
+	"time"
+
+	"stuntgres"
+	"stuntgres/reference/fixture"
+)
+
+func irishStockMappingControls(t *testing.T) {
+	var emitted []byte
+	dictionaryScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		cleanupPair := *p
+		restored := func() {}
+		var configOwner string
+		if b.PG {
+			if err := c.QueryRowContext(p.Ctx, "SELECT cfgowner::regrole::text FROM pg_ts_config WHERE oid='irish'::regconfig").Scan(&configOwner); err != nil {
+				t.Fatal("original stock configuration owner", err)
+			}
+			restored = irishDefinitionSnapshot(t, &cleanupPair, b, c, "irish_stem", "irish")
+		}
+		canonical := func(ctx context.Context) {
+			for _, q := range []string{
+				"ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish ALTER MAPPING FOR asciiword WITH irish_stem",
+				"ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish DROP MAPPING IF EXISTS FOR uint",
+				"ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish ADD MAPPING FOR uint WITH simple",
+			} {
+				if _, err := c.ExecContext(ctx, q); err != nil {
+					t.Error("repair stock mapping", err)
+				}
+			}
+			if b.PG {
+				if _, err := c.ExecContext(ctx, "ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish OWNER TO \""+strings.ReplaceAll(configOwner, "\"", "\"\"")+"\""); err != nil {
+					t.Error("restore stock configuration owner", err)
+				}
+			}
+			cleanupPair.Ctx = ctx
+			restored()
+		}
+		if b.PG {
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				canonical(ctx)
+			}()
+		}
+		regtsExec(t, p, b, c, "ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish ALTER MAPPING FOR asciiword WITH english_stem", 0)
+		regtsExec(t, p, b, c, "ALTER TEXT SEARCH CONFIGURATION pg_catalog.irish DROP MAPPING FOR uint", 0)
+		check := func(p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+			irishSmokeBoth(t, p, b, c, fixture.Select("SELECT to_tsvector('irish','RATS abhcóideacht 123') AS normalized", []string{"normalized"}, []string{"TSVECTOR"}, [][]any{{"'abhcóid':2 'rat':1"}}))
+			regtsSelect(t, p, b, c, "SELECT maptokentype,mapseqno,mapdict='english_stem'::regdictionary::oid AS same FROM pg_ts_config_map WHERE mapcfg='irish'::regconfig AND maptokentype=1", []string{"maptokentype", "mapseqno", "same"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(1), int64(1), true}})
+			regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM pg_ts_config_map WHERE mapcfg='irish'::regconfig", []string{"n"}, []string{"INT8"}, [][]any{{int64(18)}})
+			regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM pg_ts_config_map WHERE mapcfg='irish'::regconfig AND maptokentype=22", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}})
+		}
+		check(p, b, c)
+		if b.PG {
+			if len(emitted) == 0 {
+				t.Fatal("actual stock mapping stream required")
+			}
+			canonical(p.Ctx)
+			if _, err := c.ExecContext(p.Ctx, string(emitted)); err != nil {
+				t.Fatal("actual stock mapping replay", err)
+			}
+			check(p, b, c)
+			return
+		}
+		var out bytes.Buffer
+		if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+			t.Fatal(err)
+		}
+		emitted = bytes.Clone(out.Bytes())
+		for _, reset := range []bool{false, true} {
+			if reset {
+				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+					t.Fatal(err)
+				}
+				regtsSelect(t, p, b, c, "SELECT count(*) AS n FROM pg_ts_config_map WHERE mapcfg='irish'::regconfig", []string{"n"}, []string{"INT8"}, [][]any{{int64(19)}})
+				irishSmokeBoth(t, p, b, c, fixture.Select("SELECT to_tsvector('irish','RATS abhcóideacht 123') AS normalized", []string{"normalized"}, []string{"TSVECTOR"}, [][]any{{"'123':3 'abhcóid':2 'rats':1"}}))
+			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(emitted)); err != nil {
+				t.Fatal(err)
+			}
+			check(p, b, c)
+			var again bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(emitted, again.Bytes()) {
+				t.Fatal("stock mapping redump", err)
+			}
+		}
+		fresh := fixture.NewFixture(t, false, true)
+		fc, err := fresh.Memory.Conn(fresh.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer fc.Close()
+		if err := stuntgres.Restore(fresh.Ctx, fresh.Native, bytes.NewReader(emitted)); err != nil {
+			t.Fatal(err)
+		}
+		check(fresh, fixture.Backend{DB: fresh.Memory, Recorder: fresh.MemoryRecord}, fc)
+	})
+}
