@@ -27,6 +27,8 @@ import (
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	StatementMutation
+	explain                 *explainExecution
+	explainAdmission        *explainAdmission
 	aggregateGateOnce       sync.Once
 	aggregateGate           chan struct{}
 	invocationContext       context.Context // Scoped under aggregateGate; inherited by nested commands.

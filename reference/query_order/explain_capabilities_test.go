@@ -39,22 +39,16 @@ func TestReferenceExplainCapabilities(t *testing.T) {
 		name, prefix, message, token, typ string
 		analyze                           bool
 	}{
-		{"analyze", "EXPLAIN (ANALYZE)", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
-		{"legacy-analyze", "EXPLAIN ANALYZE", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
-		{"analyse", "EXPLAIN ANALYSE", "EXPLAIN option ANALYZE is not supported", "ANALYSE", "TEXT", true},
-		{"last-analyze", "EXPLAIN (ANALYZE FALSE, ANALYZE TRUE)", "EXPLAIN option ANALYZE is not supported", "ANALYZE TRUE", "TEXT", true},
 		{"json", "EXPLAIN (FORMAT JSON)", "EXPLAIN format JSON is not supported", "FORMAT", "JSON", false},
 		{"xml", "EXPLAIN (FORMAT XML)", "EXPLAIN format XML is not supported", "FORMAT", "XML", false},
 		{"yaml", "EXPLAIN (FORMAT YAML)", "EXPLAIN format YAML is not supported", "FORMAT", "TEXT", false},
 		{"settings", "EXPLAIN (SETTINGS)", "EXPLAIN option SETTINGS is not supported", "SETTINGS", "TEXT", false},
 		{"buffers", "EXPLAIN (BUFFERS)", "EXPLAIN option BUFFERS is not supported", "BUFFERS", "TEXT", false},
-		{"summary", "EXPLAIN (SUMMARY)", "EXPLAIN option SUMMARY is not supported", "SUMMARY", "TEXT", false},
 		{"memory", "EXPLAIN (MEMORY)", "EXPLAIN option MEMORY is not supported", "MEMORY", "TEXT", false},
 		{"generic", "EXPLAIN (GENERIC_PLAN)", "EXPLAIN option GENERIC_PLAN is not supported", "GENERIC_PLAN", "TEXT", false},
-		{"wal", "EXPLAIN (ANALYZE, WAL)", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
-		{"timing", "EXPLAIN (ANALYZE, TIMING)", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
-		{"serialize-text", "EXPLAIN (ANALYZE, SERIALIZE TEXT)", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
-		{"serialize-binary", "EXPLAIN (ANALYZE, SERIALIZE BINARY)", "EXPLAIN option ANALYZE is not supported", "ANALYZE", "TEXT", true},
+		{"wal", "EXPLAIN (ANALYZE, WAL)", "EXPLAIN option WAL is not supported", "WAL", "TEXT", true},
+		{"serialize-text", "EXPLAIN (ANALYZE, SERIALIZE TEXT)", "EXPLAIN option SERIALIZE is not supported", "SERIALIZE", "TEXT", true},
+		{"serialize-binary", "EXPLAIN (ANALYZE, SERIALIZE BINARY)", "EXPLAIN option SERIALIZE is not supported", "SERIALIZE", "TEXT", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -120,6 +120,8 @@ func (p *CTEProducer) Ensure(ctx context.Context, index int) (bool, error) {
 		}
 		p.Inner, p.Opened = inner, true
 	}
+	p.Inner.beginProjectionWork()
+	defer p.Inner.endProjectionWork()
 	for index >= p.Source.FlatCount && !p.Done {
 		i, present, err := p.Inner.NextOccurrence(ctx)
 		if err != nil {

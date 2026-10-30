@@ -281,7 +281,18 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
 		}
-		parameters, err := ForeignParameters(ctx, state, f)
+		var parameters catalog.ForeignScanParameters
+		var err error
+		if f.Query != nil && execution.Scan == nil {
+			// Discovery and explanation already exported this initial frame.
+			// Only Begin reuses it; ReScan must export under current demand.
+			parameters = catalog.ForeignScanParameters{
+				Values: CopyForeignCells(f.Query.request.Parameters.Values),
+				Correlation: CopyForeignCells(f.Query.request.Parameters.Correlation),
+			}
+		} else {
+			parameters, err = ForeignParameters(ctx, state, f)
+		}
 		if err != nil {
 			return err
 		}
@@ -316,6 +327,9 @@ func openForeignStage(ctx context.Context, state *State, source *Source, node *p
 			if err = f.Plan(ctx, planning, execution); err != nil {
 				return err
 			}
+		}
+		if err := observeForeignScan(ctx, state.observation, node, f, request, execution); err != nil {
+			return err
 		}
 		if host := source.LiveHost(); host != nil {
 			request.Transaction, err = host.EnlistForeign(ctx, f.Wrapper, request, false)

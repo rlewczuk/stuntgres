@@ -57,6 +57,8 @@ func OpenDerivedNode(ctx context.Context, state *State, n *plan.DerivedNode) (St
 		return err
 	}
 	out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
+		inner.beginProjectionWork()
+		defer inner.endProjectionWork()
 		defer func() { inner.Evaluation.Context = nil }()
 		i, present, err := inner.NextOccurrence(ctx)
 		if err != nil || !present {

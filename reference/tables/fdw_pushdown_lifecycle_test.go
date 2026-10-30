@@ -66,9 +66,9 @@ func TestReferenceFDWPushdownLifecycle(t *testing.T) {
 			run(s)
 			run(fixture.Select("SELECT k,v FROM fdw_push_target", []string{"k", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(99), int64(99)}}))
 		}
-		fdwPushdownCancel(t, p, b, c, r, false, false)
+		fdwPushdownCancel(t, p, b, c, r, false, false, false)
 		for _, prepared := range []bool{false, true} {
-			fdwPushdownCancel(t, p, b, c, r, true, prepared)
+			fdwPushdownCancel(t, p, b, c, r, true, prepared, false)
 			run(fixture.Select("SELECT k,v FROM fdw_push_target", []string{"k", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(99), int64(99)}}))
 			fdwPushdownValue(run, "SELECT l.k,r.w FROM fdw_push_left l JOIN fdw_push_right r ON l.k=r.k", []string{"k", "w"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(100)}, {int64(1), int64(100)}, {int64(1), int64(100)}, {int64(1), int64(100)}}, true)
 		}
@@ -191,7 +191,7 @@ func TestReferenceFDWPushdownLifecycle(t *testing.T) {
 	})
 }
 
-func fdwPushdownCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, insert, prepared bool) {
+func fdwPushdownCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, insert, prepared, analyze bool) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(p.Ctx)
 	defer cancel()
@@ -224,6 +224,9 @@ func fdwPushdownCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 			// write. Exec must drain it and may publish neither a result nor count.
 			query = "INSERT INTO fdw_push_target SELECT l.k,l.v FROM fdw_push_left l JOIN fdw_push_right r ON l.k=r.k RETURNING pg_advisory_xact_lock(718283)"
 		}
+	}
+	if analyze {
+		query = "EXPLAIN ANALYZE " + query
 	}
 	var stmt *sql.Stmt
 	if prepared {
@@ -262,7 +265,7 @@ func fdwPushdownCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 	}
 	done := make(chan error, 1)
 	go func() {
-		if insert {
+		if insert && !analyze {
 			var result sql.Result
 			var err error
 			if stmt != nil {
@@ -276,7 +279,13 @@ func fdwPushdownCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 			done <- err
 			return
 		}
-		rows, err := c.QueryContext(ctx, query)
+		var rows *sql.Rows
+		var err error
+		if stmt != nil {
+			rows, err = stmt.QueryContext(ctx)
+		} else {
+			rows, err = c.QueryContext(ctx, query)
+		}
 		if rows != nil {
 			rows.Close()
 			if err == nil {

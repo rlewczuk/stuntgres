@@ -13,7 +13,7 @@ import (
 // sources, releases Engine.mu, selects and freezes the sources, and then the
 // dml executor evaluates and stages the rows.
 func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedCommandExecution, canonical []sqltype.Value) (Result, error) {
-	ctx := scope.Op.Context()
+	ctx := scope.executionContext()
 	b, auth, evaluation := view.PhysicalBinding(execution.binding), execution.auth, execution.evaluation
 	if err := e.CaptureCheckCommentSnapshotLocked(scope, b.Relation); err != nil {
 		e.Mu.Unlock()

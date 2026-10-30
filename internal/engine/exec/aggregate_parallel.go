@@ -246,32 +246,20 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
-	groups, err := mergeAggregatePartitions(ctx, aggregate, runs, &evaluation)
+	rows, err := finalizeAggregatePartitions(ctx, aggregate, runs, &evaluation)
 	if err != nil {
 		return nil, 0, err
 	}
-	rows := make([][]sqltype.Value, len(groups))
-	for i, group := range groups {
-		for j, call := range aggregate.Calls {
-			var value sqltype.Value
-			var err error
-			if provider, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
-				value, err = provider.FinalizeWithContext(ctx, group.states[j], nil, &evaluation)
-			} else {
-				value, err = call.Provider.Finalize(ctx, group.states[j])
-			}
-			if err != nil {
-				return nil, 0, err
-			}
-			if value.Type() != call.Provider.ResultUsage().Type {
-				return nil, 0, fmt.Errorf("stuntgres: foreign partial result")
-			}
-			group.Keys[len(aggregate.Keys)+j] = value
-		}
-		rows[i] = group.Keys
-	}
 	materialized := &Source{Anonymous: rows, Materialized: true, FlatCount: len(rows), Authority: source.Authority, Host: source.Host}
-	result, count, err := Finalize(ctx, aggregateResultGraph(root, aggregate), materialized, parameters)
+	var aliases map[plan.Node]plan.Node
+	if HasObservation(ctx) {
+		aliases = make(map[plan.Node]plan.Node)
+	}
+	resultRoot := aggregateResultGraph(root, aggregate, aliases)
+	if aliases != nil {
+		ctx = context.WithValue(ctx, observationAliasesKey{}, aliases)
+	}
+	result, count, err := Finalize(ctx, resultRoot, materialized, parameters)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -283,6 +271,11 @@ func FinalizeParallelAggregate(ctx context.Context, root plan.Node, aggregate *p
 }
 
 func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, source *Source, parameters []sqltype.Value, start, end int, capture *EvaluationCapture, admission *parallelAggregateAdmission, ctes *CTEInvocation, methods plan.PlannerMethods) ([]QueryGroup, error) {
+	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil {
+		work := observer.stage(aggregate)
+		work.startWork()
+		defer work.end()
+	}
 	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return nil, err
@@ -314,6 +307,39 @@ func runAggregatePartition(ctx context.Context, aggregate *plan.AggregateNode, s
 		}
 	}
 	return groups, ctx.Err()
+}
+
+func finalizeAggregatePartitions(ctx context.Context, aggregate *plan.AggregateNode, runs [][]QueryGroup, evaluation *Context) ([][]sqltype.Value, error) {
+	if observer, _ := ctx.Value(observationKey{}).(*Observation); observer != nil {
+		work := observer.stage(aggregate)
+		work.startWork()
+		defer work.end()
+	}
+	groups, err := mergeAggregatePartitions(ctx, aggregate, runs, evaluation)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([][]sqltype.Value, len(groups))
+	for i, group := range groups {
+		for j, call := range aggregate.Calls {
+			var value sqltype.Value
+			var err error
+			if provider, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
+				value, err = provider.FinalizeWithContext(ctx, group.states[j], nil, evaluation)
+			} else {
+				value, err = call.Provider.Finalize(ctx, group.states[j])
+			}
+			if err != nil {
+				return nil, err
+			}
+			if value.Type() != call.Provider.ResultUsage().Type {
+				return nil, fmt.Errorf("stuntgres: foreign partial result")
+			}
+			group.Keys[len(aggregate.Keys)+j] = value
+		}
+		rows[i] = group.Keys
+	}
+	return rows, nil
 }
 
 type aggregateTransport struct {
@@ -382,24 +408,30 @@ func mergeAggregatePartitions(ctx context.Context, n *plan.AggregateNode, runs [
 
 // Copy only the leader's small immutable wrapper path. Input and aggregate
 // expressions remain original retained recipes; no per-row rebinding occurs.
-func aggregateResultGraph(node plan.Node, aggregate *plan.AggregateNode) plan.Node {
+func aggregateResultGraph(node plan.Node, aggregate *plan.AggregateNode, aliases map[plan.Node]plan.Node) plan.Node {
+	var result plan.Node
 	if node == aggregate {
-		return &plan.SourceNode{QuerySchema: aggregate.QuerySchema}
+		result = &plan.SourceNode{QuerySchema: aggregate.QuerySchema}
+	} else {
+		switch n := node.(type) {
+		case *plan.ProjectNode:
+			next := *n
+			next.Child = aggregateResultGraph(n.Child, aggregate, aliases)
+			result = &next
+		case *plan.SortNode:
+			next := *n
+			next.Child = aggregateResultGraph(n.Child, aggregate, aliases)
+			result = &next
+		case *plan.FilterNode:
+			next := *n
+			next.Child = aggregateResultGraph(n.Child, aggregate, aliases)
+			result = &next
+		default:
+			panic("stuntgres: unadmitted parallel aggregate wrapper")
+		}
 	}
-	switch n := node.(type) {
-	case *plan.ProjectNode:
-		next := *n
-		next.Child = aggregateResultGraph(n.Child, aggregate)
-		return &next
-	case *plan.SortNode:
-		next := *n
-		next.Child = aggregateResultGraph(n.Child, aggregate)
-		return &next
-	case *plan.FilterNode:
-		next := *n
-		next.Child = aggregateResultGraph(n.Child, aggregate)
-		return &next
-	default:
-		panic("stuntgres: unadmitted parallel aggregate wrapper")
+	if aliases != nil {
+		aliases[result] = node
 	}
+	return result
 }

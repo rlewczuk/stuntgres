@@ -285,7 +285,12 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 				}
 			} else {
 				var err error
+				right.observeStart()
 				present, err = right.ensure(ctx, rightOccurrence)
+				if present {
+					right.observeOutput(rightOccurrence)
+				}
+				right.observeEnd()
 				if err != nil {
 					return false, err
 				}

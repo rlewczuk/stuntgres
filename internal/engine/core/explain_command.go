@@ -81,14 +81,25 @@ func (r *explainRenderer) command(statement parser.Statement, bound explainBound
 		}
 		trees[0].estimate = total
 	}
+	r.trees = trees
+	if r.observation != nil {
+		return nil, nil
+	}
+	return r.render(), nil
+}
+
+func (r *explainRenderer) render() []string {
 	var lines []string
-	for _, tree := range trees {
+	for _, tree := range r.trees {
 		r.lines(tree, 0, &lines)
 	}
 	if r.options.costs {
 		lines = append(lines, "Estimates: logical heuristics; not execution measurements")
 	}
-	return lines, nil
+	if r.observation != nil {
+		lines = append(lines, "Measurements: emitted rows and active elapsed milliseconds per loop; elapsed includes child work, sums parallel worker plus leader work, excludes consumer idle time and transaction publication")
+	}
+	return lines
 }
 
 func (r *explainRenderer) cte(definition *plan.CTEDefinition) (*explainTree, error) {
@@ -238,7 +249,7 @@ func (r *explainRenderer) binding(statement parser.Statement, binding analyze.Bi
 	r.modifyIdentity = nil
 	defer func() { r.modifyIdentity = identity }()
 	modificationTree := &explainTree{}
-	if binding.Relation.Foreign != nil {
+	if binding.Relation.Foreign != nil && r.observation == nil {
 		var operation catalog.ForeignModifyOperation
 		supported := true
 		switch statement.(type) {

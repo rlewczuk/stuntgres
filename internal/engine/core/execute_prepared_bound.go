@@ -1,6 +1,7 @@
 package core
 
 import (
+	"time"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -15,6 +16,46 @@ import (
 )
 
 func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, canonical []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+	var observation *exec.Observation
+	if owner := scope.explain; owner != nil {
+		previous := scope.invocationContext
+		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.timing)
+		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.verbose, Costs: owner.options.costs})
+		defer func() { scope.invocationContext = previous }()
+		evaluationContext := execution.evaluation.Context
+		previousEvaluationContext := evaluationContext
+		defer func() { execution.evaluation.Context = previousEvaluationContext }()
+		if evaluationContext == nil {
+			evaluationContext = scope.executionContext()
+		}
+		execution.evaluation.Context = observation.Context(evaluationContext)
+	}
+	actualTree, captureErr := e.captureExplainCommandLocked(scope, stmt, execution, observation)
+	if captureErr != nil {
+		e.Mu.Unlock()
+		return Result{}, captureErr
+	}
+	var actualStart time.Time
+	if actualTree != nil && scope.explain.options.timing {
+		actualStart = time.Now()
+	}
+	if actualTree != nil {
+		defer func() {
+			if failure == nil {
+				actual := actualTree.actual
+				if rows, ok := result.Rows.(*exec.FinalRows); ok {
+					actual.Rows = int64(rows.Count)
+				} else if _, selectStatement := stmt.(*parser.Select); selectStatement {
+					// Streaming nested commands retain their genuine stage
+					// frontiers until the existing owner consumes/closes them.
+					actualTree.actual = nil
+				}
+				if !actualStart.IsZero() {
+					actual.Elapsed = time.Since(actualStart)
+				}
+			}
+		}()
+	}
 	// Preparation provenance normally ends at this shared executor handoff,
 	// including expressions reached from EXCEPTION handlers. Imported-parameter
 	// computations reached during preflight record their own execution origin.
@@ -259,7 +300,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
-		if scope.protocolOrZero().bind != nil {
+		if scope.protocolOrZero().bind != nil && scope.explain == nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
 		if scope.sqlRoutine.plCapture || scope.sqlRoutine.nestedCursor || scope.sqlRoutine.rows && !parser.HasModifyingCTE(stmt) {

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -83,6 +84,19 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 	if !explainSupportedChild(child) {
 		return Result{}, explainError("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
 	}
+	options, optionErr := explainOptions{}, error(nil)
+	if admission := scope.explainAdmission; admission != nil {
+		options, optionErr = admission.options, admission.err
+	} else {
+		options, optionErr = validateExplainOptions(statement)
+	}
+	if optionErr == nil && options.analyze {
+		return e.executeExplainAnalyze(scope, statement, count, importFrame, options)
+	}
+	var planningStart time.Time
+	if options.summary {
+		planningStart = time.Now()
+	}
 	e.Mu.Lock()
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 		e.Mu.Unlock()
@@ -99,10 +113,9 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	options, err := validateExplainOptions(statement)
-	if err != nil {
+	if optionErr != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return Result{}, optionErr
 	}
 	if count != description.Parameters.Count {
 		e.Mu.Unlock()
@@ -164,6 +177,9 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
+	}
+	if options.summary {
+		lines = append(lines, fmt.Sprintf("Planning Time: %.3f ms", float64(time.Since(planningStart))/1e6))
 	}
 	rows := make([][]sqltype.Value, len(lines))
 	for i, line := range lines {

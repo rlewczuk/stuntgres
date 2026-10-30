@@ -352,6 +352,8 @@ func (a *SetArm) Close() error { return a.Inner.Close() }
 // The arm scratch is reused on every pull; only unique keys or demanded UNION
 // ALL outputs are retained by the parent. Arm-local clauses execute first.
 func (a *SetArm) Next(ctx context.Context) ([]sqltype.Value, bool, error) {
+	a.Inner.beginProjectionWork()
+	defer a.Inner.endProjectionWork()
 	defer func() { a.Inner.Evaluation.Context = nil }()
 	i, present, err := a.Inner.NextOccurrence(ctx)
 	if err != nil || !present {

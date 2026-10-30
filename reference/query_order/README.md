@@ -3,7 +3,7 @@
 Window functions and frames (ranking, lead/lag, ntile, value functions,
 ROWS/RANGE/GROUPS and EXCLUDE), ORDER BY, LIMIT/OFFSET/FETCH including WITH
 TIES, DISTINCT and DISTINCT ON, query-level aggregates including
-`COUNT(expr)`, and EXPLAIN text plans, options, nonexecution and admission.
+`COUNT(expr)`, and EXPLAIN text plans, options, nonexecution, actual execution and admission.
 Related families: set operations in
 [query_core](../query_core/README.md#testing); grouping sets and
 hypothetical-set aggregates in [aggregates](../aggregates/README.md#testing);
@@ -22,7 +22,17 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `QUERY PLAN`/TEXT results. Assert native logical stages/details and independently
   valid PostgreSQL plans, never bytewise plan parity or fixed PostgreSQL costs.
   Capability tests assert exact native diagnostics separately from PostgreSQL's
-  supported formats; ANALYZE DML runs in rollback transactions.
+  supported formats. ANALYZE cases assert emitted rows/loops, real effects,
+  caller rollback, runtime failures and current prepared parameters independently;
+  execution measurements and logical estimates are separate expectations.
+  `TestReferenceExplainAnalyzeParallelAggregate` independently checks grouped,
+  HAVING-empty, empty-global and empty-grouped string aggregates on direct/held
+  routes, including exact TEXT values and NULL HAVING acceptance/rejection.
+  Identical input strings avoid inventing unordered concatenation order.
+  Count companions retain ordinary logical aggregate coverage. Real native
+  worker/codec/combine identity uses the partial-capable string provider privately,
+  not a demanded PostgreSQL parallel physical plan. Derived/shared-CTE/UNION ALL cases retain exact ordered
+  ordinary outputs as well as analyzed counts.
   DML source-RETURNING cases assert source aliases in the RETURNING detail itself,
   including whole rows and correlated subplans. Prepared-admission coverage
   follows stored aliases through rename/replacement and native Dump/Restore,

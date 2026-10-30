@@ -104,6 +104,19 @@ func PlanForeignQuery(ctx context.Context, input ForeignPlanningInput, node plan
 		return nil, false, err
 	}
 	request := catalog.ForeignQueryRequest{Stage: translated.stage, Sources: t.sources}
+	// Composite eligibility excludes correlated/runtime invocation frames. Export
+	// the current imported statement frame once, before provider discovery, and
+	// carry that same immutable snapshot through explanation and actual Begin.
+	request.Parameters, err = ForeignParameters(ctx, &State{Parameters: input.Parameters, Output: input.Output}, &ForeignQuerySource{ExportValue: input.ExportValue})
+	if err != nil {
+		return nil, false, err
+	}
+	for i := range request.Sources {
+		request.Sources[i].Request.Parameters = catalog.ForeignScanParameters{
+			Values: CopyForeignCells(request.Parameters.Values),
+			Correlation: CopyForeignCells(request.Parameters.Correlation),
+		}
+	}
 	var paths []catalog.ForeignQueryPath
 	if request.Stage.Kind == "join" {
 		provider, ok := t.first.Wrapper.(catalog.ForeignJoinPathProvider)
@@ -157,6 +170,13 @@ func tryOpenForeignQuery(ctx context.Context, state *State, node plan.Node) (Sta
 	selected, ok, err := PlanForeignQuery(ctx, input, node)
 	if err != nil || !ok {
 		return Stage{}, ok, err
+	}
+	identity := node
+	if join, ok := node.(*plan.JoinNode); ok && join.ScanOwner != nil {
+		identity = join.ScanOwner
+	}
+	if err := observeForeignQuery(ctx, state.observation, identity, selected); err != nil {
+		return Stage{}, true, err
 	}
 	first := selected.Source
 	request := selected.Request

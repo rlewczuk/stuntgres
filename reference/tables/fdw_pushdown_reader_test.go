@@ -35,6 +35,7 @@ func (r *fdwSQLReader) BeginForeignQueryScan(ctx context.Context, request stuntg
 	if r.advanced != nil {
 		r.advanced.mu.Lock()
 		r.advanced.executedPlans = append(r.advanced.executedPlans, plan)
+		r.advanced.executedRequests = append(r.advanced.executedRequests, request)
 		r.advanced.mu.Unlock()
 	}
 	query, _, err := fdwQuerySQL(request, request.Stage)

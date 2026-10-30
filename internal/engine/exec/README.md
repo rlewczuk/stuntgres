@@ -15,6 +15,42 @@ their local context is installed for evaluation and cleared on every exit.
 Full-text vector conversion forwards the effective evaluator context explicitly,
 never recovers an older operation context from the host.
 
+EXPLAIN ANALYZE attaches an invocation-local `Observation` through the actual
+runtime context. Prepared graph/node identities, not labels or source capacity,
+join frozen presentation to actual output. Each opened stage owns private
+counters; parallel workers register separate records and the settled owner
+aggregates them after joining. Demand enters a loop, including empty demand;
+rewind alone does not. Occurrence pulls, projected output and blocking drains
+share a frontier, so expression access does not emit a second row. Blocking sort
+separates its consumed input frontier from its demanded sorted output. Optional
+monotonic timing measures active inclusive spans, never consumer idle intervals.
+Derived, materialized-CTE and set-arm consumers keep the owning projection span
+active across their actual expression/coercion/validation frontier, including
+error exits. Cached CTE replay does not reevaluate or retime projection work.
+Parallel aggregation reports one logical aggregate loop and demanded finalized
+groups, not worker partial tuples. Its elapsed value sums active worker partial
+and leader combine/finalization work plus logical output demand; this can exceed
+wall time. Copied leader HAVING/sort/project wrappers use invocation-local aliases
+to their original nodes. This is not CPU time or a physical startup measurement.
+No observation means no counter allocation or clock sampling. Observations own
+neither source pins nor statement/publication authority and are never retained
+in prepared definitions.
+Foreign observations capture detached properties at actual provider plan
+selection, before runtime startup, rather than rediscovering paths for display.
+Composite observations retain the original replaced node key, not a synthetic
+scan identity; pushed children have no invented local measurements. Provider
+explain callbacks receive separate layout backing and the actual selected
+private token. Only owned presentation strings survive scan cleanup.
+Composite discovery freezes current typed parameters once before provider
+selection. Explanation and initial Begin reuse that detached statement snapshot;
+runtime transaction/characteristics join later without replacing selected facts.
+Each ReScan instead re-exports the current typed frame and output environment
+under its current demand context through the existing scan owner, without
+rediscovery, another import or expression evaluation. The explained selection
+and its private token remain unchanged.
+Modification planning checks observation presence before making its optional
+defensive callback request; ordinary unobserved execution makes no unused copy.
+
 ## Imports
 
 Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
@@ -184,6 +220,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   Discovery and Begin run unlocked. Composite scans use the same codec importer,
   transaction enlistment and `ForeignScanOwner` as base scans, without a second
   cleanup registry. Private replacements never enter retained IR or persistence.
+  Execution-private join restriction copies retain their canonical `ScanOwner`
+  for both runtime measurements and selected composite properties. Local
+  fallback and pushed execution therefore report the original join identity;
+  pushed children are still unopened rather than credited with fictitious work.
   Rewind re-exports the invocation's statement parameters under the current demand
   context and calls ReScan on the owned scan. Selection and order-cache demand
   restart; source rows and packed presence remain append-only with stable
@@ -659,6 +699,13 @@ materialization and disposal, portals and rule execution;
 the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 ## Testing
+
+Runtime observation units use
+`RUN='^(TestExplainAnalyzeInstrumentation|TestExplainAnalyzeProjectionTimingOwnership|TestExplainAnalyzeForeignPlanIdentity)$'`
+over real stage demand, repeated invocations, joined worker-local records,
+controlled active projection evaluators and actual detached foreign-plan identity.
+Core's `TestExplainAnalyzeParallelAggregateOwnership` exercises real partial,
+combine/final and copied-wrapper owners; run these selected owners with `RACE=1`.
 
 Effective work-policy context and retained evaluator ownership units use
 `RUN='^TestWorkAdmission'`; public SQL credit waits remain in reference packages.

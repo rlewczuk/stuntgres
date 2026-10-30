@@ -159,6 +159,7 @@ func (s *State) asyncAppendEligible() bool {
 }
 
 func (s *State) inheritAsyncAdmission(parent *State) {
+	s.observation = parent.observation
 	parent.CapturePlannerAdmission()
 	s.Methods, s.methodsCaptured = parent.Methods, true
 	s.ClosedEvaluation = parent.ClosedEvaluation

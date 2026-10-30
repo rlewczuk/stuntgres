@@ -190,11 +190,13 @@ func TestReferenceFDWExplainNonexecution(t *testing.T) {
 			if after.begins != before.begins || after.iterations != before.iterations || r.writer.transactions != transactions || r.writer.modifies != modifies {
 				t.Fatal("plain EXPLAIN entered execution")
 			}
-			diagnostic := fdwDiagnostic("0A000", "EXPLAIN option ANALYZE is not supported")
-			diagnostic.Position = fixture.Position(9)
-			step := fixture.ErrorDiagnostic("EXPLAIN ANALYZE SELECT * FROM fdw_data", diagnostic)
-			run(step)
 		}
+		fdwExplainRoutes(t, p, c, "EXPLAIN (ANALYZE,TIMING false,COSTS false,SUMMARY false) SELECT * FROM fdw_data", func(lines []string) {
+			if !regexp.MustCompile(`actual rows=20(?:\.0+)? loops=1`).MatchString(lines[0]) {
+				t.Fatalf("expected twenty measured foreign rows: %v", lines)
+			}
+			fdwAssertSource(t, p, b, r, want)
+		})
 	})
 }
 

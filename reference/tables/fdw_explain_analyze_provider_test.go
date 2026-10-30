@@ -19,6 +19,7 @@ type fdwAdvancedState struct {
 	scanRequests []stuntgres.ForeignRequest
 	queryPlans   []stuntgres.ForeignExplainQueryPlan
 	executedPlans []stuntgres.ForeignQueryPlan
+	executedRequests []stuntgres.ForeignQueryRequest
 	basePlans []stuntgres.ForeignExplainScanRequest
 	baseExecutions []fdwExplainBaseExecution
 }

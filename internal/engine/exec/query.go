@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -308,6 +309,7 @@ const (
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type State struct {
+	observation            *Observation
 	Methods                plan.PlannerMethods
 	methodsCaptured        bool
 	foreignParallelMaximum int // Only admitted eager top-level SELECT may set this.
@@ -386,6 +388,8 @@ type Stage struct {
 	Position           int
 	Terminal           error
 	Closed             bool
+	observations       []*stageObservation
+	projection         *stageObservation
 	Produce            func(context.Context, *Stage) (bool, error)
 	Finish             func() error
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
@@ -443,6 +447,10 @@ func (s *Stage) NextProjected(ctx context.Context, dst []sqltype.Value) (bool, e
 	if s.Closed {
 		return false, nil
 	}
+	if s.projection != nil {
+		s.projection.start()
+		defer s.projection.end()
+	}
 	fail := func(err error) (bool, error) { return false, s.fail(err) }
 	if err := ctx.Err(); err != nil {
 		return fail(err)
@@ -458,12 +466,19 @@ func (s *Stage) NextProjected(ctx context.Context, dst []sqltype.Value) (bool, e
 	}
 	if present {
 		s.Position++
+		s.observeOutput(s.Position - 1)
 	}
 	return present, nil
 }
 
 func (s *Stage) Rewind(ctx context.Context) (bool, error) {
 	s.Position = 0
+	for _, record := range s.observations {
+		record.entered, record.frontier = false, 0
+	}
+	if s.projection != nil {
+		s.projection.entered, s.projection.frontier = false, 0
+	}
 	if s.Reset != nil {
 		changed, err := s.Reset(ctx, s)
 		if err != nil {
@@ -475,7 +490,11 @@ func (s *Stage) Rewind(ctx context.Context) (bool, error) {
 }
 
 func (s *Stage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.Value) (bool, error) {
-	present, err := s.ensure(ctx, ordinal)
+	if s.projection != nil && !s.Closed && s.Terminal == nil {
+		s.projection.start()
+		defer s.projection.end()
+	}
+	present, err := s.observedEnsure(ctx, ordinal)
 	if err != nil || !present {
 		return present, err
 	}
@@ -556,7 +575,43 @@ func (s *Stage) fail(err error) error {
 func OpenNode(ctx context.Context, state *State, node plan.Node) (Stage, error) {
 	state.CaptureAsyncAdmission()
 	state.inheritCTEs()
-	return openRetainedQueryNode(ctx, state, node)
+	observer, _ := ctx.Value(observationKey{}).(*Observation)
+	if state.observation == nil {
+		state.observation = observer
+	} else if observer != state.observation {
+		observer = state.observation
+		ctx = context.WithValue(ctx, observationKey{}, observer)
+	}
+	var record *stageObservation
+	var started time.Time
+	if observer != nil {
+		identity := node
+		if join, ok := node.(*plan.JoinNode); ok && join.ScanOwner != nil {
+			identity = join.ScanOwner
+		}
+		if aliases, _ := ctx.Value(observationAliasesKey{}).(map[plan.Node]plan.Node); aliases[node] != nil {
+			identity = aliases[node]
+		}
+		record = observer.stage(identity)
+		if eagerObservationNode(node) {
+			record.entered, record.loops = true, 1
+		}
+		if observer.timing {
+			started = time.Now()
+		}
+	}
+	out, err := openRetainedQueryNode(ctx, state, node)
+	if record != nil && err == nil {
+		if observer.timing {
+			record.elapsed = time.Since(started)
+		}
+		if _, project := node.(*plan.ProjectNode); project {
+			out.projection = record
+		} else {
+			out.observations = append(out.observations, record)
+		}
+	}
+	return out, err
 }
 
 func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (out Stage, err error) {
@@ -781,6 +836,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 					}
 					i = candidates.Occurrences[candidates.Position]
 					candidates.Position++
+					child.observeIndexedRead()
 				} else {
 					var present bool
 					var err error
@@ -900,6 +956,10 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		})
 		transferred = err == nil
 		child.Reset = nil
+		// The input frontier was consumed by the blocking sort. Its records
+		// must not follow the sorted output's independently demanded frontier.
+		child.observations = nil
+		child.projection = nil
 		return child, err
 	case *plan.ProjectNode:
 		if n.RuleInvocation {

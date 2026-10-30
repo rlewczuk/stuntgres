@@ -24,6 +24,8 @@ type explainTree struct {
 	estimate    plan.ExplainEstimate
 	restriction expr.Expr
 	unknownEstimate bool
+	node        plan.Node
+	actual      *exec.Actual
 }
 
 // These are execution's metadata-only composite eligibility facts. They do not
@@ -79,6 +81,8 @@ type explainRenderer struct {
 	inheritedMark                plan.RowMark
 	foreign                      explainForeignContext
 	foreignOwners                map[uint32]explainForeignContext
+	observation                  *exec.Observation
+	trees                        []*explainTree
 }
 
 func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explainOptions) (*explainRenderer, error) {
@@ -182,8 +186,10 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		defer func() { r.frame, r.foreign = saved, foreign }()
 	}
-	if tree, selected, err := r.foreignQuery(root); selected || err != nil {
-		return tree, err
+	if r.observation == nil {
+		if tree, selected, err := r.foreignQuery(root); selected || err != nil {
+			return tree, err
+		}
 	}
 	left, right := plan.QueryInputs(root)
 	if derived, ok := root.(*plan.DerivedNode); ok && derived.CTE != nil && !derived.CTE.Folded() {
@@ -196,6 +202,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		return r.node(left)
 	}
 	tree := &explainTree{}
+	tree.node = root
 	var childEstimates [2]plan.ExplainEstimate
 	estimates := childEstimates[:0]
 	recursive, isRecursive := root.(*plan.RecursiveUnionNode)
@@ -279,9 +286,13 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			if n.RangeName != "" && n.RangeName != relation.Name() {
 				tree.label += " AS " + catalog.Identifier(n.RangeName)
 			}
-			sourceRows, err = r.foreignScan(tree, n, relation)
-			if err != nil {
-				return nil, err
+			if r.observation == nil {
+				sourceRows, err = r.foreignScan(tree, n, relation)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				tree.unknownEstimate = true
 			}
 		}
 		for _, child := range tree.children {
@@ -594,10 +605,42 @@ func explainDerivedAlias(node *plan.DerivedNode) string {
 }
 
 func (r *explainRenderer) lines(tree *explainTree, depth int, lines *[]string) {
+	if r.observation != nil && (tree.node != nil || tree.actual != nil) {
+		if foreign, ok := r.observation.Foreign(tree.node); ok {
+			presentation := *tree
+			presentation.details = append(append([]string(nil), tree.details...), foreign.Details...)
+			if foreign.Composite {
+				presentation.label = "Foreign Scan"
+				presentation.children = nil
+				presentation.details = foreign.Details
+				presentation.unknownEstimate = true
+			}
+			tree = &presentation
+		}
+	}
 	indent := strings.Repeat("  ", depth)
 	line := indent + tree.label
 	if r.options.costs && !tree.unknownEstimate {
 		line += fmt.Sprintf(" (estimated rows=%.0f logical cost=%.2f)", tree.estimate.RoundedRows(), tree.estimate.Cost)
+	}
+	if r.observation != nil && (r.observation.Known(tree.node) || tree.actual != nil) {
+		actual := exec.Actual{}
+		if tree.actual != nil {
+			actual = *tree.actual
+		} else {
+			actual = r.observation.Actual(tree.node)
+		}
+		if actual.Loops == 0 {
+			line += " (never executed)"
+		} else {
+			rows := float64(actual.Rows) / float64(actual.Loops)
+			if r.options.timing {
+				milliseconds := float64(actual.Elapsed) / 1e6 / float64(actual.Loops)
+				line += fmt.Sprintf(" (actual time=%.3f ms rows=%.2f loops=%d)", milliseconds, rows, actual.Loops)
+			} else {
+				line += fmt.Sprintf(" (actual rows=%.2f loops=%d)", rows, actual.Loops)
+			}
+		}
 	}
 	*lines = append(*lines, line)
 	for _, detail := range tree.details {

@@ -288,5 +288,10 @@ func PlanModification(ctx context.Context, source *exec.ForeignQuerySource, oper
 			m.Request.Plan = plan
 		}
 	}
+	if exec.HasObservation(ctx) {
+		if err := exec.ObserveForeignModification(ctx, source.Wrapper, m.CallbackRequest()); err != nil {
+			return nil, err
+		}
+	}
 	return m, nil
 }

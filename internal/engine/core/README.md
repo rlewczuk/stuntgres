@@ -219,10 +219,11 @@ Live operation resolution and final publication retain their original fences.
 It is not an expression-statistics evaluator or a re-ANALYZE path. Stable
 deparsing matches retained recipes independently of source object addresses.
 
-EXPLAIN shares the description-only binder, source admission and rule/view
-validation with Prepare. Its command boundary returns before execution fold
-planning, source execution, DML startup, modifying CTE activation and tuple
-locking. Foreign occurrences instead obtain actual selected provider plans and
+Ordinary EXPLAIN (including effective ANALYZE FALSE) shares the description-only
+binder, source admission and rule/view validation with Prepare. Its command
+boundary returns before execution fold planning, source execution, DML startup,
+modifying CTE activation and tuple locking. Foreign occurrences instead obtain
+actual selected provider plans and
 optional explain properties, detached from engine/replacement locks.
 Composite eligibility/translation/compatible minimum selection is shared with
 execution and attempted before replaced children. Selected composites expose an
@@ -243,14 +244,50 @@ for modification targets or ANALYZE.
 Bound graphs and expression presentation remain
 activation-local; prepared descriptions retain only ordinary immutable
 dependency/parameter captures and the wrapper's single `QUERY PLAN` TEXT schema.
-Their fold owner is inert: EXPLAIN never grants child fold-publication rights,
-even during Describe or protocol Parse/Bind, and retains no accepted generation.
-The renderer describes actual logical stages and rewritten commands, with
-detached maintenance statistics or labelled deterministic heuristics. It never
-executes child expressions or opens child scans; providers may obtain genuine
-remote estimates during planning. Before publishing owned text it fences catalog,
-context and current authority again, including after unlocked typed comparisons.
-Results complete with the non-counted EXPLAIN command tag.
+Their fold owner is inert: ordinary EXPLAIN never grants child fold-publication
+rights, including during Describe or protocol Parse/Bind, and retains no accepted
+generation. The ordinary renderer describes actual logical stages and rewritten
+commands, with detached maintenance statistics or labelled deterministic
+heuristics. It never executes child expressions or opens child scans; providers
+may obtain genuine remote estimates during planning. Before publishing owned text
+it fences catalog, context and current authority again, including after unlocked
+typed comparisons.
+
+EXPLAIN ANALYZE instead admits and executes the child through the canonical
+binding, typed-parameter import and rule/CTE/DML dispatcher in the same statement
+scope and write stage. It consumes and closes child output before returning
+detached QUERY PLAN text; output expressions and their errors still execute.
+INSERT VALUES and INSERT SELECT propagate the current invocation context,
+including the analyzed command's observer, through source selection and DML.
+They do not replace it with the enclosing operation's unobserved context.
+The outer Finish remains the sole publication/abort owner, so caller transactions
+retain ordinary Commit/Rollback semantics and a failed publication cannot expose
+a successful plan. The wrapper fold owner stays inert; actual child preflight
+graphs, presentation and runtime observations belong only to the current
+activation, never a prepared description or portal.
+Foreign presentation attaches only after the executor selects its real scan,
+composite or modification plan, using defensive callback copies and detached
+properties. ANALYZE never reruns metadata-only provider planning. Composite
+measurements use the original replaced node identity and omit pushed local
+children; ordinary EXPLAIN retains its metadata-only provider path.
+The composed foreign ownership witnesses pair selected opaque tokens, current
+typed parameter frames and modification targets with actual Begin/Exec requests
+through capture, detached rendering and Finish. Provider property failure or
+cancellation prevents startup/publication; a begun source still closes once.
+Internal UPDATE/DELETE identity scans keep their own selected token and exact
+request frame, but their EXPLAIN properties belong to the modification rather
+than a separate observed base scan. The executing ownership fixture returns
+provider assertion failures as errors and registers an unfinished-scope cleanup
+before session shutdown, so a diagnostic cannot strand statement admission.
+Observation-only modification request copies are made only after presence checks.
+Actual fields identify emitted output and real invocation loops separately from
+logical estimates. Measured node elapsed milliseconds include child work and
+exclude consumer idle time. Parallel aggregate elapsed is summed active worker
+plus leader work, not wall critical-path time; one logical loop emits only
+finalized groups. Original HAVING/sort/projection identities retain the actual
+copied leader-wrapper work. Optional planning/execution summaries exclude plan
+transfer and outer transaction publication. Results complete with the non-counted
+EXPLAIN command tag; child affected rows are not the wrapper affected count.
 Single-source filter access details share execution's detached CPU decision.
 `CPU Cost` is separate from inclusive logical tree costs: it compares actual
 hash-candidate versus full-traversal work without changing unrelated estimates.
@@ -2439,10 +2476,11 @@ selected/unselected backing with no journal delta or tuple allocation. Native
 replacement is checked against its newly admitted state as well as immutable
 old records, not against intentionally retired persistent statistics.
 
-Logical EXPLAIN ownership/presentation and nonexecution boundary units use
-`RUN='^TestExplain'`. Their real prepared owners must retain no accepted child
-fold group; the installed foreign capability must remain unopened. The render
-cancellation context targets the renderer's cooperative context boundary and
+EXPLAIN ownership/presentation, nonexecution and actual-execution boundaries use
+`RUN='^TestExplain'`. Prepared wrapper owners retain no accepted child fold group.
+Ordinary EXPLAIN keeps installed foreign capabilities unopened; ANALYZE witnesses
+exercise real child execution, demand, worker aggregation and publication veto.
+The render cancellation context targets the renderer's cooperative boundary and
 must follow that boundary if its owning method is renamed.
 
 Connectby completion, reconstruction, remapping and descriptor units share

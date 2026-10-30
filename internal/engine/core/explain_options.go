@@ -10,7 +10,7 @@ import (
 )
 
 type explainOptions struct {
-	costs, verbose bool
+	costs, verbose, analyze, timing, summary bool
 }
 
 func explainError(code, message string, pos parser.Position) error {
@@ -96,7 +96,8 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 	options := explainOptions{costs: true}
 	booleans := [explainBooleanCount]bool{explainCosts: true}
 	var positions [explainBooleanCount]parser.Position
-	var formatPosition parser.Position
+	var formatPosition, serializePosition parser.Position
+	var specified [explainBooleanCount]bool
 	format, serialize := "text", "none"
 	for _, option := range statement.Options {
 		name := option.Name
@@ -113,6 +114,7 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 				return options, err
 			}
 			booleans[index], positions[index] = value, option.Pos
+			specified[index] = true
 			continue
 		}
 		switch name {
@@ -133,7 +135,7 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 			if name == "format" {
 				format, formatPosition = lower, option.Pos
 			} else {
-				serialize = lower
+				serialize, serializePosition = lower, option.Pos
 			}
 		default:
 			return options, explainError("42601", fmt.Sprintf("unrecognized EXPLAIN option %q", option.Name), option.Pos)
@@ -151,14 +153,25 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 	if booleans[explainAnalyze] && booleans[explainGenericPlan] {
 		return options, explainError("22023", "EXPLAIN options ANALYZE and GENERIC_PLAN cannot be used together", parser.Position{})
 	}
-	for _, index := range [...]int{explainAnalyze, explainSettings, explainGenericPlan, explainBuffers, explainSummary, explainMemory} {
+	for _, index := range [...]int{explainSettings, explainGenericPlan, explainBuffers, explainWAL, explainMemory} {
 		if booleans[index] {
 			return options, explainError("0A000", "EXPLAIN option "+strings.ToUpper(explainBooleanNames[index])+" is not supported", positions[index])
 		}
+	}
+	if serialize != "none" {
+		return options, explainError("0A000", "EXPLAIN option SERIALIZE is not supported", serializePosition)
 	}
 	if format != "text" {
 		return options, explainError("0A000", "EXPLAIN format "+strings.ToUpper(format)+" is not supported", formatPosition)
 	}
 	options.costs, options.verbose = booleans[explainCosts], booleans[explainVerbose]
+	options.analyze = booleans[explainAnalyze]
+	options.timing, options.summary = options.analyze, options.analyze
+	if specified[explainTiming] {
+		options.timing = booleans[explainTiming]
+	}
+	if specified[explainSummary] {
+		options.summary = booleans[explainSummary]
+	}
 	return options, nil
 }

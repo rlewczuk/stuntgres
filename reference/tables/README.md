@@ -82,6 +82,18 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   scenarios in `reference/operators`):
   `RUN='^TestReferenceTriggerBeforeStatementViewForeign$'`.
 - Foreign tables: `RUN='^TestReferenceFDW'`
+  Analyzed foreign writes and cancellation reuse the same provider and lifecycle
+  helpers, selected with `RUN='^TestReferenceExplainAnalyzeForeign'`; they assert
+  emitted output separately from affected rows, real source state and rollback.
+  `TestReferenceExplainAnalyzeForeignSelections` distinguishes actual selected
+  composite callbacks from base callbacks (`Query == nil`) and records base
+  Begin calls in both reader and transaction-borrowing writer implementations.
+  Direct and held invocations retain exact selected plans/current parameter
+  frames; declined composites must execute genuine base selections.
+  `TestReferenceExplainAnalyzeForeignParameters` starts fresh direct/held
+  scenarios for both RETURNING modes and checks repeated UPDATE/DELETE effects.
+  Held statements close even on assertion failure; provider observations are
+  copied before assertions so cleanup never runs under their recording mutex.
   `TestReferenceFDWRoutineSourceCompaction` exercises six real foreign-target
   INSERT/UPDATE/DELETE source forms with direct/held routine calls, exact rows,
   dependency bags, RESTRICT, remote/local rollback and native controls.
@@ -132,6 +144,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   folded CTEs preserve ordinary derived exclusions. Lifecycle gates normalized
   base and count-upper properties after production, retaining final-authority and
   nonmutation witnesses.
+- Executing foreign plans: `RUN='^TestReferenceExplainAnalyzeForeign'`.
+  ForeignSelections holds the same prepared SELECT across arguments1,2,99,1,
+  with independent exact base/chosen-composite/declined-fallback results, source
+  invariance, actual executed current-argument requests and released resources.
+  ForeignParameters checks held parameterized UPDATE/DELETE effects and emitted
+  RETURNING counts; ForeignMutations retains explicit rollback/autocommit proof.
+  ForeignCancellation reuses the genuine post-fetch/advisory cancellation owners.
+  Select every changed family in both native and `REFERENCE=1` modes.
 - `pg_user_mapping`: `RUN='^TestReferencePGUserMapping'`
 
 Also in this package: `make check RUN='^TestReferenceSeriesCheckRestrictions$'`

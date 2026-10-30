@@ -26,10 +26,16 @@ import (
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (err error) {
 	if explanation, ok := stmt.(*parser.Explain); ok {
-		// Child identities and semantic privileges are admitted in Describe
-		// mode. Planning writes and FOR UPDATE never acquires tuple locks or
-		// enters write eligibility, CTE activation, or command startup.
-		return s.AcquireRelation(explanation.Statement, false)
+		// Describe and effective ANALYZE FALSE retain metadata-only authority.
+		// Invalid options also cannot acquire execution rights; their diagnostics
+		// remain after child semantic analysis at the normal Execute boundary.
+		childExecute := false
+		if execute {
+			options, optionErr := validateExplainOptions(explanation)
+			s.explainAdmission = &explainAdmission{options: options, err: optionErr}
+			childExecute = optionErr == nil && options.analyze
+		}
+		return s.AcquireRelation(explanation.Statement, childExecute)
 	}
 	// Every root, including nested PL and SQL-demand roots, captures its name
 	// environment before admission can wait. Lexical activations own this state.

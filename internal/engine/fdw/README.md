@@ -53,6 +53,10 @@ The foreign owner completes its existing kind/server payload before validation.
   group record `TruncateGroup` (`GroupTruncate` groups the selected foreign
   tables by server in first-seen order; `SetTransaction` gives a group and
   its tables the server's participant transaction).
+  EXPLAIN ANALYZE observes the selected modification token and targets without
+  rediscovery. `PlanModification` checks observation presence before constructing
+  the optional `CallbackRequest` defensive copy; actual callbacks retain separate
+  mutable column/parameter/target backing, while opaque Private identity is kept.
 - **Metadata capability** (`updatability.go`): `UpdatableEvents` resolves the
   captured handler and inspects its actual UPDATE/DELETE interfaces. It does
   not require write row-identity support or call planning, scan, transaction

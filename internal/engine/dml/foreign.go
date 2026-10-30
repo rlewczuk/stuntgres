@@ -55,20 +55,27 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 		return Outcome{}, err
 	}
 	defer CompleteAfterStatement(h, b, event, &outcome, &err)
-	m, err := fdw.PlanModification(h.Context(), in.Foreign, op, false)
-	if err != nil {
-		return Outcome{}, err
-	}
 	input, output := h.Environments()
 	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: parameters, Input: input, Output: output, Ctes: h.CTEInvocation(), Locking: inputs.Locks != nil}
 	state.Methods = h.AdmittedPlannerMethods()
 	state.CapturePlannerAdmission()
 	defer state.ReleaseMemberships()
 	defer outcome.finishSources(state, &err)
-	m.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
+	// Selection and its optional EXPLAIN callback must see the same current
+	// imported frame that Begin/Exec will receive. Keep this request private to
+	// the modification; the real scan/source lifetime remains with Inputs.
+	target := *in.Foreign
+	target.Request.Parameters, err = exec.ForeignParameters(h.Context(), state, in.Foreign)
 	if err != nil {
 		return Outcome{}, err
 	}
+	m, err := fdw.PlanModification(h.Context(), &target, op, false)
+	if err != nil {
+		return Outcome{}, err
+	}
+	// Planning owns the detached request snapshot, not a second scan lifetime.
+	// Identity executions must register on the source that Inputs will close.
+	m.Source = in.Foreign
 	if err = m.Begin(h.Context(), h); err != nil {
 		return Outcome{}, err
 	}

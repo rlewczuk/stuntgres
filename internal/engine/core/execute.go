@@ -98,6 +98,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return result, err
 		}
 	}
+	return e.executeDataStatement(scope, stmt, count, importFrame)
+}
+
+// Utilities that execute an admitted child reuse the canonical binding, typed
+// input and dispatch boundary without opening another statement or transaction.
+func (e *Engine) executeDataStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
+	op := scope.Op
+	ctx := scope.executionContext()
 	e.Mu.Lock()
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 		e.Mu.Unlock()
@@ -136,7 +144,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	expected := scope.Expected
 	var candidate Description
-	foldPlanning, err := e.prepareFoldAttemptLocked(scope, stmt, auth, scope.Expected)
+	foldDescription := scope.Expected
+	if scope.explainWrapper(stmt) {
+		// The wrapper's retained fold owner has no child publication rights.
+		// Child preflight remains activation-local, just as for direct execution.
+		foldDescription = nil
+	}
+	foldPlanning, err := e.prepareFoldAttemptLocked(scope, stmt, auth, foldDescription)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
@@ -322,6 +336,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// output may change through a valid assignment conversion on reanalysis.
 			results = scope.Expected.Results
 		}
+		if scope.explainWrapper(stmt) {
+			results = e.explainSchemaLocked()
+		}
 		if err := CheckStatementSignature(*scope.Expected, Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
@@ -431,7 +448,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if p := scope.protocolOrZero().bind; p != nil {
+	if p := scope.protocolOrZero().bind; p != nil && scope.explain == nil {
 		p.values = canonical
 		if _, call := stmt.(*parser.Call); call {
 			p.columns = analyze.RoutineCallSchema(b)

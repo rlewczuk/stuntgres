@@ -12,7 +12,7 @@ import (
 
 // Plans have independent structural expectations, not bytewise backend parity:
 // PostgreSQL is free to choose physical methods and eliminate redundant sorts.
-func explainTextRows(t *testing.T, rows *sql.Rows) []string {
+func explainPlanRows(t *testing.T, rows *sql.Rows) []string {
 	t.Helper()
 	defer rows.Close()
 	columns, err := rows.Columns()
@@ -43,6 +43,12 @@ func explainTextRows(t *testing.T, rows *sql.Rows) []string {
 	if len(lines) == 0 || strings.TrimSpace(strings.Join(lines, "")) == "" {
 		t.Fatal("EXPLAIN returned no plan text")
 	}
+	return lines
+}
+
+func explainTextRows(t *testing.T, rows *sql.Rows) []string {
+	t.Helper()
+	lines := explainPlanRows(t, rows)
 	for _, forbidden := range []string{"actual time=", "actual rows=", "Execution Time:", "Planning Time:", "loops="} {
 		if strings.Contains(strings.Join(lines, "\n"), forbidden) {
 			t.Errorf("nonexecuting plan contains %q: %v", forbidden, lines)

@@ -367,6 +367,11 @@ func (w *fdwSQLWriter) ExecForeignTruncate(ctx context.Context, r stuntgres.Fore
 // Scans borrow the enlisted transaction. End closes scan resources only; the
 // sole engine owner subsequently decides statement and transaction completion.
 func (w *fdwSQLWriter) BeginForeignScan(ctx context.Context, r stuntgres.ForeignRequest, plan stuntgres.ForeignPlan) (stuntgres.ForeignScan, error) {
+	if w.advanced != nil {
+		w.advanced.mu.Lock()
+		w.advanced.baseExecutions = append(w.advanced.baseExecutions, fdwExplainBaseExecution{request: r, plan: plan})
+		w.advanced.mu.Unlock()
+	}
 	tx, err := fdwWriterTx(r)
 	if err != nil {
 		return nil, err

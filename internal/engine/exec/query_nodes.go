@@ -303,12 +303,21 @@ func (s *Stage) ensure(ctx context.Context, i int) (bool, error) {
 }
 
 func (s *Stage) NextOccurrence(ctx context.Context) (int, bool, error) {
+	if s.projection != nil && !s.Closed && s.Terminal == nil {
+		s.projection.start()
+		defer s.projection.end()
+	}
+	if len(s.observations) != 0 && !s.Closed && s.Terminal == nil {
+		s.observeStart()
+		defer s.observeEnd()
+	}
 	present, err := s.ensure(ctx, s.Position)
 	if err != nil || !present {
 		return 0, present, err
 	}
 	i := s.Position
 	s.Position++
+	s.observeOutput(i)
 	return i, true, nil
 }
 
@@ -319,10 +328,19 @@ func (s *Stage) Drain(ctx context.Context) error {
 	if s.Closed {
 		return nil
 	}
+	if s.projection != nil {
+		s.projection.start()
+		defer s.projection.end()
+	}
+	if len(s.observations) != 0 {
+		s.observeStart()
+		defer s.observeEnd()
+	}
 	if s.Produce == nil {
 		if err := ctx.Err(); err != nil {
 			return s.fail(err)
 		}
+		s.observeDrained(s.Count())
 		return nil
 	}
 	for !s.Done {
@@ -333,6 +351,7 @@ func (s *Stage) Drain(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return s.fail(err)
 	}
+	s.observeDrained(s.Count())
 	return nil
 }
 

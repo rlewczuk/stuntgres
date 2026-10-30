@@ -205,6 +205,16 @@ projection; its second row signals the structured private error. Command swaps
 isolate nested writes and writable-CTE auxiliaries. Ordinary SQL has no counter
 and retains its normal output and affected-count semantics.
 
+Foreign DML exports the current imported parameter frame before modification
+planning, using an invocation-local request snapshot. Selected planning,
+EXPLAIN ANALYZE properties, Begin and row callbacks share those values; there is
+no second importer or expression evaluation. The real input source still owns
+scan cleanup, and ordinary statement Finish alone publishes or aborts effects.
+The planning-only source view does not own a scan lifetime: the selected
+modification keeps its detached request but uses the original input source.
+UPDATE/DELETE identity scans register there and close exactly once, including
+modifying CTE commands and error exits.
+
 Prologue decisions run over values the root captures in its own window.
 Package-internal helpers keep lower-case names.
 
