@@ -51,6 +51,7 @@ type restoreRun struct {
 	extensionOwners          []extension.OwnerRecord
 	snapshots                []view.MaterializedSnapshot
 	extendedStatistics       []storage.ExtendedStatisticsSnapshot
+	attributeStatistics []storage.AttributeStatisticsSnapshot
 	initialPrivileges        *control.InitialPrivilegesMetadata
 	membershipHistoryRepairs map[restoreMembershipHistoryKey]bool
 	comparison               control.ComparisonRestore

@@ -59,6 +59,7 @@ var dumpSections = [...]dumpSection{
 	{"subscriptions", emitDumpSubscriptions},
 	{"event triggers", emitDumpEventTriggers},
 	{"extended statistics snapshots", emitDumpExtendedStatistics},
+	{"attribute statistics snapshots", emitDumpAttributeStatistics},
 	{"initial privileges inventory", emitDumpInitialPrivileges},
 }
 

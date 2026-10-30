@@ -70,6 +70,7 @@ type Capture struct {
 	Parsers               []*catalog.TSParser
 	Statistics            []*catalog.Statistics
 	ExtendedStatistics    []storage.ExtendedStatisticsSnapshot
+	AttributeStatistics []storage.AttributeStatisticsSnapshot
 	Providers             []providerReplay
 	Tables                []table.DumpRelation
 	LargeObjects          []*catalog.LargeObject // Separate class-local order, outside Graph's numeric keys.

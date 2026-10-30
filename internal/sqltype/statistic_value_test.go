@@ -37,11 +37,7 @@ func TestStatisticExpressionValueConstructionAndAccess(t *testing.T) {
 		v, _ := Integer(types[Int4], n)
 		elements = append(elements, v)
 	}
-	concrete, err := ArrayValue(types[1007], []ArrayDimension{{1, 2}}, elements)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wrapped, err := StatisticArrayValue(types[2277], concrete, types[Int4].Usage())
+	wrapped, err := StatisticArrayValue(types[2277], types[Int4].Usage(), []ArrayDimension{{1,2}}, elements)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,9 +63,10 @@ func TestStatisticExpressionValueConstructionAndAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	slot := fetched.CompositeField(26)
-	actual, usage, ok := slot.StatisticArray()
-	if !ok || actual.Type() != types[1007] || usage != types[Int4].Usage() {
-		t.Fatal("lost concrete array", usage)
+	usage, ok := slot.StatisticArrayUsage()
+	actual := slot
+	if !ok || usage != types[Int4].Usage() {
+		t.Fatal("lost typed element authority", usage)
 	}
 	if n, _ := actual.ArrayElement(0).Integer(); n != 2 {
 		t.Fatal("borrowed construction buffer", n)
@@ -113,7 +110,7 @@ func TestStatisticExpressionValueGenerationAndImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	slot, err := StatisticArrayValue(from[2277], concrete, from[Text].Usage())
+	slot, err := StatisticArrayValue(from[2277], from[Text].Usage(), concrete.ArrayDimensions(), concrete.array.elements)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +145,9 @@ func TestStatisticExpressionValueGenerationAndImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inner, usage, ok := imported.StatisticArray()
-	if !ok || inner.Type() != to[1009] || usage.Type != to[Text] || inner.ArrayElement(0).Type() != to[Text] {
+	usage, ok := imported.StatisticArrayUsage()
+	inner := imported
+	if !ok || usage.Type != to[Text] || inner.ArrayElement(0).Type() != to[Text] {
 		t.Fatal("import did not remint typed payload")
 	}
 	if same, err := slot.SamePayload(ctx, imported); err != nil || !same {
@@ -174,7 +172,7 @@ func TestStatisticExpressionValueGenerationAndImport(t *testing.T) {
 	if _, err := StatisticRowsValue(to[10028], []Value{row}); err == nil {
 		t.Fatal("foreign row array accepted")
 	}
-	if _, err := StatisticArrayValue(to[2277], concrete, to[Text].Usage()); err == nil {
+	if _, err := StatisticArrayValue(to[2277], to[Text].Usage(), concrete.ArrayDimensions(), concrete.array.elements); err == nil {
 		t.Fatal("foreign concrete element usage accepted")
 	}
 	bad := Value{typ: from[2277]}
@@ -227,7 +225,7 @@ func TestStatisticExpressionValueSlotValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	slot, err := StatisticArrayValue(types[2277], values, types[Int4].Usage())
+	slot, err := StatisticArrayValue(types[2277], types[Int4].Usage(), values.ArrayDimensions(), values.array.elements)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,4 +268,21 @@ func TestStatisticExpressionValueSlotValidation(t *testing.T) {
 	if _, err := StatisticRowValue(rowType, fields); err == nil {
 		t.Fatal("impossible null fraction")
 	}
+}
+
+func TestAttributeStatisticsArrayElementContainer(t *testing.T) {
+	from,to:=testTypes(),testTypes()
+	ctx:=context.Background()
+	usage:=from[1007].Usage()
+	value,err:=ParseStatisticArray(ctx,from[2277],usage,`[0:1]={"{1,2}","{3}"}`,InputEnvironment{})
+	if err!=nil {t.Fatal(err)}
+	text,err:=from[2277].Output(ctx,value)
+	if err!=nil||text!=`[0:1]={"{1,2}","{3}"}` {t.Fatal(text,err)}
+	if u,ok:=value.StatisticArrayUsage();!ok||u!=usage||value.ArrayRank()!=1||value.ArrayDimension(0).Lower!=0||value.ArrayElement(0).Type()!=from[1007] {t.Fatal("lost nested element authority")}
+	first,err:=ArrayFetch(ctx,value,[]ArraySubscriptValue{{Upper:0,HasUpper:true}})
+	if err!=nil||first.Type()!=from[1007]||first.ArrayLen()!=2 {t.Fatal(first,err)}
+	mapped,err:=value.MapStatisticArray(to[2277],func(element Value,u Usage)(Value,Usage,error){v,err:=element.Retag(to[u.Type.ID()]);u.Type=to[u.Type.ID()];return v,u,err})
+	if err!=nil||mapped.ArrayElement(0).Type()!=to[1007]||mapped.ArrayElement(0).ArrayElement(0).Type()!=to[Int4] {t.Fatal("nested remint",err)}
+	if _,err=StatisticArrayValue(to[2277],to[1007].Usage(),value.ArrayDimensions(),value.array.elements);err==nil {t.Fatal("foreign nested elements admitted")}
+	if _,err=Array(48000,"illegal",from[1007]);err==nil {t.Fatal("catalog result expanded general array admission")}
 }

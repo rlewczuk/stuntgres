@@ -55,10 +55,6 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		if a.element.Type.ID() != b.element.Type.ID() || a.element.Typmod != b.element.Typmod || a.element.Collation != b.element.Collation {
 			return false, nil
 		}
-		same, err := a.value.SamePayload(ctx, b.value)
-		if err != nil || !same {
-			return same, err
-		}
 		v.statisticArray, other.statisticArray = nil, nil
 	}
 	if v.typ != nil && other.typ != nil && (v.typ.BaseType().IsSeg() || other.typ.BaseType().IsSeg()) {

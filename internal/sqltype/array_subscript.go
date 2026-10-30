@@ -96,7 +96,8 @@ func ArrayFetch(ctx context.Context, v Value, indices []ArraySubscriptValue) (Va
 	if v.Type().BaseType().id == Box || v.Type().BaseType().id == Lseg {
 		return geometryPairFetch(v, indices)
 	}
-	null := ResultNull(v.Type().BaseType().Element().Usage())
+	var null Value
+	if usage, ok := v.StatisticArrayUsage(); ok { null = ResultNull(usage) } else { null = ResultNull(v.Type().BaseType().Element().Usage()) }
 	if v.IsNull() || v.array == nil {
 		return null, nil
 	}

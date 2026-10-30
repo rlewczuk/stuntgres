@@ -246,6 +246,22 @@ before runtime strictness. Scalar sources produce one NULL row, unlike strict
 NULL listing sources. Live runtime capabilities apply pure length/path checks
 before rejecting the unavailable physical mechanism; no content is synthesized.
 
+`AttributeStatistics` binds non-strict, volatile `pg_restore_attribute_stats`
+and `pg_clear_attribute_stats` through the ordinary routine declarations.
+Restore retains heterogeneous ANY operands; clear retains written evaluation
+order and named-formal mapping. Preparation and empty projections do not mutate
+state. The statement host owns target locks, current MAINTAIN/database-owner
+authority, ordered warnings and selected transactional deltas. Successful clear
+returns concrete nonnull VOID, not SQL NULL. Optional conversion diagnostics
+are warnings; target, permission, cancellation and statement failures remain
+hard errors. Public SQL coverage is `TestReferenceAttributeStatistics` in
+`reference/inheritance`, selected in both native and pinned-reference modes.
+Explicit `VARIADIC kwargs => array` uses the shared named-formal matcher and
+retains its label through stored rendering; named expanded calls and unknown
+labels remain resolution errors. Unresolved ANY parameters retain ordinary
+prepare-time type-determination diagnostics. Permission errors use the effective
+target's relation kind, including the parent of an index.
+
 `StatisticsIO` binds the released internal statistics input/output/send
 declarations through the ordinary signature and coercion owners. Calls are
 strict; non-NULL input delegates to the rejecting concrete codec. Output uses

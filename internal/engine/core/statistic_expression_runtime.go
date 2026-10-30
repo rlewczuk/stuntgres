@@ -90,29 +90,13 @@ func statisticExpressionRow(read catalog.Read, rowType *sqltype.Descriptor, fact
 }
 
 func statisticExpressionSlot(read catalog.Read, rowType *sqltype.Descriptor, fields []sqltype.Value, usage sqltype.Usage, slot int, kind int64, strategy int16, values []sqltype.Value) error {
-	array, ok := read.LookupType(usage.Type.AssociatedArray())
-	if !ok || array.Element() != usage.Type {
-		return fmt.Errorf("stuntgres: unavailable statistic value array")
-	}
 	for _, value := range values {
 		if value.IsNull() || !value.ValidResult(usage) {
 			return fmt.Errorf("stuntgres: foreign statistic slot value")
 		}
 	}
 	dimensions := []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(values))}}
-	var concrete sqltype.Value
-	var err error
-	if kind == 1 {
-		// MCV projection just allocated this exclusive buffer; histogram storage
-		// remains shared immutable capture state and must instead be frozen below.
-		concrete, err = sqltype.OwnedArrayValue(array, dimensions, values)
-	} else {
-		concrete, err = sqltype.ArrayValue(array, dimensions, values)
-	}
-	if err != nil {
-		return err
-	}
-	wrapped, err := sqltype.StatisticArrayValue(rowType.CompositeMember(26+slot).Usage.Type, concrete, usage)
+	wrapped, err := sqltype.StatisticArrayValue(rowType.CompositeMember(26+slot).Usage.Type, usage, dimensions, values)
 	if err != nil {
 		return err
 	}

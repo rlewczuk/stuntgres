@@ -31,11 +31,7 @@ func TestStatisticExpressionValueDriverBoundary(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	concrete, err := types[1007].Input(ctx, "{2,3}", -1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slot, err := sqltype.StatisticArrayValue(types[2277], concrete, types[sqltype.Int4].Usage())
+	slot, err := sqltype.ParseStatisticArray(ctx, types[2277], types[sqltype.Int4].Usage(), "{2,3}", sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}

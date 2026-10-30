@@ -98,6 +98,7 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 				t.Fatal("preparation-canceled replacement changed canonical metadata", err)
 			}
 			var importedAddress ids.ObjectAddress
+			var importedSourceFacts *storage.RelationStatistics
 			switch replacement {
 			case "reset":
 				err = engine.Reset(context.Background(), e)
@@ -114,6 +115,7 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 					enginetest.Run(t, source, q)
 				}
 				imported := enginetest.CatalogRef(t, source, source.CatalogRead(), "analyze_imported")
+				importedSourceFacts = analyzeFacts(source, imported.Address)
 				importedAddress = imported.Address
 				if importedAddress != heap.Address() {
 					t.Fatal("fixture did not create an actual retained-TEMP address collision")
@@ -154,8 +156,18 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 					t.Fatal("persistent self-import reused old physical/statistics authority")
 				}
 			}
-			if replacement == "foreign_collision" && (e.Storage.RelationMetadata[importedAddress] != nil || analyzeFacts(e, importedAddress) == persistentFacts) {
-				t.Fatal("imported address collision inherited destination or source planner facts")
+			if replacement == "foreign_collision" {
+				imported := analyzeFacts(e, importedAddress)
+				column := storage.StatisticsKey{Attribute: 1}
+				if imported == nil || importedSourceFacts == nil || imported == persistentFacts || imported == importedSourceFacts || len(imported.Columns) != 1 || imported.Columns[column] == nil || imported.Columns[column] == importedSourceFacts.Columns[column] {
+					t.Fatal("imported address collision failed to remint only source column facts")
+				}
+				fact := imported.Columns[column]
+				current := e.CatalogRead().MustRelation(importedAddress)
+				if fact.Rows != 2 || fact.NullCount != 0 || !fact.DistinctKnown || fact.DistinctCount != 1 || len(fact.MCV) != 1 || fact.MCV[0].Count != 2 || fact.Usage != current.Columns[0].Usage || !fact.MCV[0].Value.ValidResult(fact.Usage) {
+					t.Fatal("collision import lost measured counts or destination typed authority")
+				}
+				enginetest.TransactionRows(t, s, "SELECT a FROM analyze_imported", 9, 9)
 			}
 			if e.Storage.RelationMetadata[persistentParent.Address] != nil || e.Storage.Relations[persistentParent.Address] != nil {
 				t.Fatal("persistent partition metadata survived native replacement")

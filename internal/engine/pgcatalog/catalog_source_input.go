@@ -158,6 +158,7 @@ type Runtime interface {
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	Maintenance(ids.ObjectAddress) (MaintenanceFact, bool)
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
+	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
 	VisitCopyProgress(context.Context, func(CopyProgressFact) error) error

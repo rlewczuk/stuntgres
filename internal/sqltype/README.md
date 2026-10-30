@@ -173,8 +173,11 @@ admission and removes it before nested binding.
   including five ANYARRAY fields; array10028 has that actual element identity.
   These self-owned builtins grant restricted catalog result authority:
   `StatisticRowValue` and `StatisticRowsValue` freeze checked rows and arrays,
-  while `StatisticArrayValue` retains a genuine concrete array and its element
-  usage behind a catalog ANYARRAY slot. Ordinary Composite/Array constructors,
+  while `StatisticArrayValue` retains immutable dimensions/elements and their
+  exact element usage behind a catalog ANYARRAY slot. Array-typed elements do
+  not require a nonexistent outer catalog array type. `ParseStatisticArray`
+  shares the ordinary array scanner, delimiter and element codecs; mapping
+  remints every element and its usage. Ordinary Composite/Array constructors,
   external non-NULL input, storage and comparison admission remain unchanged.
   Subscript/field projection and explicit text output operate on actual typed
   payloads, never serialized text storage. `ValidResult`, `SamePayload`, retag

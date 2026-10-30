@@ -1156,6 +1156,8 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, replacement)
 	sourceForeign := source.Foreign
 	extendedStatistics, captureErr := storage.CaptureExtendedStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement))
+	var attributeStatistics []storage.AttributeStatisticsSnapshot
+	if captureErr == nil { attributeStatistics, captureErr = storage.CaptureAttributeStatisticsSnapshots(ctx, replacement, source.Storage.RelationMetadata, StatisticsSnapshotCodec(ctx, source, replacement)) }
 	source.Mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -1201,7 +1203,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	if !e.Catalog.State.ParametersUnchanged(parameterPredecessor) {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared, oids, extendedStatistics, attributeStatistics); err != nil {
 		return ChangeSet{}, err
 	}
 	e.Foreign.AdoptNamespaces(sourceForeign)
@@ -1214,7 +1216,7 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared index.RemintedIndexStorage, oids catalog.OIDReservation, extendedStatistics []storage.ExtendedStatisticsSnapshot, attributeStatistics []storage.AttributeStatisticsSnapshot) error {
 	if prepared.Catalog != next || prepared.BaseCatalog != e.Catalog.State || prepared.BaseRow != e.Storage.RowFrontier() || prepared.BaseVersion != e.Storage.VersionFrontier() || prepared.Frontier != e.Visibility.CommitSeq() || e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(oids) {
 		return ids.ErrCatalogReplaced
 	}
@@ -1235,6 +1237,14 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 			metadata = make(map[ids.ObjectAddress]*storage.RelationMetadata, len(imported))
 		}
 		for address, entry := range imported {
+			metadata[address] = entry
+		}
+	}
+	attributes, err := storage.RestoreAttributeStatisticsSnapshots(ctx, read, attributeStatistics, StatisticsSnapshotCodec(ctx, e, read))
+	if err != nil { return err }
+	if metadata == nil { metadata = attributes } else {
+		for address, entry := range attributes {
+			if previous := metadata[address]; previous != nil && previous.Statistics != nil { entry.Statistics = storage.MergeExtendedStatistics(entry.Statistics, previous.Statistics.Extended) }
 			metadata[address] = entry
 		}
 	}

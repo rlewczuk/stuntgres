@@ -457,16 +457,16 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
 func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation CollationRemapper, imports map[*sqltype.Descriptor]*sqltype.Descriptor, aclImport func(sqltype.Value) (sqltype.Value, error)) (sqltype.Value, error) {
 	if value.Type().ID() == 2277 && value.Type().Usage().CatalogNullUsage() {
-		return value.MapStatisticArray(target, func(array sqltype.Value, usage sqltype.Usage) (sqltype.Value, sqltype.Usage, error) {
-			destination := array.Type()
+		return value.MapStatisticArray(target, func(element sqltype.Value, usage sqltype.Usage) (sqltype.Value, sqltype.Usage, error) {
+			destination := element.Type()
 			if imported, ok := imports[destination]; ok {
 				destination = imported
 			}
-			mapped, err := ReownDomainDatum(array, destination, collation, imports, aclImport)
+			mapped, err := ReownDomainDatum(element, destination, collation, imports, aclImport)
 			if err != nil {
 				return sqltype.Value{}, sqltype.Usage{}, err
 			}
-			usage.Type = mapped.Type().Element()
+			usage.Type = mapped.Type()
 			if collation != nil {
 				usage.Collation, err = collation(usage.Collation)
 				if err != nil {

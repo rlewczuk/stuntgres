@@ -114,6 +114,22 @@ func (e *Engine) prepareRetainedRelationMetadataLocked(ctx context.Context, next
 			}
 			candidate.Statistics = &stats
 		}
+		if previous.Statistics != nil {
+			oldRead, read := e.Catalog.Current(), e.Catalog.Read(next)
+			source, destination := StatisticsSnapshotCodec(ctx, e, oldRead), StatisticsSnapshotCodec(ctx, e, read)
+			var replacements map[storage.StatisticsKey]*storage.ColumnStatistics
+			for key, fact := range previous.Statistics.Columns {
+				slot := retained.IndexForAttribute(key.Attribute)
+				if slot < 0 { continue }
+				value, err := storage.ReownRetainedColumnStatistics(ctx, fact, retained.Columns[slot].Usage, oldRead, read, source, destination)
+				if err != nil { return nil, err }
+				if value != fact {
+					if replacements == nil { replacements = make(map[storage.StatisticsKey]*storage.ColumnStatistics) }
+					replacements[key] = value
+				}
+			}
+			candidate.Statistics = storage.MergeStatistics(candidate.Statistics, replacements)
+		}
 		facts := session.ResolveStatistics(nil, address, &candidate, retained, e.Catalog.Read(next))
 		entry := previous
 		if facts != previous.Statistics {

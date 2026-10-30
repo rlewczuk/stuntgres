@@ -89,6 +89,7 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 // detached from Engine.Mu just like collection; no expression is executed.
 func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr, estimate plan.ExplainEstimate, inputRows float64) (plan.ExplainEstimate, error) {
 	var inputs []plan.ColumnStatisticInput
+	imported := false
 	plan.WalkExpression(predicate, func(expression expr.Expr) {
 		column, ok := expression.(plan.ColumnExpr)
 		if !ok || column.Virtual != nil || column.Origin.Address.SubID <= 0 {
@@ -121,6 +122,7 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 		facts := session.ResolveStatistics(r.scope.PendingCatalog(), address, metadata, relation, r.auth.Catalog)
 		if facts != nil {
 			if fact := facts.Columns[storage.StatisticsKey{Attribute: attribute, Inherited: inherited}]; fact != nil {
+				imported = imported || fact.Imported != nil
 				population := plannerSourceRows(r.statisticsStorage(address))
 				if metadata != nil && metadata.ForeignAnalyze != nil {
 					population = metadata.ForeignAnalyze.TotalRows
@@ -141,6 +143,10 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 	e.Mu.Lock()
 	if err == nil && known {
 		estimate.Rows = min(plan.ExplainEstimateLimit, max(0, inputRows*selectivity))
+		// Imported planner facts use PostgreSQL's minimum row estimate for
+		// a nonempty input, including an explicitly supplied zero fraction.
+		// Wholly measured exact-count estimates retain their existing path.
+		if imported && inputRows > 0 { estimate.Rows = max(1, estimate.Rows) }
 	}
 	return estimate, err
 }

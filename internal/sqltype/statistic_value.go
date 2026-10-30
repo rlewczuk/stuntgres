@@ -7,62 +7,49 @@ import (
 	"slices"
 )
 
-// statisticArrayPayload retains the actual array and its element usage. ANYARRAY
-// is only the catalog slot's declared type, never the stored element type.
-type statisticArrayPayload struct {
-	value   Value
-	element Usage
-}
+// statisticArrayPayload is a catalog-result-only typed container. There need
+// not be a catalog array type for its element (notably an array-valued column).
+type statisticArrayPayload struct { element Usage }
 
-// StatisticArrayValue wraps a genuine concrete array for a pg_statistic slot.
-// It grants neither external ANYARRAY input nor arbitrary pseudo construction.
-func StatisticArrayValue(slot *Descriptor, array Value, element Usage) (Value, error) {
-	if slot == nil || slot.ID() != 2277 || !slot.Usage().CatalogNullUsage() ||
-		array.typ == nil || !array.typ.Concrete() || !array.typ.IsArray() || array.null ||
-		array.array == nil || !element.Valid() || array.typ.Element() != element.Type {
-		return Value{}, fmt.Errorf("invalid statistic anyarray payload")
-	}
-	for _, v := range array.array.elements {
-		if !v.ValidResult(element) {
-			return Value{}, fmt.Errorf("foreign statistic array element")
-		}
-	}
-	return Value{typ: slot, statisticArray: &statisticArrayPayload{array, element}}, nil
+func StatisticArrayValue(slot *Descriptor, element Usage, dimensions []ArrayDimension, elements []Value) (Value, error) {
+	return ownedStatisticArrayValue(slot, element, slices.Clone(dimensions), slices.Clone(elements))
 }
-
-// StatisticArray returns the immutable concrete slot value and captured usage.
-func (v Value) StatisticArray() (Value, Usage, bool) {
-	if v.null || v.typ == nil || v.typ.ID() != 2277 || !v.typ.Usage().CatalogNullUsage() || v.statisticArray == nil {
-		return Value{}, Usage{}, false
-	}
-	p := v.statisticArray
-	return p.value, p.element, true
+// OwnedStatisticArrayValue transfers exclusive construction buffers.
+func OwnedStatisticArrayValue(slot *Descriptor, element Usage, dimensions []ArrayDimension, elements []Value) (Value,error) {
+	return ownedStatisticArrayValue(slot,element,dimensions,elements)
 }
-
-// MapStatisticArray remints a concrete array through the ordinary authorized
-// importer. The callback also translates the element's typmod/collation usage.
-func (v Value) MapStatisticArray(target *Descriptor, transform func(Value, Usage) (Value, Usage, error)) (Value, error) {
-	if v.typ == nil || v.typ.ID() != 2277 || !v.typ.Usage().CatalogNullUsage() || target == nil || target.ID() != 2277 || !target.Usage().CatalogNullUsage() {
-		return Value{}, fmt.Errorf("invalid statistic anyarray mapping")
-	}
-	if v.null {
-		return ResultNull(target.Usage()), nil
-	}
-	array, usage, ok := v.StatisticArray()
-	if !ok {
-		return Value{}, fmt.Errorf("invalid statistic anyarray")
-	}
-	if transform != nil {
-		var err error
-		array, usage, err = transform(array, usage)
-		if err != nil {
-			return Value{}, err
-		}
-	}
-	if target == v.typ && array == v.statisticArray.value && usage == v.statisticArray.element {
-		return v, nil
-	}
-	return StatisticArrayValue(target, array, usage)
+func ownedStatisticArrayValue(slot *Descriptor, element Usage, dimensions []ArrayDimension, elements []Value) (Value, error) {
+	if slot == nil || slot.ID() != 2277 || !slot.Usage().CatalogNullUsage() || !element.Valid() || !element.Type.Concrete() { return Value{}, fmt.Errorf("invalid statistic anyarray payload") }
+	size, err := arrayShapeSize(dimensions)
+	if err != nil || size != len(elements) { return Value{}, fmt.Errorf("invalid statistic array shape") }
+	for _, v := range elements { if !v.ValidResult(element) { return Value{}, fmt.Errorf("foreign statistic array element") } }
+	return Value{typ:slot, array:&arrayPayload{dimensions:dimensions,elements:elements},statisticArray:&statisticArrayPayload{element:element}},nil
+}
+func ParseStatisticArray(ctx context.Context, slot *Descriptor, element Usage, text string, env InputEnvironment) (Value,error) {
+	if err:=ctx.Err();err!=nil{return Value{},err}
+	if !element.Valid(){return Value{},fmt.Errorf("invalid statistic array element usage")}
+	if err:=ValidateTextInput(text);err!=nil{return Value{},err}
+	v,err:=readArrayPayload(ctx,element.Type,text,element.Typmod,env)
+	if err!=nil{return Value{},err}
+	return ownedStatisticArrayValue(slot,element,v.array.dimensions,v.array.elements)
+}
+// StatisticArrayUsage exposes element authority; shape and elements use the
+// ordinary immutable ArrayRank/ArrayDimension/ArrayElement accessors.
+func(v Value) StatisticArrayUsage()(Usage,bool){
+	if v.null||v.typ==nil||v.typ.ID()!=2277||!v.typ.Usage().CatalogNullUsage()||v.statisticArray==nil{return Usage{},false}
+	return v.statisticArray.element,true
+}
+// MapStatisticArray translates every retained typed element and its usage.
+// The null witness translates usage even for an empty array.
+func(v Value) MapStatisticArray(target *Descriptor, transform func(Value,Usage)(Value,Usage,error))(Value,error){
+	if v.typ==nil||v.typ.ID()!=2277||!v.typ.Usage().CatalogNullUsage()||target==nil||target.ID()!=2277||!target.Usage().CatalogNullUsage(){return Value{},fmt.Errorf("invalid statistic anyarray mapping")}
+	if v.null{return ResultNull(target.Usage()),nil}
+	usage,ok:=v.StatisticArrayUsage();if !ok{return Value{},fmt.Errorf("invalid statistic anyarray")}
+	if transform==nil{if target==v.typ{return v,nil};next:=v;next.typ=target;return next,nil}
+	_,destination,err:=transform(Null(usage.Type),usage);if err!=nil{return Value{},err}
+	elements:=make([]Value,v.ArrayLen())
+	for i:=range elements{next,u,err:=transform(v.ArrayElement(i),usage);if err!=nil{return Value{},err};if u!=destination{return Value{},fmt.Errorf("inconsistent statistic array usage")};elements[i]=next}
+	return ownedStatisticArrayValue(target,destination,slices.Clone(v.array.dimensions),elements)
 }
 
 // StatisticRowValue freezes the fixed released pg_statistic result shape.
@@ -128,10 +115,10 @@ func (v Value) validStatisticResult() bool {
 	switch v.typ.ID() {
 	case 2277:
 		p := v.statisticArray
-		if p == nil || p.value.null || p.value.typ == nil || !p.value.typ.Concrete() || !p.value.typ.IsArray() || p.value.array == nil || p.value.typ.Element() != p.element.Type || !p.element.Valid() {
+		if p == nil || v.array == nil || !p.element.Valid() {
 			return false
 		}
-		for _, element := range p.value.array.elements {
+		for _, element := range v.array.elements {
 			if !element.ValidResult(p.element) {
 				return false
 			}
@@ -192,8 +179,7 @@ func (v Value) statisticArrayOutput(ctx context.Context, env OutputEnvironment) 
 	if !v.validStatisticResult() || v.statisticArray == nil {
 		return "", fmt.Errorf("invalid statistic anyarray output")
 	}
-	array := v.statisticArray.value
-	return array.typ.OutputWithEnvironment(ctx, array, env)
+	return arrayPayloadOutput(ctx, v, v.statisticArray.element.Type, env)
 }
 
 // These are expression-result rows, not arbitrary pg_statistic input tuples.
@@ -228,11 +214,11 @@ func validStatisticRowFields(fields []Value) bool {
 			return false
 		}
 		seen |= 1 << uint(kind)
-		array, _, ok := values.StatisticArray()
-		if !ok || array.ArrayRank() != 1 || array.ArrayDimension(0).Lower != 1 || array.ArrayLen() == 0 {
+		_, ok := values.StatisticArrayUsage()
+		if !ok || values.ArrayRank() != 1 || values.ArrayDimension(0).Lower != 1 || values.ArrayLen() == 0 {
 			return false
 		}
-		for _, value := range array.array.elements {
+		for _, value := range values.array.elements {
 			if value.null {
 				return false
 			}
@@ -243,7 +229,7 @@ func validStatisticRowFields(fields []Value) bool {
 			}
 			continue
 		}
-		if numbers.null || numbers.ArrayRank() != 1 || numbers.ArrayLen() != array.ArrayLen() {
+		if numbers.null || numbers.ArrayRank() != 1 || numbers.ArrayLen() != values.ArrayLen() {
 			return false
 		}
 		sum := float64(0)

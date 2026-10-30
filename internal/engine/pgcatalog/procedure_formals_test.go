@@ -77,6 +77,49 @@ func TestRoutineResultFormalCatalog(t *testing.T) {
 	}
 }
 
+func TestRoutineFormalArrayTypePresence(t *testing.T) {
+	types := make(map[sqltype.ID]*sqltype.Descriptor)
+	for _, typ := range sqltype.Builtins() {
+		types[typ.ID()] = typ
+	}
+	oids, err := sqltype.Array(1028, "_oid", types[sqltype.Oid])
+	if err != nil {
+		t.Fatal(err)
+	}
+	modes, err := sqltype.Array(1002, "_char", types[sqltype.Char])
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, err := sqltype.Array(1007, "_int4", types[sqltype.Int4])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, omitted := range []bool{false, true} {
+		d := &catalog.Procedure{SQL: &proc.Definition{}, Display: catalog.RoutineDisplay{OmitAllArgTypes: omitted}}
+		if err := d.SQL.SetFormals([]proc.Formal{{Mode: "v", Usage: array.Usage()}}); err != nil {
+			t.Fatal(err)
+		}
+		all, mode, err := procedureFormalArrays(context.Background(), d, oids, modes, 23, sqltype.Value{})
+		if err != nil || all.Type() != oids || all.IsNull() != omitted {
+			t.Fatal("declaration-owned type array presence", omitted, all, err)
+		}
+		text, err := modes.Output(context.Background(), mode)
+		if err != nil || text != "{v}" {
+			t.Fatal("type omission changed argument modes", text, err)
+		}
+		if !omitted {
+			text, err = oids.Output(context.Background(), all)
+			if err != nil || text != "{1007}" {
+				t.Fatal("ordinary variadic type metadata changed", text, err)
+			}
+		}
+		d.SQL.FormalInputs = nil
+		if _, _, err := procedureFormalArrays(context.Background(), d, oids, modes, 23, sqltype.Value{}); err == nil {
+			t.Fatal("type-array presence bypassed formal validation", omitted)
+		}
+	}
+}
+
 func TestRoutineProcedureDefaultCount(t *testing.T) {
 	for _, tc := range []struct {
 		name        string

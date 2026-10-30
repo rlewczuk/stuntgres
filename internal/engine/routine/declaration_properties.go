@@ -392,5 +392,5 @@ var builtinRoutineProperties = map[ids.OID]struct {
 
 func builtinRoutineDisplayValue(id ids.OID, display builtinDisplayFacts) catalog.RoutineDisplay {
 	properties := builtinRoutineProperties[id]
-	return catalog.RoutineDisplay{Language: display.Language, Source: display.Source, Support: properties.support, Leakproof: properties.leakproof}
+	return catalog.RoutineDisplay{Language: display.Language, Source: display.Source, Support: properties.support, Leakproof: properties.leakproof, OmitAllArgTypes: display.OmitAllArgTypes}
 }

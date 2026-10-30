@@ -165,9 +165,27 @@ func TestAnalyzeNativeStorageRemint(t *testing.T) {
 		t.Fatal(err)
 	}
 	restoredRef, restored := vacuumStore(t, e, "analyze_native")
-	if restored == old || analyzeFacts(e, restoredRef.Address) != nil || len(restored.Versions) != 3 {
-		t.Fatal("logical restore transported planner facts or lost data")
+	restoredFacts := analyzeFacts(e, restoredRef.Address)
+	if restored == old || restoredFacts == nil || restoredFacts == facts || len(restoredFacts.Columns) != 1 || len(restored.Versions) != 3 {
+		t.Fatal("native restore failed to remint column statistics or lost data")
 	}
+	key := storage.StatisticsKey{Attribute: 1}
+	fact := restoredFacts.Columns[key]
+	current := e.CatalogRead().MustRelation(restoredRef.Address)
+	if fact == nil || fact == facts.Columns[key] || fact.Rows != 3 || fact.NullCount != 0 || !fact.DistinctKnown || fact.DistinctCount != 2 || len(fact.MCV) != len(facts.Columns[key].MCV) || len(fact.Histogram) != len(facts.Columns[key].Histogram) || fact.Usage != current.Columns[0].Usage {
+		t.Fatal("native restore lost measured scalar distributions or typed ownership")
+	}
+	for i, item := range fact.MCV {
+		if item.Count != facts.Columns[key].MCV[i].Count || !item.Value.ValidResult(fact.Usage) {
+			t.Fatal("native restore changed measured MCV counts or retained foreign value authority")
+		}
+	}
+	for _, value := range fact.Histogram {
+		if !value.ValidResult(fact.Usage) {
+			t.Fatal("native restore retained foreign histogram authority")
+		}
+	}
+	enginetest.TransactionRows(t, s, "SELECT a FROM analyze_native ORDER BY a", 1, 1, 2)
 	if metadata.Statistics != facts || !storage.SameVersionRoot(rows, old.Versions) {
 		t.Fatal("native storage remint mutated retained source")
 	}

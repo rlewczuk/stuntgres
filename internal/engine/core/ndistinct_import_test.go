@@ -125,8 +125,35 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 	if fact == nil || fact == oldFact || fact.Items[0].Value != 2 || fact.Value.Type() != target.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 3361}).SQLType || key.Definition.Domain() != target.Catalog.Domain || key.Definition.Epoch != target.CatalogRead().Epoch() {
 		t.Fatal("state not reowned into destination generation", fact)
 	}
-	if len(facts.Columns) != 0 {
-		t.Fatal("imported scalar planner distributions")
+	if len(facts.Columns) != len(original.Columns) {
+		t.Fatal("native import omitted measured scalar planner distributions")
+	}
+	for key, previous := range original.Columns {
+		current := facts.Columns[key]
+		if current == nil || current == previous || current.Rows != previous.Rows || current.NullCount != previous.NullCount || current.DistinctKnown != previous.DistinctKnown || current.DistinctCount != previous.DistinctCount || current.DistinctOverride != previous.DistinctOverride || current.AverageWidth != previous.AverageWidth || len(current.MCV) != len(previous.MCV) || len(current.Histogram) != len(previous.Histogram) {
+			t.Fatal("native import changed stale measured scalar facts", key)
+		}
+		relation := target.CatalogRead().MustRelation(importedRef.Address)
+		index := -1
+		for i, attribute := range relation.Attributes {
+			if attribute == key.Attribute {
+				index = i
+				break
+			}
+		}
+		if index < 0 || current.Usage != relation.Columns[index].Usage {
+			t.Fatal("native import retained foreign scalar type authority", key)
+		}
+		for i, item := range current.MCV {
+			if item.Count != previous.MCV[i].Count || !item.Value.ValidResult(current.Usage) {
+				t.Fatal("native import changed MCV counts or typed ownership", key, i)
+			}
+		}
+		for i, value := range current.Histogram {
+			if !value.ValidResult(current.Usage) {
+				t.Fatal("native import retained foreign histogram authority", key, i)
+			}
+		}
 	}
 	retained := analyzeFacts(target, tempRef.Address)
 	if retained == nil || len(retained.Extended) != 1 || retained.Columns[storage.StatisticsKey{Attribute: 1}] != tempBefore.Columns[storage.StatisticsKey{Attribute: 1}] {

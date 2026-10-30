@@ -30,6 +30,10 @@ Frozen WAL summary and replication-slot lifecycle view recipes retain written
 named operands and their formal destinations when rendering both catalog
 presentation and replay SQL. Reordered calls must not become positional during
 dump/restore; copy overloads and omitted create defaults remain distinct.
+Attribute-statistics view calls use that same written-operand renderer: restore
+retains explicit `VARIADIC` and its `kwargs` label, while clear retains reordered
+formal labels. This applies to both catalog presentation and native replay SQL,
+not only to the bound expression's `Render` protocol.
 
 Statistics recipes use these same expression remap/retag and stable-attribute
 deparse owners. Replacement remaps relation/input/provider references and both

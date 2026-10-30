@@ -144,3 +144,43 @@ unbuilt definition while collecting an actual count2 payload. Select these
 witnesses with `make check RUN='^TestReferencePGStatisticExtData'` (add
 `REFERENCE=1`); the existing NDISTINCT family still owns collector lifecycle,
 transactions, hierarchy, cancellation and native controls.
+
+Column statistics restoration owns the released heterogeneous variadic restore,
+typed named clear, ordered partial-restore warnings, selected transactional
+deltas, target authority and locks, `pg_stats` SELECT/RLS visibility, actual
+planner estimates and typed native semantic replay. Expectations derive from
+released REL_18_6 `attribute_stats.c`/`stat_utils.c`, not native output. Native
+control phases preserve stale values after DML and use independent Driver
+destinations; PostgreSQL phases exercise the same SQL assertions.
+Select the family with `make check RUN='^TestReferenceAttributeStatistics'`
+(add `REFERENCE=1` for the pinned oracle). The standalone new-behavior smoke is
+`make check RUN='^TestReferenceAttributeStatisticsFeatureSmoke$'`, in both modes.
+`TestReferenceAttributeStatisticsViewDefinition` independently checks exact
+pinned-18.6 default/pretty `pg_stats` definitions with quote-all identifiers
+both off and on, through direct and prepared execution. Select it in both modes
+with `make check RUN='^TestReferenceAttributeStatisticsViewDefinition$'`.
+The authority matrix includes database-owner admission on another owner's table,
+held MAINTAIN revocation/regrant, and parent-authorized index targets. Transaction
+witnesses observe private/peer EXPLAIN estimates and a genuinely blocked,
+selected-column commit merge. Catalog metadata is checked before iteration for
+direct/prepared ANYARRAY reads and empty sources. Native lifetime phases retain
+TEMP typed distributions and old ANYARRAY cursors across Reset/Restore, prove
+capture isolation while writer/reader callbacks are gated, and reject malformed
+kind/type/slot-count records and input I/O failure without replacing destination
+sentinels. These are assertions in the same family, not separate test modes.
+Authority fixtures explicitly grant schema USAGE before testing table MAINTAIN
+and revoke those grants during per-case cleanup, including failed cases. The
+external-cancellation witness owns a disposable waiter connection; subsequent
+visibility and merge assertions use the original uncanceled session.
+Failed attribute-statistics steps report their newly delivered notice records
+alongside the unchanged row/type assertions, so an unexpected false restore
+exposes its precise warning instead of inviting a guessed implementation change.
+The binding family fixes runtime-versus-resolution phases for named explicit
+VARIADIC arrays and bare ANY parameters, and checks wrong-typed `attnum` warnings
+with both missing-selector rejection and successful partial restoration.
+Authority cases include missing schemas, dropped and invalid numeric attributes,
+materialized/foreign/partitioned restore-readback-clear, and materialized-index
+parent diagnostics. Planner coverage exercises non-MCV equality after explicit
+zero distinctness. Native corruptions replace the original record (never append
+a duplicate), including scalar/unequatable-element histograms and wrong retained
+typmod/collation; every rejection preserves destination statistics and sentinel.

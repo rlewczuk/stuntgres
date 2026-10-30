@@ -83,7 +83,7 @@ func EstimateExplainNode(node Node, children []ExplainEstimate, sourceRows float
 		out.Rows = float64(len(n.Rows))
 		local = out.Rows
 	case *FilterNode:
-		out.Rows /= 2
+		out.Rows *= defaultFilterFraction(n.Predicate)
 		if literal, ok := n.Predicate.(LiteralExpr); ok {
 			truth, err := TruthOf(literal.Value)
 			if err == nil {

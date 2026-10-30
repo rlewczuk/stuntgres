@@ -414,6 +414,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   and identity remain input-only.
   `proallargtypes` and `proargmodes` retain all declaration slots in order through
   one typed-array materializer.
+  Released declaration presence is independent: `RoutineDisplay.OmitAllArgTypes`
+  preserves SQL NULL `proallargtypes` while retaining non-NULL `proargmodes`.
+  It defaults false and is set for attribute-statistics restore's released
+  declaration only. The shared projector still visits/validates every formal,
+  but does not allocate or materialize an omitted type array. Existing ANY
+  variadics retain their explicitly declared all-argument arrays.
   `pronargdefaults` reads SQL/PL `Formals` through `DefaultCount`, or the captured
   builtin/installed declaration's default count; metadata-only internal routines
   have zero defaults. It never evaluates defaults or retains a separate registry.
@@ -885,6 +891,25 @@ catalog writes or bypass a provider's independent backing-source checks.
   targets are sorted and deduplicated into genuine NAME[]; PUBLIC is `{public}`.
   USING and CHECK are independently nullable and use the stored default renderer;
   reading definitions never evaluates conditions or enables row filtering.
+- `pg_stats` (12053): public, detached 17-column statistics projection over the
+  same session-resolved canonical root used by the planner. Local/inherited
+  rows remain separate; missing kinds are typed NULL. ANYARRAY metadata wraps
+  genuine typed arrays rather than changing the schema per row. Each live
+  attribute requires SELECT, independently of MAINTAIN, and active row security
+  excludes the row. Reads include private restore/clear deltas but never perform
+  ANALYZE or authorize writes. Tests order rows explicitly.
+  Descriptor validation grants canonical catalog-result ANYARRAY authority only
+  to its five released name/attribute pairs (8, 10, 12, 15 and 17), under the
+  fixed pg_catalog view identity and current type generation. Other columns and
+  stored relations cannot inherit that allowance; pg_attribute and extended
+  statistics retain their existing independent bounded carrier rules.
+  Its source capture uses the same locked current catalog/role authorization
+  path as pg_statistic_ext_data; the visitor receives that captured principal
+  and transaction journal, not the definition-only default source adapter.
+  Canonical/default and pretty `pg_get_viewdef` forms use the shared explicit
+  name/identifier fragment inventory, including current routine identities and
+  quote-all formatting. Independent pinned-18.6 SQL fixtures exercise both forms
+  under both quote settings in `TestReferenceAttributeStatisticsViewDefinition`.
 - `pg_rules`: projects represented stored relation rules as NAME/NAME/NAME/TEXT,
   excluding only the exact `_RETURN` name. Definitions are public metadata:
   relation ACLs, schema USAGE, search path and another session's TEMP ownership

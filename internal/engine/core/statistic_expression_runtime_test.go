@@ -67,8 +67,9 @@ func TestStatisticsExpressionCollectionEqualityOnlyProjection(t *testing.T) {
 	row := captured.ArrayElement(0)
 	kind, err := row.CompositeField(6).Integer()
 	operator, opErr := row.CompositeField(11).OID()
-	values, usage, ok := row.CompositeField(26).StatisticArray()
-	if err != nil || opErr != nil || kind != 1 || operator != 352 || !ok || usage != fact.Expression(0).Usage || usage.Type.ID() != sqltype.Xid || values.Type().Element() != usage.Type || values.ArrayLen() != 2 {
+	values := row.CompositeField(26)
+	usage, ok := values.StatisticArrayUsage()
+	if err != nil || opErr != nil || kind != 1 || operator != 352 || !ok || usage != fact.Expression(0).Usage || usage.Type.ID() != sqltype.Xid || values.ArrayElement(0).Type() != usage.Type || values.ArrayLen() != 2 {
 		t.Fatal("MCV did not preserve genuine xid values and equality operator", kind, operator, usage, err, opErr)
 	}
 	seenValues := make(map[string]bool)

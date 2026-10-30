@@ -47,6 +47,9 @@ type RoutineDisplay struct {
 	Support        ids.OID
 	Leakproof      bool
 	TransformTypes *RoutineTransformTypes
+	// OmitAllArgTypes preserves a released SQL NULL proallargtypes independently
+	// of non-NULL argument modes. It does not alter formal/signature authority.
+	OmitAllArgTypes bool
 }
 
 func (d RoutineDisplay) Valid() bool {

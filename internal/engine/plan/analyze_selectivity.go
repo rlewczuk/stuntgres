@@ -47,7 +47,7 @@ func statisticForColumn(expression expr.Expr, inputs []ColumnStatisticInput) (*s
 	}
 	for _, input := range inputs {
 		c, s := input.Column, input.Statistics
-		if s != nil && s.Rows != 0 && column.Origin == c.Origin && column.Scope == c.Scope && column.Frame == c.Frame && column.Slot == c.Slot && column.QueryOccurrence == c.QueryOccurrence && column.Usage == c.Usage && s.Usage == column.Usage {
+		if s != nil && (s.Rows != 0 || s.Imported != nil) && column.Origin == c.Origin && column.Scope == c.Scope && column.Frame == c.Frame && column.Slot == c.Slot && column.QueryOccurrence == c.QueryOccurrence && column.Usage == c.Usage && s.Usage == column.Usage {
 			return s, input.SourceRows, true
 		}
 	}
@@ -162,6 +162,9 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 		case sqltype.CompareGreaterEqual:
 			operator = sqltype.CompareLessEqual
 		}
+	}
+	if s.Imported != nil {
+		return estimateImportedComparison(ctx, s, sourceRows, literal.Value, operator)
 	}
 	// Keep exact counts through MCV summation and complements. Subtracting
 	// rounded frequencies can invent residual mass in a fully covered column

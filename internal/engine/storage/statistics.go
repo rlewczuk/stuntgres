@@ -40,6 +40,7 @@ type ColumnStatistics struct {
 	MCV              []StatisticMCV
 	Histogram        []sqltype.Value
 	Hierarchy        *StatisticsHierarchy
+	Imported *ImportedStatistics
 }
 
 type RelationStatistics struct {
@@ -48,6 +49,9 @@ type RelationStatistics struct {
 }
 
 func (s *ColumnStatistics) NullFraction() float64 {
+	if s != nil && s.Imported != nil && s.Imported.NullFractionSet {
+		return float64(s.Imported.NullFraction)
+	}
 	if s == nil || s.Rows == 0 {
 		return 0
 	}
@@ -56,6 +60,9 @@ func (s *ColumnStatistics) NullFraction() float64 {
 
 // EncodedDistinct is PostgreSQL-style encoding, not the raw distinct count.
 func (s *ColumnStatistics) EncodedDistinct() (float64, bool) {
+	if s != nil && s.Imported != nil && s.Imported.DistinctSet {
+		return float64(s.Imported.Distinct), true
+	}
 	if s == nil || !s.DistinctKnown {
 		return 0, false
 	}

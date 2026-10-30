@@ -39,6 +39,8 @@ import (
 // parallel-unsafe metadata, exact OUT formals, defaults and overload symbols.
 // XML aggregate OID2901 retains its non-strict IMMUTABLE/parallel-safe XML
 // signature and aggregate_dummy symbol; xmlconcat2 remains lookup-only.
+// Attribute statistics restore/clear OIDs6363/6398 add non-strict VOLATILE/
+// parallel-unsafe signatures, including restore's heterogeneous ANY variadic.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -144,9 +146,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// declarations, two publication inquiries, four match routines,
 	// two genuine ispell helpers, four executable XML predicate identities,
 	// the physical compression inquiry, nine replication-slot declarations,
-	// XML aggregate OID2901, and three relation-file location declarations.
-	if len(facts) != 2116 {
-		t.Fatalf("released represented overloads: got %d, want 2116", len(facts))
+	// XML aggregate OID2901, three relation-file location declarations, and
+	// the two attribute statistics administration declarations.
+	if len(facts) != 2118 {
+		t.Fatalf("released represented overloads: got %d, want 2118", len(facts))
 	}
 	return facts
 }

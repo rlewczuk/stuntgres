@@ -92,6 +92,7 @@ var producers = [...]Registration{
 	{ProgressBasebackupOID, captureBasebackupProgress},
 	{PoliciesOID, capturePGPolicies},
 	{RulesOID, capturePGRules},
+	{StatsOID, capturePGStats},
 	{12077, capturePGCursors},
 	{12081, captureAvailableExtensions},
 	{12085, captureAvailableExtensions},

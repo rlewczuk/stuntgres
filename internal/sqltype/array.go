@@ -265,7 +265,7 @@ type arrayReader struct {
 	ctx         context.Context
 	input       string
 	at          int
-	descriptor  *Descriptor
+	elementType *Descriptor
 	typmod      int32
 	environment InputEnvironment
 	elements    []Value
@@ -317,7 +317,7 @@ func (p *arrayReader) token() (string, bool, error) {
 	start, end := p.at, p.at
 	var out strings.Builder
 	protected, escaped := quoted, false
-	delimiter := p.descriptor.element.Delimiter()
+	delimiter := p.elementType.Delimiter()
 	for p.at < len(p.input) {
 		if err := p.ctx.Err(); err != nil {
 			return "", false, err
@@ -465,7 +465,7 @@ func (p *arrayReader) contents(dimensions []ArrayDimension) ([]ArrayDimension, e
 			}
 			counts[depth-1]++
 			expectDelimiter = true
-		case c == p.descriptor.element.Delimiter():
+		case c == p.elementType.Delimiter():
 			if !expectDelimiter {
 				return nil, p.malformed(fmt.Sprintf("Unexpected \"%c\" character.", c))
 			}
@@ -479,15 +479,15 @@ func (p *arrayReader) contents(dimensions []ArrayDimension) ([]ArrayDimension, e
 			if expectDelimiter {
 				return nil, p.malformed("Unexpected array element.")
 			}
-			element := Null(p.descriptor.element)
+			element := Null(p.elementType)
 			if !isNull {
-				element, err = p.descriptor.element.InputWithEnvironment(p.ctx, text, p.typmod, p.environment)
+				element, err = p.elementType.InputWithEnvironment(p.ctx, text, p.typmod, p.environment)
 				if err != nil {
 					return nil, err
 				}
 			}
 			if isNull {
-				if err := p.descriptor.element.CheckDomainInput(p.ctx, element, p.environment); err != nil {
+				if err := p.elementType.CheckDomainInput(p.ctx, element, p.environment); err != nil {
 					return nil, err
 				}
 			}
@@ -506,7 +506,12 @@ func (p *arrayReader) contents(dimensions []ArrayDimension) ([]ArrayDimension, e
 	}
 }
 func (d *Descriptor) arrayInput(ctx context.Context, text string, typmod int32, env InputEnvironment) (Value, error) {
-	p := arrayReader{ctx: ctx, input: text, descriptor: d, typmod: typmod, environment: env}
+	v, err := readArrayPayload(ctx, d.element, text, typmod, env)
+	if err != nil { return Value{}, err }
+	return ownedArray(d, v.array.dimensions, v.array.elements)
+}
+func readArrayPayload(ctx context.Context, element *Descriptor, text string, typmod int32, env InputEnvironment) (Value, error) {
+	p := arrayReader{ctx: ctx, input: text, elementType: element, typmod: typmod, environment: env}
 	p.whitespace()
 	var dimensions []ArrayDimension
 	for p.at < len(text) && text[p.at] == '[' {
@@ -565,7 +570,7 @@ func (d *Descriptor) arrayInput(ctx context.Context, text string, typmod int32, 
 	if p.at != len(text) {
 		return Value{}, p.malformed("Junk after closing right brace.")
 	}
-	return ownedArray(d, dimensions, p.elements)
+	return Value{array: &arrayPayload{dimensions: dimensions, elements: p.elements}}, nil
 }
 func writeArrayElement(out *strings.Builder, text string, delimiter byte) {
 	quoted := text == "" || strings.EqualFold(text, "NULL")
@@ -588,6 +593,9 @@ func writeArrayElement(out *strings.Builder, text string, delimiter byte) {
 	}
 }
 func (d *Descriptor) arrayOutput(ctx context.Context, v Value, env OutputEnvironment) (string, error) {
+	return arrayPayloadOutput(ctx, v, d.element, env)
+}
+func arrayPayloadOutput(ctx context.Context, v Value, elementType *Descriptor, env OutputEnvironment) (string, error) {
 	if v.array == nil {
 		return "", fmt.Errorf("missing array payload")
 	}
@@ -619,7 +627,7 @@ func (d *Descriptor) arrayOutput(ctx context.Context, v Value, env OutputEnviron
 				return err
 			}
 			if i != 0 {
-				out.WriteByte(d.element.Delimiter())
+				out.WriteByte(elementType.Delimiter())
 			}
 			if rank+1 < len(v.array.dimensions) {
 				if err := dimension(rank + 1); err != nil {
@@ -637,7 +645,7 @@ func (d *Descriptor) arrayOutput(ctx context.Context, v Value, env OutputEnviron
 			if err != nil {
 				return err
 			}
-			writeArrayElement(&out, text, d.element.Delimiter())
+			writeArrayElement(&out, text, elementType.Delimiter())
 		}
 		out.WriteByte('}')
 		return nil

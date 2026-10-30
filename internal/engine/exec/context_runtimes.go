@@ -1004,3 +1004,9 @@ func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint
 	if host == nil { return fmt.Errorf("stuntgres: missing replication slot host") }
 	return host.ReplicationSlot(kind, arity, values)
 }
+
+func (c *Context) AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error) {
+	host := c.LiveHost()
+	if host == nil { return false, fmt.Errorf("stuntgres: missing attribute statistics host") }
+	return host.AttributeStatistics(clear, variadic, values)
+}

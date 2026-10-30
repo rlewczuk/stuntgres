@@ -95,6 +95,40 @@ and never the engine.
   and resets only the since-analyze modification counter, retaining cumulative
   DML/VACUUM and since-vacuum counters. Physical `Relation.Maintenance` does not
   duplicate typed statistics or ANALYZE count/time/inherited publications.
+  Imported column facts share that same canonical root. `ImportedStatistics`
+  has explicit scalar presence and five immutable typed kind slots, so zero
+  distinct estimates and arbitrary FLOAT4 probability mass never require fake
+  sample counts. Measured integer backing remains unchanged; wholly measured
+  planner inputs retain their exact-count path. Selected restore/clear deltas
+  use the ordinary journal, including statement rollback and savepoints, without
+  changing ANALYZE scan timestamps or maintenance counters.
+  Attribute snapshots retain measured backing, scalar bits and typed kind
+  construction facts through `StatisticsSnapshotCodec`. Destination staging
+  resolves column usages and remints typed values before atomic installation;
+  no rescan refreshes stale imported distributions. Malformed native records
+  fail without installing a prefix. Units: `make check RUN='^TestAttributeStatistics'`.
+  Native admission checks kind eligibility independently of value presence:
+  both element kinds require an array/tsvector element with equality support,
+  including numbers-only element-count histograms. Value slots retain the full
+  expected usage (type generation, typmod and collation), not just a type OID.
+  SQL restore and native admission share the same element eligibility helper.
+  Histogram/correlation admission checks less-than operator metadata in the
+  captured catalog, not the narrower native ORDER BY/index execution gate.
+  Exact default-btree classes take precedence; generic array/range/multirange/
+  record operators resolve their declared polymorphic signatures. Arrays and
+  records also require comparable element/member usages, so a generic operator
+  declaration alone does not admit JSON arrays or records with JSON fields.
+  Imported estimates on nonempty inputs retain PostgreSQL's one-row
+  minimum, while wholly measured exact-count zero estimates remain unchanged.
+  With no selected statistics row, builtin typed column/constant equality uses
+  PostgreSQL's DEFAULT_EQ_SEL (1/200) in the canonical detached filter estimator.
+  Measured/imported facts still override that fallback; clear never leaves a
+  hidden distribution or a fixture-specific planner exception behind.
+  Retained TEMP column facts remint catalog-result ANYARRAY carriers even when
+  the stored element usage is unchanged. Changed element generations and
+  catalog-bearing values use the existing retained typed codec; unchanged
+  immutable backing is reused. TEMP state does not escape into persistent dump
+  sections, and already detached cursors retain their original value generation.
   Extended facts share this same root, keyed by generation-qualified statistics
   definition and inherited flavor. `ExtendedCollector` reuses the ordinary scalar
   collector for typed projected expression values and shares those values with

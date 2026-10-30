@@ -38,17 +38,22 @@ func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, mod
 			count += outputs.Len()
 		}
 	}
-	typeValues := make([]sqltype.Value, count)
+	var typeValues []sqltype.Value
+	if !d.Display.OmitAllArgTypes {
+		typeValues = make([]sqltype.Value, count)
+	}
 	modeValues := make([]sqltype.Value, count)
 	if err := VisitProcedureFormals(ctx, d, inputTypes, func(f ProcedureFormal) error {
 		if f.Index >= count {
 			return fmt.Errorf("stuntgres: invalid formal array width")
 		}
-		value, err := sqltype.OIDValue(types.Element(), uint32(f.Type))
-		if err != nil {
-			return err
+		if !d.Display.OmitAllArgTypes {
+			value, err := sqltype.OIDValue(types.Element(), uint32(f.Type))
+			if err != nil {
+				return err
+			}
+			typeValues[f.Index] = value
 		}
-		typeValues[f.Index] = value
 		modeValues[f.Index] = sqltype.String(modes.Element(), f.Mode)
 		return nil
 	}); err != nil {
@@ -56,9 +61,11 @@ func procedureFormalArrays(ctx context.Context, d *catalog.Procedure, types, mod
 	}
 	dimensions := []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}}
 	var err error
-	allTypes, err = sqltype.OwnedArrayValue(types, dimensions, typeValues)
-	if err != nil {
-		return sqltype.Value{}, sqltype.Value{}, err
+	if !d.Display.OmitAllArgTypes {
+		allTypes, err = sqltype.OwnedArrayValue(types, dimensions, typeValues)
+		if err != nil {
+			return sqltype.Value{}, sqltype.Value{}, err
+		}
 	}
 	allModes, err = sqltype.OwnedArrayValue(modes, dimensions, modeValues)
 	return allTypes, allModes, err
