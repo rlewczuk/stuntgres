@@ -1875,6 +1875,10 @@ Producers, the OID registry and descriptor specs live in
   Information-schema domain and column inquiry sources use the statement's
   paired catalog and authorization roots, including `column_domain_usage`;
   source opening preserves that pair rather than resampling publication.
+  Foreign metadata sources, including `foreign_tables`, carry that same pair
+  with the current database name and temporary-owner authority. Shared runtime
+  validation checks the exact source/ref and current principal before producing
+  rows, even for an empty catalog.
   Shared-memory view capture additionally checks the current EXECUTE ACL of
   its metadata-only backing routine, after ordinary view SELECT admission and
   before the pure producer. Neither grant is retained in prepared artifacts.

@@ -198,6 +198,7 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoForeignDataWrappersOID:         "foreign_data_wrappers",
 	pgcatalog.InfoForeignServersOID:              "foreign_servers",
 	pgcatalog.InfoForeignTableOptionsOID:         "foreign_table_options",
+	pgcatalog.InfoForeignTablesOID:               "foreign_tables",
 	pgcatalog.DataTypePrivilegesOID:              "data_type_privileges",
 	pgcatalog.InfoRoleColumnGrantsOID:            "role_column_grants",
 	pgcatalog.InfoColumnsOID:                     "columns",

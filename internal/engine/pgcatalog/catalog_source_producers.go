@@ -149,6 +149,7 @@ var producers = [...]Registration{
 	{InfoForeignDataWrappersOID, captureInfoForeignDataWrappers},
 	{InfoForeignServersOID, captureInfoForeignServers},
 	{InfoForeignTableOptionsOID, captureInfoForeignTableOptions},
+	{InfoForeignTablesOID, captureInfoForeignTables},
 	{PreparedStatementsOID, capturePGPreparedStatements},
 }
 

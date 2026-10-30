@@ -110,8 +110,9 @@ The foreign owner completes its existing kind/server payload before validation.
     conflict, server USAGE, declaration checks, `table.StageCreateTable`, the
     foreign definition with table options and an empty column map, one table
     validator job and ordered raw configured-column schedules) and DROP FOREIGN
-    TABLE (IF EXISTS notices, kind and owner checks, removal); IMPORT stages
-    each table through it too.
+    TABLE (IF EXISTS notices, kind and owner checks, removal); wrong-kind ordinary
+    table targets include the corrective DROP TABLE hint. IMPORT stages each
+    table through it too.
   - ALTER FOREIGN TABLE's decisions are `AlterTarget` (resolution, IF EXISTS
     notice, kind, admission reference and owner), `AlterBases` (server and
     wrapper as observed dependencies), `AlterCandidate` (the working copy),

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -100,7 +101,11 @@ func stageTableDrop(h Host, auth ddl.Authority, s *parser.ForeignDDL) ([]Validat
 		}
 		d := view.Catalog.MustRelation(ref.Address)
 		if d.RelationKind != catalog.ForeignRelation {
-			return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
+			diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name())).(*sqlstate.Error)
+			if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
+				diagnostic.Hint = "Use DROP TABLE to remove a table."
+			}
+			return nil, nil, diagnostic
 		}
 		if err := ddl.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, err

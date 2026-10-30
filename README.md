@@ -51,6 +51,13 @@ submitted SQL, including comments, batches and prepared placeholders.
 the actual initial settings load as timestamp-with-time-zone values. Session
 identity and these cluster event clocks survive native Reset and Restore.
 
+Foreign-table inquiry through `information_schema.foreign_tables` returns each
+accessible table's database, schema, name and actual server association through
+ordinary direct and prepared queries. Table or column privileges govern
+visibility independently of server USAGE. Native fixture controls preserve the
+logical foreign definitions and associations; metadata reads do not contact
+remote servers or invoke foreign handlers.
+
 Offline `CREATE SUBSCRIPTION ... WITH (connect=false)` registers its main
 replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
 Registration follows the subscription's transactional lifetime; it does not

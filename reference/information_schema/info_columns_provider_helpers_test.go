@@ -94,6 +94,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.column_options": fixture.COColumns,
 		"information_schema.foreign_data_wrapper_options":   fixture.FDWOColumns,
 		"information_schema.foreign_table_options":          ftoColumns,
+		"information_schema.foreign_tables":                 []string{"foreign_table_catalog", "foreign_table_schema", "foreign_table_name", "foreign_server_catalog", "foreign_server_name"},
 		"information_schema.foreign_data_wrappers":          fdwvColumns,
 		"information_schema.foreign_servers":                fsvColumns,
 		"information_schema.transforms":                     trColumns,
