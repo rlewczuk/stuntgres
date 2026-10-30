@@ -45,6 +45,8 @@ import (
 // non-strict VOLATILE/parallel-unsafe signatures and heterogeneous ANY variadics.
 // The ordinary XML construction routines 2895/3813 retain strict immutable XML
 // results, parallel-safe defaults and their released internal symbols.
+// The three server-signal declarations retain strict VOLATILE/parallel-safe
+// scalar BOOL metadata, unnamed inputs and their released internal symbols.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -154,9 +156,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// four relation/attribute statistics administration declarations, and the
 	// ordinary XML construction identities xmlcomment/xmltext, and the five
 	// strict/volatile/parallel-safe recovery-control declarations, plus the
-	// three strict/volatile/parallel-unsafe logical-message/sync declarations.
-	if len(facts) != 2130 {
-		t.Fatalf("released represented overloads: got %d, want 2130", len(facts))
+	// three strict/volatile/parallel-unsafe logical-message/sync declarations
+	// and three strict/volatile/parallel-safe server-signal declarations.
+	if len(facts) != 2133 {
+		t.Fatalf("released represented overloads: got %d, want 2133", len(facts))
 	}
 	return facts
 }

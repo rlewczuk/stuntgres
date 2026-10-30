@@ -67,6 +67,16 @@ submitted SQL, including comments, batches and prepared placeholders.
 the actual initial settings load as timestamp-with-time-zone values. Session
 identity and these cluster event clocks survive native Reset and Restore.
 
+Server signals use typed BOOL signatures: `pg_reload_conf()`,
+`pg_rotate_logfile()` and `pg_log_backend_memory_contexts(integer)`. Their ordinary
+EXECUTE ACLs initially exclude PUBLIC and remain mutable, including on held
+prepared calls. Authorized unknown cluster session IDs return false with
+WARNING `01000`; strict NULL returns BOOL NULL. Authorized physical reload,
+rotation and live-backend memory logging fail explicitly with `0A000`: there is
+no postmaster/configuration-file or logging-collector lifecycle. No logs, files,
+successful signals or configuration-load timestamp changes are fabricated.
+Routine ACL edits, not signal requests, survive native Dump/Restore.
+
 Foreign-table inquiry through `information_schema.foreign_tables` returns each
 accessible table's database, schema, name and actual server association through
 ordinary direct and prepared queries. Table or column privileges govern

@@ -137,6 +137,14 @@ live `SyncReplicationSlots` capability to check the current actor's own attribut
 then rejects physical synchronization. No authority or physical state is retained;
 capture, reconstruction and stored rendering use the ordinary recipe protocols.
 
+`ServerSignal` retains a volatile scalar BOOL recipe and at most one typed INT4
+PID. Strict bare-NULL folding preserves the existing constant/custom versus
+retained/generic parameter admission distinction. Live EXECUTE is ordinary
+descriptor authority; no privilege or PID bit is cached. Runtime borrows the
+executing host to distinguish an unknown cluster session (false plus warning)
+from an authorized physical mechanism (`0A000`). Calls never retain a session
+pointer, signal request, file or fabricated memory-context output.
+
 `WALSummary` retains immutable typed RECORD recipes, written operands and formal
 slots for two set sources and one scalar state inquiry. All written operands
 evaluate before strict NULL yields an exhausted typed contents source; timeline

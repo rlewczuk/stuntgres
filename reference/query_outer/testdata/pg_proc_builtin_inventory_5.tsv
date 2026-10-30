@@ -46,3 +46,6 @@
 3577	pg_logical_emit_message	11	12	1	0	0	0	f	false	false	true	false	v	u	4	1	3220	16 25 25 16	\N	\N	{transactional,prefix,message,flush}	true	\N	pg_logical_emit_message_text	\N	false	\N
 3578	pg_logical_emit_message	11	12	1	0	0	0	f	false	false	true	false	v	u	4	1	3220	16 25 17 16	\N	\N	{transactional,prefix,message,flush}	true	\N	pg_logical_emit_message_bytea	\N	false	\N
 6344	pg_sync_replication_slots	11	12	1	0	0	0	f	false	false	true	false	v	u	0	0	2278		\N	\N	\N	false	\N	pg_sync_replication_slots	\N	false	\N
+2621	pg_reload_conf	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_reload_conf	\N	false	\N
+2622	pg_rotate_logfile	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_rotate_logfile	\N	false	\N
+4543	pg_log_backend_memory_contexts	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	16	23	\N	\N	\N	false	\N	pg_log_backend_memory_contexts	\N	false	\N

@@ -1331,6 +1331,56 @@ Native Dump/Restore preserves stored view definitions and procedure ACL edits
 through the existing logical catalog; stateless builtins need no separate
 serialization, and no physical control-file state is dumped.
 
+## External configuration and log signals
+
+`pg_reload_conf()`, `pg_rotate_logfile()` and
+`pg_log_backend_memory_contexts(integer)` are strict volatile scalar BOOL
+functions, with released fixed identities and ordinary typed direct/prepared,
+scalar FROM and nested expression paths. They initially have owner-only EXECUTE;
+GRANT/REVOKE, PUBLIC and inherited membership use live routine ACL admission,
+including held prepared statements. Owning a target session or membership in
+`pg_signal_backend` does not itself grant EXECUTE.
+
+Name/signature/coercion errors precede live EXECUTE checks. Constant NULL may
+eliminate a strict call, even when execution is denied; a retained runtime-column
+NULL first needs EXECUTE. Prepared imported NULL is likewise eliminable under
+`plan_cache_mode=force_custom_plan`; `force_generic_plan` preserves invocation
+demand and therefore checks EXECUTE before returning NULL. Preparation does not
+request a physical operation or look up a PID.
+
+For an authorized memory request, a nonpositive, absent, closed or terminal
+session ID returns false and WARNING `01000`,
+`PID <pid> is not a PostgreSQL server process`. Live sessions in every database
+attached to the same cluster are recognized, irrespective of target role;
+independent Drivers/clusters are invisible. IDs are session identities, not OS
+process IDs. `client_min_messages=error` suppresses warning delivery, not false.
+NULL emits no warning and performs no lookup. Unauthorized requests fail
+`42501` without revealing whether the PID exists.
+
+Authorized physical requests fail ERROR `0A000` with these native diagnostics:
+
+- `pg_reload_conf configuration-file reload is unsupported in embedded mode`
+- `pg_rotate_logfile log-file rotation is unsupported in embedded mode`
+- `pg_log_backend_memory_contexts backend memory-context logging is unsupported in embedded mode`
+
+The engine has no postmaster/configuration-file reload or logging-collector/file
+lifecycle, or PostgreSQL memory-context logging mechanism. Calls neither signal
+nor cancel sessions, reload settings, change `pg_conf_load_time()`, rotate files,
+nor fabricate memory-context output. Caller-context cancellation remains separate.
+Stock PostgreSQL instead sends real asynchronous requests: reload returns true
+when its signal is sent, rotation with an inactive collector returns false and
+warns, and live backend memory requests normally return true. Memory contexts
+are never client output, even in stock PostgreSQL.
+
+Native Dump/Restore preserves mutable routine ACL state, including raw NULL
+(ordinary default PUBLIC EXECUTE) and explicit empty ACLs; historical
+`pg_init_privs` remains the released owner-only seed. Requests are stateless and
+have no dump representation. Errors retain ordinary transaction-abort/savepoint
+semantics, without changing committed logical data.
+Raw catalog ACL repair statements are accepted only inside native Restore, not
+ordinary SQL catalog UPDATE; use normal GRANT/REVOKE for live ACL changes.
+
+
 
 
 ## Foreign data wrappers

@@ -103,6 +103,7 @@ var definitions = [...]Definition{
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: recoveryControlNames[:], ExactSpelling: true, Bind: bindRecoveryControl, NamedCall: namedRecoveryControl},
 	{Names: replicationMessagesNames[:], ExactSpelling: true, Bind: bindReplicationMessages, NamedCall: namedReplicationMessages},
+	{Names: serverSignalNames[:], ExactSpelling: true, Bind: bindServerSignal},
 	{Names: walSummaryNames[:], ExactSpelling: true, Bind: bindWALSummary, NamedCall: namedWALSummary},
 	{Names: controlDataNames[:], ExactSpelling: true, Bind: bindControlData},
 	{Names: runtimeInfoNames[:], ExactSpelling: true, Bind: bindRuntimeInfo},

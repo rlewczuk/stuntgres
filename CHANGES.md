@@ -1,5 +1,11 @@
 # Changes
 
+- Add typed `pg_reload_conf()`, `pg_rotate_logfile()` and
+  `pg_log_backend_memory_contexts(integer)` with released metadata, live mutable
+  EXECUTE ACLs and ACL-only native persistence. Unknown cluster session IDs return
+  false with the PostgreSQL warning; authorized physical requests reject with
+  explicit `0A000`, never simulated reloads, rotations or memory-context logs.
+
 - Add the PostgreSQL 18 relation-location signatures through typed binding,
   strict NULLs, catalog authority and ordinary EXECUTE/schema admission.
   Storage-less and missing relations return NULL; stored forward inquiries
