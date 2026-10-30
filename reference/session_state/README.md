@@ -193,6 +193,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   These are real logical trigger/FK effects through the existing provider, not
   replication transport, WAL application or replication workers; those physical
   mechanisms remain outside this setting's embedded SQL contract.
+- Default table access method: `RUN='^TestReferenceDefaultTableAccessMethod'`
+  owns the focused Values/Lifecycle/Validation/Controls family. Its local
+  `defaultAMCases` installs a genuine heap-handler method with a distinct catalog
+  identity; shared witnesses assert exact relation identity, real rows and full
+  setting metadata. Direct/prepared and held execution cover creation defaults,
+  USERSET authority, transaction/savepoint restoration, physical-session reuse
+  and recorded native Reset/Dump/Restore destinations. The broad client inventory
+  remains the registry-wide baseline.
 - Resource settings: run each bounded `TestReferenceResourceSettingsInventory`,
   `TestReferenceResourceSettingsContext`, `TestReferenceResourceSettingsValidation`,
   `TestReferenceResourceSettingsAuthority` and `TestReferenceResourceSettingsLifecycle`

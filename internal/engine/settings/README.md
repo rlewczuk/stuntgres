@@ -389,9 +389,14 @@ The following are **setting-only simulations**, not operational switches:
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
 `session_preload_libraries`, `xmlbinary` and `xmloption`.
 `default_table_access_method` instead selects a genuine installed table-method
-identity for ordinary and query-derived creation and stored-relation ALTER
-DEFAULT. Explicit partition defaults override it; zero defaults use it only for
-new physical children, not virtual partition roots. Tablespace names use actual
+identity at execution for ordinary and query-derived creation and stored-relation
+ALTER DEFAULT. Preparing a command does not capture the default; changing it does
+not relabel or rewrite existing relations. Installed heap-handler methods execute
+real heap operations. Arbitrary PostgreSQL C ABI/TableAmRoutine providers and
+extension-specific page/WAL/storage implementations are external mechanisms, not
+an additional simulated storage algorithm. Explicit partition defaults override
+the setting; zero defaults use it only for new physical children, not virtual
+partition roots. Tablespace names use actual
 catalog identities and temporary tablespaces check CREATE privileges.
 `default_tablespace` is instead consumed from the operation's effective setting
 at relation creation, including query-derived tables, new views/composite types,
