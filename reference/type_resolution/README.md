@@ -238,6 +238,18 @@ Native dictionary/seed lifecycle consumes actual emitted SQL on PostgreSQL,
 preserving absent versus explicit-empty options and recursive dictionary values.
 Private seed authority, publication fences and accepted-fold backing use the
 existing `RUN='^TestSnowball'` family.
+Hungarian release morphology covers all nine ordered stages, original-R1 and
+longest-suffix rejection, C-case/accent and original-byte boundaries, the full
+released stoplist, resource isolation, typed direct/held inputs, stock identities
+and all nineteen configuration mappings. Options, ownership, retained constants,
+output-gated cancellation and dictionary/configuration carrier replay share
+`RUN='^TestReferenceHungarianSnowball'`. Expected corpus data is independent of
+production tables; native-control replay consumes the actual emitted SQL and
+requires both backends rather than PG-only discovery.
+Seed-cycle replay repairs canonical names and the original dictionary/configuration
+owners captured by identity, so emitted native ownership does not leak into the
+shared PostgreSQL stock catalog.
+
 Hindi's 132 literal release suffix witnesses, conditional fallback/protected-rune
 boundaries, language-only stock defaults, explicit English127 stopwords, typed
 prepared ownership, complete diagnostics, admitted cancellation and actual native

@@ -343,7 +343,7 @@ database identity while retaining other databases' committed subscriptions.
   of current membership. Templates have no OWNER directive. Privileged creation
   restores optional INIT as zero and re-establishes genuine callback capability
   from destination descriptors; no initialized native pointers are serialized.
-- **Dictionaries** (`dictionary_replay.go`): initialized simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek dictionaries
+- **Dictionaries** (`dictionary_replay.go`): initialized simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian dictionaries
   use their captured installation namespaces after namespace replay and share the
   builtin dictionary collision planner. Installed dictionaries are reconstructed
   with their immutable installation cohort; neither gets standalone duplicate
@@ -352,12 +352,12 @@ database identity while retaining other databases' committed subscriptions.
   equivalent default resource behavior; genuine unaccent dictionaries require
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
-  StopWords cannot reappear on Restore; English, Danish, Dutch and German own canonical stoplists,
-  while Arabic/Armenian/Basque/Estonian/Greek have language-only defaults.
+  StopWords cannot reappear on Restore; English, Danish, Dutch, German and Hungarian own canonical stoplists,
+  while Arabic/Armenian/Basque/Estonian/Greek/Hindi have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
   Current owners/ACLs and each independent e-link follow identity reconstruction;
   intrinsic seeds never acquire installed-origin declaration slots.
@@ -419,7 +419,7 @@ database identity while retaining other databases' committed subscriptions.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
   dictionary and stored alias/default/view dependencies use the ordinary graph.
-  Owner transfers use privileged creation; allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek and fixed simple
+  Owner transfers use privileged creation; allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian and fixed simple
   seed identities share the ordinary collision planner before mapping replay.
   Seed edits replay current mappings after canonical initialization. Temporary
   retention and replacement remap configurations and REGCONFIG datums through

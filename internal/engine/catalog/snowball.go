@@ -45,6 +45,7 @@ const (
 	germanSnowballSeed
 	greekSnowballSeed
 	hindiSnowballSeed
+	hungarianSnowballSeed
 )
 
 func (s snowballSeed) language() string {
@@ -69,6 +70,8 @@ func (s snowballSeed) language() string {
 		return "greek"
 	case hindiSnowballSeed:
 		return "hindi"
+	case hungarianSnowballSeed:
+		return "hungarian"
 	}
 	return ""
 }
@@ -97,7 +100,7 @@ func (d *TSConfiguration) SeedName() string {
 func (d *TSDictionary) SeedOptions() []DictionaryOption {
 	if name := d.seed.language(); name != "" {
 		options := []DictionaryOption{{Name: "language", Value: name, Supplied: true}}
-		if d.seed == englishSnowballSeed || d.seed == danishSnowballSeed || d.seed == dutchSnowballSeed || d.seed == germanSnowballSeed {
+		if d.seed == englishSnowballSeed || d.seed == danishSnowballSeed || d.seed == dutchSnowballSeed || d.seed == germanSnowballSeed || d.seed == hungarianSnowballSeed {
 			options = append(options, DictionaryOption{Name: "stopwords", Value: name, Supplied: true})
 		}
 		return options
@@ -147,7 +150,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -184,7 +187,7 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 	for _, entry := range []struct {
 		seed    snowballSeed
 		runtime DictionaryRuntime
-	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}} {
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}, {hungarianSnowballSeed, hungarianRuntime}} {
 		address, err := allocate(ids.TSDictionaryClassID)
 		if err != nil {
 			return err
