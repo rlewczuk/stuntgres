@@ -56,6 +56,11 @@ match.
 - For tests that import one snapshot row, here and in `schemacmds`:
   `ImportMaterializedSnapshotRow`.
 
+Materialized snapshot row execution activates its supplied current invocation
+after description/capture unlocks; import capture itself remains dormant.
+Concurrent refresh key reconciliation uses only the eligible direct-column keys,
+not arbitrary predicate/expression recipes, and preserves ordinary cancellation.
+
 `ViewHost{tablecmds.TableHost}` (`view_host.go`, `policy_expression.go`)
 implements `view.Host` and `view.StageHost`; only these executors build it.
 The decisions made before a stage exists get a host with no stage.

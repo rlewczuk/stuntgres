@@ -86,7 +86,7 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	if err != nil || !before.Proceed {
 		return false, err
 	}
-	if err := ClaimUniqueRow(h, physical.Leaf.Ref, old); err != nil {
+	if err := ClaimUniqueRow(evaluation.Context, h, physical.Leaf.Ref, old); err != nil {
 		return false, err
 	}
 	deletion := physical.Deletion()
@@ -127,12 +127,12 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 		return false, err
 	}
 	candidate := index.WriteCandidate{Values: values}
-	if err := CheckUniqueRow(h, ref, &candidate, nil, index.WriteBatch{}); err != nil {
+	if err := CheckUniqueRow(evaluation.Context, h, ref, &candidate, nil, index.WriteBatch{}); err != nil {
 		return false, err
 	}
 	var batch index.WriteBatch
 	batch.Append(candidate)
-	if err := ApplyValidated(h, ref, batch); err != nil {
+	if err := ApplyValidated(evaluation.Context, h, ref, batch); err != nil {
 		return false, err
 	}
 	return true, nil

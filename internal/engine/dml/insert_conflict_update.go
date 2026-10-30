@@ -30,12 +30,12 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 		if err := evaluation.Context.Err(); err != nil {
 			return err
 		}
-		hit, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		hit, err := ProbeUniqueRow(evaluation.Context, h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if hit.Index == nil {
-			other, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
+			other, err := ProbeUniqueRow(evaluation.Context, h, ref, candidate, nil, index.WriteBatch{}, nil, index.ProbeRuntime)
 			if err != nil {
 				return err
 			}
@@ -68,7 +68,7 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 			} else {
 				var batch index.WriteBatch
 				batch.Append(*candidate)
-				if err := ApplyValidated(h, ref, batch); err != nil {
+				if err := ApplyValidated(evaluation.Context, h, ref, batch); err != nil {
 					return err
 				}
 			}
@@ -100,7 +100,7 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 			continue
 		}
 		// Reacquire row -> key, and demand the same physical identity under both.
-		checked, err := ProbeUniqueRow(h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
+		checked, err := ProbeUniqueRow(evaluation.Context, h, ref, candidate, nil, index.WriteBatch{}, c, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
@@ -174,7 +174,7 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
-		if err := ClaimUniqueRow(h, ref, old); err != nil {
+		if err := ClaimUniqueRow(evaluation.Context, h, ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -186,7 +186,7 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 			return err
 		}
 		replacement := index.WriteCandidate{Values: row}
-		if err := CheckUniqueRow(h, ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
+		if err := CheckUniqueRow(evaluation.Context, h, ref, &replacement, []storage.RowVersion{old}, index.WriteBatch{}); err != nil {
 			return err
 		}
 		b.ViewWrite = view.ViewWriteSlotOf(command.ViewWrite)
@@ -196,7 +196,7 @@ func admitInsertConflictUpdate(h Host, ref ids.ObjectRef, candidate *index.Write
 		var batch index.WriteBatch
 		batch.ActionMode = actionMode
 		batch.Append(replacement)
-		if err := ReplaceRows(h, ref, []storage.RowVersion{old}, batch, ReplaceConflict); err != nil {
+		if err := ReplaceRows(evaluation.Context, h, ref, []storage.RowVersion{old}, batch, ReplaceConflict); err != nil {
 			return err
 		}
 		c.MarkAffected(old.Row, len(h.PrivateRows(ref.Address).Staged)-1)

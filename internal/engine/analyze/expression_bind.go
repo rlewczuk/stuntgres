@@ -12,9 +12,14 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
+	"stuntgres/internal/workadmission"
 )
 
 func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult expr.Expr, bindError error) {
+	// Binding can run under publication locks, including nested execution
+	// reentry. Preserve the host's request, never its detached wait permission.
+	b.Ctx = util.DeactivateExecutionPause(workadmission.Suspend(b.Ctx))
 	previousSource := b.foldSource
 	if raw != nil {
 		key := b.storedExpressionSyntaxKey(raw)

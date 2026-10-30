@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -23,6 +24,7 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	ctx = s.ActivateRuntime(ctx)
 	capture := captured.acquisition
 	walk := func(input string, emit func(fts.LexicalPosition)) error {
 		position := 0
@@ -114,6 +116,9 @@ func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input st
 	lastLongToken := -1
 	for head := 0; head < len(tokens); {
 		if err := workadmission.Admit(ctx, workadmission.WorkTSVectorConvert); err != nil {
+			return err
+		}
+		if err := util.ExecutionCheckpoint(ctx, "text_search.vector"); err != nil {
 			return err
 		}
 		token := tokens[head]

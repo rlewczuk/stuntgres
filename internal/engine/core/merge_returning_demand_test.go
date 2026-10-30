@@ -87,7 +87,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
+		if err = dml.StageMergeRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), rows, b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}

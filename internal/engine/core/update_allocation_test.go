@@ -249,7 +249,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)
 	if err == nil {
-		err = dml.ReplaceRows(scope.WriteHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
+		err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
 	}
 	if err != nil {
 		scope.Finish(err)

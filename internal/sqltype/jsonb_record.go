@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -15,7 +16,7 @@ import (
 // document. The caller owns the concrete result shape and coherent input scope.
 // A missing JSON document returns the original base, including whole SQL NULL.
 func JSONBPopulateRecord(ctx context.Context, destination Usage, base, document Value, env InputEnvironment) (Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.populate_record"); err != nil {
 		return Value{}, err
 	}
 	if !destination.Valid() || !destination.Type.BaseType().IsComposite() || base.typ != destination.Type || document.typ == nil || document.typ.ID() != JSONB {
@@ -40,7 +41,7 @@ func JSONBPopulateRecord(ctx context.Context, destination Usage, base, document 
 // JSONBPopulateRecordset validates every row privately before making any row
 // available. Each row uses the same original base; plans never retain this slice.
 func JSONBPopulateRecordset(ctx context.Context, name string, destination Usage, base, document Value, env InputEnvironment) ([]Value, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.populate_record"); err != nil {
 		return nil, err
 	}
 	if !destination.Valid() || !destination.Type.BaseType().IsComposite() || base.typ != destination.Type || document.typ == nil || document.typ.ID() != JSONB {

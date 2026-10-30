@@ -26,6 +26,11 @@ through the schema statements ([`schemacmds`](../schemacmds/README.md)).
 (`StatementScope.CheckDomain`), domain input decoding, domain check
 programs, type generations and TEMP collation cleanup are core's.
 
+Existing-value domain validation and typed row/index preparation activate only
+in detached runtime phases. Typed scans and layout transport reuse the invocation
+context rather than activating per row. Domain replay capture remains dormant
+under its capture mutex; subsequent real row execution owns runtime admission.
+
 ## Entry points
 
 - Dispatch (`core.Statements.Execute`): `ExecuteAlterDomain`,

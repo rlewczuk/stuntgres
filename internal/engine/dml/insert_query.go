@@ -98,14 +98,14 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {
 			op.CopyInput.Decoding.Store(true)
-			ctx = op.Context()
+			ctx = h.CopyInputContext()
 		} else if err := ctx.Err(); err != nil {
 			return index.WriteBatch{}, err
 		}
 		present, err := cursor.Next(ctx, scratch)
 		if copyInput {
 			op.CopyInput.Decoding.Store(false)
-			ctx = op.Context()
+			ctx = h.CopyInputContext()
 			evaluation.Context = ctx
 		}
 		if err != nil {
@@ -169,12 +169,12 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				continue
 			}
 			if command.InsertReturning != nil {
-				if _, err := AdmitInsertProducer(h, b, &candidate, index.WriteBatch{}, &evaluation); err != nil {
+				if _, err := AdmitInsertProducer(ctx, h, b, &candidate, index.WriteBatch{}, &evaluation); err != nil {
 					return index.WriteBatch{}, err
 				}
 				continue
 			}
-			if err := checkInsertUniqueRow(h, b.Ref, &candidate, rows); err != nil {
+			if err := checkInsertUniqueRow(ctx, h, b.Ref, &candidate, rows); err != nil {
 				return index.WriteBatch{}, err
 			}
 			rows.Append(candidate)
@@ -245,7 +245,7 @@ func AssembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			if h == nil {
 				return index.WriteBatch{}, fmt.Errorf("stuntgres: uniqueness requires statement authority")
 			}
-			admitted, err := AdmitInsertProducer(h, b, &candidate, rows, &evaluation)
+			admitted, err := AdmitInsertProducer(ctx, h, b, &candidate, rows, &evaluation)
 			if err != nil {
 				return index.WriteBatch{}, err
 			}

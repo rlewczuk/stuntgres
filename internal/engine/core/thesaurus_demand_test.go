@@ -47,6 +47,9 @@ func thesaurusUnitConvert(t *testing.T, e *core.Engine, s *session.Session, ctx 
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
+	if err := scope.Gate(enginetest.Statement(t, "SELECT 1")); err != nil {
+		t.Fatal(err)
+	}
 	view := e.CatalogRead()
 	configType, _ := view.LookupType(sqltype.Regconfig)
 	vectorType, _ := view.LookupType(sqltype.TSVector)

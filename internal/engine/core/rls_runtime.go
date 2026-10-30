@@ -168,6 +168,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		}
 	}
 	e.Mu.Unlock()
+	evaluation.Context = s.ActivateRuntime(s.executionContext())
 	node, _, err = exec.PreflightCoercions(&evaluation, node)
 	if err == nil {
 		err = exec.AdmitExpression(&evaluation, node, current)
@@ -176,6 +177,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	if err != nil {
 		return err
 	}
+	evaluation.Context = nil // Row truth borrows its current parent invocation.
 	evaluation.PlanStaticOperators = false
 	evaluation.RoutineAuthority = nil
 	out.Name, out.Expression, out.Evaluation = clause.Name, node, evaluation

@@ -197,7 +197,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if len(closure) > 1 || relation.Partition != nil {
 		hierarchy = &storage.StatisticsHierarchy{Relations: closure, Session: s.Op.Session.SessionToken}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: core.HostOf(s), Input: s.Input, Output: s.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.Op.Context()), Host: core.HostOf(s), Input: s.Input, Output: s.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority = &auth
 	collect := func(inherited bool) (*storage.RelationStatistics, uint64, error) {
 		inputs := columns

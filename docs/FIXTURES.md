@@ -146,6 +146,12 @@ ignores the native comment rather than importing its historical catalog state.
   handlers and installed providers retain their existing installation prerequisites.
   Fresh native destinations require matching genuine foreign registrations;
   replay does not fabricate native callbacks or serialize execution authority.
+- Text-search dictionaries preserve their real template, ordered options, owner
+  and stored regdictionary relationships. Ispell resources are explicit host
+  startup data, never dump payload. Fresh destinations must register matching
+  names independently; Restore compiles against destination bytes and rejects
+  missing/malformed resources without publishing any replacement. Reset retains
+  startup resources, and already returned typed Rows retain their values.
 - Parameter ACLs roundtrip by canonical name through strict typed catalog repairs,
   preserving explicit empty arrays, ordered grantors and grant options. Restore
   replaces shared parameter authority across all destination database attachments,

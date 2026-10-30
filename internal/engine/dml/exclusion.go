@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
@@ -12,8 +13,8 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func publishExclusionCandidate(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, precheck bool, purpose index.ProbePurpose) (storage.RowVersion, error) {
-	evaluation := bindingEvaluation(h, binding)
+func publishExclusionCandidate(ctx context.Context, h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, precheck bool, purpose index.ProbePurpose) (storage.RowVersion, error) {
+	evaluation := bindingEvaluation(ctx, h, binding)
 	_, deferrable, _, found := index.IndexConstraintTiming(binding.Parent, bound.Index)
 	if !found {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
@@ -49,7 +50,7 @@ func DiscardExclusion(h Host, c *index.WriteCandidate) {
 // bound's index with every other visible entry, waiting for an undecided
 // owner; recheck is a deferred recheck (SET CONSTRAINTS or commit). It also
 // reports whether a deferred conflict is possible. The caller holds nothing.
-func ProbeExclusion(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose index.ProbePurpose) (UniqueConflict, bool, error) {
+func ProbeExclusion(ctx context.Context, h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, candidate storage.RowVersion, recheck bool, purpose index.ProbePurpose) (UniqueConflict, bool, error) {
 	idx := bound.Index
 	for {
 		scan, err := h.CaptureExclusionScan(ref, binding, idx)
@@ -62,7 +63,7 @@ func ProbeExclusion(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding
 			return UniqueConflict{}, false, nil
 		}
 		input, output := h.Environments()
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Input: input, Output: output, Host: h, Catalog: scan.View}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: input, Output: output, Host: h, Catalog: scan.View}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if binding.TypeName != nil {
 			evaluation.Input.TypeDiagnosticName = binding.TypeName
 		}
@@ -93,12 +94,12 @@ func ProbeExclusion(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding
 	}
 }
 
-func probeExclusionRow(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *InsertConflictState, purpose index.ProbePurpose) (UniqueConflict, error) {
+func probeExclusionRow(ctx context.Context, h Host, ref ids.ObjectRef, binding *index.UniqueWriteBinding, bound *index.UniqueBoundKey, proposal *index.WriteCandidate, excluded []storage.RowVersion, action *InsertConflictState, purpose index.ProbePurpose) (UniqueConflict, error) {
 	idx := bound.Index
 	if action != nil && !slices.Contains(action.Selected, idx.Address()) {
 		return UniqueConflict{}, nil
 	}
-	candidate, err := publishExclusionCandidate(h, ref, binding, bound, proposal, excluded, action != nil, purpose)
+	candidate, err := publishExclusionCandidate(ctx, h, ref, binding, bound, proposal, excluded, action != nil, purpose)
 	if err != nil {
 		return UniqueConflict{}, err
 	}
@@ -125,7 +126,7 @@ func probeExclusionRow(h Host, ref ids.ObjectRef, binding *index.UniqueWriteBind
 		}
 		h.AdmitExclusion(idx.Address(), candidate.Version)
 	}
-	conflict, potential, err := ProbeExclusion(h, ref, binding, bound, candidate, false, purpose)
+	conflict, potential, err := ProbeExclusion(ctx, h, ref, binding, bound, candidate, false, purpose)
 	if err != nil {
 		return UniqueConflict{}, err
 	}

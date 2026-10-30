@@ -62,9 +62,6 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 		}
 	}
 	ctx := in.Context
-	if ctx == nil {
-		ctx = h.Operation().Context()
-	}
 	input, output := h.Environments()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Host: h, Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
@@ -148,7 +145,7 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 		if !before.Proceed {
 			continue
 		}
-		if err := ClaimUniqueRow(h, candidate.Ref, current); err != nil {
+		if err := ClaimUniqueRow(ctx, h, candidate.Ref, current); err != nil {
 			return Outcome{}, err
 		}
 		deleted, err := h.Delete(candidate)

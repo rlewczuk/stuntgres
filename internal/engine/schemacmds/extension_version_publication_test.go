@@ -156,7 +156,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 				}
 			case "restore":
 				replacement := e.RestoreStage()
-				if _, err := e.ReplaceCatalogInOperation(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
+				if _, err := e.ReplaceCatalog(context.Background(), replacement, replacement.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 			case "cancel":

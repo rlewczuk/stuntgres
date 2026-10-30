@@ -5,6 +5,25 @@ probe of allocation-budget tests. The package depends only on the standard
 library and on nothing else in this module, so any package may use it. Put a
 structure here only when it is independent of SQL and engine concepts.
 
+`ExecutionPause` is a SQL-independent, context-scoped one-shot work suspension,
+keyed by an opaque work-point string. Attachment carries a request only.
+`ActivateExecutionPause` grants detached execution permission;
+`DeactivateExecutionPause` strips that permission at metadata/binding reentry
+without losing the request. Unconfigured activation returns the original
+context, including nil for an absent optional evaluation context; deactivation
+also preserves nil. Neither supplies a Background context or cancellation
+authority. `ExecutionCheckpoint` still requires a non-nil effective operation
+context; it allocates nothing and starts no goroutine.
+A private mutex linearizes first entry with early Resume; it is released before
+waiting on Resume or the effective context's Done. The pause never owns or
+replaces cancellation, deadlines, causes or context values. Callers must hold
+no runtime locks when activating work that may reach a checkpoint.
+`HasExecutionPause` observes only attachment, without activating or invoking
+anything. Runtime owners use it to release their own reservations even when
+no application workload policy is attached; checkpoints never perform owner
+callbacks or obtain catalog/publication authority.
+
+
 ## PersistentMap
 
 `PersistentMap[K comparable, V any]` is a persistent (immutable, versioned)
@@ -74,6 +93,10 @@ shared prefixes with test-chosen hashes.
 make check RUN='^(TestPersistentMap|FuzzPersistentMap)'
 make check RUN='^TestPersistentMapConcurrentReaders$' RACE=1
 ```
+
+Pause ownership and allocation tests: `make check RUN='^TestExecutionPause'`;
+add `RACE=1` for concurrent entry, release and child cancellation.
+
 
 The fuzz seed corpus runs with the ordinary tests. To fuzz, run
 `go test -run '^$' -fuzz '^FuzzPersistentMap$' -fuzztime 60s ./internal/util`.

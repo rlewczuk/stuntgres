@@ -23,7 +23,8 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   Use `sql.OpenDB(connector)`.
 - Importing the package registers one default Driver as `sql.Open("stuntgres", name)`.
   It cannot be configured, so use `NewDriver` when registering settings, foreign
-  data wrappers or compiled host routine languages, or when tests need isolation.
+  data wrappers, compiled host routine languages or text-search files, or when
+  tests need isolation.
 - `OpenConnector` connects as the bootstrap superuser `postgres`.
   `d.OpenConnectorAs(name, role)` asserts an existing role by exact name: a trusted
   host assertion, not password authentication. Each physical connect checks
@@ -31,8 +32,24 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   limits remain cluster-wide. Stored passwords and `VALID UNTIL` do not affect
   native admission.
 - Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
-  `RegisterForeignValidator`, `RegisterHostLanguage`) must happen before the
-  Driver's first connector; the registry then freezes.
+  `RegisterForeignValidator`, `RegisterHostLanguage`, `RegisterTextSearchFile`)
+  must happen before the Driver's first successful connector construction; the
+  registry then freezes.
+  `RegisterTextSearchFile(TextSearchFile{Name: "words.dict", Data: data})`
+  registers explicit Driver-local startup bytes. Names are nonempty lowercase
+  ASCII letters, digits and underscores followed by `.dict`, `.affix` or `.stop`,
+  never filesystem paths. Registration rejects duplicate names and copies Data;
+  nil and empty Data both supply a genuinely empty file. Content parsing belongs
+  to SQL dictionary initialization, not registration.
+  Ispell dictionary initialization selects these explicit `.dict`/`.affix` bytes
+  by SQL basename; optional `.stop` bytes filter normalized lexemes. Explicit
+  stop files override the embedded English list for ispell, even when empty.
+  The immutable capability is shared across a Driver's exact-DSN engines,
+  logical databases and template seed, and survives native Reset. Dump records
+  dictionary definitions, never resource bytes; Restore initializes against
+  destination resources and fails atomically when they are missing or malformed.
+  Missing names fail; no filesystem paths, loader callbacks or sample language
+  data are synthesized.
 
 ### Application-supplied scalar routine languages
 
@@ -248,6 +265,45 @@ Returning a connection to the pool keeps all of that state: `ResetSession` is a
 health check only, never an implicit `DISCARD` or rollback. Run `DISCARD ALL` on
 the pinned connection before `Conn.Close` to clean it. Canceled statements and
 ordinary SQL errors leave the connection reusable.
+
+### Cooperative execution pauses
+
+`NewExecutionPause(point)` creates a one-shot host backpressure request.
+`WithExecutionPause(ctx, pause)` scopes it to that request and its descendants;
+`pause.Wait(ctx)` observes entry into matching detached execution, and
+`pause.Resume()` idempotently releases all matching workers, including future
+arrivals. Always defer Resume before starting work. Resume before entry makes
+Wait return an ordinary error, never a false admission. Canceling Wait's context
+does not resume work; cancellation of the effective SQL operation does release
+its worker with that operation's original error and cause.
+
+Attachment is not permission to block metadata capture: description, binding
+and stored-definition constant evaluation remain unsuspended. Runtime admission
+enables pauses only after releasing metadata locks; nested binding removes that
+permission while retaining the request for subsequent detached execution.
+Statement deadlines, session termination, operation release and COPY input
+cancellation ownership are unchanged. No callback runs at a pause, and an
+unconfigured request allocates no pause state or polling goroutine.
+
+Supported stable work points are:
+
+- JSON: `json.each.open`, `json.each.next`, `json.record.open`,
+  `json.strip_nulls`, `json.array_length`.
+- JSONB: `jsonb.containment`, `jsonb.elements.next`, `jsonb.exists`,
+  `jsonb.path_delete`, `jsonb.pretty`, `jsonb.populate_record`
+  (both record and recordset conversion).
+- Transformations: `array.transform`, `datetime.add_interval`,
+  `encoding.convert`, `text.like.match`, `text.like.escape`,
+  `text_search.vector`.
+- Query/crypto work: `query.aggregate`, `query.recursive`, `crypto.bcrypt`,
+  `crypto.sha`.
+
+A point names cooperative work, not a SQL admission guarantee: NULL, unused,
+folded or otherwise undemanded work need not reach it. Unknown points never
+admit. A nested WithExecutionPause replaces the inherited request; nil removes
+it. Pauses neither own a connection nor permit concurrent use of its busy
+physical owner; use an independent connection for other work.
+
 
 ## Transactions
 

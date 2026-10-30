@@ -43,8 +43,8 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 		if err != nil || got == nil {
 			t.Fatal("seed template capture", got, err)
 		}
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 4 {
-			t.Fatal("exact simple/synonym/Snowball/thesaurus template inventory", got)
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 5 {
+			t.Fatal("exact simple/synonym/ispell/Snowball/thesaurus template inventory", got)
 		}
 		seen := map[string]bool{}
 		for _, row := range got.Anonymous {
@@ -57,7 +57,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 				}
 			}
 			name, err := row[1].Text()
-			if err != nil || seen[name] || name != "simple" && name != "synonym" && name != "snowball" && name != "thesaurus" {
+			if err != nil || seen[name] || name != "simple" && name != "synonym" && name != "ispell" && name != "snowball" && name != "thesaurus" {
 				t.Fatal("template seed identity", name, err)
 			}
 			seen[name] = true
@@ -67,6 +67,9 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 			}
 			if name == "synonym" {
 				wantOID, handlers = 3730, []uint32{3728, 3729}
+			}
+			if name == "ispell" {
+				wantOID, handlers = 3733, []uint32{3731, 3732}
 			}
 			if name == "thesaurus" {
 				wantOID, handlers = 3742, []uint32{3740, 3741}
@@ -93,6 +96,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3730})
 	empty.RemoveDescriptor(snowballAddress)
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3742})
+	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3733})
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
 	emptyRows, err := core.CaptureCatalogSourceRows(emptyInput, produce)

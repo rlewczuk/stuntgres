@@ -83,7 +83,7 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 	if err := ctx.Err(); err != nil {
 		return Outcome{}, err
 	}
-	if err := StageMergeRows(h, rows, b.Ref); err != nil {
+	if err := StageMergeRows(ctx, h, rows, b.Ref); err != nil {
 		return Outcome{}, err
 	}
 	if rows.Returning != nil && b.Returning.RegclassOutput && rows.Returning.Count != 0 {

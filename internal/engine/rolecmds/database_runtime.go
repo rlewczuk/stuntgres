@@ -17,6 +17,7 @@ import (
 // catalog and storage before this runtime can be registered.
 func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner authorization.PrincipalRef, options ddl.CreateDatabaseOptions) *core.Engine {
 	target := &core.Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
+	target.TextSearchFiles = seed.TextSearchFiles
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
 	for _, registration := range seed.Catalog.HostRuntimes {
 		runtime, err := host.New(registration.Definition())

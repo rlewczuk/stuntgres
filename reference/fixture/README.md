@@ -128,6 +128,14 @@ engines inherit the same mode.
   genuine Python dict programs opt into the released hstore transform. Programs
   without that opt-in and genuine one-direction pairs exercise PL/Python's
   separate string/input defaults, not hypothetical Go-host defaults.
+- `WithTextSearchFiles(files...)` copies a manifest of public `TextSearchFile`
+  values before startup. The existing container lifecycle discovers its actual
+  `pg_config --sharedir`, validates names/duplicates through public registration,
+  and installs the exact bytes into `tsearch_data` before scenarios. Installation
+  failures fail startup. `TextSearchDataDirectory` exposes the discovered directory
+  for exact oracle resource diagnostics, not a guessed installation prefix.
+  Native scenarios register those same bytes with `NewScenarioWithDriverConfig`;
+  the startup option does not change the runner, reset or pool behavior.
 
 ### Test-only legacy crypto oracle
 
@@ -258,8 +266,15 @@ production dependency is involved.
   metadata and wait 1 ms after a miss so observation cannot monopolize progress.
   See [cooperative work admission](../../docs/DRIVER.md#cooperative-work-admission)
   for the useful public host-control contract and semantic class quanta.
-  - `SleepActiveCancelWithContext` and `PLpgSQLLoopActiveCancel` accept an
-    independently observed PostgreSQL diagnostic Context. The loop wrapper admits
+  The distinct closed `ExecutionPause` capability is exercised by
+  `^TestReferenceFixtureExecutionPause(Context|Authority)$`: a genuine matching
+  checkpoint suspends its effective child until Resume or cancellation; the
+  independent complete live provider/worker stack establishes frame authority.
+  These tests do not replace work-credit policy admission or change its helper.
+  - `BinaryConversionActiveCancelWithContext`, `SleepActiveCancelWithContext`
+    and `PLpgSQLLoopActiveCancel` accept an independently observed PostgreSQL
+    diagnostic Context without changing native admission or cancellation.
+    The loop wrapper admits
     the actual `executePLLoop` worker, including an empty body, without a sleep wait
     event. Helpers without a Context argument require empty Context. Native
     cancellation returns `context.Canceled`.

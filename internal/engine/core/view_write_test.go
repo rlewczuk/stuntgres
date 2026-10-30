@@ -312,7 +312,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
-	if err := dml.ReplaceRows(holder.WriteHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(holder.ActivateRuntime(holder.Op.Context()), holder.WriteHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -352,7 +352,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := dml.ReplaceRows(scope.WriteHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.Op.Context())

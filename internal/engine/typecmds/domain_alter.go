@@ -81,7 +81,7 @@ func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.
 			chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 			scope.RoutineDependencies = chosen.DomainChecks[0].Dependencies
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(op.Context()), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if validation == typedef.DomainValidateValues {
 			evaluation.Input.TypeDiagnosticName, err = core.CaptureTypeDiagnosticName(auth)
 			if err != nil {

@@ -30,7 +30,7 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	integer, _ := read.LookupType(sqltype.Int4)
 	triggerUnitAdmit(t, seed, relation)
 	values := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 10)}
-	if count, err := dml.ApplyInsertValidated(seed.WriteHost(), seed.LockedRef, index.WriteBatch{Values: [][]sqltype.Value{values}}); err != nil || count != 1 {
+	if count, err := dml.ApplyInsertValidated(seed.ActivateRuntime(seed.Op.Context()), seed.WriteHost(), seed.LockedRef, index.WriteBatch{Values: [][]sqltype.Value{values}}); err != nil || count != 1 {
 		t.Fatal("seed real committed predecessor", count, err)
 	}
 	if err := seed.Finish(nil); err != nil {

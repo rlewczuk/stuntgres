@@ -128,7 +128,8 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	scope, ref := insertConflictUnitScope(t, f)
 	manager := f.e.Locks
 	first := insertConflictUnitRow(t, f, 20)
-	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: first}, index.WriteBatch{}, nil)
+	admissionContext := scope.ActivateRuntime(scope.Op.Context())
+	admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: first}, index.WriteBatch{}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -137,7 +138,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 		t.Fatal("accepted proposal owns one actual key", baseline)
 	}
 	for _, row := range [][]sqltype.Value{insertConflictUnitRow(t, f, 10), first} {
-		admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
+		admitted, err = dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
 		if err != nil || admitted {
 			t.Fatal("duplicate was not omitted", admitted, err)
 		}
@@ -151,7 +152,7 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 			}
 		}
 	}
-	admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 30)}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
+	admitted, err = dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 30)}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
@@ -165,7 +166,8 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 		scope, ref := insertConflictUnitScope(t, f)
 		scope.Owner.Isolation = isolation
 		scope.Owner.Frontier = 0
-		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+		admissionContext := scope.ActivateRuntime(scope.Op.Context())
+		admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 		if isolation == session.ReadCommitted {
 			if err != nil || admitted {
 				t.Fatal("read committed", admitted, err)
@@ -207,17 +209,18 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	f.e.Mu.Unlock()
 	scope.UniqueBinding = nil
 	scope.InsertConflict.Catalog = nil
-	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+	admissionContext := scope.ActivateRuntime(scope.Op.Context())
+	admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
 	}
-	admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
+	admitted, err = dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
 	var diagnostic *sqlstate.Error
 	if admitted || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("unselected violation", admitted, err)
 	}
 	scope.InsertConflict = nil
-	err = dml.CheckUniqueRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+	err = dml.CheckUniqueRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("ordinary route changed", err)
 	}

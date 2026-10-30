@@ -97,7 +97,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2077 rows, all backed
+supplements. The complete released inventory contains 2098 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. The encoding
 conversion and keyword routines retain independent release facts for OIDs
 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.

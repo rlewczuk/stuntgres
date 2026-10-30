@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -213,6 +214,9 @@ func (e ArrayTransform) Reconstruct(info expr.Info, args []expr.Expr, ref sqltyp
 func (e ArrayTransform) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if err := util.ExecutionCheckpoint(ctx, "array.transform"); err != nil {
 		return sqltype.Value{}, err
 	}
 	var values [3]sqltype.Value

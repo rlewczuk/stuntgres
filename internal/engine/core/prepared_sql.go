@@ -76,7 +76,11 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
- if raw.All { r.ClearDefinitions() } else { r.Remove(raw.Name.Text) }
+	if raw.All {
+		r.ClearDefinitions()
+	} else {
+		r.Remove(raw.Name.Text)
+	}
 	s.Completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }
@@ -141,6 +145,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		input = binder.Input
 		e.Mu.Unlock()
 		locked = false
+		ctx = s.ActivateRuntime(ctx)
 		// Actuals are their own executable recipe, not the prepared body's
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.

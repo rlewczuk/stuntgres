@@ -42,6 +42,11 @@ retries after a catalog conflict. Each wait freezes its cohort and registers
 it in `Engine.IndexWaits` in one critical section, and clears it on every
 return.
 
+Each detached concurrent build activates its local current statement context
+after snapshot capture unlocks. Expression keys may demand providers; direct-key
+builds do not manufacture provider admission. Phase publication continues to use
+raw operation authority and the existing exact descriptor/storage fences.
+
 ## Testing
 
 Tests are external (`package indexcmds_test`) and run on a composed engine:

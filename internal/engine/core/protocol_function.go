@@ -127,6 +127,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.Input, Output: s.Output, Host: HostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation
 	e.Mu.Unlock()
+	evaluation.Context = s.ActivateRuntime(s.executionContext())
 	formats, err := session.ProtocolFormats(input)
 	if err != nil {
 		return session.ProtocolField{}, err
@@ -142,7 +143,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 		return session.ProtocolField{}, SQLError("08P01", fmt.Sprintf("function call message contains %d argument formats but %d arguments", len(formats), count))
 	}
 	var log session.ProtocolContext
-	if err = session.ImportProtocolParameters(s.Op.Context(), s.Output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, session.ProtocolFunctionInput); err != nil {
+	if err = session.ImportProtocolParameters(evaluation.Context, s.Output, input, formats, formal.Count, formal.Types, evaluation.Parameters, evaluation.Input, &log, session.ProtocolFunctionInput); err != nil {
 		var diagnostic *sqlstate.Error
 		if errors.As(err, &diagnostic) && diagnostic.Code == "22P03" {
 			copy := *diagnostic

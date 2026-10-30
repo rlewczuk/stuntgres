@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
@@ -127,15 +128,15 @@ func validateTargetPartitionConstraint(h Host, b analyze.Binding, row []sqltype.
 	return nil
 }
 
-func checkInsertUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
+func checkInsertUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, prefix index.WriteBatch) error {
 	command := h.Command()
 	if command.PartitionInsert == nil {
-		return CheckUniqueRow(h, ref, candidate, nil, prefix)
+		return CheckUniqueRow(ctx, h, ref, candidate, nil, prefix)
 	}
 	group := command.partitionInsertionGroup(ref)
 	command.UniqueBinding = group.Unique
 	candidate.Values = command.PartitionStoredRow(candidate.Values)
-	if err := CheckUniqueRow(h, group.Ref, candidate, nil, group.Rows); err != nil {
+	if err := CheckUniqueRow(ctx, h, group.Ref, candidate, nil, group.Rows); err != nil {
 		return err
 	}
 	group.Unique = command.UniqueBinding
@@ -146,15 +147,15 @@ func checkInsertUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandi
 // ApplyInsertValidated stages a validated INSERT batch: an unpartitioned
 // batch whole, a routed one per leaf group in first-use order. It reports
 // the inserted row count.
-func ApplyInsertValidated(h Host, ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
+func ApplyInsertValidated(ctx context.Context, h Host, ref ids.ObjectRef, rows index.WriteBatch) (int, error) {
 	command := h.Command()
 	if command.PartitionInsert == nil {
-		return ApplyInsertBatch(h, ref, rows)
+		return ApplyInsertBatch(ctx, h, ref, rows)
 	}
 	count := 0
 	for _, group := range command.PartitionInsert.Order {
 		command.UniqueBinding = group.Unique
-		if err := ApplyValidated(h, group.Ref, group.Rows); err != nil {
+		if err := ApplyValidated(ctx, h, group.Ref, group.Rows); err != nil {
 			return 0, err
 		}
 		count += len(group.Rows.Values)

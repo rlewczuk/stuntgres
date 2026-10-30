@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -25,7 +26,7 @@ import (
 // direction: the target slots, the input environment (with SET DEFAULT's
 // bound defaults, from the host), SET NULL's domain inputs and CASCADE's
 // parent slots and coercions.
-func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (*ForeignActionPlan, error) {
+func planForeignAction(ctx context.Context, h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (*ForeignActionPlan, error) {
 	cached := job.DeletePlan
 	if event.Next.Row != 0 {
 		cached = job.UpdatePlan
@@ -47,7 +48,7 @@ func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event F
 	for _, slot := range plan.Targets {
 		plan.DomainChecks = plan.DomainChecks || sqltype.ContainsDomainConstraints(job.Child.Columns[slot].Usage.Type)
 	}
-	if err := h.PlanForeignActionInput(auth, job, plan, event, action); err != nil {
+	if err := h.PlanForeignActionInput(ctx, auth, job, plan, event, action); err != nil {
 		return nil, err
 	}
 	if action == parser.ForeignKeySetNull && plan.DomainChecks {
@@ -92,7 +93,7 @@ func planForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event F
 // transition: RESTRICT reports a still-matching child; CASCADE, SET NULL and
 // SET DEFAULT grant, re-read, revalidate and stage each matching child as the
 // child's owner. SET DEFAULT then rechecks the new keys like NO ACTION.
-func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (failure error) {
+func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (failure error) {
 	view := auth.Access().Catalog
 	ref := view.Domain().Ref(view.Epoch(), job.Child.Address())
 	if err := h.AdmitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
@@ -145,7 +146,7 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 	var plan *ForeignActionPlan
 	var err error
 	if !deletion {
-		plan, err = planForeignAction(h, ownerAuth, job, event, action)
+		plan, err = planForeignAction(ctx, h, ownerAuth, job, event, action)
 		if err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
@@ -219,7 +220,7 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 	if plan != nil {
 		planInput = plan.Input
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Host: h, Catalog: ownerAuth.Access().Catalog, Input: planInput, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: ownerAuth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: h, Catalog: ownerAuth.Access().Catalog, Input: planInput, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: ownerAuth}}
 	if plan != nil && plan.DomainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
@@ -318,7 +319,7 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 				return foreignActionError(h, err, job, event, action, view)
 			}
 		}
-		if err = ClaimUniqueRow(h, ref, old); err != nil {
+		if err = ClaimUniqueRow(ctx, h, ref, old); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -331,13 +332,13 @@ func applyForeignAction(h FinishHost, auth Authority, job *ForeignKeyJob, event 
 		}
 		predecessor := [1]storage.RowVersion{old}
 		proposal := index.WriteCandidate{Values: row}
-		if err = CheckUniqueRow(h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
+		if err = CheckUniqueRow(ctx, h, ref, &proposal, predecessor[:], index.WriteBatch{}); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 		replacement := [1][]sqltype.Value{row}
 		batch := index.WriteBatch{Values: replacement[:], ActionMode: actionMode}
 		batch.Set(0, proposal)
-		if err = ReplaceRows(h, ref, predecessor[:], batch, ReplaceMerge); err != nil {
+		if err = ReplaceRows(ctx, h, ref, predecessor[:], batch, ReplaceMerge); err != nil {
 			return foreignActionError(h, err, job, event, action, view)
 		}
 	}

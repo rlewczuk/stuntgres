@@ -206,5 +206,6 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		}
 		s.Domains.evaluation = &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: catalog, Input: s.Input, Output: s.Output}}
 	}
+	s.Domains.evaluation.Context = ctx
 	return s.Domains.evaluation.CheckDomain(ctx, target, value)
 }

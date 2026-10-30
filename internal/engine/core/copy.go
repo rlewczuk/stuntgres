@@ -165,7 +165,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Input: s.Input, Output: s.Output, Host: HostOf(s), Catalog: auth.Catalog}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.executionContext()), Input: s.Input, Output: s.Output, Host: HostOf(s), Catalog: auth.Catalog}}
 	if b.Predicate != nil {
 		b.Predicate, _, err = exec.PreflightCoercionsWithPolicy(&evaluation, b.Predicate, true)
 		if err == nil {
@@ -346,7 +346,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if s.InsertReturning != nil {
 		return int64(s.InsertReturning.Rows.Count), nil
 	}
-	n, err := dml.ApplyInsertValidated(h, b.Ref, rows)
+	n, err := dml.ApplyInsertValidated(evaluation.Context, h, b.Ref, rows)
 	if err != nil {
 		return 0, cursor.Diagnostic(err)
 	}

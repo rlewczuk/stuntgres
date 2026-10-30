@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/host"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -32,15 +33,17 @@ type DriverConfig struct {
 // Driver owns independent clusters keyed by exact, opaque DSN strings.
 // Logical databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
-	mu                sync.Mutex
-	engines           map[string]*core.Engine
-	lastSession       ids.SessionID
-	settings          []settings.Definition
-	settingsFrozen    bool
-	config            DriverConfig
-	foreignWrappers   []fdw.WrapperDefinition
-	foreignValidators []fdw.ValidatorDefinition
-	hostLanguages     []*host.Runtime
+	mu                  sync.Mutex
+	engines             map[string]*core.Engine
+	lastSession         ids.SessionID
+	settings            []settings.Definition
+	settingsFrozen      bool
+	config              DriverConfig
+	foreignWrappers     []fdw.WrapperDefinition
+	foreignValidators   []fdw.ValidatorDefinition
+	hostLanguages       []*host.Runtime
+	textSearchFiles     map[string]string
+	textSearchResources *functions.DictionaryFiles
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -79,6 +82,10 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 		if err := e.InstallHostDefinitions(d.hostLanguages); err != nil {
 			return nil, err
 		}
+		if d.textSearchResources == nil && len(d.textSearchFiles) != 0 {
+			d.textSearchResources = functions.NewDictionaryFiles(d.textSearchFiles)
+		}
+		e.TextSearchFiles = d.textSearchResources
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}

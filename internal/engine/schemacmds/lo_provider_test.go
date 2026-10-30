@@ -443,7 +443,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 			t.Fatal("role identity reused")
 		}
 		before := target.Catalog.State
-		if _, err := target.ReplaceCatalogInOperation(context.Background(), staged, staged.CatalogRead(), admin); err == nil || target.Catalog.State != before {
+		if _, err := target.ReplaceCatalog(context.Background(), staged, staged.CatalogRead()); err == nil || target.Catalog.State != before {
 			t.Fatal("lo member owner recreation escaped replacement fence", err)
 		}
 	})

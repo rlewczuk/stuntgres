@@ -20,7 +20,7 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 	if b.Delete.SourceWidth != 0 || len(b.Relation.Columns) != 0 || target.Count() != 2 {
 		t.Fatal("width confused with occurrence count", b.Delete.SourceWidth, target.Count())
 	}
-	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}

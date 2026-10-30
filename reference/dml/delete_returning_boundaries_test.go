@@ -17,9 +17,9 @@ func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 		fixture.LockExec(t, p.Ctx, db, "INSERT INTO t VALUES(1)", 1)
 		fixture.RunStep(t, p.Ctx, db, r, fixture.Select("DELETE FROM t RETURNING (SELECT 7) AS scalar,old::text AS predecessor,new::text AS replacement", []string{"scalar", "predecessor", "replacement"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(7), "(1)", nil}}))
 		fixture.LockExec(t, p.Ctx, db, "INSERT INTO t VALUES(1)", 1)
-		// PG18.0's parenthesized whole-row expansion preserves target OLD
-		// fields here; this excluded record path is not ordinary new.id/new.*.
-		fixture.RunStep(t, p.Ctx, db, r, fixture.Select("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}))
+		// The pinned PostgreSQL18.6 whole-row expansion retains OLD fields
+		// and expands DELETE's absent NEW record to null fields.
+		fixture.RunStep(t, p.Ctx, db, r, fixture.Select("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), nil}}))
 		fixture.LockExec(t, p.Ctx, db, "INSERT INTO t VALUES(1)", 1)
 		fixture.LockExec(t, p.Ctx, db, "CREATE FUNCTION suppress_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$", 0)
 		fixture.LockExec(t, p.Ctx, db, "CREATE TRIGGER suppress BEFORE DELETE ON t FOR EACH ROW EXECUTE FUNCTION suppress_delete()", 0)

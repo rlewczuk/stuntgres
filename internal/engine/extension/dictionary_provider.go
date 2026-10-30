@@ -17,8 +17,12 @@ func dictionaryError(code, message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 }
 
+func SimpleTemplate(d *catalog.TSTemplate) bool {
+	return d != nil && d.Address() == (ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3727}) && d.Implementation == nil && d.Init == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}) && d.Lexize == (ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3726})
+}
+
 // CompileDictionary compiles immutable execution state before catalog publication.
-func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog.TSTemplate, options []catalog.DictionaryOption) (catalog.DictionaryRuntime, error) {
+func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog.TSTemplate, options []catalog.DictionaryOption, files *functions.DictionaryFiles) (catalog.DictionaryRuntime, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -41,6 +45,9 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 			return nil, err
 		}
 		return functions.CompileSynonymDictionary(ctx, resource, sensitive)
+	}
+	if capability == 6 {
+		return compileIspell(ctx, files, options)
 	}
 	if capability == 1 {
 		accept, stopwords, err := simpleOptions(options)
@@ -221,6 +228,12 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 			}
 		}
 		if !ok || !seenLanguage || !runtime.Configured(language, stopwords) || d.Implementation != nil {
+			return InvalidProviderDescriptor()
+		}
+	} else if dictionaryCapability(v, template) == 6 {
+		runtime, ok := d.Runtime.(*functions.IspellDictionary)
+		names, err := ispellOptions(d.Options, nil)
+		if !ok || err != nil || !runtime.Configured(names[0], names[1], names[2]) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
 	} else if dictionaryCapability(v, template) == 2 {

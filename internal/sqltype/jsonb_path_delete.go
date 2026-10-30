@@ -3,11 +3,16 @@ package sqltype
 import (
 	"context"
 	"fmt"
+
+	"stuntgres/internal/util"
 )
 
 func (p BinaryPlan) jsonbPathDelete(ctx context.Context, document, path Value) (Value, error) {
 	if document.jsonb == nil || path.array == nil {
 		return Value{}, fmt.Errorf("missing JSONB deletion payload")
+	}
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.path_delete"); err != nil {
+		return Value{}, err
 	}
 	root, changed, err := jsonbSetPath(ctx, document.jsonb.root, path, jsonbNode{}, false, jsonbDelete)
 	if err != nil {

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
 // jsonArrayLength scans validated retained JSON without decoding strings or
 // constructing a tree. Only starts of elements at the root array count.
 func jsonArrayLength(ctx context.Context, source string) (int64, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "json.array_length"); err != nil {
 		return 0, err
 	}
 	l := jsonLexer{ctx: ctx, text: source, line: 1}

@@ -73,7 +73,7 @@ func TestTemplateCapabilityValidation(t *testing.T) {
 	state.SetDescriptor(standalone.Address(), &standalone)
 	state.BindName(catalog.DescriptorNameKey(&standalone), standalone.Address())
 	view = view.WithState(state)
-	runtime, err := extension.CompileDictionary(t.Context(), view, &standalone, nil)
+	runtime, err := extension.CompileDictionary(t.Context(), view, &standalone, nil, e.TextSearchFiles)
 	if err != nil || runtime == nil {
 		t.Fatal("genuine pair on new template", runtime, err)
 	}
@@ -82,12 +82,12 @@ func TestTemplateCapabilityValidation(t *testing.T) {
 	}
 	zero := standalone
 	zero.Init = ids.ObjectAddress{}
-	if runtime, err := extension.CompileDictionary(t.Context(), view, &zero, nil); runtime != nil || err == nil {
+	if runtime, err := extension.CompileDictionary(t.Context(), view, &zero, nil, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("invented no-INIT state", runtime, err)
 	} else {
 		extensionUnitError(t, err, "0A000")
 	}
-	if _, err := extension.CompileDictionary(t.Context(), view, &zero, []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}}); err == nil {
+	if _, err := extension.CompileDictionary(t.Context(), view, &zero, []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}}, e.TextSearchFiles); err == nil {
 		t.Fatal("no-INIT options admitted")
 	} else {
 		extensionUnitError(t, err, "42601")
@@ -98,7 +98,7 @@ func TestTemplateCapabilityValidation(t *testing.T) {
 		change(&p)
 		bad := catalog.CloneState(state)
 		bad.SetDescriptor(p.Address(), &p)
-		if runtime, err := extension.CompileDictionary(t.Context(), view.WithState(bad), &standalone, nil); runtime != nil || err == nil {
+		if runtime, err := extension.CompileDictionary(t.Context(), view.WithState(bad), &standalone, nil, e.TextSearchFiles); runtime != nil || err == nil {
 			t.Fatal("forged callback capability", runtime, err)
 		}
 	}
@@ -121,12 +121,12 @@ func TestTemplateMemberIdentity(t *testing.T) {
 	if err := provider.Validate(view, &moved); err != nil {
 		t.Fatal("genuine relabel rejected", err)
 	}
-	if runtime, err := extension.CompileDictionary(t.Context(), view, standalone, []catalog.DictionaryOption{{Name: "rules", Value: "unaccent", Supplied: true}}); runtime != functions.StockUnaccent || err != nil {
+	if runtime, err := extension.CompileDictionary(t.Context(), view, standalone, []catalog.DictionaryOption{{Name: "rules", Value: "unaccent", Supplied: true}}, e.TextSearchFiles); runtime != functions.StockUnaccent || err != nil {
 		t.Fatal("standalone genuine installed helpers", runtime, err)
 	}
 	mixed := *standalone
 	mixed.Init = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3725}
-	if runtime, err := extension.CompileDictionary(t.Context(), view, &mixed, nil); runtime != nil || err == nil {
+	if runtime, err := extension.CompileDictionary(t.Context(), view, &mixed, nil, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("mixed genuine callbacks acquired execution", runtime, err)
 	} else {
 		extensionUnitError(t, err, "0A000")

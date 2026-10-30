@@ -21,11 +21,19 @@ The engine's `statementHost` implements them (`statement_host_dml.go`,
 `statement_host_stage.go`, `statement_host_latest_row.go`, `statement_host_trigger.go`).
 
 DELETE accepts an effective runtime context in `DeleteInput`, just as the other
-bound write inputs do. Core supplies its local unlocked execution context; a nil
-context retains the operation authority for internal callers. This does not
-replace the operation or host context. Provider admission and cancellation use
+bound write inputs do. Core supplies its local unlocked execution context.
+Probes, staging revalidation and RI actions carry that same context explicitly;
+they never reconstruct execution permission from the host. INSERT admission takes
+an explicit context independently of its optional evaluator: ordinary insertion
+and DO NOTHING do not require row-expression evaluation. Provider admission uses
 that effective context while existing row grants, staging and publication remain
 the sole write authorities.
+
+COPY decoding obtains the current selected effective child through
+`Host.CopyInputContext`, reusing its invocation projection until the actual child
+changes. Defaults, domain input and generated rows share that context; decoder
+masking never replaces the raw final publication authority. Key/predicate probes
+reuse their supplied context without per-row activation or context allocation.
 
 - `Statement`: the active command, target, private rows, snapshot, unique
   journal, query authority, scopes, lock ticket, WHERE CURRENT OF row,
@@ -40,6 +48,9 @@ the sole write authorities.
 - `RowLocks`: `AcquireRow`, `AcquireUpdateRow` and `AcquirePartitionLock` wait
   with the caller holding nothing; `LatestRow` reads one row per `RowKind`
   under one lock.
+  MERGE prefers an own target version; otherwise stable snapshots reject
+  committed updates or deletions beyond their frontier before selecting actions.
+  Read-committed successor rechecks retain the captured source occurrence.
 - `Presentation`: `RowDetail`, `SchemaName`, `CaptureRegclassOutput`.
 - `BeforeStatement` is relevance-gated by logical relation/event metadata before
   defaults, source consumption, row iteration or foreign participant effects.

@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 	"slices"
 
@@ -62,9 +63,9 @@ retry:
 
 // bindingEvaluation is the evaluation context of b's key programs: the
 // statement's context and environments over b's catalog.
-func bindingEvaluation(h Host, b *index.UniqueWriteBinding) exec.Context {
+func bindingEvaluation(ctx context.Context, h Host, b *index.UniqueWriteBinding) exec.Context {
 	input, output := h.Environments()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Context(), Host: h, Input: input, Output: output, Catalog: h.CatalogRead(b.Catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: h, Input: input, Output: output, Catalog: h.CatalogRead(b.Catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if b.TypeName != nil {
 		evaluation.Input.TypeDiagnosticName = b.TypeName
 	}
@@ -74,12 +75,12 @@ func bindingEvaluation(h Host, b *index.UniqueWriteBinding) exec.Context {
 // ClaimUniqueRow claims the unique keys row holds on ref's exact-equality
 // indexes, before the row is updated or deleted. It waits for conflicting
 // claims; the caller holds nothing.
-func ClaimUniqueRow(h Host, ref ids.ObjectRef, row storage.RowVersion) error {
+func ClaimUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, row storage.RowVersion) error {
 	binding, err := BindUniqueWrite(h, ref)
 	if err != nil {
 		return err
 	}
-	evaluation := bindingEvaluation(h, binding)
+	evaluation := bindingEvaluation(ctx, h, binding)
 	purpose := index.ProbeRuntime
 	if binding.Checked {
 		purpose = index.ProbeTracked
@@ -153,8 +154,8 @@ func (c *UniqueConflict) Diagnostic(h Host, ref ids.ObjectRef) error {
 // and returns the violation error of the first conflict. excluded are the
 // predecessors candidate replaces; prefix is the batch staged before it.
 // It may wait; the caller holds nothing.
-func CheckUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
-	conflict, err := ProbeUniqueRow(h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
+func CheckUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch) error {
+	conflict, err := ProbeUniqueRow(ctx, h, ref, candidate, excluded, prefix, nil, index.ProbeRuntime)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func snapshotStable(h Host) bool {
 // when the command has one) and prefix. With action it probes only the ON
 // CONFLICT arbiters and reports the conflicting row's head. It claims keys and
 // may wait; the caller holds nothing.
-func ProbeUniqueRow(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *InsertConflictState, purpose index.ProbePurpose) (UniqueConflict, error) {
+func ProbeUniqueRow(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, excluded []storage.RowVersion, prefix index.WriteBatch, action *InsertConflictState, purpose index.ProbePurpose) (UniqueConflict, error) {
 	row := candidate.Values
 	c := h.Command()
 retry:
@@ -191,8 +192,8 @@ retry:
 	if len(row) != len(parent.Columns) {
 		return UniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
-	evaluation := bindingEvaluation(h, binding)
-	ctx := evaluation.Context
+	evaluation := bindingEvaluation(ctx, h, binding)
+
 	if action != nil && action.Catalog != binding.Catalog {
 		if err := action.SelectArbiters(&evaluation, parent, evaluation.Catalog); err != nil {
 			return UniqueConflict{}, err
@@ -223,7 +224,7 @@ retry:
 		idx := bound.Index
 		_, deferredUnique, _, _ := index.IndexConstraintTiming(binding.Parent, idx)
 		if idx.SQLIndex.IsExclusion() || deferredUnique {
-			if conflict, err := probeExclusionRow(h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.Index != nil {
+			if conflict, err := probeExclusionRow(ctx, h, ref, binding, bound, candidate, excluded, action, purpose); err != nil || conflict.Index != nil {
 				return conflict, err
 			}
 			continue

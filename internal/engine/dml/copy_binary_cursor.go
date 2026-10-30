@@ -50,13 +50,13 @@ func (c *CopyBinaryCursor) rowDefaults() []bool { return c.defaults }
 func (c *CopyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	wireInput := c.op.CopyInput.Active.Load()
 	if wireInput {
-		ctx = c.op.Context()
+		ctx = c.host.CopyInputContext()
 	}
 	if err := ctx.Err(); err != nil {
 		if c.in.HeaderDone() && c.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// Refresh a context captured just before user cancellation only
 			// after binary startup has admitted the row-decoding phase.
-			ctx = c.op.Context()
+			ctx = c.host.CopyInputContext()
 			err = ctx.Err()
 		}
 		if err != nil {
@@ -89,7 +89,7 @@ func (c *CopyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		}
 		if null {
 			if wireInput {
-				ctx = c.op.Context()
+				ctx = c.host.CopyInputContext()
 				if column.Usage.Type.IsDomain() {
 					if err := column.Usage.Type.CheckBinaryInput(); err != nil {
 						return false, c.Diagnostic(err)
@@ -104,7 +104,7 @@ func (c *CopyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 			continue
 		}
 		if wireInput {
-			ctx = c.op.Context()
+			ctx = c.host.CopyInputContext()
 		}
 		dst[i], err = column.Usage.Type.BinaryInputWithEnvironment(ctx, payload, column.Usage.Typmod, c.input())
 		if err != nil {

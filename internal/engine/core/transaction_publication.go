@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/util"
 )
 
 func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
@@ -26,7 +27,7 @@ func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[
 
 func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, scope *StatementScope) error {
 	var err error
-	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
+	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c, scope)
 	if err != nil {
 		return err
 	}
@@ -348,7 +349,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates, index.ProgressBinding{})
+			ctx := op.Context()
+			if scope != nil {
+				ctx = scope.ActivateRuntime(scope.executionContext())
+			} else {
+				ctx = util.ActivateExecutionPause(ctx)
+			}
+			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates, index.ProgressBinding{})
 			if indexErr != nil {
 				return indexErr
 			}

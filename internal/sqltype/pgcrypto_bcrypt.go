@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"strings"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -91,7 +92,7 @@ func pgcryptoBcryptEncode(dst, src []byte) {
 // All state/scratch is fixed size. Cost31 is representable; cancellation, not
 // an arbitrary lower safety ceiling, bounds abandoned expensive operations.
 func pgcryptoBcrypt(ctx context.Context, password, salt string) (string, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "crypto.bcrypt"); err != nil {
 		return "", err
 	}
 	if !strings.HasPrefix(salt, "$2a$") && !strings.HasPrefix(salt, "$2x$") {

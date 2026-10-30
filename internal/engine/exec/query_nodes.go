@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 func openDistinctNode(ctx context.Context, state *State, n *plan.DistinctNode) (out Stage, err error) {
@@ -225,6 +226,12 @@ func (s *State) Evaluation(ctx context.Context) Context {
 		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, s.Source.RoutineRecipe
 	}
 	evaluation.setContext(ctx)
+	evaluation.Context = util.ActivateExecutionPause(evaluation.Context)
+	if s.ExecutionContext != nil {
+		// This invocation owns its selected worker child. Preserve its detached
+		// permission across pull resets without wrapping that child per row.
+		s.ExecutionContext = evaluation.Context
+	}
 	if a := s.aggregateAdmission; a != nil {
 		evaluation.RoutineAuthority = a
 		evaluation.RoutineRecipe, evaluation.RoutineChecks = true, a.dependencies

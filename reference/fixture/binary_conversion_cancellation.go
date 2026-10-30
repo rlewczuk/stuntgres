@@ -15,8 +15,20 @@ import (
 // caller closes its held statements or physical connection.
 func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, class stuntgres.WorkClass, operation func(context.Context) RelationOutcome) {
 	t.Helper()
+	binaryConversionActiveCancel(t, p, b, c, query, class, "", operation)
+}
+
+// BinaryConversionActiveCancelWithContext retains the same native work-credit
+// admission and joined cleanup, and requires exact PostgreSQL error provenance.
+func BinaryConversionActiveCancelWithContext(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, class stuntgres.WorkClass, postgresContext string, operation func(context.Context) RelationOutcome) {
+	t.Helper()
+	binaryConversionActiveCancel(t, p, b, c, query, class, postgresContext, operation)
+}
+
+func binaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, class stuntgres.WorkClass, postgresContext string, operation func(context.Context) RelationOutcome) {
+	t.Helper()
 	if b.PG {
-		activeProviderCancel(t, p, b, c, query, "", "", "", nil, operation)
+		activeProviderCancel(t, p, b, c, query, "", "", postgresContext, nil, operation)
 		return
 	}
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)

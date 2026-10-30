@@ -165,7 +165,7 @@ func ExecuteForeign(h Host, in ForeignCommand) (outcome Outcome, err error) {
 					continue
 				}
 				row = before.Row
-				if err := table.EvaluateGenerations(h.Context(), b.Relation, row, &evaluation); err != nil {
+				if err := table.EvaluateGenerations(evaluation.Context, b.Relation, row, &evaluation); err != nil {
 					return Outcome{}, err
 				}
 				if stream != nil {

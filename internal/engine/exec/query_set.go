@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -83,7 +84,7 @@ func (s *recursiveUnionStage) close() error {
 func (s *recursiveUnionStage) produce(ctx context.Context, out *Stage) (bool, error) {
 	defer func() { s.Arm.Inner.Evaluation.Context = nil }()
 	for s.Phase < 2 {
-		if err := ctx.Err(); err != nil {
+		if err := util.ExecutionCheckpoint(ctx, "query.recursive"); err != nil {
 			return false, err
 		}
 		// One step advances a row or completes/opens a recursive round.

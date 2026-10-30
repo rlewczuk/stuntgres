@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -158,7 +159,7 @@ func (s *Session) Operation(ctx context.Context, private bool) *Operation {
 	// An application may reuse a callback's effective context on another
 	// connection. New operations inherit its original inert request policy,
 	// never the completed or still-busy runtime scope's active callable.
-	combined, cancel := context.WithCancelCause(workadmission.Suspend(ctx))
+	combined, cancel := context.WithCancelCause(util.DeactivateExecutionPause(workadmission.Suspend(ctx)))
 	op := s.newOperation()
 	op.Ctx, op.CommandContext, op.SourceContext, op.Cancel, op.private = combined, combined, ctx, cancel, private
 	if s.Operations == nil {

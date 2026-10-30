@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -25,7 +26,7 @@ func (p JSONStripNullsPlan) Evaluate(ctx context.Context, target, arrays Value) 
 	if p.result.Type == nil || target.typ != p.target.Type || arrays.typ != p.arrays.Type {
 		return Value{}, fmt.Errorf("foreign JSON stripping value")
 	}
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "json.strip_nulls"); err != nil {
 		return Value{}, err
 	}
 	if target.null || arrays.null {

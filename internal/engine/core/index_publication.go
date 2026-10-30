@@ -122,6 +122,6 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 			return err
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Input: input, Output: s.Output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.executionContext()), Host: HostOf(s), Input: input, Output: s.Output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	return index.ValidatePrivateExpressions(&evaluation, view, s.Stage.Rows, deletes)
 }

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -15,6 +16,7 @@ import (
 
 type DictionaryHost interface {
 	ddl.ConfigurationHost
+	DictionaryFiles() *functions.DictionaryFiles
 }
 
 func dictionaryLookup(h DictionaryHost, auth ddl.Authority, name parser.ObjectName, class ids.OID) (catalog.Descriptor, error) {

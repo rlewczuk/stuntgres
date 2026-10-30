@@ -57,7 +57,7 @@ func (s *StatementScope) WithAmcheckOwner(parent *catalog.Relation, work func(*e
 	}
 	auth := s.RoutineAuth
 	CaptureEnumOperationSafety(op, &s.Input)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: s.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.executionContext()), Host: HostOf(s), Catalog: auth.Catalog, Input: s.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	evaluation.Input.DomainChecks = &evaluation
 	return work(&evaluation)
 }

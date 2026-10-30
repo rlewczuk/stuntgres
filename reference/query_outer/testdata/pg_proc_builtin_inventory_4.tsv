@@ -24,6 +24,8 @@
 3726	dsimple_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	dsimple_lexize	\N	false	\N
 3728	dsynonym_init	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	dsynonym_init	\N	false	\N
 3729	dsynonym_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	dsynonym_lexize	\N	false	\N
+3731	dispell_init	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	dispell_init	\N	false	\N
+3732	dispell_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	dispell_lexize	\N	false	\N
 3740	thesaurus_init	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	2281	2281	\N	\N	\N	false	\N	thesaurus_init	\N	false	\N
 3741	thesaurus_lexize	11	12	1	0	0	0	f	false	false	true	false	i	s	4	0	2281	2281 2281 2281 2281	\N	\N	\N	false	\N	thesaurus_lexize	\N	false	\N
 3745	to_tsvector	11	12	100	0	0	0	f	false	false	true	false	i	s	2	0	3614	3734 25	\N	\N	\N	false	\N	to_tsvector_byid	\N	false	\N

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -58,7 +59,7 @@ func (p JSONEachPlan) Open(ctx context.Context, value Value) (JSONEachCursor, er
 	if p.input.Type == nil || p.result.Type == nil || value.typ != p.input.Type {
 		return JSONEachCursor{}, fmt.Errorf("invalid JSON each value")
 	}
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "json.each.open"); err != nil {
 		return JSONEachCursor{}, err
 	}
 	cursor := JSONEachCursor{result: p.result.Type, asText: p.name == "json_each_text" || p.name == "jsonb_each_text"}
@@ -87,7 +88,7 @@ func (p JSONEachPlan) Open(ctx context.Context, value Value) (JSONEachCursor, er
 }
 
 func (c *JSONEachCursor) Next(ctx context.Context) (Value, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "json.each.next"); err != nil {
 		return Value{}, false, err
 	}
 	if c.result == nil {

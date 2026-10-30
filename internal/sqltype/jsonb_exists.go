@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
 // jsonbExists searches only the immutable root, admitting each candidate.
 func jsonbExists(ctx context.Context, root *jsonbNode, key string) (bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.exists"); err != nil {
 		return false, err
 	}
 	switch root.kind {

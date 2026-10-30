@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/util"
 )
 
 // Projection owns complete private roots, including earlier commands and the
@@ -69,7 +70,7 @@ func (scope *StatementScope) StageColumnShape(stage *CatalogStage, changes *sess
 	stage.Owner.Mu.Lock()
 	snapshot, snapshotExists := scope.Owner.Roots[old.Address()]
 	stage.Owner.Mu.Unlock()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.executionContext(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, scope.Owner.Isolation.Stable(), metadataPrepared)
 	if err == nil && projected {
 		scope.StageProjectedColumnRoots(old.Address(), writes, deletes)
@@ -129,6 +130,12 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 	e.Mu.Unlock()
 	if err != nil {
 		return nil, nil, false, err
+	}
+	if scope := ScopeOf(evaluation.Host); scope != nil {
+		ctx = scope.ActivateRuntime(ctx)
+		evaluation.Context = ctx
+	} else {
+		evaluation.Context = util.ActivateExecutionPause(ctx)
 	}
 	changes.Storage[old.Address()] = shape
 	var transported bool

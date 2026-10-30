@@ -274,6 +274,8 @@ var irBuiltinFacts3 = []irBuiltinFact{
 	{3726, "dsimple_lexize", "dsimple_lexize", "INTERNAL", "INVOKER"},
 	{3728, "dsynonym_init", "dsynonym_init", "INTERNAL", "INVOKER"},
 	{3729, "dsynonym_lexize", "dsynonym_lexize", "INTERNAL", "INVOKER"},
+	{3731, "dispell_init", "dispell_init", "INTERNAL", "INVOKER"},
+	{3732, "dispell_lexize", "dispell_lexize", "INTERNAL", "INVOKER"},
 	{3740, "thesaurus_init", "thesaurus_init", "INTERNAL", "INVOKER"},
 	{3741, "thesaurus_lexize", "thesaurus_lexize", "INTERNAL", "INVOKER"},
 	{3696, "starts_with", "text_starts_with", "INTERNAL", "INVOKER"},

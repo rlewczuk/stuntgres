@@ -81,7 +81,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 				}
 				return sqltype.Boolean(boolean, true), nil
 			})
-			result, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: source})
+			result, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: source})
 			want := sentinel
 			if phase != "late_predicate" {
 				want = context.Canceled
@@ -177,7 +177,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 		}
 		return sqltype.Boolean(boolean, true), nil
 	})
-	_, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: binding, Source: source})
+	_, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: binding, Source: source})
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}

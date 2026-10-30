@@ -307,15 +307,16 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.Active(); err != nil {
 		return err
 	}
+	ctx := s.ActivateRuntime(s.executionContext())
 	batch := index.WriteBatch{Values: rows}
 	for i := range batch.Values {
 		candidate := batch.Candidate(i)
-		if err := dml.CheckUniqueRow(s.WriteHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
+		if err := dml.CheckUniqueRow(ctx, s.WriteHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
 		batch.Set(i, candidate)
 	}
-	return dml.ApplyValidated(s.WriteHost(), ref, batch)
+	return dml.ApplyValidated(ctx, s.WriteHost(), ref, batch)
 }
 
 func (s *StatementScope) Describe(stmt parser.Statement) (Description, error) {

@@ -110,7 +110,7 @@ func publishConcurrentIndexRoot(e *core.Engine, scope *core.StatementScope, synt
 		stage.Indexes().Progress = scope.BeginCreateIndexProgressLocked(parent.Address(), address)
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.Mu.Unlock()
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(scope.Op.Context()), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
 		root, err := index.BuildRelationIndexRoot(&evaluation, parent, &next, &snapshot, stage.Indexes().Progress.Capture(address))
 		if err == nil {

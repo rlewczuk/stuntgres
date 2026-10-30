@@ -71,7 +71,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				b.Returning.Expressions = append(output.Expressions, probe)
 				b.Returning.Schema = append(output.Schema, b.Returning.Schema...)
 			}
-			result, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: source})
+			result, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: source})
 			want := sentinel
 			if phase == "output_cancel" || phase == "explicit_cancel" {
 				want = context.Canceled

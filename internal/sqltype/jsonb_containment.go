@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -48,6 +49,9 @@ func jsonbScalarContains(ctx context.Context, a, b *jsonbNode) (bool, error) {
 
 // jsonbContains walks borrowed immutable nodes one containment frame step at a time.
 func jsonbContains(ctx context.Context, a, b *jsonbNode) (bool, error) {
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.containment"); err != nil {
+		return false, err
+	}
 	var local [32]jsonbContainmentFrame
 	stack := append(local[:0], jsonbContainmentFrame{a: a, b: b})
 	returning, found := false, false

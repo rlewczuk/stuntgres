@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
@@ -12,6 +14,8 @@ import (
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/util"
+	"stuntgres/internal/workadmission"
 )
 
 // statementHost implements dml.FinishHost for root and nested-command completion.
@@ -147,7 +151,7 @@ func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVe
 // checks, and for SET DEFAULT binds the child's defaults with the root binder
 // and retains their consumed original calls as the child-owner phase. It works
 // on a copy of a, as the plan always has.
-func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.ForeignKeyJob, plan *dml.ForeignActionPlan, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
+func (h *statementHost) PlanForeignActionInput(ctx context.Context, a dml.Authority, job *dml.ForeignKeyJob, plan *dml.ForeignActionPlan, event dml.ForeignActionTransition, action parser.ForeignKeyAction) error {
 	s := h.scope()
 	e := s.Engine()
 	auth := *foreignAuthorizationOf(a)
@@ -165,7 +169,7 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 		return nil
 	}
 	program := new(exec.RoutineProgram)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineProgram: program}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineProgram: program}}
 	b := analyze.Binding{Relation: job.Child}
 	analyze.BindInsertDefaults(&e.Catalog.Owner, &b, auth.Catalog, parser.OverrideNone)
 	plan.Defaults = make([]expr.Expr, len(plan.Targets))
@@ -178,7 +182,7 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	}
 	// Retained defaults can themselves cast to a checked domain even when
 	// the action destination is an ordinary base type.
-	binder := analyze.Binder{Host: e.AnalysisHost(s.Op), Ctx: s.Op.Context(), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
+	binder := analyze.Binder{Host: e.AnalysisHost(s.Op), Ctx: util.DeactivateExecutionPause(workadmission.Suspend(ctx)), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
 	e.Mu.Lock()
 	err := binder.CaptureRetainedWriteInput(plan.Defaults, nil, nil)
 	if err == nil && binder.Consumer.VisibilitySnapshot {

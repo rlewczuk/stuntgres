@@ -64,6 +64,7 @@ type Engine struct {
 	ImportTargets              map[authorization.PrincipalRef]authorization.PrincipalRef
 	ImportParameterPredecessor *catalog.State // Parameter authority captured before Restore input.
 	Foreign                    fdw.Registry
+	TextSearchFiles            *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
 	DatabaseFrozenXID          uint64
 	VacuumProgress             map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 	catalogCaptures            catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.

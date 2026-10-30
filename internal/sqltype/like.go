@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -88,6 +89,9 @@ func likeFold(b byte, fold bool) byte {
 // percent folds adjacent wildcards, inspect its next escaped token before
 // searching the remaining input, matching the release's lazy error ordering.
 func matchLike(ctx context.Context, input, pattern string, binary, fold bool) (bool, error) {
+	if err := util.ExecutionCheckpoint(ctx, "text.like.match"); err != nil {
+		return false, err
+	}
 	i, j, retryInput, retryPattern, work := 0, 0, -1, -1, 0
 	for i < len(input) {
 		work++
@@ -194,7 +198,7 @@ func (p LikeEscapePlan) Evaluate(ctx context.Context, pattern, escape Value) (Va
 	if p.result.Type == nil || pattern.typ != p.args[0].Type || escape.typ != p.args[1].Type {
 		return Value{}, fmt.Errorf("invalid LIKE escape values")
 	}
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "text.like.escape"); err != nil {
 		return Value{}, err
 	}
 	if pattern.null || escape.null {

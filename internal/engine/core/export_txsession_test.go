@@ -144,7 +144,7 @@ func EnginePrepareNotificationPublication(x *Engine, sender *session.Session, ac
 
 // EnginePrepareTemporaryCommit calls x.prepareTemporaryCommit.
 func EnginePrepareTemporaryCommit(x *Engine, op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *session.Journal, error) {
-	return x.prepareTemporaryCommit(op, ref, writes, deletes, c)
+	return x.prepareTemporaryCommit(op, ref, writes, deletes, c, nil)
 }
 
 // EnginePrepareTemporarySessionIndexes calls x.prepareTemporarySessionIndexes.

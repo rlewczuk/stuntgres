@@ -77,7 +77,7 @@ func TestDeleteUsingRejectedPairsDoNotAllocatePerPair(t *testing.T) {
 		}
 		return testing.AllocsPerRun(20, func() {
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), q)
-			r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+			r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: target, Inputs: inputs})
 			if r.Rows != nil {
 				defer r.Rows.Close()
 			}

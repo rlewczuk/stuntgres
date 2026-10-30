@@ -20,6 +20,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -67,7 +68,7 @@ func (h *statementHost) InvokeAggregateRoutine(ctx context.Context, d *catalog.P
 			return sqltype.Value{}, err
 		}
 		saved := s.invocationContext
-		s.invocationContext = context.WithValue(exec.SQLInvocationContext(workadmission.Suspend(ctx)), aggregateInvocationKey{}, s)
+		s.invocationContext = context.WithValue(exec.SQLInvocationContext(util.DeactivateExecutionPause(workadmission.Suspend(ctx))), aggregateInvocationKey{}, s)
 		defer func() { s.invocationContext = saved }()
 	}
 	return s.invokeSQLRoutine(d, frame, resultUsage, owner, collation, false, false, nil)

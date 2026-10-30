@@ -82,7 +82,7 @@ func TestDMLSourceStageClose(t *testing.T) {
 				if command == "update_from" {
 					outcome, err = dml.ExecuteUpdate(scope.WriteHost(), dml.UpdateInput{Context: op.Context(), Binding: b, Source: target, From: inputs, Schema: "public"})
 				} else {
-					outcome, err = dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+					outcome, err = dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: target, Inputs: inputs})
 				}
 				// Always reject the fixture's staged mutation, even while this regression
 				// correctly detects that an ignored first Close returned false success.

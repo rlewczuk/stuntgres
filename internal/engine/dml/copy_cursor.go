@@ -61,14 +61,14 @@ func (c *CopyCursor) rowDefaults() []bool { return c.defaults }
 func (c *CopyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	wireInput := c.op.CopyInput.Active.Load()
 	if wireInput {
-		ctx = c.op.Context()
+		ctx = c.host.CopyInputContext()
 	}
 	if err := ctx.Err(); err != nil {
 		if c.op.CopyInput.Held() && session.PendingProtocolUserCancel(ctx) {
 			// User cancellation may arrive after Context selected its live
 			// standard context. Refresh only the admitted decoder's view;
 			// its owner retains deadlines, terminal and source authority.
-			ctx = c.op.Context()
+			ctx = c.host.CopyInputContext()
 			err = ctx.Err()
 		}
 		if err != nil {
@@ -87,7 +87,7 @@ func (c *CopyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		return false, c.Diagnostic(err)
 	}
 	if wireInput {
-		ctx = c.op.Context()
+		ctx = c.host.CopyInputContext()
 	}
 	if err = c.in.Split(true); err != nil {
 		return false, c.Diagnostic(err)

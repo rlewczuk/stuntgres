@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"maps"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -17,8 +19,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The caller retains replacementMu throughout, but providers must never run
-// under the target catalog mutex. All effects belong to an isolated real session.
+// The caller holds ReplacementMu then Mu on entry and return. Demanded repair
+// releases both around private-stage work, then rejects changed predecessors
+// before the caller can attach live TEMP storage or install the candidate.
 // A nonnil installedStage identifies the owner of the supplied map containers
 // after repair; later container writes must use that store's locked methods.
 // When no repair is needed, it returns nil and leaves the containers detached.
@@ -39,12 +42,51 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, ctx.Err()
 	}
 	catalogSnapshot, roles, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
-	oidFrontier := e.Catalog.NextOID()
+	oidFrontier, revision := e.Catalog.NextOID(), e.Catalog.NextRevision()
+	rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
+	roleRevision, principal, membership := e.RoleStore.NextRevision(), e.RoleStore.NextPrincipal(), e.RoleStore.NextMembershipOID()
+	sourceRoles := e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Read(next), roles)
+	shapes := make(map[ids.ObjectAddress]storage.RowShape, len(e.Storage.Relations))
+	for address, store := range e.Storage.Relations {
+		shapes[address] = storage.RowShape{Original: store, Root: store.Versions, ObservedEnds: store.Ends, Generation: store.Generation}
+	}
+	roots := maps.Clone(e.Storage.IndexRoots)
+	temporary := e.captureRepairTemporaryOwnersLocked()
+	sourceContext, suppliedOperation := ctx, op != nil
 	e.Mu.Unlock()
+	e.ReplacementMu.Unlock()
 	defer func() {
+		e.ReplacementMu.Lock()
 		e.Mu.Lock()
-		if result == nil && (e.Catalog.State != catalogSnapshot || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Catalog.NextOID() != oidFrontier) {
+		if result != nil {
+			return
+		}
+		result = sourceContext.Err()
+		if result == nil && suppliedOperation {
+			result = ctx.Err()
+		}
+		if result != nil {
+			return
+		}
+		if e.Catalog.State != catalogSnapshot || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier ||
+			e.Catalog.NextOID() != oidFrontier || e.Catalog.NextRevision() != revision ||
+			e.Storage.RowFrontier() != rowFrontier || e.Storage.VersionFrontier() != versionFrontier ||
+			e.RoleStore.NextRevision() != roleRevision || e.RoleStore.NextPrincipal() != principal || e.RoleStore.NextMembershipOID() != membership ||
+			e.prepared.Len() != 0 || len(e.Storage.Relations) != len(shapes) || !maps.Equal(roots, e.Storage.IndexRoots) ||
+			!e.repairTemporaryOwnersCurrentLocked(temporary) {
 			result = ids.ErrCatalogReplaced
+			return
+		}
+		for address, shape := range shapes {
+			store := e.Storage.Relations[address]
+			if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
+				result = ids.ErrCatalogReplaced
+				return
+			}
+		}
+		result = e.checkTemporaryRelationSourcesReplacementLocked()
+		if result == nil {
+			result = e.Storage.ReplacementCapacityLocked(relations, e.Catalog.State.Epoch(), e.Visibility.CommitSeq())
 		}
 	}()
 	var stage *Engine
@@ -55,7 +97,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.Mu.Lock()
-	_, procedure, err := stage.remapPreparedCatalog(candidate, e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Read(next), roles), stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
+	_, procedure, err := stage.remapPreparedCatalog(candidate, sourceRoles, stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
 	if err == nil {
 		// ReownExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
@@ -119,6 +161,12 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 		stage.Mu.Unlock()
 	}
+	if err != nil {
+		return installedStage, scope.Finish(err)
+	}
+	// Keep source ctx for admission above; every runtime consumer below borrows
+	// exactly this statement's current effective child, including its cause.
+	ctx = scope.ActivateRuntime(scope.Op.Context())
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: stage.Catalog.Read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err == nil && rangeValidation {
 		err = stored.ValidateRemappedRanges(ctx, candidate, relations)
@@ -164,4 +212,58 @@ func remapCheckCapture(host exec.Host) func(*catalog.Relation) error {
 		stage.Mu.Unlock()
 		return err
 	}
+}
+
+// Catalog identity fences the immutable TEMP descriptors and namespace tokens.
+// Session retirement and active namespace changes also need their own owner
+// fence: RequestEnd may precede catalog cleanup. Mu guards the active namespace;
+// Session.Mu guards State. Never retain sessionMu while taking Session.Mu.
+type repairTemporaryOwner struct {
+	session   *session.Session
+	state     session.State
+	namespace ids.ObjectAddress
+}
+
+func (e *Engine) captureRepairTemporaryOwnersLocked() map[ids.SessionToken]repairTemporaryOwner {
+	var owners map[ids.SessionToken]repairTemporaryOwner
+	for _, namespace := range e.Catalog.Current().TemporaryNamespaces() {
+		if namespace.TemporaryToast {
+			continue
+		}
+		if owners == nil {
+			owners = make(map[ids.SessionToken]repairTemporaryOwner)
+		}
+		e.sessionMu.Lock()
+		s := e.sessions[namespace.Temporary]
+		e.sessionMu.Unlock()
+		owner := repairTemporaryOwner{session: s}
+		if s != nil {
+			s.Mu.Lock()
+			owner.state = s.State
+			s.Mu.Unlock()
+			owner.namespace = s.TemporaryNamespace
+		}
+		owners[namespace.Temporary] = owner
+	}
+	return owners
+}
+
+func (e *Engine) repairTemporaryOwnersCurrentLocked(owners map[ids.SessionToken]repairTemporaryOwner) bool {
+	for token, owner := range owners {
+		e.sessionMu.Lock()
+		s := e.sessions[token]
+		e.sessionMu.Unlock()
+		if s != owner.session {
+			return false
+		}
+		if s != nil {
+			s.Mu.Lock()
+			state := s.State
+			s.Mu.Unlock()
+			if state != owner.state || state != session.Live || s.TemporaryNamespace != owner.namespace {
+				return false
+			}
+		}
+	}
+	return true
 }

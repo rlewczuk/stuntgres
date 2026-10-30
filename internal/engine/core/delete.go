@@ -181,7 +181,7 @@ func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, 
 	e.initializeTemporarySourceLocked(s, source)
 	e.Mu.Unlock()
 	defer source.Close()
-	outcome, err := dml.ExecuteDelete(s.WriteHost(), dml.DeleteInput{Context: s.activateWork(s.executionContext()), Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
+	outcome, err := dml.ExecuteDelete(s.WriteHost(), dml.DeleteInput{Context: s.ActivateRuntime(s.executionContext()), Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
 	if err != nil {
 		return Result{}, err
 	}

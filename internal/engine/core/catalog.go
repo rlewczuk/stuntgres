@@ -24,6 +24,7 @@ import (
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 )
 
 // DomainOf returns the engine's domain, or nil for a nil engine, so a
@@ -716,8 +717,13 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: p.ctx, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if scope != nil {
 			evaluation.Input, evaluation.Output = scope.Input, scope.Output
+			evaluation.Context = scope.ActivateRuntime(p.ctx)
 		} else if op != nil {
 			evaluation.Input, evaluation.Output = op.EffectiveSettings().Presentation()
+		}
+		if scope == nil {
+			// Direct publication has no statement reservation to hand off.
+			evaluation.Context = util.ActivateExecutionPause(p.ctx)
 		}
 		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, build.Build, build.Sources, build.Rebuild, stageIndexes.Rebuilds, stageIndexes.Output, disclosure, runtimeOwners, stageIndexes.Candidates, stageIndexes.Progress)
 		if indexErr != nil {
@@ -971,7 +977,8 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, source *Engine, replacement
 	return e.ReplaceCatalogInOperation(ctx, source, replacement, nil)
 }
 
-// Restore retains its genuine private operation through owner-cell validation.
+// Restore retains its genuine source-owned private operation through owner-cell
+// validation. Ordinary replacement callers use ReplaceCatalog without an op.
 func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation) (ChangeSet, error) {
 	var installed ids.CatalogEpoch
 	defer func() {
@@ -981,6 +988,17 @@ func (e *Engine) ReplaceCatalogInOperation(ctx context.Context, source *Engine, 
 	}()
 	if replacement.State() == nil || replacement.Owner() == nil || source == nil || replacement.Owner() != &source.Catalog.Owner {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid replacement catalog")
+	}
+	if restoreOp != nil {
+		if source == e {
+			return ChangeSet{}, fmt.Errorf("stuntgres: replacement repair requires an isolated source operation")
+		}
+		if err := session.ValidateOperation(source.Catalog.Domain, restoreOp); err != nil {
+			return ChangeSet{}, err
+		}
+		if EngineOf(restoreOp.Session) != source {
+			return ChangeSet{}, fmt.Errorf("stuntgres: replacement operation does not belong to source")
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err

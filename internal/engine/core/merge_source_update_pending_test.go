@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -149,19 +148,14 @@ func TestMergeSourceUpdatePending(t *testing.T) {
 	}
 }
 
-func mergeSourceRepeatableReadFollowup(t *testing.T, e *core.Engine, s *session.Session, oldBag bool) {
+func mergeSourceRepeatableReadFollowup(t *testing.T, e *core.Engine, s *session.Session) {
 	t.Helper()
 	q := "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) src ON t.id=src.id WHEN NOT MATCHED BY SOURCE AND t.id=1"
 	enginetest.SessionSQL(t, s, "SAVEPOINT followup")
 	op := enginetest.TransactionOperation(t, s)
 	result, err := e.Execute(op, enginetest.Statement(t, q+" THEN UPDATE SET v=t.v+1"), 0, nil)
 	op.Done()
-	if oldBag {
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "21000" || diagnostic.Message != "MERGE command cannot affect row a second time" || diagnostic.Hint != "Ensure that not more than one source row matches any one target row." || result.Count != 0 {
-			t.Fatal(result, err)
-		}
-	} else if err != nil || result.Count != 1 {
+	if err != nil || result.Count != 1 {
 		t.Fatal(result, err)
 	}
 	enginetest.SessionSQL(t, s, "ROLLBACK TO followup")
@@ -173,11 +167,7 @@ func mergeSourceRepeatableReadFollowup(t *testing.T, e *core.Engine, s *session.
 	if r.Count != 1 {
 		t.Fatal(r.Count)
 	}
-	if oldBag {
-		enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY id,v", 10, 101, 21, 40)
-	} else {
-		enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY id,v", 101, 21, 40)
-	}
+	enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY id,v", 101, 21, 40)
 	enginetest.SessionSQL(t, s, "ROLLBACK TO followup")
 	enginetest.SessionSQL(t, s, "RELEASE followup")
 }

@@ -876,6 +876,10 @@ Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public
 Dump/Restore behavior is in `reference/` ([docs/TESTING.md](../../../docs/TESTING.md)).
 
+Partial FDW capture fixtures still install complete builtin dictionary/template
+manifests and their genuine referenced helper declarations. Derive that helper
+closure from installed templates, not a simple-only list.
+
 Provider replay proof covers key cycles, move-before-rename, owner-last ordering,
 invalid identities, internal pseudotype signatures, missing argument types and
 the explicit-ACL boundary:

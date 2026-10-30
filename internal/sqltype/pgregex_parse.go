@@ -142,6 +142,7 @@ func compilePGRegexBudget(ctx context.Context, pattern string, options PGRegexOp
 			budget.runtime = true
 			budget.work = nil
 			p.budget = budget
+			p.compiledBytes = budget.used
 			return p, ctx.Err()
 		case "open":
 			capID := 0

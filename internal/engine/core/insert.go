@@ -42,7 +42,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.Mu.Unlock()
-		ctx = scope.activateWork(ctx)
+		ctx = scope.ActivateRuntime(ctx)
 		in.Context = ctx
 		if err := exec.SelectQuerySources(ctx, source); err != nil {
 			return Result{}, err
@@ -64,7 +64,7 @@ func (e *Engine) executeInsertLocked(scope *StatementScope, execution *preparedC
 			evaluation.Scope, evaluation.Frame = 1, 1
 		}
 		e.Mu.Unlock()
-		ctx = scope.activateWork(ctx)
+		ctx = scope.ActivateRuntime(ctx)
 		in.Context = ctx
 		evaluation.Context = ctx
 		if evaluation.Query != nil {

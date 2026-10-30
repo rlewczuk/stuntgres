@@ -45,7 +45,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			enginetest.SessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
 			prior := s.Transactions.Writes[ref.Address]
 			op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(op.Context()), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			integer := func(n int64) sqltype.Value {
 				value, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 				if err != nil {
@@ -56,7 +56,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			var pinned []storage.RowVersion
 			for k := 1; k <= size*2; k++ {
 				proposal := []sqltype.Value{integer(int64(k)), integer(1)}
-				if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
+				if admitted, err := dml.AdmitInsertRow(evaluation.Context, scope.WriteHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.Stage.Rows[ref.Address]
@@ -100,7 +100,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			}
 			var finishErr error
 			if duplicate {
-				_, finishErr = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: []sqltype.Value{integer(1), integer(1)}}, index.WriteBatch{}, &evaluation)
+				_, finishErr = dml.AdmitInsertRow(evaluation.Context, scope.WriteHost(), ref, &index.WriteCandidate{Values: []sqltype.Value{integer(1), integer(1)}}, index.WriteBatch{}, &evaluation)
 				var d *sqlstate.Error
 				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.Stage.Rows[ref.Address]) != size*2 || scope.InsertConflict.Affected != size*2 {
 					t.Fatal("duplicate does not append or count", finishErr, scope.InsertConflict.Affected)

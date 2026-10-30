@@ -37,7 +37,7 @@ func TestWorkAdmissionRuntimeReservationHandoff(t *testing.T) {
 	})
 	e.ReplacementMu.RLock()
 	s.ReplacementRead = true
-	active := s.activateWork(ctx)
+	active := s.ActivateRuntime(ctx)
 	if s.ReplacementRead {
 		t.Fatal("runtime startup did not hand off reservation")
 	}
@@ -61,7 +61,7 @@ func TestWorkAdmissionRuntimeRejectsRetiredOwner(t *testing.T) {
 	sess := &session.Session{Host: (*sessionHost)(e)}
 	s := &StatementScope{Op: &session.Operation{Session: sess}, Owner: &session.TransactionOwner{}, Finished: true}
 	s.self = s
-	active := s.activateWork(workadmission.With(context.Background(), func(context.Context, workadmission.Class) error { return nil }))
+	active := s.ActivateRuntime(workadmission.With(context.Background(), func(context.Context, workadmission.Class) error { return nil }))
 	if err := workadmission.Admit(active, workadmission.WorkRecursiveUnion); err == nil {
 		t.Fatal("application grant revived retired statement owner")
 	}
@@ -71,7 +71,7 @@ func TestWorkAdmissionRuntimeDisabledAllocations(t *testing.T) {
 	var s *StatementScope
 	ctx := context.Background()
 	if allocations := testing.AllocsPerRun(100, func() {
-		if s.activateWork(ctx) != ctx {
+		if s.ActivateRuntime(ctx) != ctx {
 			t.Fatal("disabled runtime changed context")
 		}
 	}); allocations != 0 {

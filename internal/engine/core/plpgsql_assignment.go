@@ -125,7 +125,7 @@ func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTa
 		return nil, &plan.PLAssignmentPlanningError{Err: err}
 	}
 	s.RoutineAuth = auth
-	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.executionContext()), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	prepared.evaluation.Input.DomainChecks = &prepared.evaluation
 	return prepared, nil
 }

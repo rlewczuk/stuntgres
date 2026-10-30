@@ -65,6 +65,9 @@ func createDatabaseTarget(e *core.Engine, ctx context.Context, scope *core.State
 		if err == nil {
 			err = candidate.InstallHostDefinitions(e.Catalog.HostRuntimes)
 		}
+		if candidate != nil {
+			candidate.TextSearchFiles = e.TextSearchFiles
+		}
 		e.Cluster.Seed, e.Cluster.SeedError = candidate, err
 	})
 	if e.Cluster.SeedError != nil {

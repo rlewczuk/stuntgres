@@ -269,18 +269,17 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	return c, name, nil
 }
 
-// sqlCursorProducer is a live cursor's producer for the motion its scope
-// admitted.
+// sqlCursorProducer borrows the current effective child for one admitted
+// motion. It is ephemeral: the retained cursor never owns a FETCH context.
 type sqlCursorProducer struct {
 	cursor *sqlCursor
 	scope  *StatementScope
+	ctx    context.Context
 }
 
 var _ exec.CursorProducer = sqlCursorProducer{}
 
-func (p sqlCursorProducer) Context() context.Context {
-	return p.scope.activateWork(p.scope.executionContext())
-}
+func (p sqlCursorProducer) Context() context.Context { return p.ctx }
 func (p sqlCursorProducer) Open() (*exec.Stage, error) {
 	if err := p.cursor.openProducer(p.scope); err != nil {
 		return nil, err
@@ -296,7 +295,7 @@ func (p sqlCursorProducer) Exhausted() error {
 func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
 	in := exec.CursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
 	if !c.promoted {
-		in.Producer = sqlCursorProducer{cursor: c, scope: s}
+		in.Producer = sqlCursorProducer{cursor: c, scope: s, ctx: s.ActivateRuntime(s.executionContext())}
 	}
 	return in
 }

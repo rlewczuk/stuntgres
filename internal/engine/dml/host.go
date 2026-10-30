@@ -1,6 +1,8 @@
 package dml
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -29,6 +31,9 @@ type Host interface {
 	exec.Host        // context, environments, replacement read, foreign enlistment, ...
 	index.WriteHost  // unique and exclusion windows and waits
 	fdw.WriteRuntime // foreign participants and modification tracking
+	// CopyInputContext projects the actual selected COPY child for detached decoding.
+	// It reuses the current projection; never call under engine/session locks.
+	CopyInputContext() context.Context
 	Statement
 	Stage
 	RowLocks
@@ -119,7 +124,7 @@ type ForeignKeys interface {
 	// diagnostic names when the targets carry domain checks, and for SET
 	// DEFAULT the bound defaults and retained original child-owner calls.
 	// event supplies the actual action diagnostic frame. Locks; never waits.
-	PlanForeignActionInput(a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, event ForeignActionTransition, action parser.ForeignKeyAction) error
+	PlanForeignActionInput(ctx context.Context, a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, event ForeignActionTransition, action parser.ForeignKeyAction) error
 	// SwapForeignActionAuthority installs next as the running RI action's
 	// authority (nil clears it) and returns the previous one, nil when none.
 	// Never locks.
@@ -265,7 +270,7 @@ const (
 	// repeatable-read conflict; Own reads the transaction's own writes.
 	RowDelete
 	// RowMerge checks both epochs, prefers the transaction's own version,
-	// follows committed updates and fails only on a concurrent delete.
+	// and rejects committed successors outside a retained snapshot.
 	RowMerge
 	// RowConflictUpdate checks the ref epoch, Parent's row shape, the write
 	// authority and the ON CONFLICT binding; Own reads this command's and the

@@ -23,6 +23,11 @@ Routing, pruning, partition lock admission (`AcquirePartitionLock`,
 trust checks (`PartitionConstraintReplayImport`, `partition*ReplayAllowed`)
 and the partition parts of the DML path are core's.
 
+ATTACH bound evaluation and existing-row validation activate their local current
+invocation after metadata capture releases the mutex. The same effective context
+feeds the evaluator and the explicit scan/bound argument; bound binding remains
+dormant and overlap/publication checks retain ordinary authority.
+
 ## Entry points
 
 - Dispatch (`core.Statements.ExecuteLocked`): `AttachPartitionLocked` and

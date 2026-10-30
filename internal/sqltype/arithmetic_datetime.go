@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -143,6 +144,9 @@ func (p Arithmetic) datetimeBinary(ctx context.Context, a, b Value, input InputE
 }
 
 func addTimestampInterval(ctx context.Context, n int64, interval Value, d *Descriptor, subtract bool, input InputEnvironment) (Value, error) {
+	if err := util.ExecutionCheckpoint(ctx, "datetime.add_interval"); err != nil {
+		return Value{}, err
+	}
 	if subtract {
 		var err error
 		interval, err = negateInterval(interval, interval.typ)

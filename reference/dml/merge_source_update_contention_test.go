@@ -247,11 +247,15 @@ func TestReferenceMergeSourceUpdateRepeatableRead(t *testing.T) {
 					fixture.LockExec(t, ctx, holder, end, 0)
 					out := await()
 					deleted := lane == "delete" || lane == "deleteInsert"
-					if commit && deleted {
+					if commit {
 						if out.Result != nil {
 							t.Fatal("serialization exposed result")
 						}
-						d := fixture.ControlsReferenceDiagnostic("40001", "could not serialize access due to concurrent delete")
+						action := "update"
+						if deleted {
+							action = "delete"
+						}
+						d := fixture.ControlsReferenceDiagnostic("40001", "could not serialize access due to concurrent "+action)
 						fixture.AssertDiagnostic(t, out.Err, &d)
 						_, err = worker.ExecContext(ctx, "SELECT * FROM t")
 						aborted := fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")
@@ -267,11 +271,7 @@ func TestReferenceMergeSourceUpdateRepeatableRead(t *testing.T) {
 					bag := func(own int64) {
 						want := [][]any{{int64(2), own}, {int64(9), int64(91)}}
 						if commit {
-							if deleted {
-								want = [][]any{{int64(2), int64(10)}, {int64(9), int64(91)}}
-							} else {
-								want = [][]any{{int64(2), int64(10)}, {int64(2), own}, {int64(9), int64(91)}}
-							}
+							want = [][]any{{int64(2), int64(10)}, {int64(9), int64(91)}}
 						} else if lane == "deleteInsert" {
 							want = append([][]any{{int64(1), int64(7)}}, want...)
 						}
@@ -302,27 +302,13 @@ func TestReferenceMergeSourceUpdateRepeatableRead(t *testing.T) {
 							r, err = worker.ExecContext(ctx, second)
 						}
 						own := int64(100)
-						if commit && lane == "followupUnconditional" {
-							if r != nil {
-								t.Fatal("cardinality exposed result")
-							}
-							d := mergeUpdateCardinalityDiagnostic()
-							d.Severity = "ERROR"
-							d.SeverityUnlocalized = "ERROR"
-							fixture.AssertDiagnostic(t, err, &d)
-							_, err = worker.ExecContext(ctx, "SELECT * FROM t")
-							aborted := fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")
-							fixture.AssertDiagnostic(t, err, &aborted)
-							fixture.LockExec(t, ctx, worker, "ROLLBACK TO followup", 0)
+						n := int64(1)
+						if lane == "followupOriginalOnly" {
+							n = 0
 						} else {
-							n := int64(1)
-							if lane == "followupOriginalOnly" {
-								n = 0
-							} else {
-								own = 101
-							}
-							mergeInsertAffected(t, b, r, err, n)
+							own = 101
 						}
+						mergeInsertAffected(t, b, r, err, n)
 						fixture.LockExec(t, ctx, worker, "RELEASE followup", 0)
 						bag(own)
 					}

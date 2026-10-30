@@ -334,7 +334,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				continue
 			}
 		} else {
-			if err := ClaimUniqueRow(h, ref, old); err != nil {
+			if err := ClaimUniqueRow(ctx, h, ref, old); err != nil {
 				return Outcome{}, err
 			}
 			old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -354,7 +354,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				return Outcome{}, err
 			}
 			proposal := index.WriteCandidate{Values: physicalRow}
-			if err := CheckUniqueRow(h, ref, &proposal, batch.old, batch.rows); err != nil {
+			if err := CheckUniqueRow(ctx, h, ref, &proposal, batch.old, batch.rows); err != nil {
 				return Outcome{}, err
 			}
 			if err := CheckViewRow(h, &b, row, &eval); err != nil {
@@ -383,9 +383,9 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 			}
 			_, overlap := batch.prior[old.Row]
 			if overlap {
-				err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
+				err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceMerge)
 			} else {
-				err = ReplaceRows(h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
+				err = ReplaceRows(ctx, h, ref, batch.old[len(batch.old)-1:], one, ReplaceAppend)
 			}
 			if err != nil {
 				return Outcome{}, err

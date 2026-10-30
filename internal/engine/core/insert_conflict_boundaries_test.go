@@ -81,7 +81,8 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
 	// must survive even though a new unique-key reservation is discarded.
-	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+	admissionContext := scope.ActivateRuntime(scope.Op.Context())
+	admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
@@ -172,10 +173,11 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	}
 	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
-	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
+	admissionContext := scope.ActivateRuntime(scope.Op.Context())
+	if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
+	if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
 	if got := advisoryUnitHold(session, key); got != want {

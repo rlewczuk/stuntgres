@@ -155,7 +155,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.Returning.Count)
 				}
 			}
-			if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), rows, b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

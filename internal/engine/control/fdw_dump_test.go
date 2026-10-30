@@ -86,16 +86,26 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 		state.SetDescriptor(conversion.Address(), &conversion)
 		state.BindName(catalog.DescriptorNameKey(&conversion), conversion.Address())
 	}
+	catalog.InstallBuiltinDictionaries(state, owner, functions.DefaultSimpleDictionary)
+	// A partial SQL/MED fixture still needs the complete real template/helper
+	// closure inspected by full capture. Derive it from the installed seeds,
+	// rather than retaining a simple-only helper allowlist.
+	dictionaryHelpers := make(map[ids.ObjectAddress]bool)
+	for _, descriptor := range state.Descriptors() {
+		if template, ok := descriptor.(*catalog.TSTemplate); ok {
+			dictionaryHelpers[template.Init] = true
+			dictionaryHelpers[template.Lexize] = true
+		}
+	}
 	dictionaryProcedures := routine.BuiltinProcedures(owner)
 	for i := range dictionaryProcedures {
 		procedure := &dictionaryProcedures[i]
-		if procedure.Address().ObjectID != 3725 && procedure.Address().ObjectID != 3726 && procedure.Address().ObjectID != 3728 && procedure.Address().ObjectID != 3729 && procedure.Address().ObjectID != 3740 && procedure.Address().ObjectID != 3741 {
+		if !dictionaryHelpers[procedure.Address()] {
 			continue
 		}
 		state.SetDescriptor(procedure.Address(), procedure)
 		state.BindName(catalog.DescriptorNameKey(procedure), procedure.Address())
 	}
-	catalog.InstallBuiltinDictionaries(state, owner, functions.DefaultSimpleDictionary)
 	wrapper := &catalog.ForeignObject{ObjectAddress: fdwUnitAddress(ids.ForeignWrapperClassID, 90003), ObjectRevision: 1, ObjectName: `w"quoted`, Owner: owner, Options: []catalog.ForeignOption{{Name: "tag", Value: "first"}, {Name: "empty", Value: ""}}}
 	empty := ""
 	server := &catalog.ForeignObject{ObjectAddress: fdwUnitAddress(ids.ForeignServerClassID, 90002), ObjectRevision: 1, ObjectName: "s", Owner: owner, Wrapper: wrapper.Address(), ServerType: &empty, Options: []catalog.ForeignOption{{Name: "path", Value: "a'b\\c\nnext"}}}

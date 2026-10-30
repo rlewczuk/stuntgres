@@ -22,7 +22,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default `fi
   `JSONTypeWithMetadata`, `JSONTypeSourceColumn`, `JSONBObjectMetadata`,
   `JSONBSetMetadataStep`, `JSONReferenceQuote`, `JSONReferenceValuer`,
   `SQLJSONBoth`, `SQLJSONDiagnostic`, `SQLJSONQueryOne` and `OutputGateCancel`.
-- **Active cancellation** uses one of three patterns:
+- **Active cancellation and pause controls:**
   - `fixture.BinaryConversionActiveCancel` with a typed public work class,
     such as `stuntgres.WorkJSONBExistence` or `stuntgres.WorkJSONBObjectExpand`.
     Its synchronous real provider admission policy cannot be satisfied by input scans.
@@ -49,6 +49,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default `fi
     CHECK after the ordered small row. Both require completed large output
     before cancellation; writers also require the earlier small-output grant
     and assert no partial insertion.
+  - `fixture.SleepActiveCancel` for ordinary predicates (`ArrayOrderCancellation`).
+  - The distinct closed `ExecutionPause` capability, normal Resume, fresh
+    cursor FETCH/HOLD demand and canceled writes: `RUN='^TestReferenceExecutionPause'`.
+    Native control phases retain independently expected SQL/metadata and
+    held-owner recovery on both backends; canceled cursor transactions recover
+    by full rollback.
 - **Client metadata.** lib/pq reports an empty `DatabaseTypeName` for
   user-defined arrays, composites and JSONPATH; `interface{}` ScanType and byte
   payloads for JSON, JSONPATH and RECORD (native: type name, string); BYTEA

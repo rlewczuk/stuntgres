@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -17,7 +18,7 @@ import (
 // StageMergeRows stages the assembled MERGE actions in action order: each
 // DELETE alone, and each run of INSERTs or of UPDATEs with one lock mode as
 // one batch.
-func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
+func StageMergeRows(ctx context.Context, h Host, rows *MergeRows, ref ids.ObjectRef) error {
 	for start := rows.StagedActions; start < len(rows.Actions); {
 		action := rows.Actions[start]
 		if action.Action == parser.MergeDeleteAction {
@@ -36,9 +37,9 @@ func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
 		if action.Action == parser.MergeUpdateAction {
 			batch := rows.WriteBatch.Slice(first, last)
 			batch.ActionMode = action.UpdateMode
-			err = ReplaceRows(h, ref, rows.Predecessors[first:last], batch, ReplaceMerge)
+			err = ReplaceRows(ctx, h, ref, rows.Predecessors[first:last], batch, ReplaceMerge)
 		} else {
-			err = ApplyValidated(h, ref, rows.WriteBatch.Slice(first, last))
+			err = ApplyValidated(ctx, h, ref, rows.WriteBatch.Slice(first, last))
 		}
 		if err != nil {
 			return err
@@ -50,7 +51,7 @@ func StageMergeRows(h Host, rows *MergeRows, ref ids.ObjectRef) error {
 }
 
 // Source completion and ON membership precede every action wait. Match marks
-// refer to captured occurrences, preserving equal values and RR old+own bags.
+// refer to captured occurrences, preserving equal values and source provenance.
 func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec.State, unique bool) (*MergeRows, error) {
 	ctx, b, target := in.Context, in.Binding, in.Target
 	sourceSchema := cursor.Schema()
@@ -313,7 +314,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 					return nil, err
 				}
 				if b.Relation.HasTriggers() {
-					if err := StageMergeRows(h, result, b.Ref); err != nil {
+					if err := StageMergeRows(ctx, h, result, b.Ref); err != nil {
 						return nil, err
 					}
 				}
@@ -364,7 +365,7 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := ClaimUniqueRow(h, b.Ref, old); err != nil {
+		if err := ClaimUniqueRow(evaluation.Context, h, b.Ref, old); err != nil {
 			return err
 		}
 		if err := h.PhysicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
@@ -452,7 +453,7 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 				return err
 			}
 		}
-		if err := ClaimUniqueRow(h, b.Ref, old); err != nil {
+		if err := ClaimUniqueRow(evaluation.Context, h, b.Ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -468,7 +469,7 @@ func appendMergeAction(h Host, b analyze.Binding, read catalog.Read, result *Mer
 	}
 	candidate := index.WriteCandidate{Values: row}
 	if unique {
-		if err := CheckUniqueRow(h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
+		if err := CheckUniqueRow(evaluation.Context, h, b.Ref, &candidate, *excluded, result.WriteBatch); err != nil {
 			return err
 		}
 	}

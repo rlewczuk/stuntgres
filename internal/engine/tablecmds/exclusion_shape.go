@@ -14,7 +14,7 @@ func prepareExclusionShape(s *core.StatementScope, original, parent *catalog.Rel
 	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Input: s.Input, Output: s.Output, Host: core.HostOf(s), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.Op.Context()), Input: s.Input, Output: s.Output, Host: core.HostOf(s), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	entries, err := index.ExclusionShapeEntries(&evaluation, parent, view, writes, deletes)
 	if err != nil {
 		return err

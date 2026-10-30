@@ -145,6 +145,7 @@ type PGRegexProgram struct {
 	classRanges                             []pgRegexRange
 	start                                   int
 	collation                               CollationRef
+	compiledBytes                           int
 	capture                                 bool
 	captures                                int
 	backrefs                                bool

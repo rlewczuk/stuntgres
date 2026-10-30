@@ -114,7 +114,7 @@ func (h *statementHost) invokeImmediateRow(request dml.BeforeRow, timing stored.
 			return result, err
 		}
 		if p.When != nil {
-			old := exec.Context{EvalFrame: exec.EvalFrame{Scope: analyze.RulePseudoScope, Frame: 1, Row: request.Old}, EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: h, Catalog: read, Input: s.Input, Output: s.Output}}
+			old := exec.Context{EvalFrame: exec.EvalFrame{Scope: analyze.RulePseudoScope, Frame: 1, Row: request.Old}, EvalStatement: exec.EvalStatement{Context: s.ActivateRuntime(s.executionContext()), Host: h, Catalog: read, Input: s.Input, Output: s.Output}}
 			old.RoutineAuthority = &current
 			old.RoutineRecipe = true
 			old.RoutineChecks = p.Binding.Dependencies

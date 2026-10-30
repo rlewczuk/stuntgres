@@ -49,11 +49,12 @@ nontransactional.
   analysis slots; `Session.AcquireCommand` admits commands. Notice levels,
   emission and the relation skip notices (`ExistingRelation`,
   `MissingRelation`) are in `notices.go`.
-  New operation contexts suspend only inherited private work activation before
-  ordinary cancellation derivation. This admits reuse of a callback context on
-  another connection without borrowing the old runtime owner. The original
-  request policy remains inert until that operation's own unlocked runtime;
-  `SourceContext` retains the exact caller context and cancellation authority.
+  New operation contexts suspend inherited workload and closed-pause activation
+  before ordinary cancellation derivation. Reuse of an active callback context
+  on another connection cannot borrow its runtime owner or block metadata capture.
+  Both attached requests remain dormant until the new operation's own detached
+  runtime; `SourceContext` retains the exact caller context and cause/deadline
+  authority.
   `Operation.OriginalSQL` and `SQLAvailable` retain the command-admitted immutable
   frontend text, not a statement substring or mutable session setting. A simple
   batch shares it through every statement; prepared execution installs its

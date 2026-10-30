@@ -8,6 +8,12 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+Cooperative execution pauses belong to the detached runtime, not function
+binding. Array transformation uses a stable work point; lower typed providers
+own their corresponding points. Attached requests are dormant until runtime
+admission, and nested binders remove that permission before constant capture.
+
+
 `EmbeddedVersionBanner` is the pure native product/version identity shared by
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
@@ -801,9 +807,10 @@ publication and lock-manager tickets stay in the engine.
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
   `english.stop` is the verbatim released PostgreSQL English resource; its
-  compiled sorted list is shared, not reread per evaluation. Resource names
-  resolve only shipped bytes; missing names report the actual embed-relative
-  lookup path. Kernels retain neither catalog identities nor expression collation.
+  compiled sorted list is shared, not reread per evaluation. Simple/unaccent,
+  Snowball and synonym resource names resolve shipped bytes; missing names report
+  the actual embed-relative lookup path. Kernels retain neither catalog identities
+  nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
   English kernel shipped by PostgreSQL REL_18_6 (Snowball revision
   d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
@@ -819,6 +826,40 @@ publication and lock-manager tickets stay in the engine.
   Compilation, sorting and lookup check cancellation; malformed UTF8 reports the
   actual resource and line before any runtime is published. Results own their
   lexeme slices and share only immutable strings.
+  `IspellCompiler` consumes explicit immutable `DictionaryFiles` during detached
+  initialization: legacy/MySpell
+  affixes, default/long/numeric flags, aliases and conditions become dictionary
+  and ordered affix tries. Conditions use simple masks or validated PostgreSQL
+  ARE programs; demanded matchers and compound DFS frames belong to each Lexize.
+  Duplicate words coalesce raw flag-vector identities before final membership
+  decoding: equal original nonalias vectors share an identity, alias slots remain
+  distinct even with equal text, and nonempty merges create fresh identities
+  (with a comma only in numeric mode). Compilation preserves original-vector
+  compound demand, recomputes duplicate compound-only eligibility, and checks
+  compound-marked affixes against the ordered original/intermediate vector table.
+  That table and its lazy decode cache never enter the immutable runtime.
+  Numeric flag, alias and alias-count prefixes follow checked signed64 conversion
+  then signed32 narrowing before their distinct caller-owned bounds and demand;
+  raw affix rule identifiers remain strings rather than normalized flag numbers.
+  Malformed long/numeric dictionary flags remain dormant without compound
+  initialization or affix-membership demand; membership found before a malformed
+  tail still succeeds. The MySpell first pass reads raw case-sensitive `FLAG`
+  prefixes and operands without field-comment handling; empty/default operands
+  preserve the current mode, and the final mode governs affix-rule import.
+  The second pass recognizes lowercased `AF`/`PFX`/`SFX` command prefixes.
+  Alias dispatch precedes short-line rejection: missing first counts reject,
+  while subsequent empty alias entries remain valid. Affix rules retain the
+  direction and cross-product state of their preceding recognized header.
+  Continuation references use the fixed declared alias bound, independently of
+  the populated prefix: absent in-range slots reject, initialized empty slots
+  remain valid, and the declared one-past slot retains empty semantics.
+  Compound commands require raw non-whitespace operands before generic short-line
+  handling, while unmarked legacy lines keep their released format-detection and
+  ignore behavior. Legacy compound operands retain the complete bounded first
+  C-whitespace-delimited field after the single-byte-leading eligibility check.
+  `IspellDictionary` retains no input, session, catalog authority or matcher scratch.
+  Morphology precedes per-lexeme stop filtering; ordered variants become rich
+  lexical results, distinguishing unknown NULL from recognized empty arrays.
   Strict NULL-or-evaluate preflight uses the shared immutable typed-fold owner:
   warmed all-constant calls may reuse their accepted result across dictionary
   option revisions, while runtime-token calls invoke current dictionary state.
@@ -1038,6 +1079,7 @@ make check RUN='^TestFTSJSON'  # JSON conversion operand lifecycle
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
 make check RUN='^TestSnowball'  # released English rules, provider/resource and lifetime ownership
 make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes
+make check RUN='^TestIspell'  # explicit dictionary readers, conditions, morphology, compounds and cancellation
 make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts
 make check RUN='^TestGeometryMeasure(GroupIdentity|ProviderLifecycle)$'  # measurement providers
 make check RUN='^TestMACOperationsProviderLifecycle$'  # fixed-width MAC function protocol

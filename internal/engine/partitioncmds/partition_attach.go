@@ -49,8 +49,9 @@ func AttachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 	e.Mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.Stage) }()
 	if !bound.DefaultBound {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
-		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, tablecmds.PartitionBoundBinder{Scope: scope, Pending: pending}, &evaluation); err != nil {
+		ctx := scope.ActivateRuntime(op.Context())
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
+		if err = partition.EvaluateBounds(ctx, &pending.Definition, tablecmds.PartitionBoundBinder{Scope: scope, Pending: pending}, &evaluation); err != nil {
 			return core.Result{}, err
 		}
 	}
@@ -172,8 +173,9 @@ func AttachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 	if err = partitionAttachCapture(e, scope, stage, auth.Catalog, child, jobs); err != nil {
 		return core.Result{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
-	if err = partition.ValidateAttachRows(scope.Op.Context(), &evaluation, scope.PartitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
+	scanContext := scope.ActivateRuntime(scope.Op.Context())
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scanContext, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
+	if err = partition.ValidateAttachRows(scanContext, &evaluation, scope.PartitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
 		return core.Result{}, err
 	}
 	changed, next, err := partition.AttachDescriptors(parent, next, bound)

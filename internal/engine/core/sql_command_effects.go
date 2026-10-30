@@ -22,7 +22,7 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 		if err := s.checkConstraintEventPhase(allExclusions, nil, bounded, false); err != nil {
 			return err
 		}
-		if err := dml.SettleForeignActions(s.WriteHost()); err != nil {
+		if err := dml.SettleForeignActions(s.ActivateRuntime(s.executionContext()), s.WriteHost()); err != nil {
 			return err
 		}
 		if s.foreignActionsOrZero().ExclusionAdded {

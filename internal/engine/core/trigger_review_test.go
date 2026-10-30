@@ -120,7 +120,7 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 			}
 			integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: host, Catalog: e.CatalogRead(), Input: scope.Input, Output: scope.Output}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(scope.Op.Context()), Host: host, Catalog: e.CatalogRead(), Input: scope.Input, Output: scope.Output}}
 			proceed, err := dml.ValidateInsertRow(host, binding, "public", row, &evaluation)
 			if err != nil || !proceed {
 				t.Fatal(proceed, err)
@@ -130,7 +130,7 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 			}
 			candidate := index.WriteCandidate{Values: row}
 			var batch index.WriteBatch
-			admitted, err := dml.AdmitInsertProducer(host, binding, &candidate, batch, &evaluation)
+			admitted, err := dml.AdmitInsertProducer(evaluation.Context, host, binding, &candidate, batch, &evaluation)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -145,7 +145,7 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 				if !admitted || len(scope.Stage.Rows[low.Address()]) != 0 {
 					t.Fatal("trigger-free proposal bypassed batch ownership")
 				}
-				count, err := dml.ApplyInsertValidated(host, binding.Ref, batch)
+				count, err := dml.ApplyInsertValidated(evaluation.Context, host, binding.Ref, batch)
 				if err != nil || count != 1 {
 					t.Fatal(count, err)
 				}

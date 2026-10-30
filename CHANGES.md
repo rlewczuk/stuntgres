@@ -50,6 +50,9 @@
   descriptors, including typed keys, strategies, classes, effective collations,
   expression definitions and transactional default-child identities, with exact
   registered attribute nullability.
+- Reject MERGE target updates and deletions outside a repeatable-read snapshot
+  with serialization failure, preserving own-version followups and atomic
+  transaction/savepoint rollback.
 
 - Add explicit preconnector compiled host routine registration, immutable program
   identities, directional object callbacks and owned hstore transport. Host scalar
@@ -199,6 +202,23 @@
   NOT NULL removal versus no-op distinctions without freeing other objects' names.
   Unsupported USING INDEX enforcement attributes retain the actual PRIMARY KEY
   or UNIQUE diagnostic kind without changing index-attachment execution.
+
+- Add genuine ispell dictionaries with legacy/MySpell affix readers, long/numeric
+  flags and aliases, ordered morphology/compound variants, post-normalization
+  stopwords and complete resource diagnostics. Driver-local copied startup files
+  survive logical databases and native controls; dumps retain names/options/owners,
+  while Restore compiles destination bytes. Reference fixtures install the same
+  explicit released data into the pinned oracle's discovered shared-data directory.
+  Preserve demand-driven incomplete-long-flag failures and required raw MySpell
+  compound operands without rejecting ignored legacy lines.
+
+- Add context-scoped, one-shot cooperative execution pauses for host backpressure
+  at stable detached provider work points. Effective operation children retain
+  cancellation causes, deadlines and release authority; metadata binding remains
+  unsuspended. Shared active-cancellation fixtures use those real work points
+  while retaining exact live-provider admission and joined cleanup.
+  Cursor FETCH/MOVE, resumed protocol execution, HOLD promotion and COPY output
+  admit each invocation's current child without retaining earlier request authority.
 
 - ANALYZE collects multivariate MCV lists with actual joint frequencies,
   full-population marginal baselines, separate SQL NULL flags and target caps.

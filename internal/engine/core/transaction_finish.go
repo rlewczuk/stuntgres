@@ -53,6 +53,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.routinePrograms = nil
 		s.checkPrograms = nil
 		s.Domains.endAdmission()
+		s.copyInputRaw, s.copyInputActive = nil, nil
 		s.partitionsSlot.DropPrograms()
 		for i := range s.mutations {
 			s.mutations[i].RoutineDependencies = nil

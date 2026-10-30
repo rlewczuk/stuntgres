@@ -9,7 +9,7 @@ import (
 )
 
 func (h *statementHost) CheckTypeInput(c *exec.Context, value, typeName string) (*sqlstate.Error, error) {
-	if err := h.Context().Err(); err != nil {
+	if err := c.Context.Err(); err != nil {
 		return nil, err
 	}
 	if h.Finished {
@@ -23,7 +23,7 @@ func (h *statementHost) CheckTypeInput(c *exec.Context, value, typeName string) 
 	if err != nil {
 		return nil, err
 	}
-	usage, err := resolver.ResolveInputUsage(h.Context(), typeName)
+	usage, err := resolver.ResolveInputUsage(c.Context, typeName)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (h *statementHost) CheckTypeInput(c *exec.Context, value, typeName string) 
 	previous := c.Input
 	c.Input = input
 	defer func() { c.Input = previous }()
-	_, err = usage.Type.InputWithEnvironment(h.Context(), value, usage.Typmod, input)
+	_, err = usage.Type.InputWithEnvironment(c.Context, value, usage.Typmod, input)
 	if err == nil {
 		return nil, nil
 	}

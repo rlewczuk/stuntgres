@@ -13,8 +13,8 @@ inventories are in [reference/catalogs](../catalogs/README.md#testing).
 
 ## Testing
 
-Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` is plain
-`fixture.Main(m)`. `name_external_test.go` and `diagnostics_postgres_test.go`
+Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` passes an explicit
+text-search file manifest to `fixture.Main(m)`. `name_external_test.go` and `diagnostics_postgres_test.go`
 carry the `reference` build tag (PostgreSQL-only complements).
 
 ### Input validity diagnostics
@@ -178,6 +178,13 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
 Add `REFERENCE=1` for the oracle.
 
 Dictionary definitions and lexization: `RUN='^TestReferenceDictionary'`.
+Ispell dictionaries and explicit resource lifetimes: `RUN='^TestReferenceIspell'`.
+The shared manifest registers and installs the same released bytes, including
+the default MySpell affix file paired with `ispell_sample.dict`. Provenance and
+license are in `testdata/ispell`; malformed fixtures are explicit manifest bytes.
+Malformed-reader regressions: `RUN='^TestReferenceIspellMalformedReaders$'`.
+These distinguish initialization-time and deferred long-flag demand, required
+MySpell compound operands, and permissive legacy-format ignored lines.
 Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(Identity|Controls)$'`.
 Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
 English Snowball morphology, options, identities and native lifecycle:

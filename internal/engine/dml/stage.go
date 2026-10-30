@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 
 	"stuntgres/internal/engine/ids"
@@ -11,7 +12,7 @@ import (
 
 // revalidateIndexRows rebinds after a stale unique binding, readmits the
 // statement's programs and reprobes every row of batch.
-func revalidateIndexRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
+func revalidateIndexRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.RowVersion, batch *index.WriteBatch) error {
 	c := h.Command()
 	prior := c.UniqueBinding
 	if prior != nil && prior.Ref != ref {
@@ -39,7 +40,7 @@ func revalidateIndexRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, ba
 		if old != nil {
 			excluded = old[:i+1]
 		}
-		conflict, err := ProbeUniqueRow(h, ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
+		conflict, err := ProbeUniqueRow(ctx, h, ref, &candidate, excluded, batch.Prefix(i), nil, purpose)
 		if err != nil {
 			return err
 		}
@@ -55,7 +56,7 @@ func revalidateIndexRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, ba
 // each accepted prefix before demanding the next row, and only this loop
 // transfers the completed immutable batch, through the StageInsert window.
 // After a stale unique binding it revalidates the batch and retries.
-func ApplyValidated(h Host, ref ids.ObjectRef, batch index.WriteBatch) error {
+func ApplyValidated(ctx context.Context, h Host, ref ids.ObjectRef, batch index.WriteBatch) error {
 	if err := h.Active(); err != nil {
 		return err
 	}
@@ -68,12 +69,12 @@ func ApplyValidated(h Host, ref ids.ObjectRef, batch index.WriteBatch) error {
 			return err
 		}
 		if c := h.Command(); c.InsertConflict != nil && c.InsertConflict.Update == nil {
-			batch, err = revalidateConflictRows(h, ref, batch)
+			batch, err = revalidateConflictRows(ctx, h, ref, batch)
 			if err != nil {
 				return err
 			}
 		} else {
-			if err := revalidateIndexRows(h, ref, nil, &batch); err != nil {
+			if err := revalidateIndexRows(ctx, h, ref, nil, &batch); err != nil {
 				return err
 			}
 		}
@@ -87,7 +88,7 @@ func ApplyValidated(h Host, ref ids.ObjectRef, batch index.WriteBatch) error {
 // accepted physical target distinct through its frozen scan / FROM winner
 // gate and excludes existing staged RowIDs; ReplaceConflict is for ON
 // CONFLICT DO UPDATE, which proves cardinality through its affected-row set.
-func ReplaceRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, lane ReplaceLane) error {
+func ReplaceRows(ctx context.Context, h Host, ref ids.ObjectRef, old []storage.RowVersion, batch index.WriteBatch, lane ReplaceLane) error {
 	rows := batch.Values
 	if err := h.PrepareReplacement(ref, old); err != nil {
 		return err
@@ -133,7 +134,7 @@ func ReplaceRows(h Host, ref ids.ObjectRef, old []storage.RowVersion, batch inde
 		if err != nil || !stale {
 			return err
 		}
-		if err := revalidateIndexRows(h, ref, old, &batch); err != nil {
+		if err := revalidateIndexRows(ctx, h, ref, old, &batch); err != nil {
 			return err
 		}
 	}

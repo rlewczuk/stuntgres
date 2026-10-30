@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -51,6 +52,9 @@ func (s *AggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grou
 func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode) (Stage, error) {
 	if n.PresenceOnly {
 		return OpenNode(ctx, state, n.Child)
+	}
+	if err := util.ExecutionCheckpoint(ctx, "query.aggregate"); err != nil {
+		return Stage{}, err
 	}
 	evaluation := state.Evaluation(ctx)
 	for _, call := range n.Calls {

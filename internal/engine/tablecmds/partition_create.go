@@ -80,7 +80,7 @@ func (p *PendingPartitionDefinition) finish(scope *core.StatementScope) error {
 	if p.Parent == nil {
 		return partition.CheckSupported(&p.Definition)
 	}
-	ctx := scope.Op.Context()
+	ctx := scope.ActivateRuntime(scope.Op.Context())
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
 	if !p.Bound.DefaultBound {
 		if err := partition.EvaluateBounds(ctx, &p.Definition, PartitionBoundBinder{Scope: scope, Pending: p}, &evaluation); err != nil {

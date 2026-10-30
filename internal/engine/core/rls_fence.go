@@ -119,9 +119,10 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 					return err
 				}
 				local := runtime[i].Evaluation
-				local.Context = s.Op.Context()
+				local.Context = nil
 				local.RoutineAuthority = &fresh
 				e.Mu.Unlock()
+				local.Context = s.ActivateRuntime(s.executionContext())
 				err = exec.AdmitExpression(&local, runtime[i].Expression, fresh.Catalog)
 				e.Mu.Lock()
 				if err != nil {

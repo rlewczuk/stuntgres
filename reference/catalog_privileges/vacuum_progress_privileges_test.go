@@ -45,7 +45,8 @@ func TestReferenceVacuumProgressPrivileges(t *testing.T) {
 		}
 		adminHeld := vacuumHeld(t, p, admin, vacuumProgressQuery)
 		r := vacuumProgressLaunch(t, p, b, worker, "vacuum_privileges")
-		vacuumProgressVisible(t, vacuumProgressObserve(t, p, adminHeld.Statement, id, r), id, b.PG)
+		first := vacuumProgressObserve(t, p, adminHeld.Statement, id, r)
+		vacuumProgressVisible(t, first, id, b.PG)
 		for _, o := range observers {
 			restricted := o.role == "vacprog_other" || o.role == "vacprog_effective" || o.role == "vacprog_effective_member"
 			assert := func(prepared bool, masked bool) {
@@ -102,5 +103,6 @@ func TestReferenceVacuumProgressPrivileges(t *testing.T) {
 		vacuumProgressVisible(t, vacuumProgressObserve(t, p, adminHeld.Statement, id, r), id, b.PG)
 		vacuumProgressCancel(t, p, b, admin, id.pid, "vacuum_privileges", r.cancel, func() error { err := <-r.done; r.joined = true; return err })
 		vacuumCount(t, p.Ctx, admin, "vacuum_privileges", 0)
+		vacuumProgressVisible(t, first, id, b.PG)
 	})
 }

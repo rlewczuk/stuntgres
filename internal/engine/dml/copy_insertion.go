@@ -37,10 +37,10 @@ func flushCopyInsertion(state *CopyInsertionState, h Host, b analyze.Binding, ro
 		candidate := rows.Candidate(position)
 		var err error
 		if group == nil {
-			_, err = AdmitInsertProducer(h, b, &candidate, rows.Prefix(position), evaluation)
+			_, err = AdmitInsertProducer(evaluation.Context, h, b, &candidate, rows.Prefix(position), evaluation)
 		} else {
 			command.UniqueBinding = group.Unique
-			err = CheckUniqueRow(h, group.Ref, &candidate, nil, group.Rows)
+			err = CheckUniqueRow(evaluation.Context, h, group.Ref, &candidate, nil, group.Rows)
 			group.Unique = command.UniqueBinding
 			if err == nil {
 				group.Rows.Append(candidate)

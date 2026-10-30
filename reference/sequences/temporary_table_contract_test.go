@@ -45,16 +45,8 @@ func TestReferenceTemporaryTableDiagnostics(t *testing.T) {
 		foreign := fixture.TempReferenceNamespace(s.T, s, true)
 		s.Utility("CREATE TABLE "+foreign+".bad(v INT)", fixture.TempReferenceDiagnostic("42P16", "cannot create relations in temporary schemas of other sessions", "", "14"))
 		q := "SELECT v FROM " + foreign + ".foreign_owner"
-		if s.Postgres {
-			// Pinned PostgreSQL returns an empty cursor for this small peer TEMP
-			// relation, independently of the owner's populated local-buffer rows.
-			fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.SequenceInt64Step(fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, Columns: []string{"v"}, Types: []string{"INT4"}, Rows: [][]any{}}))
-		} else {
-			// Qualified namespace lookup is valid for this superuser, but native
-			// physical storage never exposes another session's TEMP rows.
-			d := fixture.TempReferenceDiagnostic("0A000", "cannot access temporary tables of other sessions", "", "")
-			fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, State: d.Code, Diagnostic: d, ErrorStage: "execute"})
-		}
+		d := fixture.TempReferenceDiagnostic("0A000", "cannot access temporary tables of other sessions", "", "")
+		fixture.RunStep(s.T, s.P.Ctx, s.C, s.Record, fixture.Step{Query: q, Prepared: s.Prepared, SelectRows: true, State: d.Code, Diagnostic: d, ErrorStage: "execute"})
 	})
 }
 

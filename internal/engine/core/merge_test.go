@@ -103,7 +103,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				if err != nil || len(rows.Values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
-				if err := dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
+				if err := dml.StageMergeRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), rows, b.Ref); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.Finish(nil); err != nil {

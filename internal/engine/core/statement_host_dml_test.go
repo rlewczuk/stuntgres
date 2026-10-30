@@ -91,9 +91,8 @@ func TestStatementHostLatestRowGates(t *testing.T) {
 	enginetest.LockEmpty(t, e)
 }
 
-// Under a retained snapshot, UPDATE and DELETE fail on any later committed
-// change, while MERGE follows a later update and fails only on a later
-// delete.
+// Under a retained snapshot, UPDATE, DELETE and MERGE reject later
+// committed changes rather than following a successor outside the snapshot.
 func TestStatementHostLatestRowIsolation(t *testing.T) {
 	e := engine.New()
 	reader := sessionStart(t, e, nil)
@@ -123,10 +122,8 @@ func TestStatementHostLatestRowIsolation(t *testing.T) {
 	wantSerialization(t, err, "could not serialize access due to concurrent delete")
 	_, err = h.LatestRow(dml.DeleteRowRequest(visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: deleted.Row, Version: deleted.Version}))
 	wantSerialization(t, err, "could not serialize access due to concurrent delete")
-	followed, err := h.LatestRow(dml.MergeRowRequest(b.Ref, updated))
-	if err != nil || !followed.Live || followed.Version.Version == updated.Version {
-		t.Fatal("MERGE did not follow the committed update", followed, err)
-	}
+	_, err = h.LatestRow(dml.MergeRowRequest(b.Ref, updated))
+	wantSerialization(t, err, "could not serialize access due to concurrent update")
 	_, err = h.LatestRow(dml.MergeRowRequest(b.Ref, deleted))
 	wantSerialization(t, err, "could not serialize access due to concurrent delete")
 	_ = scope.Finish(err)

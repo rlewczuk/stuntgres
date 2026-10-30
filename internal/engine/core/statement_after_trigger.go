@@ -171,7 +171,7 @@ func (s *StatementScope) afterWhen(event afterTriggerEvent, auth AuthorizationVi
 	old := exec.Context{
 		EvalFrame: exec.EvalFrame{Scope: analyze.RulePseudoScope, Frame: 1, Row: event.old},
 		EvalStatement: exec.EvalStatement{
-			Context: s.Op.Context(), Host: s.WriteHost(), Catalog: event.read,
+			Context: s.ActivateRuntime(s.executionContext()), Host: s.WriteHost(), Catalog: event.read,
 			Input: s.Input, Output: s.Output,
 		},
 	}

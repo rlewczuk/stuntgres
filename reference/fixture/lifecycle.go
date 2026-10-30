@@ -92,6 +92,9 @@ activate = 1
 			return err
 		}
 	}
+	if err := referenceInstallTextSearchFiles(ctx); err != nil {
+		return err
+	}
 	DSN, err = Container.ConnectionString(ctx, "sslmode=disable", "application_name=")
 	if err != nil {
 		return fmt.Errorf("connection string: %w", err)

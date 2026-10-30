@@ -197,7 +197,7 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err != nil {
 		return Result{}, err
 	}
-	ctx = scope.activateWork(ctx)
+	ctx = scope.ActivateRuntime(ctx)
 	if err = exec.SelectQuerySources(ctx, source); err != nil {
 		return Result{}, err
 	}

@@ -431,7 +431,8 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	defer func() { p.fields, p.scratch = fields, scratch }()
 	outputInitialized := len(p.formats) == 0
 	catalogReady := p.producer != nil
-	pullContext := s.activateWork(s.executionContext())
+	// One detached Execute owns this current pull context, including resumption.
+	pullContext := s.ActivateRuntime(s.executionContext())
 	for int32(maxRows) <= 0 || out.Count < int64(maxRows) {
 		var present bool
 		present, err = p.next(pullContext, values)

@@ -71,7 +71,7 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 		if err := ctx.Err(); err != nil {
 			return Outcome{}, err
 		}
-		return finishInsert(h, b.Ref, rows)
+		return finishInsert(ctx, h, b.Ref, rows)
 	}
 	command := h.Command()
 	evaluation := in.Evaluation
@@ -101,7 +101,7 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 				continue
 			}
 			candidate := index.WriteCandidate{Values: row}
-			admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)
+			admitted, admitErr := AdmitInsertProducer(ctx, h, b, &candidate, rows, evaluation)
 			if admitErr != nil {
 				return Outcome{}, admitErr
 			}
@@ -157,7 +157,7 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 			continue
 		}
 		candidate := index.WriteCandidate{Values: row}
-		admitted, admitErr := AdmitInsertProducer(h, b, &candidate, rows, evaluation)
+		admitted, admitErr := AdmitInsertProducer(ctx, h, b, &candidate, rows, evaluation)
 		if admitErr != nil {
 			return Outcome{}, admitErr
 		}
@@ -171,15 +171,15 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 	if err := ctx.Err(); err != nil {
 		return Outcome{}, err
 	}
-	return finishInsert(h, b.Ref, rows)
+	return finishInsert(ctx, h, b.Ref, rows)
 }
 
 // finishInsert finishes RETURNING, or stages the validated batch.
-func finishInsert(h Host, ref ids.ObjectRef, rows index.WriteBatch) (Outcome, error) {
+func finishInsert(ctx context.Context, h Host, ref ids.ObjectRef, rows index.WriteBatch) (Outcome, error) {
 	if h.Command().InsertReturning != nil {
 		return finishInsertReturning(h)
 	}
-	count, err := ApplyInsertValidated(h, ref, rows)
+	count, err := ApplyInsertValidated(ctx, h, ref, rows)
 	if err != nil {
 		return Outcome{}, err
 	}

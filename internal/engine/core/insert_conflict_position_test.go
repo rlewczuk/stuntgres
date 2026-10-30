@@ -193,7 +193,8 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			f.e.Mu.Lock()
 			f.e.Storage.InstallIndexRootLocked(f.index.Address(), &root)
 			f.e.Mu.Unlock()
-			admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+			admissionContext := scope.ActivateRuntime(scope.Op.Context())
+			admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 			if isolation.Stable() {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
@@ -202,7 +203,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 				t.Fatal("nonstable omission must not recover version", admitted, err)
 			}
 			scope.InsertConflict = nil
-			err = dml.CheckUniqueRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+			err = dml.CheckUniqueRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 				t.Fatal("ordinary enforcement must not recover version", err)
@@ -251,11 +252,12 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	scope.Owner.Catalog = changes
 	scope.Owner.Isolation = session.RepeatableRead
 	scope.Owner.Frontier = 2
-	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || admitted {
+	admissionContext := scope.ActivateRuntime(scope.Op.Context())
+	if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || admitted {
 		t.Fatal("reused tombstone baseline did not recover actual visible born", admitted, err)
 	}
 	scope.Owner.Frontier = 1
-	admitted, visibilityErr := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
+	admitted, visibilityErr := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
 	wantDiagnostic := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update"}
 	var visibilityDiagnostic *sqlstate.Error
 	if admitted || !errors.As(visibilityErr, &visibilityDiagnostic) || !reflect.DeepEqual(*visibilityDiagnostic, wantDiagnostic) {

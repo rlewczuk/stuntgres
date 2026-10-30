@@ -95,6 +95,7 @@ func (e *Engine) RestoreStage() *Engine {
 	if err := stage.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
 		panic(err)
 	}
+	stage.TextSearchFiles = e.TextSearchFiles
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
 	stage.ImportParameterPredecessor = parameterPredecessor
 	retainedDatabase := *database

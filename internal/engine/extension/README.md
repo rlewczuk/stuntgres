@@ -249,7 +249,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Fixed pinned templates retain their independent DROP veto; its object
   description uses the current dependency search path, not input qualification.
   Definition validity is separate from native dictionary execution. Compilation
-  admits only the genuine stock-simple/synonym/thesaurus pairs, authenticated bootstrap
+  admits only the genuine stock-simple/synonym/thesaurus/ispell pairs, authenticated bootstrap
   Snowball helpers, or a currently authenticated unaccent installation's helper pair.
   Intrinsic callback/template/dictionary capability does not require empty or
   matching current extension membership or a live installation header. Each
@@ -264,11 +264,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   retain visible NORMAL dependency edges.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
   owner authority, independent of extension installation privileges. Preparation
-  captures template/options and compilation runs outside the catalog mutex;
-  completion rechecks current namespace/template/revision and role authority.
+  captures template/options and immutable startup resources; actual ispell
+  parsing/condition compilation runs outside the catalog mutex. Completion
+  rechecks current namespace/template/revision and role authority.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
-  Ordered immutable options and genuine simple/synonym/unaccent/Snowball/thesaurus runtime state publish in
+  Ordered immutable options and genuine simple/synonym/unaccent/Snowball/thesaurus/ispell runtime state publish in
   the existing catalog journal. ALTER removes matching options before appending
   supplied replacements. Standalone dictionaries depend on their real namespace
   and template, without fabricated extension membership. `DictionaryDumpStatement`
@@ -303,6 +304,9 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Host-authorized Dump qualifies its current same-name logical source; unqualified
   options use the accepted initialization namespace solely as replay provenance.
   That namespace remaps independently on import and never redirects SQL lookup.
+  Builtin ispell validates its distinct fixed helper identities without implying
+  an extension or a builtin ispell dictionary. Its pinned template relationship
+  remains in dicttemplate without fabricated physical pg_depend rows.
   The one-argument unaccent function independently resolves literal `unaccent` in
   its current function schema at execution; the original member slot is provider
   provenance, not a permanent default-dictionary binding.

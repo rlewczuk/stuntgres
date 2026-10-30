@@ -179,17 +179,15 @@ func TestReferenceMergeUpdateRepeatableRead(t *testing.T) {
 					}
 					fixture.LockExec(t, ctx, holder, end, 0)
 					out := await()
-					if commit && !deleted {
-						// The pinned RR snapshot still sees the original version, while MERGE
-						// follows the holder's committed successor and creates an own visible
-						// replacement. Keep both occurrences; do not collapse this to latest-only.
-						mergeInsertAffected(t, b, out.Result, out.Err, 1)
-						fixture.RunStep(t, ctx, worker, b.Recorder, fixture.Select("SELECT id,v FROM t ORDER BY id,v", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(10)}, {int64(1), int64(100)}, {int64(2), int64(21)}}))
-					} else if commit {
+					if commit {
 						if out.Result != nil {
 							t.Fatal("serialization returned result")
 						}
-						d := fixture.ControlsReferenceDiagnostic("40001", "could not serialize access due to concurrent delete")
+						action := "update"
+						if deleted {
+							action = "delete"
+						}
+						d := fixture.ControlsReferenceDiagnostic("40001", "could not serialize access due to concurrent "+action)
 						fixture.AssertDiagnostic(t, out.Err, &d)
 						_, err = worker.ExecContext(ctx, "UPDATE t SET v=0")
 						aborted := fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block")

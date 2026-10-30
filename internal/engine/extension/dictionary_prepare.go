@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -20,6 +21,7 @@ type DictionaryPreparation struct {
 	Runtime   catalog.DictionaryRuntime
 	View      catalog.Read
 	Thesaurus *ThesaurusInput
+	Files     *functions.DictionaryFiles
 }
 
 func dictionaryCreateInputs(h DictionaryHost, auth ddl.Authority, s *parser.CreateDictionary) (*catalog.TSTemplate, []catalog.DictionaryOption, error) {
@@ -50,8 +52,7 @@ func dictionaryCreateInputs(h DictionaryHost, auth ddl.Authority, s *parser.Crea
 }
 
 func PrepareDictionary(h DictionaryHost, auth ddl.Authority, stmt parser.Statement) (DictionaryPreparation, error) {
-	var p DictionaryPreparation
-	p.View = h.StageRead()
+	p := DictionaryPreparation{View: h.StageRead(), Files: h.DictionaryFiles()}
 	switch s := stmt.(type) {
 	case *parser.CreateDictionary:
 		ns, current, err := h.CreationNamespace(auth, s.Name)
@@ -107,7 +108,7 @@ func (p *DictionaryPreparation) Compile(ctx context.Context) error {
 		p.Runtime, err = p.Thesaurus.Compile(ctx)
 		return err
 	}
-	p.Runtime, err = CompileDictionary(ctx, p.View, p.Template, p.Options)
+	p.Runtime, err = CompileDictionary(ctx, p.View, p.Template, p.Options, p.Files)
 	return err
 }
 func (p *DictionaryPreparation) Current(view catalog.Read) bool {
@@ -170,5 +171,5 @@ func initializeDictionary(h DictionaryHost, auth ddl.Authority, template *catalo
 		}
 		return p.Runtime, h.Context().Err()
 	}
-	return CompileDictionary(h.Context(), h.StageRead(), template, options)
+	return CompileDictionary(h.Context(), h.StageRead(), template, options, h.DictionaryFiles())
 }

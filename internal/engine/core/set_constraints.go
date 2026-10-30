@@ -39,6 +39,7 @@ func (s *StatementScope) checkConstraintEventPhase(all bool, selected map[ids.OI
 	var remaining []index.ConstraintEvent
 	removed := false
 	e := s.Engine()
+	ctx := s.ActivateRuntime(s.executionContext())
 	for at, event := range events {
 		keep := (event.ForeignKey != nil) != foreign
 		if !keep && bounded {
@@ -112,7 +113,7 @@ func (s *StatementScope) checkConstraintEventPhase(all bool, selected map[ids.OI
 				return err
 			}
 		} else if bound != nil {
-			conflict, _, err := dml.ProbeExclusion(s.WriteHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
+			conflict, _, err := dml.ProbeExclusion(ctx, s.WriteHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
 			if err != nil {
 				return err
 			}

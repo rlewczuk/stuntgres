@@ -30,6 +30,13 @@ between them).
 Stays in core: FK enforcement and actions, the DROP pipeline (`DropProvider`),
 TEMP preservation, relation admission and publication.
 
+Detached ALTER fills, rewrites, constraint scans and index-shape preparation
+activate through the statement runtime only after capture locks are released.
+`AlterRowEvaluation` is exclusively a detached row-work factory. ANALYZE likewise
+activates its sampling evaluator, not CREATE STATISTICS cooking. Generated, index,
+predicate and partition-bound binders remain dormant, including nested binding.
+Explicit row-generation context and evaluator context must agree.
+
 ## Entry points
 
 - Dispatch (`core.Statements.ExecuteLocked`): `AlterTableLocked`,

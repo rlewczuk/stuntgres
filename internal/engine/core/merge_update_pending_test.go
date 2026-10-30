@@ -241,8 +241,12 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.Ticket, 0)
 				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 				enginetest.TransactionEnd(t, holder, tx, commit)
-				if commit && deleted {
-					mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})
+				if commit {
+					action := "update"
+					if deleted {
+						action = "delete"
+					}
+					mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent " + action})
 					worker.Transactions.Mu.Lock()
 					correctOverlay := len(worker.Transactions.Writes) == 0 && len(worker.Transactions.Deletes) == 0
 					if targetOnly {
@@ -252,7 +256,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					}
 					worker.Transactions.Mu.Unlock()
 					if !correctOverlay {
-						t.Fatal("concurrent delete violated private recovery boundary")
+						t.Fatal("serialization violated private recovery boundary")
 					}
 					op := enginetest.TransactionOperation(t, worker)
 					_, err := e.Execute(op, enginetest.Statement(t, "SELECT * FROM t"), 0, nil)
@@ -274,13 +278,9 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					if !sameSnapshot {
 						t.Fatal("MERGE advanced or replaced the pinned RR snapshot")
 					}
-					if commit {
-						enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21, 40)
-					} else {
-						enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 100, 21, 40)
-					}
-					// The replacement keeps logical identity and its actual predecessor base;
-					// a peer descendant of snapshot10 is not a new unmatched INSERT.
+					enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 100, 21, 40)
+					// A rolled-back peer leaves the original logical row and
+					// snapshot predecessor authoritative for the own replacement.
 					worker.Transactions.Mu.Lock()
 					var own storage.RowVersion
 					for _, v := range worker.Transactions.Writes[ref.Address] {
@@ -292,14 +292,11 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					if own.Row != original.Row || own.Version == original.Version || own.Base == 0 {
 						t.Fatal("lost replacement identity/predecessor", own, original)
 					}
-					if commit && own.Base == original.Version {
-						t.Fatal("replacement incorrectly based on old RR snapshot", own)
-					}
-					if !commit && own.Base != original.Version {
+					if own.Base != original.Version {
 						t.Fatal("rollback failed to retain original predecessor", own)
 					}
 					if targetOnly {
-						mergeSourceRepeatableReadFollowup(t, e, worker, commit)
+						mergeSourceRepeatableReadFollowup(t, e, worker)
 					}
 				}
 				enginetest.SessionSQL(t, worker, "ROLLBACK")

@@ -224,6 +224,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3729: {Language: catalog.InternalRoutineLanguage, Source: "dsynonym_lexize"},
 	3740: {Language: catalog.InternalRoutineLanguage, Source: "thesaurus_init"},
 	3741: {Language: catalog.InternalRoutineLanguage, Source: "thesaurus_lexize"},
+	3731: {Language: catalog.InternalRoutineLanguage, Source: "dispell_init"},
+	3732: {Language: catalog.InternalRoutineLanguage, Source: "dispell_lexize"},
 	768:  {Language: catalog.InternalRoutineLanguage, Source: "int4larger"},
 	6299: {Language: catalog.InternalRoutineLanguage, Source: "string_agg_combine"},
 	6300: {Language: catalog.InternalRoutineLanguage, Source: "string_agg_serialize"},

@@ -8,8 +8,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,6 +51,19 @@ func (s *StatementScope) executionContext() context.Context {
 }
 
 func (h *statementHost) Context() context.Context { return h.scope().executionContext() }
+
+// CopyInputContext selects the actual current session-owned standard child
+// before reuse. Masking and budget refresh may replace it between decoder pulls.
+// Called only by detached COPY input owners, never by metadata capture.
+func (h *statementHost) CopyInputContext() context.Context {
+	s := h.scope()
+	current := s.Op.Context()
+	if s.copyInputRaw != current {
+		s.copyInputRaw = current
+		s.copyInputActive = s.ActivateRuntime(current)
+	}
+	return s.copyInputActive
+}
 func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
 	return h.Input, h.Output
 }
@@ -163,7 +176,9 @@ func (h *statementHost) PgcryptoNotice(notice sqlstate.Error) {
 }
 
 func (h *statementHost) PageinspectNotice(notice sqlstate.Error) {
-	if h != nil && h.Op != nil { h.Op.EmitNotice(session.LevelNotice, notice) }
+	if h != nil && h.Op != nil {
+		h.Op.EmitNotice(session.LevelNotice, notice)
+	}
 }
 
 func (h *statementHost) JSONPathNotice(notice sqlstate.Error) {

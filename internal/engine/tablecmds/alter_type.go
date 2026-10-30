@@ -54,5 +54,5 @@ func AlterTypeCandidate(e *core.Engine, scope *core.StatementScope, op *session.
 // AlterRowEvaluation is the statement's evaluation template for ALTER row
 // fills, rewrites and scans; read is the catalog local lowering admits against.
 func AlterRowEvaluation(scope *core.StatementScope, op *session.Operation, read catalog.Read) exec.Context {
-	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	return exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(op.Context()), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 }

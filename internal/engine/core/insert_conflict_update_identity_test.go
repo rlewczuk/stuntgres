@@ -37,19 +37,20 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			return v
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
-		hit, err := dml.ProbeUniqueRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		admissionContext := scope.ActivateRuntime(op.Context())
+		hit, err := dml.ProbeUniqueRow(admissionContext, scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
 		entry := e.Storage.IndexRoots[scope.InsertConflict.Selected[0]].Entries[0]
 		store := e.Storage.Relations[b.Ref.Address]
 		if err != nil || !hit.Committed || entry.Position != 1 || hit.Position != 1 || hit.Row.Row != entry.Row || hit.Row.Version != entry.Version || &hit.Row.Values[0] != &store.Versions[1].Values[0] {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
 		}
 		old := hit.Row
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: admissionContext, Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		stage := scope.Stage.Rows[b.Ref.Address]
-		replacement, err := dml.ProbeUniqueRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		replacement, err := dml.ProbeUniqueRow(admissionContext, scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
 		if err != nil || replacement.Committed || len(stage) != 1 || replacement.Row.Row != old.Row || replacement.Row.Version != stage[0].Version || replacement.Row.Base != old.Version || replacement.Row.Version == old.Version || enginetest.Export(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
@@ -66,12 +67,13 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		prior := s.Transactions.Writes[b.Ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
-		own, err := dml.ProbeUniqueRow(scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
+		nextContext := scope2.ActivateRuntime(op2.Context())
+		own, err := dml.ProbeUniqueRow(nextContext, scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
 		if err != nil || own.Committed || own.Row.Row != prior.Row || own.Row.Version != prior.Version || len(scope2.InsertConflict.AffectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
-		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.Input, Output: scope2.Output, Host: core.HostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := dml.AdmitInsertRow(scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
+		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: nextContext, Input: scope2.Input, Output: scope2.Output, Host: core.HostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		if admitted, err := dml.AdmitInsertRow(nextContext, scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
 		changed := scope2.Stage.Rows[b2.Ref.Address][0]

@@ -79,7 +79,7 @@ func TestSynonymProvider(t *testing.T) {
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(helper.Address(), &helper)
 		forged := view.WithState(state)
-		if _, err := extension.CompileDictionary(context.Background(), forged, template, dictionary.Options); err == nil {
+		if _, err := extension.CompileDictionary(context.Background(), forged, template, dictionary.Options, e.TextSearchFiles); err == nil {
 			t.Fatal("forged helper admitted", helper)
 		}
 		if err := provider.Validate(forged, dictionary); err == nil {
@@ -88,7 +88,7 @@ func TestSynonymProvider(t *testing.T) {
 	}
 	// Repeated synonyms are intentionally last-wins, unlike simple's options.
 	options := []catalog.DictionaryOption{{Name: "synonyms", Value: "synonym_missing", Supplied: true}, {Name: "synonyms", Value: "synonym_sample", Supplied: true}, {Name: "casesensitive", Value: "1", Numeric: true, Supplied: true}}
-	runtime, err := extension.CompileDictionary(context.Background(), view, template, options)
+	runtime, err := extension.CompileDictionary(context.Background(), view, template, options, e.TextSearchFiles)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestSynonymMembershipIdentity(t *testing.T) {
 	if !ok {
 		t.Fatal("dropping former receiver consumed detached intrinsic template")
 	}
-	if _, err := extension.CompileDictionary(context.Background(), withoutOriginHeader, detachedTemplate, dictionary.Options); err != nil {
+	if _, err := extension.CompileDictionary(context.Background(), withoutOriginHeader, detachedTemplate, dictionary.Options, e.TextSearchFiles); err != nil {
 		t.Fatal("intrinsic capability required a live former receiver", err)
 	}
 }

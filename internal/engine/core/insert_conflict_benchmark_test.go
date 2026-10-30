@@ -73,14 +73,15 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.InsertConflict = action
-				if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: f.store.Versions[0].Values}, index.WriteBatch{}, nil); admitted || err != nil {
+				admissionContext := scope.ActivateRuntime(op.Context())
+				if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: f.store.Versions[0].Values}, index.WriteBatch{}, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
 					for i := range f.store.Versions {
-						if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: f.store.Versions[i].Values}, index.WriteBatch{}, nil); admitted || err != nil {
+						if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: f.store.Versions[i].Values}, index.WriteBatch{}, nil); admitted || err != nil {
 							b.Fatal("committed omission", admitted, err)
 						}
 					}

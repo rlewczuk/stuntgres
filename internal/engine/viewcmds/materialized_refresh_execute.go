@@ -161,11 +161,12 @@ func materializedRefreshRowsLocked(e *core.Engine, scope *core.StatementScope, r
 	if err != nil {
 		return nil, err
 	}
-	result, _, err := exec.Finalize(op.Context(), root, source, nil)
+	ctx := scope.ActivateRuntime(op.Context())
+	result, _, err := exec.Finalize(ctx, root, source, nil)
 	if err != nil {
 		return nil, err
 	}
-	return result.(*exec.FinalRows).TakeTableRows(op.Context())
+	return result.(*exec.FinalRows).TakeTableRows(ctx)
 }
 
 func stageMaterializedRows(e *core.Engine, ctx context.Context, s *core.CatalogStage, d *catalog.Relation, previous *storage.Relation, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {

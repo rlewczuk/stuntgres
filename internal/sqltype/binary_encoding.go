@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype/pgencoding18"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -120,6 +121,9 @@ func binaryEncodingInvalid(raw string, id int) error {
 	return failure("22021", fmt.Sprintf("invalid byte sequence for encoding %q: %s", pgencoding18.Name(id), binaryEncodingBytes(raw, id)))
 }
 func binaryEncodingPass(ctx context.Context, raw string, source, destination int, out *strings.Builder) (int, error) {
+	if err := util.ExecutionCheckpoint(ctx, "encoding.convert"); err != nil {
+		return 0, err
+	}
 	size, next := 0, 0
 	remaining := 0
 	for i := 0; i < len(raw); {

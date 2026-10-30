@@ -401,7 +401,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// CHECK recipes use this captured authority and run without Engine.mu.
 		captured := auth.Catalog
 		e.Mu.Unlock()
-		runtimeContext := scope.activateWork(ctx)
+		runtimeContext := scope.ActivateRuntime(ctx)
 		evaluation.Context = runtimeContext
 		err = importFrame(runtimeContext, b.Parameters, canonical, evaluation.Input)
 		evaluation.Context = ctx

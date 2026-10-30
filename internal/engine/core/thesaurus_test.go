@@ -82,7 +82,7 @@ func TestThesaurusCallbackCapability(t *testing.T) {
 	helper.Builtin = &builtin
 	state.SetDescriptor(helper.Address(), &helper)
 	p.View = p.View.WithState(state)
-	if runtime, err := extension.CompileDictionary(context.Background(), p.View, template, p.Options); runtime != nil || err == nil {
+	if runtime, err := extension.CompileDictionary(context.Background(), p.View, template, p.Options, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("forged callback acquired capability", runtime, err)
 	}
 }

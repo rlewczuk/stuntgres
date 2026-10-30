@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -28,6 +29,9 @@ func jsonbPrettyLine(ctx context.Context, b *strings.Builder, depth int) error {
 func jsonbPrettyOutput(ctx context.Context, root *jsonbNode) (string, error) {
 	if root == nil {
 		return "", fmt.Errorf("invalid JSONB root")
+	}
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.pretty"); err != nil {
+		return "", err
 	}
 	var b strings.Builder
 	var local [32]jsonbWalkFrame

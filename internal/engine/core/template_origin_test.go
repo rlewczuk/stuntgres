@@ -64,7 +64,7 @@ func TestTemplateOriginMembershipAuthority(t *testing.T) {
 			}
 			state.SetDescriptor(template.Address(), template)
 			current := v.WithState(state)
-			runtime, err := extension.CompileDictionary(t.Context(), current, template, options)
+			runtime, err := extension.CompileDictionary(t.Context(), current, template, options, e.TextSearchFiles)
 			if err != nil || runtime == nil {
 				t.Fatal(mode, runtime, err)
 			}
@@ -115,7 +115,7 @@ func TestTemplateCallbackOriginNegatives(t *testing.T) {
 			}
 			state := catalog.CloneState(v.State())
 			state.SetDescriptor(p.Address(), &p)
-			if runtime, err := extension.CompileDictionary(t.Context(), v.WithState(state), template, []catalog.DictionaryOption{{Name: "rules", Value: "unaccent", Supplied: true}}); err == nil || runtime != nil {
+			if runtime, err := extension.CompileDictionary(t.Context(), v.WithState(state), template, []catalog.DictionaryOption{{Name: "rules", Value: "unaccent", Supplied: true}}, e.TextSearchFiles); err == nil || runtime != nil {
 				t.Fatal("invalid callback authority admitted", mode, runtime, err)
 			}
 		})

@@ -25,6 +25,9 @@ func TestReferencePartitionExclusionAtomicity(t *testing.T) {
 		run(fixture.ErrorDiagnostic("ALTER TABLE pe_root ADD CONSTRAINT pe_ex EXCLUDE USING gist("+partitionExclusionKeys+")", d))
 		run(fixture.Select("SELECT t.relname,c.conname,c.oid=$1::OID AS same_constraint,c.conindid=$2::OID AS same_index FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid WHERE t.relname IN ('pe_root','pe_low','pe_other') AND c.contype='x' ORDER BY t.relname,c.conname", []string{"relname", "conname", "same_constraint", "same_index"}, []string{"NAME", "NAME", "BOOL", "BOOL"}, [][]any{{"pe_low", "pe_local", true, true}}, oid, indexOID))
 		run(partitionAdoptionGraph([][]any{partitionAdoptionRow("pe_low", "pe_local", nil, true, true, "i", true)}))
+		run(fixture.Select("SELECT relname FROM pg_class WHERE relname IN ('pe_ex','pe_local','pe_low_tenant_during_excl','pe_other_tenant_during_excl') ORDER BY relname", []string{"relname"}, []string{"NAME"}, [][]any{{"pe_local"}}))
+		run(fixture.Select("SELECT inhparent FROM pg_inherits WHERE inhrelid=$1::OID", []string{"inhparent"}, []string{"OID"}, nil, indexOID))
+		run(fixture.Select("SELECT deptype FROM pg_depend WHERE ((classid='pg_class'::regclass::OID AND objid=$1::OID) OR (classid='pg_constraint'::regclass::OID AND objid=$2::OID)) AND deptype IN ('P','S') ORDER BY deptype", []string{"deptype"}, []string{"CHAR"}, nil, indexOID, oid))
 		run(partitionExclusionIDs(1, 2, 3, 4))
 		run(partitionExclusionConflict("INSERT INTO pe_root VALUES(5,'10.0.0.1','[3,7)')", "pe_low", "pe_local", "10.0.0.1, [3,7)", "10.0.0.1, [1,5)"))
 		// No hierarchy DELETE is introduced: repair existing data by detaching
@@ -37,6 +40,8 @@ func TestReferencePartitionExclusionAtomicity(t *testing.T) {
 			partitionAdoptionRow("pe_low", "pe_local", "pe_ex", false, true, "i", true),
 			partitionAdoptionRow("pe_root", "pe_ex", nil, true, true, "I", true),
 		}))
+		run(partitionConstraintEdge("pe_local", "pe_ex", "pe_low"))
+		run(fixture.Select("SELECT d.deptype FROM pg_depend d JOIN pg_constraint c ON c.oid=d.objid JOIN pg_constraint p ON p.oid=c.conparentid WHERE d.classid='pg_constraint'::regclass::OID AND c.oid=$1::OID AND ((d.refclassid='pg_constraint'::regclass::OID AND d.refobjid=p.oid AND d.deptype='P') OR (d.refclassid='pg_class'::regclass::OID AND d.refobjid=c.conrelid AND d.deptype='S')) ORDER BY d.deptype", []string{"deptype"}, []string{"CHAR"}, [][]any{{"P"}, {"S"}}, oid))
 	})
 	partitionExclusionCase(t, "transaction_and_savepoint_rollback", func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 		c := fixture.ConcurrentIndexConn(t, p, b)

@@ -169,7 +169,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			}
 		}
 	}
-	ctx = s.activateWork(ctx)
+	ctx = s.ActivateRuntime(ctx)
 	position := 0
 	var builder fts.VectorBuilder
 	for _, name := range args[2:] {

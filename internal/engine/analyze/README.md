@@ -40,6 +40,11 @@ declarations merge only when key, NULL policy and timing agree. LIKE primary
 copies retain the source timing independently of their new identities.
 Column constraint timing diagnostics use the parser's positioned attachment
 facts at utility transformation, before type or catalog binding.
+`NewBinder` and expression `Bind` strip internal detached-execution pause
+permission while preserving the caller's pause request. Binding and immutable
+constant capture may run under metadata locks, including runtime-to-DDL reentry;
+they must never wait at a cooperative execution checkpoint. Detached runtime
+evaluation explicitly re-admits the preserved request after capture completes.
 
 Catalog sources admitted for semantic mutation planning, including `pg_index`,
 check the current execution-time actor before sources or row effects, including

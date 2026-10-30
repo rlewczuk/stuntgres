@@ -16,6 +16,11 @@ row vectors. Physical-session TEMP collation maintenance uses this same path:
 retiring one owner's objects must preserve unrelated committed heap replacements
 and peer TEMP objects. Fallible preparation and expression evaluation stay
 outside the installation lock.
+MERGE latest-row admission preserves transaction-local replacements and the
+retained snapshot frontier. A later committed target update or deletion raises
+serialization failure through the shared visibility conflict check; ordinary
+statement failure and savepoint recovery own the private-write rollback boundary.
+
 
 Application-provisioned scalar host routines use the same typed frame, invocation
 depth, EXECUTE admission, security/settings environment, volatility policy and
@@ -125,6 +130,44 @@ descriptors and canonical name bindings. It does not fence unrelated catalog
 edits during reader I/O or override existing principal remap, TEMP compatibility
 and provider-validation diagnostics. Prepared-generation and allocation
 preconditions still guard the final installation boundary.
+Cooperative execution-pause requests are dormant during binding and catalog
+capture. Audited detached owners call `StatementScope.ActivateRuntime` after
+their final capture unlock, including recipe preflight, index preparation,
+trigger conditions, procedure conversions and SQL EXECUTE actuals. This hands
+off the replacement reservation for a closed pause even without an application
+workload policy. Both capabilities use the supplied current invocation child;
+application grant/readmission and final immutable-input/epoch/publication fences
+remain authoritative. Binder and new-operation entry remove inherited execution
+permission. Neither `Operation.Context` nor the statement host's generic Context
+grants permission; children still own cancellation, deadlines, causes and release.
+Detached cursor opening and each fresh FETCH/MOVE or protocol Execute pull
+admit the current effective child once per invocation, not once per row.
+HOLD promotion similarly admits its COMMIT child while demanding remaining
+rows; promoted stored-row FETCH has no producer work to pause. These contexts
+belong to ephemeral motion/Execute/materialization scopes, never the retained
+cursor or a previous operation. Output publication and cleanup retain raw authority.
+COPY output similarly enables its effective child once at the detached WriteRows
+invocation; the existing row-source chain carries it into protocol query demand.
+COPY input privately reuses one raw/active context pair, selecting the actual
+session-owned standard child before comparison on each decoder pull. A changed
+mask or statement budget refreshes the pair; cached domain evaluators rebind to
+that same supplied current child. Finish retires both projections. Raw pending
+protocol cancellation still vetoes publication after successful masked decoding.
+Remapped replacement repair captures immutable role authority and destination
+catalog, storage, allocator and TEMP-session predecessors under `ReplacementMu`
+then `Mu`. It releases `Mu` then `ReplacementMu` before private-stage generation,
+range, hash or index evaluation, selecting the repair statement's actual current
+operation child once after successful capture. Every exit reacquires
+`ReplacementMu` then `Mu`; successful preparation must pass exact predecessor,
+prepared-transaction, active TEMP-owner and shared-reservation checks before
+grafting live TEMP storage. Stage-owned maps are changed only through that
+stage's locked storage methods. Final installation retains its independent
+cancellation, capacity, storage, allocation and publication fences; stale repair
+never retries or adopts a newer destination.
+`ReplaceCatalogInOperation` accepts only a live operation of its distinct,
+isolated source engine and validates that ownership before touching either
+catalog. Ordinary self/foreign replacement uses `ReplaceCatalog` without an
+operation; it admits its own private repair session when demanded.
 
 Statistics expressions share the single-relation binder setup with indexes but
 use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
@@ -1594,6 +1637,10 @@ DDL staging belongs to `schemacmds` and publishes through the normal catalog jou
 Core supplies the shared compiled English Snowball runtime to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
+`Engine.TextSearchFiles` is immutable Driver startup authority, not catalog state.
+DDL capture retains that same capability before releasing `Engine.Mu` for
+compilation. Logical databases, the private template seed, Restore stages and
+Reset retain it explicitly; destination Restore never borrows source bytes.
 
 ## Read-only utility execution
 
@@ -2488,8 +2535,10 @@ make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, 
 make check RUN='^Test(Dictionary|Thesaurus)'           # dictionary demand, providers, publication, remap and retained typed ownership
 make check RUN='^TestTemplate'                        # exact callbacks, capability, manifest, closure, publication and remap
 make check RUN='^TestSnowball'                        # English seed authority, publication fences and accepted backing
+make check RUN='^TestIspell'                          # dictionary resource propagation, fences and retained multi-lexeme owners
 make check RUN='^TestLqueryProvider'                   # installed scalar authority, staged publication and import
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
+make check RUN='^TestExecutionPause'                  # detached operation cancellation, release and binding isolation; also RACE=1
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # catalog source capture and producers; one catalog: ^TestPG<Name>
 make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages
 ```

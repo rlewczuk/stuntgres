@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -77,7 +78,7 @@ func (p JSONRecordPlan) Open(ctx context.Context, args []Value, env InputEnviron
 			return c, fmt.Errorf("foreign JSON record argument generation")
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "json.record.open"); err != nil {
 		return c, err
 	}
 	conversion := p.result

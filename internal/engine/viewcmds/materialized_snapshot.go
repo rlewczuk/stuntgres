@@ -166,7 +166,7 @@ func ImportMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *sess
 		return nil, err
 	}
 	scope.RoutineDependencies = b.Dependencies
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: environment, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(ctx), Host: core.HostOf(scope), Input: environment, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
 	return view.EvaluateMaterializedSnapshotRows(&evaluation, &b, d, s)
 }

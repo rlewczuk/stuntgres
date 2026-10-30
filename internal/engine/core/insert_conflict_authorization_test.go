@@ -78,7 +78,8 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	holder, _ := insertConflictUnitScope(t, f)
-	if admitted, err := dml.AdmitInsertRow(holder.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || !admitted {
+	holderContext := holder.ActivateRuntime(holder.Op.Context())
+	if admitted, err := dml.AdmitInsertRow(holderContext, holder.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("holder claim", admitted, err)
 	}
 	mark := f.e.Locks.CheckpointUnique(holder.LockTicket, nil)
@@ -148,8 +149,9 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	scope.InsertConflict = action
+	admissionContext := scope.ActivateRuntime(op.Context())
 	prefix := insertConflictUnitRow(t, f, 30)
-	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: prefix}, index.WriteBatch{}, nil); err != nil || !admitted {
+	if admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: prefix}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal("authorized prefix", admitted, err)
 	}
 	ticket := scope.LockTicket
@@ -164,7 +166,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	proposal := insertConflictUnitRow(t, f, 20)
 	started = true
 	go func() {
-		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{Values: [][]sqltype.Value{prefix}}, nil)
+		admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{Values: [][]sqltype.Value{prefix}}, nil)
 		done <- outcome{admitted, err}
 	}()
 	// Registration is witnessed under the actual manager mutex for this exact
@@ -266,15 +268,16 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.InsertConflict.SelectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
+	admissionContext = scope.ActivateRuntime(op.Context())
 	accepted := make([][]sqltype.Value, 0, 2)
 	for _, row := range [][]sqltype.Value{prefix, proposal} {
-		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: accepted}, nil)
+		admitted, err := dml.AdmitInsertRow(admissionContext, scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: accepted}, nil)
 		if err != nil || !admitted {
 			t.Fatal("postfailure authorized admission", admitted, err)
 		}
 		accepted = append(accepted, row)
 	}
-	count, err := dml.ApplyInsertBatch(scope.WriteHost(), ref, index.WriteBatch{Values: accepted})
+	count, err := dml.ApplyInsertBatch(admissionContext, scope.WriteHost(), ref, index.WriteBatch{Values: accepted})
 	if err != nil || count != 2 {
 		t.Fatal("postfailure batch", count, err)
 	}

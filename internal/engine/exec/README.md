@@ -20,13 +20,26 @@ never recovers an older operation context from the host.
 Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
 `access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate`,
-`pgcatalog` (projected relation-kind admission) and the standard library.
+`pgcatalog` (projected relation-kind admission), `util` and the standard library.
 Its `extension` imports validate genuine installed cube-spatial,
 earth-point, autoinc and insert_username scalar calls before kernel evaluation.
 Insert_username authenticates current provider identity and reference domain/epoch
 before reporting scalar misuse; structural native-trigger capability grants no
 execution authority. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
+
+Detached query evaluations admit context-scoped cooperative execution pauses.
+The request is dormant during analysis; `State.Evaluation` enables it only for
+runtime evaluation. Aggregate and recursive work use stable kernel identities,
+not callbacks or stack inspection. Raw operation contexts remain cancellation
+and publication authority; nested binders remove execution permission.
+Invocation-owned worker states retain their selected activated effective child
+across pull resets, without per-row wrappers. A fresh worker invocation selects
+its own child and pause attachment; the incoming source never replaces that
+child's cancellation, deadline, cause or unrelated values. Generic `setContext`
+does not activate pauses or metadata classifiers. Terminal stages clear their
+borrowed evaluator graph.
+
 
 The shared checked routine call/frame contract also admits PL definitions.
 Declaration equivalence includes real language/body identity, semantic routine

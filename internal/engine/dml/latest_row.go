@@ -86,9 +86,8 @@ func LatestDeleteRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
 	return LatestRow{Version: row, Live: src.live(row)}, nil
 }
 
-// LatestMergeRow reads a MERGE target row. MERGE follows a committed update
-// even with a retained RR frontier. Deletion still conflicts; query
-// visibility, not this fetch, owns old+own occurrences.
+// LatestMergeRow prefers the transaction's own target version. Committed
+// predecessors outside a retained snapshot conflict before action evaluation.
 func LatestMergeRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
 	store := src.Store
 	if store == nil {
@@ -102,11 +101,8 @@ func LatestMergeRow(src LatestRowSource, r RowRequest) (LatestRow, error) {
 	if !found {
 		return LatestRow{}, errors.New("stuntgres: invalid MERGE predecessor")
 	}
-	live := src.live(row)
-	if !live && src.Stable && store.Ends != nil {
-		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > src.Frontier {
-			return LatestRow{}, sqlError("40001", "could not serialize access due to concurrent delete")
-		}
+	if err := visibility.RepeatableConflict(src.Stable, src.Frontier, row, store.Ends); err != nil {
+		return LatestRow{}, err
 	}
-	return LatestRow{Version: row, Live: live}, nil
+	return LatestRow{Version: row, Live: src.live(row)}, nil
 }

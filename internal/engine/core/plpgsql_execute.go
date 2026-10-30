@@ -208,16 +208,17 @@ func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltyp
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	ctx := s.ActivateRuntime(s.executionContext())
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	evaluation.Input.DomainChecks = &evaluation
 	if selected {
 		return node.Eval(&evaluation)
 	}
-	text, err := value.Type().OutputWithEnvironment(s.executionContext(), value, s.Output)
+	text, err := value.Type().OutputWithEnvironment(ctx, value, s.Output)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return target.Type.InputWithEnvironment(s.executionContext(), text, target.Typmod, evaluation.Input)
+	return target.Type.InputWithEnvironment(ctx, text, target.Typmod, evaluation.Input)
 }
 
 // The candidate has the physical base descriptor. Validate fresh reconstructed
@@ -241,9 +242,10 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.executionContext(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+		ctx := s.ActivateRuntime(s.executionContext())
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 		evaluation.Input.DomainChecks = &evaluation
-		if err := target.CheckDomainInput(s.executionContext(), candidate, evaluation.Input); err != nil {
+		if err := target.CheckDomainInput(ctx, candidate, evaluation.Input); err != nil {
 			return sqltype.Value{}, &plan.AssignmentDomainError{Err: err}
 		}
 	}

@@ -77,7 +77,7 @@ func TestDictionaryProviderValidation(t *testing.T) {
 	}
 	bad := *template
 	bad.Lexize.ObjectID++
-	if _, err := extension.CompileDictionary(context.Background(), view, &bad, nil); err == nil {
+	if _, err := extension.CompileDictionary(context.Background(), view, &bad, nil, e.TextSearchFiles); err == nil {
 		t.Fatal("unsupported provider fell back to simple")
 	}
 	for _, tc := range []struct {
@@ -88,7 +88,7 @@ func TestDictionaryProviderValidation(t *testing.T) {
 		{[]catalog.DictionaryOption{{Name: "stopwords"}}, "42601"},
 		{[]catalog.DictionaryOption{{Name: "Accept", Value: "true", Supplied: true}}, "22023"},
 	} {
-		_, err := extension.CompileDictionary(context.Background(), view, template, tc.options)
+		_, err := extension.CompileDictionary(context.Background(), view, template, tc.options, e.TextSearchFiles)
 		extensionUnitError(t, err, tc.code)
 	}
 	for _, id := range []ids.OID{3723, 3725, 3726} {

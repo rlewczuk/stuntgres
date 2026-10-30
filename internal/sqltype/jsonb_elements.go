@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -67,7 +68,7 @@ func (p JSONBElementsPlan) Open(ctx context.Context, value Value) (JSONBElementC
 }
 
 func (c *JSONBElementCursor) Next(ctx context.Context) (Value, bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "jsonb.elements.next"); err != nil {
 		return Value{}, false, err
 	}
 	if c.result == nil {

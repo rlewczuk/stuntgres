@@ -246,7 +246,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		t.Fatal("target role identity reused")
 	}
 	incumbent := target.Catalog.State
-	if _, err := target.ReplaceCatalogInOperation(context.Background(), imported, imported.CatalogRead(), admin); err == nil {
+	if _, err := target.ReplaceCatalog(context.Background(), imported, imported.CatalogRead()); err == nil {
 		t.Fatal("member owner target recreation escaped import fence")
 	}
 	if target.Catalog.State != incumbent {

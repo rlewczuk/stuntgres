@@ -159,7 +159,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
 	before := len(core.ScopeForeignActionsOrZero(scope).Transitions)
-	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
+	if err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
 	if len(core.ScopeForeignActionsOrZero(scope).Transitions) != before {
@@ -179,7 +179,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	scope.WriteHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
 	core.ScopeForeignActions(scope).Settling = true
-	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
+	if err = dml.ReplaceRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	scope.ForeignActionAuth = nil
@@ -236,7 +236,7 @@ func TestForeignActionsClosure(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	if err := dml.SettleForeignActions(scope.WriteHost()); err != nil {
+	if err := dml.SettleForeignActions(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost()); err != nil {
 		t.Fatal(err)
 	}
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "g")
@@ -279,7 +279,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 			before := e.Storage.Relations[ref.Address]
 			versions := slices.Clone(before.Versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
-			err := dml.SettleForeignActions(scope.WriteHost())
+			err := dml.SettleForeignActions(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost())
 			if probe.ordinal != 2 {
 				t.Fatal("default demand was not per physical row", probe.ordinal)
 			}

@@ -55,6 +55,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 		return nil, ids.ErrCatalogReplaced
 	}
 	e.Mu.Unlock()
+	ctx = scope.ActivateRuntime(scope.executionContext())
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.FoldCaptures = scope.FoldCaptures
 	evaluation.FoldOrigin = exec.FoldOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.DefinitionRevision()}
@@ -114,6 +115,7 @@ func (e *Engine) captureStoredSourceLocked(scope *StatementScope, prepared *stor
 	if err != nil {
 		return nil, err
 	}
+	ctx = scope.ActivateRuntime(scope.executionContext())
 	if err = exec.SelectQuerySources(ctx, source); err != nil {
 		source.Close()
 		return nil, err

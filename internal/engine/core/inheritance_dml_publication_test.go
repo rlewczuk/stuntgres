@@ -50,7 +50,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				if err = core.ScopeAcquireRow(s, visibility.DeleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
-				if err = dml.ReplaceRows(s.WriteHost(), ref, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}, dml.ReplaceMerge); err != nil {
+				if err = dml.ReplaceRows(s.ActivateRuntime(s.Op.Context()), s.WriteHost(), ref, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}, dml.ReplaceMerge); err != nil {
 					t.Fatal(err)
 				}
 			}

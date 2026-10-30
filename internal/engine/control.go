@@ -21,6 +21,7 @@ func Reset(ctx context.Context, e *core.Engine) error {
 	if err := fresh.InstallHostDefinitions(e.Catalog.HostRuntimes); err != nil {
 		return err
 	}
+	fresh.TextSearchFiles = e.TextSearchFiles
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }

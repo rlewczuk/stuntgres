@@ -178,6 +178,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
+	ctx := scope.ActivateRuntime(scope.Op.Context())
 	fills, perRowAdd, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), mutation.Additions)
 	if err != nil {
 		return err
@@ -262,14 +263,14 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		}
 	}
 	if !rewrite && len(checks) != 0 {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := table.ValidateAddedConstraintRows(evaluation, validator, replacement.Versions, replacement.Ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return err
 		}
 	}
 	h := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 	if rewrite || len(mutation.Transforms) != 0 {
-		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.Transforms, nil, nil, rewrite)
 		if err != nil {
 			return index.DefaultClassDiagnostic(h, auth, err)
@@ -310,7 +311,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		stage.AlterRowSources[old.Address()] = old
 	}
 	if !rewrite && len(stage.IndexesOrZero().Layouts) != 0 {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		transported := scope.PendingCatalog().Clone()
 		projectedWrites, _, err = core.TransportIndexLayouts(&evaluation, stage, transported, next, store, replacement, sourceWrites, projectedWrites)
 		if err != nil {

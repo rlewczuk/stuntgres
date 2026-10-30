@@ -20,27 +20,27 @@ import (
 // AlterTablePhysical carries the actual pre-ALTER tuple layout and checked
 // plans across the consumed metadata stage. It never owns a mutable catalog.
 type AlterTablePhysical struct {
-	mutation                                                           core.StatementMutation
-	ref                                                                ids.ObjectRef
-	old, storageOwner                                                  *catalog.Relation
-	store                                                              *storage.Relation
-	shape                                                              session.StorageChange
-	frontier                                                           ids.CommitSeq
-	snapshot                                                           visibility.Root
-	snapshotExists                                                     bool
-	transformations                                                    []index.ColumnTransformation
-	additions                                                          []table.AddedColumn
-	storedReplacements, replacements                                   []int32
-	typeChecks, addedChecks                                            []catalog.CheckConstraint
-	addedIndexes                                                       []ids.ObjectAddress
-	validatedChecks                                                    []catalog.CheckConstraint
-	validatedNotNull                                                   []catalog.NotNullConstraint
-	foreignKeyHistory                                                  []table.AlterForeignKeyScan
-	fills                                                              map[int32]sqltype.Value
+	mutation                                             core.StatementMutation
+	ref                                                  ids.ObjectRef
+	old, storageOwner                                    *catalog.Relation
+	store                                                *storage.Relation
+	shape                                                session.StorageChange
+	frontier                                             ids.CommitSeq
+	snapshot                                             visibility.Root
+	snapshotExists                                       bool
+	transformations                                      []index.ColumnTransformation
+	additions                                            []table.AddedColumn
+	storedReplacements, replacements                     []int32
+	typeChecks, addedChecks                              []catalog.CheckConstraint
+	addedIndexes                                         []ids.ObjectAddress
+	validatedChecks                                      []catalog.CheckConstraint
+	validatedNotNull                                     []catalog.NotNullConstraint
+	foreignKeyHistory                                    []table.AlterForeignKeyScan
+	fills                                                map[int32]sqltype.Value
 	rewrite, physicalRows, hasAttachments, changedValues bool
-	rewriteReason int32
-	destination                                                        ids.ObjectRef
-	validityOnly                                                       bool
+	rewriteReason                                        int32
+	destination                                          ids.ObjectRef
+	validityOnly                                         bool
 }
 
 func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.AlterMetadataPhase, work *AlterTablePhysical, layouts map[ids.ObjectAddress]index.LayoutLineage) (result core.Result, err error) {
@@ -192,7 +192,7 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	if err != nil {
 		return core.Result{}, err
 	}
-	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(op.Context()), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, core.DisclosureEnv(&disclosure), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, transformations, storedReplacements, addedIndexes, rewrite)
 	if err != nil {
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, disclosure, err)

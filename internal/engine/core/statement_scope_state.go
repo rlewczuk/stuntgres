@@ -30,6 +30,8 @@ type StatementScope struct {
 	aggregateGateOnce       sync.Once
 	aggregateGate           chan struct{}
 	invocationContext       context.Context // Scoped under aggregateGate; inherited by nested commands.
+	copyInputRaw            context.Context // Only actual session-owned standard effective children.
+	copyInputActive         context.Context // Invocation-private projection, retired at Finish.
 	currentSnapshot         *sqltype.Snapshot
 	snapshotFrontier        ids.CommitSeq
 	snapshotTarget          visibility.Root

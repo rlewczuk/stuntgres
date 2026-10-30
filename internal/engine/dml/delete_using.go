@@ -133,7 +133,7 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 		if !before.Proceed {
 			continue
 		}
-		if err := ClaimUniqueRow(h, candidate.Ref, current); err != nil {
+		if err := ClaimUniqueRow(ctx, h, candidate.Ref, current); err != nil {
 			return Outcome{}, err
 		}
 		deleted, err := h.Delete(candidate)

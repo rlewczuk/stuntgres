@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -11,10 +10,19 @@ import (
 )
 
 func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
-	for _, condition := range []string{"", " AND t.v=10", " AND t.v=100"} {
-		t.Run(condition, func(t *testing.T) {
+	for _, tc := range []struct {
+		name, condition string
+		merge           bool
+	}{
+		{"unconditional", "", false},
+		{"original10Only", " AND t.v=10", false},
+		{"own100Only", " AND t.v=100", false},
+		{"mergeUnconditional", "", true},
+		{"mergeOriginal10Only", " AND t.v=10", true},
+		{"mergeOwn100Only", " AND t.v=100", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			holder := enginetest.StartSession(t, e, nil)
 			worker := enginetest.StartSession(t, e, nil)
 			peer := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
@@ -25,42 +33,63 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			enginetest.TransactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 			frontier := worker.Transactions.Frontier
 			enginetest.SessionSQL(t, worker, "UPDATE t SET v=21 WHERE id=2")
-			tx := enginetest.TransactionBegin(t, holder)
-			enginetest.SessionSQL(t, holder, "UPDATE t SET v=11 WHERE id=1")
-			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100")
-			mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
-			enginetest.TransactionEnd(t, holder, tx, true)
-			mergeUpdatePendingOutcome(t, done, 1, nil)
-			enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21)
+			initial := "UPDATE t SET v=100 WHERE id=1"
+			if tc.merge {
+				initial = "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100"
+			}
+			enginetest.SessionSQL(t, worker, initial)
+			worker.Transactions.Mu.Lock()
+			replacementBase := original.Version
+			found := false
+			for _, own := range worker.Transactions.Writes[ref.Address] {
+				if own.Row == original.Row {
+					replacementBase = own.Base
+					found = own.Version != original.Version
+				}
+			}
+			worker.Transactions.Mu.Unlock()
+			if !found || replacementBase != original.Version {
+				t.Fatal("own replacement lost snapshot predecessor", replacementBase, original.Version)
+			}
+			enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 100, 21)
 			enginetest.SessionSQL(t, worker, "SAVEPOINT deletion")
 			op := enginetest.TransactionOperation(t, worker)
-			result, err := e.Execute(op, enginetest.Statement(t, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED"+condition+" THEN DELETE"), 0, nil)
+			result, err := e.Execute(op, enginetest.Statement(t, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED"+tc.condition+" THEN DELETE"), 0, nil)
 			op.Done()
-			if condition == "" {
-				var d *sqlstate.Error
-				if !errors.As(err, &d) || d.Code != "21000" || d.Hint != "Ensure that not more than one source row matches any one target row." || result.Count != 0 {
-					t.Fatal("RR duplicate deletion", result, err)
-				}
-				enginetest.SessionSQL(t, worker, "ROLLBACK TO deletion")
-			} else {
-				n := int64(0)
-				if condition == " AND t.v=100" {
-					n = 1
-				}
-				if err != nil || result.Count != n {
-					t.Fatal("RR own-head deletion", result, err, n)
-				}
+			n := int64(1)
+			if tc.condition == " AND t.v=10" {
+				n = 0
+			}
+			if err != nil || result.Count != n {
+				t.Fatal("RR own-head deletion", result, err, n)
 			}
 			if worker.Transactions.Frontier != frontier {
 				t.Fatal("deletion replaced pinned RR frontier")
 			}
-			if condition == " AND t.v=100" {
-				enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 21)
+			if n == 1 {
+				enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 21)
 			} else {
-				enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21)
+				enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 100, 21)
 			}
+			enginetest.SessionSQL(t, worker, "ROLLBACK TO deletion")
+			enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 100, 21)
+			if worker.Transactions.Frontier != frontier {
+				t.Fatal("savepoint recovery replaced pinned RR frontier")
+			}
+			worker.Transactions.Mu.Lock()
+			restored := false
+			for _, own := range worker.Transactions.Writes[ref.Address] {
+				if own.Row == original.Row && own.Base == original.Version && own.Version != original.Version {
+					restored = true
+				}
+			}
+			worker.Transactions.Mu.Unlock()
+			if !restored {
+				t.Fatal("savepoint recovery lost own replacement provenance")
+			}
+			enginetest.SessionSQL(t, worker, "RELEASE deletion")
 			enginetest.SessionSQL(t, worker, "ROLLBACK")
-			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 20)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 			enginetest.LockEmpty(t, e)
 		})
 	}

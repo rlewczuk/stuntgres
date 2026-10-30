@@ -2,6 +2,7 @@ package dml
 
 import (
 	"cmp"
+	"context"
 	"slices"
 
 	"stuntgres/internal/engine/ids"
@@ -50,7 +51,7 @@ func PrepareForeignActions(h FinishHost) ([]ForeignKeyJob, Authority, error) {
 // parent transitions, including the transitions the actions themselves stage,
 // as the referencing tables' owners. Command completion calls it after the
 // first owned exclusion-event check.
-func SettleForeignActions(h FinishHost) error {
+func SettleForeignActions(ctx context.Context, h FinishHost) error {
 	scope := h.ForeignActions(false)
 	if scope == nil {
 		return nil
@@ -113,7 +114,7 @@ func SettleForeignActions(h FinishHost) error {
 				if action == parser.ForeignKeyNoAction {
 					continue
 				}
-				if err = applyForeignAction(h, auth, job, event, action); err != nil {
+				if err = applyForeignAction(ctx, h, auth, job, event, action); err != nil {
 					return err
 				}
 			}

@@ -110,7 +110,7 @@ func TestMergeNothingPublication(t *testing.T) {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.Returning.Close()
-			if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), rows, b.Ref); err != nil {
 				t.Fatal(err)
 			}
 			if len(scope.Stage.Rows) != 0 {

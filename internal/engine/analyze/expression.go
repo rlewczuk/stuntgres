@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
@@ -73,9 +74,10 @@ type Binder struct {
 }
 
 func NewBinder(ctx context.Context, host Host, input sqltype.InputEnvironment, expected Expected) *Binder {
-	// Domain/default compilation can enter from an active runtime conversion.
-	// Binding never owns application workload callbacks, even on that route.
-	b := &Binder{Host: host, Ctx: workadmission.Suspend(ctx), Params: parameterState{Parameters: make(map[int]sqltype.Usage)}, Input: input, Expected: expected}
+	// Domain/default compilation can enter from active runtime conversion.
+	// Binding owns neither application workload callbacks nor execution pauses.
+	ctx = util.DeactivateExecutionPause(workadmission.Suspend(ctx))
+	b := &Binder{Host: host, Ctx: ctx, Params: parameterState{Parameters: make(map[int]sqltype.Usage)}, Input: input, Expected: expected}
 	host.CaptureEnumOperationSafety(&b.Input)
 	if expected.Held {
 		b.SeedParameters(expected.Parameters.Types)

@@ -8,13 +8,14 @@ import (
 	"strconv"
 
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/util"
 	"stuntgres/internal/workadmission"
 )
 
 // SHA-crypt steps1-22 follow the public-domain Drepper reference and PostgreSQL
 // REL_18_6 crypt-sha.c. Only per-call standard-library hash state is retained.
 func pgcryptoSHA(ctx context.Context, notice func(sqlstate.Error), password, setting string) (string, error) {
-	if err := ctx.Err(); err != nil {
+	if err := util.ExecutionCheckpoint(ctx, "crypto.sha"); err != nil {
 		return "", err
 	}
 	p, err := pgcryptoSHAParse(setting, notice)

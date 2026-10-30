@@ -1,6 +1,7 @@
 package dml
 
 import (
+	"context"
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
@@ -84,7 +85,7 @@ func finishInsertReturning(h Host) (Outcome, error) {
 }
 
 // Revalidate the proposal before output, never output before possible filtering.
-func acceptInsertReturning(h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
+func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
 	command := h.Command()
 	row := candidate.Values
 	if command.InsertConflict != nil && command.InsertConflict.Update != nil {
@@ -101,9 +102,9 @@ func acceptInsertReturning(h Host, ref ids.ObjectRef, candidate *index.WriteCand
 		admitted := true
 		var err error
 		if command.PartitionInsert != nil {
-			err = CheckUniqueRow(h, ref, &proposal, nil, index.WriteBatch{})
+			err = CheckUniqueRow(ctx, h, ref, &proposal, nil, index.WriteBatch{})
 		} else {
-			admitted, err = AdmitInsertRow(h, ref, &proposal, index.WriteBatch{}, evaluation)
+			admitted, err = AdmitInsertRow(ctx, h, ref, &proposal, index.WriteBatch{}, evaluation)
 		}
 		if err != nil || !admitted {
 			return false, err
@@ -145,18 +146,18 @@ func AppendAcceptedInsert(h Host, ref ids.ObjectRef, candidate *index.WriteCandi
 // their immutable payload in the write stage, so callers must not retain a
 // duplicate producer prefix (it reports false); upsert projects at its action
 // seam.
-func AdmitInsertProducer(h Host, b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
+func AdmitInsertProducer(ctx context.Context, h Host, b analyze.Binding, candidate *index.WriteCandidate, prefix index.WriteBatch, c *exec.Context) (bool, error) {
 	command := h.Command()
 	row := candidate.Values
 	if command.InsertReturning == nil {
-		return AdmitInsertRow(h, b.Ref, candidate, prefix, c)
+		return AdmitInsertRow(ctx, h, b.Ref, candidate, prefix, c)
 	}
 	if command.InsertConflict == nil || command.InsertConflict.Update == nil {
 		if err := CheckViewRow(h, &b, row, c); err != nil {
 			return false, err
 		}
 	}
-	accepted, err := acceptInsertReturning(h, b.Ref, candidate, c)
+	accepted, err := acceptInsertReturning(ctx, h, b.Ref, candidate, c)
 	if err != nil || !accepted {
 		return false, err
 	}

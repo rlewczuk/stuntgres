@@ -121,6 +121,12 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err != nil {
 		return err
 	}
+	// Demanded repair handed off destination replacement authority. Its local
+	// predecessors and this reservation's peer/shared frontiers must all remain
+	// current before any live TEMP container is grafted into the private stage.
+	if e.Catalog.NextOID() != oids.Base || !e.sharedOIDReservationCurrentLocked(*oids) {
+		return ids.ErrCatalogReplaced
+	}
 	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
 	procedures := catalog.ProcedureIndexEdit{Index: next.ProcedureNames()}
 	for a, d := range temporary {
