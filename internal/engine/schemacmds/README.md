@@ -240,6 +240,8 @@ Stock tcn declaration, immutable-origin and native capability authority units us
 Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing),
 [reference/extension_types](../../../reference/extension_types/README.md#testing),
+[reference/extension_hstore](../../../reference/extension_hstore/README.md#testing),
+[reference/extension_cube](../../../reference/extension_cube/README.md#testing),
 [reference/catalog_objects](../../../reference/catalog_objects/README.md#testing)
 (schemas, COMMENT), [reference/domain_types](../../../reference/domain_types/README.md#testing),
 [reference/operators](../../../reference/operators/README.md#testing) and

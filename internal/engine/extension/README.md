@@ -671,7 +671,9 @@ witnesses live in `internal/engine/schemacmds`. Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)
-(hstore, earth, cube, lo and ISN values),
+(lo, ltree and ISN values),
+[reference/extension_hstore](../../../reference/extension_hstore/README.md#testing) (hstore),
+[reference/extension_cube](../../../reference/extension_cube/README.md#testing) (cube, earth),
 [reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.

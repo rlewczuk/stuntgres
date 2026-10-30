@@ -13,8 +13,10 @@ transactional types);
 and network address types);
 [reference/ranges_text_search](../ranges_text_search/README.md#testing) (ranges,
 multiranges, text search and UUID);
-[reference/extension_types](../extension_types/README.md#testing) (`cube`,
-`earth`, ISN types, `query_int` and `lo`).
+[reference/extension_types](../extension_types/README.md#testing) (ISN types,
+`query_int`, `ltree`, `seg` and `lo`);
+[reference/extension_cube](../extension_cube/README.md#testing) (`cube`, `earth`);
+[reference/extension_hstore](../extension_hstore/README.md#testing) (`hstore`).
 
 Related families elsewhere: character types in
 [reference/strings](../strings/README.md#testing); numeric types in

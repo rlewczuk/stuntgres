@@ -10,8 +10,10 @@ Other type families: [reference/domain_types](../domain_types/README.md#testing)
 transactional types);
 [reference/geometry_network](../geometry_network/README.md#testing) (geometry
 and network address types);
-[reference/extension_types](../extension_types/README.md#testing) (`cube`,
-`earth`, ISN types, `query_int` and `lo`);
+[reference/extension_types](../extension_types/README.md#testing) (ISN types,
+`query_int`, `ltree`, `seg` and `lo`);
+[reference/extension_cube](../extension_cube/README.md#testing) (`cube`, `earth`);
+[reference/extension_hstore](../extension_hstore/README.md#testing) (`hstore`);
 [reference/types](../types/README.md#testing) (composite types, enums, `citext`,
 ACL values, TID, BOOLEAN and comparisons).
 

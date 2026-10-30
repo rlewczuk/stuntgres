@@ -1,7 +1,9 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `seg`, `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
+Dual-mode tests for extension types: `seg`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
+`hstore` is in [reference/extension_hstore](../extension_hstore/README.md#testing);
+`cube` and `earth` are in [reference/extension_cube](../extension_cube/README.md#testing).
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
 (domains, `information_schema` domains, type identity lifecycle and
@@ -73,75 +75,6 @@ these are shared across families:
   scenario and independently seeded rows. Failed public Restore preserves the
   incumbent identities, rows, metadata, retained reader and deterministic dump.
   The reusable family selector is `RUN='^TestReferenceLo'`.
-- `hstore_helpers_test.go` owns scalar text/raw metadata and complete diagnostic
-  assertions. Canonical pairs distinguish empty, NULL-valued and quoted-NULL
-  values from SQL NULL. Conflicting duplicate keys have one allowed original
-  survivor, not a backend-choice parity golden. Native controls preserve the
-  chosen stored value and retained metadata; emitted SQL is replayed directly
-  on the oracle. Held literal assignments retain their canonical values across
-  rename/schema moves; retired installations and unrelated TEXT destinations
-  bind the original SQL afresh, never stale hstore values. Conversion fixtures
-  use ordinary `_TEXT` transport for owned flat/rectangular arrays and invoke
-  both named functions and prefix operators after restoration.
-  `hstore_json_helpers_test.go` checks JSON result metadata, detached scans and
-  SQL NULL separately from JSON member null. Strict/loose expectations preserve
-  numeric spelling and distinguish whole JSON numbers from string boundaries;
-  stored views/defaults execute after restore and current-name dump replay.
-  EXECUTE checks use current callers, distinguishing folded literal NULL from
-  demanded row-dependent NULL calls.
-  `hstore_jsonb_helpers_test.go` applies the JSONB metadata/transport contract;
-  independent strict/cast strings and loose exact-numeric normalization drive
-  projection, equality predicates, privileges and extension-owned cast lifecycle.
-  `hstore_compare_helpers_test.go` shares typed comparison expectations for
-  equality, real B-tree support operators and comparator/hash routines. The
-  comparison scenarios cover canonical payload boundaries and NULL bits,
-  ordered/grouped consumers, both index methods, complete diagnostics and
-  stored expressions through native controls and actual emitted-SQL replay.
-  The reusable family selector is `RUN='^TestReferenceHstore'`.
-  Constructor and lookup fixtures preserve literal escaping, array shape/bounds
-  and missing versus NULL-valued keys; exact body diagnostics remain separate
-  from overload errors. `_TEXT` transport covers array lookups. Native controls
-  carry constructors, named backers and operators with the shared exact
-  sixty-five-owner validator, omitting only the ownerless cast. Nonstrict
-  constructors preserve present NULL values under current caller admission.
-  Held installed-hstore result signatures reject true Reset/Restore replacement
-  with the cached-plan result-type diagnostic; builtin TEXT signatures rebind
-  actual constructor/lookup expressions with current inputs. Fresh hstore result
-  metadata and detached old readers remain independently asserted.
-  Key predicates cover NULL-valued presence, ignored NULL array elements and
-  shape-independent requests; containment distinguishes NULL values from text
-  NULL. Key/value array fixtures preserve paired positions without an insertion
-  order promise. Selected backers, selectivity and commutator links, live caller
-  admission and stored consumers survive native controls and emitted-SQL replay.
-  Genuine rename/schema moves of all seven constructor/lookup/predicate
-  procedures retain original SQL names and exact overload signatures in actual
-  Dump output. The exact rename-then-move witness starts at the namespace of the
-  one genuine released CREATE EXTENSION, not an assumed final `public` namespace,
-  and requires final identities before stored consumer creation. Executable C
-  symbols are forbidden as SQL identities in every namespace. Displaced native
-  Restore and replay of those identical emitted SQL bytes on PostgreSQL exercise
-  both stored consumers and current names.
-  The same replay witness preserves escaped and whole-NULL inputs, multi-key and
-  matrix construction, direct `_TEXT` metadata and nondefault request bounds,
-  duplicates and NULL keys, plus destination-local procedure/arrow relationships.
-  Record fixtures additionally assert declared RECORD/ANYELEMENT identities
-  independently of effective tuples, destination typmods and descriptor-order
-  failures, whole-NULL versus all-NULL tuples, scalar FROM metadata and genuine
-  current-authority calls. Stored constructor/function/operator consumers retain
-  old readers through replacement and replay actual emitted SQL after renames.
-  Set-returning key/value/pair extraction uses `hstore_rows_helpers_test.go`:
-  occurrence bags retain duplicate values and present SQL NULLs, independent
-  of hstore traversal order. Fixed OUT names, named `each` input, zero-row
-  metadata, held parameter recovery and caller admission share the same public
-  scenarios, including denied literal-NULL SRFs. Renamed stored consumers and
-  retained outputs survive native replacement; held builtin TEXT parameters
-  rebind through `::text::hstore`, while genuinely hstore-typed parameters retain
-  the catalog-lifetime 0A000 fence. The actual emitted SQL is replayed on the oracle.
-  Update scenarios independently specify right bias, exact pair deletion and
-  shape-independent key deletion/slice, including NULL-valued retained pairs.
-  All nine procedure/operator roles survive stored replay and genuine schema
-  changes. Held builtin TEXT signatures reanalyze across replacement; fresh raw
-  hstore results check destination metadata without weakening catalog fences.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native
@@ -163,7 +96,7 @@ these are shared across families:
   Boolean metadata, overload/privilege diagnostics and restored stored consumers.
   Both direct `ltree_isparent`/`ltree_risparent` calls and `@>`/`<@` operators
   retain their existing direct, prepared and held witnesses. The ownership
-  scenarios in `reference/extensions` additionally retain genuine detached and
+  scenarios in `reference/extension_ownership_ltree` additionally retain genuine detached and
   foreign members after origin retirement through destination-recorded controls.
   The reusable selector is `RUN='^TestReferenceLtreeHierarchy'`.
  - Path utilities share `RUN='^TestReferenceLtreePath'`: independently specified
@@ -224,29 +157,9 @@ Rules:
   reference/extensions: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
-- Cube spatial helpers assert raw BOOL/FLOAT8 values, metadata and complete
-  diagnostics before parity. Native controls retain actual TEMP identities to
-  force remapping and replay the emitted SQL on PostgreSQL. Excluded Restore
-  INSERT producers fail with ordinary control errors, not SQL codec diagnostics.
-- `earthIdentityChecks` is shared by Earth Metadata, Controls and
-  PrerequisiteRemoval; rerun all three after changing it. Its selected inventory
-  includes `cube_distance`, the six earth coordinate/conversion routines and
-  `geo_distance(point,point)` with its operator backing/commutator/membership links.
-- Earth coordinate principal roundtrips reject nonfinite outputs before applying
-  their finite tolerance or circular longitude comparison.
-  `TestReferenceEarthCoordinateRenamedDiagnostics` checks complete current-name
-  body errors and execute stages through direct/fresh/held calls, pre-rename
-  stored views/defaults, native Restore and emitted-SQL PostgreSQL replay.
-- Earth-point shared scenarios check raw FLOAT8 statute miles and fixed independent
-  rounded witnesses, complete diagnostics and stored consumers through native
-  controls. Raw precision additionally compares native/oracle direct/fresh/held
-  results within two ULP, with exact NULL/nonfinite categories and zero signs.
-  Reuse the family selector `RUN='^TestReferenceEarthPoint'` in both modes.
 
 ### Family selectors
 
-- `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
-- <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `seg`: `RUN='^TestReferenceSeg'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
@@ -254,72 +167,3 @@ Rules:
   normalize modifier flags and quantifier bounds, and assert complete diagnostics
   independently of native formatting. Controls retain rows and metadata across
   replacement and replay actual emitted SQL on PostgreSQL.
-
-### Cube fixtures
-
-Cube scenarios share `cubeScenario`, `fixture.CubeSelect` and the metadata/control helpers.
-Use `fixture.CubeSelect` only for actual cube columns; Boolean and integer comparison
-results use ordinary fixture projections. Assert raw cells and metadata before
-normalization, including empty and NULL-only results.
-
-`cube_constructor_helpers_test.go` owns the shared constructor scenario and
-mixed cube/integer/Boolean result adapter. `cubeConstructorScenario` borrows and
-closes one connection per backend. `cubeConstructorSelect` checks cube raw cells
-and metadata without replacing the ordinary scalar-column assertions.
-Expected array and point text is specified independently of native formatting.
-Transformation scenarios reuse this adapter for scalar cube results, including
-empty and NULL-only projections. Their stored calls retain the same installed
-carrier through same-target and allocator-colliding fresh-driver replacement.
-
-`cube_coordinate_helpers_test.go` checks FLOAT8 metadata and exact extraction
-bits before parity, including signed zero and NaN classification. Coordinate
-scenarios retain shared direct/prepared/held execution and real native control
-reminting; stored consumers execute after replay rather than merely preserving
-previously extracted floats.
-Independent coordinate member owners use the public named-owner Dump/Restore
-metadata seam natively and ordinary member-owner SQL on PostgreSQL. Match all
-four procedure and two operator signatures exactly, preserve other member owners,
-and provision the named role before independent-destination replay. PostgreSQL
-ignores native ownership comments, so assert transferred member owners after
-replaying the actual emitted SQL on a pinned, authorization-cleaned connection.
-
-Stored-expression fixtures retain actual procedure/type identity rather than
-spelling or allocated-OID goldens. Import authority belongs only to private
-migration candidates; remapped expressions must validate against the published
-catalog without retained import permission.
-
-Constructor controls preserve logical ownership across replacement and actual
-dump replay. PostgreSQL replay uses one pinned connection, resets session/role
-authorization, and cleans up created objects and roles before returning it.
-The Earth retained-TEMP fixture retains real TEMP objects until an observed
-identity occupies the source earth type's OID; replacement must remint the
-imported type without changing that live object's or namespace's identity.
-Fixtures do not depend on prerequisite member counts.
-
-The comparison graph has 18 direct extension members: the scalar, nine
-strict immutable procedures (text input/output, six comparisons and `cube_cmp`),
-six comparison operators, and the default B-tree `cube_ops` class and family.
-The complete installed manifest also includes eight constructor/dimension/point
-routines, four coordinate routines, two coordinate operators, four scalar
-transformation routines and six spatial routine/operator pairs, for 48 direct members. The
-associated `_cube` catalog identity remains lookup-only and internally dependent,
-not array storage. Equality is merge-capable, not HASHES; there is no cube
-hash-index class. Native receive/send metadata stays zero. Constructor and spatial
-fixtures cover their own overloads; GiST, cube arrays and binary COPY remain
-outside this fixture contract.
-
-Catalog probes relate exact qualified procedure/operator signatures and both
-argument identities, without fixed dynamic OIDs. Keep probes bounded to a single
-catalog or derived identities rather than expanding catalog products.
-
-Control scenarios retain readers and compare same/fresh-driver results, settings,
-ownership and future writes. Forced remapping requires measured retained TEMP
-collisions, not permanent allocator spacers. Replay the actual emitted SQL on a
-dedicated PostgreSQL connection; refresh materialized views explicitly because
-native snapshot comments do not populate them.
-
-Declaration-window witnesses distinguish written expressions from inherited or
-omitted defaults. Preserve both valid inherited replay and malformed-window
-rejection, and prove inaccessible namespace authority with real denied lookups
-rather than grants or owner substitutions. See the
-[stored-expression contract](../../internal/engine/stored/README.md#recipe-rules).
