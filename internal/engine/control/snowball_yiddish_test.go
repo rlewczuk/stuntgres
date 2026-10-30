@@ -41,7 +41,7 @@ func TestSnowballYiddishSeedReplay(t *testing.T) {
 	source.State.UnbindName(catalog.DescriptorNameKey(seed)); source.State.SetDescriptor(changed.Address(), &changed); source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 18 { t.Fatal("actual dictionary inventory", providers, err) }
+	if err != nil || len(providers) != 19 { t.Fatal("actual dictionary inventory", providers, err) }
 	lines, err := planProviderReplay(providers)
 	want := "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"yiddish_stem\" RENAME TO \"saved_yiddish\";\n" + "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"saved_yiddish\" (language, language = 'YiDdIsH', stopwords = 'english');\n"
 	if err != nil || strings.Join(lines, "") != want || changed.SeedName() != "yiddish_stem" { t.Fatal("canonical creation identity replay", lines, err) }
@@ -51,7 +51,7 @@ func TestSnowballYiddishSeedReplay(t *testing.T) {
 	moved := *configuration; moved.ObjectName = "saved_yiddish_config"
 	source.State.UnbindName(catalog.DescriptorNameKey(configuration)); source.State.SetDescriptor(a, &moved); source.State.BindName(catalog.DescriptorNameKey(&moved), a)
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 18 { t.Fatal("actual configuration inventory", providers, err) }
+	if err != nil || len(providers) != 19 { t.Fatal("actual configuration inventory", providers, err) }
 	lines, err = planProviderReplay(providers)
 	if err != nil || strings.Join(lines, "") != "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\" RENAME TO \"saved_yiddish_config\";\n" { t.Fatal("canonical configuration replay", lines, err) }
 }

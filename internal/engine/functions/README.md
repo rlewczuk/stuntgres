@@ -985,11 +985,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian, Lithuanian, Norwegian, Portuguese and Yiddish kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Norwegian, Portuguese and Yiddish kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Irish, Lithuanian and Yiddish have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian and Yiddish have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian, Italian and Norwegian stock lists contain 127, 94, 101, 231, 199, 279 and 176 entries (Hungarian and Norwegian retain released duplicates);
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
@@ -1035,6 +1035,11 @@ publication and lock-manager tickets stay in the engine.
   R1plus3 is the released byte condition `p1 <= cursor+6`. Scratch is allocated
   lazily per invocation. It has no stock stoplist, Unicode normalization,
   presentation-form expansion, accent folding or English ASCII backup.
+  Indonesian counts ASCII vowels once and adjusts the measure after each removal;
+  particle/possessive, first/second-order prefix and suffix stages retain released
+  among fallbacks and prefix-class restrictions. UTF8 nonvowel predicates step
+  whole codepoints; deletion results retain substrings. Its dictionary and
+  configuration both use Indonesian for ASCII words, with no stock stoplist.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

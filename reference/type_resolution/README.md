@@ -249,6 +249,14 @@ requires both backends rather than PG-only discovery.
 Seed-cycle replay repairs canonical names and the original dictionary/configuration
 owners captured by identity, so emitted native ownership does not leak into the
 shared PostgreSQL stock catalog.
+Indonesian release morphology covers measure/pipeline boundaries, prefix and
+suffix among fallbacks, C-case/accent and original-byte boundaries. Its stock
+dictionary is Language-only, has no stoplist, and owns all six word mappings
+including ASCII. Explicit English stops, typed direct/held inputs, full
+diagnostics, retained constants, publication/cancellation and actual emitted
+dictionary/configuration carrier replay share `RUN='^TestReferenceIndonesianSnowball'`.
+Private kernel/provider, accepted-fold ownership, publication fences and seed
+replay use the existing `RUN='^TestSnowball'` family.
 
 Hindi's 132 literal release suffix witnesses, conditional fallback/protected-rune
 boundaries, language-only stock defaults, explicit English127 stopwords, typed

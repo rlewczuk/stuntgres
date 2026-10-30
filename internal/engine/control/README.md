@@ -377,11 +377,11 @@ No physical WAL position or flush guarantee is serialized.
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
   StopWords cannot reappear on Restore; English, Danish, Dutch, German, Hungarian, Italian, Norwegian and Portuguese own canonical stoplists,
-  while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Irish/Lithuanian/Yiddish have language-only defaults.
+  while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Yiddish have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian/Norwegian/Portuguese/Yiddish dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Norwegian/Portuguese/Yiddish dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
   Missing intrinsic seeds are retired before collision planning: configurations
   first, then dictionaries by ordinary RESTRICT drops. Any surviving initialized
@@ -451,7 +451,7 @@ No physical WAL position or flush guarantee is serialized.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
   dictionary and stored alias/default/view dependencies use the ordinary graph.
-  Owner transfers use privileged creation; allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian and fixed simple
+  Owner transfers use privileged creation; allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian and fixed simple
   seed identities share the ordinary collision planner before mapping replay.
   Seed edits replay current mappings after canonical initialization. Temporary
   retention and replacement remap configurations and REGCONFIG datums through

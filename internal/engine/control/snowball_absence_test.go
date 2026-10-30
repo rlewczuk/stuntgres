@@ -43,14 +43,14 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 				}
 			}
 			seen := 0
-			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish"}
+			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian"}
 			for seed := range source.CatalogView.SnowballSeeds() {
 				if seen >= len(languages) || seed.Language != languages[seen] { t.Fatal("finite intrinsic inventory order", seen, seed) }
 				if seed.Language != "yiddish" && (!seed.Dictionary || !seed.Configuration) { t.Fatal("unrelated seed disappeared", seed) }
 				seen++
 				if seed.Language == "yiddish" && (seed.Dictionary != tc.dictionary || seed.Configuration != tc.configuration) { t.Fatal("intrinsic presence changed with spelling", seed) }
 			}
-			if seen != 17 { t.Fatal("finite represented inventory", seen) }
+			if seen != 18 { t.Fatal("finite represented inventory", seen) }
 			script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 			lines, err := script.snowballDropReplay(t.Context())
 			if err != nil || strings.Join(lines, "") != tc.want { t.Fatal("exact ordered absence prelude", lines, tc.want, err) }

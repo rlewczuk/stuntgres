@@ -31,7 +31,7 @@ func seedDictionaryOptionDelta(d *catalog.TSDictionary) string {
 }
 
 // Identity replay precedes declaration/mapping replay; use the ordinary
-// collision planner so simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian name cycles remain real SQL.
+// collision planner so simple and released Snowball seed name cycles remain real SQL.
 func (s *dumpScript) configurationProviderReplays() ([]providerReplay, error) {
 	var out []providerReplay
 	originalNS := s.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
