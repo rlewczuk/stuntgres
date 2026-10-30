@@ -882,16 +882,8 @@ var Specs = [...]Spec{
 	}, false, CatalogHasIndexes(12006), false, false, "stuntgres: missing catalog source type"},
 	{ids.ForeignWrapperClassID, ids.PGCatalogNamespaceOID, "pg_foreign_data_wrapper", pgForeignDataWrapperColumns,
 		false, CatalogHasIndexes(ids.ForeignWrapperClassID), false, false, "stuntgres: missing SQL/MED catalog type %d"},
-	{ids.ForeignServerClassID, ids.PGCatalogNamespaceOID, "pg_foreign_server", []ColumnSpec{
-		{"oid", sqltype.Oid, false, 0, 0, -1},
-		{"srvname", sqltype.Name, false, 0, 0, -1},
-		{"srvowner", sqltype.Oid, false, 0, 0, -1},
-		{"srvfdw", sqltype.Oid, false, 0, 0, -1},
-		{"srvtype", sqltype.Text, true, 950, 0, -1},
-		{"srvversion", sqltype.Text, true, 950, 0, -1},
-		{"srvacl", sqltype.ACLItemArray, true, 0, 0, -1},
-		{"srvoptions", 1009, true, 950, 0, -1},
-	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
+	{ids.ForeignServerClassID, ids.PGCatalogNamespaceOID, "pg_foreign_server", pgForeignServerColumns,
+		false, CatalogHasIndexes(ids.ForeignServerClassID), false, false, "stuntgres: missing SQL/MED catalog type %d"},
 	{ids.ForeignMappingClassID, ids.PGCatalogNamespaceOID, "pg_user_mapping", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"umuser", sqltype.Oid, false, 0, 0, -1},

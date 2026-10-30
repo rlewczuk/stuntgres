@@ -3,7 +3,7 @@
 Schema-object catalogs: `pg_namespace`, schemas and `search_path`, visibility
 inquiry functions, `pg_operator` (with the geometric and `lseg` operator
 catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_opfamily`, `pg_amop`, `pg_amproc`, `pg_collation`,
-`pg_language`, `pg_transform`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
+`pg_language`, `pg_transform`, `pg_foreign_server`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
 (`pg_description`, `pg_shdescription`, comment inquiry functions and
 transactional comments). The other catalog families are listed in
 [reference/catalogs](../catalogs/README.md).
@@ -124,6 +124,17 @@ mapping state. Native replacement checks distinguish detached retained rows and
 metadata from fresh executions; PostgreSQL streaming rows are not treated as
 native-control snapshots.
 
+Foreign-server catalog scenarios independently assert all eight source columns,
+attribute nullability/dimensions/collations and index-presence facts, actual
+owner/wrapper joins, ordered options, ACLs, execution-time SELECT reauthorization,
+transactional publication and complete diagnostics. Raw server options are
+PUBLIC-readable catalog data even without server USAGE; separately filtered
+information-schema views are not the oracle for raw catalog visibility.
+Metadata succeeds for no-handler definitions while foreign-table execution has
+its own diagnostic boundary. Native controls retain actual opened results across
+logical replacement; registered provider callbacks are tripwires, not simulated
+remote connections.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Namespaces, schemas, `search_path`: `RUN='^TestReferencePGNamespace'`, `RUN='^TestReferenceSchema'`
@@ -167,3 +178,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Visibility inquiries: `RUN='^TestReferenceVisibility(Inquiry|Execution)'`, `RUN='^TestReferenceBooleanCall'`
 - Search-path object visibility: `RUN='^TestReferenceSearchVisibility'`
 - Catalog smoke scenarios migrated from the root package: `RUN='^TestReferenceSmoke'`
+- Foreign-server catalog: `RUN='^TestReferencePGForeignServer(Shape|Metadata|Permissions|Lifecycle|Diagnostics|Controls|Smoke)$'`.
+  Selected proof pairs: `make check RUN='^TestReferencePGForeignServer(Shape|Metadata)$'`,
+  `make check RUN='^TestReferencePGForeignServer(Permissions|Lifecycle)$'`, and
+  `make check RUN='^TestReferencePGForeignServer(Diagnostics|Controls)$'`; run
+  each again with `REFERENCE=1` against the existing pinned PostgreSQL fixture.
+  Feature smoke: `make check RUN='^TestReferencePGForeignServerSmoke$'` and
+  `make check REFERENCE=1 RUN='^TestReferencePGForeignServerSmoke$'`.
+  Private capture proof: `make check RUN='^TestPGForeignServer(Producer|Authority|Cancellation|Ownership)$'`
+  (add `RACE=1` for selected race evidence).

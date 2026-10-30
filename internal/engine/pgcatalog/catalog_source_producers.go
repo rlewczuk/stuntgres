@@ -23,7 +23,7 @@ var producers = [...]Registration{
 	{ids.RoleClassID, capturePGAuthID},
 	{AuthMembersOID, capturePGAuthMembers},
 	{1262, capturePGDatabase},
-	{1417, captureForeignCatalog},
+	{1417, capturePGForeignServer},
 	{1418, captureForeignCatalog},
 	{2224, capturePGSequence},
 	{2328, capturePGForeignDataWrapper},

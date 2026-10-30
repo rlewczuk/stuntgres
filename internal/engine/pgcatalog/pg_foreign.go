@@ -64,25 +64,6 @@ func captureForeignCatalog(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 			switch source.Address().ObjectID {
-			case ids.ForeignServerClassID:
-				putString(1, d.Name())
-				if err = putOID(2, uint32(d.Owner.ID())); err != nil {
-					return nil, err
-				}
-				if err = putOID(3, uint32(d.Wrapper.ObjectID)); err != nil {
-					return nil, err
-				}
-				if d.ServerType != nil {
-					putString(4, *d.ServerType)
-				}
-				if d.Version != nil {
-					putString(5, *d.Version)
-				}
-				row[6], err = ClassACL(in.Owner, in.Roles, source.Columns[6].Usage.Type, d.ACL)
-				if err != nil {
-					return nil, err
-				}
-				row[7], err = foreignOptionsValue(source.Columns[7].Usage.Type, d.Options)
 			case ids.ForeignMappingClassID:
 				if err = putOID(1, uint32(d.MappedRole.ID())); err != nil {
 					return nil, err

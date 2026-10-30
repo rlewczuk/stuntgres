@@ -62,6 +62,19 @@ type Producer func(Input) ([][]sqltype.Value, error)
   descriptor references, even for empty inventories;
   cancellation publishes no prefix. Metadata never invokes registered providers
   or performs foreign I/O, and registration alone creates no catalog row.
+- `pg_foreign_server` (1417) projects actual immutable server definitions with
+  their server, owner and wrapper identities, nullable type/version, raw ACL and
+  complete ordered options. Ordinary catalog relation/column SELECT admission
+  governs reads independently of server or wrapper USAGE; the information-schema
+  server views retain their separate ownership/USAGE eligibility filter.
+  The first four attributes are nonnullable; type/version and both rank-one
+  arrays are nullable. Default ACL and absent options are typed NULL; explicit
+  empty ACL retains rank-one, lower-one empty backing. Source/type/catalog/role
+  authority and live wrapper linkage are checked even for an empty inventory.
+  Cancellation or invariant failure publishes no prefix. Retained rows own their
+  arrays and captured type generation across later definition replacement.
+  Metadata neither invokes registered providers nor attempts foreign connections;
+  valid no-handler definitions remain catalog-visible.
 - `pg_init_privs` (3394) projects immutable historical records by full object
   address with no allocated row OID. Its five nonnullable columns retain exact
   source-owned OID/INT4/internal CHAR/ACLITEM[] carriers and ordered ACL entries.
@@ -1311,6 +1324,7 @@ a hash root alone does not select that access method.
 - Foreign-wrapper option producer units (core): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (core): `RUN='^TestInfoForeignDataWrappers'`
 - Foreign-server producer units (core): `RUN='^TestInfoForeignServers'`
+- Raw foreign-server catalog units (core): `RUN='^TestPGForeignServer(Producer|Authority|Cancellation|Ownership)$'`
 - Foreign-server option producer units (core): `RUN='^TestInfoForeignServerOptions'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Type procedure dependency ownership and retirement (composed engine):
