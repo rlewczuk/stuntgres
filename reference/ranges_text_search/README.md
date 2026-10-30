@@ -211,6 +211,13 @@ COPY test in reference/dml.
   or stock stoplist; thirteen others select simple. Native replacement retains
   recursive REGCONFIG references and temporary collisions; PostgreSQL executes
   the actual native-emitted SQL.
+- Hindi split mappings, typed vector/debug results, ordered recognizer/stop
+  chains, COPY isolation and owned seed replay:
+  `RUN='^TestReferenceFTSHindiSnowball'`. ASCII aliases select the actual English
+  dictionary; non-ASCII word aliases select Hindi; thirteen others select simple.
+  THE RATS कमल yields `'rat':2 'कमल':3`, unlike direct Hindi RATS→rats.
+  Same/reset/fresh controls preserve recursive REGCONFIG values and temporary
+  collisions; PostgreSQL replay consumes actual native-emitted SQL.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

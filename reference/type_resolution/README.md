@@ -238,6 +238,13 @@ Native dictionary/seed lifecycle consumes actual emitted SQL on PostgreSQL,
 preserving absent versus explicit-empty options and recursive dictionary values.
 Private seed authority, publication fences and accepted-fold backing use the
 existing `RUN='^TestSnowball'` family.
+Hindi's 132 literal release suffix witnesses, conditional fallback/protected-rune
+boundaries, language-only stock defaults, explicit English127 stopwords, typed
+prepared ownership, complete diagnostics, admitted cancellation and actual native
+dictionary/seed replay share `RUN='^TestReferenceHindiSnowball'`.
+The dictionary never applies English rules: RATS becomes rats, while the stock
+configuration uses English for ASCII. Feature smoke is in the same family;
+private kernel/provider/authority/publication proofs use `RUN='^TestSnowballHindi'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

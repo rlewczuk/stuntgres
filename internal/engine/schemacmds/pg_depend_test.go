@@ -115,6 +115,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		{"estonian_stem", "estonian"},
 		{"german_stem", "german"},
 		{"greek_stem", "greek"},
+		{"hindi_stem", "hindi"},
 	} {
 		dictionary := seed(3600, declaration.dictionary, "")
 		configuration := seed(3602, declaration.configuration, "")
@@ -123,6 +124,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 			pgcatalog.DependEdge{configuration, dictionary, 'n'},
 		)
 	}
+	want = append(want, pgcatalog.DependEdge{seed(3602, "hindi", ""), seed(3600, "english_stem", ""), 'n'})
 	return want
 }
 

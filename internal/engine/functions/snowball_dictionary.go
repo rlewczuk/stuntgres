@@ -27,6 +27,7 @@ var snowballLanguages = [...]snowballLanguage{
 	{name: "estonian", stem: estonianStem},
 	{name: "german", stem: germanStem},
 	{name: "greek", stem: greekStem},
+	{name: "hindi", stem: hindiStem},
 }
 
 // DefaultSnowballDictionary shares the immutable compiled bootstrap provider.
@@ -72,6 +73,11 @@ var DefaultGermanSnowballDictionary = sync.OnceValues(func() (*SnowballDictionar
 // DefaultGreekSnowballDictionary has no stock stopword resource in REL_18_6.
 var DefaultGreekSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
 	return CompileSnowballDictionary(context.Background(), "greek", "")
+})
+
+// DefaultHindiSnowballDictionary has no stock stopword resource in REL_18_6.
+var DefaultHindiSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
+	return CompileSnowballDictionary(context.Background(), "hindi", "")
 })
 
 func lookupSnowballLanguage(name string) *snowballLanguage {

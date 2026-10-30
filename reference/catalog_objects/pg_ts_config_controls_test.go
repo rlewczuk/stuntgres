@@ -59,7 +59,16 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='greek' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&greek); err != nil || greek <= 0 || greek == 3748 || greek == english || greek == arabic || greek == armenian || greek == basque || greek == danish || greek == dutch || greek == estonian || greek == german {
 				t.Fatal("actual distinct Greek configuration identity", greek, err)
 			}
-			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}, {estonian, "estonian", int64(11), int64(10), int64(3722)}, {german, "german", int64(11), int64(10), int64(3722)}, {greek, "greek", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
+			var hindi int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='hindi' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&hindi); err != nil || hindi <= 0 {
+				t.Fatal("actual Hindi configuration identity", hindi, err)
+			}
+			for _, earlier := range []int64{3748, english, arabic, armenian, basque, danish, dutch, estonian, german, greek} {
+				if hindi == earlier {
+					t.Fatal("Hindi configuration identity reused", hindi)
+				}
+			}
+			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {danish, "danish", int64(11), int64(10), int64(3722)}, {dutch, "dutch", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}, {estonian, "estonian", int64(11), int64(10), int64(3722)}, {german, "german", int64(11), int64(10), int64(3722)}, {greek, "greek", int64(11), int64(10), int64(3722)}, {hindi, "hindi", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
 		}
 		catalog := func() {
 			pgTSConfigInventory(t, p, b, b.DB)
@@ -67,7 +76,7 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		}
 		check := func() {
 			catalog()
-			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','estonian','german','greek','simple') ORDER BY cfgname"
+			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','danish','dutch','english','estonian','german','greek','hindi','simple') ORDER BY cfgname"
 			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, seedRows()))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)

@@ -195,6 +195,14 @@ func ownershipSnowballSeedWitness(run func(fixture.Step)) {
 	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_dict WHERE oid='pg_catalog.eo_english_stem'::regdictionary AND dicttemplate=(SELECT oid FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball') AND dictinitoption=$1", 1, "language = 'english'"))
 	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball' AND tmplinit='pg_catalog.eo_dsnowball_init(internal)'::regprocedure AND tmpllexize='pg_catalog.eo_dsnowball_lexize(internal,internal,internal,internal)'::regprocedure", 1))
 	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_config_map WHERE mapcfg='pg_catalog.eo_english'::regconfig AND maptokentype=1 AND mapseqno=1 AND mapdict='pg_catalog.eo_english_stem'::regdictionary", 1))
+	// Hindi's ASCII backup retains the actual English identity through its
+	// rename, extension detach/reattach and every native replay destination.
+	mapping := fixture.Select("SELECT maptokentype,mapseqno,mapdict='pg_catalog.eo_english_stem'::regdictionary::oid AS same FROM pg_ts_config_map WHERE mapcfg='pg_catalog.hindi'::regconfig AND maptokentype IN (1,11,16) ORDER BY maptokentype", []string{"maptokentype", "mapseqno", "same"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(1), int64(1), true}, {int64(11), int64(1), true}, {int64(16), int64(1), true}})
+	run(mapping)
+	run(fixture.Prepared(mapping))
+	vector := fixture.Select("SELECT to_tsvector('pg_catalog.hindi','THE RATS कमल') AS value", []string{"value"}, []string{"TSVECTOR"}, [][]any{{"'rat':2 'the':1 'कमल':3"}})
+	run(vector)
+	run(fixture.Prepared(vector))
 	// Allocated Snowball callbacks/template/dictionary are not pinned. These
 	// normal edges remain independent of the deliberately mixed e receivers.
 	for i, s := range ownershipSnowballSeeds[2:] {
@@ -215,19 +223,19 @@ func ownershipSnowballSeedWitness(run func(fixture.Step)) {
 
 func ownershipSnowballDetachedDrops(run func(fixture.Step)) {
 	// PostgreSQL has additional language dictionaries under snowball. Restrict
-	// their transitive closure without pretending native's English-only inventory
+	// their transitive closure without pretending native's represented inventory
 	// has the same DETAIL list; exact represented normal edges are checked above.
 	for _, s := range ownershipSnowballSeeds[:3] {
 		run(fixture.Error("DROP "+s.target(true)+" RESTRICT", "2BP01"))
 	}
 	blocked := fixture.OwnershipError("DROP TEXT SEARCH DICTIONARY pg_catalog.eo_english_stem RESTRICT", "2BP01", "cannot drop text search dictionary eo_english_stem because other objects depend on it")
-	blocked.Diagnostic.Detail = "text search configuration eo_english depends on text search dictionary eo_english_stem"
+	blocked.Diagnostic.Detail = "text search configuration eo_english depends on text search dictionary eo_english_stem\ntext search configuration hindi depends on text search dictionary eo_english_stem"
 	blocked.Diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
-	// The released cluster also maps hindi/russian tokens through english_stem.
-	// Preserve their actual pinned-18.6 diagnostic inventory without inventing
-	// those unrepresented native configurations or weakening native diagnostics.
+	// Hindi's English ASCII edge is represented on both backends. Only the
+	// released Russian configuration remains PostgreSQL-only in this closure.
+	// Preserve both complete diagnostic inventories.
 	pg := *blocked.Diagnostic
-	pg.Detail += "\ntext search configuration hindi depends on text search dictionary eo_english_stem\ntext search configuration russian depends on text search dictionary eo_english_stem"
+	pg.Detail += "\ntext search configuration russian depends on text search dictionary eo_english_stem"
 	blocked.PostgresDiagnostic = &pg
 	run(blocked)
 	// A detached, unreferenced configuration has no pin and can actually drop.

@@ -364,7 +364,7 @@ neither owns catalog authority.
   extension, its global language and three allocated C handlers with creation-owned
   display sources, canonical strictness and genuine language-to-handler dependencies),
   `Store.InstallSnowballLocked` (one allocated C helper pair/template and distinct
-  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek dictionary/configuration seeds, nine core-supplied
+  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi dictionary/configuration seeds, ten core-supplied
   compiled runtimes and real nineteen-token mappings),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
@@ -420,9 +420,12 @@ neither owns catalog authority.
   remain pinned. Seed roots replay through their genuine initialized identities
   rather than independent CREATE declarations.
   English, Danish, Dutch and German defaults include their respective stoplists; Arabic,
-  Armenian, Basque, Estonian and Greek defaults contain only Language. Together with simple these are ten
-  dictionary/configuration seeds with 190 mapping rows; all Snowball seeds share
-  one helper pair/template.
+  Armenian, Basque, Estonian, Greek and Hindi defaults contain only Language.
+  Together with simple these are eleven dictionary/configuration seeds with
+  209 mapping rows; all Snowball seeds share one helper pair/template.
+  Hindi's three ASCII mappings retain the actual allocated English dictionary
+  address, its three non-ASCII word mappings select Hindi, and thirteen others
+  select simple. These are real dependency edges, preserved across seed renames.
   This follows [REL_18_6 initdb setup_depend](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/initdb/initdb.c):
   `pg_stop_making_pinned_objects()` precedes loading `snowball_create.sql`.
   `PhraseDictionaryRuntime` adds only invocation-private typed matcher construction.

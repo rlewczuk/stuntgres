@@ -897,11 +897,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German and Greek kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek and Hindi kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian and Greek have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek and Hindi have no stock
   stopword resource. English, Danish, Dutch and German stock lists contain 127, 94, 101 and 231 words;
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
@@ -947,6 +947,12 @@ publication and lock-manager tickets stay in the engine.
   routines and the test1-controlled generic suffix pass. One invocation-local
   mutable buffer owns edits; there is no Unicode normalization, Greek stoplist
   or English backup, including for ASCII tokens.
+  Hindi protects the first UTF8 code point from both deletion and the preceding
+  consonant predicate, deletes exactly one longest valid released suffix, and
+  retries shorter suffixes after failed predicates. Its 132 entries include
+  twelve implicit-a conditions with an exact finite consonant group; output is
+  a substring without scratch allocation, normalization or English stemming.
+  The stock Hindi configuration, not its dictionary, selects English for ASCII.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.

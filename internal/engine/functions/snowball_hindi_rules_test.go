@@ -1,0 +1,253 @@
+package functions
+
+import (
+	"testing"
+	"unsafe"
+)
+
+// Independently transcribed from hindi.sbl at PostgreSQL REL_18_6's upstream
+// d19326ac6c1b9a417fc872f7c2f845265a5e9ece. Expected results are source-derived,
+// not learned from either backend. Each label identifies the released rule.
+var hindiSuffixCorpus = [][3]string{
+	{"{virama}", "कक्", "कक"},
+	{"{a}", "ककअ", "कक"},
+	{"{A}", "ककआ", "कक"},
+	{"{i}", "ककइ", "कक"},
+	{"{I}", "ककई", "कक"},
+	{"{u}", "ककउ", "कक"},
+	{"{U}", "ककऊ", "कक"},
+	{"{e}", "ककए", "कक"},
+	{"{o}", "ककओ", "कक"},
+	{"{e}{M}", "ककएं", "कक"},
+	{"{o}{M}", "ककओं", "कक"},
+	{"{A}{M}", "ककआं", "कक"},
+	{"{u}{A}{M}", "ककउआं", "कक"},
+	{"{u}{e}{M}", "ककउएं", "कक"},
+	{"{u}{o}{M}", "ककउओं", "कक"},
+	{"{A}{e}{M}", "ककआएं", "कक"},
+	{"{A}{o}{M}", "ककआओं", "कक"},
+	{"{i}{y}{_A}{M}", "ककइयां", "कक"},
+	{"{i}{y}{_o}{M}", "ककइयों", "कक"},
+	{"{A}{i}{y}{_A}{M}", "ककआइयां", "कक"},
+	{"{A}{i}{y}{_o}{M}", "ककआइयों", "कक"},
+	{"{A}{Mh}", "ककआँ", "कक"},
+	{"{i}{y}{_A}{Mh}", "ककइयाँ", "कक"},
+	{"{A}{i}{y}{_A}{Mh}", "ककआइयाँ", "कक"},
+	{"{a}{w}{_A}{e}{M}", "ककअताएं", "कक"},
+	{"{a}{w}{_A}{o}{M}", "ककअताओं", "कक"},
+	{"{a}{n}{_A}{e}{M}", "ककअनाएं", "कक"},
+	{"{a}{n}{_A}{o}{M}", "ककअनाओं", "कक"},
+	{"{a}{w}{_A}", "ककअता", "कक"},
+	{"{a}{w}{_I}", "ककअती", "कक"},
+	{"{I}{M}", "ककईं", "कक"},
+	{"{a}{w}{_I}{M}", "ककअतीं", "कक"},
+	{"{a}{w}{_e}", "ककअते", "कक"},
+	{"{A}{w}{_A}", "ककआता", "कक"},
+	{"{A}{w}{_I}", "ककआती", "कक"},
+	{"{A}{w}{_I}{M}", "ककआतीं", "कक"},
+	{"{A}{w}{_e}", "ककआते", "कक"},
+	{"{a}{n}{_A}", "ककअना", "कक"},
+	{"{a}{n}{_I}", "ककअनी", "कक"},
+	{"{a}{n}{_e}", "ककअने", "कक"},
+	{"{A}{n}{_A}", "ककआना", "कक"},
+	{"{A}{n}{_e}", "ककआने", "कक"},
+	{"{U}{M}{g}{_A}", "ककऊंगा", "कक"},
+	{"{U}{M}{g}{_I}", "ककऊंगी", "कक"},
+	{"{A}{U}{M}{g}{_A}", "ककआऊंगा", "कक"},
+	{"{A}{U}{M}{g}{_I}", "ककआऊंगी", "कक"},
+	{"{e}{M}{g}{_e}", "ककएंगे", "कक"},
+	{"{e}{M}{g}{_I}", "ककएंगी", "कक"},
+	{"{A}{e}{M}{g}{_e}", "ककआएंगे", "कक"},
+	{"{A}{e}{M}{g}{_I}", "ककआएंगी", "कक"},
+	{"{o}{g}{_e}", "ककओगे", "कक"},
+	{"{o}{g}{_I}", "ककओगी", "कक"},
+	{"{A}{o}{g}{_e}", "ककआओगे", "कक"},
+	{"{A}{o}{g}{_I}", "ककआओगी", "कक"},
+	{"{e}{g}{_A}", "ककएगा", "कक"},
+	{"{e}{g}{_I}", "ककएगी", "कक"},
+	{"{A}{e}{g}{_A}", "ककआएगा", "कक"},
+	{"{A}{e}{g}{_I}", "ककआएगी", "कक"},
+	{"{A}{y}{_A}", "ककआया", "कक"},
+	{"{A}{e}", "ककआए", "कक"},
+	{"{A}{I}", "ककआई", "कक"},
+	{"{A}{I}{M}", "ककआईं", "कक"},
+	{"{i}{e}", "ककइए", "कक"},
+	{"{A}{o}", "ककआओ", "कक"},
+	{"{A}{i}{e}", "ककआइए", "कक"},
+	{"{a}{k}{r}", "ककअकर", "कक"},
+	{"{A}{k}{r}", "ककआकर", "कक"},
+	{"{_A}", "कका", "कक"},
+	{"{_i}", "ककि", "कक"},
+	{"{_I}", "ककी", "कक"},
+	{"{_u}", "ककु", "कक"},
+	{"{_U}", "ककू", "कक"},
+	{"{_e}", "कके", "कक"},
+	{"{_o}", "कको", "कक"},
+	{"{_e}{M}", "ककें", "कक"},
+	{"{_o}{M}", "ककों", "कक"},
+	{"{_A}{M}", "ककां", "कक"},
+	{"{_u}{A}{M}", "ककुआं", "कक"},
+	{"{_u}{e}{M}", "ककुएं", "कक"},
+	{"{_u}{o}{M}", "ककुओं", "कक"},
+	{"{_A}{e}{M}", "ककाएं", "कक"},
+	{"{_A}{o}{M}", "ककाओं", "कक"},
+	{"{_i}{y}{_A}{M}", "ककियां", "कक"},
+	{"{_i}{y}{_o}{M}", "ककियों", "कक"},
+	{"{_A}{i}{y}{_A}{M}", "ककाइयां", "कक"},
+	{"{_A}{i}{y}{_o}{M}", "ककाइयों", "कक"},
+	{"{_A}{Mh}", "ककाँ", "कक"},
+	{"{_i}{y}{_A}{Mh}", "ककियाँ", "कक"},
+	{"{_A}{i}{y}{_A}{Mh}", "ककाइयाँ", "कक"},
+	{"{_I}{M}", "ककीं", "कक"},
+	{"{_A}{w}{_A}", "ककाता", "कक"},
+	{"{_A}{w}{_I}", "ककाती", "कक"},
+	{"{_A}{w}{_I}{M}", "ककातीं", "कक"},
+	{"{_A}{w}{_e}", "ककाते", "कक"},
+	{"{_A}{n}{_A}", "ककाना", "कक"},
+	{"{_A}{n}{_e}", "ककाने", "कक"},
+	{"{_U}{M}{g}{_A}", "ककूंगा", "कक"},
+	{"{_U}{M}{g}{_I}", "ककूंगी", "कक"},
+	{"{_A}{U}{M}{g}{_A}", "ककाऊंगा", "कक"},
+	{"{_A}{U}{M}{g}{_I}", "ककाऊंगी", "कक"},
+	{"{_e}{M}{g}{_e}", "ककेंगे", "कक"},
+	{"{_e}{M}{g}{_I}", "ककेंगी", "कक"},
+	{"{_A}{e}{M}{g}{_e}", "ककाएंगे", "कक"},
+	{"{_A}{e}{M}{g}{_I}", "ककाएंगी", "कक"},
+	{"{_o}{g}{_e}", "ककोगे", "कक"},
+	{"{_o}{g}{_I}", "ककोगी", "कक"},
+	{"{_A}{o}{g}{_e}", "ककाओगे", "कक"},
+	{"{_A}{o}{g}{_I}", "ककाओगी", "कक"},
+	{"{_e}{g}{_A}", "ककेगा", "कक"},
+	{"{_e}{g}{_I}", "ककेगी", "कक"},
+	{"{_A}{e}{g}{_A}", "ककाएगा", "कक"},
+	{"{_A}{e}{g}{_I}", "ककाएगी", "कक"},
+	{"{_A}{y}{_A}", "ककाया", "कक"},
+	{"{_A}{e}", "ककाए", "कक"},
+	{"{_A}{I}", "ककाई", "कक"},
+	{"{_A}{I}{M}", "ककाईं", "कक"},
+	{"{_i}{e}", "ककिए", "कक"},
+	{"{_A}{o}", "ककाओ", "कक"},
+	{"{_A}{i}{e}", "ककाइए", "कक"},
+	{"{_A}{k}{r}", "ककाकर", "कक"},
+	{"{w}{_A}{e}{M} CONSONANT", "ककताएं", "कक"},
+	{"{w}{_A}{o}{M} CONSONANT", "ककताओं", "कक"},
+	{"{n}{_A}{e}{M} CONSONANT", "ककनाएं", "कक"},
+	{"{n}{_A}{o}{M} CONSONANT", "ककनाओं", "कक"},
+	{"{w}{_A} CONSONANT", "ककता", "कक"},
+	{"{w}{_I} CONSONANT", "ककती", "कक"},
+	{"{w}{_I}{M} CONSONANT", "ककतीं", "कक"},
+	{"{w}{_e} CONSONANT", "ककते", "कक"},
+	{"{n}{_A} CONSONANT", "ककना", "कक"},
+	{"{n}{_I} CONSONANT", "ककनी", "कक"},
+	{"{n}{_e} CONSONANT", "ककने", "कक"},
+	{"{k}{r} CONSONANT", "कककर", "कक"},
+}
+
+// Rejected conditional predicates follow shorter suffix links; the initial
+// rune cannot satisfy CONSONANT. Accessible ऋ is not a consonant either;
+// unlike अ it cannot create a longer independent-vowel suffix match.
+var hindiConditionalRejections = [][3]string{
+	{"reject ताएं", "कताएं", "कत"},
+	{"reject ताएं", "कऋताएं", "कऋत"},
+	{"reject ताओं", "कताओं", "कत"},
+	{"reject ताओं", "कऋताओं", "कऋत"},
+	{"reject नाएं", "कनाएं", "कन"},
+	{"reject नाएं", "कऋनाएं", "कऋन"},
+	{"reject नाओं", "कनाओं", "कन"},
+	{"reject नाओं", "कऋनाओं", "कऋन"},
+	{"reject ता", "कता", "कत"},
+	{"reject ता", "कऋता", "कऋत"},
+	{"reject ती", "कती", "कत"},
+	{"reject ती", "कऋती", "कऋत"},
+	{"reject तीं", "कतीं", "कत"},
+	{"reject तीं", "कऋतीं", "कऋत"},
+	{"reject ते", "कते", "कत"},
+	{"reject ते", "कऋते", "कऋत"},
+	{"reject ना", "कना", "कन"},
+	{"reject ना", "कऋना", "कऋन"},
+	{"reject नी", "कनी", "कन"},
+	{"reject नी", "कऋनी", "कऋन"},
+	{"reject ने", "कने", "कन"},
+	{"reject ने", "कऋने", "कऋन"},
+	{"reject कर", "ककर", "ककर"},
+	{"reject कर", "कऋकर", "कऋकर"},
+}
+
+var hindiNaturalCorpus = [][3]string{
+	{"natural/boundary", "लड़का", "लड़क"},
+	{"natural/boundary", "लड़के", "लड़क"},
+	{"natural/boundary", "लड़कों", "लड़क"},
+	{"natural/boundary", "लड़कियों", "लड़क"},
+	{"natural/boundary", "किताबें", "किताब"},
+	{"natural/boundary", "किताबों", "किताब"},
+	{"natural/boundary", "करती", "कर"},
+	{"natural/boundary", "करता", "कर"},
+	{"natural/boundary", "करना", "कर"},
+	{"natural/boundary", "करेंगे", "कर"},
+	{"natural/boundary", "करूँगा", "करूँग"},
+	{"natural/boundary", "कती", "कत"},
+	{"natural/boundary", "अती", "अत"},
+	{"natural/boundary", "ककर", "ककर"},
+	{"natural/boundary", "कककर", "कक"},
+	{"natural/boundary", "अकर", "अकर"},
+	{"natural/boundary", "कना", "कन"},
+	{"natural/boundary", "क्", "क"},
+	{"natural/boundary", "कअ", "क"},
+	{"natural/boundary", "कआ", "क"},
+	{"natural/boundary", "कअआ", "कअ"},
+	{"natural/boundary", "अ", "अ"},
+	{"natural/boundary", "ई", "ई"},
+	{"natural/boundary", "ी", "ी"},
+	{"natural/boundary", "कृ", "कृ"},
+	{"natural/boundary", "कौ", "कौ"},
+	{"natural/boundary", "है", "है"},
+	{"natural/boundary", "मैं", "मैं"},
+	{"natural/boundary", "और", "और"},
+	{"natural/boundary", "में", "म"},
+	{"natural/boundary", "क़कर", "क़"},
+	{"natural/boundary", "क़कर", "क़कर"},
+	{"natural/boundary", "क़ा", "क़"},
+	{"natural/boundary", "क़ा", "क़"},
+	{"natural/boundary", "RATS", "RATS"},
+	{"natural/boundary", "RUNNING", "RUNNING"},
+	{"natural/boundary", "ONLY", "ONLY"},
+	{"natural/boundary", "THE", "THE"},
+	{"natural/boundary", "CAFÉS", "CAFÉS"},
+	{"natural/boundary", "café", "café"},
+	{"natural/boundary", "cafés", "cafés"},
+	{"natural/boundary", "करती!", "करती!"},
+}
+
+func TestSnowballHindiRules(t *testing.T) {
+	if len(hindiSuffixCorpus) != 132 || len(hindiConditionalRejections) != 24 {
+		t.Fatal("independent release corpus cardinality")
+	}
+	for _, corpus := range [][][3]string{hindiSuffixCorpus, hindiConditionalRejections, hindiNaturalCorpus} {
+		for _, tc := range corpus {
+			t.Run(tc[0]+"/"+tc[1], func(t *testing.T) {
+				got := hindiStem(tc[1])
+				if got != tc[2] {
+					t.Fatalf("stem(%q)=%q want %q", tc[1], got, tc[2])
+				}
+				if len(got) != 0 && unsafe.StringData(got) != unsafe.StringData(tc[1]) {
+					t.Fatal("suffix deletion copied the input")
+				}
+			})
+		}
+	}
+	for _, r := range "कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहऴऩऱऴक़ख़ग़ज़ड़ढ़फ़य़" {
+		if !hindiConsonant(r) {
+			t.Fatalf("released consonant %U rejected", r)
+		}
+	}
+	for _, r := range "अआइईउऊऋएऐओऔािीुूृेैोौंँःऺऻऽॐॗॠA0" {
+		if hindiConsonant(r) {
+			t.Fatalf("nonconsonant %U admitted", r)
+		}
+	}
+	for _, tc := range [][2]string{{"", ""}, {"Aती", "Aत"}, {"éती", "éत"}, {"éकती", "éक"}, {"कअआ", "कअ"}, {"कमल!", "कमल!"}} {
+		if got := hindiStem(tc[0]); got != tc[1] {
+			t.Fatalf("boundary %q=%q want %q", tc[0], got, tc[1])
+		}
+	}
+}

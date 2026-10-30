@@ -44,6 +44,7 @@ const (
 	estonianSnowballSeed
 	germanSnowballSeed
 	greekSnowballSeed
+	hindiSnowballSeed
 )
 
 func (s snowballSeed) language() string {
@@ -66,6 +67,8 @@ func (s snowballSeed) language() string {
 		return "german"
 	case greekSnowballSeed:
 		return "greek"
+	case hindiSnowballSeed:
+		return "hindi"
 	}
 	return ""
 }
@@ -144,7 +147,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -177,10 +180,11 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 		return err
 	}
 	installSeedDescriptor(s.State, template)
+	var englishDictionary ids.ObjectAddress
 	for _, entry := range []struct {
 		seed    snowballSeed
 		runtime DictionaryRuntime
-	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}} {
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}} {
 		address, err := allocate(ids.TSDictionaryClassID)
 		if err != nil {
 			return err
@@ -189,6 +193,9 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 		dictionary := &TSDictionary{ObjectAddress: address, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: name + "_stem", Owner: owner, Template: template.Address(), Runtime: entry.runtime, seed: entry.seed}
 		dictionary.Options = dictionary.SeedOptions()
 		installSeedDescriptor(s.State, dictionary)
+		if entry.seed == englishSnowballSeed {
+			englishDictionary = dictionary.Address()
+		}
 		address, err = allocate(ids.TSConfigurationClassID)
 		if err != nil {
 			return err
@@ -200,6 +207,9 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 			switch token {
 			case 1, 2, 10, 11, 16, 17:
 				dict = dictionary.Address()
+			}
+			if entry.seed == hindiSnowballSeed && (token == 1 || token == 11 || token == 16) {
+				dict = englishDictionary
 			}
 			configuration.Mappings = append(configuration.Mappings, TSMapping{TokenID: token, Dictionaries: []ids.ObjectAddress{dict}})
 		}
