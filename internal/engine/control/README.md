@@ -165,6 +165,9 @@ constructor cast to `pg_catalog.aclitem[]`; a literal `'{}'` is noncanonical.
 Isolated Restore preserves these raw states without reapplying the destination's
 restricted seed. Untyped or widened catalog updates do not acquire this replay
 capability.
+The WAL-position restricted roster follows this exact identity/provider/owner
+comparison too; changed, raw-NULL and explicit-empty ACLs always require repair.
+Stateless WAL builtins add no physical WAL or restore-marker serialization.
 
 PL bootstrap languages/handlers retain genuine sealed installation authority.
 Unchanged bootstrap definitions need no replay; changed handler metadata and

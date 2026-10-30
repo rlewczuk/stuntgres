@@ -161,6 +161,10 @@ The initial-privilege owner captures all five restricted seeds independently of
 the live ACL backing; ordinary grants, revokes and raw ACL replacement do not
 rewrite those bootstrap records.
 
+`SeedWALPositionACLs` likewise seeds owner-only EXECUTE for switch, restore-point
+and standby-snapshot declarations; current-position reads retain default PUBLIC
+EXECUTE. These ordinary mutable ACLs and their original initial-privilege rows
+use the same exact-seed omission and raw-NULL/empty/changed replay contracts.
 
 Logical-message text/bytea declarations retain released identities 3577/3578,
 input names `transactional,prefix,message,flush` and one literal BOOL false

@@ -50,6 +50,8 @@ import (
 // The eight XML row/schema mapping identities retain explicit cost 100 and
 // strict XML results with named all-IN formals: table functions are STABLE/
 // parallel-restricted, query and cursor functions VOLATILE/parallel-unsafe.
+// The six WAL-position declarations retain strict VOLATILE/parallel-safe scalar
+// PG_LSN results, unnamed formals, no defaults and released internal symbols.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -161,10 +163,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// strict/volatile/parallel-safe recovery-control declarations,
 	// three strict/volatile/parallel-unsafe logical-message/sync declarations,
 	// three strict/volatile/parallel-safe server-signal declarations, eight
-	// table/query/cursor XML row/schema mapping identities, and five
-	// origin identity/progress routines.
-	if len(facts) != 2146 {
-		t.Fatalf("released represented overloads: got %d, want 2146", len(facts))
+	// table/query/cursor XML row/schema mapping identities, five
+	// origin identity/progress routines, and six strict/volatile/parallel-safe
+	// WAL-position declarations.
+	if len(facts) != 2152 {
+		t.Fatalf("released represented overloads: got %d, want 2152", len(facts))
 	}
 	return facts
 }

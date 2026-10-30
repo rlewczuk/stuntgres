@@ -132,6 +132,14 @@ including the distinction between optimizer-elided NULLs and surviving calls.
 Capture, checked reconstruction and stored rendering preserve routine provenance,
 operand order and named destinations through ordinary native control replay.
 
+`WALPosition` owns six stateless, volatile PG_LSN scalar calls and at most one
+typed TEXT operand. Central live EXECUTE admission and ordinary strict planning
+remain authoritative, including folded NULL versus surviving column-NULL calls.
+Restore names are limited to 63 UTF8 bytes before physical access. Authorized
+non-NULL calls reject unavailable physical WAL with explicit `0A000`: no current
+progress, switch, restore marker or standby snapshot is invented. Stock PostgreSQL
+instead reads or writes genuine WAL and returns its physical LSN.
+
 `ReplicationMessages` retains immutable PG_LSN/VOID scalar recipes and supplied
 operands in written order, with checked formal destinations. Text and bytea keep
 distinct routine identities; omitted `flush` denotes the declaration's false
@@ -1230,6 +1238,8 @@ Recovery-control typed recipes, reconstruction and ACL seed units use
 `RUN='^TestRecoveryControl'`; public witnesses use `^TestReferenceRecoveryControl`.
 Replication-message declarations, binding, strict evaluation and immutable
 protocols use `RUN='^TestReplicationMessages'`; public SQL is in `reference/sessions`.
+WAL-position typed recipes, reconstruction and ACL seeds use
+`RUN='^TestWALPositions'`; public SQL scenarios live in `reference/sessions`.
 WAL summary declarations, typed shapes, evaluation and owned reconstruction use
 `RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
 Control-file declaration, shape, cancellation and immutable protocol units use

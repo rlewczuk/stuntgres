@@ -35,7 +35,7 @@ func (e *Engine) initializeInitialPrivileges() error {
 			capture(address, d.ACL)
 		case *catalog.Procedure:
 			// Restricted builtin declarations encode the released REVOKE/GRANTs.
-			if routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || address.ObjectID == 5052 || address.ObjectID == 4100 {
+			if routine.GenericFileRoutine(address.ObjectID) || routine.RestrictedReplicationOriginRoutine(address.ObjectID) || routine.RestrictedRecoveryControlRoutine(address.ObjectID) || routine.RestrictedServerSignalRoutine(address.ObjectID) || routine.RestrictedWALPositionRoutine(address.ObjectID) || address.ObjectID == 5052 || address.ObjectID == 4100 {
 				capture(address, d.ACL)
 			}
 		case *catalog.Relation:
@@ -82,6 +82,10 @@ func (e *Engine) initializeInitialPrivileges() error {
 		visit(address, state.Get(address))
 	}
 	for oid := range routine.RestrictedServerSignalRoutines() {
+		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
+		visit(address, state.Get(address))
+	}
+	for oid := range routine.RestrictedWALPositionRoutines() {
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		visit(address, state.Get(address))
 	}

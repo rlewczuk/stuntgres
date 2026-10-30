@@ -8,6 +8,10 @@
   Reference cycle replay restores original stock identities, names and owners,
   including pinned simple objects, and checks options/maps before fixture cleanup.
 
+- Add six typed physical WAL-position signatures with live mutable EXECUTE ACLs,
+  strict NULLs, the restore-name byte limit and ACL/history native persistence.
+  Authorized physical access rejects with `0A000`, never invented WAL or LSNs.
+
 - Add typed `pg_reload_conf()`, `pg_rotate_logfile()` and
   `pg_log_backend_memory_contexts(integer)` with released metadata, live mutable
   EXECUTE ACLs and ACL-only native persistence. Unknown cluster session IDs return

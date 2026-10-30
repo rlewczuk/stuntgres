@@ -62,3 +62,9 @@
 6005	pg_replication_origin_oid	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	26	25	\N	\N	\N	false	\N	pg_replication_origin_oid	\N	false	\N
 6012	pg_replication_origin_advance	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	2278	25 3220	\N	\N	\N	false	\N	pg_replication_origin_advance	\N	false	\N
 6013	pg_replication_origin_progress	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	3220	25 16	\N	\N	\N	false	\N	pg_replication_origin_progress	\N	false	\N
+3330	pg_current_wal_flush_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_flush_lsn	\N	false	\N
+2852	pg_current_wal_insert_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_insert_lsn	\N	false	\N
+2849	pg_current_wal_lsn	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_current_wal_lsn	\N	false	\N
+2848	pg_switch_wal	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_switch_wal	\N	false	\N
+3098	pg_create_restore_point	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	3220	25	\N	\N	\N	false	\N	pg_create_restore_point	\N	false	\N
+6305	pg_log_standby_snapshot	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_log_standby_snapshot	\N	false	\N
