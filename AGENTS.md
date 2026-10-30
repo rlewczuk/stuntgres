@@ -71,6 +71,13 @@ seams, binders and storage paths; do not build parallel implementations.
   fold-planning publications; dependency purposes must not suppress analysis.
   Equal immutable outputs alone do not prove retention: pair a distinguishing
   public lifetime scenario with private owner/generation/backing-state assertions.
+- **Simulated but query compatible** Retain full query compatibility, but certain
+  non-functional aspects of original postgres may be loosened, for example there is
+  no need to maintain components that work on physical files or related metrics.
+  For query compatibility, settings and statistics provided by missing components 
+  should also be simulated, returned values do not have to be accurate, can be 
+  approximate or mocked up. Other non-functional aspects like remote database links
+  should also be simulated.
 
 ## Documentation rules
 
