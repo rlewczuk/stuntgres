@@ -189,6 +189,10 @@ COPY test in reference/dml.
   identities and seed replay: `RUN='^TestReferenceFTSArmenianSnowball'`.
   All six word aliases use Armenian, including ASCII; English remaps and
   simple-first chains have separate independently specified vector goldens.
+- Catalan Snowball's nineteen token mappings, ASCII and accented output, typed
+  debug/vector results, first-recognizer chains and emitted seed/configuration
+  replay: `RUN='^TestReferenceFTSCatalanSnowball'`. The stock dictionary has no
+  stoplist; explicit English stops retain positions in the resulting vector.
 - Basque Snowball configuration, ASCII/non-ASCII mapping identity, typed debug,
   first-recognizer and explicit-stopword chains, copied configuration isolation
   and seed replay: `RUN='^TestReferenceFTSBasqueSnowball'`. The independent

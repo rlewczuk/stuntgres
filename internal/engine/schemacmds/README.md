@@ -243,9 +243,9 @@ collision/allocation and destination-role replacement fences without public
 SQL. Routine-metadata units use the real capture fixture and staged
 extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
-Dependency-bag units resolve the English, Arabic, Armenian, Basque, Danish,
-Dutch, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian,
-Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Swedish and Yiddish Snowball seed pairs by
+Dependency-bag units resolve the English, Arabic, Armenian, Basque, Catalan, Danish,
+Dutch, Estonian, Finnish, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian,
+Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish and Yiddish Snowball seed pairs by
 declaration, retaining each pair's normal dependencies and the shared
 template-to-helper edges once, without pinning allocated identities. Hindi also
 retains its English ASCII-mapping dependency; the other languages map words

@@ -1549,7 +1549,7 @@ with row effects; standalone utilities retain their ordinary publication boundar
   admission/planning at Execute.
 
 Dictionary DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
-Core supplies the shared compiled Snowball language runtimes, including Finnish, to the catalog's
+Core supplies the shared compiled Snowball language runtimes, including Finnish and Catalan, to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
 `Engine.TextSearchFiles` is immutable Driver startup authority, not catalog state.

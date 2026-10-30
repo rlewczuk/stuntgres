@@ -994,11 +994,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, Finnish, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Catalan, Danish, historical Dutch Porter, Estonian, Finnish, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Serbian, Tamil and Yiddish have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Catalan, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Serbian, Tamil and Yiddish have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian, Italian, Nepali and Norwegian stock lists contain 127, 94, 101, 231, 199, 279, 304 and 176 entries (Hungarian and Norwegian retain released duplicates).
   Finnish's stock list retains all 235 released input lines, including duplicates.
   Any resource can be explicitly configured with any supported provider.
@@ -1156,6 +1156,11 @@ publication and lock-manager tickets stay in the engine.
   failed hVn/tta action predicates do not. Tidy lookbehind stays in R1 until
   final consonant undoubling, which is unrestricted. No later -hun, ø or
   apostrophe rules, normalization or consonant-gradation dictionary is applied.
+  Catalan tries pronouns once, then standard suffixes (verbs only on failure),
+  residual suffixes once, and finally accent/middle-dot cleaning. Its complete
+  39/200/283/22 tables select the longest suffix before checking original R1/R2
+  byte offsets, with no shorter retry. Region vowels exclude `ì`; cleaning maps
+  it to `i` and `·` to `.` without Unicode normalization or accented case folding.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.

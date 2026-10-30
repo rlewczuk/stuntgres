@@ -377,11 +377,11 @@ No physical WAL position or flush guarantee is serialized.
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
   StopWords cannot reappear on Restore; English, Danish, Dutch, Finnish, German, Hungarian, Italian, Nepali, Norwegian, Portuguese, Spanish, Swedish and Turkish own canonical stoplists,
-  while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Romanian/Serbian/Tamil/Yiddish have language-only defaults.
+  while Arabic/Armenian/Basque/Catalan/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Romanian/Serbian/Tamil/Yiddish have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/Finnish/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Serbian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Catalan/Danish/Dutch/Estonian/Finnish/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Serbian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
   Before either configuration or dictionary collision replay, missing intrinsic
   Snowball seeds retire from the fresh bootstrap using retained actual defaults.
@@ -451,7 +451,7 @@ No physical WAL position or flush guarantee is serialized.
 - **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
   ADD MAPPING statements, never COPY provenance. Actual parser, namespace, mapped
   dictionary and stored alias/default/view dependencies use the ordinary graph.
-  Owner transfers use privileged creation; all allocated Snowball seeds, including Finnish, and fixed simple
+  Owner transfers use privileged creation; all allocated Snowball seeds, including Finnish and Catalan, and fixed simple
   seed identities share the ordinary collision planner before mapping replay.
   Seed edits replay current mappings after canonical initialization. Temporary
   retention and replacement remap configurations and REGCONFIG datums through

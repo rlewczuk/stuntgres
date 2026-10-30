@@ -37,6 +37,10 @@ func snowballUnitSource(t *testing.T) Source {
 	if err != nil {
 		t.Fatal(err)
 	}
+	catalanRuntime, err := functions.DefaultCatalanSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
 	danishRuntime, err := functions.DefaultDanishSnowballDictionary()
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +129,7 @@ func snowballUnitSource(t *testing.T) Source {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime, tamilRuntime, turkishRuntime, serbianRuntime, finnishRuntime); err != nil {
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime, tamilRuntime, turkishRuntime, serbianRuntime, finnishRuntime, catalanRuntime); err != nil {
 		t.Fatal(err)
 	}
 	// The FDW fixture already owns ACL and integer types, including their arrays.
@@ -294,6 +298,44 @@ func TestSnowballSeedReplay(t *testing.T) {
 				removed := extension.MergeDictionaryOptions(withList, []catalog.DictionaryOption{{Name: "stopwords"}})
 				if !slices.Equal(removed, tc.options) {
 					t.Fatal("Basque explicit list removal", removed, tc.options)
+				}
+			}
+		})
+	}
+	var catalan *catalog.TSDictionary
+	for _, descriptor := range source.State.Descriptors() {
+		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "catalan_stem" {
+			catalan = d
+		}
+	}
+	if catalan == nil {
+		t.Fatal("missing Catalan seed")
+	}
+	for _, tc := range []struct {
+		name    string
+		options []catalog.DictionaryOption
+		want    string
+	}{
+		{"stock", []catalog.DictionaryOption{{Name: "language", Value: "catalan", Supplied: true}}, ""},
+		{"removed_list", []catalog.DictionaryOption{{Name: "language", Value: "catalan", Supplied: true}}, ""},
+		{"added_list", []catalog.DictionaryOption{{Name: "language", Value: "catalan", Supplied: true}, {Name: "stopwords", Value: "english", Supplied: true}}, " (language, language = 'catalan', stopwords = 'english')"},
+		{"explicit_empty", []catalog.DictionaryOption{{Name: "language", Value: "catalan", Supplied: true}, {Name: "stopwords", Supplied: true}}, " (language, language = 'catalan', stopwords = '')"},
+		{"spelling_order", []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "language", Value: "CaTaLaN", Supplied: true}}, " (language, stopwords = 'english', language = 'CaTaLaN')"},
+	} {
+		t.Run("catalan/"+tc.name, func(t *testing.T) {
+			d := *catalan
+			d.Options = tc.options
+			if got := seedDictionaryOptionDelta(&d); got != tc.want {
+				t.Fatal(got, tc.want)
+			}
+			changes := append([]catalog.DictionaryOption{{Name: "language"}}, tc.options...)
+			if got := extension.MergeDictionaryOptions(catalan.SeedOptions(), changes); !slices.Equal(got, tc.options) {
+				t.Fatal("Catalan ordered language-only delta", got, tc.options)
+			}
+			if tc.name == "removed_list" {
+				withList := append(catalan.SeedOptions(), catalog.DictionaryOption{Name: "stopwords", Value: "english", Supplied: true})
+				if got := extension.MergeDictionaryOptions(withList, []catalog.DictionaryOption{{Name: "stopwords"}}); !slices.Equal(got, tc.options) {
+					t.Fatal("Catalan explicit list removal", got, tc.options)
 				}
 			}
 		})
@@ -470,7 +512,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 		})
 	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// all twenty-six allocated Snowball languages and fixed simple, independent of descriptor iteration.
+	// all twenty-seven allocated Snowball languages and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -493,7 +535,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 27 {
+	if len(providers) != 28 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
@@ -602,7 +644,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 27 {
+	if err != nil || len(providers) != 28 {
 		t.Fatal("actual Greek dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -612,7 +654,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 		t.Fatal("canonical Greek identity and exact options replay", lines, err)
 	}
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 27 {
+	if err != nil || len(providers) != 28 {
 		t.Fatal("actual Greek configuration replay inventory", providers, err)
 	}
 	if lines, err := planProviderReplay(providers); err != nil || len(lines) != 0 {
