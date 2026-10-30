@@ -178,6 +178,10 @@ COPY test in reference/dml.
   `'etxe':1 'etxeko':2 'rats':3`: selected noun `eko` fails RV without retrying
   shorter `ko`. Run the selector in native and `REFERENCE=1` modes; the controls
   require the actual native-emitted stream, not a backend-only replay substitute.
+- Danish Snowball configuration mappings, typed debug/vector results, ordered
+  dictionary chains, copied configurations and owned seed replay:
+  `RUN='^TestReferenceFTSDanishSnowball'`. Six word aliases use Danish, including
+  ASCII; stopwords terminate chains while preserving document positions.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

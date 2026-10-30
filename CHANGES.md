@@ -5,6 +5,11 @@
   setting restoration. Distinguish synthesized partition indexes from reuse;
   retain the explicit unsupported physical tablespace boundary.
 
+- Add release-matched Danish Snowball stemming and its 94-word stoplist, actual
+  `danish_stem`/`danish` seeds and nineteen token mappings. Share immutable
+  stopword backing by exact resource without changing English; preserve typed
+  prepared ownership, atomic publication and edited-stock logical replay.
+
 - Apply `createrole_self_grant` at non-superuser role creation, preserving the
   bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
   Preserve raw setting presentation and typed session/transaction restoration.

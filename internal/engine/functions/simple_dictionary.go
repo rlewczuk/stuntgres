@@ -15,8 +15,8 @@ import (
 	"stuntgres/internal/sqltype/unicode16"
 )
 
-// PostgreSQL REL_18_6 src/backend/snowball/stopwords/english.stop.
-// https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/snowball/stopwords/english.stop
+// PostgreSQL REL_18_6 src/backend/snowball/stopwords/{english,danish}.stop.
+// https://github.com/postgres/postgres/tree/REL_18_6/src/backend/snowball/stopwords
 // Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group.
 // Portions Copyright (c) 1994, Regents of the University of California.
 // PostgreSQL License: https://www.postgresql.org/about/licence/
@@ -25,12 +25,14 @@ import (
 // src/backend/tsearch/dicts/thesaurus_sample.ths, under the same license above.
 // stuntgres_thes_*.ths are project-owned deterministic dictionary resources.
 //
-//go:embed english.stop unaccent.rules synonym_sample.syn *.ths
+//go:embed english.stop danish.stop unaccent.rules synonym_sample.syn *.ths
 var dictionaryResources embed.FS
 
-var englishWords struct {
+// Each exact resource has immutable backing shared by simple and Snowball.
+// This dedicated loader mutex is never acquired under catalog locks.
+var dictionaryStopwords struct {
 	sync.Mutex
-	words []string
+	words map[string][]string
 }
 
 // SimpleDictionary is an immutable whole-token normalizer, not a tokenizer.
@@ -107,9 +109,10 @@ func loadDictionaryStopwords(ctx context.Context, stopwords string) ([]string, e
 		return nil, err
 	}
 	path := stopwords + ".stop"
-	englishWords.Lock()
-	defer englishWords.Unlock()
-	if englishWords.words == nil || stopwords != "english" {
+	dictionaryStopwords.Lock()
+	defer dictionaryStopwords.Unlock()
+	words, cached := dictionaryStopwords.words[stopwords]
+	if !cached {
 		data, err := dictionaryResources.ReadFile(path)
 		if err != nil {
 			reason := err.Error()
@@ -118,16 +121,23 @@ func loadDictionaryStopwords(ctx context.Context, stopwords string) ([]string, e
 			}
 			return nil, dictionaryError("F0000", fmt.Sprintf(`could not open stop-word file "%s": %s`, path, reason))
 		}
-		words, err := compileStopwords(ctx, string(data))
+		compiled, err := compileStopwords(ctx, string(data))
 		if err != nil {
 			return nil, err
 		}
-		englishWords.words = words
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if dictionaryStopwords.words == nil {
+			dictionaryStopwords.words = make(map[string][]string)
+		}
+		dictionaryStopwords.words[stopwords] = compiled
+		words = compiled
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return englishWords.words, nil
+	return words, nil
 }
 
 func (d *SimpleDictionary) Configured(accept bool, stopwords string) bool {

@@ -26,6 +26,7 @@ func snowballUnitDictionary(t *testing.T, e interface{ CatalogRead() catalog.Rea
 }
 
 func TestSnowballSeedAuthority(t *testing.T) {
+	t.Run("danish", snowballDanishSeedAuthority)
 	e := engine.New()
 	v := e.CatalogRead()
 	d := snowballUnitDictionary(t, e)
@@ -147,6 +148,11 @@ func snowballUnitCreate(name string) *parser.CreateDictionary {
 }
 
 func TestSnowballPublication(t *testing.T) {
+	t.Run("english", func(t *testing.T) { snowballPublication(t, "english", "RATS", "rat") })
+	t.Run("danish", func(t *testing.T) { snowballPublication(t, "danish", "HUNDENE", "hund") })
+}
+
+func snowballPublication(t *testing.T, language, input, want string) {
 	for _, fence := range []string{"context", "template", "namespace", "original", "role"} {
 		t.Run(fence, func(t *testing.T) {
 			e := engine.New()
@@ -154,18 +160,22 @@ func TestSnowballPublication(t *testing.T) {
 			enginetest.SessionSQL(t, s, "CREATE EXTENSION unaccent")
 			enginetest.SessionSQL(t, s, "ALTER EXTENSION unaccent ADD FUNCTION pg_catalog.dsnowball_init(internal)")
 			enginetest.SessionSQL(t, s, "ALTER EXTENSION plpgsql ADD TEXT SEARCH TEMPLATE pg_catalog.snowball")
-			enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY snowball_publication (TEMPLATE=snowball,Language=english,StopWords=english)")
+			enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY snowball_publication (TEMPLATE=snowball,Language="+language+",StopWords="+language+")")
 			enginetest.SessionSQL(t, s, "CREATE USER snowball_other")
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			var stmt parser.Statement = snowballUnitCreate("snowball_pending")
+			create := snowballUnitCreate("snowball_pending")
+			create.Options[1].Value = language
+			create.Options[2].Value = language
+			var stmt parser.Statement = create
 			if fence == "original" {
 				stmt = &parser.AlterDictionary{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "snowball_publication"}}}, Action: "options", Options: []parser.DictionaryOption{{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "stopwords"}}, Supplied: false}}}
 			}
 			stage, p := dictionaryUnitPrepare(t, e, op, stmt)
 			defer e.DiscardCatalogStage(stage)
 			before := e.CatalogRead()
-			old := snowballUnitDictionary(t, e).Runtime
+			seedAddress := before.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: language + "_stem"})
+			old := before.MustTSDictionary(seedAddress).Runtime
 			switch fence {
 			case "context":
 				ctx, cancel := context.WithCancel(op.Ctx)
@@ -222,14 +232,14 @@ func TestSnowballPublication(t *testing.T) {
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
-			if e.CatalogRead().State() != incumbent.State() || p.Runtime == nil || snowballUnitDictionary(t, e).Runtime != old {
+			if e.CatalogRead().State() != incumbent.State() || p.Runtime == nil || e.CatalogRead().MustTSDictionary(seedAddress).Runtime != old {
 				t.Fatal("rejected publication changed catalog/runtime")
 			}
-			value, err := p.Runtime.Lexize(t.Context(), "RATS")
+			value, err := p.Runtime.Lexize(t.Context(), input)
 			if err != nil || !value.Recognized || len(value.Lexemes) != 1 {
 				t.Fatal("rejected initializer lost its immutable runtime", value, err)
 			}
-			if value.Lexemes[0].Text != "rat" || value.Lexemes[0].Prefix || value.Lexemes[0].Variant != 0 {
+			if value.Lexemes[0].Text != want || value.Lexemes[0].Prefix || value.Lexemes[0].Variant != 0 {
 				t.Fatal(value)
 			}
 		})
@@ -237,12 +247,17 @@ func TestSnowballPublication(t *testing.T) {
 }
 
 func TestSnowballPreparedOwnership(t *testing.T) {
+	t.Run("english", func(t *testing.T) { snowballPreparedOwnership(t, "english", "ONLY", "onli") })
+	t.Run("danish", func(t *testing.T) { snowballPreparedOwnership(t, "danish", "OG", "og") })
+}
+
+func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.snowball_fold (TEMPLATE=snowball,Language=english,StopWords=english)")
+	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.snowball_fold (TEMPLATE=snowball,Language="+language+",StopWords="+language+")")
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION unaccent")
 	enginetest.SessionSQL(t, s, "ALTER EXTENSION unaccent ADD TEXT SEARCH DICTIONARY public.snowball_fold")
-	const q = "SELECT ts_lexize('public.snowball_fold'::regdictionary,'ONLY'::text) AS lexemes"
+	q := "SELECT ts_lexize('public.snowball_fold'::regdictionary,'" + input + "'::text) AS lexemes"
 	ast, d := sequencePreparedDescription(t, e, s, q)
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated dictionary")
@@ -262,15 +277,15 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	if current.Runtime == old.Runtime || current.Revision() == operand.Revision {
 		t.Fatal("replacement runtime authority not published")
 	}
-	oldValue, err := old.Runtime.Lexize(t.Context(), "ONLY")
+	oldValue, err := old.Runtime.Lexize(t.Context(), input)
 	if err != nil || !oldValue.Recognized || len(oldValue.Lexemes) != 0 {
 		t.Fatal("retained old runtime", oldValue, err)
 	}
-	newValue, err := current.Runtime.Lexize(t.Context(), "ONLY")
+	newValue, err := current.Runtime.Lexize(t.Context(), input)
 	if err != nil || !newValue.Recognized || len(newValue.Lexemes) != 1 {
 		t.Fatal(newValue, err)
 	}
-	if newValue.Lexemes[0].Text != "onli" || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
+	if newValue.Lexemes[0].Text != want || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
 		t.Fatal(newValue)
 	}
 	preparedFoldExecute(t, e, s, ast, &d)
@@ -281,7 +296,7 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	}
 	freshAST, fresh := sequencePreparedDescription(t, e, s, q)
 	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{onli}")
+	preparedFoldEntry(t, fresh, 1009, "{"+want+"}")
 	runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT ts_lexize('public.snowball_fold'::regdictionary,$1::text) AS lexemes")
 	// Existing owner helper supplies YeS: non-stopword remains a genuine stem.
 	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
