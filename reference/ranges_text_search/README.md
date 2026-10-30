@@ -205,6 +205,12 @@ COPY test in reference/dml.
   document-position gaps. Native same/reset/fresh-driver controls retain recursive
   REGCONFIG captures, exact redump and temporary OID collisions; PostgreSQL must
   execute the actual native-emitted SQL.
+- Greek configuration mappings, typed vector/debug results, ordered chains,
+  COPY isolation and owned seed replay: `RUN='^TestReferenceFTSGreekSnowball'`.
+  Six word aliases, including ASCII, select Greek without an English fallback
+  or stock stoplist; thirteen others select simple. Native replacement retains
+  recursive REGCONFIG references and temporary collisions; PostgreSQL executes
+  the actual native-emitted SQL.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

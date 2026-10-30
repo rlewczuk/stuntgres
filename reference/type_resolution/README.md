@@ -231,6 +231,13 @@ Private kernel/resources, seed authority, rejected publication and accepted-fold
 ownership: `RUN='^TestSnowballGerman'`. Actual emitted replay requires both backends;
 PG-only discovery cannot replace it. Feature smoke:
 `RUN='^TestReferenceGermanSnowballFeatureSmoke$'`.
+Greek released morphology, finite normalization and suffix/exception boundaries,
+language-only stock defaults, explicit English stops, full diagnostics, retained
+typed folds and admitted cancellation share `RUN='^TestReferenceGreekSnowball'`.
+Native dictionary/seed lifecycle consumes actual emitted SQL on PostgreSQL,
+preserving absent versus explicit-empty options and recursive dictionary values.
+Private seed authority, publication fences and accepted-fold backing use the
+existing `RUN='^TestSnowball'` family.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

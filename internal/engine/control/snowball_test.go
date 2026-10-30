@@ -11,7 +11,8 @@ import (
 	"testing"
 )
 
-func TestSnowballSeedReplay(t *testing.T) {
+func snowballUnitSource(t *testing.T) Source {
+	t.Helper()
 	source, _, _, _ := fdwUnitSource()
 	store := catalog.NewStore(*source.CatalogView.Owner(), 30000, 1)
 	store.State = source.State
@@ -47,12 +48,22 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime); err != nil {
+	greekRuntime, err := functions.DefaultGreekSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime); err != nil {
 		t.Fatal(err)
 	}
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
 	catalog.InstallBuiltinTSParsers(source.State)
+	catalog.InstallBuiltinTSConfigurations(source.State, source.Bootstrap)
 	source.CatalogView.Owner().Providers[ids.TSDictionaryClassID] = extension.CatalogProvider{Class: ids.TSDictionaryClassID}
+	return source
+}
+
+func TestSnowballSeedReplay(t *testing.T) {
+	source := snowballUnitSource(t)
 	var seed *catalog.TSDictionary
 	for _, descriptor := range source.State.Descriptors() {
 		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "english_stem" {
@@ -341,7 +352,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 		})
 	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German and fixed simple, independent of descriptor iteration.
+	// allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -364,7 +375,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 9 {
+	if len(providers) != 10 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
@@ -414,5 +425,94 @@ func TestSnowballSeedReplay(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(append(templateLines, helperLines...), ""), "CREATE") {
 		t.Fatal("intrinsic replay duplicated bootstrap identities")
+	}
+}
+
+func TestSnowballGreekSeedReplay(t *testing.T) {
+	source := snowballUnitSource(t)
+	var seed *catalog.TSDictionary
+	for _, descriptor := range source.State.Descriptors() {
+		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "greek_stem" {
+			seed = d
+		}
+	}
+	if seed == nil {
+		t.Fatal("missing genuine Greek seed")
+	}
+	for _, tc := range []struct {
+		name    string
+		options []catalog.DictionaryOption
+		want    string
+	}{
+		{"stock", []catalog.DictionaryOption{{Name: "language", Value: "greek", Supplied: true}}, ""},
+		{"removed_list", []catalog.DictionaryOption{{Name: "language", Value: "greek", Supplied: true}}, ""},
+		{"added_list", []catalog.DictionaryOption{{Name: "language", Value: "greek", Supplied: true}, {Name: "stopwords", Value: "english", Supplied: true}}, " (language, language = 'greek', stopwords = 'english')"},
+		{"explicit_empty", []catalog.DictionaryOption{{Name: "language", Value: "greek", Supplied: true}, {Name: "stopwords", Supplied: true}}, " (language, language = 'greek', stopwords = '')"},
+		{"spelling_order", []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "language", Value: "GrEeK", Supplied: true}}, " (language, stopwords = 'english', language = 'GrEeK')"},
+		{"provider", []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}, " (language, language = 'english')"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := *seed
+			d.Options = tc.options
+			if got := seedDictionaryOptionDelta(&d); got != tc.want {
+				t.Fatal("exact ordered language-only delta", got, tc.want)
+			}
+			if tc.want != "" {
+				changes := append([]catalog.DictionaryOption{{Name: "language"}}, tc.options...)
+				if got := extension.MergeDictionaryOptions(seed.SeedOptions(), changes); !slices.Equal(got, tc.options) {
+					t.Fatal("Greek ordered canonical replay", got, tc.options)
+				}
+			}
+			if tc.name == "removed_list" {
+				withList := append(seed.SeedOptions(), catalog.DictionaryOption{Name: "stopwords", Value: "english", Supplied: true})
+				if got := extension.MergeDictionaryOptions(withList, []catalog.DictionaryOption{{Name: "stopwords"}}); !slices.Equal(got, tc.options) {
+					t.Fatal("Greek explicit list removal", got, tc.options)
+				}
+			}
+		})
+	}
+	changed := *seed
+	changed.ObjectName = "saved_greek"
+	changed.Options = []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "language", Value: "GrEeK", Supplied: true}}
+	runtime, err := functions.CompileSnowballDictionary(t.Context(), "GrEeK", "english")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed.Runtime = runtime
+	source.State.UnbindName(catalog.DescriptorNameKey(seed))
+	source.State.SetDescriptor(changed.Address(), &changed)
+	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
+	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
+	providers, err := script.dictionaryProviderReplays()
+	if err != nil || len(providers) != 10 {
+		t.Fatal("actual Greek dictionary replay inventory", providers, err)
+	}
+	lines, err := planProviderReplay(providers)
+	want := "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"greek_stem\" RENAME TO \"saved_greek\";\n" +
+		"ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"saved_greek\" (language, stopwords = 'english', language = 'GrEeK');\n"
+	if err != nil || strings.Join(lines, "") != want {
+		t.Fatal("canonical Greek identity and exact options replay", lines, err)
+	}
+	providers, err = script.configurationProviderReplays()
+	if err != nil || len(providers) != 10 {
+		t.Fatal("actual Greek configuration replay inventory", providers, err)
+	}
+	if lines, err := planProviderReplay(providers); err != nil || len(lines) != 0 {
+		t.Fatal("unchanged configurations duplicated", lines, err)
+	}
+	address := source.CatalogView.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: seed.Namespace(), Name: "greek"})
+	configuration := source.CatalogView.MustTSConfiguration(address)
+	moved := *configuration
+	moved.ObjectName = "saved_greek_config"
+	source.State.UnbindName(catalog.DescriptorNameKey(configuration))
+	source.State.SetDescriptor(address, &moved)
+	source.State.BindName(catalog.DescriptorNameKey(&moved), address)
+	providers, err = script.configurationProviderReplays()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines, err = planProviderReplay(providers)
+	if err != nil || strings.Join(lines, "") != "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"greek\" RENAME TO \"saved_greek_config\";\n" {
+		t.Fatal("canonical Greek configuration replay", lines, err)
 	}
 }
