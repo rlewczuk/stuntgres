@@ -163,7 +163,7 @@ type TSDictionary struct {
 	Implementation                                      ExtensionImplementation
 	Options                                             []DictionaryOption
 	Runtime                                             DictionaryRuntime
-	english                                             bool
+	seed                                                snowballSeed
 	// Accepted lookup namespace for host-authorized unqualified logical replay.
 	// This is not a SQL dependency or an execution-time binding.
 	NormalizerNamespace ids.ObjectAddress

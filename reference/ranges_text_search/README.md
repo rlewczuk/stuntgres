@@ -163,6 +163,9 @@ COPY test in reference/dml.
   `RUN='^TestReferenceFTSSnowball'`.
   Mapping proofs join actual parser aliases to catalog mappings and specify
   the six English and thirteen simple aliases independently of numeric ordering.
+- Arabic Snowball configuration, six-column debug metadata and seed replay:
+  `RUN='^TestReferenceFTSArabicSnowball'`. All six word aliases, including ASCII,
+  select Arabic; the thirteen simple aliases remain independently specified.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

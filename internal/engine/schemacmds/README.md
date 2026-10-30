@@ -219,6 +219,9 @@ collision/allocation and destination-role replacement fences without public
 SQL. Routine-metadata units use the real capture fixture and staged
 extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
+Dependency-bag units resolve the English and Arabic Snowball seed pairs by
+declaration, retaining each pair's normal dependencies and the shared
+template-to-helper edges once, without pinning allocated identities.
 Scalar hierarchy and positional-match manifest authority and atomic member
 conflicts use `RUN='^TestLtree(Hierarchy|Lquery)Provider'`.
 Path manifest, original SQL-name/C-symbol identity, atomic staged conflicts and

@@ -8,10 +8,10 @@ import (
 )
 
 // dictionaryProviderReplays shares the provider collision planner, but never
-// shares routine collision keys. Both initialized dictionary identities must
-// participate: an installed member can occupy the builtin's vacated name.
+// shares routine collision keys. All initialized dictionary identities must
+// participate: an installed member can occupy a seed's vacated name.
 func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
-	providers := make([]providerReplay, 0, 2)
+	providers := make([]providerReplay, 0, 3)
 	add := func(d *catalog.TSDictionary, original providerKey, owner authorization.PrincipalRef) error {
 		if err := (extension.CatalogProvider{Class: ids.TSDictionaryClassID}).Validate(s.CatalogView, d); err != nil {
 			return err

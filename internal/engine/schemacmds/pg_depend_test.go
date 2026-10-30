@@ -99,14 +99,23 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		return pgDependUnitAddress(class, ref.ObjectID, 0)
 	}
 	template := seed(3764, "snowball", "")
-	dictionary := seed(3600, "english_stem", "")
-	configuration := seed(3602, "english", "")
 	want = append(want,
 		pgcatalog.DependEdge{template, seed(1255, "dsnowball_init", "2281"), 'n'},
 		pgcatalog.DependEdge{template, seed(1255, "dsnowball_lexize", "2281,2281,2281,2281"), 'n'},
-		pgcatalog.DependEdge{dictionary, template, 'n'},
-		pgcatalog.DependEdge{configuration, dictionary, 'n'},
 	)
+	for _, declaration := range []struct {
+		dictionary, configuration string
+	}{
+		{"english_stem", "english"},
+		{"arabic_stem", "arabic"},
+	} {
+		dictionary := seed(3600, declaration.dictionary, "")
+		configuration := seed(3602, declaration.configuration, "")
+		want = append(want,
+			pgcatalog.DependEdge{dictionary, template, 'n'},
+			pgcatalog.DependEdge{configuration, dictionary, 'n'},
+		)
+	}
 	return want
 }
 

@@ -17,11 +17,19 @@ type snowballLanguage struct {
 	stem func(string) string
 }
 
-var snowballLanguages = [...]snowballLanguage{{name: "english", stem: englishStem}}
+var snowballLanguages = [...]snowballLanguage{
+	{name: "english", stem: englishStem},
+	{name: "arabic", stem: arabicStem},
+}
 
 // DefaultSnowballDictionary shares the immutable compiled bootstrap provider.
 var DefaultSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
 	return CompileSnowballDictionary(context.Background(), "english", "english")
+})
+
+// DefaultArabicSnowballDictionary has no stock stopword resource in REL_18_6.
+var DefaultArabicSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
+	return CompileSnowballDictionary(context.Background(), "arabic", "")
 })
 
 func lookupSnowballLanguage(name string) *snowballLanguage {
@@ -95,5 +103,9 @@ func (d *SnowballDictionary) Lexize(ctx context.Context, input string) (fts.Lexi
 	if token == "" || stopped {
 		return fts.LexicalResult{Recognized: true}, ctx.Err()
 	}
-	return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: d.provider.stem(token)}}}, ctx.Err()
+	stem := d.provider.stem(token)
+	if stem == "" {
+		stem = token
+	}
+	return fts.LexicalResult{Recognized: true, Lexemes: []fts.Lexeme{{Text: stem}}}, ctx.Err()
 }

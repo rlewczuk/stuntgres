@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func snowballRejectedFold(t *testing.T, e *core.Engine, s *session.Session, ast parser.Statement, d core.Description) {
+func snowballRejectedFold(t *testing.T, e *core.Engine, s *session.Session, ast parser.Statement, d core.Description, want string) {
 	t.Helper()
 	before := snapshotFoldDescription(d)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -63,5 +63,5 @@ func snowballRejectedFold(t *testing.T, e *core.Engine, s *session.Session, ast 
 	if local.Folds.Current().Generation != before.Accepted.Generation || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("rejection changed accepted generation/backing")
 	}
-	preparedFoldEntry(t, before, 1009, "{}")
+	preparedFoldEntry(t, before, 1009, want)
 }

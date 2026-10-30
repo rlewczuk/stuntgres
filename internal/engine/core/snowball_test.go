@@ -303,5 +303,5 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	if _, err := sequencePreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Snowball prefix", err)
 	}
-	snowballRejectedFold(t, e, s, ast, d)
+	snowballRejectedFold(t, e, s, ast, d, "{}")
 }

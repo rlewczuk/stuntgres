@@ -29,10 +29,30 @@ func (h SnowballHelper) Declaration() (string, ProcedureSignature) {
 
 func (d *TSTemplate) Snowball() bool { return d != nil && d.snowball }
 
+// snowballSeed is finite bootstrap creation identity, never inferred from labels
+// or configured provider options.
+type snowballSeed uint8
+
+const (
+	noSnowballSeed snowballSeed = iota
+	englishSnowballSeed
+	arabicSnowballSeed
+)
+
+func (s snowballSeed) language() string {
+	switch s {
+	case englishSnowballSeed:
+		return "english"
+	case arabicSnowballSeed:
+		return "arabic"
+	}
+	return ""
+}
+
 // SeedName is creation identity, independent of a seed's mutable public label.
 func (d *TSDictionary) SeedName() string {
-	if d.english {
-		return "english_stem"
+	if name := d.seed.language(); name != "" {
+		return name + "_stem"
 	}
 	if d.Seeded() {
 		return "simple"
@@ -41,8 +61,8 @@ func (d *TSDictionary) SeedName() string {
 }
 
 func (d *TSConfiguration) SeedName() string {
-	if d.english {
-		return "english"
+	if name := d.seed.language(); name != "" {
+		return name
 	}
 	if d.Seeded() {
 		return "simple"
@@ -51,8 +71,12 @@ func (d *TSConfiguration) SeedName() string {
 }
 
 func (d *TSDictionary) SeedOptions() []DictionaryOption {
-	if d.english {
-		return []DictionaryOption{{Name: "language", Value: "english", Supplied: true}, {Name: "stopwords", Value: "english", Supplied: true}}
+	if name := d.seed.language(); name != "" {
+		options := []DictionaryOption{{Name: "language", Value: name, Supplied: true}}
+		if d.seed == englishSnowballSeed {
+			options = append(options, DictionaryOption{Name: "stopwords", Value: "english", Supplied: true})
+		}
+		return options
 	}
 	return nil
 }
@@ -99,7 +123,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, runtime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -132,27 +156,33 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, runtime 
 		return err
 	}
 	installSeedDescriptor(s.State, template)
-	address, err := allocate(ids.TSDictionaryClassID)
-	if err != nil {
-		return err
-	}
-	dictionary := &TSDictionary{ObjectAddress: address, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "english_stem", Owner: owner, Template: template.Address(), Runtime: runtime, english: true}
-	dictionary.Options = dictionary.SeedOptions()
-	installSeedDescriptor(s.State, dictionary)
-	address, err = allocate(ids.TSConfigurationClassID)
-	if err != nil {
-		return err
-	}
-	configuration := &TSConfiguration{ObjectAddress: address, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: "english", Owner: owner, Parser: ids.ObjectAddress{ClassID: 3601, ObjectID: 3722}, english: true}
-	configuration.Mappings = make([]TSMapping, 0, 19)
-	for _, token := range []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
-		dict := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}
-		switch token {
-		case 1, 2, 10, 11, 16, 17:
-			dict = dictionary.Address()
+	for _, entry := range []struct {
+		seed    snowballSeed
+		runtime DictionaryRuntime
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}} {
+		address, err := allocate(ids.TSDictionaryClassID)
+		if err != nil {
+			return err
 		}
-		configuration.Mappings = append(configuration.Mappings, TSMapping{TokenID: token, Dictionaries: []ids.ObjectAddress{dict}})
+		name := entry.seed.language()
+		dictionary := &TSDictionary{ObjectAddress: address, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: name + "_stem", Owner: owner, Template: template.Address(), Runtime: entry.runtime, seed: entry.seed}
+		dictionary.Options = dictionary.SeedOptions()
+		installSeedDescriptor(s.State, dictionary)
+		address, err = allocate(ids.TSConfigurationClassID)
+		if err != nil {
+			return err
+		}
+		configuration := &TSConfiguration{ObjectAddress: address, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: name, Owner: owner, Parser: ids.ObjectAddress{ClassID: 3601, ObjectID: 3722}, seed: entry.seed}
+		configuration.Mappings = make([]TSMapping, 0, 19)
+		for _, token := range []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
+			dict := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}
+			switch token {
+			case 1, 2, 10, 11, 16, 17:
+				dict = dictionary.Address()
+			}
+			configuration.Mappings = append(configuration.Mappings, TSMapping{TokenID: token, Dictionaries: []ids.ObjectAddress{dict}})
+		}
+		installSeedDescriptor(s.State, configuration)
 	}
-	installSeedDescriptor(s.State, configuration)
 	return nil
 }

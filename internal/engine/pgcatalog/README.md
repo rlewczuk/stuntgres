@@ -101,8 +101,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   occurrences, including repeats, retain their one-based list positions and
   actual dictionary references. Sequence order is semantic, not a guarantee of
   SQL row order without `ORDER BY`.
-  Capture contracts include both simple and English configurations, their full
-  thirty-eight mapping rows, and simple/Snowball template and dictionary seeds.
+  Capture contracts include simple, English and Arabic configurations, their full
+  fifty-seven mapping rows, and simple/Snowball template and dictionary seeds.
   Allocated seed identities are checked through actual catalog relationships;
   retained captures keep their original source-owned types across replacement.
 - `pg_event_trigger` projects actual database-local definitions from the immutable

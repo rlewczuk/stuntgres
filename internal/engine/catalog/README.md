@@ -332,8 +332,9 @@ neither owns catalog authority.
   `Store.InstallBuiltinLanguagesLocked` (the real nonrelocatable `plpgsql` 1.0
   extension, its global language and three allocated C handlers with creation-owned
   display sources, canonical strictness and genuine language-to-handler dependencies),
-  `Store.InstallSnowballLocked` (allocated C helper/template/english_stem/english
-  identities, compiled runtime supplied by core and real nineteen-token mapping),
+  `Store.InstallSnowballLocked` (one allocated C helper pair/template and distinct
+  English/Arabic dictionary/configuration seeds, two core-supplied compiled
+  runtimes and real nineteen-token mappings),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
   and `InstallCatalogSource`, which hands a same-named row type and its array
@@ -378,7 +379,7 @@ neither owns catalog authority.
   distinguishes unrecognized tokens from recognized-empty stopwords and retains
   prefix/variant metadata without SQL descriptors. Runtime authority is separate
   from genuine extension membership; bootstrap simple and Snowball are not extensions.
-  Allocated Snowball seeds retain private seed markers and typed helper authority
+  Allocated English/Arabic Snowball seeds retain finite private seed identities
   across ordinary copies/remapping; canonical replay names/default options do not
   derive from mutable labels. Helpers, template, dictionary and configuration may
   have distinct current extension receivers or be detached; reciprocal membership

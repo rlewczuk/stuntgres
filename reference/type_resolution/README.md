@@ -125,7 +125,7 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
-- RegTS reads genuine builtin simple/english_stem, standalone dictionary definitions and
+- RegTS reads genuine builtin simple/english_stem/arabic_stem, standalone dictionary definitions and
   installed unaccent identities through `pg_ts_dict`; alias rows use the local
   `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
   scenarios independently check typed TEXT[] output, ordered options, current
@@ -189,6 +189,10 @@ Extension member identity/persistence: `RUN='^TestReferenceDictionaryExtension(I
 Held all-constant characterization: `RUN='^TestReferenceDictionaryPreparedConstants$'`.
 English Snowball morphology, options, identities and native lifecycle:
 `RUN='^TestReferenceSnowball'`.
+Arabic Snowball morphology, normalization/byte boundaries, language-only stock
+identity, explicit English stopwords, full diagnostics and native replay:
+`RUN='^TestReferenceArabicSnowball'`. The fixed corpus is independently derived
+from REL_18_6; held constants and live parameters distinguish provider changes.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

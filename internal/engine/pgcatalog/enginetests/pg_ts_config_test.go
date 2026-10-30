@@ -16,23 +16,44 @@ import (
 
 func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.Relation, rows [][]sqltype.Value) {
 	t.Helper()
-	if len(rows) != 2 { t.Fatal("exact simple/English configuration inventory", rows) }
+	if len(rows) != 3 {
+		t.Fatal("exact simple/English/Arabic configuration inventory", rows)
+	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
-	if english.ObjectID == 0 || english.ObjectID == 3748 { t.Fatal("actual allocated English configuration", english) }
+	if english.ObjectID == 0 || english.ObjectID == 3748 {
+		t.Fatal("actual allocated English configuration", english)
+	}
+	arabic := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "arabic"})
+	if arabic.ObjectID == 0 || arabic.ObjectID == 3748 || arabic == english {
+		t.Fatal("actual allocated Arabic configuration", arabic)
+	}
 	seen := map[string]bool{}
 	for _, row := range rows {
-		if len(row) != 5 { t.Fatal("configuration row width", row) }
+		if len(row) != 5 {
+			t.Fatal("configuration row width", row)
+		}
 		for i, value := range row {
-			if value.IsNull() || value.Type() != source.Columns[i].Usage.Type { t.Fatal("source-owned configuration cell", i, value) }
+			if value.IsNull() || value.Type() != source.Columns[i].Usage.Type {
+				t.Fatal("source-owned configuration cell", i, value)
+			}
 		}
 		name, err := row[1].Text()
-		if err != nil || seen[name] || name != "simple" && name != "english" { t.Fatal("configuration identity", name, err) }
+		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" {
+			t.Fatal("configuration identity", name, err)
+		}
 		seen[name] = true
 		want := uint32(3748)
-		if name == "english" { want = uint32(english.ObjectID) }
+		if name == "english" {
+			want = uint32(english.ObjectID)
+		}
+		if name == "arabic" {
+			want = uint32(arabic.ObjectID)
+		}
 		for i, expected := range map[int]uint32{0: want, 2: 11, 3: 10, 4: 3722} {
 			got, err := row[i].OID()
-			if err != nil || got != expected { t.Fatal("configuration seed relationship", name, i, got, expected, err) }
+			if err != nil || got != expected {
+				t.Fatal("configuration seed relationship", name, i, got, expected, err)
+			}
 		}
 	}
 }
@@ -48,12 +69,14 @@ func TestPGTSConfigCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertSeedConfigurations(t, view, source, rows)
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 2 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 3 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
 	assertSeedConfigurations(t, view, source, captured.Anonymous)
@@ -146,7 +169,9 @@ func TestPGTSConfigOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertSeedConfigurations(t, freshView, fresh, rows)
 	input.Source = old
 	if rows, err := produce(input); rows != nil || err == nil {
@@ -164,12 +189,19 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 38 {
-		t.Fatal("actual simple and English mappings", rows, err)
+	if err != nil || len(rows) != 57 {
+		t.Fatal("actual simple, English and Arabic mappings", rows, err)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
-	if english.ObjectID == 0 || stem.ObjectID == 0 { t.Fatal("missing allocated English identities") }
+	if english.ObjectID == 0 || stem.ObjectID == 0 {
+		t.Fatal("missing allocated English identities")
+	}
+	arabic := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "arabic"})
+	arabicStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "arabic_stem"})
+	if arabic.ObjectID == 0 || arabicStem.ObjectID == 0 || arabic == english || arabicStem == stem {
+		t.Fatal("missing distinct Arabic identities")
+	}
 	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
 		if len(row) != 4 {
@@ -194,16 +226,28 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		key := [2]int64{values[0], values[1]}
 		wantDictionary := int64(3765)
 		if values[0] == int64(english.ObjectID) {
-			switch values[1] { case 1, 2, 10, 11, 16, 17: wantDictionary = int64(stem.ObjectID) }
-		} else if values[0] != 3748 { t.Fatal("unexpected configuration mapping", values) }
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(stem.ObjectID)
+			}
+		} else if values[0] == int64(arabic.ObjectID) {
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(arabicStem.ObjectID)
+			}
+		} else if values[0] != 3748 {
+			t.Fatal("unexpected configuration mapping", values)
+		}
 		if values[2] != 1 || values[3] != wantDictionary || tokens[key] {
 			t.Fatal("mapping identity/sequence/dictionary", values)
 		}
 		tokens[key] = true
 	}
-	for _, config := range []int64{3748, int64(english.ObjectID)} {
+	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID)} {
 		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
-			if !tokens[[2]int64{config, token}] { t.Fatal("missing stock token", config, token) }
+			if !tokens[[2]int64{config, token}] {
+				t.Fatal("missing stock token", config, token)
+			}
 		}
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -225,6 +269,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	nextEnglish.Mappings = nil
 	nextEnglish.ObjectRevision++
 	state.SetDescriptor(english, &nextEnglish)
+	nextArabic := *view.MustTSConfiguration(arabic)
+	nextArabic.Mappings = nil
+	nextArabic.ObjectRevision++
+	state.SetDescriptor(arabic, &nextArabic)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
@@ -310,7 +358,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 38 {
+	if err != nil || len(rows) != 57 {
 		t.Fatal("old generation mapping rows", rows, err)
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -341,7 +389,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 		t.Fatal("replacement changed retained mapping generation")
 	}
 	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 38 {
+	if got, err := produce(input); err != nil || got == nil || len(got) != 57 {
 		t.Fatal("fresh mapping producer", got, err)
 	}
 	input.Source = old

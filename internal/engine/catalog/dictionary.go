@@ -7,7 +7,7 @@ import (
 )
 
 func (d *TSDictionary) Seeded() bool {
-	return d.english || d.Pinned()
+	return d.seed != noSnowballSeed || d.Pinned()
 }
 func (d *TSTemplate) Seeded() bool {
 	return d.snowball || d.Pinned()

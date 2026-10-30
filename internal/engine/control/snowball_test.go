@@ -19,7 +19,11 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime); err != nil {
+	arabicRuntime, err := functions.DefaultArabicSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime); err != nil {
 		t.Fatal(err)
 	}
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
@@ -59,8 +63,39 @@ func TestSnowballSeedReplay(t *testing.T) {
 			}
 		})
 	}
+	var arabic *catalog.TSDictionary
+	for _, descriptor := range source.State.Descriptors() {
+		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "arabic_stem" {
+			arabic = d
+		}
+	}
+	if arabic == nil {
+		t.Fatal("missing Arabic seed")
+	}
+	for _, tc := range []struct {
+		name    string
+		options []catalog.DictionaryOption
+		want    string
+	}{
+		{"stock", []catalog.DictionaryOption{{Name: "language", Value: "arabic", Supplied: true}}, ""},
+		{"added_list", []catalog.DictionaryOption{{Name: "language", Value: "arabic", Supplied: true}, {Name: "stopwords", Value: "english", Supplied: true}}, " (language, language = 'arabic', stopwords = 'english')"},
+		{"explicit_empty", []catalog.DictionaryOption{{Name: "language", Value: "arabic", Supplied: true}, {Name: "stopwords", Supplied: true}}, " (language, language = 'arabic', stopwords = '')"},
+		{"spelling_order", []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "language", Value: "ArAbIc", Supplied: true}}, " (language, stopwords = 'english', language = 'ArAbIc')"},
+	} {
+		t.Run("arabic/"+tc.name, func(t *testing.T) {
+			d := *arabic
+			d.Options = tc.options
+			if got := seedDictionaryOptionDelta(&d); got != tc.want {
+				t.Fatal(got, tc.want)
+			}
+			changes := append([]catalog.DictionaryOption{{Name: "language"}}, tc.options...)
+			if got := extension.MergeDictionaryOptions(arabic.SeedOptions(), changes); !slices.Equal(got, tc.options) {
+				t.Fatal("Arabic ordered language-only delta", got, tc.options)
+			}
+		})
+	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// both allocated English and fixed simple, independent of descriptor iteration.
+	// allocated English/Arabic and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -83,7 +118,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 2 {
+	if len(providers) != 3 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
