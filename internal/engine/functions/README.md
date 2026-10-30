@@ -115,6 +115,16 @@ only its fixed three-member OUT record; metadata binding never borrows a
 physical registry. Demanding source opening rejects that unavailable mechanism
 with an explicit diagnostic, without synthesizing manager rows or progress.
 
+`RecoveryControl` owns immutable scalar BOOL/TEXT/VOID recipes and only supplied
+promotion operands, in written order with their formal slots. Omitted inputs use
+the routine declaration's defaults; explicit NULL remains distinct. These volatile
+calls never planning-fold or retain recovery state. All supplied children evaluate
+before runtime strict NULL handling; non-NULL invocation reports the primary
+recovery precondition. Ordinary live routine admission owns mutable EXECUTE access,
+including the distinction between optimizer-elided NULLs and surviving calls.
+Capture, checked reconstruction and stored rendering preserve routine provenance,
+operand order and named destinations through ordinary native control replay.
+
 `WALSummary` retains immutable typed RECORD recipes, written operands and formal
 slots for two set sources and one scalar state inquiry. All written operands
 evaluate before strict NULL yields an exhausted typed contents source; timeline
@@ -1168,6 +1178,8 @@ Read/stat/tmpdir binding, scalar strict protocols and runtime ownership use
 `RUN='^TestGenericFileRead'`; public SQL scenarios remain in `reference/roles`.
 Recovery inquiry carriers, fixed OUT validation and physical source admission use
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
+Recovery-control typed recipes, reconstruction and ACL seed units use
+`RUN='^TestRecoveryControl'`; public witnesses use `^TestReferenceRecoveryControl`.
 WAL summary declarations, typed shapes, evaluation and owned reconstruction use
 `RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
 Control-file declaration, shape, cancellation and immutable protocol units use

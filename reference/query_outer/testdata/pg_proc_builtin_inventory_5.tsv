@@ -38,3 +38,8 @@
 3813	xmltext	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	142	25	\N	\N	\N	false	\N	xmltext	\N	false	\N
 6362	pg_restore_relation_stats	11	12	1	0	2276	0	f	false	false	false	false	v	u	1	0	16	2276	\N	{v}	{kwargs}	false	\N	pg_restore_relation_stats	\N	false	\N
 6397	pg_clear_relation_stats	11	12	1	0	0	0	f	false	false	false	false	v	u	2	0	2278	25 25	\N	\N	{schemaname,relname}	false	\N	pg_clear_relation_stats	\N	false	\N
+3073	pg_is_wal_replay_paused	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	16		\N	\N	\N	false	\N	pg_is_wal_replay_paused	\N	false	\N
+1137	pg_get_wal_replay_pause_state	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	25		\N	\N	\N	false	\N	pg_get_wal_replay_pause_state	\N	false	\N
+3436	pg_promote	11	12	1	0	0	0	f	false	false	true	false	v	s	2	2	16	16 23	\N	\N	{wait,wait_seconds}	true	\N	pg_promote	\N	false	\N
+3071	pg_wal_replay_pause	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2278		\N	\N	\N	false	\N	pg_wal_replay_pause	\N	false	\N
+3072	pg_wal_replay_resume	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2278		\N	\N	\N	false	\N	pg_wal_replay_resume	\N	false	\N

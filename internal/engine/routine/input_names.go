@@ -9,6 +9,7 @@ import (
 // Fixed OUT declarations retain their existing complete RoutineOutputs owner.
 // All other instantiated declarations are genuinely unnamed.
 var builtinRoutineInputNames = map[ids.OID]*catalog.RoutineInputNames{
+	3436: catalog.NewRoutineInputNames("wait", "wait_seconds"),
 	6363: catalog.NewRoutineInputNames("kwargs"),
 	6398: catalog.NewRoutineInputNames("schemaname", "relname", "attname", "inherited"),
 	6362: catalog.NewRoutineInputNames("kwargs"),

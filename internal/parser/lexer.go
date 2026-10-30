@@ -1767,9 +1767,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
-	// Recovery registry calls need the existing failure-only star/decorator
-	// syntax, while their binder remains the signature and SRF authority.
-	if token.code == SELECTED_FUNC && strings.EqualFold(token.lexeme.text, "pg_get_wal_resource_managers") {
+	// Recovery calls reuse failure-only star/decorator syntax; their binders
+	// remain the signature and cardinality authority.
+	if token.code == SELECTED_FUNC && (strings.EqualFold(token.lexeme.text, "pg_get_wal_resource_managers") || strings.EqualFold(token.lexeme.text, "pg_is_wal_replay_paused") || strings.EqualFold(token.lexeme.text, "pg_get_wal_replay_pause_state") || strings.EqualFold(token.lexeme.text, "pg_promote") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_pause") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_resume")) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {

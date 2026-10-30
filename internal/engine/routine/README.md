@@ -107,6 +107,14 @@ name-based exceptions. Dump repairs preserve raw NULL, empty and explicit states
 across restricted reseeding; only exact identity/signature/owner/ordered seed
 entries can be omitted as reconstructed authority.
 
+`SeedRecoveryControlACLs` installs owner-only EXECUTE seeds for the three
+restricted recovery-control identities. Status inquiries retain absent/default
+PUBLIC ACLs. Bootstrap initial privileges capture the released restricted seeds
+once; later ordinary grants and revokes never rewrite that history. Native replay
+preserves explicitly replaced raw NULL ACLs rather than reapplying restrictions.
+Only exact restricted identity, bootstrap owner and one ordered owner-EXECUTE
+entry are omitted as reconstructed authority; untouched seeds add no dump repairs.
+
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
 input-only signature. Functions with multiple outputs and procedures with any

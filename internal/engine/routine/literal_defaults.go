@@ -27,6 +27,8 @@ func builtinLiteralDefaults(oid ids.OID) *catalog.RoutineLiteralDefaults {
 		return catalog.RoutineLiteral{SourceType: typ, Text: text}
 	}
 	switch oid {
+	case 3436:
+		return catalog.NewRoutineLiteralDefaults(literal(16, "true"), literal(23, "60"))
 	case 3779:
 		return catalog.NewRoutineLiteralDefaults(literal(16, "false"), literal(16, "false"))
 	case 3786:
