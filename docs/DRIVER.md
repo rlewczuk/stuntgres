@@ -230,13 +230,14 @@ Membership ADD/DROP requires superuser authority after extension ownership;
 actual extension relocation also retains the lower ownerless parser gate.
 The pinned default parser may acquire or detach membership, but actual DROP
 remains prohibited by its database-system pin, including while it is a member.
-Snowball's intrinsic helpers, template, English dictionary and configuration
-retain their bootstrap identities independently of current extension membership.
+Snowball's intrinsic helpers, template, English/Arabic/Armenian dictionaries and
+configurations retain their bootstrap identities independently of current extension membership.
 Their current memberships may differ or be absent without changing callback
 capability. Native replay reuses those seeds through ordinary ALTER operations,
 preserving current names, placement, owners, ACLs, dictionary options and mappings;
 ordinary Snowball dictionaries still replay as genuine CREATE declarations.
-Database-system pins remain independent of membership and prohibit seed DROP.
+Database-system pins remain independent of membership and prohibit fixed simple/parser
+seed DROP. Allocated Snowball identities instead retain ordinary dependencies.
 
 The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 

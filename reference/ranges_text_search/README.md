@@ -166,6 +166,10 @@ COPY test in reference/dml.
 - Arabic Snowball configuration, six-column debug metadata and seed replay:
   `RUN='^TestReferenceFTSArabicSnowball'`. All six word aliases, including ASCII,
   select Arabic; the thirteen simple aliases remain independently specified.
+- Armenian Snowball configuration, ordered dictionary chains, typed debug
+  identities and seed replay: `RUN='^TestReferenceFTSArmenianSnowball'`.
+  All six word aliases use Armenian, including ASCII; English remaps and
+  simple-first chains have separate independently specified vector goldens.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

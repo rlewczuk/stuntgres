@@ -42,13 +42,18 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	if !ok || arabicAddress.ObjectID == 0 || arabicAddress == stemAddress || arabicAddress.ObjectID == 3765 || arabic.Template != stem.Template {
 		t.Fatal("actual Arabic dictionary seed", arabicAddress)
 	}
+	armenianAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: source.Namespace(), Name: "armenian_stem"})
+	armenian, ok := view.TSDictionary(armenianAddress)
+	if !ok || armenianAddress.ObjectID == 0 || armenianAddress == stemAddress || armenianAddress == arabicAddress || armenianAddress.ObjectID == 3765 || armenian.Template != stem.Template {
+		t.Fatal("actual Armenian dictionary seed", armenianAddress)
+	}
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed dictionary capture", got, err)
 		}
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 3 {
-			t.Fatal("exact simple/English/Arabic dictionary source inventory", got)
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 4 {
+			t.Fatal("exact simple/English/Arabic/Armenian dictionary source inventory", got)
 		}
 		seen := map[string]bool{}
 		for _, row := range got.Anonymous {
@@ -61,7 +66,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 				}
 			}
 			name, err := row[1].Text()
-			if err != nil || seen[name] || name != "simple" && name != "english_stem" && name != "arabic_stem" {
+			if err != nil || seen[name] || name != "simple" && name != "english_stem" && name != "arabic_stem" && name != "armenian_stem" {
 				t.Fatal("dictionary seed name", name, err)
 			}
 			seen[name] = true
@@ -76,11 +81,17 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 				if err != nil || row[5].IsNull() || options != "language = 'english', stopwords = 'english'" {
 					t.Fatal("English seed ordered options", options, err)
 				}
-			} else {
+			} else if name == "arabic_stem" {
 				oid, template = uint32(arabicAddress.ObjectID), uint32(arabic.Template.ObjectID)
 				options, err := row[5].Text()
 				if err != nil || row[5].IsNull() || options != "language = 'arabic'" {
 					t.Fatal("Arabic seed language-only options", options, err)
+				}
+			} else {
+				oid, template = uint32(armenianAddress.ObjectID), uint32(armenian.Template.ObjectID)
+				options, err := row[5].Text()
+				if err != nil || row[5].IsNull() || options != "language = 'armenian'" {
+					t.Fatal("Armenian seed language-only options", options, err)
 				}
 			}
 			for i, want := range map[int]uint32{0: oid, 2: 11, 3: 10, 4: template} {
@@ -95,6 +106,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765})
 	empty.RemoveDescriptor(stemAddress)
 	empty.RemoveDescriptor(arabicAddress)
+	empty.RemoveDescriptor(armenianAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
 	got, err := core.CaptureCatalogSourceRows(emptyInput, produce)

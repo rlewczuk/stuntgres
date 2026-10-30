@@ -812,15 +812,18 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English and Arabic kernels shipped by PostgreSQL REL_18_6 (Snowball revision
-  d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
+  English, Arabic and Armenian kernels shipped by PostgreSQL REL_18_6 (Snowball
+  revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic has no stock stopword resource;
-  explicitly configured English stopwords share the sorted 127-word resource
+  is empty retains its lowercased input. Arabic and Armenian have no stock
+  stopword resource; explicitly configured English stopwords share the sorted 127-word resource
   with simple and English Snowball. The full BSD notice is in
   `snowball_LICENSE.txt`; binary
   distributions must reproduce it in their documentation or accompanying materials.
+  Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
+  longest-match guards and the single ending→verb→adjective→noun pass; the kernel
+  returns immutable input slices without normalization or shared mutable scratch.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.
@@ -1080,7 +1083,7 @@ make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider au
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestFTSJSON'  # JSON conversion operand lifecycle
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
-make check RUN='^TestSnowball'  # released English/Arabic rules, provider/resources and lifetime ownership
+make check RUN='^TestSnowball'  # released English/Arabic/Armenian rules, provider/resources and lifetime ownership
 make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes
 make check RUN='^TestIspell'  # explicit dictionary readers, conditions, morphology, compounds and cancellation
 make check RUN='^TestTablefunc'  # installed Gaussian expression and cursor contracts

@@ -20,6 +20,7 @@ type snowballLanguage struct {
 var snowballLanguages = [...]snowballLanguage{
 	{name: "english", stem: englishStem},
 	{name: "arabic", stem: arabicStem},
+	{name: "armenian", stem: armenianStem},
 }
 
 // DefaultSnowballDictionary shares the immutable compiled bootstrap provider.
@@ -30,6 +31,11 @@ var DefaultSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, err
 // DefaultArabicSnowballDictionary has no stock stopword resource in REL_18_6.
 var DefaultArabicSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
 	return CompileSnowballDictionary(context.Background(), "arabic", "")
+})
+
+// DefaultArmenianSnowballDictionary has no stock stopword resource in REL_18_6.
+var DefaultArmenianSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
+	return CompileSnowballDictionary(context.Background(), "armenian", "")
 })
 
 func lookupSnowballLanguage(name string) *snowballLanguage {

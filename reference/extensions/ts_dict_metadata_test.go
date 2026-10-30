@@ -120,7 +120,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
 		}
 		run(fixture.Select("SELECT oid::bigint,dictname,dictnamespace::bigint,dictowner::bigint,dicttemplate::bigint,dictinitoption FROM pg_catalog.pg_ts_dict WHERE oid=3765", tsDictNames, []string{"INT8", "NAME", "INT8", "INT8", "INT8", "TEXT"}, [][]any{{int64(3765), "simple", int64(11), int64(10), int64(3727), nil}}))
 		held, err := c.PrepareContext(p.Ctx, tsDictQuery)
@@ -134,7 +134,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 				run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))
 				tsDictLinked(t, p, c, r, pg)
 				if !pg {
-					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
+					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(5)}}))
 				}
 			}
 			tsDictAvailability(t, p, c, r, installed)
@@ -201,7 +201,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 		run(fixture.Exec("DROP EXTENSION unaccent", 0))
 		tsDictAvailability(t, p, c, r, false)
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
 		}
 	})
 }
