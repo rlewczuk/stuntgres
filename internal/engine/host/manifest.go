@@ -21,8 +21,6 @@ type ProgramManifest struct {
 	ID, Version      string
 	Inputs           []Type
 	Result           Type
-	InputConversions []string
-	ResultConversion string
 }
 type ConversionManifest struct {
 	ID                  string
@@ -35,7 +33,7 @@ func (r *Runtime) Manifest() Manifest {
 	d := r.definition
 	m := Manifest{Provider: d.Provider, ABI: d.ABIVersion, Name: d.Name, Handler: d.HandlerName, Trusted: d.Trusted, Defaults: slices.Clone(d.Defaults)}
 	for _, p := range d.Programs {
-		m.Programs = append(m.Programs, ProgramManifest{p.ID, p.Version, slices.Clone(p.Inputs), p.Result, slices.Clone(p.InputConversions), p.ResultConversion})
+		m.Programs = append(m.Programs, ProgramManifest{p.ID, p.Version, slices.Clone(p.Inputs), p.Result})
 	}
 	for _, c := range d.Conversions {
 		m.Conversions = append(m.Conversions, ConversionManifest{c.ID, c.Type, c.Bootstrap, c.FromSQL != nil, c.ToSQL != nil, c.FromName, c.ToName})

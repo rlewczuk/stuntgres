@@ -27,7 +27,7 @@ func TestHostCallbackContinuationOwnership(t *testing.T) {
 				retained = p
 				arguments = args
 				return p(ctx, args)
-			}, Programs: []ProgramDefinition{{ID: "increment", Version: "1", Inputs: []Type{Int8}, Result: Int8, InputConversions: []string{"integer"}, ResultConversion: "integer", Execute: func(_ context.Context, args []Object) (Object, error) {
+			}, Programs: []ProgramDefinition{{ID: "increment", Version: "1", Inputs: []Type{Int8}, Result: Int8, Execute: func(_ context.Context, args []Object) (Object, error) {
 				calls++
 				if panicking {
 					panic("application panic")

@@ -149,6 +149,11 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 			return err
 		}
 		defaults, body := false, false
+		associations := false
+		for i := range d.Transforms.Len() {
+			entry := d.Transforms.At(i)
+			associations = associations || typ(entry.Type) != entry.Type
+		}
 		if d.SQLDefaults != nil {
 			payload, ok := d.SQLDefaults.(*RoutineDefaults)
 			if !ok {
@@ -170,7 +175,7 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 				}
 			}
 		}
-		if definition != d.RoutineDefinition() || defaults || body {
+		if definition != d.RoutineDefinition() || defaults || body || associations {
 			if changes == nil {
 				changes = make(map[ids.ObjectAddress]*refresh)
 			}
@@ -211,15 +216,16 @@ func reownRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltyp
 			state.SetDescriptor(address, mapped)
 			continue
 		}
-		next := *mapped
+		// Keep the mapper's unpublished handle through deferred attachments.
+		next := mapped
 		if mapped.Host != nil {
 			host := *mapped.Host
-			host.Layout = change.definition
+			if err := host.SetLayout(change.definition); err != nil { return err }
 			next.Host = &host
 		} else {
 			next.SQL = change.definition
 		}
-		state.SetDescriptor(address, &next)
+		state.SetDescriptor(address, next)
 	}
 	if err := remap.Declarations(); err != nil {
 		return err

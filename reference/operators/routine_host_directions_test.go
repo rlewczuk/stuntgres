@@ -50,7 +50,7 @@ func (runtime *hostNativeRuntime) directionDefinition(direction string) stuntgre
 		}
 		return stuntgres.HostObject{Value: m}, nil
 	}
-	p := stuntgres.HostProgramDefinition{ID: "direction-v1", Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, InputConversions: []string{"map"}, ResultConversion: "map", Execute: execute}
+	p := stuntgres.HostProgramDefinition{ID: "direction-v1", Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, Execute: execute}
 	switch direction {
 	case "from", "unavailable":
 		d.Conversions[0].ToName = stuntgres.HostName{}
@@ -60,8 +60,6 @@ func (runtime *hostNativeRuntime) directionDefinition(direction string) stuntgre
 		d.Conversions[0].FromSQL = nil
 	case "none":
 		d.Conversions = d.Conversions[1:]
-		p.InputConversions = []string{""}
-		p.ResultConversion = ""
 	}
 	if direction == "unavailable" {
 		d.Defaults[0].ToID = ""
@@ -86,7 +84,9 @@ func hostNativeDirections(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		lang := "host_" + direction
 		defer routineLanguagesCleanup(t, c, "DROP LANGUAGE IF EXISTS "+lang+" CASCADE")()
 		hostExec(t, p, b, c, "CREATE LANGUAGE "+lang+" HANDLER go_host_"+direction+"_call_handler")
-		hostExec(t, p, b, c, "CREATE FUNCTION host_direction_"+direction+"(v hstore) RETURNS hstore LANGUAGE "+lang+" AS 'direction-v1'")
+		clause := " TRANSFORM FOR TYPE hstore"
+		if direction == "none" { clause = "" }
+		hostExec(t, p, b, c, "CREATE FUNCTION host_direction_"+direction+"(v hstore) RETURNS hstore LANGUAGE "+lang+clause+" AS 'direction-v1'")
 		a := "9"
 		count := int64(1)
 		if direction == "none" {
@@ -96,7 +96,7 @@ func hostNativeDirections(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		hostBag(t, p, b, c, "host_direction_"+direction+"('a=>7,b=>NULL'::hstore)", [][]any{{"a", a}, {"b", nil}})
 		hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_transform t JOIN pg_language l ON l.oid=t.trflang WHERE l.lanname=$1", []string{"v"}, []string{"INT8"}, [][]any{{count}}, lang)
 	}
-	hostNativeError(t, p.Ctx, c, "CREATE FUNCTION host_missing_direction(v hstore) RETURNS hstore LANGUAGE go_host_unavailable AS 'direction-v1'", "unavailable host TO SQL direction")
+	hostNativeError(t, p.Ctx, c, "CREATE FUNCTION host_missing_direction(v hstore) RETURNS hstore LANGUAGE go_host_unavailable TRANSFORM FOR TYPE hstore AS 'direction-v1'", "unavailable host TO SQL direction")
 	hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE proname='host_missing_direction'", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}})
 	hostError(t, p, c, "CREATE FUNCTION host_unavailable(v hstore) RETURNS hstore LANGUAGE absent_host AS 'increment-v1'", fixture.ControlsReferenceDiagnostic("42704", `language "absent_host" does not exist`))
 }

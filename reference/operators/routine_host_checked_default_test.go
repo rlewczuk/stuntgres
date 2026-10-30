@@ -20,7 +20,6 @@ func hostCheckedDefaultDefinition() stuntgres.HostLanguageDefinition {
 	d := new(hostNativeRuntime).definition()
 	d.Programs = append(d.Programs, stuntgres.HostProgramDefinition{
 		ID: "checked-entries-v1", Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore,
-		InputConversions: []string{""}, ResultConversion: "",
 		Execute: func(_ context.Context, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
 			entries, ok := args[0].Value.([]stuntgres.HostHstoreEntry)
 			if !ok || args[0].Null {
@@ -76,15 +75,15 @@ func TestReferenceRoutineHostCheckedDefaultReplay(t *testing.T) {
 				hostExec(t, p, b, c, "CREATE EXTENSION hstore_plpython3u")
 			}
 			hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_cast WHERE castsource='host_types.hstore'::regtype AND casttarget='text'::regtype", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}})
-			language, nullBody, entriesBody, transform := "go_host", "null-v1", "checked-entries-v1", ""
+			language, nullBody, entriesBody, entriesTransform := "go_host", "null-v1", "checked-entries-v1", ""
 			if b.PG {
 				language, nullBody = "plpython3u", "return {'n':'handled'} if v is None else v"
 				entriesBody = "assert isinstance(v, dict)\nv['a']=str(int(v['a'])+1)\nv['default']='entries'\nreturn v"
-				transform = " TRANSFORM FOR TYPE host_types.hstore"
+				entriesTransform = " TRANSFORM FOR TYPE host_types.hstore"
 			}
 			for _, q := range []string{
-				"CREATE FUNCTION host_calls.compared(v host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore)) RETURNS host_types.hstore LANGUAGE " + language + transform + " AS '" + strings.ReplaceAll(nullBody, "'", "''") + "'",
-				"CREATE FUNCTION host_calls.entries(v host_types.hstore DEFAULT 'a=>7,b=>NULL'::host_types.hstore) RETURNS host_types.hstore LANGUAGE " + language + transform + " AS '" + strings.ReplaceAll(entriesBody, "'", "''") + "'",
+				"CREATE FUNCTION host_calls.compared(v host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore)) RETURNS host_types.hstore LANGUAGE " + language + " TRANSFORM FOR TYPE host_types.hstore AS '" + strings.ReplaceAll(nullBody, "'", "''") + "'",
+				"CREATE FUNCTION host_calls.entries(v host_types.hstore DEFAULT 'a=>7,b=>NULL'::host_types.hstore) RETURNS host_types.hstore LANGUAGE " + language + entriesTransform + " AS '" + strings.ReplaceAll(entriesBody, "'", "''") + "'",
 				"CREATE VIEW host_calls.explicit AS SELECT host_calls.compared(NULLIF('a=>2'::host_types.hstore,'a=>1'::host_types.hstore)) AS v",
 				"GRANT USAGE ON SCHEMA public TO host_default_reader",
 				"SET SESSION AUTHORIZATION host_default_reader",

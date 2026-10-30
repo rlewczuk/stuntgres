@@ -27,9 +27,8 @@ type primitiveOwnerObservation struct {
 
 func primitiveOwnerDefinition(typ host.Type, arity int, fault string, observed *primitiveOwnerObservation) host.LanguageDefinition {
 	inputs := make([]host.Type, arity)
-	selectors := make([]string, arity)
 	for i := range inputs {
-		inputs[i], selectors[i] = typ, string(typ)
+		inputs[i] = typ
 	}
 	conversion := host.ConversionDefinition{
 		ID: string(typ), Type: typ, Bootstrap: true,
@@ -98,7 +97,6 @@ func primitiveOwnerDefinition(typ host.Type, arity int, fault string, observed *
 	}
 	program := host.ProgramDefinition{
 		ID: "compute", Version: "1", Inputs: inputs, Result: typ,
-		InputConversions: selectors, ResultConversion: string(typ),
 		Execute: func(_ context.Context, args []host.Object) (host.Object, error) {
 			if fault == "program-error" {
 				return host.Object{}, errors.New("primitive owner program failure")
@@ -137,6 +135,7 @@ func primitiveOwnerDefinition(typ host.Type, arity int, fault string, observed *
 			return program(ctx, args)
 		},
 		Programs: []host.ProgramDefinition{program}, Conversions: []host.ConversionDefinition{conversion},
+		Defaults: []host.DefaultDefinition{{Type:typ,FromID:string(typ),ToID:string(typ)}},
 	}
 }
 
@@ -221,9 +220,11 @@ func primitiveOwnerInvocation(t *testing.T, typ host.Type, arity int, fault stri
 	}
 	for i, address := range routine.Host.Converters {
 		converter, ok := read.Procedure(address)
-		pair, pairOK := read.Get(routine.Host.Pairs[i]).(*catalog.Transform)
-		if !ok || converter.HostConversion == nil || converter.HostConversion.Type != currentType.SQLType || converter.HostConversion.Token != runtime.Conversion(string(typ)) || routine.Host.Tokens[i] != converter.HostConversion.Token || converter.HostConversion.From != (i < arity) || !pairOK || pair.SQLType != currentType.SQLType || pair.Runtime != runtime || pair.Conversion != runtime.Conversion(string(typ)) || pair.Language != routine.Language {
-			t.Fatal("primitive converter/pair borrowed another type or runtime owner")
+		if routine.Host.Pairs[i] != (ids.ObjectAddress{}) || routine.Transforms != nil || routine.Display.TransformTypes != nil {
+			t.Fatal("default primitive conversion fabricated SQL opt-in")
+		}
+		if !ok || converter.HostConversion == nil || converter.HostConversion.Type != currentType.SQLType || converter.HostConversion.Token != runtime.DefaultConversion(typ, i < arity) || routine.Host.Tokens[i] != converter.HostConversion.Token || converter.HostConversion.From != (i < arity) {
+			t.Fatal("primitive default converter borrowed another type or runtime owner")
 		}
 	}
 	foreign, err := host.New(primitiveOwnerDefinition(typ, arity, fault, new(primitiveOwnerObservation)))

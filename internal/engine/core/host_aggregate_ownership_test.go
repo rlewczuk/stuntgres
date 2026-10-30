@@ -82,16 +82,17 @@ func hostAggregateOwnerEngine(t *testing.T, retained *[]host.Object) (*core.Engi
 		}
 		return host.SQLValue{Type: host.Int8, Int64: n}, nil
 	}}}
+	definition.Defaults = []host.DefaultDefinition{{Type:host.Int8,FromID:"int8",ToID:"int8"}}
 	for _, arity := range []int{1, 2} {
-		inputs, selectors := make([]host.Type, arity), make([]string, arity)
+		inputs := make([]host.Type, arity)
 		for i := range inputs {
-			inputs[i], selectors[i] = host.Int8, "int8"
+			inputs[i] = host.Int8
 		}
 		id := "offset"
 		if arity == 2 {
 			id = "add"
 		}
-		definition.Programs = append(definition.Programs, host.ProgramDefinition{ID: id, Version: "1", Inputs: inputs, Result: host.Int8, InputConversions: selectors, ResultConversion: "int8", Execute: func(ctx context.Context, args []host.Object) (host.Object, error) {
+		definition.Programs = append(definition.Programs, host.ProgramDefinition{ID: id, Version: "1", Inputs: inputs, Result: host.Int8, Execute: func(ctx context.Context, args []host.Object) (host.Object, error) {
 			if err := ctx.Err(); err != nil {
 				return host.Object{}, err
 			}

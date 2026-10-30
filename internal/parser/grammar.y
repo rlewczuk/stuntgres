@@ -284,6 +284,7 @@ package parser
 %token <tok> DOMAIN TYPE
 %token <tok> FUNCTION PROCEDURE ROUTINE AGGREGATE OUT_ARG INOUT_ARG RETURNS_CLAUSE
 %token <tok> ROUTINE_CALLED ROUTINE_COST ROUTINE_SUPPORT ROUTINE_PARALLEL ROUTINE_SECURITY ROUTINE_EXTERNAL
+%token <tok> ROUTINE_TRANSFORM
 %token <tok> RETURN_BODY ATOMIC_BODY
 %token <tok> CALL
 %token <tok> PARAMETER
@@ -578,6 +579,8 @@ package parser
 %type <routineAS> routine_as
 %type <routineAttributes> function_attributes procedure_attributes alter_routine_attributes
 %type <routineAttribute> function_attribute procedure_attribute routine_setting
+%type <routineAttribute> routine_transform
+%type <types> routine_transform_types
 %type <tok> function_attribute_word
 %type <stmt> procedure_head
 %type <tok> procedure_rows_word procedure_input_word procedure_leakproof_word routine_current_word
@@ -2017,6 +2020,7 @@ procedure_head: CREATE PROCEDURE relation_name '(' function_arguments ')' {$$=&C
 procedure_attributes: /* empty */ {$$=nil}
  | procedure_attributes procedure_attribute {$$=append($1,$2)} ;
 procedure_attribute: function_attribute {$$=$1}
+ | routine_transform {$$=$1}
  | WINDOW {$$=RoutineAttribute{Kind:"window",Pos:$1.pos}}
  | NOT procedure_leakproof_word {$$=RoutineAttribute{Kind:"leakproof",Value:"false",Pos:$1.pos}}
  | ROUTINE_SUPPORT relation_name {$$=RoutineAttribute{Kind:"support",Pos:$1.pos}} ;
@@ -2026,8 +2030,12 @@ procedure_leakproof_word: KW_U {if $1.keyword==nil || $1.text!="leakproof" {sqll
 routine_as: STRING {$$=&routineAS{Body:$1}}
  | STRING ',' STRING {$$=&routineAS{Body:$1,Symbol:$3,HasSymbol:true}} ;
 function_attributes: /* empty */ {$$=nil}
- | function_attributes function_attribute {$$=append($1,$2)} ;
+ | function_attributes function_attribute {$$=append($1,$2)}
+ | function_attributes routine_transform {$$=append($1,$2)} ;
 function_attribute_word: KW_U {if $1.keyword==nil||($1.text!="strict"&&$1.text!="volatile"&&$1.text!="stable"&&$1.text!="immutable"&&$1.text!="leakproof") {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+routine_transform: ROUTINE_TRANSFORM routine_transform_types {$$=RoutineAttribute{Kind:"transform",Transform:&RoutineTransformClause{Types:$2},Pos:$1.pos}} ;
+routine_transform_types: FOR TYPE declared_type {$$=[]TypeName{$3}}
+ | routine_transform_types ',' FOR TYPE declared_type {$$=append($1,$5)} ;
 function_attribute: function_attribute_word {$$=RoutineAttribute{Kind:$1.text,Pos:$1.pos}}
  | ROUTINE_CALLED ON NULL procedure_input_word {$$=RoutineAttribute{Kind:"strict",Value:"false",Pos:$1.pos}}
  | RETURNS_CLAUSE NULL ON NULL procedure_input_word {$$=RoutineAttribute{Kind:"strict",Value:"true",Pos:$1.pos}}
@@ -2193,7 +2201,7 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
 pl_name: IDENT | SELECTED_FUNC | KW_U | XML | KW_C | KW_T | RETURN_BODY | PL_SLICE | FIRST | SECOND
- | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL ;
+ | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL | ROUTINE_TRANSFORM ;
 pl_foreach_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_foreach_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}} ;
@@ -4035,7 +4043,7 @@ grant_targets: grant_relations { $$=&ObjectGrant{Relations:$1} }
  | ALL name IN SCHEMA grant_schema_list { if $2.keyword==nil {sqllex.(*lexer).syntax($2);return 1};kind:="";switch $2.text {case "tables":case "sequences":kind="sequence";case "functions":kind="function";case "procedures":kind="procedure";case "routines":kind="routine";default:sqllex.(*lexer).syntax($2);return 1};$$=&ObjectGrant{Kind:kind,Schemas:$5} } ;
 grant_routine_kind: FUNCTION | PROCEDURE | ROUTINE ;
 routine_name_word: CALL | FUNCTION | PROCEDURE | ROUTINE | AGGREGATE | PARAMETER | RETURN_BODY | ATOMIC_BODY | RETURNS_CLAUSE
- | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL ;
+ | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL | ROUTINE_TRANSFORM ;
 grant_external_name_word: LANGUAGE | LARGE | OBJECT | DATA | WRAPPER ;
 grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;

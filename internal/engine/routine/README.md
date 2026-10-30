@@ -75,6 +75,24 @@ Reached invocation uses live authority; optimizer-elided strict NULL calls do
 not acquire a runtime invocation. Parallel safety/cost/rows are declaration facts,
 not an operational worker-scheduling capability.
 
+CREATE-only TRANSFORM options share function/procedure syntax but never ALTER's
+attribute grammar. Language authority precedes ordered type/pair lookup, which
+precedes formal/result resolution. List-only types require no new USAGE or
+converter EXECUTE check. Array and domain-over-array entries normalize to their
+element; a scalar domain retains its own identity. Duplicate entries remain in
+the immutable display and common association list; repeated clauses fail at the
+second introducer. CREATE OR REPLACE rebuilds associations (omission clears them)
+while preserving routine identity/owner/ACL; rejected candidates publish nothing.
+Missing pairs use the common captured-path type diagnostic presenter, including
+visibility and schema qualification. Unknown types retain the resolver's quoted
+English name while omitting statement position, matching transform-list lookup.
+Native host admission selects real directional conversions from that list or
+actual language defaults, never from Program selectors. Single scalar OUT/INOUT
+procedures match their Program result to the member, not CALL's record result.
+Dump orders type/language prerequisites and renders normalized TRANSFORM lists;
+shared remapping reowns exact destination associations and display type IDs.
+
+
 Generic file declarations belong to the ordinary builtin inventory, including
 all read/binary/stat/tmpdir overloads and fixed record outputs.
 `SeedGenericFileACLs` installs owner-only read/stat/dirname ACLs and additional

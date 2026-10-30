@@ -49,6 +49,10 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 				}
 			}
 		}
+		for i := range d.Transforms.Len() {
+			typ := d.Transforms.At(i).Type
+			if err := appendPredecessor(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(typ.ID())}); err != nil { return err }
+		}
 		// Declaration prerequisites order replay, not pg_depend/DROP edges.
 		for _, address := range d.DeclarationDependencies {
 			if err := appendPredecessor(address); err != nil {
@@ -208,6 +212,17 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 				sql.WriteString("SETOF ")
 			}
 			sql.WriteString(result)
+		}
+	}
+	if err := catalog.ValidateRoutineTransforms(view, d); err != nil { return dump.Statement{}, err }
+	if d.Transforms.Len() != 0 {
+		sql.WriteString(" TRANSFORM ")
+		for i := range d.Transforms.Len() {
+			if i != 0 { sql.WriteString(", ") }
+			typ := d.Transforms.At(i).Type
+			name, err := p.ColumnDeclaration(view, catalog.Column{Usage: typ.Usage()})
+			if err != nil { return dump.Statement{}, err }
+			sql.WriteString("FOR TYPE " + name)
 		}
 	}
 	if d.Strict {

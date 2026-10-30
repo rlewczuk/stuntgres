@@ -97,3 +97,59 @@ func TestRoutineHistoricalPayloadRemap(t *testing.T) {
 		t.Fatal("original declaration graph mutated")
 	}
 }
+
+// A->B->C is intentionally nonidempotent. The operation owns its accepted
+// definition outputs, not a global exemption for the intermediate type B.
+func TestRoutineDefinitionRemapOutputIdentity(t *testing.T) {
+	read, relation, integer, _ := routineCaptureFixture(t)
+	var types [3]*sqltype.Descriptor
+	for i, name := range []string{"remap_source", "remap_destination", "remap_next"} {
+		typ, err := sqltype.Domain(sqltype.ID(97000+i), name, name, integer.Usage())
+		if err != nil { t.Fatal(err) }
+		types[i] = typ
+		d := &catalog.Type{SQLType:typ, ObjectNamespace:relation.Namespace(), ObjectRevision:1}
+		read.State().SetDescriptor(d.Address(), d)
+	}
+	var sources [2]*catalog.Procedure
+	for i, name := range []string{"first", "independent_second"} {
+		definition := &proc.Definition{Name:name, Result:types[i].Usage()}
+		if err := definition.SetFormals([]proc.Formal{
+			{Mode:"i", Name:"value", Usage:types[i].Usage()},
+			{Mode:"o", Name:"answer", Usage:types[i].Usage()},
+		}); err != nil { t.Fatal(err) }
+		signature := catalog.ProcedureSignature("97000")
+		if i == 1 { signature = "97001" }
+		p := &catalog.Procedure{
+			ObjectAddress:ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:ids.OID(98000+i)},
+			ObjectNamespace:relation.Namespace(), ObjectName:name, ObjectRevision:1,
+			Owner:read.Owner().Principals.Principal(10), Signature:signature,
+			Result:ids.OID(types[i].ID()), SQL:definition,
+		}
+		sources[i] = p
+		read.State().SetDescriptor(p.Address(), p)
+	}
+	mapType := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		if old == types[0] { return types[1] }
+		if old == types[1] { return types[2] }
+		return old
+	}
+	remap := NewRoutineRemap(read, nil, mapType, nil, false)
+	if err := routine.RebindRoutineDefinitions(read.State(), remap); err != nil { t.Fatal(err) }
+	for i, source := range sources {
+		current, ok := read.Procedure(source.Address())
+		if !ok || current == source || current.SQL == source.SQL { t.Fatal("missing detached declaration") }
+		captured, err := remap.Definition(source.SQL)
+		if err != nil || captured != current.SQL { t.Fatal("original lost operation-owned definition identity",err) }
+		again, err := remap.Definition(current.SQL)
+		if err != nil || again != current.SQL { t.Fatal("accepted output was remapped again",err) }
+		if current.SQL.Result.Type != types[i+1] || current.SQL.Inputs[0].Type != types[i+1] {
+			t.Fatal("nonidentity mapping applied zero/two times",i,current.SQL)
+		}
+		for _, formal := range current.SQL.Formals {
+			if formal.Usage.Type != types[i+1] { t.Fatal("formal differs from operation-owned result",i,formal) }
+		}
+		if source.SQL.Result.Type != types[i] || source.SQL.Formals[0].Usage.Type != types[i] {
+			t.Fatal("operation changed source definition",i)
+		}
+	}
+}

@@ -78,7 +78,7 @@ func hostOwnerDefinition(check func() error) host.LanguageDefinition {
 			return host.Object{}, err
 		}
 		return p(ctx, args)
-	}, Conversions: []host.ConversionDefinition{{ID: "map", Type: host.Hstore, Bootstrap: true, FromName: host.Name{Schema: "public", Name: "owner_host_from"}, ToName: host.Name{Schema: "public", Name: "owner_host_to"}, FromSQL: from, ToSQL: to}}, Programs: []host.ProgramDefinition{{ID: "increment", Version: "1", Inputs: []host.Type{host.Hstore}, Result: host.Hstore, InputConversions: []string{"map"}, ResultConversion: "map", Execute: program}}}
+	}, Conversions: []host.ConversionDefinition{{ID: "map", Type: host.Hstore, Bootstrap: true, FromName: host.Name{Schema: "public", Name: "owner_host_from"}, ToName: host.Name{Schema: "public", Name: "owner_host_to"}, FromSQL: from, ToSQL: to}}, Programs: []host.ProgramDefinition{{ID: "increment", Version: "1", Inputs: []host.Type{host.Hstore}, Result: host.Hstore, Execute: program}}}
 }
 func hostOwnerEngine(t *testing.T, check func() error) (*core.Engine, *catalog.Procedure) {
 	t.Helper()
@@ -91,7 +91,7 @@ func hostOwnerEngine(t *testing.T, check func() error) (*core.Engine, *catalog.P
 		t.Fatal(err)
 	}
 	enginetest.Run(t, e, "CREATE EXTENSION hstore")
-	enginetest.Run(t, e, "CREATE FUNCTION owner_host_fn(v hstore) RETURNS hstore LANGUAGE owner_host AS 'increment'")
+	enginetest.Run(t, e, "CREATE FUNCTION owner_host_fn(v hstore) RETURNS hstore LANGUAGE owner_host TRANSFORM FOR TYPE hstore AS 'increment'")
 	for _, descriptor := range e.CatalogRead().Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok && p.Name() == "owner_host_fn" {
 			return e, p

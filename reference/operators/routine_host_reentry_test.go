@@ -57,7 +57,7 @@ func TestReferenceRoutineHostReentry(t *testing.T) {
 					case "restore":
 						return stuntgres.Restore(ctx, p.Native, bytes.NewReader(saved.Bytes()))
 					case "replace":
-						_, err := p.Native.ExecContext(ctx, "CREATE OR REPLACE FUNCTION host_reentry_wait(v hstore) RETURNS hstore LANGUAGE go_host AS 'double-v1'")
+						_, err := p.Native.ExecContext(ctx, "CREATE OR REPLACE FUNCTION host_reentry_wait(v hstore) RETURNS hstore LANGUAGE go_host TRANSFORM FOR TYPE hstore AS 'double-v1'")
 						return err
 					case "type":
 						if _, err := p.Native.ExecContext(ctx, "DROP EXTENSION hstore CASCADE"); err != nil {

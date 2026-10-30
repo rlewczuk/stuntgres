@@ -138,7 +138,7 @@ func hostToEntries(_ context.Context, v stuntgres.HostObject) (stuntgres.HostSQL
 }
 func (runtime *hostNativeRuntime) definition() stuntgres.HostLanguageDefinition {
 	program := func(id string, f stuntgres.HostProgramFunc) stuntgres.HostProgramDefinition {
-		return stuntgres.HostProgramDefinition{ID: id, Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, InputConversions: []string{"map"}, ResultConversion: "map", Execute: f}
+		return stuntgres.HostProgramDefinition{ID: id, Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, Execute: f}
 	}
 	copyMap := func(_ context.Context, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
 		m, err := hostMapObject(args)
@@ -221,8 +221,6 @@ func (runtime *hostNativeRuntime) definition() stuntgres.HostLanguageDefinition 
 		}
 		return stuntgres.HostObject{Value: slices.Clone(entries)}, nil
 	})
-	defaults.InputConversions = []string{""}
-	defaults.ResultConversion = ""
 	definition := stuntgres.HostLanguageDefinition{Provider: "reference-go-host", ABIVersion: "map-v1", Name: "go_host", HandlerName: stuntgres.HostName{Schema: "public", Name: "go_host_call_handler"}, Handler: func(ctx context.Context, p stuntgres.HostProgramFunc, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
 		if len(args) == 1 {
 			if m, ok := args[0].Value.(stuntgres.HostHstoreMap); ok {

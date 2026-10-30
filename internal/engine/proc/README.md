@@ -174,6 +174,10 @@ functions export final output slots into their declaration-owned tuple before
 closing the lexical frame, on bare RETURN or fallthrough. A function's sole OUT
 remains scalar; a procedure preserves even one OUT as a tuple. The no-output
 procedure's private handler result remains empty.
+Compiled host procedures reuse this exact sole-output tuple and `PlanTuple`
+conversion. Their real Program returns the scalar member; core wraps that
+converted value into the declaration-owned record. NULL remains a member in a
+present tuple, never an alternate values side channel or a fabricated CALL row.
 Set declarations retain every row and yield zero values when empty. Completed
 set values belong to the existing owned source protocol, not a suspended frame
 or statement scope. Persistence retains TABLE/SETOF and ordered formal modes,

@@ -69,6 +69,9 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 	if d.Language != (ids.ObjectAddress{}) && !yield(d.Language) {
 		return false
 	}
+	for i := range d.Transforms.Len() {
+		if !yield(d.Transforms.At(i).Pair) { return false }
+	}
 	if c := d.HostConversion; c != nil {
 		if !yield(c.Handler) || !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Type.ID())}) {
 			return false
@@ -77,11 +80,6 @@ func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAd
 	if h := d.Host; h != nil {
 		for _, address := range h.Converters {
 			if !yield(address) {
-				return false
-			}
-		}
-		for _, address := range h.Pairs {
-			if address.ObjectID != 0 && !yield(address) {
 				return false
 			}
 		}

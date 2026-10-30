@@ -62,6 +62,9 @@ func currentRoutineDeclaration(view catalog.Read, captured *catalog.Procedure) (
 	if !ok || !SameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
+	if err := catalog.ValidateRoutineTransforms(view, current); err != nil {
+		return nil, err
+	}
 	if current.Host != nil || current.HostHandler != nil {
 		if err := catalog.ValidateHostProcedure(view, current); err != nil {
 			return nil, err
@@ -101,7 +104,7 @@ func SameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Cost == captured.Cost && current.Rows == captured.Rows && current.Configuration == captured.Configuration &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
 		current.Installed == captured.Installed &&
-		current.Display == captured.Display && current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
+		current.Display == captured.Display && current.Transforms == captured.Transforms && current.Language == captured.Language && current.PLHandler == captured.PLHandler &&
 		current.DeclarationBody == captured.DeclarationBody &&
 		slices.Equal(current.DeclarationDependencies, captured.DeclarationDependencies) &&
 		sameHostRoutine(current.Host, captured.Host) && current.HostHandler == captured.HostHandler && current.HostConversion == captured.HostConversion &&

@@ -16,7 +16,7 @@ import (
 
 func hostReplayDefinition(runtime *hostNativeRuntime) stuntgres.HostLanguageDefinition {
 	d := runtime.definition()
-	d.Programs = append(d.Programs, stuntgres.HostProgramDefinition{ID: "default-map-v1", Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, InputConversions: []string{"map"}, ResultConversion: "map", Execute: func(_ context.Context, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
+	d.Programs = append(d.Programs, stuntgres.HostProgramDefinition{ID: "default-map-v1", Version: "1", Inputs: []stuntgres.HostType{stuntgres.HostHstore}, Result: stuntgres.HostHstore, Execute: func(_ context.Context, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
 		entries, ok := args[0].Value.([]stuntgres.HostHstoreEntry)
 		if !ok {
 			return stuntgres.HostObject{}, fmt.Errorf("actual surviving default entry list required")
@@ -46,7 +46,7 @@ func hostReplayAbsenceResults(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	hostBag(t, p, b, c, "host_replay_changed('a=>7,b=>NULL'::hstore)", [][]any{{"a", "14"}, {"b", nil}, {"d", "second"}})
 	hostBag(t, p, b, c, "(SELECT v FROM host_replay_view)", [][]any{{"a", "14"}, {"b", nil}, {"d", "second"}})
 	hostNativeError(t, p.Ctx, c, "CREATE FUNCTION host_replay_unavailable(v hstore) RETURNS hstore LANGUAGE host_replay_after AS 'text-default-v1'", "unavailable host TO SQL direction")
-	hostNativeError(t, p.Ctx, c, "CREATE FUNCTION host_replay_pair_missing(v hstore) RETURNS hstore LANGUAGE host_replay_before AS 'default-map-v1'", "host conversion association is unavailable")
+	hostError(t, p, c, "CREATE FUNCTION host_replay_pair_missing(v hstore) RETURNS hstore LANGUAGE host_replay_before TRANSFORM FOR TYPE hstore AS 'default-map-v1'", fixture.ControlsReferenceDiagnostic("42704", "transform for type hstore language \"host_replay_before\" does not exist"))
 	hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE proname IN ('go_host_from_hstore','go_host_default_to','host_replay_erased','host_replay_unavailable','host_replay_pair_missing')", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}})
 }
 func hostReplayAbsenceControls(t *testing.T, p *fixture.Pair, b fixture.Backend) {
@@ -58,7 +58,7 @@ func hostReplayAbsenceControls(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		t.Fatal(err)
 	}
 	defer c.Close()
-	for _, q := range []string{"CREATE EXTENSION hstore", "CREATE LANGUAGE host_replay_before HANDLER go_host_call_handler", "CREATE FUNCTION host_replay_erased(v hstore) RETURNS hstore LANGUAGE go_host AS 'text-default-v1'", "DROP FUNCTION go_host_from_hstore(internal) CASCADE", "CREATE LANGUAGE host_replay_after HANDLER go_host_call_handler", "DROP FUNCTION go_host_default_to(internal) CASCADE", "ALTER LANGUAGE go_host RENAME TO host_replay_origin", "CREATE LANGUAGE go_host HANDLER go_host_call_handler", "ALTER FUNCTION go_host_call_handler() RENAME TO host_replay_handler", "ALTER FUNCTION go_host_to_hstore(internal) RENAME TO host_replay_to", "CREATE FUNCTION host_replay_changed(v hstore) RETURNS hstore LANGUAGE host_replay_after AS 'default-map-v1'", "CREATE TABLE host_replay_data(v hstore DEFAULT 'a=>7,b=>NULL'::hstore)", "CREATE VIEW host_replay_view AS SELECT host_replay_changed(v) AS v FROM host_replay_data"} {
+	for _, q := range []string{"CREATE EXTENSION hstore", "CREATE LANGUAGE host_replay_before HANDLER go_host_call_handler", "CREATE FUNCTION host_replay_erased(v hstore) RETURNS hstore LANGUAGE go_host AS 'text-default-v1'", "DROP FUNCTION go_host_from_hstore(internal) CASCADE", "CREATE LANGUAGE host_replay_after HANDLER go_host_call_handler", "DROP FUNCTION go_host_default_to(internal) CASCADE", "ALTER LANGUAGE go_host RENAME TO host_replay_origin", "CREATE LANGUAGE go_host HANDLER go_host_call_handler", "ALTER FUNCTION go_host_call_handler() RENAME TO host_replay_handler", "ALTER FUNCTION go_host_to_hstore(internal) RENAME TO host_replay_to", "CREATE FUNCTION host_replay_changed(v hstore) RETURNS hstore LANGUAGE host_replay_after TRANSFORM FOR TYPE hstore AS 'default-map-v1'", "CREATE TABLE host_replay_data(v hstore DEFAULT 'a=>7,b=>NULL'::hstore)", "CREATE VIEW host_replay_view AS SELECT host_replay_changed(v) AS v FROM host_replay_data"} {
 		hostExec(t, p, b, c, q)
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO host_replay_data DEFAULT VALUES", 1))
@@ -214,7 +214,7 @@ func hostReplayNamespaceControls(t *testing.T, p *fixture.Pair, b fixture.Backen
 		t.Fatal(err)
 	}
 	defer c.Close()
-	for _, q := range []string{"CREATE EXTENSION hstore", "CREATE FUNCTION host_namespace_changed(v hstore) RETURNS hstore LANGUAGE go_host AS 'increment-v1'", "ALTER SCHEMA host_replay_schema RENAME TO host_replay_schema_renamed", "ALTER SCHEMA host_replay_directions RENAME TO host_replay_directions_renamed"} {
+	for _, q := range []string{"CREATE EXTENSION hstore", "CREATE FUNCTION host_namespace_changed(v hstore) RETURNS hstore LANGUAGE go_host TRANSFORM FOR TYPE hstore AS 'increment-v1'", "ALTER SCHEMA host_replay_schema RENAME TO host_replay_schema_renamed", "ALTER SCHEMA host_replay_directions RENAME TO host_replay_directions_renamed"} {
 		hostExec(t, p, b, c, q)
 	}
 	var stream bytes.Buffer

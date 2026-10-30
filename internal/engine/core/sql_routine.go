@@ -155,6 +155,11 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	leavePolicy := parent.activateRoutineCommandPolicy(d, constantPlanning)
 	defer leavePolicy()
 	if d.Host != nil {
+		if d.Host.Layout.Procedure {
+			scalar, failure := parent.invokeHostRoutine(d, frame, catalog.HostResultUsage(d.Host.Layout), auth)
+			if failure != nil { return value, failure }
+			return d.Host.WrapResult(parent.executionContext(), scalar, resultUsage, parent.Input, parent.Output)
+		}
 		return parent.invokeHostRoutine(d, frame, resultUsage, auth)
 	}
 	if d.RoutineDefinition().Kind == proc.PLpgSQLBody {

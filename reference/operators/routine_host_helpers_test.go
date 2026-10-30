@@ -42,9 +42,9 @@ func hostFunction(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 	language, source, clause := "go_host", program, ""
 	if b.PG {
 		language, source = "plpython3u", python
-		if transform {
-			clause = " TRANSFORM FOR TYPE hstore"
-		}
+	}
+	if transform {
+		clause = " TRANSFORM FOR TYPE hstore"
 	}
 	q := "CREATE OR REPLACE FUNCTION " + name + "(v hstore) RETURNS hstore LANGUAGE " + language + clause + " " + options + " AS '" + strings.ReplaceAll(source, "'", "''") + "'"
 	hostExec(t, p, b, c, q)

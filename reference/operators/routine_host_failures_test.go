@@ -34,7 +34,7 @@ func TestReferenceRoutineHostFailures(t *testing.T) {
 			{"host_parse", "wrong-result-v1", "return 'not hstore syntax'", "42601", `syntax error in hstore, near "h" at position 4`},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				transform := tc.name != "host_parse"
+				transform := tc.name != "host_parse" || !b.PG
 				hostFunction(t, p, b, c, tc.name, tc.program, tc.body, "SET application_name='host-inner'", transform)
 				// Full diagnostics observed on the pinned PostgreSQL 18.6 oracle.
 				d := hostPythonError(tc.code, tc.message, tc.name)

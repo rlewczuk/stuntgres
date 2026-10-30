@@ -75,7 +75,14 @@ Compiled host-routine scenarios share independently specified object/null,
 authority, failure and cancellation outcomes with actual PL/Python scalar and
 hstore dict programs on the pinned oracle. Native setup explicitly registers real
 compiled Go programs and directional primitive/map/default converters; it does not
-interpret Python or execute TRANSFORM SQL. Primitive witnesses include ordered
+interpret Python. Both backends use actual routine TRANSFORM opt-in; native
+bootstrap registration, not SQL CREATE TRANSFORM, supplies genuine pairs.
+The `TestReferenceRoutineTransforms` definitions independently cover ordered and
+normalized declarations, same-program defaults versus maps, directional fallback,
+single-output CALL, privileges, full diagnostics/phase, reassociation, dependencies,
+NULLs, rollback/cancellation, retained values and fresh-Driver native replay.
+Public Dump/Reset/Restore and ordinary Go ABI errors stay explicit native
+boundaries, not fictional PostgreSQL mechanisms. Primitive witnesses include ordered
 multiargument frames, range/text rejection, raw metadata, held-handle recovery and
 fresh-Driver replay. Compatible ordinary aggregate support consumes the same
 compiled scalar definition. Registration, carrier corruption, reentry,

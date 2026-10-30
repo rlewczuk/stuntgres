@@ -56,8 +56,6 @@ type ProgramDefinition struct {
 	ID, Version      string
 	Inputs           []Type
 	Result           Type
-	InputConversions []string
-	ResultConversion string
 	Execute          ProgramFunc
 }
 type DefaultDefinition struct {
@@ -147,35 +145,18 @@ func New(d LanguageDefinition) (*Runtime, error) {
 			}
 		}
 	}
-	// Programs retain logical selectors. Genuine current catalog directions and
-	// defaults are resolved once when a SQL declaration is published.
+	// SQL declarations select transforms; Programs retain only logical types.
 	for i := range d.Programs {
 		p := d.Programs[i]
 		p.Inputs = slices.Clone(p.Inputs)
-		p.InputConversions = slices.Clone(p.InputConversions)
 		d.Programs[i] = p
-		if !validText(p.ID) || !validText(p.Version) || p.Execute == nil || !validType(p.Result) || len(p.Inputs) != len(p.InputConversions) || r.programs[p.ID] != nil {
+		if !validText(p.ID) || !validText(p.Version) || p.Execute == nil || !validType(p.Result) || r.programs[p.ID] != nil {
 			return nil, fmt.Errorf("stuntgres: invalid or duplicate host program %q", p.ID)
 		}
-		validateSelector := func(t Type, id string) error {
-			if id != "" {
-				c := r.conversions[id]
-				if c == nil || c.definition.Type != t || !c.definition.Bootstrap {
-					return fmt.Errorf("stuntgres: invalid host program bootstrap conversion %q", id)
-				}
-			}
-			return nil
-		}
-		for j, t := range p.Inputs {
+		for _, t := range p.Inputs {
 			if !validType(t) {
 				return nil, fmt.Errorf("stuntgres: unsupported host input type")
 			}
-			if err := validateSelector(t, p.InputConversions[j]); err != nil {
-				return nil, err
-			}
-		}
-		if err := validateSelector(p.Result, p.ResultConversion); err != nil {
-			return nil, err
 		}
 		r.programs[p.ID] = &Program{runtime: r, definition: p}
 	}
@@ -187,7 +168,6 @@ func (r *Runtime) Definition() LanguageDefinition {
 	d.Programs = slices.Clone(d.Programs)
 	for i := range d.Programs {
 		d.Programs[i].Inputs = slices.Clone(d.Programs[i].Inputs)
-		d.Programs[i].InputConversions = slices.Clone(d.Programs[i].InputConversions)
 	}
 	d.Conversions = slices.Clone(d.Conversions)
 	d.Defaults = slices.Clone(d.Defaults)
@@ -204,7 +184,6 @@ func (p *Program) Runtime() *Runtime                { return p.runtime }
 func (p *Program) Definition() ProgramDefinition {
 	d := p.definition
 	d.Inputs = slices.Clone(d.Inputs)
-	d.InputConversions = slices.Clone(d.InputConversions)
 	return d
 }
 func (c *Conversion) Runtime() *Runtime                { return c.runtime }
@@ -284,8 +263,6 @@ func (p *Program) Version() string              { return p.definition.Version }
 func (p *Program) InputCount() int              { return len(p.definition.Inputs) }
 func (p *Program) InputType(i int) Type         { return p.definition.Inputs[i] }
 func (p *Program) ResultType() Type             { return p.definition.Result }
-func (p *Program) InputConversion(i int) string { return p.definition.InputConversions[i] }
-func (p *Program) ResultConversion() string     { return p.definition.ResultConversion }
 
 // ConfiguredNamespace reports only immutable bootstrap name configuration,
 // never catalog identity or permission to recreate a retired object.

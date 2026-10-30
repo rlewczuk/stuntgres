@@ -63,6 +63,14 @@ neither owns catalog authority.
   type/language/converter authority. Language defaults are not pair rows.
   Registry tokens are engine-owned and immutable, and names never supply an
   invocation-time callback fallback.
+  `Procedure.Transforms` owns immutable ordered type/pair/revision associations,
+  independently of `HostRoutine` boundary converters. It agrees exactly with the
+  existing immutable display list, retains duplicates and unused associations,
+  and supplies real normal pair edges. SQL opt-in selects these pairs; omission
+  and absent directions resolve actual registered defaults. Common remapping
+  reowns the list, display IDs and exact destination type/pair generations.
+  Single-output host procedures retain record declaration results while their
+  compiled program and conversion tokens target the scalar output member.
   `ProcedureLanguageAddress` is the common declaration-language identity
   projection for catalog snapshots and function-definition inquiries. A genuine
   host scalar retains its actual language address despite its Go implementation

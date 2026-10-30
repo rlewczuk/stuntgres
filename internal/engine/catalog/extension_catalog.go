@@ -68,6 +68,8 @@ type Procedure struct {
 	SQL                                       *proc.Definition
 	Language                                  ids.ObjectAddress
 	Display                                   RoutineDisplay
+	// Transforms owns ordered exact pair identities independently of execution.
+	Transforms                                *RoutineTransforms
 	PLHandler                                 PLHandler
 	HostHandler                               *host.Runtime
 	Host                                      *HostRoutine

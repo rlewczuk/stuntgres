@@ -17,14 +17,14 @@ func TestReferenceRoutineHostCatalog(t *testing.T) {
 		}
 		defer routineLanguagesCleanup(t, c, "DROP LANGUAGE IF EXISTS host_catalog_alias CASCADE", "DROP LANGUAGE IF EXISTS host_catalog_renamed CASCADE")()
 		hostExec(t, p, b, c, "CREATE LANGUAGE host_catalog_alias HANDLER go_host_call_handler")
-		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_alias_fn(v hstore) RETURNS hstore LANGUAGE host_catalog_alias AS 'increment-v1'")
+		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_alias_fn(v hstore) RETURNS hstore LANGUAGE host_catalog_alias TRANSFORM FOR TYPE hstore AS 'increment-v1'")
 		hostBag(t, p, b, c, "host_catalog_alias_fn('a=>7'::hstore)", [][]any{{"a", "8"}, {"c", "3"}})
 		hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_transform t JOIN pg_language l ON l.oid=t.trflang WHERE l.lanname='host_catalog_alias'", []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}})
 		hostNativeError(t, p.Ctx, c, "CREATE OR REPLACE LANGUAGE host_catalog_alias HANDLER go_host_from_call_handler", "incompatible host language replacement has dependent routines")
 		hostBag(t, p, b, c, "host_catalog_alias_fn('a=>7'::hstore)", [][]any{{"a", "8"}, {"c", "3"}})
 		hostExec(t, p, b, c, "DROP FUNCTION host_catalog_alias_fn(hstore)")
 		hostExec(t, p, b, c, "CREATE OR REPLACE LANGUAGE host_catalog_alias HANDLER go_host_from_call_handler")
-		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_alias_fn(v hstore) RETURNS hstore LANGUAGE host_catalog_alias AS 'direction-v1'")
+		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_alias_fn(v hstore) RETURNS hstore LANGUAGE host_catalog_alias TRANSFORM FOR TYPE hstore AS 'direction-v1'")
 		hostBag(t, p, b, c, "host_catalog_alias_fn('a=>7,b=>NULL'::hstore)", [][]any{{"a", "9"}, {"b", nil}})
 		hostExec(t, p, b, c, "ALTER LANGUAGE go_host RENAME TO host_catalog_renamed")
 		hostExec(t, p, b, c, "CREATE LANGUAGE go_host HANDLER go_host_from_call_handler")
@@ -49,7 +49,7 @@ func TestReferenceRoutineHostCatalog(t *testing.T) {
 			t.Fatalf("hstore generation identity %d -> %d/%v", originalType, freshType, err)
 		}
 		hostRows(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE proname='host_catalog_inc'", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}})
-		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_new(v hstore) RETURNS hstore LANGUAGE host_catalog_renamed AS 'double-v1'")
+		hostExec(t, p, b, c, "CREATE FUNCTION host_catalog_new(v hstore) RETURNS hstore LANGUAGE host_catalog_renamed TRANSFORM FOR TYPE hstore AS 'double-v1'")
 		hostBag(t, p, b, c, "host_catalog_new('a=>7,b=>NULL'::hstore)", [][]any{{"a", "14"}, {"b", nil}, {"d", "second"}})
 	})
 }

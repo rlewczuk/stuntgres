@@ -143,7 +143,7 @@ func hostNativeCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 				name = "host_after_cancel"
 				program = "double-v1"
 			}
-			hostExec(t, p, b, c, "CREATE OR REPLACE FUNCTION "+name+"(v hstore) RETURNS hstore LANGUAGE go_host AS '"+program+"'")
+			hostExec(t, p, b, c, "CREATE OR REPLACE FUNCTION "+name+"(v hstore) RETURNS hstore LANGUAGE go_host TRANSFORM FOR TYPE hstore AS '"+program+"'")
 			expected := [][]any{{"a", "8"}, {"c", "3"}}
 			if replacement {
 				expected = [][]any{{"a", "14"}, {"d", "second"}}

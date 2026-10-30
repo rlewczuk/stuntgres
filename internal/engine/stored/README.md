@@ -78,6 +78,12 @@ definitions have both. Provider validation admits source-only signatures without
 language validation even if a validator was subsequently added. Current language
 capability is rechecked independently of captured labels.
 Remap/reownership preserve that distinction and never retain invocation frames.
+One operation memo owns both each original routine definition and its accepted
+output identity. Deferred declaration attachment can revisit that output without
+applying nonidentity type/collation Usage policies twice. This does not exempt an
+independent original definition using an intermediate destination type: that
+original still receives its own single mapping. Destination association/layout
+attachments remain on the same private descriptor retained by mapped captures.
 
 `RoutineProgram.DefinitionSQL` presents SQL-standard routine bodies under captured
 catalog/path/output authority, using metadata validation rather than executable

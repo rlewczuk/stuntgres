@@ -32,6 +32,11 @@ constructing detached SQL output. Callbacks receive no frame or authority object
 `host_registry.go` performs pure prepublication token/descriptor installation;
 `host_materialize.go` distinguishes genuine new type generations from language
 alias events, so alias creation never reinstalls retired directional procedures.
+Routine SQL opt-in, not Program selectors, owns pair selection. Common declaration
+associations survive captures/remapping independently of boundary conversion slots.
+For a supported single OUT/INOUT host procedure, the actual Program scalar result
+is converted as that member and wrapped by the shared `proc.PlanTuple` result
+owner into CALL's exact nonnull record; a NULL member is not an absent record.
 
 
 Routine declaration inquiry composes the statement-owned catalog and presentation

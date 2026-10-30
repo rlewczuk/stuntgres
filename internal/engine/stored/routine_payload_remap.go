@@ -42,6 +42,8 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 	var constructors map[*catalog.RangeConstructor]*catalog.RangeConstructor
 	hostDeclarations := make(map[*catalog.HostRoutine]*catalog.HostRoutine)
 	hostConversions := make(map[*catalog.HostConversion]*catalog.HostConversion)
+	transformDeclarations := make(map[*catalog.RoutineTransforms]*catalog.RoutineTransforms)
+	transformDisplays := make(map[*catalog.RoutineTransforms]*catalog.RoutineTransformTypes)
 	bodyUsers := make(map[*RoutineProgram][]*catalog.Procedure)
 	defaultUsers := make(map[*RoutineDefaults][]*catalog.Procedure)
 	r.Definition = func(original *proc.Definition) (*proc.Definition, error) {
@@ -57,6 +59,10 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		mapped, err := reownRoutineDefinition(original, usages.usage, programs)
 		if err == nil {
 			definitions[original] = mapped
+			// Deferred declaration attachment may revisit this operation's
+			// published candidate. Its accepted output is not a new source:
+			// remapping it again would apply nonidentity Usage policies twice.
+			definitions[mapped] = mapped
 		}
 		return mapped, err
 	}
@@ -97,6 +103,29 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 		return mapped, nil
 	}
 	attach := func(p *catalog.Procedure) error {
+		if original := p.Transforms; original != nil {
+			mapped := transformDeclarations[original]
+			if mapped == nil {
+				entries := make([]catalog.RoutineTransform, original.Len())
+				for i := range entries {
+					entry := original.At(i)
+					entry.Type = r.Type(entry.Type)
+					if entry.Type == nil { return fmt.Errorf("stuntgres: missing transform destination type") }
+					if next, ok := mapping[entry.Pair]; ok { entry.Pair = next }
+					pair, ok := view.Get(entry.Pair).(*catalog.Transform)
+					if !ok { return fmt.Errorf("stuntgres: missing transform destination association") }
+					entry.Revision = pair.Revision()
+					entries[i] = entry
+				}
+				mapped = catalog.NewRoutineTransforms(entries)
+				transformDeclarations[original], transformDeclarations[mapped] = mapped, mapped
+				types := make([]ids.OID, mapped.Len())
+				for i := range types { types[i] = ids.OID(mapped.At(i).Type.ID()) }
+				transformDisplays[mapped] = catalog.NewRoutineTransformTypes(types)
+			}
+			p.Transforms = mapped
+			p.Display.TransformTypes = transformDisplays[mapped]
+		}
 		if c := p.HostConversion; c != nil {
 			mapped := hostConversions[c]
 			if mapped == nil {
@@ -148,7 +177,7 @@ func NewRoutineRemap(view catalog.Read, mapping map[ids.ObjectAddress]ids.Object
 			mapped := hostDeclarations[h]
 			if mapped == nil {
 				copy := *h
-				copy.Layout = definition
+				if err := copy.SetLayout(definition); err != nil { return err }
 				copy.Converters = append([]ids.ObjectAddress(nil), h.Converters...)
 				copy.Pairs = append([]ids.ObjectAddress(nil), h.Pairs...)
 				for i, address := range copy.Converters {

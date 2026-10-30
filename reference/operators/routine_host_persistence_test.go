@@ -49,7 +49,7 @@ func TestReferenceRoutineHostPersistence(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &stream); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(stream.String(), "stuntgres-host-runtime-v1 ") {
+		if !strings.Contains(stream.String(), "stuntgres-host-runtime-v2 ") {
 			t.Fatal("logical host prerequisites missing")
 		}
 		for round := range 2 {
@@ -110,18 +110,11 @@ func TestReferenceRoutineHostPersistence(t *testing.T) {
 					d.Programs[0].Version = "incompatible"
 				case "type":
 					d.Programs[0].Inputs[0] = stuntgres.HostText
-					d.Programs[0].InputConversions[0] = ""
 				case "direction":
 					d.Conversions[0].FromSQL = nil
 					d.Conversions[0].FromName = stuntgres.HostName{}
 				case "bootstrap":
 					d.Conversions[0].Bootstrap = false
-					for i := range d.Programs {
-						for j := range d.Programs[i].InputConversions {
-							d.Programs[i].InputConversions[j] = ""
-						}
-						d.Programs[i].ResultConversion = ""
-					}
 				}
 				if mismatch != "absent" {
 					definition = &d
@@ -157,7 +150,7 @@ func TestReferenceRoutineHostPersistence(t *testing.T) {
 				defer stmt.Close()
 				data := stream.Bytes()
 				if mismatch == "corrupt" {
-					data = bytes.Replace(data, []byte("stuntgres-host-runtime-v1 "), []byte("stuntgres-host-runtime-v1 !"), 1)
+					data = bytes.Replace(data, []byte("stuntgres-host-runtime-v2 "), []byte("stuntgres-host-runtime-v2 !"), 1)
 				}
 				ctx := p.Ctx
 				if mismatch == "canceled" {

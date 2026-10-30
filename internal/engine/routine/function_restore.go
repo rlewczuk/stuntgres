@@ -58,10 +58,12 @@ func RebindRoutineDefinitions(state *catalog.State, remap *catalog.RoutineRemap)
 		if err != nil {
 			return err
 		}
-		next := *mapped
+		// Declarations() must attach associations/layouts to this exact private
+		// mapper-owned handle, also retained by every remapped body/default.
+		next := mapped
 		if mapped.Host != nil {
 			host := *mapped.Host
-			host.Layout = definition
+			if err := host.SetLayout(definition); err != nil { return err }
 			next.Host = &host
 		} else {
 			next.SQL = definition
@@ -73,8 +75,8 @@ func RebindRoutineDefinitions(state *catalog.State, remap *catalog.RoutineRemap)
 		}
 		next.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 		state.UnbindName(catalog.DescriptorNameKey(d))
-		state.SetDescriptor(address, &next)
-		state.BindName(catalog.DescriptorNameKey(&next), address)
+		state.SetDescriptor(address, next)
+		state.BindName(catalog.DescriptorNameKey(next), address)
 	}
 	if err := remap.Declarations(); err != nil {
 		return err

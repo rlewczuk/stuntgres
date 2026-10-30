@@ -70,11 +70,7 @@ func hostPrimitiveDefinition() stuntgres.HostLanguageDefinition {
 		d.Defaults = append(d.Defaults, stuntgres.HostDefaultDefinition{Type: typ, FromID: id, ToID: id})
 	}
 	add := func(id string, inputs []stuntgres.HostType, result stuntgres.HostType, f stuntgres.HostProgramFunc) {
-		selectors := make([]string, len(inputs))
-		for i, typ := range inputs {
-			selectors[i] = string(typ)
-		}
-		d.Programs = append(d.Programs, stuntgres.HostProgramDefinition{ID: id, Version: "1", Inputs: inputs, Result: result, InputConversions: selectors, ResultConversion: string(result), Execute: f})
+		d.Programs = append(d.Programs, stuntgres.HostProgramDefinition{ID: id, Version: "1", Inputs: inputs, Result: result, Execute: f})
 	}
 	unary := func(id string, typ stuntgres.HostType, f func(any) (any, error)) {
 		add(id, []stuntgres.HostType{typ}, typ, func(_ context.Context, args []stuntgres.HostObject) (stuntgres.HostObject, error) {
@@ -234,8 +230,6 @@ func hostPrimitiveDefinition() stuntgres.HostLanguageDefinition {
 	defaults := d.Programs[0]
 	defaults.ID = "bool-default-v1"
 	defaults.Inputs = []stuntgres.HostType{stuntgres.HostBool}
-	defaults.InputConversions = []string{""}
-	defaults.ResultConversion = ""
 	d.Programs = append(d.Programs, defaults)
 	return d
 }

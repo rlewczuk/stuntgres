@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const ReplayPrefix = "stuntgres-host-runtime-v1 "
+const ReplayPrefix = "stuntgres-host-runtime-v2 "
 
 type Requirement struct{ Provider, Fingerprint string }
 

@@ -52,7 +52,7 @@ func TestReferenceRoutineHostRegistration(t *testing.T) {
 		}{
 			{"handler", func(d *stuntgres.HostLanguageDefinition) { d.Handler = nil }},
 			{"program", func(d *stuntgres.HostLanguageDefinition) { d.Programs[0].Execute = nil }},
-			{"selector arity", func(d *stuntgres.HostLanguageDefinition) { d.Programs[0].InputConversions = nil }},
+			{"logical result", func(d *stuntgres.HostLanguageDefinition) { d.Programs[0].Result = stuntgres.HostType("unsupported") }},
 			{"provider", func(d *stuntgres.HostLanguageDefinition) { d.Provider = "" }},
 			{"ABI", func(d *stuntgres.HostLanguageDefinition) { d.ABIVersion = "" }},
 			{"version", func(d *stuntgres.HostLanguageDefinition) { d.Programs[0].Version = "" }},
@@ -64,8 +64,7 @@ func TestReferenceRoutineHostRegistration(t *testing.T) {
 				d.Conversions[0].ToSQL = nil
 			}},
 			{"unimplemented named direction", func(d *stuntgres.HostLanguageDefinition) { d.Conversions[0].FromSQL = nil }},
-			{"missing selector", func(d *stuntgres.HostLanguageDefinition) { d.Programs[0].InputConversions[0] = "absent" }},
-			{"wrong selector type", func(d *stuntgres.HostLanguageDefinition) { d.Conversions[0].Type = stuntgres.HostText }},
+			{"unsupported conversion type", func(d *stuntgres.HostLanguageDefinition) { d.Conversions[0].Type = stuntgres.HostType("unsupported") }},
 			{"duplicate procedure name", func(d *stuntgres.HostLanguageDefinition) { d.Conversions[0].FromName = d.HandlerName }},
 			{"missing default", func(d *stuntgres.HostLanguageDefinition) { d.Defaults[0].FromID = "absent" }},
 		}
@@ -88,7 +87,6 @@ func TestReferenceRoutineHostRegistration(t *testing.T) {
 			t.Fatal("duplicate registration accepted")
 		}
 		definition.Programs[0].Inputs[0] = stuntgres.HostText
-		definition.Programs[0].InputConversions[0] = "caller mutation"
 		definition.Conversions[0].ID = "caller mutation"
 		definition.Defaults[0].FromID = "caller mutation"
 		definition.Programs[0].Execute = hostDouble
@@ -139,8 +137,8 @@ func TestReferenceRoutineHostRegistration(t *testing.T) {
 		for _, tc := range []struct{ q, code, message string }{
 			{"CREATE FUNCTION host_bad_symbol(v hstore) RETURNS hstore LANGUAGE go_host AS 'increment-v1','symbol'", "42P13", `only one AS item needed for language "go_host"`},
 			{"CREATE FUNCTION host_bad_inline(v hstore) RETURNS hstore LANGUAGE go_host RETURN v", "42P13", "inline SQL function body only valid for language SQL"},
-			{"CREATE FUNCTION host_bad_set(v hstore) RETURNS SETOF hstore LANGUAGE go_host AS 'increment-v1'", "0A000", "host routines require ordinary scalar IN arguments and result"},
-			{"CREATE FUNCTION host_bad_out(INOUT v hstore) LANGUAGE go_host AS 'increment-v1'", "0A000", "host routines require ordinary scalar IN arguments and result"},
+			{"CREATE FUNCTION host_bad_set(v hstore) RETURNS SETOF hstore LANGUAGE go_host AS 'increment-v1'", "0A000", "host routines require a scalar result or one scalar procedure output"},
+			{"CREATE FUNCTION host_bad_out(INOUT v hstore) LANGUAGE go_host AS 'increment-v1'", "0A000", "host routines require a scalar result or one scalar procedure output"},
 		} {
 			hostError(t, p, native, tc.q, fixture.ControlsReferenceDiagnostic(tc.code, tc.message))
 		}

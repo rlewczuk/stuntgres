@@ -32,6 +32,10 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if err != nil {
 		return err
 	}
+	transforms, transformTypes, err := admitRoutineTransforms(h, auth, s, language)
+	if err != nil {
+		return err
+	}
 	bodyKind := proc.SQLBody
 	if execution == catalog.PLpgSQLLanguage {
 		bodyKind = proc.PLpgSQLBody
@@ -146,6 +150,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	layout.Result, layout.ReturnsSet, layout.TableResult = result, s.Result.Setof, s.TableResult != nil
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: name, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.FunctionRoutine, Result: ids.OID(result.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Volatile}
+	d.Transforms, d.Display.TransformTypes = transforms, transformTypes
 	d.Parallel, d.Cost = 'u', 100
 	if layout.ReturnsSet {
 		d.Rows = 1000
@@ -195,24 +200,24 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	if execution == catalog.HostLanguage {
-		if s.Procedure || layout.ReturnsSet || layout.TableResult || len(layout.OutputFormals) != 0 {
-			return sqlError("0A000", "host routines require ordinary scalar IN arguments and result")
+		if layout.ReturnsSet || layout.TableResult || (!s.Procedure && len(layout.OutputFormals) != 0) || (s.Procedure && len(layout.OutputFormals) != 1) {
+			return sqlError("0A000", "host routines require a scalar result or one scalar procedure output")
 		}
 		for _, formal := range layout.Formals {
-			if formal.Mode != "i" {
-				return sqlError("0A000", "host routines require ordinary scalar IN arguments")
+			if formal.Mode != "i" && !(s.Procedure && (formal.Mode == "o" || formal.Mode == "b")) {
+				return sqlError("0A000", "host routines require ordinary scalar arguments")
 			}
 		}
 		program := language.Host.Program(s.Body)
 		if program == nil {
 			return fmt.Errorf("stuntgres: host program %q is not registered", s.Body)
 		}
-		registered := program.Definition()
-		if len(registered.Inputs) != len(inputs) || registered.Result != catalog.HostLogicalType(result.Type) {
+		hostResult := catalog.HostResultUsage(layout)
+		if program.InputCount() != len(inputs) || program.ResultType() != catalog.HostLogicalType(hostResult.Type) {
 			return fmt.Errorf("stuntgres: incompatible host program result/signature/direction")
 		}
 		for i, usage := range inputs {
-			if registered.Inputs[i] != catalog.HostLogicalType(usage.Type) {
+			if program.InputType(i) != catalog.HostLogicalType(usage.Type) {
 				return fmt.Errorf("stuntgres: incompatible host program input/signature/direction")
 			}
 		}
@@ -220,11 +225,11 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		if err = h.MaterializeHostConversions(); err != nil {
 			return err
 		}
-		d.Host, err = catalog.ResolveHostRoutine(h.StageRead(), layout, program, language.Address())
+		d.Host, err = catalog.ResolveHostRoutine(h.StageRead(), layout, program, language.Address(), d.Transforms)
 		if err != nil {
 			return err
 		}
-		d.Display = catalog.RoutineDisplay{Language: catalog.GoRoutineLanguage, Source: s.Body}
+		d.Display.Language, d.Display.Source = catalog.GoRoutineLanguage, s.Body
 		if previous == nil {
 			oid, failure := h.AllocateOID()
 			if failure != nil {
@@ -297,7 +302,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	d.SQL = definition
-	d.Display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage, Source: definition.Source}
+	d.Display.Language, d.Display.Source = catalog.SQLRoutineLanguage, definition.Source
 	if bodyKind == proc.PLpgSQLBody {
 		d.Display.Language = catalog.PLpgSQLRoutineLanguage
 	}

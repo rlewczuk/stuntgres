@@ -25,7 +25,7 @@ func registryDefinition() host.LanguageDefinition {
 			return host.SQLValue{}, errors.New("not an integer object")
 		}
 		return host.SQLValue{Type: host.Int8, Int64: n}, nil
-	}}}, Programs: []host.ProgramDefinition{{ID: "increment", Version: "1", Inputs: []host.Type{host.Int8}, Result: host.Int8, InputConversions: []string{"integer"}, ResultConversion: "integer", Execute: func(_ context.Context, args []host.Object) (host.Object, error) {
+	}}}, Programs: []host.ProgramDefinition{{ID: "increment", Version: "1", Inputs: []host.Type{host.Int8}, Result: host.Int8, Execute: func(_ context.Context, args []host.Object) (host.Object, error) {
 		n, ok := args[0].Value.(int64)
 		if !ok {
 			return host.Object{}, errors.New("wrong object")
@@ -40,7 +40,6 @@ func TestHostRegistryOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	original.Programs[0].Inputs[0] = host.Text
-	original.Programs[0].InputConversions[0] = "mutated"
 	original.Conversions[0].ID = "mutated"
 	p := r.Program("increment")
 	if p == nil || p.Runtime() != r || r.Conversion("integer").Runtime() != r {
@@ -48,9 +47,8 @@ func TestHostRegistryOwnership(t *testing.T) {
 	}
 	copy := r.Definition()
 	copy.Programs[0].Inputs[0] = host.Text
-	copy.Programs[0].InputConversions[0] = "changed"
 	copy.Conversions[0].Type = host.Text
-	if p.Definition().Inputs[0] != host.Int8 || p.Definition().InputConversions[0] != "integer" || r.Conversion("integer").Definition().Type != host.Int8 {
+	if p.Definition().Inputs[0] != host.Int8 || r.Conversion("integer").Definition().Type != host.Int8 || r.Conversion("integer").Definition().ID != "integer" {
 		t.Fatal("registration backing escaped")
 	}
 	conversion := r.Conversion("integer")
@@ -65,7 +63,7 @@ func TestHostRegistryOwnership(t *testing.T) {
 	if fresh == r || fresh.Program("increment") == p || fresh.Conversion("integer") == r.Conversion("integer") || fresh.Fingerprint() != r.Fingerprint() {
 		t.Fatal("fresh logical registration reused source tokens or changed stable identity")
 	}
-	for _, modify := range []func(*host.LanguageDefinition){func(d *host.LanguageDefinition) { d.Handler = nil }, func(d *host.LanguageDefinition) { d.Programs[0].Execute = nil }, func(d *host.LanguageDefinition) { d.Conversions = append(d.Conversions, d.Conversions[0]) }, func(d *host.LanguageDefinition) { d.Programs[0].InputConversions = nil }, func(d *host.LanguageDefinition) {
+	for _, modify := range []func(*host.LanguageDefinition){func(d *host.LanguageDefinition) { d.Handler = nil }, func(d *host.LanguageDefinition) { d.Programs[0].Execute = nil }, func(d *host.LanguageDefinition) { d.Conversions = append(d.Conversions, d.Conversions[0]) }, func(d *host.LanguageDefinition) { d.Programs[0].Inputs[0] = host.Type("unsupported") }, func(d *host.LanguageDefinition) {
 		d.Defaults = []host.DefaultDefinition{{Type: host.Int8, FromID: "absent"}}
 	}} {
 		d := registryDefinition()

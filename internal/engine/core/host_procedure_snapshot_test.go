@@ -37,9 +37,9 @@ func TestHostProcedureDeclarationSnapshot(t *testing.T) {
 	callbacks := 0
 	e, original := hostOwnerEngine(t, func() error { callbacks++; return nil })
 	for _, query := range []string{
-		"CREATE FUNCTION owner_host_default(v hstore DEFAULT 'a=>7,b=>NULL'::hstore) RETURNS hstore LANGUAGE owner_host AS 'increment'",
+		"CREATE FUNCTION owner_host_default(v hstore DEFAULT 'a=>7,b=>NULL'::hstore) RETURNS hstore LANGUAGE owner_host TRANSFORM FOR TYPE hstore AS 'increment'",
 		"CREATE LANGUAGE owner_host_alias HANDLER owner_host_handler",
-		"CREATE FUNCTION owner_host_alias_fn(v hstore) RETURNS hstore LANGUAGE owner_host_alias AS 'increment'",
+		"CREATE FUNCTION owner_host_alias_fn(v hstore) RETURNS hstore LANGUAGE owner_host_alias TRANSFORM FOR TYPE hstore AS 'increment'",
 		"CREATE FUNCTION owner_snapshot_sql(v integer DEFAULT 1) RETURNS integer LANGUAGE sql AS 'SELECT v+1'",
 		"CREATE FUNCTION owner_snapshot_pl(v integer DEFAULT 1) RETURNS integer LANGUAGE plpgsql AS 'BEGIN RETURN v+1; END;'",
 	} {

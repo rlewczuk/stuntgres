@@ -46,8 +46,11 @@ type RoutineAttribute struct {
 	Kind    string
 	Value   string
 	Setting *Set
+	Transform *RoutineTransformClause // CREATE-only ordered list.
 	Pos     Position
 }
+
+type RoutineTransformClause struct { Types []TypeName }
 
 func (d *CreateFunction) setProcedureAttributes(groups ...[]RoutineAttribute) {
 	for _, group := range groups {

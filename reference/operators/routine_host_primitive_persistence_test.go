@@ -36,7 +36,7 @@ func TestReferenceRoutineHostPrimitivePersistence(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &stream); err != nil {
 			t.Fatal(err)
 		}
-		if stream.Len() == 0 || !strings.Contains(stream.String(), "stuntgres-host-runtime-v1 ") {
+		if stream.Len() == 0 || !strings.Contains(stream.String(), "stuntgres-host-runtime-v2 ") {
 			t.Fatal("missing logical primitive prerequisites")
 		}
 		for round := range 2 {
@@ -72,7 +72,6 @@ func TestReferenceRoutineHostPrimitivePersistence(t *testing.T) {
 					d.Conversions[0].ToName.Name = "different_bool_to"
 				case "signature":
 					d.Programs[0].Inputs[0] = stuntgres.HostText
-					d.Programs[0].InputConversions[0] = "text"
 				}
 				definition := &d
 				if kind == "absent" {

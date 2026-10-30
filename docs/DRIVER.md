@@ -51,7 +51,7 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   Missing names fail; no filesystem paths, loader callbacks or sample language
   data are synthesized.
 
-### Application-supplied scalar routine languages
+### Application-supplied routine languages and SQL transforms
 
 `d.RegisterHostLanguage(HostLanguageDefinition)` registers compiled application
 code before opening a connector. It copies declaration slices, checks shape and
@@ -63,10 +63,13 @@ A definition supplies a stable `Provider`/`ABIVersion`, decoded language `Name`,
 exact `HostName{Schema, Name}` handler name, `Trusted` security decision and a
 non-nil `HostHandlerFunc`. Its handler receives the already-resolved immutable
 `HostProgramFunc` and actually invokes supplied compiled code. Program definitions
-carry exact `ID`, `Version`, ordered input/result `HostType`s, conversion selectors
-and non-nil executable functions. SQL `AS 'program-id'` selects that registered
-program; arbitrary source and symbol/library forms do not manufacture execution.
-The bounded declaration surface is ordinary scalar IN arguments and results.
+carry exact `ID`, `Version`, ordered input/result `HostType`s and non-nil
+executable functions. SQL `AS 'program-id'` selects that registered program;
+arbitrary source and symbol/library forms do not manufacture execution.
+Functions support ordinary scalar IN arguments/results. Procedures support
+ordinary scalar IN arguments and exactly one scalar OUT or INOUT matching the
+Program result; CALL returns the shared output record, including a NULL member.
+Void, multiple-output and general composite host ABIs remain unavailable.
 Existing SQL/PLpgSQL and absent external-runtime boundaries remain separate.
 
 `HostType` supports `HostBool`, `HostInt4`, `HostInt8`, `HostText` and the genuine
@@ -77,11 +80,21 @@ released extension members. `HostConversionDefinition.Bootstrap` designates at
 most one actual pair per logical type in a language. Other conversion definitions
 may supply real defaults without creating pair rows.
 
-`InputConversions` has exactly one selector per input. A nonempty selector names
-the registered bootstrap pair; an empty selector chooses the actual registered
-language default for that direction. A missing selected direction can use only
-that direction's genuine registered default, never an implicit identity/text
-conversion. These are compiled program selectors, not SQL TRANSFORM clauses.
+`CREATE FUNCTION` and `CREATE PROCEDURE ... TRANSFORM FOR TYPE hstore` opt that
+routine into its actual type/language pair. A globally registered bootstrap pair
+does not opt other routines in. Omission uses genuine registered language defaults;
+one-direction pairs fall back only to the missing direction's actual default,
+never an implicit identity/text conversion. Program definitions have no conversion
+selector fields: SQL association is the sole selection authority.
+The ordered list preserves duplicate normalized type IDs and normal dependency
+edges, even for types absent from the signature. Array/domain-over-array list
+entries select their element pair; scalar domains retain their own identity.
+This list normalization does not add array/domain host carriers.
+Missing type/language pairs fail with SQLSTATE 42704. List-only types do not add
+type-USAGE or callback-EXECUTE requirements; signature types, language authority,
+schema creation and replacement ownership retain their ordinary checks.
+`ALTER FUNCTION/PROCEDURE ... TRANSFORM` is invalid syntax. Use CREATE OR REPLACE;
+omitting the clause removes the old association without changing routine identity.
 
 Callbacks use only context and plain Go carriers:
 
@@ -121,9 +134,13 @@ never serializes executable closures or claims that a Go-host stream runs as
 Python SQL on PostgreSQL.
 Native replay rebinds to the destination's immutable registered capabilities and
 fresh catalog/type/pair generations. It preserves dropped/renamed providers and
-real surviving directions rather than re-installing them from names. A strict
-versioned native absence boundary preserves missing pairs before declarations
-consume them; it does not add SQL `TRANSFORM` DDL or persist runtime objects.
+real surviving directions rather than re-installing them from names. The strict
+`stuntgres-host-runtime-v2` prerequisite envelope intentionally rejects old v1
+streams after removal of Program selector fields; no legacy interpretation or
+compatibility shim is provided. The unchanged versioned absence boundary
+preserves missing pairs before declarations consume them. SQL CREATE/DROP
+TRANSFORM definition lifecycle remains separate; this API does not load external
+libraries or persist runtime objects.
 
 
 ### Selecting a logical database

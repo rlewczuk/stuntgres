@@ -65,9 +65,9 @@ func hostOwnerPublicationCancellation(t *testing.T) {
 			}
 			defer scope.Finish(context.Canceled)
 			scope.Catalog = session.NewJournal()
-			query := "CREATE FUNCTION owner_host_unpublished(v hstore DEFAULT 'a=>7'::hstore) RETURNS hstore LANGUAGE owner_host AS 'increment'"
+			query := "CREATE FUNCTION owner_host_unpublished(v hstore DEFAULT 'a=>7'::hstore) RETURNS hstore LANGUAGE owner_host TRANSFORM FOR TYPE hstore AS 'increment'"
 			if replace {
-				query = "CREATE OR REPLACE FUNCTION owner_host_fn(v hstore DEFAULT 'a=>7'::hstore) RETURNS hstore LANGUAGE owner_host AS 'increment'"
+				query = "CREATE OR REPLACE FUNCTION owner_host_fn(v hstore DEFAULT 'a=>7'::hstore) RETURNS hstore LANGUAGE owner_host TRANSFORM FOR TYPE hstore AS 'increment'"
 			}
 			raw := enginetest.Statement(t, query).(*parser.CreateFunction)
 			if err = scope.Gate(raw); err != nil {

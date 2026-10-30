@@ -32,7 +32,6 @@ func checkedDefaultOwnerEngine(t *testing.T, replacement bool) *core.Engine {
 	}
 	definition := hostOwnerDefinition(nil)
 	definition.Programs[0].Inputs = []host.Type{host.Hstore, host.Hstore, host.Hstore}
-	definition.Programs[0].InputConversions = []string{"map", "map", "map"}
 	maps, err := host.New(definition)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +50,7 @@ func checkedDefaultOwnerEngine(t *testing.T, replacement bool) *core.Engine {
 		"CREATE SCHEMA host_types",
 		"CREATE EXTENSION hstore SCHEMA host_types",
 		"SET search_path=host_types,public,pg_catalog",
-		"CREATE FUNCTION public.checked_map(required host_types.hstore, compared host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore), plain host_types.hstore DEFAULT 'a=>7'::host_types.hstore) RETURNS host_types.hstore LANGUAGE owner_host AS 'increment'",
+		"CREATE FUNCTION public.checked_map(required host_types.hstore, compared host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore), plain host_types.hstore DEFAULT 'a=>7'::host_types.hstore) RETURNS host_types.hstore LANGUAGE owner_host TRANSFORM FOR TYPE host_types.hstore AS 'increment'",
 		"CREATE CAST (host_types.hstore AS text) WITH INOUT AS ASSIGNMENT",
 		"CREATE FUNCTION public.checked_text(v text DEFAULT 'a=>7'::host_types.hstore) RETURNS text LANGUAGE primitive_owner AS 'compute'",
 		"DROP CAST (host_types.hstore AS text)",
@@ -174,7 +173,7 @@ func TestHostCheckedDefaultExpressionOwnership(t *testing.T) {
 	// preserving both the namespace and source-position receipt checks.
 	before := catalog.CloneState(read.State())
 	before.RemoveDescriptor(maps.Address())
-	stmt := enginetest.Statement(t, "CREATE FUNCTION public.checked_map(required host_types.hstore, compared host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore), plain host_types.hstore DEFAULT 'a=>7'::host_types.hstore) RETURNS host_types.hstore LANGUAGE owner_host AS 'increment'")
+	stmt := enginetest.Statement(t, "CREATE FUNCTION public.checked_map(required host_types.hstore, compared host_types.hstore DEFAULT NULLIF('a=>1'::host_types.hstore,'a=>1'::host_types.hstore), plain host_types.hstore DEFAULT 'a=>7'::host_types.hstore) RETURNS host_types.hstore LANGUAGE owner_host TRANSFORM FOR TYPE host_types.hstore AS 'increment'")
 	if err := control.ValidateComparisonBinding(read, source.Catalog.Read(before), stmt, namespace, 0); err != nil {
 		t.Fatal("host comparison binding receipt rejected", err)
 	}

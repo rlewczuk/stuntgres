@@ -14,6 +14,16 @@
   options, with nullable domain metadata, whole-table privilege visibility,
   canonical view displays and retained native control round trips.
 
+- Add per-routine CREATE FUNCTION/PROCEDURE TRANSFORM FOR TYPE opt-in over genuine
+  registered type/language pairs and directional language defaults. Preserve ordered
+  normalized display/dependency identities, privilege admission, reassociation and
+  destination-owned native replay. Support actual compiled single-OUT/INOUT host
+  procedures through the shared CALL output record. Remove Program conversion
+  selectors and intentionally advance native host prerequisites to strict v2;
+  old v1 streams are rejected without a compatibility shim. SQL CREATE/DROP
+  TRANSFORM definition lifecycle and external interpreter/native-C ABIs remain
+  separate boundaries.
+
 - Add transactional column statistics targets and distinctness overrides, typed
   catalog metadata, per-column ANALYZE collection and signed planner estimates,
   with immutable publication and native logical Dump/Restore.

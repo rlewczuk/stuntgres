@@ -20,7 +20,7 @@ func normalizeRoutineAttributes(h DDLHost, auth ddl.Authority, d *catalog.Proced
 		case "immutable", "stable", "volatile":
 			group = "volatility"
 		}
-		if d.RoutineKind == catalog.ProcedureRoutine && kind != "security" && kind != "set" && kind != "resetall" {
+		if d.RoutineKind == catalog.ProcedureRoutine && kind != "security" && kind != "set" && kind != "resetall" && kind != "transform" {
 			return expr.ErrorAt("42P13", "invalid attribute in procedure definition", attribute.Pos)
 		}
 		if kind != "set" && kind != "resetall" {
@@ -35,6 +35,8 @@ func normalizeRoutineAttributes(h DDLHost, auth ddl.Authority, d *catalog.Proced
 	for _, attribute := range attributes {
 		kind := attribute.Kind
 		switch kind {
+		case "transform":
+			// Admitted before formal/result types, not an ALTER attribute.
 		case "strict":
 			d.Strict = attribute.Value != "false"
 		case "immutable":

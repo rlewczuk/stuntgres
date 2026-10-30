@@ -536,7 +536,7 @@ var keywords = [...]keyword{
 	{"to", Reserved, false, TO},
 	{"trailing", Reserved, true, 0},
 	{"transaction", Unreserved, true, TRANSACTION},
-	{"transform", Unreserved, true, 0},
+	{"transform", Unreserved, true, ROUTINE_TRANSFORM},
 	{"treat", ColumnName, true, 0},
 	{"trigger", Unreserved, true, TRIGGER},
 	{"trim", ColumnName, true, 0},
