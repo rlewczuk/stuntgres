@@ -1010,6 +1010,7 @@ var Specs = [...]Spec{
 	{InfoUserMappingOptionsOID, 13229, "user_mapping_options", infoUserMappingOptionsColumns, true, false, false, false, "stuntgres: missing user mapping options domain"},
 	{InfoForeignDataWrapperOptionsOID, 13229, "foreign_data_wrapper_options", infoForeignDataWrapperOptionsColumns, true, false, false, false, "stuntgres: missing foreign data wrapper options domain"},
 	{InfoForeignDataWrappersOID, 13229, "foreign_data_wrappers", infoForeignDataWrappersColumns, true, false, false, false, "stuntgres: missing foreign data wrappers domain"},
+	{InfoForeignServerOptionsOID, 13229, "foreign_server_options", infoForeignServerOptionsColumns, true, false, false, false, "stuntgres: missing foreign server options domain"},
 	{InfoForeignServersOID, 13229, "foreign_servers", infoForeignServersColumns, true, false, false, false, "stuntgres: missing foreign servers domain"},
 	{InfoForeignTableOptionsOID, 13229, "foreign_table_options", infoForeignTableOptionsColumns, true, false, false, false, "stuntgres: missing foreign table options domain"},
 	{InfoForeignTablesOID, 13229, "foreign_tables", infoForeignTablesColumns, true, false, false, false, "stuntgres: missing foreign tables domain"},

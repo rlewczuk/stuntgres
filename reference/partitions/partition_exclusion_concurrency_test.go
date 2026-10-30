@@ -1,8 +1,11 @@
 package reference_test
 
 import (
-	"stuntgres/reference/fixture"
+	"database/sql"
+	"database/sql/driver"
 	"testing"
+
+	"stuntgres/reference/fixture"
 )
 
 func TestReferencePartitionExclusionConcurrency(t *testing.T) {
@@ -15,11 +18,33 @@ func TestReferencePartitionExclusionConcurrency(t *testing.T) {
 				fixture.ExclusionReferenceRun(t, p, b, x, s)
 			}
 			partitionExclusionTree(func(s fixture.Step) { run(a, s) }, "")
+			query := "INSERT INTO pe_root VALUES(2,'10.0.0.129','[1,5)'),(3,'10.0.0.1','[3,7)')"
+			var timed *sql.Conn
+			var timedStmt *sql.Stmt
+			if finish == "cancel" && !b.PG {
+				// Prepare the timed route before taking the blocker or arming its
+				// timer. Keep the original peer unarmed for recovery assertions.
+				var err error
+				timed, err = b.DB.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					_ = timed.Raw(func(any) error { return driver.ErrBadConn })
+					_ = timed.Close()
+				})
+				if prepared {
+					timedStmt, err = timed.PrepareContext(p.Ctx, query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer timedStmt.Close()
+				}
+			}
 			run(a, fixture.Exec("BEGIN", 0))
 			run(a, fixture.Exec("INSERT INTO pe_root VALUES(1,'10.0.0.1','[1,5)')", 1))
 			// Same leaf, different tenant must not wait for the owner's outcome.
 			run(peer, fixture.Exec("INSERT INTO pe_root VALUES(9,'10.0.0.2','[3,7)')", 1))
-			query := "INSERT INTO pe_root VALUES(2,'10.0.0.129','[1,5)'),(3,'10.0.0.1','[3,7)')"
 			var pid, owner int
 			if b.PG {
 				pid, owner = fixture.LockPID(t, p.Ctx, peer), fixture.LockPID(t, p.Ctx, a)
@@ -31,9 +56,17 @@ func TestReferencePartitionExclusionConcurrency(t *testing.T) {
 				run(peer, fixture.Exec("SET lock_timeout=0", 0))
 			}
 			if finish == "cancel" && !b.PG {
-				run(peer, fixture.Exec("SET statement_timeout='50ms'", 0))
-				run(peer, referenceRangeError(query, "57014", "canceling statement due to statement timeout", fixture.Diagnostic{}))
-				run(peer, fixture.Exec("SET statement_timeout=0", 0))
+				fixture.RunStep(t, p.Ctx, timed, b.Recorder, fixture.Exec("SET statement_timeout='50ms'", 0))
+				var executor fixture.Executor = timed
+				if prepared {
+					executor = fixture.HeldStatement{Executor: timed, Statement: timedStmt, SQL: query}
+				}
+				// Do not use run: the prepared route must execute the held
+				// statement rather than prepare again under the short timer.
+				fixture.RunStep(t, p.Ctx, executor, b.Recorder, referenceRangeError(query, "57014", "canceling statement due to statement timeout", fixture.Diagnostic{}))
+				if err := timed.Raw(func(any) error { return driver.ErrBadConn }); err != driver.ErrBadConn {
+					t.Fatal("discard timed borrower", err)
+				}
 			} else {
 				done := fixture.RowAsync(t, p.Ctx, peer, query, prepared, false)
 				if b.PG {

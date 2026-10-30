@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
+`columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
 `domain_constraints`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
@@ -66,6 +66,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Foreign-server metadata: `RUN='^TestReferenceInfoForeignServers'`
 - Foreign-table options: `RUN='^TestReferenceInfoForeignTableOptions'`
 - Foreign-table metadata: `RUN='^TestReferenceInfoForeignTables'`
+- Foreign-server options: `RUN='^TestReferenceInfoForeignServerOptions'`
 - Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
@@ -134,6 +135,16 @@ do not invent rows. Referenced-owner enabled roles alone govern disclosure.
 Direct, fresh-prepared and held reads cover lifecycle and role publication;
 native controls retain old rows and use a separate recorded destination pool
 for independent-driver Restore assertions.
+
+Foreign-server option scenarios prescribe four nullable source-owned domains
+(three `sql_identifier`, one `character_data`) and exact configured option bags.
+Immediately inherited server ownership or effective server USAGE admits all
+values, including passwords; denied identities get zero rows. Wrapper, table,
+column and mapping options are exclusion controls. Direct, fresh-prepared and
+held consumers cover identity/ACL and DDL transitions; native controls and
+producer units separately retain eager immutable values, metadata and captured
+authority across replacement. Handlerless metadata reads never contact external
+servers.
 
 Trigger scenarios prescribe seventeen-column domain/driver shape, independent
 event/timing/orientation ranks, TRUNCATE filtering, current-identity presentation

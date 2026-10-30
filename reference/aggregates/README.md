@@ -54,9 +54,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   `ordered_set_cancel_helpers_test.go`):
   - Each direct/prepared route creates its own fixture. The 30-second scenario and
     15-second admission deadlines are never refreshed within a route.
-  - Native admission requires the executing worker's exact goroutine with a live
-    `exec.sortOrderedAggregate` frame in a complete all-goroutine capture; a
-    truncated buffer never admits (it grows, then waits like a miss).
+  - Native labels the owned operation with its full serial subtest name and
+    requires that label and the real `exec.sortOrderedAggregate.func1`
+    comparator in the same goroutine-profile record. It uses pprof's debug=1
+    profile, not runtime.Stack/debug=2 all-goroutine stack dumps; profiler stack
+    truncation cannot substitute an unrelated worker or a launcher-only frame.
   - Native cancellation returns nil Rows/Result/Stmt and `context.Canceled`.
     Cleanup shares one 5-second join with normal cancellation handling.
   - Recovery reuses the same held statement with a small input instead of
@@ -67,8 +69,8 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   `pg_sleep` inside the aggregated value and uses `fixture.SleepActiveCancel`;
   transition and sort cancellation belong to the internal
   `TestSQLJSONObjectAggregateReachedCancellation` unit, not public stack sampling.
-- **Frame names matched by tests.** Ordered-set's separate native sort observer
-  matches `exec.sortOrderedAggregate`; update that probe when renaming it.
+- **Frame names matched by tests.** Ordered-set's labeled native sort observer
+  matches `exec.sortOrderedAggregate.func1`; update it when renaming the comparator.
 - **Client metadata.** The pinned lib/pq OID map lacks some types (for example
   REGCOLLATION and XID8): assert their pq database type name separately from the
   native name.

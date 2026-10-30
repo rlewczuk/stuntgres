@@ -24,6 +24,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared table rules in
   discarded, including on failure, never reset or returned for later assertions.
   PostgreSQL cancellation retains the admitted server wait and exact user-request
   diagnostic; post-cancellation checks run independently of the native timed owner.
+  Exclusion-concurrency timeout probes use the same separate-borrower lifecycle;
+  their direct route stays direct and their prepared route holds the INSERT before
+  the blocker and timer. The unarmed peer retains the complete recovery checks.
 - Query results do not prove that pruned branches or ATTACH validation scans
   were skipped. Engine units assert that natively; on PostgreSQL, ATTACH scan
   elision is read from `pg_stat_user_tables.seq_scan` on the same session after

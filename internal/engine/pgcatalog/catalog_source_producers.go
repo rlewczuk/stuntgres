@@ -147,6 +147,7 @@ var producers = [...]Registration{
 	{InfoTransformsOID, captureInfoTransforms},
 	{InfoForeignDataWrapperOptionsOID, captureInfoForeignDataWrapperOptions},
 	{InfoForeignDataWrappersOID, captureInfoForeignDataWrappers},
+	{InfoForeignServerOptionsOID, captureInfoForeignServerOptions},
 	{InfoForeignServersOID, captureInfoForeignServers},
 	{InfoForeignTableOptionsOID, captureInfoForeignTableOptions},
 	{InfoForeignTablesOID, captureInfoForeignTables},

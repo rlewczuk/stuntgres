@@ -22,6 +22,11 @@ var ivBuiltinQuotePathDefinitions = map[string]string{
     "foreign_server_version",
     "authorization_identifier"
    FROM "_pg_foreign_servers";`,
+	"information_schema.foreign_server_options": ` SELECT "foreign_server_catalog",
+    "foreign_server_name",
+    (("pg_options_to_table"("srvoptions"))."option_name")::"sql_identifier" AS "option_name",
+    (("pg_options_to_table"("srvoptions"))."option_value")::"character_data" AS "option_value"
+   FROM "_pg_foreign_servers" "s";`,
 	"information_schema.foreign_data_wrapper_options": ` SELECT "foreign_data_wrapper_catalog",
     "foreign_data_wrapper_name",
     (("pg_options_to_table"("fdwoptions"))."option_name")::"sql_identifier" AS "option_name",

@@ -3,7 +3,7 @@
 Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
-`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_servers`, `foreign_table_options`, `foreign_tables`, `key_column_usage`,
+`data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
@@ -969,6 +969,14 @@ catalog writes or bypass a provider's independent backing-source checks.
   cancellation publishes no prefix. Its explicit default and pretty builtin
   definitions refer to `_pg_foreign_tables` only for display, not as a fabricated
   executable source. Metadata reads never invoke handlers or perform remote I/O.
+- `information_schema.foreign_server_options`: actual server options in four
+  nullable source-owned domains (three `sql_identifier`, one `character_data`).
+  Immediately inherited server ownership or effective server USAGE exposes all
+  configured values, including passwords and empty strings; denied readers get
+  zero rows, not masked values. Wrapper, table, column and mapping options never
+  contribute. Eager owned rows retain the paired immutable catalog/role capture
+  across later publication; cancellation discards every row. Metadata reads
+  neither create servers, execute handlers nor contact external servers.
 - `key_column_usage`: foreign-key positions follow the supporting index's
   ordered keys; visibility is owner inheritance or a column privilege.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
@@ -1248,6 +1256,7 @@ a hash root alone does not select that access method.
 - Foreign-wrapper option producer units (core): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (core): `RUN='^TestInfoForeignDataWrappers'`
 - Foreign-server producer units (core): `RUN='^TestInfoForeignServers'`
+- Foreign-server option producer units (core): `RUN='^TestInfoForeignServerOptions'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Type procedure dependency ownership and retirement (composed engine):
   `RUN='^TestTypeProcedureDependencies'`.

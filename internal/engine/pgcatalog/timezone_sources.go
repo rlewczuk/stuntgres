@@ -66,7 +66,7 @@ func timezoneViewWriteError(d *catalog.Relation, operation string) error {
 		detail = "Views containing UNION, INTERSECT, or EXCEPT are not automatically updatable."
 	} else if d.Address().ObjectID == InfoColumnColumnUsageOID {
 		detail = "Views containing DISTINCT are not automatically updatable."
-	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
+	} else if d.Address().ObjectID == InfoColumnOptionsOID || d.Address().ObjectID == InfoForeignDataWrapperOptionsOID || d.Address().ObjectID == InfoForeignServerOptionsOID || d.Address().ObjectID == InfoForeignTableOptionsOID {
 		detail = "Views that return set-returning functions are not automatically updatable."
 	}
 	upper := strings.ToUpper(operation)
