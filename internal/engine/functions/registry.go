@@ -102,6 +102,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_listening_channels", "pg_notification_queue_usage"}, Bind: bindNotificationInfo},
 	{Names: recoveryInfoNames[:], ExactSpelling: true, Bind: bindRecoveryInfo},
 	{Names: recoveryControlNames[:], ExactSpelling: true, Bind: bindRecoveryControl, NamedCall: namedRecoveryControl},
+	{Names: replicationMessagesNames[:], ExactSpelling: true, Bind: bindReplicationMessages, NamedCall: namedReplicationMessages},
 	{Names: walSummaryNames[:], ExactSpelling: true, Bind: bindWALSummary, NamedCall: namedWALSummary},
 	{Names: controlDataNames[:], ExactSpelling: true, Bind: bindControlData},
 	{Names: runtimeInfoNames[:], ExactSpelling: true, Bind: bindRuntimeInfo},

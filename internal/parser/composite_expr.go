@@ -63,6 +63,14 @@ func ordinarySignatureName(name string) bool {
 		strings.EqualFold(name, "percentile_cont") || strings.EqualFold(name, "percentile_disc") || strings.EqualFold(name, "mode")
 }
 
+// selectedWithinFunctionName keeps the selected scalar grammar's failure-only
+// WITHIN envelope bounded; signature resolution still owns its diagnostics.
+func selectedWithinFunctionName(name string) bool {
+	return ArrayTransformFunctionName(name) ||
+		strings.EqualFold(name, "pg_logical_emit_message") ||
+		strings.EqualFold(name, "pg_sync_replication_slots")
+}
+
 // WITHIN owns the aggregate input order, rather than an ordinary in-call order.
 func withinCall(l sqlLexer, expr Expr, token lexeme, order []OrderKey) (Expr, bool) {
 	var distinct, variadic bool

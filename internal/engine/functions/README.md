@@ -125,6 +125,18 @@ including the distinction between optimizer-elided NULLs and surviving calls.
 Capture, checked reconstruction and stored rendering preserve routine provenance,
 operand order and named destinations through ordinary native control replay.
 
+`ReplicationMessages` retains immutable PG_LSN/VOID scalar recipes and supplied
+operands in written order, with checked formal destinations. Text and bytea keep
+distinct routine identities; omitted `flush` denotes the declaration's false
+default and the third input's actual callable name is `message`. All supplied
+children evaluate before strict typed NULL handling. Ordinary live EXECUTE
+admission distinguishes erased constant NULLs from surviving calls. Emission
+requires no replication attribute and rejects unavailable WAL publication without
+copying message bytes or inventing an LSN. Synchronization alone borrows the narrow
+live `SyncReplicationSlots` capability to check the current actor's own attribute,
+then rejects physical synchronization. No authority or physical state is retained;
+capture, reconstruction and stored rendering use the ordinary recipe protocols.
+
 `WALSummary` retains immutable typed RECORD recipes, written operands and formal
 slots for two set sources and one scalar state inquiry. All written operands
 evaluate before strict NULL yields an exhausted typed contents source; timeline
@@ -1186,6 +1198,8 @@ Recovery inquiry carriers, fixed OUT validation and physical source admission us
 `RUN='^TestRecoveryInfo'`; public witnesses use `^TestReferenceRecoveryInfo`.
 Recovery-control typed recipes, reconstruction and ACL seed units use
 `RUN='^TestRecoveryControl'`; public witnesses use `^TestReferenceRecoveryControl`.
+Replication-message declarations, binding, strict evaluation and immutable
+protocols use `RUN='^TestReplicationMessages'`; public SQL is in `reference/sessions`.
 WAL summary declarations, typed shapes, evaluation and owned reconstruction use
 `RUN='^TestWALSummary'`; public scenarios live in sessions and roles.
 Control-file declaration, shape, cancellation and immutable protocol units use

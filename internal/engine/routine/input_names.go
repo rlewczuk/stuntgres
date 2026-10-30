@@ -10,6 +10,8 @@ import (
 // All other instantiated declarations are genuinely unnamed.
 var builtinRoutineInputNames = map[ids.OID]*catalog.RoutineInputNames{
 	3436: catalog.NewRoutineInputNames("wait", "wait_seconds"),
+	3577: catalog.NewRoutineInputNames("transactional", "prefix", "message", "flush"),
+	3578: catalog.NewRoutineInputNames("transactional", "prefix", "message", "flush"),
 	6363: catalog.NewRoutineInputNames("kwargs"),
 	6398: catalog.NewRoutineInputNames("schemaname", "relname", "attname", "inherited"),
 	6362: catalog.NewRoutineInputNames("kwargs"),

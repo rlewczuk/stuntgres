@@ -41,6 +41,14 @@ with explicit 0A000 and publish no slot or session ownership state. Drop/copy
 truthfully report missing slots; advance rejects zero LSN before lookup.
 There is no provider, dummy slot store or synthesized replication position.
 
+`SyncReplicationSlots` is a narrow live statement capability, borrowed through
+the ordinary exec host after routine EXECUTE admission. It captures the effective
+actor under Engine → Session lock order, releases locks, checks its own superuser
+or REPLICATION attribute (not membership), and rejects unavailable physical slot
+synchronization with 0A000. Held recipes retain no actor, authorization or provider
+state. Logical-message publication needs no intrinsic role check or host state;
+the typed function rejects unavailable WAL publication after strictness.
+
 
 Application-provisioned scalar host routines use the same typed frame, invocation
 depth, EXECUTE admission, security/settings environment, volatility policy and

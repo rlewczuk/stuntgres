@@ -133,6 +133,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Stock triggered change notifications: `RUN='^TestReferenceTcn'`
 - Notification state inquiries: `RUN='^TestReferenceNotificationInfo'`
 - Recovery inquiries and physical registry admission: `RUN='^TestReferenceRecoveryInfo'`
+- Logical-message signatures, strictness, live ACLs and physical demand: `RUN='^TestReferenceReplicationMessages'`
 - WAL summary signatures, metadata and physical demand: `RUN='^TestReferenceWALSummary'`
 - Control-file signatures, metadata, diagnostics and physical demand: `RUN='^TestReferenceControlData'`
 - `pg_locks`: `RUN='^TestReferenceViewLocks'`

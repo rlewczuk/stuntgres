@@ -204,7 +204,9 @@ func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork s
 
 func (c *Context) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	host := c.LiveHost()
-	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: missing database files inquiry snapshot") }
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing database files inquiry snapshot")
+	}
 	return host.DatabaseFilesInquiry(kind, arg, second, result)
 }
 
@@ -1001,18 +1003,32 @@ func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, 
 
 func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {
 	host := c.LiveHost()
-	if host == nil { return fmt.Errorf("stuntgres: missing replication slot host") }
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing replication slot host")
+	}
 	return host.ReplicationSlot(kind, arity, values)
+}
+
+func (c *Context) SyncReplicationSlots() error {
+	host := c.LiveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing replication synchronization host")
+	}
+	return host.SyncReplicationSlots()
 }
 
 func (c *Context) AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error) {
 	host := c.LiveHost()
-	if host == nil { return false, fmt.Errorf("stuntgres: missing attribute statistics host") }
+	if host == nil {
+		return false, fmt.Errorf("stuntgres: missing attribute statistics host")
+	}
 	return host.AttributeStatistics(clear, variadic, values)
 }
 
 func (c *Context) RelationStatistics(clear, variadic bool, values []sqltype.Value) (bool, error) {
 	host := c.LiveHost()
-	if host == nil { return false, fmt.Errorf("stuntgres: missing relation statistics host") }
+	if host == nil {
+		return false, fmt.Errorf("stuntgres: missing relation statistics host")
+	}
 	return host.RelationStatistics(clear, variadic, values)
 }

@@ -115,6 +115,13 @@ preserves explicitly replaced raw NULL ACLs rather than reapplying restrictions.
 Only exact restricted identity, bootstrap owner and one ordered owner-EXECUTE
 entry are omitted as reconstructed authority; untouched seeds add no dump repairs.
 
+Logical-message text/bytea declarations retain released identities 3577/3578,
+input names `transactional,prefix,message,flush` and one literal BOOL false
+default; three supplied arguments use the same four-input identity. The zero-input
+sync declaration is 6344. All three are strict, volatile, parallel-unsafe scalar
+INTERNAL/INVOKER routines with ordinary default PUBLIC EXECUTE, never restricted
+ACL seeds. Per-overload grants/revokes and native replay use the shared ACL owner.
+
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
 input-only signature. Functions with multiple outputs and procedures with any

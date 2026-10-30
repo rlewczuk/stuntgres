@@ -1193,21 +1193,48 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.lexeme.keyword != nil && l.previousToken != int('.') {
 		switch token.lexeme.text {
 		case "xmlconcat", "xmlelement", "xmlforest", "xmlpi", "xmlroot":
-			next:=l.nextRaw();l.lookahead,l.hasLookahead=next,true
-			if next.code==int('(') {
-				switch token.lexeme.text {case "xmlconcat":token.code=XML_CONCAT;case "xmlelement":token.code=XML_ELEMENT;case "xmlforest":token.code=XML_FOREST;case "xmlpi":token.code=XML_PI;case "xmlroot":token.code=XML_ROOT}
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == int('(') {
+				switch token.lexeme.text {
+				case "xmlconcat":
+					token.code = XML_CONCAT
+				case "xmlelement":
+					token.code = XML_ELEMENT
+				case "xmlforest":
+					token.code = XML_FOREST
+				case "xmlpi":
+					token.code = XML_PI
+				case "xmlroot":
+					token.code = XML_ROOT
+				}
 			}
 		}
-		if len(l.xmlDepths)>0 {
-			state:=&l.xmlDepths[len(l.xmlDepths)-1]
-			if state.Construct!="" {
-				if l.jsonParenDepth==state.Depth {
+		if len(l.xmlDepths) > 0 {
+			state := &l.xmlDepths[len(l.xmlDepths)-1]
+			if state.Construct != "" {
+				if l.jsonParenDepth == state.Depth {
 					switch token.lexeme.text {
-					case "name":if l.previousToken==int('(')&&(state.Construct=="xmlelement"||state.Construct=="xmlpi"){token.code=XML_NAME}
-					case "version":if l.previousToken==int(',')&&state.Construct=="xmlroot"{token.code=XML_VERSION}
-					case "standalone":if l.previousToken==int(',')&&state.Construct=="xmlroot"{token.code=XML_STANDALONE}
-					case "yes":if l.previousToken==XML_STANDALONE{token.code=XML_YES}
-					case "xmlattributes":if l.previousToken==int(',')&&state.Construct=="xmlelement"{token.code=XML_ATTRIBUTES}
+					case "name":
+						if l.previousToken == int('(') && (state.Construct == "xmlelement" || state.Construct == "xmlpi") {
+							token.code = XML_NAME
+						}
+					case "version":
+						if l.previousToken == int(',') && state.Construct == "xmlroot" {
+							token.code = XML_VERSION
+						}
+					case "standalone":
+						if l.previousToken == int(',') && state.Construct == "xmlroot" {
+							token.code = XML_STANDALONE
+						}
+					case "yes":
+						if l.previousToken == XML_STANDALONE {
+							token.code = XML_YES
+						}
+					case "xmlattributes":
+						if l.previousToken == int(',') && state.Construct == "xmlelement" {
+							token.code = XML_ATTRIBUTES
+						}
 					}
 				}
 			}
@@ -1243,22 +1270,29 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				switch token.lexeme.text {
 				case "xmlnamespaces":
 					if !state.Passed && l.previousToken == int('(') {
-						next := l.nextRaw(); l.lookahead, l.hasLookahead = next, true
-						if next.code == int('(') { token.code = XML_NAMESPACES }
+						next := l.nextRaw()
+						l.lookahead, l.hasLookahead = next, true
+						if next.code == int('(') {
+							token.code = XML_NAMESPACES
+						}
 					}
 				case "columns":
 					if state.Passed && !state.Columns && state.DocumentStarted {
-						token.code = XML_COLUMNS; state.Columns = true
+						token.code = XML_COLUMNS
+						state.Columns = true
 					}
 				case "path":
 					if state.Columns && state.ColumnStage >= 3 {
 						switch l.previousToken {
 						case XML_COLUMNS, ',', XML_PATH, DEFAULT, '(', '+', '-', '*', '/', '=', '<', '>', SYMBOLIC_OPERATOR:
-						default: token.code = XML_PATH
+						default:
+							token.code = XML_PATH
 						}
 					}
 				case "setof":
-					if state.Columns { token.code = SETOF_TYPE }
+					if state.Columns {
+						token.code = SETOF_TYPE
+					}
 				}
 			}
 			if token.code == AS && state.Serialize {
@@ -1767,9 +1801,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
-	// Recovery calls reuse failure-only star/decorator syntax; their binders
-	// remain the signature and cardinality authority.
-	if token.code == SELECTED_FUNC && (strings.EqualFold(token.lexeme.text, "pg_get_wal_resource_managers") || strings.EqualFold(token.lexeme.text, "pg_is_wal_replay_paused") || strings.EqualFold(token.lexeme.text, "pg_get_wal_replay_pause_state") || strings.EqualFold(token.lexeme.text, "pg_promote") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_pause") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_resume")) {
+	// Administrative scalar calls reuse failure-only star/decorator syntax;
+	// their binders remain the signature and cardinality authority.
+	if (token.code == IDENT || token.code == SELECTED_FUNC || token.code == CHECK_FUNC) && (strings.EqualFold(token.lexeme.text, "pg_logical_emit_message") || strings.EqualFold(token.lexeme.text, "pg_sync_replication_slots") || strings.EqualFold(token.lexeme.text, "pg_get_wal_resource_managers") || strings.EqualFold(token.lexeme.text, "pg_is_wal_replay_paused") || strings.EqualFold(token.lexeme.text, "pg_get_wal_replay_pause_state") || strings.EqualFold(token.lexeme.text, "pg_promote") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_pause") || strings.EqualFold(token.lexeme.text, "pg_wal_replay_resume")) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
@@ -1970,22 +2004,25 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.routineFormalDefault = false
 		}
 	}
-	if len(l.xmlDepths)>0 {
-		state:=&l.xmlDepths[len(l.xmlDepths)-1]
-		if state.Table && state.Passed && !state.Columns && state.Depth==l.jsonParenDepth {
+	if len(l.xmlDepths) > 0 {
+		state := &l.xmlDepths[len(l.xmlDepths)-1]
+		if state.Table && state.Passed && !state.Columns && state.Depth == l.jsonParenDepth {
 			switch token.code {
 			case XML_PASSING, BY, XML_PASS_KIND:
-			default: state.DocumentStarted=true
+			default:
+				state.DocumentStarted = true
 			}
 		}
-		if state.Table && state.Columns && state.Depth==l.jsonParenDepth {
+		if state.Table && state.Columns && state.Depth == l.jsonParenDepth {
 			switch token.code {
 			case XML_COLUMNS, ',':
-				state.ColumnStage=1
+				state.ColumnStage = 1
 			case SETOF_TYPE:
 				// SETOF is a declaration modifier, not the type itself.
 			default:
-				if state.ColumnStage==1 || state.ColumnStage==2 { state.ColumnStage++ }
+				if state.ColumnStage == 1 || state.ColumnStage == 2 {
+					state.ColumnStage++
+				}
 			}
 		}
 	}

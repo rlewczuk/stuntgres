@@ -37,7 +37,7 @@ func builtinLiteralDefaults(oid ids.OID) *catalog.RoutineLiteralDefaults {
 		return catalog.NewRoutineLiteralDefaults(literal(1009, "{}"))
 	case 3464:
 		return catalog.NewRoutineLiteralDefaults(literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(23, "0"), literal(1700, "0.0"))
-	case 3579, 3261, 3960, 3961:
+	case 3577, 3578, 3579, 3261, 3960, 3961:
 		return catalog.NewRoutineLiteralDefaults(literal(16, "false"))
 	case 1177, 1179, 1180, 2023, 2030, 4005, 4006, 4007, 4008, 4009:
 		return catalog.NewRoutineLiteralDefaults(literal(3802, "{}"), literal(16, "false"))

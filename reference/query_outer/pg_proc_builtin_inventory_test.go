@@ -37,6 +37,8 @@ import (
 // parallel-safe TEXT declaration, cost 1 and internal implementation symbol.
 // The nine replication-slot lifecycle declarations retain strict/volatile/
 // parallel-unsafe metadata, exact OUT formals, defaults and overload symbols.
+// Logical-message OIDs3577/3578 and sync OID6344 retain strict/volatile/
+// parallel-unsafe scalar declarations, actual message input names and emit defaults.
 // XML aggregate OID2901 retains its non-strict IMMUTABLE/parallel-safe XML
 // signature and aggregate_dummy symbol; xmlconcat2 remains lookup-only.
 // Relation/attribute statistics restore/clear OIDs6362/6397/6363/6398 add
@@ -151,9 +153,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// XML aggregate OID2901, three relation-file location declarations,
 	// four relation/attribute statistics administration declarations, and the
 	// ordinary XML construction identities xmlcomment/xmltext, and the five
-	// strict/volatile/parallel-safe recovery-control declarations.
-	if len(facts) != 2127 {
-		t.Fatalf("released represented overloads: got %d, want 2127", len(facts))
+	// strict/volatile/parallel-safe recovery-control declarations, plus the
+	// three strict/volatile/parallel-unsafe logical-message/sync declarations.
+	if len(facts) != 2130 {
+		t.Fatalf("released represented overloads: got %d, want 2130", len(facts))
 	}
 	return facts
 }

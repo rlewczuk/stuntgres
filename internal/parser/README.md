@@ -71,6 +71,10 @@ single-statement limit of driver calls) belong to callers.
   tokens use lexer syntax, not the session setting integer consumer.
 - Grammar actions copy semantic values and allocate AST nodes and backing
   slices independently, so no returned AST depends on parser lifetime.
+- Selected logical-message and slot-synchronization calls retain failure-only
+  WITHIN GROUP order expressions in their ordinary function AST. Resolution owns
+  the combined argument signature and scalar-decoration errors; parsing grants no
+  aggregate behavior or adjacent selected-family syntax.
 - XML construction syntax retains a closed operation kind, positioned named
   operands, expression-valued VERSION, explicit versus absent PI data and four
   standalone states. Contextual constructor keywords never globally reserve

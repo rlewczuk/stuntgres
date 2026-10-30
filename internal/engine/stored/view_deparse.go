@@ -1334,10 +1334,19 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		}
 		return text, nil
 	case parser.XMLConstructExpr:
-		captured,err:=v.capturedXML(path,e);if err!=nil{return "",err}
-		texts:=make([]string,0,len(e.Named)+len(e.Args)+1)
-		for _,operand:=range e.Children(){text,err:=child(operand);if err!=nil{return "",err};texts=append(texts,text)}
-		return xmlConstructRecipe(e,texts,captured)
+		captured, err := v.capturedXML(path, e)
+		if err != nil {
+			return "", err
+		}
+		texts := make([]string, 0, len(e.Named)+len(e.Args)+1)
+		for _, operand := range e.Children() {
+			text, err := child(operand)
+			if err != nil {
+				return "", err
+			}
+			texts = append(texts, text)
+		}
+		return xmlConstructRecipe(e, texts, captured)
 	case parser.XMLDocumentPredicateExpr:
 		text, err := child(e.Child)
 		if err != nil {
@@ -1925,7 +1934,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 			}
 			return functionName + "(" + strings.Join(parts, ", ") + ")", nil
 		}
-		if name == "pg_promote" || name == "pg_restore_relation_stats" || name == "pg_clear_relation_stats" || name == "pg_restore_attribute_stats" || name == "pg_clear_attribute_stats" || name == "pg_create_physical_replication_slot" || name == "pg_create_logical_replication_slot" || name == "pg_drop_replication_slot" || name == "pg_copy_physical_replication_slot" || name == "pg_copy_logical_replication_slot" || name == "pg_replication_slot_advance" || name == "pg_wal_summary_contents" || parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || parser.JSONBPathQueryFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
+		if name == "pg_logical_emit_message" || name == "pg_promote" || name == "pg_restore_relation_stats" || name == "pg_clear_relation_stats" || name == "pg_restore_attribute_stats" || name == "pg_clear_attribute_stats" || name == "pg_create_physical_replication_slot" || name == "pg_create_logical_replication_slot" || name == "pg_drop_replication_slot" || name == "pg_copy_physical_replication_slot" || name == "pg_copy_logical_replication_slot" || name == "pg_replication_slot_advance" || name == "pg_wal_summary_contents" || parser.ACLValueFunctionName(name) || parser.ObjectAddressFunctionName(name) || parser.RegexpFunctionName(name) || name == "pg_get_acl" || name == "make_date" || name == "make_time" || name == "make_timestamp" || name == "make_timestamptz" || name == "make_interval" || name == "json_strip_nulls" || parser.JSONBSetFunctionName(name) || parser.JSONBPathQueryFunctionName(name) || name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 			functionName, identifier := "pg_catalog."+name, catalog.QuoteIdentifier
 			if v.Presentation.Deparse {
 				functionName, identifier = v.Presentation.identifier(name), v.Presentation.identifier

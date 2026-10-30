@@ -80,3 +80,34 @@ func TestArrayTransformWithinGrammar(t *testing.T) {
 		t.Fatal("adjacent array search decoration admitted")
 	}
 }
+
+func TestReplicationMessagesWithinGrammar(t *testing.T) {
+	for _, name := range []string{"pg_logical_emit_message", "pg_catalog.pg_logical_emit_message", "PG_LOGICAL_EMIT_MESSAGE"} {
+		for _, order := range []string{"1", "false"} {
+			query := "SELECT " + name + "(true,'p','x') WITHIN GROUP (ORDER BY " + order + ")"
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+			if !ok || !call.Within || len(call.Args) != 3 || len(call.Order) != 1 || call.WithinPos.Character != len("SELECT "+name+"(true,'p','x') ")+1 {
+				t.Fatal("selected scalar WITHIN attachment", query, call)
+			}
+			if _, err := Parse(query + " trailing junk"); err == nil {
+				t.Fatal("valid prefix accepted", query)
+			}
+		}
+	}
+	statements, err := Parse("SELECT pg_sync_replication_slots() WITHIN GROUP (ORDER BY false)")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+	if !ok || !call.Within || len(call.Args) != 0 || len(call.Order) != 1 {
+		t.Fatal("zero-input scalar WITHIN attachment", call)
+	}
+	// The shared selected-call grammar must not widen adjacent family syntax.
+	if _, err := Parse("SELECT pg_promote() WITHIN GROUP (ORDER BY false)"); err == nil {
+		t.Fatal("adjacent administrative decoration admitted")
+	}
+}

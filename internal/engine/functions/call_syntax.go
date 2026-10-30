@@ -64,6 +64,8 @@ func CallDecorationError(raw parser.FunctionExpr) error {
 	switch {
 	case raw.Distinct:
 		decoration = "DISTINCT"
+	case raw.Within:
+		decoration = "WITHIN GROUP"
 	case len(raw.Order) != 0:
 		decoration = "ORDER BY"
 	case raw.Filter != nil:

@@ -1215,6 +1215,40 @@ effects and temporary-session cleanup are reference-only mechanism witnesses,
 not native simulated success. Logical Dump/Reset/Restore retains typed view
 recipes and routine privileges, never physical slots or replication positions.
 
+## Logical WAL messages and slot synchronization boundary
+
+`pg_logical_emit_message(transactional boolean, prefix text, message text,
+flush boolean DEFAULT false)` and its bytea-message overload return PG_LSN.
+Named calls use `message`, not the manual's explanatory `content` label. The
+transactional/flush flags are independent valid booleans; transactional true with
+flush true is not an option conflict. All supplied expressions are analyzed and
+evaluated before runtime strictness: a supplied NULL produces one typed PG_LSN
+NULL, including in scalar FROM, while omitted flush means false. Zero-row
+projections expose PG_LSN without physical demand. EXECUTE follows each overload's
+ordinary mutable ACL (default PUBLIC); emission imposes no REPLICATION, slot,
+plugin, prefix or WAL-level gate.
+
+After those checks, embedded non-NULL emission rejects with 0A000:
+`pg_logical_emit_message logical WAL publication is unsupported in embedded mode`.
+It never publishes WAL, flushes a record or invents a successful LSN. Stock
+PostgreSQL instead publishes the real message bytes and returns a genuine WAL
+position; that disk-backed operation is not simulated by the logical engine.
+
+`pg_sync_replication_slots()` has zero inputs and scalar VOID metadata. Ordinary
+EXECUTE admission precedes its live current-role superuser/REPLICATION check;
+membership alone does not confer the attribute. Unauthorized use reports 42501
+`permission denied to use replication slots`, with detail
+`Only roles with the REPLICATION attribute may use replication slots.`
+Authorized embedded demand rejects with 0A000:
+`pg_sync_replication_slots physical replication slot synchronization is unsupported in embedded mode`.
+It creates no slots and never reports successful VOID synchronization. Stock
+PostgreSQL checks its physical standby/configuration/provider state instead;
+on the fixture primary it reports 55000
+`replication slots can only be synchronized to a standby server`.
+Prepared calls retain typed identity, not authority: role/attribute/ACL changes
+are checked live. Logical Dump/Reset/Restore preserves named view recipes and
+ordinary routine ACLs, never physical WAL or synchronized slots.
+
 ## Server file access boundary
 
 The typed SQL surface includes `pg_ls_dir(text)` and

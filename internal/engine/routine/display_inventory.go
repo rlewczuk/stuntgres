@@ -11,9 +11,9 @@ import (
 // replacements matched by original name and declared inputs; their source is empty.
 // This table never creates routines or grants execution admission.
 type builtinDisplayFacts struct {
-	Language catalog.RoutineLanguage
-	Source   string
-	Cost     float32
+	Language        catalog.RoutineLanguage
+	Source          string
+	Cost            float32
 	OmitAllArgTypes bool
 }
 
@@ -1530,6 +1530,9 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	3436: {Language: catalog.InternalRoutineLanguage, Source: "pg_promote"},
 	3071: {Language: catalog.InternalRoutineLanguage, Source: "pg_wal_replay_pause"},
 	3072: {Language: catalog.InternalRoutineLanguage, Source: "pg_wal_replay_resume"},
+	3577: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_emit_message_text"},
+	3578: {Language: catalog.InternalRoutineLanguage, Source: "pg_logical_emit_message_bytea"},
+	6344: {Language: catalog.InternalRoutineLanguage, Source: "pg_sync_replication_slots"},
 	3820: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_wal_receive_lsn"},
 	3821: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_wal_replay_lsn"},
 	3830: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_xact_replay_timestamp"},

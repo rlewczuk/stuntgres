@@ -32405,7 +32405,7 @@ sqldefault:
 	case 2261:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
 		{
-			if !ArrayTransformFunctionName(sqlDollar[1].call.Name.Parts[len(sqlDollar[1].call.Name.Parts)-1].Text) {
+			if !selectedWithinFunctionName(sqlDollar[1].call.Name.Parts[len(sqlDollar[1].call.Name.Parts)-1].Text) {
 				sqllex.(*lexer).syntax(sqlDollar[2].tok)
 				return 1
 			}

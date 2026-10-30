@@ -82,6 +82,9 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3436, "pg_promote", "pg_promote", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3071, "pg_wal_replay_pause", "pg_wal_replay_pause", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3072, "pg_wal_replay_resume", "pg_wal_replay_resume", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3577, "pg_logical_emit_message", "pg_logical_emit_message_text", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3578, "pg_logical_emit_message", "pg_logical_emit_message_bytea", "INTERNAL", "INVOKER"},
+		irBuiltinFact{6344, "pg_sync_replication_slots", "pg_sync_replication_slots", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3820, "pg_last_wal_receive_lsn", "pg_last_wal_receive_lsn", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3821, "pg_last_wal_replay_lsn", "pg_last_wal_replay_lsn", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3830, "pg_last_xact_replay_timestamp", "pg_last_xact_replay_timestamp", "INTERNAL", "INVOKER"},
@@ -101,8 +104,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1769 {
-		t.Fatalf("released represented inventory: got %d, want 1769", len(facts))
+	if len(facts) != 1772 {
+		t.Fatalf("released represented inventory: got %d, want 1772", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

@@ -87,6 +87,7 @@ type Host interface {
 	GenericFileList(functions.GenericFileListKind, string) error
 	LogicalDecoding(sqltype.Value, sqltype.Value) error
 	ReplicationSlot(functions.ReplicationSlotKind, uint8, [5]sqltype.Value) error
+	SyncReplicationSlots() error
 	AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
 	RelationStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error

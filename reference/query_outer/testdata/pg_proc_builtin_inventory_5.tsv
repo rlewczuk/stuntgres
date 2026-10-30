@@ -43,3 +43,6 @@
 3436	pg_promote	11	12	1	0	0	0	f	false	false	true	false	v	s	2	2	16	16 23	\N	\N	{wait,wait_seconds}	true	\N	pg_promote	\N	false	\N
 3071	pg_wal_replay_pause	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2278		\N	\N	\N	false	\N	pg_wal_replay_pause	\N	false	\N
 3072	pg_wal_replay_resume	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	2278		\N	\N	\N	false	\N	pg_wal_replay_resume	\N	false	\N
+3577	pg_logical_emit_message	11	12	1	0	0	0	f	false	false	true	false	v	u	4	1	3220	16 25 25 16	\N	\N	{transactional,prefix,message,flush}	true	\N	pg_logical_emit_message_text	\N	false	\N
+3578	pg_logical_emit_message	11	12	1	0	0	0	f	false	false	true	false	v	u	4	1	3220	16 25 17 16	\N	\N	{transactional,prefix,message,flush}	true	\N	pg_logical_emit_message_bytea	\N	false	\N
+6344	pg_sync_replication_slots	11	12	1	0	0	0	f	false	false	true	false	v	u	0	0	2278		\N	\N	\N	false	\N	pg_sync_replication_slots	\N	false	\N
