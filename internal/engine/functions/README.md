@@ -609,11 +609,15 @@ Public execution, ACLs and stored consumers use
   family, never a scalar-FROM fallback.
 - Datetime sleep providers admit a scalar-once VOID source using the same
   evaluation, wait, cancellation and authority path as scalar calls.
-- Arguments evaluate once per open in native order. Each invocation's state is
+- Each family owns argument demand and native order. Each invocation's state is
   released by close, EOF, error and cancellation without invalidating emitted
   values; set families convert a complete invocation privately before
-  publishing a row. `JSONTable` is a composite source carrier whose
-  `OpenSource` owns all row state.
+  publishing a row. `JSONTable` and `XMLTable` are immutable composite source
+  carriers whose `OpenSource` owns all row state. XMLTABLE keeps written child
+  indexes and resolved output usages only; document-first initialization and
+  per-missing-row DEFAULT demand occur inside each private eager invocation.
+  Unsupported default namespace registration is likewise runtime demand: NULL
+  documents bypass it, and strict document parsing and URI NULL checks precede it.
 - Occurrence hooks keep each family's exact identity, not structural equality.
   Equivalent-child substitution preserves selected providers and never calls
   `Reconstruct`. Query scheduling stays in the engine.

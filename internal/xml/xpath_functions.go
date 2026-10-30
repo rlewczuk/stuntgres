@@ -39,9 +39,11 @@ func (f *xpathFrame) call(e *xpathExpr) xpathValue {
 		first = args[0]
 	}
 	// libxml demands argument expressions before resolving the function or arity.
-	if prefix, _, qualified := strings.Cut(e.name, ":"); qualified && prefix != "xml" {
-		f.runtimeError("")
-		return xpathValue{}
+	if prefix, _, qualified := strings.Cut(e.name, ":"); qualified {
+		if _, resolved := f.namespaceURI(prefix); !resolved {
+			f.runtimeError("")
+			return xpathValue{}
+		}
 	}
 	minimum, maximum := 1, 1
 	switch e.name {

@@ -93,6 +93,9 @@ func RowLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtua
 	var visit func(parser.FromItem, string)
 	visit = func(item parser.FromItem, alias string) {
 		switch n := item.(type) {
+		case *parser.XMLTable:
+			if alias == "" { alias = "xmltable" }
+			targets = append(targets, target{name: alias, function: true})
 		case *parser.JSONTable:
 			if alias == "" {
 				alias = "json_table"

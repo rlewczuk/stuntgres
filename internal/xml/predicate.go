@@ -33,27 +33,11 @@ func XMLExists(ctx context.Context, path string, value Result) (bool, []Diagnost
 	if path == "" {
 		return false, nil, &XPathError{Stage: "empty"}
 	}
-	input := value.original
-	declaration, detail, err := readContentDeclaration(ctx, input)
+	frame, events, err := documentFrame(ctx, value)
 	if err != nil {
-		return false, nil, err
-	}
-	if detail == "" && declaration.Present {
-		input = input[declaration.End:]
-	}
-	_, document, events, err := parseConfigured(ctx, input, Options{Mode: Document}, parsePolicy{collect: true, strictNamespaces: true, strictValidity: true, preserveEntities: true, omitDefaultAttributes: true, documentContext: true})
-	if err != nil {
-		var pe *ParseError
-		if errors.As(err, &pe) {
-			return false, events, &XPathContextError{Parse: pe}
-		}
 		return false, events, err
 	}
 	expression, err := compileXPath(ctx, path)
-	if err != nil {
-		return false, events, err
-	}
-	frame, err := newXPathTree(ctx, document)
 	if err != nil {
 		return false, events, err
 	}

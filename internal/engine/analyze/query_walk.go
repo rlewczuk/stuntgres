@@ -467,6 +467,9 @@ func SameQuerySourceAliases(a, b parser.FromItem) bool {
 		return a == nil && b == nil
 	}
 	switch n := a.(type) {
+	case *parser.XMLTable:
+		o, ok := b.(*parser.XMLTable)
+		return ok && n.Lateral == o.Lateral
 	case *parser.JSONTable:
 		o, ok := b.(*parser.JSONTable)
 		return ok && n.Lateral == o.Lateral

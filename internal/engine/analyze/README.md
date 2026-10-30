@@ -162,6 +162,13 @@ serializer syntax across native and catalog cast graphs. Special XMLEXISTS lower
 to an ordinary qualified call: the normal routine resolver owns overload selection,
 implicit formal applicability, EXECUTE authority, dependencies and frozen capture.
 Frozen usages and source occurrences, not raw names, authenticate XML operations.
+XMLTABLE uses the same assignment-source resolver with its actual written
+operand as the selected conversion's recipe. Source and DEFAULT user-cast calls
+therefore retain ordinary frame/source-keyed routine occurrences. The accepted
+written-family witness seals only after every source capture completes, including
+late builtin provider annotations, and before publishing the relational node.
+Scalar XML callers keep their existing synthetic source-spine presentation rather
+than acquiring relational replay recipes.
 
 Installed connectby calls complete anonymous caller definitions through the
 same captured type/collation/input authority as other record sources, before

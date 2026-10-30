@@ -226,6 +226,10 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 	}
 	from = func(item FromItem, s *Select) error {
 		switch n := item.(type) {
+		case *XMLTable:
+			for _, child := range n.Expressions() {
+				if err := expression(child); err != nil { return err }
+			}
 		case *JSONTable:
 			for _, child := range n.Expressions() {
 				if err := expression(child); err != nil {

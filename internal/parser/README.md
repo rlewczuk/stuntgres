@@ -125,6 +125,13 @@ single-statement limit of driver calls) belong to callers.
   Contextual clause tokens preserve ordinary document/passing/value
   identifiers. Query and expression visitors descend through every operand in
   written order.
+- `XMLTable` is a positioned FROM item, not a scalar routine call. Its row and
+  document operands use the shared c-expression grammar; namespace URI, PATH
+  and DEFAULT operands use the restricted default-expression grammar. Column
+  options retain written order. Visitors and copy-on-change reconstruction
+  include namespaces, row, document and all written column expressions.
+  Clause lexing tracks the actual document operand separately from ignored
+  prefix/suffix passing mechanisms, preserving keyword-named operands.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Repeated events are rejected at the
   repeated event token, preserving its raw spelling and character position.
@@ -458,7 +465,7 @@ feature prefix.
 - Keywords and ordinary keyword calls: `RUN='^Test(Keyword|OrdinaryKeywordCallHeads)'`
 - Scratch receivers: `RUN='^TestParseScratch'` (also with `RACE=1`)
 - SQL/JSON and JSON_TABLE: `RUN='^Test(SQLJSONQueryParser|JSONTableParser|JSONBPathOpsParser)$'`
-- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal)$'`
+- XML positioned grammar and source/admission traversal: `RUN='^TestXML(PositionedGrammar|SourceAndAdmissionTraversal|PredicateGrammar|PredicateTraversal|TableParser)$'`
 - CTE SEARCH and recursive views: `RUN='^Test(CTESearch|CreateRecursiveView)'`
 - Access methods and operator families: `RUN='^Test(AccessMethodGrammar|OperatorFamilyParser)$'`
 - COPY options and WHERE: `RUN='^TestCopyFilterParser$'`

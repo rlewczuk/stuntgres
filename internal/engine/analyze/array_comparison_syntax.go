@@ -451,6 +451,14 @@ func (b *Binder) normalizeInListValues(raw *parser.ValuesQuery) *parser.ValuesQu
 
 func (b *Binder) normalizeInListFrom(raw parser.FromItem) parser.FromItem {
 	switch r := raw.(type) {
+	case *parser.XMLTable:
+		children := r.Expressions()
+		changed := false
+		for i, child := range children {
+			next, ok := b.NormalizeInListExpression(child)
+			if ok { children[i] = next; changed = true }
+		}
+		if changed { return r.WithExpressions(children) }
 	case *parser.JSONTable:
 		children := r.Expressions()
 		changed := false

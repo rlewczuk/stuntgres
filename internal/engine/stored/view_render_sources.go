@@ -549,6 +549,8 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 	}()
 	v.namespace++
 	switch n := item.(type) {
+	case *parser.XMLTable:
+		return v.renderXMLTableSQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.JSONTable:
 		return v.renderJSONTableSQL(ctx, catalogView, n, ns, rangeName)
 	case *parser.FunctionTable:

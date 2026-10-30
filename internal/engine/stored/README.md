@@ -59,6 +59,27 @@ Erased same-Usage source casts retain their exact frozen target annotations.
 Standard CAST replay authenticates those boundaries before matching the surviving
 operand position; raw cast spelling or a different canonical target cannot grant
 source authority.
+XMLTABLE frozen sources retain every namespace, row, document, PATH and DEFAULT
+occurrence plus resolved output usages. Relational rendering keeps c-expression
+parentheses and written option order; aliases and type renames use live accepted
+identities. No invocation tree or namespace resolver enters a stored definition.
+DEFAULT namespaces render as `DEFAULT (URI)`, not as an empty named alias.
+Their URI consumes the same captured occurrence slot as a named declaration.
+Rendering never initializes the source: NULL-document views remain typed empty,
+and non-NULL documents retain the deferred unsupported-DEFAULT diagnostic.
+Deparse-mode XMLTABLE sources use the common presentation-alias helper so every
+qualified slot names an emitted alias; joins, nested captures and explicit
+alias/column-list replacement share the existing collision rules. Accepted XML
+constants use ordinary canonical output, SQL quoting and checked type annotation,
+including when they occur outside an XMLTABLE source.
+Each written family normalizes after all operands bind and every source capture
+completes, preserving frame-owned routine/cast lowering and late builtin provider
+annotations. Frozen validation pairs source layout and
+normalized written syntax with the actual accepted XMLTABLE provider before
+validating captured occurrences. Raw output TypeName spelling grants no type
+authority; rendering continues to use the provider's checked field usages.
+Selected source and DEFAULT assignment casts retain their genuine routine-call
+recipes, not a stripped operand or a newly selected target cast on replay.
 
 `TestXMLPredicateFrozenOwnership` also checks a real implicit catalog-cast operand
 under ordinary XMLEXISTS: selected procedure association, invocation descriptor
@@ -1038,6 +1059,8 @@ redump/replacement, renamed providers/attributes and retained payload ownership.
 XML frozen target/operand occurrence authority, selected conversion association
 and hidden conversion generations use
 `RUN='^(TestXMLFrozenCaptureOwnership|TestXMLSerializationAssociation)$'`.
+XMLTABLE written-family capture, immutable backing and relational rendering use
+`RUN='^TestXMLTableStoredTraversal$'`.
 
 Type inquiry immutable recipe ownership and frozen view/policy cast-occurrence
 authority use `RUN='^TestTypeDescribe(StoredOwnership|ComposedStoredOwnership|FrozenCastOccurrence)$'`.

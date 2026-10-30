@@ -34,6 +34,10 @@ func (e *XPathError) Error() string {
 	switch e.Stage {
 	case "empty":
 		return "empty XPath expression"
+	case "row-empty":
+		return "row path filter must not be empty string"
+	case "column-empty":
+		return "column path filter must not be empty string"
 	case "compile":
 		return "invalid XPath expression"
 	default:

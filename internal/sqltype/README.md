@@ -102,6 +102,10 @@ admission and removes it before nested binding.
   `XMLIsDocument`, `XMLIsWellFormed` and `XMLExists` bridge BOOL providers without
   retaining trees. XPath stage errors map to 10608; strict context-parse errors
   map to 2200M with operation-specific primary text and original XML Detail.
+  `XMLTableInvocation` bridges invocation-local XPath rows to genuine target text
+  input. Exact XML enables node-sequence serialization; XML domains retain
+  scalar cardinality and domain input. Missing nodes return typed NULL without
+  domain input; present values preserve typmods and the current XML/session mode.
   Typed text/binary output uses the provider's distinct declaration policy.
   Binary output formats its target declaration as Unicode, then appends through
   the admitted `Transport` capability only when `ByteTransport` is enabled;
@@ -796,6 +800,7 @@ behavior belong in `reference/` (mostly `types`, `operators`,
 comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
 on a composed engine live in `enginetests/`.
 XML value ownership and codec units use `RUN='^TestXMLSQL'`.
+XMLTABLE target-input adapter units use `RUN='^TestXMLTableTypeInput$'`.
 ISO interval lexical/ERANGE units use `RUN='^TestIntervalISO'`.
 Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;

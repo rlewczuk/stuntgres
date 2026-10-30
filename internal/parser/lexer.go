@@ -1180,6 +1180,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	if token.lexeme.keyword != nil && token.lexeme.text == "json_table" && l.previousToken != int('.') {
 		token.code = JSON_TABLE_FUNC
 	}
+	if token.lexeme.keyword != nil && token.lexeme.text == "xmltable" && l.previousToken != int('.') {
+		token.code = XML_TABLE
+	}
 	if token.lexeme.keyword != nil && l.previousToken != int('.') && (token.lexeme.text == "json_exists" || token.lexeme.text == "json_query" || token.lexeme.text == "json_value") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
@@ -1203,7 +1206,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		if len(l.xmlDepths) > 0 && l.jsonParenDepth == l.xmlDepths[len(l.xmlDepths)-1].Depth {
 			state := &l.xmlDepths[len(l.xmlDepths)-1]
-			if state.Exists {
+			if state.Exists || state.Table {
 				if token.lexeme.text == "passing" && !state.Passed {
 					switch l.previousToken {
 					case '(', ',', '+', '-', '*', '/', '=', '<', '>', AND, OR, NOT, XML_PASSING, BY, XML_PASS_KIND:
@@ -1213,6 +1216,28 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				}
 				if l.previousToken == BY && (token.lexeme.text == "ref" || token.lexeme.text == "value") {
 					token.code = XML_PASS_KIND
+				}
+			}
+			if state.Table {
+				switch token.lexeme.text {
+				case "xmlnamespaces":
+					if !state.Passed && l.previousToken == int('(') {
+						next := l.nextRaw(); l.lookahead, l.hasLookahead = next, true
+						if next.code == int('(') { token.code = XML_NAMESPACES }
+					}
+				case "columns":
+					if state.Passed && !state.Columns && state.DocumentStarted {
+						token.code = XML_COLUMNS; state.Columns = true
+					}
+				case "path":
+					if state.Columns && state.ColumnStage >= 3 {
+						switch l.previousToken {
+						case XML_COLUMNS, ',', XML_PATH, DEFAULT, '(', '+', '-', '*', '/', '=', '<', '>', SYMBOLIC_OPERATOR:
+						default: token.code = XML_PATH
+						}
+					}
+				case "setof":
+					if state.Columns { token.code = SETOF_TYPE }
 				}
 			}
 			if token.code == AS && state.Serialize {
@@ -1920,6 +1945,25 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		case ')':
 			l.routineFormalDepth = 0
 			l.routineFormalDefault = false
+		}
+	}
+	if len(l.xmlDepths)>0 {
+		state:=&l.xmlDepths[len(l.xmlDepths)-1]
+		if state.Table && state.Passed && !state.Columns && state.Depth==l.jsonParenDepth {
+			switch token.code {
+			case XML_PASSING, BY, XML_PASS_KIND:
+			default: state.DocumentStarted=true
+			}
+		}
+		if state.Table && state.Columns && state.Depth==l.jsonParenDepth {
+			switch token.code {
+			case XML_COLUMNS, ',':
+				state.ColumnStage=1
+			case SETOF_TYPE:
+				// SETOF is a declaration modifier, not the type itself.
+			default:
+				if state.ColumnStage==1 || state.ColumnStage==2 { state.ColumnStage++ }
+			}
 		}
 	}
 	if token.code == int('(') {

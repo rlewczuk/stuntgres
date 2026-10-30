@@ -203,7 +203,8 @@ func (f *xpathFrame) eval(e *xpathExpr) xpathValue {
 		return xpathNum(e.number)
 	case "variable":
 		prefix, _, qualified := strings.Cut(e.name, ":")
-		if qualified && prefix != "xml" {
+		_, resolved := f.namespaceURI(prefix)
+		if qualified && !resolved {
 			f.runtimeError("")
 		} else {
 			f.runtimeError("Undefined variable")
@@ -238,7 +239,8 @@ func (f *xpathFrame) eval(e *xpathExpr) xpathValue {
 			}
 			if s.test == "name" {
 				prefix, _, qualified := strings.Cut(s.name, ":")
-				if qualified && prefix != "xml" {
+				_, resolved := f.namespaceURI(prefix)
+				if qualified && !resolved {
 					f.runtimeError("Undefined namespace prefix")
 					break
 				}

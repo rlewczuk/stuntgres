@@ -31,6 +31,55 @@ docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
 
+## XMLTABLE view definitions lose alias-column renames
+
+The pinned PostgreSQL 18.6 fixture above exposed this defect on 2026-10-30
+(UTF8, C locale and English messages). The original legal view and its
+direct/prepared reads succeed; recreating its actual `pg_get_viewdef` result
+fails. No behavior of another release is claimed.
+
+```sql
+CREATE VIEW xt_alias_columns AS
+SELECT renamed.answer
+FROM XMLTABLE('/r' PASSING ('<r><v>7</v></r>'::xml)
+              COLUMNS v int) AS renamed(answer);
+SELECT * FROM xt_alias_columns; -- answer = 7
+SELECT pg_get_viewdef('xt_alias_columns'::regclass, true);
+
+-- In psql, execute the actual returned definition, not reconstructed SQL:
+SELECT format('CREATE VIEW xt_alias_columns_copy AS %s',
+              pg_get_viewdef('xt_alias_columns'::regclass, true)) \gexec
+```
+
+The observed recreation error is SQLSTATE `42703`,
+`column "answer" does not exist`. The fixture's CREATE statement reported
+position 45; the reference assertion derives the position from the actual
+returned SQL, since framing changes its offset.
+
+The release-source explanation is in
+[`REL_18_6` ruleutils.c](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/adt/ruleutils.c):
+the `RTE_TABLEFUNC` case disables printing alias-column lists,
+`get_xmltable` prints the original table-function column names (`v`), and the
+outer expression still uses the renamed range-table name (`answer`). Thus the
+pretty definition loses the name needed to bind that reference.
+
+`TestReferenceXMLTableLateralPreparedAndStored/bare_stored_aliases_and_XML_constants`
+keeps the original direct/prepared result on both backends. PostgreSQL's
+actual returned definition receives an explicit full diagnostic assertion;
+native retains successful recreation and actual Dump/Reset/Restore replay.
+The same scenario independently roundtrips this genuine renamed-column wrapper
+on both backends:
+
+```sql
+SELECT renamed.answer
+FROM (SELECT * FROM XMLTABLE('/r'
+      PASSING ('<r><v>7</v></r>'::xml) COLUMNS v int)) AS renamed(answer);
+```
+
+When a fixed PostgreSQL release is pinned, remove the bounded diagnostic
+branch and require successful recreation on both backends. Do not make native
+rendering discard its alias-column list to match the upstream defect.
+
 ## UPC output discards invalid markers
 
 The UPC reference scenarios observed short-output marker loss on 2026-10-25

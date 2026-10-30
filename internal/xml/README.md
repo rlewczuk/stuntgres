@@ -9,8 +9,8 @@ characters, not host Unicode categories. Version compatibility does not change
 those character ranges.
 
 `IsDocument` classifies accepted characters independently of their input mode;
-`IsWellFormed` suppresses recoverable parse failures only. `XMLExists` reparses
-with the shared parser's operation-local DOCUMENT/options0 policy: namespace
+`IsWellFormed` suppresses recoverable parse failures only. `XMLExists` and
+`StartTable` share the operation-local DOCUMENT/options0 parser policy: namespace
 and `xml:id` validity failures are fatal, ordinary DTD default attributes are absent,
 default namespace bindings remain effective, and entity boundaries survive.
 Validation and serialization keep their own existing policies; no operation
@@ -33,6 +33,13 @@ cancellation and checked buffer growth and retains
 no tree, context or scratch in `Result` or compiled expressions. `XPathError`
 distinguishes empty, compilation and evaluation failures; `XPathContextError`
 retains the strict XML parser diagnostic separately from XML input failures.
+
+`Table` owns one relational invocation's tree, namespace bindings, compiled row
+and column paths, and current row. Column filters compile before the first row
+evaluation. `Column` distinguishes a missing node-set from an empty scalar and
+serializes requested node sequences using the common cancellation-aware saver,
+reconciling inherited namespaces without mutating source nodes. SQL target input,
+DEFAULT demand and column constraints remain in the SQL adapter/source owner.
 
 `Options.InputKind` distinguishes already-decoded `Text` from raw-byte `Binary`
 strings. Text declarations never reinterpret the characters. Binary preflight
@@ -473,6 +480,17 @@ forward-compatible version/QName grammar and structured-column cases are
 source-derived, not fresh observations. Typed declaration eligibility, output
 warnings and DOCUMENT/CONTENT BOM boundaries have independent actual
 typed-text/binary-send observations, distinct from raw character casts.
+
+XMLTABLE invocation, namespace, node-output and cancellation units use
+`RUN='^TestXMLTableProvider$'`.
+Projected XPath text nodes retain their invocation-local source kind: adjacent
+CDATA still coalesces for XPath string values and cardinality, while XMLTABLE
+XML output serializes CDATA through the common node serializer, including
+delimiter splitting and cancellation. A local copy carries the coalesced value;
+original source nodes, sibling invocations and retained XML stay unchanged.
+Ordinary text remains escaped, and scalar/string XPath results do not acquire
+CDATA markup. Mixed text/CDATA boundaries remain distinct XPath text nodes.
+
 Production-specific invalid-character cascades, decoder range and failure-only
 continuation, CDATA committed previews, short terminal sequences, ASCII comment
 previews, name/construct limit recovery and complex-comment transition/lookahead

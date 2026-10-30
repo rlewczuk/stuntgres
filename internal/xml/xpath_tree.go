@@ -29,12 +29,14 @@ type xpathTree struct {
 	root    *xpathNode
 	ordered []*xpathNode
 	ids     map[string]*xpathNode
+	document *document
 }
 type xpathFrame struct {
 	p                     parser
 	tree                  *xpathTree
 	node                  *xpathNode
 	position, size, depth int
+	bindings              map[string]string
 }
 
 func (f *xpathFrame) poll() bool {
@@ -49,7 +51,7 @@ func (f *xpathFrame) add(n *xpathNode) *xpathNode {
 	return n
 }
 func newXPathTree(ctx context.Context, d *document) (*xpathFrame, error) {
-	f := &xpathFrame{p: parser{ctx: ctx}, tree: &xpathTree{ids: make(map[string]*xpathNode)}, position: 1, size: 1}
+	f := &xpathFrame{p: parser{ctx: ctx}, tree: &xpathTree{ids: make(map[string]*xpathNode), document: d}, position: 1, size: 1}
 	f.tree.root = f.add(&xpathNode{kind: xpathRoot})
 	f.node = f.tree.root
 	f.project(d.nodes, f.node)
@@ -101,7 +103,8 @@ func (f *xpathFrame) project(nodes []*node, parent *xpathNode) {
 			f.project(n.children, x)
 		case textNode, cdataNode:
 			// options0 preserves text/CDATA boundaries but coalesces consecutive CDATA
-			// callbacks. Both project to XPath text; entity boundaries remain separate.
+			// callbacks. Both project to XPath text; retain the first source's kind
+			// for XML serialization, without changing entity or XPath boundaries.
 			value := n.value
 			if i+1 < len(nodes) && nodes[i+1].kind == n.kind {
 				var b strings.Builder
@@ -115,7 +118,7 @@ func (f *xpathFrame) project(nodes []*node, parent *xpathNode) {
 			if value == "" {
 				continue
 			}
-			x = f.add(&xpathNode{kind: xpathText, parent: parent, value: value})
+			x = f.add(&xpathNode{kind: xpathText, parent: parent, source: n, value: value})
 		case commentNode:
 			x = f.add(&xpathNode{kind: xpathComment, parent: parent, value: n.value})
 		case piNode:
@@ -330,11 +333,18 @@ func (f *xpathFrame) matches(n *xpathNode, s xpathStep) bool {
 	}
 	prefix, local, qualified := strings.Cut(s.name, ":")
 	if qualified {
-		if prefix != "xml" {
+		uri, ok := f.namespaceURI(prefix)
+		if !ok {
 			f.runtimeError("Undefined namespace prefix")
 			return false
 		}
-		return n.uri == xmlNamespaceURI && (local == "*" || n.local == local)
+		return n.uri == uri && (local == "*" || n.local == local)
 	}
 	return n.local == s.name && n.uri == ""
+}
+
+func (f *xpathFrame) namespaceURI(prefix string) (string, bool) {
+	if prefix == "xml" { return xmlNamespaceURI, true }
+	uri, ok := f.bindings[prefix]
+	return uri, ok
 }

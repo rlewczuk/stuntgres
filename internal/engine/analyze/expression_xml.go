@@ -10,7 +10,7 @@ import (
 
 // Released coerce_to_specific_type uses assignment context, including catalog
 // cast selection and string I/O fallback. It is not an explicit CAST shortcut.
-func (b *Binder) xmlSource(raw parser.Expr, target sqltype.Usage, construct string, opener parser.Position) (expr.Expr, error) {
+func (b *Binder) xmlSource(raw parser.Expr, target sqltype.Usage, construct string, opener parser.Position, sourceSyntax parser.Expr) (expr.Expr, error) {
 	operand, err := b.AnalyzeArgument(raw, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil {
 		return nil, err
@@ -24,9 +24,10 @@ func (b *Binder) xmlSource(raw parser.Expr, target sqltype.Usage, construct stri
 	} else if !b.CanCoerce(operand.Usage, target, sqltype.Assignment) {
 		return nil, expr.ErrorAt("42804", "argument of "+construct+" must be type "+b.DiagnosticTypeName(target.Type)+", not type "+b.DiagnosticTypeName(operand.Usage.Type), parser.ExpressionStart(raw))
 	}
-	// The opener identifies this synthetic conversion independently of every
-	// written operand position. No raw CAST/function occurrence is manufactured.
-	converted, err := b.CoerceSelected(child, target, sqltype.Assignment, opener, nil)
+	// The opener identifies this assignment conversion independently of written
+	// operand positions. Relational sources retain a selected conversion's real
+	// recipe; scalar XML keeps its existing synthetic-spine presentation.
+	converted, err := b.CoerceSelected(child, target, sqltype.Assignment, opener, sourceSyntax)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (b *Binder) xmlSource(raw parser.Expr, target sqltype.Usage, construct stri
 }
 
 func (b *Binder) bindXMLParse(raw parser.XMLParseExpr) (expr.Expr, error) {
-	source, err := b.xmlSource(raw.Child, b.Type(sqltype.Text).Usage(), "XMLPARSE", raw.Pos)
+	source, err := b.xmlSource(raw.Child, b.Type(sqltype.Text).Usage(), "XMLPARSE", raw.Pos, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (b *Binder) bindXMLParse(raw parser.XMLParseExpr) (expr.Expr, error) {
 }
 
 func (b *Binder) bindXMLSerialize(raw parser.XMLSerializeExpr) (expr.Expr, error) {
-	source, err := b.xmlSource(raw.Child, b.Type(sqltype.XML).Usage(), "XMLSERIALIZE", raw.Pos)
+	source, err := b.xmlSource(raw.Child, b.Type(sqltype.XML).Usage(), "XMLSERIALIZE", raw.Pos, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (b *Binder) bindXMLSerialize(raw parser.XMLSerializeExpr) (expr.Expr, error
 }
 
 func (b *Binder) bindXMLDocumentPredicate(raw parser.XMLDocumentPredicateExpr) (expr.Expr, error) {
-	source, err := b.xmlSource(raw.Child, b.Type(sqltype.XML).Usage(), "IS DOCUMENT", raw.Pos)
+	source, err := b.xmlSource(raw.Child, b.Type(sqltype.XML).Usage(), "IS DOCUMENT", raw.Pos, nil)
 	if err != nil {
 		return nil, err
 	}

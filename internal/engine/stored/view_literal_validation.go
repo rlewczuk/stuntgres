@@ -293,6 +293,20 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 		var from func(parser.FromItem, plan.Node) error
 		from = func(item parser.FromItem, node plan.Node) error {
 			switch raw := item.(type) {
+			case *parser.XMLTable:
+				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
+				if !ok || len(function.Calls)!=1 { return fmt.Errorf("stuntgres: invalid stored XMLTABLE frame") }
+				table,ok:=function.Calls[0].(functions.XMLTable)
+				if !ok { return fmt.Errorf("stuntgres: invalid stored XMLTABLE provider") }
+				if err:=validateXMLTableLayout(raw,table);err!=nil {return err}
+				written,accepted:=raw.Expressions(),table.Raw.Expressions()
+				if len(written)!=len(accepted) {return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operands")}
+				for i, child := range written {
+					if !reflect.DeepEqual(child,accepted[i]) {return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operand %d",i)}
+					path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: function.ViewOrdinal, Target: i}
+					ordinal := 0
+					if err := visit(child, path, &ordinal); err != nil { return err }
+				}
 			case *parser.JSONTable:
 				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok {

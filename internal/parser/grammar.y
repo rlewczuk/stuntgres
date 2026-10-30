@@ -56,6 +56,13 @@ package parser
  jsonTable *JSONTable
  jsonTableColumns []JSONTableColumn
  jsonTableColumn *JSONTableColumn
+ xmlTable *XMLTable
+ xmlNamespaces []XMLNamespace
+ xmlNamespace XMLNamespace
+ xmlColumns []XMLTableColumn
+ xmlColumn XMLTableColumn
+ xmlOptions []XMLTableOption
+ xmlOption XMLTableOption
  types []TypeName
  grantRoutine GrantRoutineTarget
  grantRoutines []GrantRoutineTarget
@@ -333,6 +340,7 @@ package parser
 %token <tok> RECURSIVE XML
 %token <tok> XML_PARSE XML_SERIALIZE XML_MODE XML_SPACE XML_WHITESPACE XML_INDENT
 %token <tok> XML_EXISTS XML_DOCUMENT XML_PASSING XML_PASS_KIND
+%token <tok> XML_TABLE XML_NAMESPACES XML_COLUMNS XML_PATH
 %token <tok> GRANT REVOKE ADMIN INHERIT OPTION GRANTED
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
@@ -881,6 +889,15 @@ package parser
 %type <jsonTableColumns> json_table_columns json_table_column_list
 %type <jsonTableColumn> json_table_column
 %type <tok> json_table_head json_columns_head
+%type <xmlTable> xml_table
+%type <tok> xml_table_head
+%type <xmlNamespaces> xml_namespaces xml_namespace_list
+%type <xmlNamespace> xml_namespace
+%type <xmlColumns> xml_table_columns
+%type <xmlColumn> xml_table_column
+%type <xmlOptions> xml_table_options
+%type <xmlOption> xml_table_option
+%type <typ> xml_table_type
 %type <identifier> json_path_name
 %type <expr> json_column_path
 %type <tok> like_operator
@@ -3412,6 +3429,8 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
  | ONLY '(' relation_name ')' { $$=&TableReference{Name:$3,Only:true} }
  | json_table {$$=$1}
  | LATERAL json_table {$$=$2;$2.Lateral=true}
+ | xml_table {$$=$1}
+ | LATERAL xml_table {$$=$2;$2.Lateral=true}
  | function_table {
     n:=$1
     selected:=true
@@ -3713,6 +3732,25 @@ sqljson_behavior: JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:$1.text,Pos:$1.pos} }
  | JSON_EMPTY JSON_BEHAVIOR { $$=SQLJSONBehavior{Kind:"empty "+$2.text,Pos:$1.pos} }
  | JSON_ERROR { $$=SQLJSONBehavior{Kind:"error",Pos:$1.pos} }
  | DEFAULT target_or { $$=SQLJSONBehavior{Kind:"default",Default:$2,Pos:$1.pos} } ;
+xml_table_head: XML_TABLE '(' {l:=sqllex.(*lexer);l.xmlDepths=append(l.xmlDepths,xmlLexical{Depth:l.jsonParenDepth,Table:true});$$=$1} ;
+xml_table: xml_table_head xml_namespaces c_expression XML_PASSING xml_passing c_expression xml_passing XML_COLUMNS xml_table_columns ')' {
+ $$=&XMLTable{Namespaces:$2,Row:$3,Document:$6,Columns:$9,Pos:$1.pos}
+} ;
+xml_namespaces: /* empty */ {$$=nil} | XML_NAMESPACES '(' xml_namespace_list ')' ',' {$$=$3} ;
+xml_namespace_list: xml_namespace {$$=[]XMLNamespace{$1}} | xml_namespace_list ',' xml_namespace {$$=append($1,$3)} ;
+xml_namespace: default_target AS name {$$=XMLNamespace{URI:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:ExpressionStart($1)}} | DEFAULT default_target {$$=XMLNamespace{URI:$2,Default:true,Pos:$1.pos}} ;
+xml_table_columns: xml_table_column {$$=[]XMLTableColumn{$1}} | xml_table_columns ',' xml_table_column {$$=append($1,$3)} ;
+xml_table_column: name FOR name {
+ if $3.text!="ordinality" {sqllex.(*lexer).syntax($3);return 1}
+ $$=XMLTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Ordinality:true,Pos:$1.pos}
+}
+ | name xml_table_type xml_table_options {$$=XMLTableColumn{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Options:$3,Pos:$1.pos}} ;
+xml_table_type: declared_type {$$=$1} | SETOF_TYPE declared_type {$$=$2;$$.Setof=true} ;
+xml_table_options: /* empty */ {$$=nil} | xml_table_options xml_table_option {$$=append($1,$2)} ;
+xml_table_option: XML_PATH default_target {$$=XMLTableOption{Kind:"path",Value:$2,Pos:$1.pos}}
+ | DEFAULT default_target {$$=XMLTableOption{Kind:"default",Value:$2,Pos:$1.pos}}
+ | NULL {$$=XMLTableOption{Kind:"null",Pos:$1.pos}}
+ | NOT NULL {$$=XMLTableOption{Kind:"not null",Pos:$1.pos}} ;
 json_table_head: JSON_TABLE_FUNC '(' {l:=sqllex.(*lexer);l.jsonTableDepths=append(l.jsonTableDepths,l.jsonParenDepth);l.jsonAggregateDepths=append(l.jsonAggregateDepths,l.jsonParenDepth);l.jsonFunctionDepths=append(l.jsonFunctionDepths,l.jsonParenDepth);$$=$1} ;
 json_table: json_table_head target_or json_format ',' target_or json_path_name sqljson_passing json_table_columns sqljson_behaviors ')' {
  if $9.Empty.Kind!="" {sqllex.(*lexer).syntax(lexeme{raw:"EMPTY",pos:$9.Empty.BranchPos});return 1}
@@ -3810,6 +3848,7 @@ window_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDE
  | XML_SERIALIZE %prec NAME_LIST {$$=$1}
  | XML_EXISTS %prec NAME_LIST {$$=$1}
  | JSON_TABLE_FUNC %prec NAME_LIST {$$=$1}
+ | XML_TABLE %prec NAME_LIST {$$=$1}
  | TX_TIME_FUNC %prec NAME_LIST { $$=$1 } ;
 name: non_between_name | BETWEEN | PL_SLICE ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | EXECUTE | DEALLOCATE | DISCARD | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;

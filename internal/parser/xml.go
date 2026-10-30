@@ -6,6 +6,10 @@ type xmlLexical struct {
 	Exists    bool
 	Passed    bool
 	Target    bool
+	Table     bool
+	Columns   bool
+	DocumentStarted bool // Distinguishes a prefix mechanism from a suffix.
+	ColumnStage int // 1=name, 2=first type token, 3=type tail/options.
 }
 
 // XMLParseExpr retains the written mode and whitespace clause independently of

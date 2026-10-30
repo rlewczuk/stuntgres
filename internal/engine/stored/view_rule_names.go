@@ -196,6 +196,11 @@ func (v *QueryRenderer) prepareRuleRangeTable(ctx context.Context, read catalog.
 					preferred = raw.Calls[0].Name.Parts[len(raw.Calls[0].Name.Parts)-1].Text
 				}
 			}
+		case *parser.XMLTable:
+			if preferred == "" {
+				preferred = "xmltable"
+				if len(namespace.Qualifiers) != 0 { preferred = namespace.Qualifiers[0].Name }
+			}
 		case *parser.JSONTable:
 			if preferred == "" {
 				preferred = "json_table"
