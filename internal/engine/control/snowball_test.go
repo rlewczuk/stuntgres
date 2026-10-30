@@ -27,7 +27,11 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime); err != nil {
+	basqueRuntime, err := functions.DefaultBasqueSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime); err != nil {
 		t.Fatal(err)
 	}
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
@@ -139,8 +143,49 @@ func TestSnowballSeedReplay(t *testing.T) {
 			}
 		})
 	}
+	var basque *catalog.TSDictionary
+	for _, descriptor := range source.State.Descriptors() {
+		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "basque_stem" {
+			basque = d
+		}
+	}
+	if basque == nil {
+		t.Fatal("missing Basque seed")
+	}
+	for _, tc := range []struct {
+		name    string
+		options []catalog.DictionaryOption
+		want    string
+	}{
+		{"stock", []catalog.DictionaryOption{{Name: "language", Value: "basque", Supplied: true}}, ""},
+		{"removed_list", []catalog.DictionaryOption{{Name: "language", Value: "basque", Supplied: true}}, ""},
+		{"added_list", []catalog.DictionaryOption{{Name: "language", Value: "basque", Supplied: true}, {Name: "stopwords", Value: "english", Supplied: true}}, " (language, language = 'basque', stopwords = 'english')"},
+		{"explicit_empty", []catalog.DictionaryOption{{Name: "language", Value: "basque", Supplied: true}, {Name: "stopwords", Supplied: true}}, " (language, language = 'basque', stopwords = '')"},
+		{"spelling_order", []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "language", Value: "BaSqUe", Supplied: true}}, " (language, stopwords = 'english', language = 'BaSqUe')"},
+	} {
+		t.Run("basque/"+tc.name, func(t *testing.T) {
+			d := *basque
+			d.Options = tc.options
+			if got := seedDictionaryOptionDelta(&d); got != tc.want {
+				t.Fatal(got, tc.want)
+			}
+			// Apply the actual emitted remove/append contract after stock
+			// initialization, not after the source's edited options.
+			changes := append([]catalog.DictionaryOption{{Name: "language"}}, tc.options...)
+			if got := extension.MergeDictionaryOptions(basque.SeedOptions(), changes); !slices.Equal(got, tc.options) {
+				t.Fatal("Basque ordered language-only delta", got, tc.options)
+			}
+			withList := append(basque.SeedOptions(), catalog.DictionaryOption{Name: "stopwords", Value: "english", Supplied: true})
+			if tc.name == "removed_list" {
+				removed := extension.MergeDictionaryOptions(withList, []catalog.DictionaryOption{{Name: "stopwords"}})
+				if !slices.Equal(removed, tc.options) {
+					t.Fatal("Basque explicit list removal", removed, tc.options)
+				}
+			}
+		})
+	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// allocated English/Arabic/Armenian and fixed simple, independent of descriptor iteration.
+	// allocated English/Arabic/Armenian/Basque and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -163,7 +208,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 4 {
+	if len(providers) != 5 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)

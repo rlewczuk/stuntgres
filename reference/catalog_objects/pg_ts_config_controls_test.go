@@ -35,7 +35,11 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='armenian' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&armenian); err != nil || armenian <= 0 || armenian == 3748 || armenian == english || armenian == arabic {
 				t.Fatal("actual distinct Armenian configuration identity", armenian, err)
 			}
-			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
+			var basque int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_ts_config WHERE cfgname='basque' AND cfgnamespace='pg_catalog'::regnamespace").Scan(&basque); err != nil || basque <= 0 || basque == 3748 || basque == english || basque == arabic || basque == armenian {
+				t.Fatal("actual distinct Basque configuration identity", basque, err)
+			}
+			return append([][]any{{arabic, "arabic", int64(11), int64(10), int64(3722)}, {armenian, "armenian", int64(11), int64(10), int64(3722)}, {basque, "basque", int64(11), int64(10), int64(3722)}, {english, "english", int64(11), int64(10), int64(3722)}}, pgTSConfigSimple(b)...)
 		}
 		catalog := func() {
 			pgTSConfigInventory(t, p, b, b.DB)
@@ -43,7 +47,7 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 		}
 		check := func() {
 			catalog()
-			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','english','simple') ORDER BY cfgname"
+			q := "SELECT * FROM public.ptsc_control_view WHERE cfgname IN ('arabic','armenian','basque','english','simple') ORDER BY cfgname"
 			pgTSConfigBoth(t, p, b, b.DB, fixture.Select(q, fixture.PGTSConfigColumns, pgTSConfigTypes, seedRows()))
 			s := fixture.Select("SELECT v FROM public.ptsc_control_sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)

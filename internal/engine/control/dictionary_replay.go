@@ -11,7 +11,7 @@ import (
 // shares routine collision keys. All initialized dictionary identities must
 // participate: an installed member can occupy a seed's vacated name.
 func (s *dumpScript) dictionaryProviderReplays() ([]providerReplay, error) {
-	providers := make([]providerReplay, 0, 4)
+	providers := make([]providerReplay, 0, 5)
 	add := func(d *catalog.TSDictionary, original providerKey, owner authorization.PrincipalRef) error {
 		if err := (extension.CatalogProvider{Class: ids.TSDictionaryClassID}).Validate(s.CatalogView, d); err != nil {
 			return err

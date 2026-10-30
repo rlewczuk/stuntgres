@@ -170,6 +170,14 @@ COPY test in reference/dml.
   identities and seed replay: `RUN='^TestReferenceFTSArmenianSnowball'`.
   All six word aliases use Armenian, including ASCII; English remaps and
   simple-first chains have separate independently specified vector goldens.
+- Basque Snowball configuration, ASCII/non-ASCII mapping identity, typed debug,
+  first-recognizer and explicit-stopword chains, copied configuration isolation
+  and seed replay: `RUN='^TestReferenceFTSBasqueSnowball'`. The independent
+  nineteen-alias inventory joins actual parser declarations to catalog mappings.
+  The independent vector for `etxeak etxeko RATS` is
+  `'etxe':1 'etxeko':2 'rats':3`: selected noun `eko` fails RV without retrying
+  shorter `ko`. Run the selector in native and `REFERENCE=1` modes; the controls
+  require the actual native-emitted stream, not a backend-only replay substitute.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

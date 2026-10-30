@@ -16,8 +16,8 @@ import (
 
 func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.Relation, rows [][]sqltype.Value) {
 	t.Helper()
-	if len(rows) != 4 {
-		t.Fatal("exact simple/English/Arabic/Armenian configuration inventory", rows)
+	if len(rows) != 5 {
+		t.Fatal("exact simple/English/Arabic/Armenian/Basque configuration inventory", rows)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	if english.ObjectID == 0 || english.ObjectID == 3748 {
@@ -31,6 +31,10 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 	if armenian.ObjectID == 0 || armenian.ObjectID == 3748 || armenian == english || armenian == arabic {
 		t.Fatal("actual allocated Armenian configuration", armenian)
 	}
+	basque := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "basque"})
+	if basque.ObjectID == 0 || basque.ObjectID == 3748 || basque == english || basque == arabic || basque == armenian {
+		t.Fatal("actual allocated Basque configuration", basque)
+	}
 	seen := map[string]bool{}
 	for _, row := range rows {
 		if len(row) != 5 {
@@ -42,7 +46,7 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 			}
 		}
 		name, err := row[1].Text()
-		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" && name != "armenian" {
+		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" {
 			t.Fatal("configuration identity", name, err)
 		}
 		seen[name] = true
@@ -55,6 +59,9 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 		}
 		if name == "armenian" {
 			want = uint32(armenian.ObjectID)
+		}
+		if name == "basque" {
+			want = uint32(basque.ObjectID)
 		}
 		for i, expected := range map[int]uint32{0: want, 2: 11, 3: 10, 4: 3722} {
 			got, err := row[i].OID()
@@ -83,7 +90,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 4 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 5 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
 	assertSeedConfigurations(t, view, source, captured.Anonymous)
@@ -196,8 +203,8 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 76 {
-		t.Fatal("actual simple, English, Arabic and Armenian mappings", rows, err)
+	if err != nil || len(rows) != 95 {
+		t.Fatal("actual simple, English, Arabic, Armenian and Basque mappings", rows, err)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
@@ -213,6 +220,11 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	armenianStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "armenian_stem"})
 	if armenian.ObjectID == 0 || armenianStem.ObjectID == 0 || armenian == english || armenian == arabic || armenianStem == stem || armenianStem == arabicStem {
 		t.Fatal("missing distinct Armenian identities")
+	}
+	basque := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "basque"})
+	basqueStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "basque_stem"})
+	if basque.ObjectID == 0 || basqueStem.ObjectID == 0 || basque.ObjectID == 3748 || basqueStem.ObjectID == 3765 || basque == english || basque == arabic || basque == armenian || basqueStem == stem || basqueStem == arabicStem || basqueStem == armenianStem {
+		t.Fatal("missing distinct Basque identities")
 	}
 	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
@@ -252,6 +264,11 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			case 1, 2, 10, 11, 16, 17:
 				wantDictionary = int64(armenianStem.ObjectID)
 			}
+		} else if values[0] == int64(basque.ObjectID) {
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(basqueStem.ObjectID)
+			}
 		} else if values[0] != 3748 {
 			t.Fatal("unexpected configuration mapping", values)
 		}
@@ -260,7 +277,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		}
 		tokens[key] = true
 	}
-	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID)} {
+	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID)} {
 		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
 			if !tokens[[2]int64{config, token}] {
 				t.Fatal("missing stock token", config, token)
@@ -294,6 +311,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	nextArmenian.Mappings = nil
 	nextArmenian.ObjectRevision++
 	state.SetDescriptor(armenian, &nextArmenian)
+	nextBasque := *view.MustTSConfiguration(basque)
+	nextBasque.Mappings = nil
+	nextBasque.ObjectRevision++
+	state.SetDescriptor(basque, &nextBasque)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
@@ -379,7 +400,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 76 {
+	if err != nil || len(rows) != 95 {
 		t.Fatal("old generation mapping rows", rows, err)
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -410,7 +431,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 		t.Fatal("replacement changed retained mapping generation")
 	}
 	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 76 {
+	if got, err := produce(input); err != nil || got == nil || len(got) != 95 {
 		t.Fatal("fresh mapping producer", got, err)
 	}
 	input.Source = old

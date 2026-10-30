@@ -4,6 +4,12 @@
   bootstrap ADMIN grant and adding a distinct creator-origin INHERIT/SET grant.
   Preserve raw setting presentation and typed session/transaction restoration.
 
+- Add release-matched Basque Snowball stemming, language-only `basque_stem`
+  and `basque` seeds with nineteen token mappings, typed direct/prepared text
+  search, atomic dictionary changes and intrinsic-identity logical replay.
+  Preserve original UTF8 regions, phase-local cursor protections and all
+  109 verb, 295 noun and 19 adjective rules without production dependencies.
+
 - Add transactional column statistics targets and distinctness overrides, typed
   catalog metadata, per-column ANALYZE collection and signed planner estimates,
   with immutable publication and native logical Dump/Restore.

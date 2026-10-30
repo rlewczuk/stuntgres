@@ -1647,7 +1647,7 @@ Dictionary execution captures and validates the current private descriptor under
 `unaccent(text)` resolves the dictionary named `unaccent` in the function's current
 schema; mutable member names are not a replacement for that lookup. Dictionary
 DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
-Core supplies shared compiled English, Arabic and Armenian Snowball runtimes to the catalog's
+Core supplies shared compiled English, Arabic, Armenian and Basque Snowball runtimes to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
 `Engine.TextSearchFiles` is immutable Driver startup authority, not catalog state.
@@ -2547,7 +2547,7 @@ make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFu
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
 make check RUN='^Test(Dictionary|Thesaurus)'           # dictionary demand, providers, publication, remap and retained typed ownership
 make check RUN='^TestTemplate'                        # exact callbacks, capability, manifest, closure, publication and remap
-make check RUN='^TestSnowball'                        # English/Arabic/Armenian seed authority, publication fences and accepted backing
+make check RUN='^TestSnowball'                        # English/Arabic/Armenian/Basque seed authority, publication fences and accepted backing
 make check RUN='^TestIspell'                          # dictionary resource propagation, fences and retained multi-lexeme owners
 make check RUN='^TestLqueryProvider'                   # installed scalar authority, staged publication and import
 make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts

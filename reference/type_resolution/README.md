@@ -125,7 +125,7 @@ bytes, and actual OIDVECTOR result metadata on direct and fresh routes.
   target; persistent domains supply user TypeClassID remapping witnesses.
 - Replay phases need the full dual-mode selection: a `/postgres` selector cannot
   supply the native emitted stream.
-- RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem, standalone dictionary definitions and
+- RegTS reads genuine builtin simple/english_stem/arabic_stem/armenian_stem/basque_stem, standalone dictionary definitions and
   installed unaccent identities through `pg_ts_dict`; alias rows use the local
   `regtsAssertAliasRows`, not the generic fixture type inventory. Dictionary
   scenarios independently check typed TEXT[] output, ordered options, current
@@ -197,6 +197,19 @@ Armenian Snowball morphology (all 191 released suffix witnesses), region/byte
 boundaries, language-only stock identity, explicit English stops and native
 dictionary/seed replay: `RUN='^TestReferenceArmenianSnowball'`. Corpus goldens
 trace the released ending→verb→adjective→noun order independently of production.
+Basque Snowball release-source morphology (423 full-pipeline rule witnesses),
+original-region/cursor protections, UTF8 byte boundaries, language-only stock
+identity, explicit English stops, diagnostics and dictionary/seed replay:
+`RUN='^TestReferenceBasqueSnowball'`. Corpus expectations are literal independent
+data; direct and retained statements share the public dictionary fixture. Replay
+requires the native producer as well as PostgreSQL; backend-only discovery
+cannot replace proof of the actual emitted stream.
+The pinned oracle keeps `etxeko`: longest noun `eko` begins before RV and cannot
+fall back to `ko`. It stems `aurka` to `aur` because verb `ka` runs before noun
+protection. New cross-routine literals additionally keep protected tails while
+later noun/adjective phases process their prefixes. Select unit/provider and
+ownership witnesses with `make check RUN='^TestSnowballBasque'`; add `RACE=1`
+for invocation-local scratch and immutable runtime ownership proof.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

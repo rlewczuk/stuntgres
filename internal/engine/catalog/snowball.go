@@ -38,6 +38,7 @@ const (
 	englishSnowballSeed
 	arabicSnowballSeed
 	armenianSnowballSeed
+	basqueSnowballSeed
 )
 
 func (s snowballSeed) language() string {
@@ -48,6 +49,8 @@ func (s snowballSeed) language() string {
 		return "arabic"
 	case armenianSnowballSeed:
 		return "armenian"
+	case basqueSnowballSeed:
+		return "basque"
 	}
 	return ""
 }
@@ -126,7 +129,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -162,7 +165,7 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 	for _, entry := range []struct {
 		seed    snowballSeed
 		runtime DictionaryRuntime
-	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}} {
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}} {
 		address, err := allocate(ids.TSDictionaryClassID)
 		if err != nil {
 			return err
