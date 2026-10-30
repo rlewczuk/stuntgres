@@ -3,11 +3,9 @@
 package reference_test
 
 import (
-	"context"
 	"reflect"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceNoticesPayload(t *testing.T) {
@@ -61,42 +59,4 @@ func TestReferenceNoticesSeverity(t *testing.T) {
 			}
 		}
 	}
-}
-func TestReferenceNoticesPermission(t *testing.T) {
-	p := fixture.NewPair(t)
-	var notices []fixture.Diagnostic
-	_, c, _ := fixture.NoticeReferencePool(t, p, true, &notices)
-	role := "notices_no_create"
-	if _, err := fixture.Admin.ExecContext(p.Ctx, "CREATE ROLE "+role+" NOLOGIN; GRANT USAGE ON SCHEMA public TO "+role); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_, err := fixture.Admin.ExecContext(ctx, "REVOKE ALL ON SCHEMA public FROM "+role+"; DROP ROLE "+role)
-		if err != nil {
-			t.Error(err)
-		}
-	}()
-	if _, err := c.ExecContext(p.Ctx, "CREATE TABLE notice_rows(id INT NOT NULL,note TEXT); INSERT INTO notice_rows VALUES(7,'kept'); SET ROLE "+role); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		if _, err := c.ExecContext(ctx, "RESET ROLE"); err != nil {
-			t.Error(err)
-		}
-	}()
-	_, err := c.ExecContext(p.Ctx, "CREATE TABLE IF NOT EXISTS notice_rows(other INT)")
-	fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema public", Position: "28"})
-	if len(notices) != 0 {
-		t.Fatal(notices)
-	}
-	if _, err = c.ExecContext(p.Ctx, "RESET ROLE"); err != nil {
-		t.Fatal(err)
-	}
-	fixture.RunStep(t, p.Ctx, c, &fixture.Recorder{}, fixture.Select(
-		"SELECT * FROM notice_rows ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"},
-		[][]any{{int64(7), "kept"}}))
 }

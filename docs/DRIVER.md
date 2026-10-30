@@ -816,6 +816,13 @@ EOF, Close and incidental diagnostic/dump formatting emit no output notices.
 A warning produced before a later field conversion fails is still delivered.
 Handlers may use an independent connection; do not re-enter the same `*sql.Conn`.
 
+`client_min_messages` is a session USERSET threshold, defaulting to `notice`;
+ordinary users can SET and RESET it without parameter grants. The existing
+transaction and savepoint settings path restores both its visible value and
+notice filtering on rollback; SET LOCAL lasts only until transaction completion.
+Filtering never suppresses returned SQL errors, and INFO notices always reach
+the handler.
+
 `stuntgres.WaitForNotification(ctx, conn)` waits on a pinned, unwrapped native
 `*sql.Conn` for the next committed `NOTIFY` on a channel it `LISTEN`s to and returns
 `Notification{PID, Channel, Payload}` (`PID` is the sender's session identity, not an
