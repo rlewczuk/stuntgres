@@ -28,8 +28,8 @@ func ownershipArrayNameControls(t *testing.T) {
 				}
 				t.Run(name, func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_array_owner", "eo_array_reader"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
 						ownershipSetup(run)
 						sourceExtension := "lo"
 						if installed {
@@ -41,8 +41,8 @@ func ownershipArrayNameControls(t *testing.T) {
 						}
 						parent := "lo"
 						array := "_lo"
-						baseID := ownershipID(t, p, c, `SELECT 'eo_old.lo'::regtype::bigint`)
-						arrayID := ownershipID(t, p, c, `SELECT typarray::bigint FROM pg_type WHERE oid='eo_old.lo'::regtype`)
+						baseID := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.lo'::regtype::bigint`)
+						arrayID := fixture.OwnershipID(t, p, c, `SELECT typarray::bigint FROM pg_type WHERE oid='eo_old.lo'::regtype`)
 						qname := func(n string) string { return "eo_old." + pq.QuoteIdentifier(n) }
 						create := func(n string) { run(fixture.Exec("CREATE DOMAIN "+qname(n)+" AS integer", 0)) }
 						drop := func(n string) { run(fixture.Exec("DROP DOMAIN "+qname(n), 0)) }
@@ -105,15 +105,15 @@ func ownershipArrayNameControls(t *testing.T) {
 						expectedNames = append(expectedNames, blockerArrays...)
 						slices.Sort(expectedNames)
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-							r := ownershipRunWithRecorder(t, p, conn, recorder)
+							r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 							rows := make([][]any, len(expectedNames))
 							for i, n := range expectedNames {
 								rows[i] = []any{n}
 							}
 							r(fixture.Select(`SELECT typname FROM pg_type WHERE typnamespace='eo_old'::regnamespace ORDER BY typname`, []string{"typname"}, []string{"NAME"}, rows))
-							r(ownershipCount(`SELECT count(*) FROM pg_type p JOIN pg_type a ON a.oid=p.typarray AND a.typelem=p.oid WHERE p.oid=`+pq.QuoteLiteral(qname(parent))+`::regtype AND a.oid=`+pq.QuoteLiteral(qname(array))+`::regtype AND p.typnamespace=a.typnamespace AND p.typowner=a.typowner`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type p JOIN pg_type a ON a.oid=p.typarray AND a.typelem=p.oid WHERE p.oid=`+pq.QuoteLiteral(qname(parent))+`::regtype AND a.oid=`+pq.QuoteLiteral(qname(array))+`::regtype AND p.typnamespace=a.typnamespace AND p.typowner=a.typowner`, 1))
 							r(fixture.Select(`SELECT o.rolname,p.typacl IS NOT NULL AS explicit_acl,has_type_privilege('eo_array_reader',p.oid,'USAGE') AS allowed FROM pg_type p JOIN pg_roles o ON o.oid=p.typowner WHERE p.oid=`+pq.QuoteLiteral(qname(parent))+`::regtype`, []string{"rolname", "explicit_acl", "allowed"}, []string{"NAME", "BOOL", "BOOL"}, [][]any{{"eo_array_owner", true, true}}))
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_type'::regclass AND objid=`+pq.QuoteLiteral(qname(array))+`::regtype AND refclassid='pg_type'::regclass AND refobjid=`+pq.QuoteLiteral(qname(parent))+`::regtype AND deptype='i'`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_type'::regclass AND objid=`+pq.QuoteLiteral(qname(array))+`::regtype AND refclassid='pg_type'::regclass AND refobjid=`+pq.QuoteLiteral(qname(parent))+`::regtype AND deptype='i'`, 1))
 							r(fixture.Select(`SELECT COALESCE(e.extname::text,'') AS member_of FROM pg_type a LEFT JOIN pg_depend d ON d.classid='pg_type'::regclass AND d.objid=a.oid AND d.refclassid='pg_extension'::regclass AND d.deptype='e' LEFT JOIN pg_extension e ON e.oid=d.refobjid WHERE a.oid=`+pq.QuoteLiteral(qname(array))+`::regtype`, []string{"member_of"}, []string{"TEXT"}, [][]any{{member}}))
 							// Lo's represented recipe is its domain/array, not upstream's unrelated trigger routines.
 							sourceMembers := int64(1)
@@ -125,14 +125,14 @@ func ownershipArrayNameControls(t *testing.T) {
 							if member == sourceExtension {
 								sourceMembers++
 							}
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname=`+pq.QuoteLiteral(sourceExtension)+`) AND deptype='e'`+class, sourceMembers))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname=`+pq.QuoteLiteral(sourceExtension)+`) AND deptype='e'`+class, sourceMembers))
 							s := fixture.Select("SELECT 42::"+qname(parent)+"::oid::bigint AS scalar,NULL::"+qname(parent)+"::oid::bigint AS absent", []string{"scalar", "absent"}, []string{"INT8", "INT8"}, [][]any{{int64(42), nil}})
 							if !installed {
 								s = fixture.Select("SELECT 42::"+qname(parent)+"::oid::bigint AS scalar,'{1,NULL,2}'::"+qname(array)+"::text AS array_value,NULL::"+qname(array)+"::text AS absent", []string{"scalar", "array_value", "absent"}, []string{"INT8", "TEXT", "TEXT"}, [][]any{{int64(42), "{1,NULL,2}", nil}})
 							}
 							r(s)
 							r(fixture.Prepared(s))
-							r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname NOT IN ('public','eo_old','eo_new','eo_other','information_schema') AND nspname NOT LIKE 'pg_%'`, 0))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname NOT IN ('public','eo_old','eo_new','eo_other','information_schema') AND nspname NOT LIKE 'pg_%'`, 0))
 						}
 						check(c, b.Recorder)
 						if parent == "lo" {

@@ -19,9 +19,9 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
-				ownershipSurvivorRoles(run)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
+				fixture.OwnershipSurvivorRoles(run)
 				fixture.CrosstabSeedInSchema(t, p, b, c, "eo_old")
 				run(fixture.Exec(`GRANT USAGE ON SCHEMA public TO eo_survivor_acl`, 0))
 				run(fixture.Exec(`GRANT SELECT ON public.ct_source TO eo_survivor_acl`, 0))
@@ -33,7 +33,7 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 				held := make([]fixture.HeldStatement, len(old))
 				heldSteps := make([]fixture.Step, len(old))
 				invariant := func(id int64) string {
-					return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+					return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 				}
 				query := func(i int, routine, arg string) string {
 					call := routine + "(" + arg
@@ -72,9 +72,9 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 				}
 				for i, sig := range old {
 					original := "eo_old." + sig
-					ownershipSurvivorACL(run, original)
-					ids[i] = ownershipID(t, p, c, "SELECT '"+original+"'::regprocedure::bigint")
-					declarations[i] = ownershipSnapshot(t, p, c, invariant(ids[i]))
+					fixture.OwnershipSurvivorACL(run, original)
+					ids[i] = fixture.OwnershipID(t, p, c, "SELECT '"+original+"'::regprocedure::bigint")
+					declarations[i] = fixture.OwnershipSnapshot(t, p, c, invariant(ids[i]))
 					routine := strings.Split(original, "(")[0]
 					run(fixture.Exec(fmt.Sprintf("CREATE VIEW eo_old.eo_pivot_%d AS %s", i, query(i, routine, fixture.CrosstabQuote(sourceSQL))), 0))
 					run(fixture.Exec(fmt.Sprintf("GRANT SELECT ON eo_old.eo_pivot_%d TO eo_survivor_acl", i), 0))
@@ -85,9 +85,9 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					heldQuery := fmt.Sprintf("SELECT * FROM eo_old.eo_pivot_%d ORDER BY 1", i)
 					held[i] = fixture.CrosstabHeld(t, p, c, heldQuery)
 					heldSteps[i] = want(i, heldQuery)
-					ownershipSurvivorMutation(t, p, c, run, "tablefunc", original)
+					fixture.OwnershipSurvivorMutation(t, p, c, run, "tablefunc", original)
 					run(fixture.Exec("ALTER EXTENSION tablefunc DROP FUNCTION "+original, 0))
-					ownershipSurvivorNonmember(run, "tablefunc", original)
+					fixture.OwnershipSurvivorNonmember(run, "tablefunc", original)
 					ownershipSurvivorNormalRestriction(run, original, fmt.Sprintf("eo_old.eo_pivot_%d", i))
 					renamed := fmt.Sprintf("eo_pivot_fn_%d", i)
 					run(fixture.Exec("ALTER FUNCTION "+original+" RENAME TO "+renamed, 0))
@@ -129,13 +129,13 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION `+sig, 0))
 				}
 				for _, sig := range signatures {
-					ownershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
+					fixture.OwnershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
 				}
 				for _, sig := range signatures {
 					for _, ext := range []string{"tablefunc", `"uuid-ossp"`} {
-						run(ownershipError("ALTER EXTENSION "+ext+" ADD FUNCTION "+sig, "55000", "function "+sig+` is already a member of extension "uuid-ossp"`))
+						run(fixture.OwnershipError("ALTER EXTENSION "+ext+" ADD FUNCTION "+sig, "55000", "function "+sig+` is already a member of extension "uuid-ossp"`))
 					}
-					ownershipSurvivorNonmember(run, "tablefunc", sig)
+					fixture.OwnershipSurvivorNonmember(run, "tablefunc", sig)
 				}
 				values(c, b.Recorder)
 				run(fixture.Exec("DROP EXTENSION tablefunc", 0))
@@ -145,7 +145,7 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					}
 				}
 				for i, id := range ids {
-					ownershipUnchanged(t, p, c, invariant(id), declarations[i])
+					fixture.OwnershipUnchanged(t, p, c, invariant(id), declarations[i])
 				}
 				for i, h := range held {
 					fixture.RunStep(t, p.Ctx, h, b.Recorder, heldSteps[i])
@@ -158,7 +158,7 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					values(conn, recorder)
 					for i, sig := range signatures {
 						if foreign {
-							ownershipSurvivorMemberRestriction(r, sig, "uuid-ossp")
+							fixture.OwnershipSurvivorMemberRestriction(r, sig, "uuid-ossp")
 						} else {
 							ownershipSurvivorNormalRestriction(r, sig, fmt.Sprintf("eo_old.eo_pivot_%d", i))
 						}
@@ -166,7 +166,7 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					r(fixture.Exec(`SET ROLE eo_survivor_acl`, 0))
 					values(conn, recorder)
 					r(fixture.Exec(`RESET ROLE`, 0))
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
 					for i, sig := range signatures {
 						ownershipSurvivorLinks(r, sig, foreign)
 						symbol := "crosstab"
@@ -176,13 +176,13 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 						}
 						r(fixture.Select(`SELECT p.prorettype::regtype::text,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid='`+sig+`'::regprocedure`, []string{"prorettype", "proisstrict", "provolatile", "proretset", "proparallel", "procost", "prorows", "prosrc", "probin"}, []string{"TEXT", "BOOL", "CHAR", "BOOL", "CHAR", "FLOAT4", "FLOAT4", "TEXT", "TEXT"}, [][]any{{result, true, "s", true, "u", float64(1), float64(1000), symbol, "$libdir/tablefunc"}}))
 						if i >= 2 {
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+sig+`'::regprocedure AND refclassid='pg_type'::regclass AND refobjid='`+result+`'::regtype AND deptype='n'`, 1))
-							r(ownershipCount(`SELECT count(*) FROM pg_type t JOIN pg_class c ON c.oid=t.typrelid JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='`+result+`'::regtype AND c.reltype=t.oid AND a.typelem=t.oid`, 1))
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_type'::regclass AND objid IN (SELECT oid FROM pg_type WHERE oid='`+result+`'::regtype OR typelem='`+result+`'::regtype) AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+sig+`'::regprocedure AND refclassid='pg_type'::regclass AND refobjid='`+result+`'::regtype AND deptype='n'`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type t JOIN pg_class c ON c.oid=t.typrelid JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='`+result+`'::regtype AND c.reltype=t.oid AND a.typelem=t.oid`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_type'::regclass AND objid IN (SELECT oid FROM pg_type WHERE oid='`+result+`'::regtype OR typelem='`+result+`'::regtype) AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
 						}
 					}
 				}
-				ownershipSurvivorControls(t, p, b, c, "crosstab_"+name, signatures, check)
+				fixture.OwnershipSurvivorControls(t, p, b, c, "crosstab_"+name, signatures, check)
 			})
 		})
 	}

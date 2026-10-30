@@ -17,7 +17,7 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	if b.PG {
 		return
 	}
-	run := ownershipRun(t, p, b, c)
+	run := fixture.OwnershipRun(t, p, b, c)
 	defer ownershipStockCleanup(t, c)()
 	// The shared SQL phase retains committed procedure setup across ROLLBACK.
 	// All other member definitions/membership setup were transactional.
@@ -28,7 +28,7 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	}
 	var detachedSchemaMembers [][]any
 	if tc.name == "schema" {
-		detachedSchemaMembers = ownershipSnapshot(t, p, c, ownershipClassMemberSet)
+		detachedSchemaMembers = fixture.OwnershipSnapshot(t, p, c, ownershipClassMemberSet)
 	}
 	run(fixture.Exec("ALTER EXTENSION unaccent ADD "+tc.target, 0))
 	schema := "eo_old"
@@ -39,9 +39,9 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		schema = "eo_new"
 	}
 	ownershipClassWitness(run, tc.name, schema)
-	metadata := ownershipClassMetadata(t, p, c, tc, ownershipID(t, p, c, tc.lookup))
-	members := ownershipSnapshot(t, p, c, ownershipClassMemberSet)
-	typeOwners := ownershipSnapshot(t, p, c, ownershipClassTypeOwners)
+	metadata := ownershipClassMetadata(t, p, c, tc, fixture.OwnershipID(t, p, c, tc.lookup))
+	members := fixture.OwnershipSnapshot(t, p, c, ownershipClassMemberSet)
+	typeOwners := fixture.OwnershipSnapshot(t, p, c, ownershipClassTypeOwners)
 	saved := fixture.ExtensionDump(t, p.Ctx, p.Native)
 	if tc.name == "dictionary_snowball" && !strings.Contains(saved, `CREATE TEXT SEARCH DICTIONARY "eo_new"."item"`) {
 		t.Fatal("ordinary Snowball member dictionary CREATE omitted from dump")
@@ -89,13 +89,13 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			defer ownershipStockCleanup(t, conn)()
 			destination := b
 			destination.Recorder = recorder
-			r := ownershipRun(t, p, destination, conn)
+			r := fixture.OwnershipRun(t, p, destination, conn)
 			ownershipMemberCount(r, 6+tc.closure)
-			id := ownershipID(t, p, conn, tc.lookup)
-			r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND deptype='e'`, 1, tc.class, id))
+			id := fixture.OwnershipID(t, p, conn, tc.lookup)
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND deptype='e'`, 1, tc.class, id))
 			ownershipClassMetadataEqual(t, metadata, ownershipClassMetadata(t, p, conn, tc, id))
-			ownershipUnchanged(t, p, conn, ownershipClassMemberSet, members)
-			ownershipUnchanged(t, p, conn, ownershipClassTypeOwners, typeOwners)
+			fixture.OwnershipUnchanged(t, p, conn, ownershipClassMemberSet, members)
+			fixture.OwnershipUnchanged(t, p, conn, ownershipClassTypeOwners, typeOwners)
 			if step, ok := ownershipClassMemberDrop(tc, schema); ok {
 				r(step)
 				if tc.class == 3601 {
@@ -129,8 +129,8 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 				}
 			}
 			if tc.class == 3601 {
-				r(ownershipError("ALTER EXTENSION unaccent ADD "+tc.target, "55000", `text search parser `+schema+`.item is already a member of extension "unaccent"`))
-				r(ownershipError("ALTER EXTENSION plpgsql DROP "+tc.target, "55000", `text search parser `+schema+`.item is not a member of extension "plpgsql"`))
+				r(fixture.OwnershipError("ALTER EXTENSION unaccent ADD "+tc.target, "55000", `text search parser `+schema+`.item is already a member of extension "unaccent"`))
+				r(fixture.OwnershipError("ALTER EXTENSION plpgsql DROP "+tc.target, "55000", `text search parser `+schema+`.item is not a member of extension "plpgsql"`))
 				if again := fixture.ExtensionDump(t, p.Ctx, control); again != saved {
 					t.Fatal("parser member replay changed dump bytes")
 				}
@@ -145,7 +145,7 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 					}
 					ownershipClassWitness(r, tc.name, schema)
 					ownershipClassMetadataEqual(t, metadata, ownershipClassMetadata(t, p, conn, tc, id))
-					ownershipUnchanged(t, p, conn, ownershipClassMemberSet, members)
+					fixture.OwnershipUnchanged(t, p, conn, ownershipClassMemberSet, members)
 					checkHeldSnowball()
 				}
 				if tc.class == 3601 {
@@ -158,11 +158,11 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			}
 			r(fixture.Exec("ALTER EXTENSION unaccent DROP "+tc.target, 0))
 			if tc.name == "schema" {
-				ownershipUnchanged(t, p, conn, ownershipClassMemberSet, detachedSchemaMembers)
+				fixture.OwnershipUnchanged(t, p, conn, ownershipClassMemberSet, detachedSchemaMembers)
 			}
 			ownershipMemberCount(r, 6)
-			r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, tc.class, id))
-			if ownershipID(t, p, conn, tc.lookup) != id {
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, tc.class, id))
+			if fixture.OwnershipID(t, p, conn, tc.lookup) != id {
 				t.Fatal("replayed detach replaced identity", tc.name)
 			}
 			ownershipClassWitness(r, tc.name, schema)
@@ -174,12 +174,12 @@ func ownershipClassControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			if tc.class == 3601 {
 				ownershipClassMetadataEqual(t, metadata, ownershipClassMetadata(t, p, conn, tc, id))
 				r(ownershipParserRestrict(schema))
-				r(ownershipError("ALTER EXTENSION unaccent DROP "+tc.target, "55000", `text search parser `+schema+`.item is not a member of extension "unaccent"`))
+				r(fixture.OwnershipError("ALTER EXTENSION unaccent DROP "+tc.target, "55000", `text search parser `+schema+`.item is not a member of extension "unaccent"`))
 				r(fixture.Exec("ALTER EXTENSION unaccent ADD "+tc.target, 0))
 				r(fixture.Exec("ALTER EXTENSION unaccent DROP "+tc.target, 0))
 				r(fixture.Exec("DROP TEXT SEARCH PARSER "+schema+".item CASCADE", 0))
-				r(ownershipCount(`SELECT count(*) FROM pg_ts_config WHERE cfgname='parser_config' AND cfgnamespace='eo_old'::regnamespace`, 0))
-				r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE oid IN (3717,3718,3719,3721)`, 4))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_ts_config WHERE cfgname='parser_config' AND cfgnamespace='eo_old'::regnamespace`, 0))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE oid IN (3717,3718,3719,3721)`, 4))
 			}
 		}()
 	}

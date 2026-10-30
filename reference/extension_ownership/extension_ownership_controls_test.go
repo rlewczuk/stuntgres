@@ -29,8 +29,8 @@ func TestReferenceExtensionOwnershipControls(t *testing.T) {
 	t.Run("template_survivors", ownershipTemplateSurvivors)
 	t.Run("mixed_members_owners_stock_deltas", func(t *testing.T) {
 		fixture.RoleReferenceCleanup(t, []string{"eo_owner", "eo_object_owner", "eo_acl"})
-		ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-			run := ownershipRun(t, p, b, c)
+		fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+			run := fixture.OwnershipRun(t, p, b, c)
 			for _, q := range []string{`CREATE ROLE eo_owner SUPERUSER`, `CREATE ROLE eo_object_owner`, `CREATE ROLE eo_acl`, `CREATE SCHEMA eo_old`, `CREATE SCHEMA eo_new`, `CREATE SCHEMA eo_other`, `SET SESSION AUTHORIZATION eo_owner`, `CREATE EXTENSION unaccent SCHEMA eo_old`, `RESET SESSION AUTHORIZATION`, `CREATE EXTENSION "uuid-ossp" SCHEMA eo_other`, `ALTER EXTENSION unaccent SET SCHEMA eo_new`, `CREATE FUNCTION eo_new.member(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1+1'`, `CREATE TABLE eo_new.rows(v text)`, `INSERT INTO eo_new.rows VALUES ('Hotel'),(NULL)`, `CREATE TYPE eo_new.label AS ENUM ('one','two')`, `CREATE TYPE eo_new.span AS RANGE (SUBTYPE=integer,MULTIRANGE_TYPE_NAME=eo_new.spans)`, `ALTER EXTENSION unaccent ADD FUNCTION eo_new.member(integer)`, `ALTER EXTENSION unaccent ADD TABLE eo_new.rows`, `ALTER EXTENSION unaccent ADD TYPE eo_new.label`, `ALTER EXTENSION unaccent ADD TYPE eo_new.span`, `ALTER FUNCTION eo_new.member(integer) OWNER TO eo_object_owner`, `GRANT USAGE ON SCHEMA eo_new TO eo_object_owner,eo_acl`, `REVOKE ALL ON FUNCTION eo_new.member(integer) FROM PUBLIC`, `GRANT EXECUTE ON FUNCTION eo_new.member(integer) TO eo_acl`, `ALTER EXTENSION unaccent DROP FUNCTION eo_new.unaccent(text)`, `ALTER EXTENSION "uuid-ossp" ADD FUNCTION eo_new.unaccent(text)`} {
 				n := int64(0)
 				if strings.HasPrefix(q, "INSERT ") {
@@ -47,17 +47,17 @@ func TestReferenceExtensionOwnershipControls(t *testing.T) {
 				ownershipCallable(r, "eo_new")
 				r(fixture.Select(`SELECT eo_new.member(4) AS answer`, []string{"answer"}, []string{"INT4"}, [][]any{{int64(5)}}))
 				r(fixture.Select(`SELECT v FROM eo_new.rows ORDER BY v NULLS LAST`, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}, {nil}}))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.refclassid='pg_extension'::regclass AND e.extname='unaccent' AND d.deptype='e'`, 15))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_new.unaccent(text)'::regprocedure AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='uuid-ossp') AND deptype='e'`, 1))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='plpgsql') AND deptype='e'`, 2))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.refclassid='pg_extension'::regclass AND e.extname='unaccent' AND d.deptype='e'`, 15))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_new.unaccent(text)'::regprocedure AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='uuid-ossp') AND deptype='e'`, 1))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='plpgsql') AND deptype='e'`, 2))
 				r(fixture.Select(`SELECT r.rolname FROM pg_roles r JOIN pg_extension e ON e.extowner=r.oid WHERE e.extname='unaccent'`, []string{"rolname"}, []string{"NAME"}, [][]any{{"eo_owner"}}))
 				r(fixture.Select(`SELECT r.rolname,has_function_privilege('eo_acl',p.oid,'EXECUTE') AS allowed,has_function_privilege('eo_owner',p.oid,'EXECUTE') AS owner_allowed FROM pg_roles r JOIN pg_proc p ON p.proowner=r.oid WHERE p.oid='eo_new.member(integer)'::regprocedure`, []string{"rolname", "allowed", "owner_allowed"}, []string{"NAME", "BOOL", "BOOL"}, [][]any{{"eo_object_owner", true, true}}))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_extension'::regclass AND objid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1))
-				s := ownershipError(`DROP TABLE eo_new.rows`, "2BP01", `cannot drop table eo_new.rows because extension unaccent requires it`)
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_extension'::regclass AND objid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1))
+				s := fixture.OwnershipError(`DROP TABLE eo_new.rows`, "2BP01", `cannot drop table eo_new.rows because extension unaccent requires it`)
 				s.Diagnostic.Hint = "You can drop extension unaccent instead."
 				r(s)
 				r(fixture.Exec(`SET ROLE eo_acl`, 0))
-				r(ownershipError(`ALTER EXTENSION unaccent DROP FUNCTION eo_new.member(integer)`, "42501", `must be owner of extension unaccent`))
+				r(fixture.OwnershipError(`ALTER EXTENSION unaccent DROP FUNCTION eo_new.member(integer)`, "42501", `must be owner of extension unaccent`))
 				r(fixture.Exec(`RESET ROLE`, 0))
 			}
 			check(c, b.Recorder)
@@ -130,8 +130,8 @@ func TestReferenceExtensionOwnershipControls(t *testing.T) {
 		})
 	})
 	t.Run("absent_installation_and_deleted_declarations", func(t *testing.T) {
-		ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-			run := ownershipRun(t, p, b, c)
+		fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+			run := fixture.OwnershipRun(t, p, b, c)
 			ownershipSetup(run)
 			for _, target := range []string{"FUNCTION eo_old.unaccent(text)", "FUNCTION eo_old.unaccent(regdictionary,text)", "FUNCTION eo_old.unaccent_init(internal)", "FUNCTION eo_old.unaccent_lexize(internal,internal,internal,internal)", "TEXT SEARCH DICTIONARY eo_old.unaccent", "TEXT SEARCH TEMPLATE eo_old.unaccent"} {
 				run(fixture.Exec("ALTER EXTENSION unaccent DROP "+target, 0))
@@ -141,9 +141,9 @@ func TestReferenceExtensionOwnershipControls(t *testing.T) {
 			check := func(conn *sql.Conn, recorder *fixture.Recorder) {
 				r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 				ownershipCallable(r, "eo_old")
-				r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent'`, 0))
-				r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname='unaccent'`, 1))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_old.unaccent(text)'::regprocedure AND deptype='e'`, 0))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent'`, 0))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname='unaccent'`, 1))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_old.unaccent(text)'::regprocedure AND deptype='e'`, 0))
 			}
 			check(c, b.Recorder)
 			if b.PG {
@@ -206,5 +206,5 @@ func ownershipControlFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fix
 	if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil {
 		t.Fatal(err)
 	}
-	fixture.RunStep(t, p.Ctx, c, r, ownershipCount(`SELECT count(*) FROM eo_new.rows`, 2))
+	fixture.RunStep(t, p.Ctx, c, r, fixture.OwnershipCount(`SELECT count(*) FROM eo_new.rows`, 2))
 }

@@ -98,19 +98,19 @@ func ownershipSnowballCleanup(t *testing.T, c *sql.Conn) func() {
 }
 
 func ownershipSnowballBootstrapMembership(t *testing.T) {
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		defer ownershipSnowballCleanup(t, c)()
-		run := ownershipRun(t, p, b, c)
+		run := fixture.OwnershipRun(t, p, b, c)
 		ownershipSetup(run)
 		ids := make([]int64, len(ownershipSnowballSeeds))
 		for i, s := range ownershipSnowballSeeds {
-			ids[i] = ownershipID(t, p, c, s.lookup(false))
+			ids[i] = fixture.OwnershipID(t, p, c, s.lookup(false))
 			if ids[i] <= 0 {
 				t.Fatal("missing real Snowball seed", s.original)
 			}
 		}
 		owners := ownershipSnowballOwners(t, p, c, false)
-		mappings := ownershipSnapshot(t, p, c, "SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg='pg_catalog.english'::regconfig ORDER BY maptokentype,mapseqno")
+		mappings := fixture.OwnershipSnapshot(t, p, c, "SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg='pg_catalog.english'::regconfig ORDER BY maptokentype,mapseqno")
 		ownershipSnowballDictionaryWitness(run, "pg_catalog.english_stem", true)
 		run(fixture.Select("SELECT dictinitoption FROM pg_ts_dict WHERE oid='pg_catalog.english_stem'::regdictionary", []string{"dictinitoption"}, []string{"TEXT"}, [][]any{{"language = 'english', stopwords = 'english'"}}))
 		// Keep a real held, parameterized consumer across membership and rename.
@@ -129,7 +129,7 @@ func ownershipSnowballBootstrapMembership(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, b.Recorder, fixture.Select(q, []string{"value"}, []string{"_TEXT"}, [][]any{{"{rat}"}}, "pg_catalog.english_stem", "RATS"))
 		for i, s := range ownershipSnowballSeeds {
 			run(fixture.Exec("ALTER "+s.target(false)+" RENAME TO eo_"+s.original, 0))
-			if ownershipID(t, p, c, s.lookup(true)) != ids[i] {
+			if fixture.OwnershipID(t, p, c, s.lookup(true)) != ids[i] {
 				t.Fatal("seed ALTER replaced identity", s.original)
 			}
 		}
@@ -137,7 +137,7 @@ func ownershipSnowballBootstrapMembership(t *testing.T) {
 		ownershipSnowballSeedWitness(run)
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, b.Recorder, fixture.Select(q, []string{"value"}, []string{"_TEXT"}, [][]any{{"{the}"}}, "pg_catalog.eo_english_stem", "the"))
 		ownershipClassMetadataEqual(t, owners, ownershipSnowballOwners(t, p, c, true))
-		ownershipUnchanged(t, p, c, "SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg='pg_catalog.eo_english'::regconfig ORDER BY maptokentype,mapseqno", mappings)
+		fixture.OwnershipUnchanged(t, p, c, "SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg='pg_catalog.eo_english'::regconfig ORDER BY maptokentype,mapseqno", mappings)
 		metadata := ownershipSnowballMetadata(t, p, c)
 		// Exercise lawful detach and reattachment on the real source as well,
 		// without restoring options, callbacks or mappings from a copy.
@@ -145,7 +145,7 @@ func ownershipSnowballBootstrapMembership(t *testing.T) {
 			if s.receiver != "" {
 				run(fixture.Exec("ALTER EXTENSION "+s.receiver+" DROP "+s.target(true), 0))
 			}
-			run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid='pg_extension'::regclass AND deptype='e'", 0))
+			run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid='pg_extension'::regclass AND deptype='e'", 0))
 		}
 		ownershipSnowballDictionaryWitness(run, "pg_catalog.eo_english_stem", false)
 		ownershipSnowballDetachedDrops(run)
@@ -178,13 +178,13 @@ func ownershipSnowballSeedWitness(run func(fixture.Step)) {
 		if s.receiver == "" {
 			n = 0
 		}
-		run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid="+id+" AND refclassid='pg_extension'::regclass AND deptype='e'", n))
-		run(ownershipCount("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid='"+s.table+"'::regclass AND d.objid="+id+" AND d.refclassid='pg_extension'::regclass AND d.deptype='e' AND e.extname=$1", n, s.receiver))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid="+id+" AND refclassid='pg_extension'::regclass AND deptype='e'", n))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid='"+s.table+"'::regclass AND d.objid="+id+" AND d.refclassid='pg_extension'::regclass AND d.deptype='e' AND e.extname=$1", n, s.receiver))
 		// pg_catalog is pinned; its namespace dependency has no physical row.
-		run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid="+id+" AND refclassid='pg_namespace'::regclass AND deptype='n'", 0))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid="+id+" AND refclassid='pg_namespace'::regclass AND deptype='n'", 0))
 		if s.receiver != "" {
 			description := strings.ToLower(s.kind) + " eo_" + s.original + s.signature
-			blocked := ownershipError("DROP "+s.target(true)+" CASCADE", "2BP01", "cannot drop "+description+" because extension "+s.receiver+" requires it")
+			blocked := fixture.OwnershipError("DROP "+s.target(true)+" CASCADE", "2BP01", "cannot drop "+description+" because extension "+s.receiver+" requires it")
 			blocked.Diagnostic.Hint = "You can drop extension " + s.receiver + " instead."
 			run(blocked)
 		} else {
@@ -192,9 +192,9 @@ func ownershipSnowballSeedWitness(run func(fixture.Step)) {
 			run(fixture.Error("DROP "+s.target(true)+" RESTRICT", "2BP01"))
 		}
 	}
-	run(ownershipCount("SELECT count(*) FROM pg_ts_dict WHERE oid='pg_catalog.eo_english_stem'::regdictionary AND dicttemplate=(SELECT oid FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball') AND dictinitoption=$1", 1, "language = 'english'"))
-	run(ownershipCount("SELECT count(*) FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball' AND tmplinit='pg_catalog.eo_dsnowball_init(internal)'::regprocedure AND tmpllexize='pg_catalog.eo_dsnowball_lexize(internal,internal,internal,internal)'::regprocedure", 1))
-	run(ownershipCount("SELECT count(*) FROM pg_ts_config_map WHERE mapcfg='pg_catalog.eo_english'::regconfig AND maptokentype=1 AND mapseqno=1 AND mapdict='pg_catalog.eo_english_stem'::regdictionary", 1))
+	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_dict WHERE oid='pg_catalog.eo_english_stem'::regdictionary AND dicttemplate=(SELECT oid FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball') AND dictinitoption=$1", 1, "language = 'english'"))
+	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='eo_snowball' AND tmplinit='pg_catalog.eo_dsnowball_init(internal)'::regprocedure AND tmpllexize='pg_catalog.eo_dsnowball_lexize(internal,internal,internal,internal)'::regprocedure", 1))
+	run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_config_map WHERE mapcfg='pg_catalog.eo_english'::regconfig AND maptokentype=1 AND mapseqno=1 AND mapdict='pg_catalog.eo_english_stem'::regdictionary", 1))
 	// Allocated Snowball callbacks/template/dictionary are not pinned. These
 	// normal edges remain independent of the deliberately mixed e receivers.
 	for i, s := range ownershipSnowballSeeds[2:] {
@@ -202,14 +202,14 @@ func ownershipSnowballSeedWitness(run func(fixture.Step)) {
 		if i == 0 {
 			n = 2
 		}
-		run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid IN ('pg_proc'::regclass,'pg_ts_template'::regclass,'pg_ts_dict'::regclass) AND deptype='n'", n))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid IN ('pg_proc'::regclass,'pg_ts_template'::regclass,'pg_ts_dict'::regclass) AND deptype='n'", n))
 	}
 	for _, s := range ownershipSnowballSeeds[:2] {
 		args := "2281"
 		if s.original == "dsnowball_lexize" {
 			args = "2281 2281 2281 2281"
 		}
-		run(ownershipCount("SELECT count(*) FROM pg_proc WHERE oid=("+s.lookup(true)+") AND proargtypes::text=$1 AND prorettype=2281 AND proisstrict AND provolatile='v' AND proparallel='u' AND prosrc=$2 AND probin='$libdir/dict_snowball' AND prolang=(SELECT oid FROM pg_language WHERE lanname='c')", 1, args, s.original))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_proc WHERE oid=("+s.lookup(true)+") AND proargtypes::text=$1 AND prorettype=2281 AND proisstrict AND provolatile='v' AND proparallel='u' AND prosrc=$2 AND probin='$libdir/dict_snowball' AND prolang=(SELECT oid FROM pg_language WHERE lanname='c')", 1, args, s.original))
 	}
 }
 
@@ -220,7 +220,7 @@ func ownershipSnowballDetachedDrops(run func(fixture.Step)) {
 	for _, s := range ownershipSnowballSeeds[:3] {
 		run(fixture.Error("DROP "+s.target(true)+" RESTRICT", "2BP01"))
 	}
-	blocked := ownershipError("DROP TEXT SEARCH DICTIONARY pg_catalog.eo_english_stem RESTRICT", "2BP01", "cannot drop text search dictionary eo_english_stem because other objects depend on it")
+	blocked := fixture.OwnershipError("DROP TEXT SEARCH DICTIONARY pg_catalog.eo_english_stem RESTRICT", "2BP01", "cannot drop text search dictionary eo_english_stem because other objects depend on it")
 	blocked.Diagnostic.Detail = "text search configuration eo_english depends on text search dictionary eo_english_stem"
 	blocked.Diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 	// The released cluster also maps hindi/russian tokens through english_stem.
@@ -253,7 +253,7 @@ func ownershipSnowballOwners(t *testing.T, p *fixture.Pair, c *sql.Conn, moved b
 		default:
 			continue
 		}
-		out = append(out, ownershipSnapshot(t, p, c, "SELECT r.rolname,"+columns+" FROM "+s.table+" o JOIN pg_roles r ON r.oid=o."+owner+" WHERE o.oid=("+s.lookup(moved)+")"))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, "SELECT r.rolname,"+columns+" FROM "+s.table+" o JOIN pg_roles r ON r.oid=o."+owner+" WHERE o.oid=("+s.lookup(moved)+")"))
 	}
 	return out
 }
@@ -261,10 +261,10 @@ func ownershipSnowballOwners(t *testing.T, p *fixture.Pair, c *sql.Conn, moved b
 func ownershipSnowballMetadata(t *testing.T, p *fixture.Pair, c *sql.Conn) [][][]any {
 	var out [][][]any
 	for _, s := range ownershipSnowballSeeds {
-		id := ownershipID(t, p, c, s.lookup(true))
+		id := fixture.OwnershipID(t, p, c, s.lookup(true))
 		tc := ownershipClassCase{class: map[string]int64{"pg_proc": 1255, "pg_ts_template": 3764, "pg_ts_dict": 3600, "pg_ts_config": 3602}[s.table]}
 		out = append(out, ownershipClassMetadata(t, p, c, tc, id)...)
-		out = append(out, ownershipSnapshot(t, p, c, "SELECT n.nspname,o."+s.name+" FROM "+s.table+" o JOIN pg_namespace n ON n.oid=o."+s.namespace+" WHERE o.oid="+ownershipNumber(id)))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, "SELECT n.nspname,o."+s.name+" FROM "+s.table+" o JOIN pg_namespace n ON n.oid=o."+s.namespace+" WHERE o.oid="+fixture.OwnershipNumber(id)))
 	}
 	return out
 }
@@ -297,7 +297,7 @@ func ownershipSnowballSeedControls(t *testing.T, p *fixture.Pair, b fixture.Back
 		if err := stuntgres.Restore(p.Ctx, control, strings.NewReader(saved)); err != nil {
 			t.Fatal("Snowball seed replay", err)
 		}
-		run := ownershipRunWithRecorder(t, p, conn, recorder)
+		run := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 		const q = "SELECT ts_lexize('pg_catalog.eo_english_stem'::regdictionary,$1::text) AS value"
 		held, err := conn.PrepareContext(p.Ctx, q)
 		if err != nil {
@@ -337,7 +337,7 @@ func ownershipSnowballSeedControls(t *testing.T, p *fixture.Pair, b fixture.Back
 		ownershipSnowballDetachedDrops(run)
 		checkHeld()
 		for _, s := range ownershipSnowballSeeds {
-			run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid='pg_extension'::regclass AND deptype='e'", 0))
+			run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='"+s.table+"'::regclass AND objid=("+s.lookup(true)+") AND refclassid='pg_extension'::regclass AND deptype='e'", 0))
 		}
 		ownershipClassMetadataEqual(t, metadata, ownershipSnowballMetadata(t, p, conn))
 	}

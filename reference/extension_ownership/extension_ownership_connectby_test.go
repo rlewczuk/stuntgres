@@ -20,8 +20,8 @@ func ownershipConnectbySurvivors(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			fixture.RoleReferenceCleanup(t, []string{"eo_cb_owner", "eo_cb_acl"})
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
 				for _, q := range []string{
 					`CREATE ROLE eo_cb_owner SUPERUSER`, `CREATE ROLE eo_cb_acl`,
 					`CREATE SCHEMA eo_old AUTHORIZATION eo_cb_owner`, `CREATE SCHEMA eo_other`,
@@ -35,7 +35,7 @@ func ownershipConnectbySurvivors(t *testing.T) {
 				ids := make([]int64, len(fixture.ConnectbySignatures))
 				before := make([][][]any, len(fixture.ConnectbySignatures))
 				identity := func(id int64) string {
-					return `SELECT p.oid::bigint,p.pronamespace::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.prolang::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin,p.pronargdefaults,p.provariadic::bigint FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+					return `SELECT p.oid::bigint,p.pronamespace::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.prolang::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin,p.pronargdefaults,p.provariadic::bigint FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 				}
 				query := func(v int, args, routine string) string {
 					q := strings.Replace(fixture.ConnectbyQuery(v, args), "cb_part.connectby", routine, 1)
@@ -50,18 +50,18 @@ func ownershipConnectbySurvivors(t *testing.T) {
 					} {
 						run(fixture.Exec(q, 0))
 					}
-					ids[v] = ownershipID(t, p, c, "SELECT '"+original+"'::regprocedure::bigint")
-					before[v] = ownershipSnapshot(t, p, c, identity(ids[v]))
+					ids[v] = fixture.OwnershipID(t, p, c, "SELECT '"+original+"'::regprocedure::bigint")
+					before[v] = fixture.OwnershipSnapshot(t, p, c, identity(ids[v]))
 					literal := strings.NewReplacer("$1::text", "'row2'::text", "$2::integer", "0::integer", "$3::text", "'~'::text").Replace(fixture.ConnectbyArgs[v])
 					// Bind each genuine overload before either rename or retirement.
 					run(fixture.Exec(fmt.Sprintf("CREATE VIEW eo_old.eo_walks_%d AS %s", v, query(v, literal, "eo_old.connectby")), 0))
-					run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+ownershipNumber(ids[v])+` AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='tablefunc') AND deptype='e'`, 1))
+					run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+fixture.OwnershipNumber(ids[v])+` AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='tablefunc') AND deptype='e'`, 1))
 					run(fixture.Exec("ALTER EXTENSION tablefunc DROP FUNCTION "+original, 0))
-					run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+ownershipNumber(ids[v])+` AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
+					run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+fixture.OwnershipNumber(ids[v])+` AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
 					run(fixture.Exec(fmt.Sprintf("ALTER FUNCTION %s RENAME TO eo_walk_%d", original, v), 0))
 				}
 				values := func(conn *sql.Conn, recorder *fixture.Recorder) {
-					r := ownershipRunWithRecorder(t, p, conn, recorder)
+					r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 					for v := range fixture.ConnectbySignatures {
 						routine := fmt.Sprintf("eo_old.eo_walk_%d", v)
 						args := []any{"row2", 0}
@@ -94,7 +94,7 @@ func ownershipConnectbySurvivors(t *testing.T) {
 					routine := fmt.Sprintf("eo_old.eo_walk_%d(%s)", v, sig)
 					run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION `+routine, 0))
 					for _, suffix := range []string{"", " CASCADE"} {
-						s := ownershipError("DROP FUNCTION "+routine+suffix, "2BP01", "cannot drop function "+routine+" because extension uuid-ossp requires it")
+						s := fixture.OwnershipError("DROP FUNCTION "+routine+suffix, "2BP01", "cannot drop function "+routine+" because extension uuid-ossp requires it")
 						s.Diagnostic.Hint = "You can drop extension uuid-ossp instead."
 						run(s)
 					}
@@ -107,13 +107,13 @@ func ownershipConnectbySurvivors(t *testing.T) {
 					}
 				}
 				for v, id := range ids {
-					ownershipUnchanged(t, p, c, identity(id), before[v])
+					fixture.OwnershipUnchanged(t, p, c, identity(id), before[v])
 				}
 				check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-					r := ownershipRunWithRecorder(t, p, conn, recorder)
+					r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 					values(conn, recorder)
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
-					r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('connectby','normal_rand')`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('connectby','normal_rand')`, 0))
 					member := ""
 					if foreign {
 						member = "uuid-ossp"
@@ -128,9 +128,9 @@ func ownershipConnectbySurvivors(t *testing.T) {
 							symbol = "connectby_text_serial"
 						}
 						r(fixture.Select(`SELECT r.rolname,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.prosrc,l.lanname,has_function_privilege('eo_cb_acl',p.oid,'EXECUTE') AS allowed,has_function_privilege('public',p.oid,'EXECUTE') AS public_allowed FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner JOIN pg_language l ON l.oid=p.prolang`+where, []string{"rolname", "proargtypes", "prorettype", "proisstrict", "provolatile", "proretset", "proparallel", "prosrc", "lanname", "allowed", "public_allowed"}, []string{"NAME", "TEXT", "INT8", "BOOL", "CHAR", "BOOL", "CHAR", "TEXT", "NAME", "BOOL", "BOOL"}, [][]any{{"eo_cb_owner", argtypes[v], int64(2249), true, "s", true, "u", symbol, "c", true, false}}))
-						r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+routine+`'::regprocedure AND refclassid='pg_namespace'::regclass AND refobjid='eo_old'::regnamespace AND deptype='n'`, 1))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+routine+`'::regprocedure AND refclassid='pg_namespace'::regclass AND refobjid='eo_old'::regnamespace AND deptype='n'`, 1))
 						if !foreign {
-							s := ownershipError("DROP FUNCTION "+routine, "2BP01", "cannot drop function "+routine+" because other objects depend on it")
+							s := fixture.OwnershipError("DROP FUNCTION "+routine, "2BP01", "cannot drop function "+routine+" because other objects depend on it")
 							s.Diagnostic.Detail = fmt.Sprintf("view eo_old.eo_walks_%d depends on function %s", v, routine)
 							s.Diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 							r(s)
@@ -139,7 +139,7 @@ func ownershipConnectbySurvivors(t *testing.T) {
 				}
 				check(c, b.Recorder)
 				logical := `SELECT p.proname,n.nspname,r.rolname,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,l.lanname,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin,p.pronargdefaults,p.provariadic::bigint FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner JOIN pg_language l ON l.oid=p.prolang WHERE n.nspname='eo_old' AND p.proname IN ('eo_walk_0','eo_walk_1','eo_walk_2','eo_walk_3') ORDER BY p.proname`
-				current := ownershipSnapshot(t, p, c, logical)
+				current := fixture.OwnershipSnapshot(t, p, c, logical)
 				if !b.PG {
 					saved := fixture.ExtensionDump(t, p.Ctx, p.Native)
 					connector, err := stuntgres.NewDriver().OpenConnector("eo_connectby_" + name)
@@ -173,8 +173,8 @@ func ownershipConnectbySurvivors(t *testing.T) {
 							t.Fatal(err)
 						}
 						check(conn, destination.recorder)
-						ownershipUnchanged(t, p, conn, logical, current)
-						ownershipConnectbyCleanup(ownershipRunWithRecorder(t, p, conn, destination.recorder), foreign)
+						fixture.OwnershipUnchanged(t, p, conn, logical, current)
+						ownershipConnectbyCleanup(fixture.OwnershipRunWithRecorder(t, p, conn, destination.recorder), foreign)
 						conn.Close()
 					}
 				} else {

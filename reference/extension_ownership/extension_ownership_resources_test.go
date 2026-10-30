@@ -10,8 +10,8 @@ import (
 )
 
 func TestReferenceExtensionOwnershipResources(t *testing.T) {
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, peer *sql.Conn) {
-		run := ownershipRun(t, p, b, peer)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, peer *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, peer)
 		run(fixture.Exec(`CREATE SCHEMA eo_other`, 0))
 		run(fixture.Exec(`CREATE TEMP TABLE eo_peer_temp(v integer)`, 0))
 		run(fixture.Exec(`INSERT INTO eo_peer_temp VALUES(73)`, 1))
@@ -40,9 +40,9 @@ func TestReferenceExtensionOwnershipResources(t *testing.T) {
 			t.FailNow()
 		}
 		fixture.ExtensionTempExitBarrier(t, p, peer, b.Recorder, 30790018)
-		run(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent'`, 0))
-		run(ownershipCount(`SELECT count(*) FROM pg_class WHERE relname='eo_detached'`, 0))
-		run(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace=(SELECT oid FROM pg_namespace WHERE nspname=$1)`, 0, name))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent'`, 0))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_class WHERE relname='eo_detached'`, 0))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace=(SELECT oid FROM pg_namespace WHERE nspname=$1)`, 0, name))
 		run(fixture.Select(`SELECT eo_other.survivor(4) AS answer`, []string{"answer"}, []string{"INT4"}, [][]any{{int64(5)}}))
 		run(fixture.Select(`SELECT v FROM eo_peer_temp`, []string{"v"}, []string{"INT4"}, [][]any{{int64(73)}}))
 		if !b.PG {

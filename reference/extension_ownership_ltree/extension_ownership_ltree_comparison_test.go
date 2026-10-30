@@ -110,24 +110,24 @@ func TestReferenceExtensionOwnershipLtreeComparisonSurvivors(t *testing.T) {
 func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string, start int) {
 	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
-		ownershipSurvivorRoles(run)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
+		fixture.OwnershipSurvivorRoles(run)
 		run(fixture.Exec("GRANT USAGE ON SCHEMA eo_other TO eo_survivor_acl", 0))
 		run(fixture.Exec("CREATE EXTENSION ltree SCHEMA eo_old", 0))
 		run(fixture.Exec("ALTER EXTENSION ltree SET SCHEMA eo_new", 0))
 		for i := range ownershipLtreeComparisonCases {
-			ownershipSurvivorACL(run, ownershipLtreeComparisonSignature(i, false))
+			fixture.OwnershipSurvivorACL(run, ownershipLtreeComparisonSignature(i, false))
 		}
 		var invariantQueries []string
 		var originalDeclarations [][][]any
 		for i := start; i < start+3; i++ {
-			id := ownershipID(t, p, c, "SELECT '"+ownershipLtreeComparisonSignature(i, false)+"'::regprocedure::bigint")
-			q := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+			id := fixture.OwnershipID(t, p, c, "SELECT '"+ownershipLtreeComparisonSignature(i, false)+"'::regprocedure::bigint")
+			q := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 			invariantQueries = append(invariantQueries, q)
-			originalDeclarations = append(originalDeclarations, ownershipSnapshot(t, p, c, q))
+			originalDeclarations = append(originalDeclarations, fixture.OwnershipSnapshot(t, p, c, q))
 		}
-		ownershipSurvivorMutation(t, p, c, run, "ltree", ownershipLtreeComparisonSignature(start, false))
+		fixture.OwnershipSurvivorMutation(t, p, c, run, "ltree", ownershipLtreeComparisonSignature(start, false))
 		run(fixture.Exec("SET search_path=eo_new,public", 0))
 		for _, q := range []string{
 			"CREATE TABLE eo_old.lc_values(id integer,v eo_new.ltree)",
@@ -178,7 +178,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 			heldSteps = append(heldSteps, s)
 		}
 		values := func(conn *sql.Conn, recorder *fixture.Recorder, renamed bool) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			for i := start; i < min(start+3, 6); i++ {
 				for null := range 3 {
 					for _, prepared := range []bool{false, true} {
@@ -201,7 +201,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 			run(fixture.Exec("ALTER EXTENSION ltree DROP "+target, 0))
 		}
 		run(fixture.Exec("SET search_path=public", 0))
-		ownershipSurvivorNonmember(run, "ltree", ownershipLtreeComparisonSignature(start, false))
+		fixture.OwnershipSurvivorNonmember(run, "ltree", ownershipLtreeComparisonSignature(start, false))
 		run(fixture.Exec("SET search_path=eo_new,public", 0))
 		values(c, b.Recorder, false)
 		for i := range ownershipLtreeComparisonCases {
@@ -223,7 +223,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 		for _, target := range ownershipLtreeComparisonTargets(true) {
 			run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD `+target, 0))
 		}
-		ownershipSurvivorMemberRestriction(run, ownershipLtreeComparisonSignature(start, true), "uuid-ossp")
+		fixture.OwnershipSurvivorMemberRestriction(run, ownershipLtreeComparisonSignature(start, true), "uuid-ossp")
 		run(fixture.Exec("SET search_path=eo_other,eo_new,public", 0))
 		values(c, b.Recorder, true)
 		// Upstream send/receive codecs remain actual normal prerequisites, not
@@ -264,7 +264,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 			}
 		}
 		for i, q := range invariantQueries {
-			ownershipUnchanged(t, p, c, q, originalDeclarations[i])
+			fixture.OwnershipUnchanged(t, p, c, q, originalDeclarations[i])
 		}
 		var signatures []string
 		for i := range ownershipLtreeComparisonCases {
@@ -272,13 +272,13 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 		}
 		signatures = append(signatures, "eo_new.ltree_in(cstring)", "eo_new.ltree_out(eo_new.ltree)")
 		check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			r(fixture.Exec("SET search_path=eo_other,eo_new,public", 0))
 			values(conn, recorder, true)
 			r(fixture.Exec("SET ROLE eo_survivor_acl", 0))
 			values(conn, recorder, true)
 			r(fixture.Exec("RESET ROLE", 0))
-			r(ownershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
+			r(fixture.OwnershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
 			dependencies := &ownershipLtreeDependencies{}
 			for i := start; i < start+3; i++ {
 				signature := ownershipLtreeComparisonSignature(i, true)
@@ -303,7 +303,7 @@ func ownershipLtreeComparisonSurvivors(t *testing.T, foreign bool, state string,
 				retainedRows = append(retainedRows, oldRows)
 			}
 		}
-		ownershipSurvivorControls(t, p, b, c, "ltree_comparison_"+state, signatures, check)
+		fixture.OwnershipSurvivorControls(t, p, b, c, "ltree_comparison_"+state, signatures, check)
 		for _, oldRows := range retainedRows {
 			columns, err := oldRows.ColumnTypes()
 			if err != nil || len(columns) != 2 || columns[0].Name() != "id" || columns[0].DatabaseTypeName() != "INT4" || columns[1].Name() != "v" || columns[1].DatabaseTypeName() != "LTREE" {
@@ -339,7 +339,7 @@ func ownershipLtreeComparisonGraph(run func(fixture.Step), dependencies *ownersh
 	}
 	for index, identity := range []string{"'eo_new.ltree'::regtype", "(SELECT typarray FROM pg_type WHERE oid='eo_new.ltree'::regtype)"} {
 		dependencies.member(run, "pg_type", identity, member)
-		run(ownershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
 		// An associated array is internally owned by its scalar; it has no
 		// independent namespace dependency (REL_18_6 GenerateTypeDependencies).
 		dependencies.count("classid='pg_type'::regclass AND objid="+identity+" AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'", int64(1-index))
@@ -347,7 +347,7 @@ func ownershipLtreeComparisonGraph(run func(fixture.Step), dependencies *ownersh
 	}
 	for i, op := range []string{"=", "<>", "<", "<=", ">", ">="} {
 		identity := "'eo_other." + op + "(eo_new.ltree,eo_new.ltree)'::regoperator"
-		run(ownershipCount("SELECT count(*) FROM pg_operator WHERE oid="+identity+" AND oprcode='"+ownershipLtreeComparisonSignature(i, true)+"'::regprocedure AND oprowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_operator WHERE oid="+identity+" AND oprcode='"+ownershipLtreeComparisonSignature(i, true)+"'::regprocedure AND oprowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
 		dependencies.count("classid='pg_operator'::regclass AND objid="+identity+" AND refclassid='pg_proc'::regclass AND refobjid='"+ownershipLtreeComparisonSignature(i, true)+"'::regprocedure AND deptype='n'", 1)
 		dependencies.member(run, "pg_operator", identity, member)
 		dependencies.count("classid='pg_operator'::regclass AND objid="+identity+" AND refclassid='pg_namespace'::regclass AND refobjid='eo_other'::regnamespace AND deptype='n'", 1)
@@ -358,18 +358,18 @@ func ownershipLtreeComparisonGraph(run func(fixture.Step), dependencies *ownersh
 	}{{"ltree_ops", "btree", 5, 1}, {"hash_ltree_ops", "hash", 1, 2}} {
 		family := "(SELECT f.oid FROM pg_opfamily f JOIN pg_am a ON a.oid=f.opfmethod WHERE f.opfname='" + tc.name + "' AND f.opfnamespace='eo_new'::regnamespace AND a.amname='" + tc.method + "')"
 		class := "(SELECT c.oid FROM pg_opclass c JOIN pg_am a ON a.oid=c.opcmethod WHERE c.opcname='" + tc.name + "' AND c.opcnamespace='eo_new'::regnamespace AND a.amname='" + tc.method + "')"
-		run(ownershipCount("SELECT count(*) FROM pg_opclass WHERE oid="+class+" AND opcfamily="+family+" AND opcintype='eo_new.ltree'::regtype AND opcdefault", 1))
-		run(ownershipCount("SELECT count(*) FROM pg_amop WHERE amopfamily="+family, tc.strategies))
-		run(ownershipCount("SELECT count(*) FROM pg_amproc WHERE amprocfamily="+family, tc.supports))
-		run(ownershipCount("SELECT count(*) FROM pg_opclass WHERE oid="+class+" AND opcowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
-		run(ownershipCount("SELECT count(*) FROM pg_opfamily WHERE oid="+family+" AND opfowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_opclass WHERE oid="+class+" AND opcfamily="+family+" AND opcintype='eo_new.ltree'::regtype AND opcdefault", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_amop WHERE amopfamily="+family, tc.strategies))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_amproc WHERE amprocfamily="+family, tc.supports))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_opclass WHERE oid="+class+" AND opcowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_opfamily WHERE oid="+family+" AND opfowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
 		strategies := []string{"<", "<=", "=", ">=", ">"}
 		if tc.method == "hash" {
 			strategies = []string{"="}
 		}
 		for index, op := range strategies {
 			identity := "(SELECT oid FROM pg_amop WHERE amopfamily=" + family + " AND amopstrategy=" + fmt.Sprint(index+1) + ")"
-			run(ownershipCount("SELECT count(*) FROM pg_amop WHERE oid="+identity+" AND amopopr='eo_other."+op+"(eo_new.ltree,eo_new.ltree)'::regoperator AND amoplefttype='eo_new.ltree'::regtype AND amoprighttype='eo_new.ltree'::regtype AND amoppurpose='s'", 1))
+			run(fixture.OwnershipCount("SELECT count(*) FROM pg_amop WHERE oid="+identity+" AND amopopr='eo_other."+op+"(eo_new.ltree,eo_new.ltree)'::regoperator AND amoplefttype='eo_new.ltree'::regtype AND amoprighttype='eo_new.ltree'::regtype AND amoppurpose='s'", 1))
 			dependencies.count("classid='pg_amop'::regclass AND objid="+identity+" AND refclassid='pg_opclass'::regclass AND refobjid="+class+" AND deptype='i'", 1)
 		}
 		for _, entry := range []struct{ catalog, id string }{{"pg_opclass", class}, {"pg_opfamily", family}} {
@@ -386,7 +386,7 @@ func ownershipLtreeComparisonGraph(run func(fixture.Step), dependencies *ownersh
 			if number == 2 {
 				dependency = "a"
 			}
-			run(ownershipCount("SELECT count(*) FROM pg_amproc WHERE oid="+identity+" AND amproc='"+ownershipLtreeComparisonSignature(first+number-1, true)+"'::regprocedure", 1))
+			run(fixture.OwnershipCount("SELECT count(*) FROM pg_amproc WHERE oid="+identity+" AND amproc='"+ownershipLtreeComparisonSignature(first+number-1, true)+"'::regprocedure", 1))
 			dependencies.count("classid='pg_amproc'::regclass AND objid="+identity+" AND refclassid='pg_proc'::regclass AND refobjid='"+ownershipLtreeComparisonSignature(first+number-1, true)+"'::regprocedure AND deptype='"+dependency+"'", 1)
 			if number == 1 {
 				dependencies.count("classid='pg_amproc'::regclass AND objid="+identity+" AND refclassid='pg_opclass'::regclass AND refobjid="+class+" AND deptype='i'", 1)

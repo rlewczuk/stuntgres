@@ -12,8 +12,8 @@ import (
 
 func TestReferenceExtensionOwnershipAuthority(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"eo_installer", "eo_reader", "eo_member"})
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
 		// Run before the borrowed connection is released, even after Fatal.
 		// RoleReferenceCleanup alone cannot revoke a database CREATE grant.
 		defer func() {
@@ -57,7 +57,7 @@ func TestReferenceExtensionOwnershipAuthority(t *testing.T) {
 		run(fixture.Exec("GRANT CREATE ON DATABASE "+fixture.ExtensionTempIdentifier(database)+" TO eo_installer", 0))
 		run(fixture.Exec("SET ROLE eo_installer", 0))
 		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA eo_old", 0))
-		run(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proowner<>(SELECT extowner FROM pg_extension WHERE extname='unaccent')`, 4))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proowner<>(SELECT extowner FROM pg_extension WHERE extname='unaccent')`, 4))
 		ownershipMemberCount(run, 6)
 		// Same-target succeeds before lower object movers. A real move reaches
 		// generic function-owner checks despite the misleading extension.c comment.
@@ -72,15 +72,15 @@ func TestReferenceExtensionOwnershipAuthority(t *testing.T) {
 		}
 		before := make([][][]any, len(queries))
 		for i, q := range queries {
-			before[i] = ownershipSnapshot(t, p, c, q)
+			before[i] = fixture.OwnershipSnapshot(t, p, c, q)
 		}
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "must be owner of function unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "must be owner of function unaccent"))
 		for i, q := range queries {
-			ownershipUnchanged(t, p, c, q, before[i])
+			fixture.OwnershipUnchanged(t, p, c, q, before[i])
 		}
 		ownershipCallable(run, "eo_old")
-		run(ownershipError("ALTER EXTENSION unaccent DROP FUNCTION eo_old.unaccent(text)", "42501", "must be owner of function eo_old.unaccent"))
-		run(ownershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_old.unaccent(text)", "42501", "must be owner of function eo_old.unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent DROP FUNCTION eo_old.unaccent(text)", "42501", "must be owner of function eo_old.unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_old.unaccent(text)", "42501", "must be owner of function eo_old.unaccent"))
 		run(fixture.Exec("CREATE FUNCTION eo_new.owned(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'", 0))
 		run(fixture.Exec("ALTER EXTENSION unaccent ADD FUNCTION eo_new.owned(integer)", 0))
 		run(fixture.Exec("ALTER EXTENSION unaccent DROP FUNCTION eo_new.owned(integer)", 0))
@@ -89,31 +89,31 @@ func TestReferenceExtensionOwnershipAuthority(t *testing.T) {
 		// ownerless template; neither provider nor extension ownership is faked.
 		run(fixture.Exec("ALTER EXTENSION unaccent SET SCHEMA eo_new", 0))
 		ownershipCallable(run, "eo_new")
-		run(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent' AND extnamespace='eo_new'::regnamespace AND extowner=(SELECT oid FROM pg_roles WHERE rolname='eo_installer')`, 1))
-		run(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_new'::regnamespace AND proname IN ('unaccent','unaccent_init','unaccent_lexize') AND proowner<>(SELECT extowner FROM pg_extension WHERE extname='unaccent')`, 4))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent' AND extnamespace='eo_new'::regnamespace AND extowner=(SELECT oid FROM pg_roles WHERE rolname='eo_installer')`, 1))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_new'::regnamespace AND proname IN ('unaccent','unaccent_init','unaccent_lexize') AND proowner<>(SELECT extowner FROM pg_extension WHERE extname='unaccent')`, 4))
 		run(fixture.Exec("ALTER FUNCTION eo_new.owned(integer) OWNER TO eo_reader", 0))
 		run(fixture.Exec("GRANT USAGE ON SCHEMA eo_new TO eo_reader", 0))
 		run(fixture.Exec("SET ROLE eo_reader", 0))
-		run(ownershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_new.owned(integer)", "42501", "must be owner of extension unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_new.owned(integer)", "42501", "must be owner of extension unaccent"))
 		run(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("SET ROLE eo_installer", 0))
-		run(ownershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_new.owned(integer)", "42501", "must be owner of function eo_new.owned"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent ADD FUNCTION eo_new.owned(integer)", "42501", "must be owner of function eo_new.owned"))
 		run(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("REVOKE CREATE ON SCHEMA eo_other,eo_new FROM eo_installer", 0))
 		run(fixture.Exec("SET ROLE eo_installer", 0))
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_other", "42501", "permission denied for schema eo_other"))
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "permission denied for schema eo_new"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_other", "42501", "permission denied for schema eo_other"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "permission denied for schema eo_new"))
 		run(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("GRANT CREATE ON SCHEMA eo_new TO eo_installer", 0))
 		run(fixture.Exec("GRANT eo_installer TO eo_member", 0))
 		run(fixture.Exec("SET ROLE eo_member", 0))
 		run(fixture.Exec("ALTER EXTENSION unaccent SET SCHEMA eo_new", 0))
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_old", "42501", "must be owner of function unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_old", "42501", "must be owner of function unaccent"))
 		run(fixture.Exec("RESET ROLE", 0))
 		run(fixture.Exec("REVOKE eo_installer FROM eo_member", 0))
 		run(fixture.Exec("GRANT CREATE ON SCHEMA eo_new TO eo_member", 0))
 		run(fixture.Exec("SET ROLE eo_member", 0))
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "must be owner of extension unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_new", "42501", "must be owner of extension unaccent"))
 		run(fixture.Exec("RESET ROLE", 0))
 		// Transfer genuine owned objects through their public ALTER commands.
 		// Owning every function/dictionary still cannot grant ownership of an
@@ -129,13 +129,13 @@ func TestReferenceExtensionOwnershipAuthority(t *testing.T) {
 		currentQueries := make([]string, len(queries))
 		for i, q := range queries {
 			currentQueries[i] = strings.ReplaceAll(q, "eo_old", "eo_new")
-			before[i] = ownershipSnapshot(t, p, c, currentQueries[i])
+			before[i] = fixture.OwnershipSnapshot(t, p, c, currentQueries[i])
 		}
 		run(fixture.Exec("SET ROLE eo_installer", 0))
-		run(ownershipError("ALTER EXTENSION unaccent SET SCHEMA eo_old", "42501", "must be superuser to set schema of text search template eo_new.unaccent"))
+		run(fixture.OwnershipError("ALTER EXTENSION unaccent SET SCHEMA eo_old", "42501", "must be superuser to set schema of text search template eo_new.unaccent"))
 		run(fixture.Exec("RESET ROLE", 0))
 		for i, q := range currentQueries {
-			ownershipUnchanged(t, p, c, q, before[i])
+			fixture.OwnershipUnchanged(t, p, c, q, before[i])
 		}
 		ownershipCallable(run, "eo_new")
 		ownershipMemberCount(run, 6)

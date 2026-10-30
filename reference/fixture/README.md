@@ -160,6 +160,9 @@ production dependency is involved.
   `tablefunc_helpers.go` (connectby/crosstab/normal) and `ts_template_helpers.go`
   serve [extensions](../extensions/README.md#testing) and
   [extension_ownership](../extension_ownership/README.md#testing).
+  `extension_ownership_helpers.go` (`OwnershipScenario`, the survivor controls
+  and snapshots) serves extension_ownership and
+  [extension_ownership_ltree](../extension_ownership_ltree/README.md#testing).
 - **Collections, binary and JSON shared ownership.** `array_agg_shared.go` owns
   `ArrayAggBoth`/`ArrayAggMetadata` for [cursors](../cursors/README.md#testing)
   and intagg in [binary_json_arrays](../binary_json_arrays/README.md#testing).

@@ -32,7 +32,7 @@ func (d *ownershipLtreeDependencies) check(run func(fixture.Step)) {
 // Keep the original one-object cardinality witness, then assert the exact e-edge
 // count and receiver separately in the same finite live dependency projection.
 func (d *ownershipLtreeDependencies) member(run func(fixture.Step), catalog, identity, member string) {
-	run(ownershipCount("SELECT count(*) FROM "+catalog+" WHERE oid="+identity, 1))
+	run(fixture.OwnershipCount("SELECT count(*) FROM "+catalog+" WHERE oid="+identity, 1))
 	predicate := "classid='" + catalog + "'::regclass AND objid=" + identity + " AND refclassid='pg_extension'::regclass AND deptype='e'"
 	want := int64(0)
 	if member != "" {

@@ -17,9 +17,9 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 			for _, state := range states {
 				t.Run(state, func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
-						ownershipSurvivorRoles(run)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
+						fixture.OwnershipSurvivorRoles(run)
 						origin, name, input, kind := "pgrowlocks", "pgrowlocks", "text", "FUNCTION"
 						if provider == "intagg_enum" {
 							origin, name, input = "intagg", "int_array_enum", "integer[]"
@@ -34,23 +34,23 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 							run(fixture.Exec(`REVOKE ALL ON FUNCTION `+signature+` FROM PUBLIC`, 0))
 							run(fixture.Exec(`GRANT EXECUTE ON FUNCTION `+signature+` TO eo_survivor_acl`, 0))
 						} else {
-							ownershipSurvivorACL(run, signature)
+							fixture.OwnershipSurvivorACL(run, signature)
 							run(fixture.Exec(`ALTER FUNCTION `+signature+` PARALLEL RESTRICTED COST 7.25 ROWS 13`, 0))
 						}
-						id := ownershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`)
-						initialQuery := ownershipSurvivorDeclaration(signature)
-						initial := ownershipSnapshot(t, p, c, initialQuery)
+						id := fixture.OwnershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`)
+						initialQuery := fixture.OwnershipSurvivorDeclaration(signature)
+						initial := fixture.OwnershipSnapshot(t, p, c, initialQuery)
 						// The aggregate's private helper identities retain their genuine source
 						// coordinates. They are not independently mutable native SQL functions.
 						graphQuery := `SELECT a.aggtransfn::text,a.aggfinalfn::text,a.aggtranstype::bigint,a.aggfnoid::oid<>a.aggtransfn::oid AS distinct_state,a.aggfnoid::oid<>a.aggfinalfn::oid AS distinct_final FROM pg_aggregate a WHERE a.aggfnoid::oid='` + signature + `'::regprocedure::oid`
 						var graph [][]any
 						if kind == "AGGREGATE" {
 							run(fixture.Select(graphQuery, []string{"aggtransfn", "aggfinalfn", "aggtranstype", "distinct_state", "distinct_final"}, []string{"TEXT", "TEXT", "INT8", "BOOL", "BOOL"}, [][]any{{"eo_old.int_agg_state", "eo_old.int_agg_final_array", int64(2281), true, true}}))
-							graph = ownershipSnapshot(t, p, c, graphQuery)
+							graph = fixture.OwnershipSnapshot(t, p, c, graphQuery)
 						}
 						if state != "attached" {
 							run(fixture.Exec(`ALTER EXTENSION `+origin+` DROP `+kind+` `+signature, 0))
-							ownershipUnchanged(t, p, c, initialQuery, initial)
+							fixture.OwnershipUnchanged(t, p, c, initialQuery, initial)
 						}
 						run(fixture.Exec(`ALTER `+kind+` `+signature+` RENAME TO eo_provider`, 0))
 						signature = "eo_old.eo_provider(" + input + ")"
@@ -65,7 +65,7 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 						if retire {
 							run(fixture.Exec(`DROP EXTENSION `+origin, 0))
 						}
-						if got := ownershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
+						if got := fixture.OwnershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
 							t.Fatal("provider mutation changed identity", got, id)
 						}
 						run(fixture.Exec(`CREATE TABLE eo_new.provider_input(id integer,k text,v integer)`, 0))
@@ -80,11 +80,11 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 							query = `SELECT eo_new.eo_provider(v ORDER BY id) AS v FROM eo_new.provider_input`
 						}
 						run(fixture.Exec(`CREATE VIEW eo_new.provider_saved AS `+query, 0))
-						declarationQuery := ownershipSurvivorDeclaration(signature)
-						current := ownershipSnapshot(t, p, c, declarationQuery)
+						declarationQuery := fixture.OwnershipSurvivorDeclaration(signature)
+						current := fixture.OwnershipSnapshot(t, p, c, declarationQuery)
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
 							r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
-							ownershipUnchanged(t, p, conn, declarationQuery, current)
+							fixture.OwnershipUnchanged(t, p, conn, declarationQuery, current)
 							member := ""
 							if state == "attached" {
 								member = origin
@@ -93,13 +93,13 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 								member = "uuid-ossp"
 							}
 							r(fixture.Select(`SELECT COALESCE(e.extname::text,'') AS member_of FROM pg_proc p LEFT JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass AND d.deptype='e' LEFT JOIN pg_extension e ON e.oid=d.refobjid WHERE p.oid='`+signature+`'::regprocedure`, []string{"member_of"}, []string{"TEXT"}, [][]any{{member}}))
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+signature+`'::regprocedure AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+signature+`'::regprocedure AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1))
 							r(fixture.Select(`SELECT r.rolname,has_function_privilege('eo_survivor_acl',p.oid,'EXECUTE') AS allowed,has_function_privilege('public',p.oid,'EXECUTE') AS public_allowed FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid='`+signature+`'::regprocedure`, []string{"rolname", "allowed", "public_allowed"}, []string{"NAME", "BOOL", "BOOL"}, [][]any{{"eo_survivor_owner", true, false}}))
 							present := int64(1)
 							if retire {
 								present = 0
 							}
-							r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='`+origin+`'`, present))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='`+origin+`'`, present))
 							source, args, result, strict, sets, prokind, parallel, cost, rows := "pgrowlocks", "25", int64(2249), true, true, "f", "r", 7.25, float64(13)
 							var binary any = "$libdir/pgrowlocks"
 							if provider == "intagg_enum" {
@@ -121,8 +121,8 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 							} else {
 								s = fixture.ArrayReferenceSelect(query, []string{"v"}, []string{"_INT4"}, []string{"_INT4"}, [][]any{{"{2,NULL,2,-2147483648,2147483647}"}}, b.PG)
 								currentGraph := `SELECT a.aggtransfn::text,a.aggfinalfn::text,a.aggtranstype::bigint,a.aggfnoid::oid<>a.aggtransfn::oid AS distinct_state,a.aggfnoid::oid<>a.aggfinalfn::oid AS distinct_final FROM pg_aggregate a WHERE a.aggfnoid::oid='` + signature + `'::regprocedure::oid`
-								ownershipUnchanged(t, p, conn, currentGraph, graph)
-								r(ownershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_aggregate a ON a.aggfnoid::oid=d.objid WHERE d.classid='pg_proc'::regclass AND d.objid='`+signature+`'::regprocedure AND d.refclassid='pg_proc'::regclass AND d.deptype='n' AND (d.refobjid=a.aggtransfn::oid OR d.refobjid=a.aggfinalfn::oid)`, 2))
+								fixture.OwnershipUnchanged(t, p, conn, currentGraph, graph)
+								r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_aggregate a ON a.aggfnoid::oid=d.objid WHERE d.classid='pg_proc'::regclass AND d.objid='`+signature+`'::regprocedure AND d.refclassid='pg_proc'::regclass AND d.deptype='n' AND (d.refobjid=a.aggtransfn::oid OR d.refobjid=a.aggfinalfn::oid)`, 2))
 							}
 							r(s)
 							r(fixture.Prepared(s))
@@ -142,11 +142,11 @@ func ownershipProviderMetadataSurvivors(t *testing.T) {
 									ownershipSurvivorNormalRestriction(r, signature, "eo_new.provider_saved")
 								}
 								if member != "" {
-									ownershipSurvivorMemberRestriction(r, signature, member)
+									fixture.OwnershipSurvivorMemberRestriction(r, signature, member)
 								}
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, provider+"_"+state, []string{signature}, check)
+						fixture.OwnershipSurvivorControls(t, p, b, c, provider+"_"+state, []string{signature}, check)
 					})
 				})
 			}

@@ -30,7 +30,7 @@ func ownershipClassMemberDrop(tc ownershipClassCase, schema string) (fixture.Ste
 	default:
 		return fixture.Step{}, false
 	}
-	step := ownershipError("DROP "+kind+" "+schema+".item CASCADE", "2BP01", "cannot drop "+kind+" "+schema+".item because extension unaccent requires it")
+	step := fixture.OwnershipError("DROP "+kind+" "+schema+".item CASCADE", "2BP01", "cannot drop "+kind+" "+schema+".item because extension unaccent requires it")
 	step.Diagnostic.Hint = "You can drop extension unaccent instead."
 	return step, true
 }
@@ -68,17 +68,17 @@ func ownershipClassWitness(run func(fixture.Step), name, schema string) {
 	case "operator":
 		integer("SELECT 4 OPERATOR("+schema+".#~#) 5 AS value", 9)
 	case "operator_family":
-		run(ownershipCount("SELECT count(*) FROM pg_opfamily f JOIN pg_am a ON a.oid=f.opfmethod WHERE f.opfname='item' AND f.opfnamespace='"+schema+"'::regnamespace AND a.amname='btree'", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_opfamily f JOIN pg_am a ON a.oid=f.opfmethod WHERE f.opfname='item' AND f.opfnamespace='"+schema+"'::regnamespace AND a.amname='btree'", 1))
 	case "operator_class":
-		run(ownershipCount("SELECT count(*) FROM pg_opclass c JOIN pg_am a ON a.oid=c.opcmethod WHERE c.opcname='item' AND c.opcnamespace='"+schema+"'::regnamespace AND a.amname='btree' AND c.opcintype='integer'::regtype", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_opclass c JOIN pg_am a ON a.oid=c.opcmethod WHERE c.opcname='item' AND c.opcnamespace='"+schema+"'::regnamespace AND a.amname='btree' AND c.opcintype='integer'::regtype", 1))
 	case "dictionary":
 		run(fixture.Select("SELECT ts_lexize('"+schema+".item','HELLO') AS value", []string{"value"}, []string{"_TEXT"}, [][]any{{"{hello}"}}))
 		ownershipDictionaryTemplateDependency(run, schema+".item")
 	case "dictionary_snowball":
 		ownershipSnowballDictionaryWitness(run, schema+".item", true)
-		run(ownershipCount("SELECT count(*) FROM pg_ts_dict WHERE oid='"+schema+".item'::regdictionary AND dictowner=current_user::regrole AND dicttemplate=(SELECT oid FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='snowball') AND dictinitoption=$1", 1, "language = 'english', stopwords = 'english'"))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_dict WHERE oid='"+schema+".item'::regdictionary AND dictowner=current_user::regrole AND dicttemplate=(SELECT oid FROM pg_ts_template WHERE tmplnamespace='pg_catalog'::regnamespace AND tmplname='snowball') AND dictinitoption=$1", 1, "language = 'english', stopwords = 'english'"))
 		ownershipDictionaryTemplateDependency(run, schema+".item")
-		run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='pg_ts_dict'::regclass AND objid='"+schema+".item'::regdictionary AND refclassid='pg_namespace'::regclass AND refobjid='"+schema+"'::regnamespace AND deptype='n'", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='pg_ts_dict'::regclass AND objid='"+schema+".item'::regdictionary AND refclassid='pg_namespace'::regclass AND refobjid='"+schema+"'::regnamespace AND deptype='n'", 1))
 	case "parser":
 		ownershipParserWitness(run, schema)
 	case "configuration":
@@ -88,20 +88,20 @@ func ownershipClassWitness(run func(fixture.Step), name, schema string) {
 		s = fixture.Select("SELECT to_tsvector('"+schema+".item'::regconfig,NULL::text) IS NULL AS absent", []string{"absent"}, []string{"BOOL"}, [][]any{{true}})
 		run(s)
 		run(fixture.Prepared(s))
-		run(ownershipCount("SELECT count(*) FROM pg_ts_config c JOIN pg_ts_parser p ON p.oid=c.cfgparser WHERE c.oid='"+schema+".item'::regconfig AND p.prsname='default' AND p.prsnamespace='pg_catalog'::regnamespace", 1))
-		run(ownershipCount("SELECT count(*) FROM pg_ts_config_map m WHERE m.mapcfg='"+schema+".item'::regconfig AND m.mapdict='pg_catalog.simple'::regdictionary", 19))
-		run(ownershipCount("SELECT count(*) FROM pg_depend WHERE classid='pg_ts_config'::regclass AND objid='"+schema+".item'::regconfig AND refclassid='pg_ts_config'::regclass", 0))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_config c JOIN pg_ts_parser p ON p.oid=c.cfgparser WHERE c.oid='"+schema+".item'::regconfig AND p.prsname='default' AND p.prsnamespace='pg_catalog'::regnamespace", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_ts_config_map m WHERE m.mapcfg='"+schema+".item'::regconfig AND m.mapdict='pg_catalog.simple'::regdictionary", 19))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_depend WHERE classid='pg_ts_config'::regclass AND objid='"+schema+".item'::regconfig AND refclassid='pg_ts_config'::regclass", 0))
 	case "collation":
 		text("SELECT ('a' COLLATE "+schema+".item)::text AS value", "a")
 	case "conversion":
-		run(ownershipCount("SELECT count(*) FROM pg_conversion WHERE connamespace='"+schema+"'::regnamespace AND conname='item' AND conforencoding=6 AND contoencoding=8 AND conproc='pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)'::regprocedure", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_conversion WHERE connamespace='"+schema+"'::regnamespace AND conname='item' AND conforencoding=6 AND contoencoding=8 AND conproc='pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)'::regprocedure", 1))
 	case "schema":
 		run(fixture.Exec(`CREATE TABLE eo_other.eo_witness(v integer)`, 0))
 		run(fixture.Exec(`DROP TABLE eo_other.eo_witness`, 0))
 	case "language":
 		run(fixture.Select(`CALL public.eo_witness(4)`, []string{"n"}, []string{"INT4"}, [][]any{{int64(5)}}))
 	case "access_method":
-		run(ownershipCount(`SELECT count(*) FROM pg_am WHERE amname='eo_method' AND amtype='i' AND amhandler='pg_catalog.bthandler(internal)'::regprocedure`, 1))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_am WHERE amname='eo_method' AND amtype='i' AND amhandler='pg_catalog.bthandler(internal)'::regprocedure`, 1))
 	case "event_trigger":
 		run(fixture.Exec(`ALTER EVENT TRIGGER eo_event ENABLE`, 0))
 		run(fixture.Exec(`CREATE TABLE public.eo_witness(v integer)`, 0))
@@ -129,26 +129,26 @@ func ownershipDictionaryTemplateDependency(run func(fixture.Step), dictionary st
 // independent remaps; numerical OIDs are deliberately not compared here.
 func ownershipClassMetadata(t *testing.T, p *fixture.Pair, c *sql.Conn, tc ownershipClassCase, id int64) [][][]any {
 	t.Helper()
-	q := `SELECT pg_describe_object(refclassid,refobjid,refobjsubid) AS endpoint,deptype FROM pg_depend WHERE classid=` + ownershipNumber(tc.class) + ` AND objid=` + ownershipNumber(id) + ` AND deptype<>'e' ORDER BY endpoint,deptype`
-	out := [][][]any{ownershipSnapshot(t, p, c, q)}
+	q := `SELECT pg_describe_object(refclassid,refobjid,refobjsubid) AS endpoint,deptype FROM pg_depend WHERE classid=` + fixture.OwnershipNumber(tc.class) + ` AND objid=` + fixture.OwnershipNumber(id) + ` AND deptype<>'e' ORDER BY endpoint,deptype`
+	out := [][][]any{fixture.OwnershipSnapshot(t, p, c, q)}
 	owners := map[int64][3]string{
 		1255: {"pg_proc", "proowner", "proacl"}, 1247: {"pg_type", "typowner", "typacl"}, 1259: {"pg_class", "relowner", "relacl"}, 2617: {"pg_operator", "oprowner", "NULL"}, 2753: {"pg_opfamily", "opfowner", "NULL"}, 2616: {"pg_opclass", "opcowner", "NULL"}, 3600: {"pg_ts_dict", "dictowner", "NULL"}, 3456: {"pg_collation", "collowner", "NULL"}, 2607: {"pg_conversion", "conowner", "NULL"}, 2615: {"pg_namespace", "nspowner", "nspacl"}, 2612: {"pg_language", "lanowner", "lanacl"}, 3466: {"pg_event_trigger", "evtowner", "NULL"}, 2328: {"pg_foreign_data_wrapper", "fdwowner", "fdwacl"}, 1417: {"pg_foreign_server", "srvowner", "srvacl"},
 		3602: {"pg_ts_config", "cfgowner", "NULL"},
 	}
 	if owner, ok := owners[tc.class]; ok {
-		out = append(out, ownershipSnapshot(t, p, c, "SELECT r.rolname,"+owner[2]+"::text FROM "+owner[0]+" o JOIN pg_roles r ON r.oid=o."+owner[1]+" WHERE o.oid="+ownershipNumber(id)))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, "SELECT r.rolname,"+owner[2]+"::text FROM "+owner[0]+" o JOIN pg_roles r ON r.oid=o."+owner[1]+" WHERE o.oid="+fixture.OwnershipNumber(id)))
 	}
 	if tc.class == 3600 {
-		out = append(out, ownershipSnapshot(t, p, c, `SELECT dictinitoption,pg_describe_object('pg_ts_template'::regclass,dicttemplate,0) FROM pg_ts_dict WHERE oid=`+ownershipNumber(id)))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, `SELECT dictinitoption,pg_describe_object('pg_ts_template'::regclass,dicttemplate,0) FROM pg_ts_dict WHERE oid=`+fixture.OwnershipNumber(id)))
 	}
 	if tc.class == 3602 {
-		out = append(out, ownershipSnapshot(t, p, c, `SELECT m.maptokentype,m.mapseqno,pg_describe_object('pg_ts_dict'::regclass,m.mapdict,0) AS dictionary FROM pg_ts_config_map m WHERE m.mapcfg=`+ownershipNumber(id)+` ORDER BY m.maptokentype,m.mapseqno`))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, `SELECT m.maptokentype,m.mapseqno,pg_describe_object('pg_ts_dict'::regclass,m.mapdict,0) AS dictionary FROM pg_ts_config_map m WHERE m.mapcfg=`+fixture.OwnershipNumber(id)+` ORDER BY m.maptokentype,m.mapseqno`))
 	}
 	if tc.class == 3601 {
-		out = append(out, ownershipSnapshot(t, p, c, `SELECT n.nspname,p.prsname,p.prsstart::oid::bigint,p.prstoken::oid::bigint,p.prsend::oid::bigint,p.prsheadline::oid::bigint,p.prslextype::oid::bigint FROM pg_ts_parser p JOIN pg_namespace n ON n.oid=p.prsnamespace WHERE p.oid=`+ownershipNumber(id)))
-		config := ownershipID(t, p, c, `SELECT 'eo_old.parser_config'::regconfig::bigint`)
-		out = append(out, ownershipSnapshot(t, p, c, `SELECT n.nspname,c.cfgname,r.rolname,pg_describe_object('pg_ts_parser'::regclass,c.cfgparser,0) FROM pg_ts_config c JOIN pg_namespace n ON n.oid=c.cfgnamespace JOIN pg_roles r ON r.oid=c.cfgowner WHERE c.oid=`+ownershipNumber(config)))
-		out = append(out, ownershipSnapshot(t, p, c, `SELECT m.maptokentype,m.mapseqno,pg_describe_object('pg_ts_dict'::regclass,m.mapdict,0) FROM pg_ts_config_map m WHERE m.mapcfg=`+ownershipNumber(config)+` ORDER BY m.maptokentype,m.mapseqno`))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, `SELECT n.nspname,p.prsname,p.prsstart::oid::bigint,p.prstoken::oid::bigint,p.prsend::oid::bigint,p.prsheadline::oid::bigint,p.prslextype::oid::bigint FROM pg_ts_parser p JOIN pg_namespace n ON n.oid=p.prsnamespace WHERE p.oid=`+fixture.OwnershipNumber(id)))
+		config := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.parser_config'::regconfig::bigint`)
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, `SELECT n.nspname,c.cfgname,r.rolname,pg_describe_object('pg_ts_parser'::regclass,c.cfgparser,0) FROM pg_ts_config c JOIN pg_namespace n ON n.oid=c.cfgnamespace JOIN pg_roles r ON r.oid=c.cfgowner WHERE c.oid=`+fixture.OwnershipNumber(config)))
+		out = append(out, fixture.OwnershipSnapshot(t, p, c, `SELECT m.maptokentype,m.mapseqno,pg_describe_object('pg_ts_dict'::regclass,m.mapdict,0) FROM pg_ts_config_map m WHERE m.mapcfg=`+fixture.OwnershipNumber(config)+` ORDER BY m.maptokentype,m.mapseqno`))
 	}
 	return out
 }
@@ -164,7 +164,7 @@ func ownershipClassMetadataEqual(t *testing.T, want, got [][][]any) {
 // the cross-driver metadata comparator above uses symbolic dependency endpoints.
 func ownershipConfigurationSnapshot(t *testing.T, p *fixture.Pair, c *sql.Conn, id int64) [][][]any {
 	return [][][]any{
-		ownershipSnapshot(t, p, c, `SELECT cfgowner::bigint,cfgparser::bigint FROM pg_ts_config WHERE oid=`+ownershipNumber(id)),
-		ownershipSnapshot(t, p, c, `SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg=`+ownershipNumber(id)+` ORDER BY maptokentype,mapseqno`),
+		fixture.OwnershipSnapshot(t, p, c, `SELECT cfgowner::bigint,cfgparser::bigint FROM pg_ts_config WHERE oid=`+fixture.OwnershipNumber(id)),
+		fixture.OwnershipSnapshot(t, p, c, `SELECT maptokentype,mapseqno,mapdict::bigint FROM pg_ts_config_map WHERE mapcfg=`+fixture.OwnershipNumber(id)+` ORDER BY maptokentype,mapseqno`),
 	}
 }

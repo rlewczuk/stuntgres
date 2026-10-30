@@ -141,26 +141,26 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 			for start := 0; start < len(ownershipLtreeArrayCases); start += 2 {
 				t.Run(fmt.Sprintf("inventory_%02d", start), func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
-						ownershipSurvivorRoles(run)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
+						fixture.OwnershipSurvivorRoles(run)
 						run(fixture.Exec("CREATE EXTENSION ltree SCHEMA eo_old", 0))
 						run(fixture.Exec("ALTER EXTENSION ltree SET SCHEMA eo_new", 0))
 						var signatures []string
 						invariant := func(id int64) string {
-							return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+							return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 						}
 						ids := make([]int64, len(ownershipLtreeArrayCases))
 						before := make([][][]any, len(ids))
 						for i := start; i < min(start+2, len(ownershipLtreeArrayCases)); i++ {
 							sig := ownershipLtreeSignature(i, false)
-							ownershipSurvivorACL(run, sig)
-							ids[i] = ownershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
-							before[i] = ownershipSnapshot(t, p, c, invariant(ids[i]))
+							fixture.OwnershipSurvivorACL(run, sig)
+							ids[i] = fixture.OwnershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
+							before[i] = fixture.OwnershipSnapshot(t, p, c, invariant(ids[i]))
 						}
 						// Mutation diagnostics and rollback retain their exact assertions;
 						// every inventory also witnesses normal view-to-routine dependencies.
-						ownershipSurvivorMutation(t, p, c, run, "ltree", ownershipLtreeSignature(start, false))
+						fixture.OwnershipSurvivorMutation(t, p, c, run, "ltree", ownershipLtreeSignature(start, false))
 						var held []fixture.HeldStatement
 						var heldSteps []fixture.Step
 						for i := start; i < min(start+2, len(ownershipLtreeArrayCases)); i++ {
@@ -191,9 +191,9 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 						for _, target := range ownershipLtreeTargets(false) {
 							run(fixture.Exec("ALTER EXTENSION ltree DROP "+target, 0))
 						}
-						ownershipSurvivorNonmember(run, "ltree", ownershipLtreeSignature(start, false))
+						fixture.OwnershipSurvivorNonmember(run, "ltree", ownershipLtreeSignature(start, false))
 						values := func(conn *sql.Conn, recorder *fixture.Recorder, renamed bool) {
-							r := ownershipRunWithRecorder(t, p, conn, recorder)
+							r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 							for i := start; i < min(start+2, len(ownershipLtreeArrayCases)); i++ {
 								for _, direct := range []bool{false, true} {
 									for kind := range 4 {
@@ -220,7 +220,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 						for _, target := range ownershipLtreeTargets(true) {
 							run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD `+target, 0))
 						}
-						ownershipSurvivorMemberRestriction(run, signatures[start], "uuid-ossp")
+						fixture.OwnershipSurvivorMemberRestriction(run, signatures[start], "uuid-ossp")
 						values(c, b.Recorder, true)
 						// The released module also gives the retained operators its
 						// selectivity routine and the retained types binary codecs.
@@ -267,7 +267,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 							}
 						}
 						for i := start; i < min(start+2, len(ownershipLtreeArrayCases)); i++ {
-							ownershipUnchanged(t, p, c, invariant(ids[i]), before[i])
+							fixture.OwnershipUnchanged(t, p, c, invariant(ids[i]), before[i])
 						}
 						var allDeclarations []string
 						allDeclarations = append(allDeclarations, operand+"("+operandType+")")
@@ -288,20 +288,20 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 						}
 						logical := make([][][]any, len(logicalQueries))
 						for i, q := range logicalQueries {
-							logical[i] = ownershipSnapshot(t, p, c, q)
+							logical[i] = fixture.OwnershipSnapshot(t, p, c, q)
 							if len(logical[i]) != 1 {
 								t.Fatal("missing current nominal/operator declaration")
 							}
 						}
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-							r := ownershipRunWithRecorder(t, p, conn, recorder)
+							r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 							values(conn, recorder, true)
 							r(fixture.Exec("SET ROLE eo_survivor_acl", 0))
 							values(conn, recorder, true)
 							r(fixture.Exec("RESET ROLE", 0))
-							r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='ltree'`, 0))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='ltree'`, 0))
 							for i, q := range logicalQueries {
-								ownershipUnchanged(t, p, conn, q, logical[i])
+								fixture.OwnershipUnchanged(t, p, conn, q, logical[i])
 							}
 							member := ""
 							if foreign {
@@ -314,7 +314,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 								tc := ownershipLtreeArrayCases[i]
 								r(fixture.Select(`SELECT p.proisstrict,p.provolatile,p.proretset,p.prosrc,p.probin FROM pg_proc p WHERE p.oid='`+sig+`'::regprocedure`, []string{"proisstrict", "provolatile", "proretset", "prosrc", "probin"}, []string{"BOOL", "CHAR", "BOOL", "TEXT", "TEXT"}, [][]any{{true, "i", false, tc.name, "$libdir/ltree"}}))
 								op := ownershipLtreeOperator(i)
-								r(ownershipCount(`SELECT count(*) FROM pg_operator o WHERE o.oid='`+op+`'::regoperator AND o.oprcode='`+sig+`'::regprocedure`, 1))
+								r(fixture.OwnershipCount(`SELECT count(*) FROM pg_operator o WHERE o.oid='`+op+`'::regoperator AND o.oprcode='`+sig+`'::regprocedure`, 1))
 								dependencies.count(`classid='pg_operator'::regclass AND objid='`+op+`'::regoperator AND refclassid='pg_proc'::regclass AND refobjid='`+sig+`'::regprocedure AND deptype='n'`, 1)
 								dependencies.member(r, "pg_operator", "'"+op+"'::regoperator", member)
 								dependencies.count(`classid='pg_operator'::regclass AND objid='`+op+`'::regoperator AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1)
@@ -323,7 +323,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 							ownershipLtreeNestedDependencies(dependencies, nestedView, operand+"("+operandType+")", signatures[start], ownershipLtreeOperator(start))
 							for _, typ := range []string{"ltree", "lquery", "ltxtquery"} {
 								dependencies.member(r, "pg_type", "'eo_new."+typ+"'::regtype", member)
-								r(ownershipCount(`SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='eo_new.`+typ+`'::regtype AND a.typelem=t.oid`, 1))
+								r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='eo_new.`+typ+`'::regtype AND a.typelem=t.oid`, 1))
 								dependencies.count(`classid='pg_type'::regclass AND objid='eo_new.`+typ+`'::regtype AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'`, 1)
 								dependencies.member(r, "pg_type", "(SELECT typarray FROM pg_type WHERE oid='eo_new."+typ+"'::regtype)", member)
 							}
@@ -343,7 +343,7 @@ func TestReferenceExtensionOwnershipLtreeArraySurvivors(t *testing.T) {
 								retainedRows = append(retainedRows, oldRows)
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, "ltree_array_"+state, allDeclarations, check)
+						fixture.OwnershipSurvivorControls(t, p, b, c, "ltree_array_"+state, allDeclarations, check)
 						for _, oldRows := range retainedRows {
 							columns, err := oldRows.ColumnTypes()
 							if err != nil || len(columns) != 1 {

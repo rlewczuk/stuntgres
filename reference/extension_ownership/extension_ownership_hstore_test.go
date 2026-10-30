@@ -22,11 +22,11 @@ func ownershipHstoreSurvivors(t *testing.T) {
 			// Each complete nominal mutation has a bounded value inventory
 			// shared by both destinations under the original fixture deadline.
 			for start := 3; start < len(corpus); start += 14 {
-				t.Run("inventory_"+ownershipNumber(int64(start)), func(t *testing.T) {
+				t.Run("inventory_"+fixture.OwnershipNumber(int64(start)), func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
-						ownershipSurvivorRoles(run)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
+						fixture.OwnershipSurvivorRoles(run)
 						run(fixture.Exec(`CREATE EXTENSION hstore SCHEMA eo_old`, 0))
 						run(fixture.Exec(`ALTER EXTENSION hstore SET SCHEMA eo_new`, 0))
 						run(fixture.Exec(`CREATE TYPE eo_old.hs_record_pair AS (i integer,n text)`, 0))
@@ -38,15 +38,15 @@ func ownershipHstoreSurvivors(t *testing.T) {
 						ids := make([]int64, len(signatures))
 						before := make([][][]any, len(signatures))
 						invariant := func(id int64) string {
-							return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+							return `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 						}
 						for i, sig := range signatures {
-							ownershipSurvivorACL(run, sig)
-							ids[i] = ownershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
-							before[i] = ownershipSnapshot(t, p, c, invariant(ids[i]))
+							fixture.OwnershipSurvivorACL(run, sig)
+							ids[i] = fixture.OwnershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
+							before[i] = fixture.OwnershipSnapshot(t, p, c, invariant(ids[i]))
 						}
 						for _, sig := range signatures {
-							ownershipSurvivorMutation(t, p, c, run, "hstore", sig)
+							fixture.OwnershipSurvivorMutation(t, p, c, run, "hstore", sig)
 						}
 						// Keep the constructor/record dependency witnesses in every
 						// inventory, and partition all remaining cases without omission.
@@ -54,7 +54,7 @@ func ownershipHstoreSurvivors(t *testing.T) {
 						inventory := append([]fixture.Step(nil), corpus[:3]...)
 						steps := append(inventory, corpus[start:end]...)
 						for i, s := range steps {
-							view := "eo_old.hs_witness_" + ownershipNumber(int64(i))
+							view := "eo_old.hs_witness_" + fixture.OwnershipNumber(int64(i))
 							run(fixture.Exec("CREATE VIEW "+view+" AS "+s.Query, 0))
 							run(fixture.Exec("GRANT SELECT ON "+view+" TO eo_survivor_acl", 0))
 						}
@@ -63,7 +63,7 @@ func ownershipHstoreSurvivors(t *testing.T) {
 						for i := range steps {
 							// Keep the SQL name stable while the stored consumer retains
 							// its real function/operator identities through helper renames.
-							heldSteps[i].Query = "SELECT * FROM eo_old.hs_witness_" + ownershipNumber(int64(i))
+							heldSteps[i].Query = "SELECT * FROM eo_old.hs_witness_" + fixture.OwnershipNumber(int64(i))
 							heldSteps[i].Bag = true
 							held[i] = fixture.CrosstabHeld(t, p, c, heldSteps[i].Query)
 						}
@@ -72,7 +72,7 @@ func ownershipHstoreSurvivors(t *testing.T) {
 							for i, s := range steps {
 								r(s)
 								r(fixture.Prepared(s))
-								s.Query = "SELECT * FROM eo_old.hs_witness_" + ownershipNumber(int64(i))
+								s.Query = "SELECT * FROM eo_old.hs_witness_" + fixture.OwnershipNumber(int64(i))
 								// SRF row order is not retained by a view; compare its full bag.
 								s.Bag = true
 								r(s)
@@ -82,9 +82,9 @@ func ownershipHstoreSurvivors(t *testing.T) {
 						for _, target := range targets {
 							run(fixture.Exec("ALTER EXTENSION hstore DROP "+target, 0))
 						}
-						ownershipSurvivorNonmember(run, "hstore", signatures[1])
+						fixture.OwnershipSurvivorNonmember(run, "hstore", signatures[1])
 						ownershipSurvivorNormalRestriction(run, signatures[1], "eo_old.hs_witness_2")
-						run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='hstore') AND deptype='e'`, 0))
+						run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='hstore') AND deptype='e'`, 0))
 						values(c, b.Recorder)
 						for _, rename := range []struct{ old, next string }{
 							{"hs_concat", "eo_concat"}, {"skeys", "eo_skeys"}, {"svals", "eo_svals"}, {"each", "eo_each"}, {"delete", "eo_delete"}, {"slice", "eo_slice"},
@@ -110,13 +110,13 @@ func ownershipHstoreSurvivors(t *testing.T) {
 							run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD `+target, 0))
 						}
 						for _, sig := range signatures {
-							ownershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
+							fixture.OwnershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
 						}
 						for _, sig := range signatures {
 							for _, ext := range []string{"hstore", `"uuid-ossp"`} {
-								run(ownershipError("ALTER EXTENSION "+ext+" ADD FUNCTION "+sig, "55000", "function "+sig+` is already a member of extension "uuid-ossp"`))
+								run(fixture.OwnershipError("ALTER EXTENSION "+ext+" ADD FUNCTION "+sig, "55000", "function "+sig+` is already a member of extension "uuid-ossp"`))
 							}
-							ownershipSurvivorNonmember(run, "hstore", sig)
+							fixture.OwnershipSurvivorNonmember(run, "hstore", sig)
 						}
 						values(c, b.Recorder)
 						run(fixture.Exec(`DROP EXTENSION hstore`, 0))
@@ -132,20 +132,20 @@ func ownershipHstoreSurvivors(t *testing.T) {
 							}
 						}
 						for i, id := range ids {
-							ownershipUnchanged(t, p, c, invariant(id), before[i])
+							fixture.OwnershipUnchanged(t, p, c, invariant(id), before[i])
 						}
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
 							r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 							values(conn, recorder)
 							if foreign {
-								ownershipSurvivorMemberRestriction(r, signatures[1], "uuid-ossp")
+								fixture.OwnershipSurvivorMemberRestriction(r, signatures[1], "uuid-ossp")
 							} else {
 								ownershipSurvivorNormalRestriction(r, signatures[1], "eo_old.hs_witness_2")
 							}
 							r(fixture.Exec(`SET ROLE eo_survivor_acl`, 0))
 							values(conn, recorder)
 							r(fixture.Exec(`RESET ROLE`, 0))
-							r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='hstore'`, 0))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='hstore'`, 0))
 							ownershipHstoreLinks(r, signatures, foreign)
 							symbols := []string{"hstore_from_text", "hstore_from_record", "hstore_populate_record", "hstore_each", "hstore_concat", "hstore_eq", "hstore_skeys", "hstore_svals", "hstore_delete", "hstore_delete_array", "hstore_delete_hstore", "hstore_slice_to_hstore"}
 							for i, sig := range signatures {
@@ -156,7 +156,7 @@ func ownershipHstoreSurvivors(t *testing.T) {
 								member = "uuid-ossp"
 							}
 							r(fixture.Select(`SELECT COALESCE(e.extname::text,'') AS member_of FROM pg_type t LEFT JOIN pg_depend d ON d.classid='pg_type'::regclass AND d.objid=t.oid AND d.refclassid='pg_extension'::regclass AND d.deptype='e' LEFT JOIN pg_extension e ON e.oid=d.refobjid WHERE t.oid='eo_new.hstore'::regtype`, []string{"member_of"}, []string{"TEXT"}, [][]any{{member}}))
-							r(ownershipCount(`SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='eo_new.hstore'::regtype AND a.typelem=t.oid`, 1))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='eo_new.hstore'::regtype AND a.typelem=t.oid`, 1))
 						}
 						var allDeclarations []string
 						for _, target := range targets {
@@ -164,7 +164,7 @@ func ownershipHstoreSurvivors(t *testing.T) {
 								allDeclarations = append(allDeclarations, strings.TrimPrefix(target, "FUNCTION "))
 							}
 						}
-						ownershipSurvivorControls(t, p, b, c, "hstore_"+name, allDeclarations, check)
+						fixture.OwnershipSurvivorControls(t, p, b, c, "hstore_"+name, allDeclarations, check)
 					})
 				})
 			}
@@ -187,7 +187,7 @@ func ownershipHstoreLinks(run func(fixture.Step), signatures []string, foreign b
 		identity := "'" + signature + "'::regprocedure"
 		identities = append(identities, identity)
 		members = append(members, []any{signature, member})
-		column := "namespace_" + ownershipNumber(int64(i))
+		column := "namespace_" + fixture.OwnershipNumber(int64(i))
 		counts = append(counts, `count(*) FILTER (WHERE classid='pg_proc'::regclass AND objid=`+identity+` AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n') AS `+column)
 		columns = append(columns, column)
 		types = append(types, "INT8")

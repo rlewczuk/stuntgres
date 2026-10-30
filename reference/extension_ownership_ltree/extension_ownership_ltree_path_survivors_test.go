@@ -14,18 +14,18 @@ import (
 func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperation, values []ownershipLtreePathValue, foreign bool, state, phase string) {
 	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
-		ownershipSurvivorRoles(run)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
+		fixture.OwnershipSurvivorRoles(run)
 		run(fixture.Exec("CREATE EXTENSION ltree SCHEMA eo_old", 0))
 		// Real relocation must preserve the installed nominal/helper graph.
 		run(fixture.Exec("ALTER EXTENSION ltree SET SCHEMA eo_new", 0))
 		signature := op.signature(false)
-		ownershipSurvivorACL(run, signature)
-		id := ownershipID(t, p, c, "SELECT '"+signature+"'::regprocedure::bigint")
-		invariant := strings.Replace(ownershipSurvivorDeclaration(signature), "p.proname,", "p.oid::bigint,", 1)
-		invariant = strings.Replace(invariant, "p.oid='"+signature+"'::regprocedure", "p.oid="+ownershipNumber(id), 1)
-		before := ownershipSnapshot(t, p, c, invariant)
+		fixture.OwnershipSurvivorACL(run, signature)
+		id := fixture.OwnershipID(t, p, c, "SELECT '"+signature+"'::regprocedure::bigint")
+		invariant := strings.Replace(fixture.OwnershipSurvivorDeclaration(signature), "p.proname,", "p.oid::bigint,", 1)
+		invariant = strings.Replace(invariant, "p.oid='"+signature+"'::regprocedure", "p.oid="+fixture.OwnershipNumber(id), 1)
+		before := fixture.OwnershipSnapshot(t, p, c, invariant)
 		types := []string{"ltree"}
 		for _, typ := range op.types {
 			if typ == "lquery" || typ == "ltxtquery" {
@@ -111,23 +111,23 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 			var q string
 			switch {
 			case strings.HasPrefix(target, "TYPE "):
-				identity := ownershipID(t, p, c, "SELECT '"+strings.TrimPrefix(target, "TYPE ")+"'::regtype::bigint")
-				q = `SELECT t.oid::bigint,t.typnamespace::bigint,t.typowner::bigint,t.typacl::text,t.typarray::bigint,t.typelem::bigint,t.typinput::bigint,t.typoutput::bigint,t.typreceive::bigint,t.typsend::bigint,t.typmodin::bigint,t.typmodout::bigint,t.typanalyze::bigint,t.typsubscript::bigint,t.typlen,t.typbyval,t.typalign,t.typstorage,t.typtype,t.typcategory FROM pg_type t WHERE t.oid=` + ownershipNumber(identity) + ` OR t.oid=(SELECT typarray FROM pg_type WHERE oid=` + ownershipNumber(identity) + `) ORDER BY t.oid`
+				identity := fixture.OwnershipID(t, p, c, "SELECT '"+strings.TrimPrefix(target, "TYPE ")+"'::regtype::bigint")
+				q = `SELECT t.oid::bigint,t.typnamespace::bigint,t.typowner::bigint,t.typacl::text,t.typarray::bigint,t.typelem::bigint,t.typinput::bigint,t.typoutput::bigint,t.typreceive::bigint,t.typsend::bigint,t.typmodin::bigint,t.typmodout::bigint,t.typanalyze::bigint,t.typsubscript::bigint,t.typlen,t.typbyval,t.typalign,t.typstorage,t.typtype,t.typcategory FROM pg_type t WHERE t.oid=` + fixture.OwnershipNumber(identity) + ` OR t.oid=(SELECT typarray FROM pg_type WHERE oid=` + fixture.OwnershipNumber(identity) + `) ORDER BY t.oid`
 			case strings.HasPrefix(target, "OPERATOR "):
-				identity := ownershipID(t, p, c, "SELECT '"+strings.TrimPrefix(target, "OPERATOR ")+"'::regoperator::bigint")
-				q = `SELECT oid::bigint,oprnamespace::bigint,oprowner::bigint,oprleft::bigint,oprright::bigint,oprresult::bigint,oprcode::bigint,oprcom::bigint,oprnegate::bigint,oprrest::bigint,oprjoin::bigint,oprcanhash,oprcanmerge FROM pg_operator WHERE oid=` + ownershipNumber(identity)
+				identity := fixture.OwnershipID(t, p, c, "SELECT '"+strings.TrimPrefix(target, "OPERATOR ")+"'::regoperator::bigint")
+				q = `SELECT oid::bigint,oprnamespace::bigint,oprowner::bigint,oprleft::bigint,oprright::bigint,oprresult::bigint,oprcode::bigint,oprcom::bigint,oprnegate::bigint,oprrest::bigint,oprjoin::bigint,oprcanhash,oprcanmerge FROM pg_operator WHERE oid=` + fixture.OwnershipNumber(identity)
 			case strings.HasPrefix(target, "FUNCTION "):
 				sig := strings.TrimPrefix(target, "FUNCTION ")
 				if sig == signature {
 					continue
 				}
-				q = ownershipSurvivorDeclaration(sig)
+				q = fixture.OwnershipSurvivorDeclaration(sig)
 				helperQueries = append(helperQueries, q)
-				helpers = append(helpers, ownershipSnapshot(t, p, c, q))
+				helpers = append(helpers, fixture.OwnershipSnapshot(t, p, c, q))
 				q = strings.Replace(q, "SELECT ", "SELECT p.oid::bigint,", 1)
 			}
 			sourceQueries = append(sourceQueries, q)
-			snapshot := ownershipSnapshot(t, p, c, q)
+			snapshot := fixture.OwnershipSnapshot(t, p, c, q)
 			if len(snapshot) == 0 {
 				t.Fatal("missing pre-mutation graph", target)
 			}
@@ -176,11 +176,11 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 			stored = append(stored, s)
 			witnesses = append(witnesses, witness{fixture.CrosstabHeld(t, p, c, s.Query), s})
 		}
-		ownershipSurvivorMutation(t, p, c, run, "ltree", signature)
+		fixture.OwnershipSurvivorMutation(t, p, c, run, "ltree", signature)
 		for _, target := range targets {
 			run(fixture.Exec("ALTER EXTENSION ltree DROP "+target, 0))
 		}
-		ownershipSurvivorNonmember(run, "ltree", signature)
+		fixture.OwnershipSurvivorNonmember(run, "ltree", signature)
 		checkCodecs()
 		for _, w := range directWitnesses {
 			s := w.step
@@ -198,13 +198,13 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 		run(fixture.Exec("ALTER FUNCTION "+signature+" RENAME TO eo_path_"+op.name, 0))
 		signature = op.signature(true)
 		targets[0] = "FUNCTION " + signature
-		if got := ownershipID(t, p, c, "SELECT '"+signature+"'::regprocedure::bigint"); got != id {
+		if got := fixture.OwnershipID(t, p, c, "SELECT '"+signature+"'::regprocedure::bigint"); got != id {
 			t.Fatal("rename replaced installed procedure", got, id)
 		}
 		for _, target := range targets {
 			run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD `+target, 0))
 		}
-		ownershipSurvivorMemberRestriction(run, signature, "uuid-ossp")
+		fixture.OwnershipSurvivorMemberRestriction(run, signature, "uuid-ossp")
 		checkCodecs()
 		run(fixture.Exec("DROP EXTENSION ltree", 0))
 		if !foreign {
@@ -212,10 +212,10 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 				run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" DROP `+target, 0))
 			}
 		}
-		ownershipUnchanged(t, p, c, invariant, before)
+		fixture.OwnershipUnchanged(t, p, c, invariant, before)
 		checkCodecs()
 		for i, q := range sourceQueries {
-			ownershipUnchanged(t, p, c, q, sourceGraph[i])
+			fixture.OwnershipUnchanged(t, p, c, q, sourceGraph[i])
 		}
 		for _, w := range witnesses {
 			s := w.step
@@ -238,13 +238,13 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 		}
 		graph := make([][][]any, len(graphQueries))
 		for i, q := range graphQueries {
-			graph[i] = ownershipSnapshot(t, p, c, q)
+			graph[i] = fixture.OwnershipSnapshot(t, p, c, q)
 			if len(graph[i]) != 1 {
 				t.Fatal("missing actual nominal/operator graph")
 			}
 		}
 		check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			calls := func() {
 				for _, value := range values {
 					for _, operator := range []bool{false, true} {
@@ -265,16 +265,16 @@ func ownershipLtreePathQuerySurvivor(t *testing.T, op ownershipLtreePathOperatio
 			r(fixture.Exec("SET ROLE eo_survivor_acl", 0))
 			calls()
 			r(fixture.Exec("RESET ROLE", 0))
-			r(ownershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
+			r(fixture.OwnershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
 			dependencies := &ownershipLtreeDependencies{}
 			dependencies.links(r, signature, foreign)
 			for i, q := range graphQueries {
-				ownershipUnchanged(t, p, conn, q, graph[i])
+				fixture.OwnershipUnchanged(t, p, conn, q, graph[i])
 			}
 			ownershipLtreePathDependencies(r, dependencies, op, signature, types, foreign)
 			ownershipLtreePathCodecDependencies(t, p, conn, dependencies, types)
 			for i, q := range helperQueries {
-				ownershipUnchanged(t, p, conn, q, helpers[i])
+				fixture.OwnershipUnchanged(t, p, conn, q, helpers[i])
 			}
 			member := ""
 			if foreign {
@@ -364,12 +364,12 @@ func ownershipLtreePathCodecDependencies(t *testing.T, p *fixture.Pair, conn *sq
 		}
 		// Expected targets come from the actual type declaration, independently
 		// of the dependency rows and the helper-retention discovery query.
-		scope := "classid='pg_type'::regclass AND objid=" + ownershipNumber(identity) + " AND refclassid='pg_proc'::regclass AND refobjid IN (" + ownershipNumber(input) + "," + ownershipNumber(output) + ")"
+		scope := "classid='pg_type'::regclass AND objid=" + fixture.OwnershipNumber(identity) + " AND refclassid='pg_proc'::regclass AND refobjid IN (" + fixture.OwnershipNumber(input) + "," + fixture.OwnershipNumber(output) + ")"
 		// Total cardinality plus both exact rows is the same finite edge bag:
 		// duplicates, extra subobjects and wrong dependency kinds still fail.
 		dependencies.count(scope, 2)
 		for _, codec := range []int64{input, output} {
-			dependencies.count(scope+" AND objsubid=0 AND refobjid="+ownershipNumber(codec)+" AND refobjsubid=0 AND deptype='n'", 1)
+			dependencies.count(scope+" AND objsubid=0 AND refobjid="+fixture.OwnershipNumber(codec)+" AND refobjsubid=0 AND deptype='n'", 1)
 		}
 	}
 }
@@ -387,7 +387,7 @@ func ownershipLtreePathDependencies(run func(fixture.Step), dependencies *owners
 				member = "uuid-ossp"
 			}
 			dependencies.member(run, "pg_type", identity, member)
-			run(ownershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+			run(fixture.OwnershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
 			dependencies.count("classid='pg_type'::regclass AND objid="+identity+" AND refclassid='pg_type'::regclass AND refobjid='eo_new."+typ+"'::regtype AND deptype='i'", int64(index))
 		}
 	}
@@ -424,7 +424,7 @@ func ownershipLtreePathDependencies(run func(fixture.Step), dependencies *owners
 	}
 	if op.operator != "" {
 		identity := "'" + op.operatorSignature() + "'::regoperator"
-		run(ownershipCount("SELECT count(*) FROM pg_operator WHERE oid="+identity+" AND oprcode='"+signature+"'::regprocedure", 1))
+		run(fixture.OwnershipCount("SELECT count(*) FROM pg_operator WHERE oid="+identity+" AND oprcode='"+signature+"'::regprocedure", 1))
 		dependencies.count("classid='pg_operator'::regclass AND objid="+identity+" AND refclassid='pg_proc'::regclass AND refobjid='"+signature+"'::regprocedure AND deptype='n'", 1)
 		dependencies.count("classid='pg_operator'::regclass AND objid="+identity+" AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'", 1)
 		member := ""

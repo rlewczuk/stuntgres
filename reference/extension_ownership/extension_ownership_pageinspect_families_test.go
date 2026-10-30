@@ -34,12 +34,12 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 				}
 				t.Run(state, func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
-						ownershipSurvivorRoles(run)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
+						fixture.OwnershipSurvivorRoles(run)
 						run(fixture.Exec(`CREATE EXTENSION pageinspect SCHEMA eo_old`, 0))
 						original := "eo_old." + tc.name + "(bytea)"
-						ownershipSurvivorACL(run, original)
+						fixture.OwnershipSurvivorACL(run, original)
 						switch tc.name {
 						case "bt_page_items":
 							run(fixture.BTDeclaration(tc.name, "eo_old", "eo_survivor_owner"))
@@ -52,21 +52,21 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 								}
 							}
 						}
-						id := ownershipID(t, p, c, `SELECT '`+original+`'::regprocedure::bigint`)
-						declaration := ownershipSnapshot(t, p, c, ownershipSurvivorDeclaration(original))
+						id := fixture.OwnershipID(t, p, c, `SELECT '`+original+`'::regprocedure::bigint`)
+						declaration := fixture.OwnershipSnapshot(t, p, c, fixture.OwnershipSurvivorDeclaration(original))
 						if len(declaration) != 1 {
 							t.Fatal("missing released declaration", original)
 						}
 						run(fixture.Exec(`ALTER EXTENSION pageinspect DROP FUNCTION `+original, 0))
-						ownershipUnchanged(t, p, c, ownershipSurvivorDeclaration(original), declaration)
-						run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+ownershipNumber(id)+` AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
+						fixture.OwnershipUnchanged(t, p, c, fixture.OwnershipSurvivorDeclaration(original), declaration)
+						run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+fixture.OwnershipNumber(id)+` AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
 						run(fixture.Exec(`ALTER FUNCTION `+original+` RENAME TO eo_inspect`, 0))
 						run(fixture.Exec(`ALTER FUNCTION eo_old.eo_inspect(bytea) SET SCHEMA eo_new`, 0))
 						signature := "eo_new.eo_inspect(bytea)"
-						if got := ownershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
+						if got := fixture.OwnershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
 							t.Fatal("survivor identity changed", got, id)
 						}
-						moved := ownershipSnapshot(t, p, c, ownershipSurvivorDeclaration(signature))
+						moved := fixture.OwnershipSnapshot(t, p, c, fixture.OwnershipSurvivorDeclaration(signature))
 						query := func(argument string) string {
 							if tc.name == "fsm_page_contents" {
 								return `SELECT eo_new.eo_inspect(` + argument + `) AS contents`
@@ -108,7 +108,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION `+signature, 0))
 						values(c, b.Recorder)
 						for _, suffix := range []string{"", " CASCADE"} {
-							s := ownershipError(`DROP FUNCTION `+signature+suffix, "2BP01", `cannot drop function eo_new.eo_inspect(bytea) because extension uuid-ossp requires it`)
+							s := fixture.OwnershipError(`DROP FUNCTION `+signature+suffix, "2BP01", `cannot drop function eo_new.eo_inspect(bytea) because extension uuid-ossp requires it`)
 							s.Diagnostic.Hint = "You can drop extension uuid-ossp instead."
 							run(s)
 						}
@@ -118,16 +118,16 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						if !foreign {
 							run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" DROP FUNCTION `+signature, 0))
 						}
-						if got := ownershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
+						if got := fixture.OwnershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
 							t.Fatal("origin retirement changed survivor identity", got, id)
 						}
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
 							r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 							values(conn, recorder)
-							ownershipUnchanged(t, p, conn, ownershipSurvivorDeclaration(signature), moved)
+							fixture.OwnershipUnchanged(t, p, conn, fixture.OwnershipSurvivorDeclaration(signature), moved)
 							ownershipSurvivorLinks(r, signature, foreign)
-							r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='pageinspect'`, 0))
-							r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_rewrite'::regclass AND refclassid='pg_proc'::regclass AND refobjid='`+signature+`'::regprocedure AND deptype='n'`, 2))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='pageinspect'`, 0))
+							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_rewrite'::regclass AND refclassid='pg_proc'::regclass AND refobjid='`+signature+`'::regprocedure AND deptype='n'`, 2))
 							s := metadata(fixture.Select(`SELECT * FROM eo_new.eo_inspected`+tc.order, tc.names, tc.types, tc.rows[0]), true)
 							r(s)
 							r(fixture.Prepared(s))
@@ -148,7 +148,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						}
 						// Ensure the granted caller reaches the real execution permission check.
 						run(fixture.Exec(`GRANT USAGE ON SCHEMA eo_new TO eo_survivor_acl`, 0))
-						ownershipSurvivorControls(t, p, b, c, "pageinspect_"+tc.name+"_"+state, []string{signature}, check)
+						fixture.OwnershipSurvivorControls(t, p, b, c, "pageinspect_"+tc.name+"_"+state, []string{signature}, check)
 					})
 				})
 			}

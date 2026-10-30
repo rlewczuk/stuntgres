@@ -20,8 +20,8 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			fixture.SchemaReferenceCleanup(t, "EO Cube Past")
 			fixture.SchemaReferenceCleanup(t, "eo_cube_new")
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
 				providerHistory := mode == "occupied_provider_history" || mode == "occupied_provider_pg_catalog"
 				var pgCatalogFunctions []int64
 				history := `"EO Cube Past"`
@@ -63,8 +63,8 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 					run(fixture.Exec("CREATE SCHEMA "+history, 0))
 				}
 				run(fixture.Exec("CREATE EXTENSION cube SCHEMA "+history, 0))
-				oldCube := ownershipID(t, p, c, "SELECT '"+history+".cube'::regtype::bigint")
-				oldArray := ownershipID(t, p, c, "SELECT typarray::bigint FROM pg_type WHERE oid='"+history+".cube'::regtype")
+				oldCube := fixture.OwnershipID(t, p, c, "SELECT '"+history+".cube'::regtype::bigint")
+				oldArray := fixture.OwnershipID(t, p, c, "SELECT typarray::bigint FROM pg_type WHERE oid='"+history+".cube'::regtype")
 				run(fixture.Exec("CREATE EXTENSION earthdistance SCHEMA eo_old", 0))
 				run(fixture.Exec("CREATE VIEW eo_old.body_consumer AS SELECT eo_old.latitude(eo_old.ll_to_earth(0::float8,0::float8)) AS latitude", 0))
 				// Preserve the first domain and all six SQL bodies while retiring its
@@ -126,7 +126,7 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 					for _, f := range oldFunctions {
 						run(fixture.Exec("ALTER EXTENSION cube DROP FUNCTION "+identity(f), 0))
 					}
-					oldEquality := ownershipID(t, p, c, "SELECT '"+history+".=("+history+".cube,"+history+".cube)'::regoperator::bigint")
+					oldEquality := fixture.OwnershipID(t, p, c, "SELECT '"+history+".=("+history+".cube,"+history+".cube)'::regoperator::bigint")
 					operators, err := c.QueryContext(p.Ctx, `SELECT o.oid::regoperator::text FROM pg_operator o JOIN pg_depend d ON d.classid='pg_operator'::regclass AND d.objid=o.oid AND d.refclassid='pg_extension'::regclass AND d.deptype='e' JOIN pg_extension e ON e.oid=d.refobjid WHERE e.extname='cube' ORDER BY o.oid`)
 					if err != nil {
 						t.Fatal(err)
@@ -167,7 +167,7 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 						}
 					}
 					run(fixture.Exec("CREATE EXTENSION cube SCHEMA "+history, 0))
-					newCube := ownershipID(t, p, c, "SELECT '"+history+".cube'::regtype::bigint")
+					newCube := fixture.OwnershipID(t, p, c, "SELECT '"+history+".cube'::regtype::bigint")
 					if newCube == oldCube {
 						t.Fatal("distinct genuine cube installations reused predecessor identity")
 					}
@@ -192,13 +192,13 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 							run(fixture.Exec("ALTER FUNCTION "+identity(f)+" SET SCHEMA "+history, 0))
 						}
 					}
-					if now := ownershipID(t, p, c, "SELECT 'eo_cube_new.cube'::regtype::bigint"); now != newCube {
+					if now := fixture.OwnershipID(t, p, c, "SELECT 'eo_cube_new.cube'::regtype::bigint"); now != newCube {
 						t.Fatal("source choreography replaced current cube identity", newCube, now)
 					}
-					if now := ownershipID(t, p, c, "SELECT '"+history+".cube(double precision)'::regprocedure::bigint"); now != oldConstructor {
+					if now := fixture.OwnershipID(t, p, c, "SELECT '"+history+".cube(double precision)'::regprocedure::bigint"); now != oldConstructor {
 						t.Fatal("source choreography replaced predecessor builtin-input constructor", oldConstructor, now)
 					}
-					if now := ownershipID(t, p, c, "SELECT '"+history+".=("+history+".cube,"+history+".cube)'::regoperator::bigint"); now != oldEquality {
+					if now := fixture.OwnershipID(t, p, c, "SELECT '"+history+".=("+history+".cube,"+history+".cube)'::regoperator::bigint"); now != oldEquality {
 						t.Fatal("source choreography replaced predecessor nominal-input operator", oldEquality, now)
 					}
 				} else {
@@ -218,16 +218,16 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 				if providerHistory {
 					oldCubeSchema = history
 				}
-				if now := ownershipID(t, p, c, "SELECT '"+oldCubeSchema+".cube'::regtype::bigint"); now != oldCube {
+				if now := fixture.OwnershipID(t, p, c, "SELECT '"+oldCubeSchema+".cube'::regtype::bigint"); now != oldCube {
 					t.Fatal("source choreography replaced predecessor cube identity", oldCube, now)
 				}
-				if now := ownershipID(t, p, c, "SELECT typarray::bigint FROM pg_type WHERE oid='"+oldCubeSchema+".cube'::regtype"); now != oldArray {
+				if now := fixture.OwnershipID(t, p, c, "SELECT typarray::bigint FROM pg_type WHERE oid='"+oldCubeSchema+".cube'::regtype"); now != oldArray {
 					t.Fatal("source choreography replaced predecessor array identity", oldArray, now)
 				}
 				const bodies = `SELECT p.prosqlbody FROM pg_proc p WHERE p.pronamespace IN ('eo_old'::regnamespace,'eo_new'::regnamespace) AND p.proname IN ('ll_to_earth','latitude','longitude') ORDER BY p.pronamespace::regnamespace::text,p.proname`
 				var captured [][]any
 				if !b.PG {
-					captured = ownershipSnapshot(t, p, c, bodies)
+					captured = fixture.OwnershipSnapshot(t, p, c, bodies)
 					if len(captured) != 6 {
 						t.Fatal("missing genuine captured bodies", captured)
 					}
@@ -247,20 +247,20 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 				}
 				check := func(t *testing.T, conn *sql.Conn, recorder *fixture.Recorder) {
 					r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='earthdistance' AND extnamespace='eo_new'::regnamespace`, 1))
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='cube'`, 1))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='earthdistance' AND extnamespace='eo_new'::regnamespace`, 1))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='cube'`, 1))
 					if providerHistory {
 						r(fixture.Select(`SELECT o.typbasetype=$1::regtype AS old_base,n.typbasetype='eo_cube_new.cube'::regtype AS new_base,o.typbasetype<>n.typbasetype AS distinct_bases FROM pg_type o,pg_type n WHERE o.oid='eo_old.earth'::regtype AND n.oid='eo_new.earth'::regtype`, []string{"old_base", "new_base", "distinct_bases"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}, history+".cube"))
 						r(fixture.Select(`SELECT t.typname,a.typname,t.typarray=a.oid AS array_identity,a.typelem=t.oid AS element_identity,t.typnamespace=a.typnamespace AS array_namespace,t.typowner=a.typowner AS array_owner FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=$1::regtype`, []string{"typname", "typname", "array_identity", "element_identity", "array_namespace", "array_owner"}, []string{"NAME", "NAME", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{"cube", "_cube", true, true, true, true}}, history+".cube"))
 						oldOperator := history + ".=(" + history + ".cube," + history + ".cube)"
 						oldBacker := history + ".cube_eq(" + history + ".cube," + history + ".cube)"
 						r(fixture.Select(`SELECT oprleft=$2::regtype AS left_identity,oprright=$2::regtype AS right_identity,oprcode=$3::regprocedure AS backer FROM pg_operator WHERE oid=$1::regoperator`, []string{"left_identity", "right_identity", "backer"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}, oldOperator, history+".cube", oldBacker))
-						r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_operator'::regclass AND objid=$1::regoperator AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, oldOperator))
-						r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_operator'::regclass AND objid=$1::regoperator AND refclassid='pg_proc'::regclass AND refobjid=$2::regprocedure AND deptype='n'`, 1, oldOperator, oldBacker))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_operator'::regclass AND objid=$1::regoperator AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, oldOperator))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_operator'::regclass AND objid=$1::regoperator AND refclassid='pg_proc'::regclass AND refobjid=$2::regprocedure AND deptype='n'`, 1, oldOperator, oldBacker))
 					} else {
-						r(ownershipCount(`SELECT count(*) FROM pg_type WHERE oid IN ('eo_old.earth'::regtype,'eo_new.earth'::regtype) AND typbasetype='eo_other.cube'::regtype`, 2))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type WHERE oid IN ('eo_old.earth'::regtype,'eo_new.earth'::regtype) AND typbasetype='eo_other.cube'::regtype`, 2))
 					}
-					r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_old.ll_to_earth(double precision,double precision)'::regprocedure AND deptype='e'`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='eo_old.ll_to_earth(double precision,double precision)'::regprocedure AND deptype='e'`, 0))
 					for _, schema := range []string{"eo_old", "eo_new"} {
 						cubeSchema := "eo_other"
 						if providerHistory {
@@ -269,7 +269,7 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 								cubeSchema = history
 							}
 						}
-						r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1::regprocedure AND refclassid='pg_proc'::regclass AND refobjid IN ($2::regprocedure,$3::regprocedure) AND deptype='n'`, 2, schema+".ll_to_earth(double precision,double precision)", cubeSchema+".cube(double precision)", cubeSchema+".cube("+cubeSchema+".cube,double precision)"))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1::regprocedure AND refclassid='pg_proc'::regclass AND refobjid IN ($2::regprocedure,$3::regprocedure) AND deptype='n'`, 2, schema+".ll_to_earth(double precision,double precision)", cubeSchema+".cube(double precision)", cubeSchema+".cube("+cubeSchema+".cube,double precision)"))
 						s := fixture.Select("SELECT "+schema+".earth() AS radius,"+schema+".latitude("+schema+".ll_to_earth(0::float8,0::float8)) AS latitude,"+schema+".longitude(NULL::"+schema+".earth) AS missing", []string{"radius", "latitude", "missing"}, []string{"FLOAT8", "FLOAT8", "FLOAT8"}, [][]any{{float64(6378168), float64(0), nil}})
 						r(s)
 						r(fixture.Prepared(s))
@@ -278,13 +278,13 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 						r(fixture.Prepared(s))
 					}
 					if mode == "removed_history" {
-						r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname='EO Cube Past'`, 0))
+						r(fixture.OwnershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname='EO Cube Past'`, 0))
 					} else if mode == "occupied_history" {
 						r(fixture.Select(`SELECT i FROM "EO Cube Past".cube`, []string{"i"}, []string{"INT4"}, [][]any{{int64(17)}}))
 					}
-					r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_install%' OR nspname LIKE '__stuntgres_prerequisite%'`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_install%' OR nspname LIKE '__stuntgres_prerequisite%'`, 0))
 					if !b.PG {
-						ownershipUnchanged(t, p, conn, bodies, captured)
+						fixture.OwnershipUnchanged(t, p, conn, bodies, captured)
 					}
 				}
 				check(t, c, b.Recorder)

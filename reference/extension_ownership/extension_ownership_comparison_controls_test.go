@@ -14,8 +14,8 @@ import (
 // CASE and NULLIF retain their analyzed equality identity (ruleutils.c).
 // Expectations below are source-derived, not acquired from either backend.
 func TestReferenceExtensionOwnershipComparisonControls(t *testing.T) {
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
 		for _, q := range []string{
 			`CREATE SCHEMA eo_old`, `CREATE SCHEMA eo_new`,
 			`CREATE EXTENSION hstore SCHEMA eo_old`,
@@ -36,38 +36,38 @@ func TestReferenceExtensionOwnershipComparisonControls(t *testing.T) {
 		defer statement.Close()
 		held := fixture.HeldStatement{Executor: c, Statement: statement, SQL: query}
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, want)
-		operatorID := ownershipID(t, p, c, `SELECT 'eo_old.=(eo_old.hstore,eo_old.hstore)'::regoperator::bigint`)
-		calleeID := ownershipID(t, p, c, `SELECT 'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure::bigint`)
-		declaration := ownershipSurvivorDeclaration(`eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)`)
-		original := ownershipSnapshot(t, p, c, declaration)
+		operatorID := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.=(eo_old.hstore,eo_old.hstore)'::regoperator::bigint`)
+		calleeID := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure::bigint`)
+		declaration := fixture.OwnershipSurvivorDeclaration(`eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)`)
+		original := fixture.OwnershipSnapshot(t, p, c, declaration)
 		run(fixture.Exec(`ALTER OPERATOR eo_old.=(eo_old.hstore,eo_old.hstore) SET SCHEMA eo_new`, 0))
-		if got := ownershipID(t, p, c, `SELECT 'eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator::bigint`); got != operatorID {
+		if got := fixture.OwnershipID(t, p, c, `SELECT 'eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator::bigint`); got != operatorID {
 			t.Fatal("movement replaced operator identity", got, operatorID)
 		}
-		if got := ownershipID(t, p, c, `SELECT 'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure::bigint`); got != calleeID {
+		if got := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure::bigint`); got != calleeID {
 			t.Fatal("movement replaced callee identity", got, calleeID)
 		}
-		ownershipUnchanged(t, p, c, declaration, original)
+		fixture.OwnershipUnchanged(t, p, c, declaration, original)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, want)
 		check := func(conn *sql.Conn, recorder *fixture.Recorder) {
 			destination := b
 			destination.Recorder = recorder
-			r := ownershipRun(t, p, destination, conn)
+			r := fixture.OwnershipRun(t, p, destination, conn)
 			r(want)
 			r(fixture.Prepared(want))
 			// This is the exact old admission failure: no comparison procedure
 			// (indeed no procedure at all) can authenticate eo_new by accident.
-			r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_new'::regnamespace`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_new'::regnamespace`, 0))
 			r(fixture.Select(`SELECT n.nspname,pn.nspname,o.oprcode='eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure AS exact_callee,o.oprleft='eo_old.hstore'::regtype AS exact_left,o.oprright='eo_old.hstore'::regtype AS exact_right,o.oprresult='boolean'::regtype AS exact_result,o.oprowner=p.proowner AS same_owner,p.proisstrict,p.provolatile,p.proparallel,p.prosrc,p.probin,p.proacl IS NULL AS default_acl FROM pg_operator o JOIN pg_namespace n ON n.oid=o.oprnamespace JOIN pg_proc p ON p.oid=o.oprcode JOIN pg_namespace pn ON pn.oid=p.pronamespace WHERE o.oid='eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator`, []string{"nspname", "nspname", "exact_callee", "exact_left", "exact_right", "exact_result", "same_owner", "proisstrict", "provolatile", "proparallel", "prosrc", "probin", "default_acl"}, []string{"NAME", "NAME", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "CHAR", "CHAR", "TEXT", "TEXT", "BOOL"}, [][]any{{"eo_new", "eo_old", true, true, true, true, true, true, "i", "s", "hstore_eq", "$libdir/hstore", true}}))
 			for _, dependency := range []struct{ class, object, referenceClass, reference string }{
 				{"pg_operator", "'eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator", "pg_proc", "'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure"},
 				{"pg_operator", "'eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator", "pg_namespace", "'eo_new'::regnamespace"},
 				{"pg_proc", "'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure", "pg_namespace", "'eo_old'::regnamespace"},
 			} {
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='`+dependency.class+`'::regclass AND objid=`+dependency.object+` AND refclassid='`+dependency.referenceClass+`'::regclass AND refobjid=`+dependency.reference+` AND deptype='n'`, 1))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='`+dependency.class+`'::regclass AND objid=`+dependency.object+` AND refclassid='`+dependency.referenceClass+`'::regclass AND refobjid=`+dependency.reference+` AND deptype='n'`, 1))
 			}
 			for _, object := range []struct{ class, identity string }{{"pg_operator", "'eo_new.=(eo_old.hstore,eo_old.hstore)'::regoperator"}, {"pg_proc", "'eo_old.hstore_eq(eo_old.hstore,eo_old.hstore)'::regprocedure"}} {
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='`+object.class+`'::regclass AND objid=`+object.identity+` AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='hstore') AND deptype='e'`, 1))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='`+object.class+`'::regclass AND objid=`+object.identity+` AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='hstore') AND deptype='e'`, 1))
 			}
 			// Fresh implicit binding uses the operator-only namespace, while
 			// explicit calls still use the independently placed genuine callee.
@@ -115,7 +115,7 @@ func TestReferenceExtensionOwnershipComparisonControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			check(conn, target.recorder)
-			ownershipUnchanged(t, p, conn, declaration, original)
+			fixture.OwnershipUnchanged(t, p, conn, declaration, original)
 			if err := conn.Close(); err != nil {
 				t.Fatal(err)
 			}

@@ -101,21 +101,21 @@ func TestReferenceExtensionOwnershipLtreeHierarchySurvivors(t *testing.T) {
 func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, pair int) {
 	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
-		ownershipSurvivorRoles(run)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
+		fixture.OwnershipSurvivorRoles(run)
 		run(fixture.Exec("CREATE EXTENSION ltree SCHEMA eo_old", 0))
 		run(fixture.Exec("ALTER EXTENSION ltree SET SCHEMA eo_new", 0))
 		var invariants []string
 		var original [][][]any
 		for i := range 2 {
 			sig := ownershipLtreeHierarchySignature(i, false)
-			ownershipSurvivorACL(run, sig)
-			id := ownershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
-			q := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + ownershipNumber(id)
+			fixture.OwnershipSurvivorACL(run, sig)
+			id := fixture.OwnershipID(t, p, c, "SELECT '"+sig+"'::regprocedure::bigint")
+			q := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)
 			invariants = append(invariants, q)
-			original = append(original, ownershipSnapshot(t, p, c, q))
-			ownershipSurvivorMutation(t, p, c, run, "ltree", sig)
+			original = append(original, fixture.OwnershipSnapshot(t, p, c, q))
+			fixture.OwnershipSurvivorMutation(t, p, c, run, "ltree", sig)
 		}
 		var held []fixture.HeldStatement
 		var heldSteps []fixture.Step
@@ -148,7 +148,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 			heldSteps = append(heldSteps, s)
 		}
 		values := func(conn *sql.Conn, recorder *fixture.Recorder, renamed bool) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			for i := range 2 {
 				for _, direct := range []bool{false, true} {
 					for null := range 3 {
@@ -167,7 +167,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 			run(fixture.Exec("ALTER EXTENSION ltree DROP "+target, 0))
 		}
 		for i := range 2 {
-			ownershipSurvivorNonmember(run, "ltree", ownershipLtreeHierarchySignature(i, false))
+			fixture.OwnershipSurvivorNonmember(run, "ltree", ownershipLtreeHierarchySignature(i, false))
 		}
 		values(c, b.Recorder, false)
 		var signatures []string
@@ -183,7 +183,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 			run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD `+target, 0))
 		}
 		for _, sig := range signatures {
-			ownershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
+			fixture.OwnershipSurvivorMemberRestriction(run, sig, "uuid-ossp")
 		}
 		values(c, b.Recorder, true)
 		// Retain the actual released normal codec/selectivity dependencies. There
@@ -225,7 +225,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 			}
 		}
 		for i, q := range invariants {
-			ownershipUnchanged(t, p, c, q, original[i])
+			fixture.OwnershipUnchanged(t, p, c, q, original[i])
 		}
 		var logicalQueries []string
 		for i := range 2 {
@@ -234,20 +234,20 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 		logicalQueries = append(logicalQueries, `SELECT n.nspname,t.typname,r.rolname,t.typacl::text,t.typinput::regprocedure::text,t.typoutput::regprocedure::text,a.typname,a.typelem::regtype::text,a.typinput::regprocedure::text,a.typoutput::regprocedure::text,t.typstorage FROM pg_type t JOIN pg_type a ON a.oid=t.typarray JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_roles r ON r.oid=t.typowner WHERE t.oid='eo_new.ltree'::regtype`)
 		logical := make([][][]any, len(logicalQueries))
 		for i, q := range logicalQueries {
-			logical[i] = ownershipSnapshot(t, p, c, q)
+			logical[i] = fixture.OwnershipSnapshot(t, p, c, q)
 			if len(logical[i]) != 1 {
 				t.Fatal("missing current hierarchy graph")
 			}
 		}
 		check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			values(conn, recorder, true)
 			r(fixture.Exec("SET ROLE eo_survivor_acl", 0))
 			values(conn, recorder, true)
 			r(fixture.Exec("RESET ROLE", 0))
-			r(ownershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
+			r(fixture.OwnershipCount("SELECT count(*) FROM pg_extension WHERE extname='ltree'", 0))
 			for i, q := range logicalQueries {
-				ownershipUnchanged(t, p, conn, q, logical[i])
+				fixture.OwnershipUnchanged(t, p, conn, q, logical[i])
 			}
 			member := ""
 			if foreign {
@@ -259,7 +259,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 				dependencies.count("classid='pg_proc'::regclass AND objid='"+sig+"'::regprocedure AND refclassid='pg_type'::regclass AND refobjid='eo_new.ltree'::regtype AND deptype='n'", 1)
 				r(fixture.Select("SELECT proisstrict,provolatile,proretset,prosrc,probin FROM pg_proc WHERE oid='"+sig+"'::regprocedure", []string{"proisstrict", "provolatile", "proretset", "prosrc", "probin"}, []string{"BOOL", "CHAR", "BOOL", "TEXT", "TEXT"}, [][]any{{true, "i", false, []string{"ltree_isparent", "ltree_risparent"}[i], "$libdir/ltree"}}))
 				op := ownershipLtreeHierarchyOperator(i)
-				r(ownershipCount("SELECT count(*) FROM pg_operator WHERE oid='"+op+"'::regoperator AND oprcode='"+sig+"'::regprocedure", 1))
+				r(fixture.OwnershipCount("SELECT count(*) FROM pg_operator WHERE oid='"+op+"'::regoperator AND oprcode='"+sig+"'::regprocedure", 1))
 				dependencies.count("classid='pg_operator'::regclass AND objid='"+op+"'::regoperator AND refclassid='pg_proc'::regclass AND refobjid='"+sig+"'::regprocedure AND deptype='n'", 1)
 				dependencies.count("classid='pg_operator'::regclass AND objid='"+op+"'::regoperator AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'", 1)
 				dependencies.member(r, "pg_operator", "'"+op+"'::regoperator", member)
@@ -270,7 +270,7 @@ func ownershipLtreeHierarchySurvivors(t *testing.T, foreign bool, state string, 
 			}
 			for index, identity := range []string{"'eo_new.ltree'::regtype", "(SELECT typarray FROM pg_type WHERE oid='eo_new.ltree'::regtype)"} {
 				dependencies.member(r, "pg_type", identity, member)
-				r(ownershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
+				r(fixture.OwnershipCount("SELECT count(*) FROM pg_type WHERE oid="+identity+" AND typowner=(SELECT oid FROM pg_roles WHERE rolname='eo_survivor_owner')", 1))
 				dependencies.count("classid='pg_type'::regclass AND objid="+identity+" AND refclassid='pg_namespace'::regclass AND refobjid='eo_new'::regnamespace AND deptype='n'", int64(1-index))
 				dependencies.count("classid='pg_type'::regclass AND objid="+identity+" AND refclassid='pg_type'::regclass AND refobjid='eo_new.ltree'::regtype AND deptype='i'", int64(index))
 			}
@@ -324,8 +324,8 @@ func ownershipLtreeHierarchyControls(t *testing.T, p *fixture.Pair, b fixture.Ba
 	queries := make([]string, len(signatures))
 	before := make([][][]any, len(signatures))
 	for i, signature := range signatures {
-		queries[i] = ownershipSurvivorDeclaration(signature)
-		before[i] = ownershipSnapshot(t, p, c, queries[i])
+		queries[i] = fixture.OwnershipSurvivorDeclaration(signature)
+		before[i] = fixture.OwnershipSnapshot(t, p, c, queries[i])
 		if len(before[i]) != 1 {
 			t.Fatal("missing genuine hierarchy declaration", signature)
 		}
@@ -359,7 +359,7 @@ func ownershipLtreeHierarchyControls(t *testing.T, p *fixture.Pair, b fixture.Ba
 		defer target.Close()
 		check(target, recorder)
 		for i, q := range queries {
-			ownershipUnchanged(t, p, target, q, before[i])
+			fixture.OwnershipUnchanged(t, p, target, q, before[i])
 		}
 		if got := fixture.ExtensionDump(t, p.Ctx, control); got != saved {
 			t.Fatal("hierarchy destination redump changed canonical state")

@@ -25,8 +25,8 @@ var ownershipBRINSignatures = []string{
 // existing BRIN catalog proof; no INTERNAL-valued SQL invocation is attempted.
 func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"eo_brin_reader"})
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
 		cleanup := func(conn *sql.Conn) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -56,20 +56,20 @@ func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 		run(fixture.Exec(`CREATE INDEX brin_values_idx ON eo_old.brin_values USING brin(v) WITH (pages_per_range=1)`, 0))
 		const declarations = `SELECT oid::bigint,pronamespace::bigint,proowner::bigint,proname,proargtypes::text,prorettype::bigint,prolang::bigint,prosrc,probin,proacl::text,proparallel,procost FROM pg_proc WHERE oid IN (3383,3384,3385,3386) ORDER BY oid`
 		const normal = `SELECT classid::bigint,objid::bigint,objsubid,refclassid::bigint,refobjid::bigint,refobjsubid,deptype FROM pg_depend WHERE classid='pg_proc'::regclass AND objid IN (3383,3384,3385,3386) AND deptype<>'e' ORDER BY objid,refclassid,refobjid,deptype`
-		original := ownershipSnapshot(t, p, c, declarations)
-		normalBefore := ownershipSnapshot(t, p, c, normal)
-		baseline := ownershipSnapshot(t, p, c, ownershipClassMemberSet)
+		original := fixture.OwnershipSnapshot(t, p, c, declarations)
+		normalBefore := fixture.OwnershipSnapshot(t, p, c, normal)
+		baseline := fixture.OwnershipSnapshot(t, p, c, ownershipClassMemberSet)
 		check := func(t *testing.T, conn *sql.Conn, recorder *fixture.Recorder, attached bool) {
-			r := ownershipRunWithRecorder(t, p, conn, recorder)
+			r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 			n := int64(0)
 			if attached {
 				n = 1
 			}
 			ownershipMemberCount(r, 6+4*n)
 			for i, signature := range ownershipBRINSignatures {
-				r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE oid=$1 AND oid=$2::regprocedure AND pronamespace='pg_catalog'::regnamespace AND proowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)`, 1, int64(3383+i), "pg_catalog."+signature))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid='pg_proc'::regclass AND d.objid=$1 AND d.objsubid=0 AND d.refclassid='pg_extension'::regclass AND d.refobjsubid=0 AND d.deptype='e' AND e.extname='unaccent'`, n, int64(3383+i)))
-				r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1 AND deptype='e'`, n, int64(3383+i)))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE oid=$1 AND oid=$2::regprocedure AND pronamespace='pg_catalog'::regnamespace AND proowner=(SELECT oid FROM pg_roles WHERE rolname=current_user)`, 1, int64(3383+i), "pg_catalog."+signature))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid WHERE d.classid='pg_proc'::regclass AND d.objid=$1 AND d.objsubid=0 AND d.refclassid='pg_extension'::regclass AND d.refobjsubid=0 AND d.deptype='e' AND e.extname='unaccent'`, n, int64(3383+i)))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1 AND deptype='e'`, n, int64(3383+i)))
 			}
 			s := fixture.Select(`SELECT proname,proargtypes::text AS arguments,prorettype::bigint,proisstrict,provolatile,proparallel,proretset,prokind,prolang::bigint,prosrc,probin FROM pg_proc WHERE oid IN (3383,3384,3385,3386) ORDER BY oid`, []string{"proname", "arguments", "prorettype", "proisstrict", "provolatile", "proparallel", "proretset", "prokind", "prolang", "prosrc", "probin"}, []string{"NAME", "TEXT", "INT8", "BOOL", "CHAR", "CHAR", "BOOL", "CHAR", "INT8", "TEXT", "TEXT"}, [][]any{
 				{"brin_minmax_opcinfo", "2281", int64(2281), true, "i", "s", false, "f", int64(12), "brin_minmax_opcinfo", nil},
@@ -79,24 +79,24 @@ func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 			})
 			r(s)
 			r(fixture.Prepared(s))
-			ownershipUnchanged(t, p, conn, declarations, original)
-			ownershipUnchanged(t, p, conn, normal, normalBefore)
+			fixture.OwnershipUnchanged(t, p, conn, declarations, original)
+			fixture.OwnershipUnchanged(t, p, conn, normal, normalBefore)
 			s = fixture.Select(`SELECT v FROM eo_old.brin_values WHERE v>=2 ORDER BY v`, []string{"v"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}})
 			r(s)
 			r(fixture.Prepared(s))
-			r(ownershipCount(`SELECT count(*) FROM eo_old.brin_values WHERE v IS NULL`, 1))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM eo_old.brin_values WHERE v IS NULL`, 1))
 		}
 		check(t, c, b.Recorder, false)
 		for _, signature := range ownershipBRINSignatures {
 			run(fixture.Exec("ALTER EXTENSION unaccent ADD FUNCTION pg_catalog."+signature, 0))
 			name := strings.SplitN(signature, "(", 2)[0]
-			run(ownershipError("ALTER EXTENSION unaccent ADD FUNCTION pg_catalog."+signature, "55000", `function `+signature+` is already a member of extension "unaccent"`))
-			run(ownershipError("ALTER EXTENSION plpgsql DROP FUNCTION pg_catalog."+signature, "55000", `function `+signature+` is not a member of extension "plpgsql"`))
+			run(fixture.OwnershipError("ALTER EXTENSION unaccent ADD FUNCTION pg_catalog."+signature, "55000", `function `+signature+` is already a member of extension "unaccent"`))
+			run(fixture.OwnershipError("ALTER EXTENSION plpgsql DROP FUNCTION pg_catalog."+signature, "55000", `function `+signature+` is not a member of extension "plpgsql"`))
 			run(fixture.Exec(`SET ROLE eo_brin_reader`, 0))
-			run(ownershipError("ALTER EXTENSION unaccent DROP FUNCTION pg_catalog."+signature, "42501", "must be owner of extension unaccent"))
+			run(fixture.OwnershipError("ALTER EXTENSION unaccent DROP FUNCTION pg_catalog."+signature, "42501", "must be owner of extension unaccent"))
 			run(fixture.Exec(`RESET ROLE`, 0))
 			// Pin protection remains stronger than extension membership removal.
-			run(ownershipError("DROP FUNCTION pg_catalog."+signature, "2BP01", "cannot drop function "+name+signature[len(name):]+" because it is required by the database system"))
+			run(fixture.OwnershipError("DROP FUNCTION pg_catalog."+signature, "2BP01", "cannot drop function "+name+signature[len(name):]+" because it is required by the database system"))
 		}
 		check(t, c, b.Recorder, true)
 		// A fresh actual class binding while all four capabilities are members.
@@ -105,7 +105,7 @@ func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 			run(fixture.Exec("ALTER EXTENSION unaccent DROP FUNCTION pg_catalog."+signature, 0))
 		}
 		check(t, c, b.Recorder, false)
-		ownershipUnchanged(t, p, c, ownershipClassMemberSet, baseline)
+		fixture.OwnershipUnchanged(t, p, c, ownershipClassMemberSet, baseline)
 		// Owning a genuine receiving extension is not ownership of a seeded
 		// routine. Trusted installation leaves these pg_catalog owners alone.
 		var database string
@@ -126,12 +126,12 @@ func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 		run(fixture.Exec(`CREATE EXTENSION "uuid-ossp" SCHEMA eo_other`, 0))
 		for _, signature := range ownershipBRINSignatures {
 			name := strings.SplitN(signature, "(", 2)[0]
-			run(ownershipError(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION pg_catalog.`+signature, "42501", "must be owner of function pg_catalog."+name))
+			run(fixture.OwnershipError(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION pg_catalog.`+signature, "42501", "must be owner of function pg_catalog."+name))
 		}
 		run(fixture.Exec(`DROP EXTENSION "uuid-ossp"`, 0))
 		run(fixture.Exec(`RESET ROLE`, 0))
 		run(fixture.Exec("REVOKE CREATE ON DATABASE "+fixture.ExtensionTempIdentifier(database)+" FROM eo_brin_reader", 0))
-		ownershipUnchanged(t, p, c, ownershipClassMemberSet, baseline)
+		fixture.OwnershipUnchanged(t, p, c, ownershipClassMemberSet, baseline)
 		for _, signature := range ownershipBRINSignatures {
 			run(fixture.Exec("ALTER EXTENSION unaccent ADD FUNCTION pg_catalog."+signature, 0))
 		}
@@ -194,13 +194,13 @@ func TestReferenceExtensionOwnershipBRINSupport(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				r := ownershipRunWithRecorder(t, p, conn, destination.recorder)
+				r := fixture.OwnershipRunWithRecorder(t, p, conn, destination.recorder)
 				for _, signature := range ownershipBRINSignatures {
 					r(fixture.Exec("ALTER EXTENSION unaccent DROP FUNCTION pg_catalog."+signature, 0))
 				}
 				check(t, conn, destination.recorder, false)
 				r(fixture.Exec(`DROP EXTENSION unaccent`, 0))
-				r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE oid IN (3383,3384,3385,3386)`, 4))
+				r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE oid IN (3383,3384,3385,3386)`, 4))
 			})
 		}
 	})

@@ -56,10 +56,10 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
 				ownershipSetup(run)
-				baselineMembers := ownershipSnapshot(t, p, c, ownershipClassMemberSet)
+				baselineMembers := fixture.OwnershipSnapshot(t, p, c, ownershipClassMemberSet)
 				// Procedure definition is a committed setup boundary in the
 				// native executor; membership and relocation remain transactional.
 				if tc.name == "procedure" {
@@ -76,9 +76,9 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 						run(fixture.Exec(q, 0))
 					}
 				}
-				id := ownershipID(t, p, c, tc.lookup)
+				id := fixture.OwnershipID(t, p, c, tc.lookup)
 				// A root's ordinary dependencies must not be rewritten by membership.
-				snapshot := ownershipSnapshot(t, p, c, `SELECT refclassid::bigint,refobjid::bigint,deptype FROM pg_depend WHERE classid=`+ownershipNumber(tc.class)+` AND objid=`+ownershipNumber(id)+` AND deptype<>'e' ORDER BY refclassid,refobjid,deptype`)
+				snapshot := fixture.OwnershipSnapshot(t, p, c, `SELECT refclassid::bigint,refobjid::bigint,deptype FROM pg_depend WHERE classid=`+fixture.OwnershipNumber(tc.class)+` AND objid=`+fixture.OwnershipNumber(id)+` AND deptype<>'e' ORDER BY refclassid,refobjid,deptype`)
 				configurationError := func(step fixture.Step) {
 					run(fixture.Exec("SAVEPOINT eo_configuration_error", 0))
 					run(step)
@@ -103,29 +103,29 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 						configurationError(step)
 					}
 				}
-				run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND deptype='e'`, 1, tc.class, id))
+				run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='unaccent') AND deptype='e'`, 1, tc.class, id))
 				if tc.class == 3602 || tc.class == 3601 {
 					noun := "text search configuration"
 					if tc.class == 3601 {
 						noun = "text search parser"
 					}
-					configurationError(ownershipError("ALTER EXTENSION unaccent ADD "+tc.target, "55000", noun+` eo_old.item is already a member of extension "unaccent"`))
-					configurationError(ownershipError("ALTER EXTENSION plpgsql DROP "+tc.target, "55000", noun+` eo_old.item is not a member of extension "plpgsql"`))
+					configurationError(fixture.OwnershipError("ALTER EXTENSION unaccent ADD "+tc.target, "55000", noun+` eo_old.item is already a member of extension "unaccent"`))
+					configurationError(fixture.OwnershipError("ALTER EXTENSION plpgsql DROP "+tc.target, "55000", noun+` eo_old.item is not a member of extension "plpgsql"`))
 				}
-				if got := ownershipID(t, p, c, tc.lookup); got != id {
+				if got := fixture.OwnershipID(t, p, c, tc.lookup); got != id {
 					t.Fatalf("membership replaced identity %d -> %d", id, got)
 				}
 				run(fixture.Exec("ALTER EXTENSION unaccent DROP "+tc.target, 0))
 				// Compare the true reciprocal member inventory, not a schema's
 				// children or a relaxed stock member count.
-				ownershipUnchanged(t, p, c, ownershipClassMemberSet, baselineMembers)
+				fixture.OwnershipUnchanged(t, p, c, ownershipClassMemberSet, baselineMembers)
 				ownershipMemberCount(run, 6)
-				run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, tc.class, id))
+				run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid=$1 AND objid=$2 AND refclassid='pg_extension'::regclass AND deptype='e'`, 0, tc.class, id))
 				ownershipClassWitness(run, tc.name, "eo_old")
-				if got := ownershipID(t, p, c, tc.lookup); got != id {
+				if got := fixture.OwnershipID(t, p, c, tc.lookup); got != id {
 					t.Fatalf("detach deleted/replaced object %d -> %d", id, got)
 				}
-				ownershipUnchanged(t, p, c, `SELECT refclassid::bigint,refobjid::bigint,deptype FROM pg_depend WHERE classid=`+ownershipNumber(tc.class)+` AND objid=`+ownershipNumber(id)+` AND deptype<>'e' ORDER BY refclassid,refobjid,deptype`, snapshot)
+				fixture.OwnershipUnchanged(t, p, c, `SELECT refclassid::bigint,refobjid::bigint,deptype FROM pg_depend WHERE classid=`+fixture.OwnershipNumber(tc.class)+` AND objid=`+fixture.OwnershipNumber(id)+` AND deptype<>'e' ORDER BY refclassid,refobjid,deptype`, snapshot)
 				if tc.class == 3602 || tc.class == 3601 {
 					noun := "text search configuration"
 					if tc.class == 3601 {
@@ -133,7 +133,7 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 						ownershipClassMetadataEqual(t, parser, ownershipParserSnapshot(t, p, c, id))
 						configurationError(ownershipParserRestrict("eo_old"))
 					}
-					configurationError(ownershipError("ALTER EXTENSION unaccent DROP "+tc.target, "55000", noun+` eo_old.item is not a member of extension "unaccent"`))
+					configurationError(fixture.OwnershipError("ALTER EXTENSION unaccent DROP "+tc.target, "55000", noun+` eo_old.item is not a member of extension "unaccent"`))
 				}
 				run(fixture.Exec("ALTER EXTENSION unaccent ADD "+tc.target, 0))
 				if tc.class == 3601 {
@@ -148,7 +148,7 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 				default:
 					lookup = strings.ReplaceAll(lookup, "eo_old", "eo_new")
 				}
-				if got := ownershipID(t, p, c, lookup); got != id {
+				if got := fixture.OwnershipID(t, p, c, lookup); got != id {
 					t.Fatalf("class relocation replaced identity %d -> %d", id, got)
 				}
 				ownershipMemberCount(run, 6+tc.closure)
@@ -165,8 +165,8 @@ func TestReferenceExtensionOwnershipMemberClasses(t *testing.T) {
 				}
 				run(fixture.Exec("ROLLBACK", 0))
 				ownershipMemberCount(run, 6)
-				ownershipUnchanged(t, p, c, ownershipClassMemberSet, baselineMembers)
-				run(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent' AND extnamespace='eo_old'::regnamespace`, 1))
+				fixture.OwnershipUnchanged(t, p, c, ownershipClassMemberSet, baselineMembers)
+				run(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='unaccent' AND extnamespace='eo_old'::regnamespace`, 1))
 				ownershipClassControls(t, p, b, c, tc)
 			})
 		})

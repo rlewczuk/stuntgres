@@ -32,13 +32,13 @@ func TestReferenceExtensionOwnershipConsumerDependencies(t *testing.T) {
 				}
 				t.Run(state, func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"eo_survivor_owner", "eo_survivor_acl"})
-					ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-						run := ownershipRun(t, p, b, c)
-						ownershipSurvivorRoles(run)
+					fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+						run := fixture.OwnershipRun(t, p, b, c)
+						fixture.OwnershipSurvivorRoles(run)
 						run(fixture.Exec("CREATE EXTENSION "+tc.origin+" SCHEMA eo_new", 0))
 						run(fixture.Exec("CREATE TYPE eo_old.dep_pair AS (i integer)", 0))
 						signature := "eo_new." + tc.signature
-						ownershipSurvivorACL(run, signature)
+						fixture.OwnershipSurvivorACL(run, signature)
 						step := fixture.Select(tc.query, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})
 						run(step)
 						run(fixture.Prepared(step))
@@ -46,7 +46,7 @@ func TestReferenceExtensionOwnershipConsumerDependencies(t *testing.T) {
 						run(fixture.Exec("GRANT SELECT ON eo_old.dep_consumer TO eo_survivor_acl", 0))
 						held := fixture.CrosstabHeld(t, p, c, "SELECT * FROM eo_old.dep_consumer")
 						defer held.Statement.Close()
-						run(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_rewrite'::regclass AND objid IN (SELECT oid FROM pg_rewrite WHERE ev_class='eo_old.dep_consumer'::regclass) AND refclassid='pg_proc'::regclass AND refobjid='`+signature+`'::regprocedure AND deptype='n'`, 1))
+						run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_rewrite'::regclass AND objid IN (SELECT oid FROM pg_rewrite WHERE ev_class='eo_old.dep_consumer'::regclass) AND refclassid='pg_proc'::regclass AND refobjid='`+signature+`'::regprocedure AND deptype='n'`, 1))
 						run(fixture.Exec("ALTER EXTENSION "+tc.origin+" DROP FUNCTION "+signature, 0))
 						if foreign {
 							run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION `+signature, 0))
@@ -58,7 +58,7 @@ func TestReferenceExtensionOwnershipConsumerDependencies(t *testing.T) {
 							t.Fatal(err)
 						}
 						check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-							r := ownershipRunWithRecorder(t, p, conn, recorder)
+							r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 							for _, s := range []fixture.Step{step, fixture.Prepared(step), stored, fixture.Prepared(stored)} {
 								r(s)
 							}
@@ -67,7 +67,7 @@ func TestReferenceExtensionOwnershipConsumerDependencies(t *testing.T) {
 							r(fixture.Exec("RESET ROLE", 0))
 							ownershipConsumerLinks(r, signature, foreign)
 						}
-						ownershipSurvivorControls(t, p, b, c, "consumer_"+tc.name+"_"+state, []string{signature}, check)
+						fixture.OwnershipSurvivorControls(t, p, b, c, "consumer_"+tc.name+"_"+state, []string{signature}, check)
 					})
 				})
 			}

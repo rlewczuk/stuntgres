@@ -20,16 +20,16 @@ func ownershipStockAbsenceControls(t *testing.T) {
 		{"present_language_and_handler_deleted", []string{`ALTER EXTENSION plpgsql DROP LANGUAGE plpgsql`, `ALTER EXTENSION plpgsql DROP FUNCTION pg_catalog.plpgsql_call_handler()`, `DROP FUNCTION pg_catalog.plpgsql_call_handler() CASCADE`}, 1, 0, 2, 2, ""},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
 				defer ownershipStockCleanup(t, c)()
 				check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-					r := ownershipRunWithRecorder(t, p, conn, recorder)
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='plpgsql'`, scenario.extension))
-					r(ownershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql'`, scenario.language))
-					r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='pg_catalog'::regnamespace AND proname IN ('plpgsql_call_handler','plpgsql_inline_handler','plpgsql_validator')`, scenario.handlers))
-					r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='plpgsql') AND deptype='e'`, scenario.members))
-					r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_retire%' OR nspname LIKE '__stuntgres_install%'`, 0))
+					r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='plpgsql'`, scenario.extension))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql'`, scenario.language))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='pg_catalog'::regnamespace AND proname IN ('plpgsql_call_handler','plpgsql_inline_handler','plpgsql_validator')`, scenario.handlers))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE refclassid='pg_extension'::regclass AND refobjid=(SELECT oid FROM pg_extension WHERE extname='plpgsql') AND deptype='e'`, scenario.members))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_retire%' OR nspname LIKE '__stuntgres_install%'`, 0))
 					if scenario.survivor != "" {
 						r(fixture.Select(`SELECT p.proname,p.prosrc,p.prolang=l.oid AS c_language,p.prorettype='void'::regtype AS void_result,p.proargtypes::text AS arguments FROM pg_proc p JOIN pg_language l ON l.lanname='c' WHERE p.pronamespace='pg_catalog'::regnamespace AND p.proname='plpgsql_validator'`, []string{"proname", "prosrc", "c_language", "void_result", "arguments"}, []string{"NAME", "TEXT", "BOOL", "BOOL", "TEXT"}, [][]any{{"plpgsql_validator", "plpgsql_validator", true, true, "26"}}))
 					}

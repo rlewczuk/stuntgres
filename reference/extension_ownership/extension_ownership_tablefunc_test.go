@@ -16,17 +16,17 @@ func ownershipTablefuncSurvivors(t *testing.T) {
 			name = "foreign"
 		}
 		t.Run(name, func(t *testing.T) {
-			ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-				run := ownershipRun(t, p, b, c)
+			fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := fixture.OwnershipRun(t, p, b, c)
 				ownershipSetup(run)
 				run(fixture.Exec(`CREATE EXTENSION tablefunc SCHEMA eo_old`, 0))
-				id := ownershipID(t, p, c, `SELECT 'eo_old.normal_rand(integer,double precision,double precision)'::regprocedure::bigint`)
-				metadataQuery := `SELECT p.oid::bigint,r.rolname,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid=` + ownershipNumber(id)
-				before := ownershipSnapshot(t, p, c, metadataQuery)
+				id := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.normal_rand(integer,double precision,double precision)'::regprocedure::bigint`)
+				metadataQuery := `SELECT p.oid::bigint,r.rolname,p.proargtypes::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner WHERE p.oid=` + fixture.OwnershipNumber(id)
+				before := fixture.OwnershipSnapshot(t, p, c, metadataQuery)
 				run(fixture.Exec(`ALTER EXTENSION tablefunc DROP FUNCTION eo_old.normal_rand(integer,double precision,double precision)`, 0))
 				run(fixture.Exec(`ALTER FUNCTION eo_old.normal_rand(integer,double precision,double precision) RENAME TO eo_draw`, 0))
 				values := func(conn *sql.Conn, recorder *fixture.Recorder) {
-					r := ownershipRunWithRecorder(t, p, conn, recorder)
+					r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 					s := fixture.TablefuncNormalSelect(`SELECT eo_old.eo_draw(3,9,0) AS normal_rand`, 3, 9)
 					r(s)
 					r(fixture.Prepared(s))
@@ -43,12 +43,12 @@ func ownershipTablefuncSurvivors(t *testing.T) {
 				if !foreign {
 					run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" DROP FUNCTION eo_old.eo_draw(integer,double precision,double precision)`, 0))
 				}
-				ownershipUnchanged(t, p, c, metadataQuery, before)
+				fixture.OwnershipUnchanged(t, p, c, metadataQuery, before)
 				run(fixture.Exec(`CREATE VIEW eo_old.eo_draws AS SELECT eo_old.eo_draw(3,9,0) AS v`, 0))
 				check := func(conn *sql.Conn, recorder *fixture.Recorder) {
-					r := ownershipRunWithRecorder(t, p, conn, recorder)
+					r := fixture.OwnershipRunWithRecorder(t, p, conn, recorder)
 					values(conn, recorder)
-					r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
+					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
 					member := ""
 					if foreign {
 						member = "uuid-ossp"

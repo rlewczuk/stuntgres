@@ -15,8 +15,8 @@ import (
 // all three declarations use MODULE_PATHNAME ($libdir/plpgsql), default VOLATILE
 // and PARALLEL UNSAFE; only the inline handler and validator are STRICT.
 func TestReferenceExtensionOwnershipPLpgSQLRecreate(t *testing.T) {
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
 		// Stock objects are cluster-global on the oracle. Restore the released
 		// installation even if a failure occurs between DROP and CREATE.
 		defer func() {
@@ -50,12 +50,12 @@ func TestReferenceExtensionOwnershipPLpgSQLRecreate(t *testing.T) {
 			r(fixture.Prepared(s))
 			r(fixture.Select(`SELECT p.proname,d.deptype FROM pg_depend d JOIN pg_language l ON d.classid='pg_language'::regclass AND d.objid=l.oid JOIN pg_proc p ON d.refclassid='pg_proc'::regclass AND d.refobjid=p.oid WHERE l.lanname='plpgsql' ORDER BY p.proname`, []string{"proname", "deptype"}, []string{"NAME", "CHAR"}, [][]any{{"plpgsql_call_handler", "n"}, {"plpgsql_inline_handler", "n"}, {"plpgsql_validator", "n"}}))
 			r(fixture.Select(`SELECT d.classid::bigint,count(*) FROM pg_depend d JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND d.refobjid=e.oid WHERE e.extname='plpgsql' AND d.deptype='e' GROUP BY d.classid ORDER BY d.classid`, []string{"classid", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(1255), int64(3)}, {int64(2612), int64(1)}}))
-			r(ownershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql' AND lanpltrusted AND lanplcallfoid='pg_catalog.plpgsql_call_handler()'::regprocedure AND laninline='pg_catalog.plpgsql_inline_handler(internal)'::regprocedure AND lanvalidator='pg_catalog.plpgsql_validator(oid)'::regprocedure`, 1))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql' AND lanpltrusted AND lanplcallfoid='pg_catalog.plpgsql_call_handler()'::regprocedure AND laninline='pg_catalog.plpgsql_inline_handler(internal)'::regprocedure AND lanvalidator='pg_catalog.plpgsql_validator(oid)'::regprocedure`, 1))
 		}
 		metadata(t, c, b.Recorder, false)
 		run(fixture.Exec(`DROP EXTENSION plpgsql CASCADE`, 0))
-		run(ownershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql'`, 0))
-		run(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='pg_catalog'::regnamespace AND proname IN ('plpgsql_call_handler','plpgsql_inline_handler','plpgsql_validator')`, 0))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_language WHERE lanname='plpgsql'`, 0))
+		run(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='pg_catalog'::regnamespace AND proname IN ('plpgsql_call_handler','plpgsql_inline_handler','plpgsql_validator')`, 0))
 		run(fixture.Exec(`CREATE EXTENSION plpgsql`, 0))
 		metadata(t, c, b.Recorder, false)
 		run(fixture.Exec(`CREATE PROCEDURE public.eo_pl_recreated(INOUT n integer) LANGUAGE plpgsql AS 'BEGIN n:=n+1; END'`, 0))
@@ -74,7 +74,7 @@ func TestReferenceExtensionOwnershipPLpgSQLRecreate(t *testing.T) {
 		}
 		saved := fixture.ExtensionDump(t, p.Ctx, p.Native)
 		const current = `SELECT p.proname,pg_get_userbyid(p.proowner),p.proacl::text,p.proparallel,p.procost,p.probin FROM pg_proc p WHERE p.pronamespace='pg_catalog'::regnamespace AND p.proname IN ('plpgsql_call_handler','plpgsql_inline_handler','plpgsql_validator') ORDER BY p.proname`
-		before := ownershipSnapshot(t, p, c, current)
+		before := fixture.OwnershipSnapshot(t, p, c, current)
 		oldRows, err := c.QueryContext(p.Ctx, `SELECT probin FROM pg_proc WHERE oid='pg_catalog.plpgsql_call_handler()'::regprocedure`)
 		if err != nil {
 			t.Fatal(err)
@@ -108,7 +108,7 @@ func TestReferenceExtensionOwnershipPLpgSQLRecreate(t *testing.T) {
 				}
 				defer conn.Close()
 				check(t, conn, destination.recorder)
-				ownershipUnchanged(t, p, conn, current, before)
+				fixture.OwnershipUnchanged(t, p, conn, current, before)
 				if destination.name == "same_driver" {
 					var library string
 					if !oldRows.Next() {

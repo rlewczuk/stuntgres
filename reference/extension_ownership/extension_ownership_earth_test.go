@@ -11,8 +11,8 @@ import (
 // These released float8-only functions do not acquire an incidental dependency
 // on the Earth/cube nominal types. The real sec/gc -> earth() dependency remains.
 func ownershipEarthScalarSurvivors(t *testing.T) {
-	ownershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := ownershipRun(t, p, b, c)
+	fixture.OwnershipScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		run := fixture.OwnershipRun(t, p, b, c)
 		for _, q := range []string{`CREATE SCHEMA eo_old`, `CREATE SCHEMA eo_new`, `CREATE EXTENSION cube SCHEMA eo_new`, `CREATE EXTENSION earthdistance SCHEMA eo_old`} {
 			run(fixture.Exec(q, 0))
 		}
@@ -20,30 +20,30 @@ func ownershipEarthScalarSurvivors(t *testing.T) {
 			run(fixture.Exec("ALTER EXTENSION earthdistance DROP "+target, 0))
 		}
 		identityQuery := `SELECT p.oid::bigint,p.proname,p.proowner::bigint,p.proacl::text,p.prosrc FROM pg_proc p WHERE p.pronamespace='eo_old'::regnamespace AND p.proname IN ('earth','sec_to_gc','gc_to_sec') ORDER BY p.proname`
-		identity := ownershipSnapshot(t, p, c, identityQuery)
+		identity := fixture.OwnershipSnapshot(t, p, c, identityQuery)
 		if len(identity) != 3 {
 			t.Fatal("genuine scalar cohort must contain radius and both conversions", identity)
 		}
 		checkDependencies := func(t *testing.T, conn *sql.Conn, recorder *fixture.Recorder) {
 			r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
 			for _, name := range []string{"sec_to_gc", "gc_to_sec"} {
-				step := ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1::regprocedure AND refclassid='pg_proc'::regclass AND refobjid='eo_old.earth()'::regprocedure AND deptype='n'`, 1, "eo_old."+name+"(double precision)")
+				step := fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=$1::regprocedure AND refclassid='pg_proc'::regclass AND refobjid='eo_old.earth()'::regprocedure AND deptype='n'`, 1, "eo_old."+name+"(double precision)")
 				r(step)
 			}
 		}
 		checkDependencies(t, c, b.Recorder)
 		run(fixture.Exec(`DROP EXTENSION earthdistance`, 0))
 		run(fixture.Exec(`DROP EXTENSION cube`, 0))
-		ownershipUnchanged(t, p, c, identityQuery, identity)
+		fixture.OwnershipUnchanged(t, p, c, identityQuery, identity)
 		check := func(t *testing.T, conn *sql.Conn, recorder *fixture.Recorder) {
 			r := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, conn, recorder, s) }
-			r(ownershipCount(`SELECT count(*) FROM pg_extension WHERE extname IN ('cube','earthdistance')`, 0))
-			r(ownershipCount(`SELECT count(*) FROM pg_type WHERE typnamespace IN ('eo_old'::regnamespace,'eo_new'::regnamespace) AND typname IN ('earth','_earth','cube','_cube')`, 0))
-			r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('earth','sec_to_gc','gc_to_sec')`, 3))
-			r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid IN ('eo_old.earth()'::regprocedure,'eo_old.sec_to_gc(double precision)'::regprocedure,'eo_old.gc_to_sec(double precision)'::regprocedure) AND deptype='e'`, 0))
-			r(ownershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid IN ('eo_old.sec_to_gc(double precision)'::regprocedure,'eo_old.gc_to_sec(double precision)'::regprocedure) AND refclassid='pg_proc'::regclass AND refobjid='eo_old.earth()'::regprocedure AND deptype='n'`, 2))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname IN ('cube','earthdistance')`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type WHERE typnamespace IN ('eo_old'::regnamespace,'eo_new'::regnamespace) AND typname IN ('earth','_earth','cube','_cube')`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('earth','sec_to_gc','gc_to_sec')`, 3))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid IN ('eo_old.earth()'::regprocedure,'eo_old.sec_to_gc(double precision)'::regprocedure,'eo_old.gc_to_sec(double precision)'::regprocedure) AND deptype='e'`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid IN ('eo_old.sec_to_gc(double precision)'::regprocedure,'eo_old.gc_to_sec(double precision)'::regprocedure) AND refclassid='pg_proc'::regclass AND refobjid='eo_old.earth()'::regprocedure AND deptype='n'`, 2))
 			checkDependencies(t, conn, recorder)
-			r(ownershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_install%' OR nspname LIKE '__stuntgres_prerequisite%'`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_namespace WHERE nspname LIKE '__stuntgres_install%' OR nspname LIKE '__stuntgres_prerequisite%'`, 0))
 			s := fixture.Select(`SELECT eo_old.earth() AS radius,eo_old.sec_to_gc(0::double precision) AS arc,eo_old.gc_to_sec(0::double precision) AS chord,eo_old.sec_to_gc(NULL::double precision) AS missing`, []string{"radius", "arc", "chord", "missing"}, []string{"FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8"}, [][]any{{float64(6378168), float64(0), float64(0), nil}})
 			r(s)
 			r(fixture.Prepared(s))
@@ -52,7 +52,7 @@ func ownershipEarthScalarSurvivors(t *testing.T) {
 			r(fixture.Exec("BEGIN", 0))
 			defer conn.ExecContext(p.Ctx, "ROLLBACK")
 			r(fixture.Exec(`DROP FUNCTION eo_old.earth() CASCADE`, 0))
-			r(ownershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('earth','sec_to_gc','gc_to_sec')`, 0))
+			r(fixture.OwnershipCount(`SELECT count(*) FROM pg_proc WHERE pronamespace='eo_old'::regnamespace AND proname IN ('earth','sec_to_gc','gc_to_sec')`, 0))
 			r(fixture.Exec("ROLLBACK", 0))
 		}
 		check(t, c, b.Recorder)
