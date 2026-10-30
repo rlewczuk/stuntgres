@@ -198,6 +198,13 @@ COPY test in reference/dml.
   `RUN='^TestReferenceFTSEstonianSnowball'`. All six word aliases use Estonian,
   including ASCII, with no English fallback or stock stoplist; the thirteen
   simple aliases and explicit-stopword positions are independently specified.
+- German Snowball configuration mappings, typed vector/debug results, ordered
+  recognizer/stop chains, COPY isolation and owned dictionary/configuration seed
+  replay: `RUN='^TestReferenceFTSGermanSnowball'`. All six word aliases, including
+  ASCII, use German; thirteen others use simple. The 231 stock stops preserve
+  document-position gaps. Native same/reset/fresh-driver controls retain recursive
+  REGCONFIG captures, exact redump and temporary OID collisions; PostgreSQL must
+  execute the actual native-emitted SQL.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

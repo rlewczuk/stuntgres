@@ -864,7 +864,7 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
-  `english.stop`, `danish.stop` and `dutch.stop` are verbatim released PostgreSQL resources.
+  `english.stop`, `danish.stop`, `dutch.stop` and `german.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
   publish no cache entry. Lists are not reread per evaluation.
@@ -872,12 +872,12 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter and Estonian kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian and German kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
   is empty retains its lowercased input. Arabic, Armenian, Basque and Estonian have no stock
-  stopword resource. English, Danish and Dutch stock lists contain 127, 94 and 101 words;
+  stopword resource. English, Danish, Dutch and German stock lists contain 127, 94, 101 and 231 words;
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
   `snowball_LICENSE.txt`; binary
@@ -908,6 +908,14 @@ publication and lock-manager tickets stay in the engine.
   to original R1, while predecessor predicates inspect the unrestricted prefix.
   A failed selected predicate does not retry shorter suffixes. Deletion-only
   paths reuse input slices; replacements allocate only changed output strings.
+  German marks intervocalic u/y before ß expansion and ae/oe/ue transliteration,
+  protecting qu. Original codepoint R1 (minimum three) and natural-R1-derived R2
+  survive its three single-pass suffix stages. Longest matches precede predicates,
+  with no shorter retry after region failure; system, niss and s/st predecessor
+  guards retain the released semantics. Postlude folds only lowercase umlauts and
+  U/Y markers, not general accents or Unicode normalization. The later -et and
+  apostrophe stages are absent. One invocation-local buffer handles expansion
+  without per-stage copies; unchanged final output reuses the original string.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.

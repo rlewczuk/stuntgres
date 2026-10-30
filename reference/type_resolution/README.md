@@ -222,6 +222,15 @@ and native dictionary/seed replay: `RUN='^TestReferenceEstonianSnowball'`.
 Literal expectations are independent of provider tables; replay consumes actual
 native-emitted SQL. Private kernel/provider and publication ownership witnesses
 share `RUN='^TestSnowballEstonian'`.
+German REL_18_6 morphology, natural-R1/R2 and suffix guards, C-case/transliteration,
+231 literal stops, resource isolation, complete diagnostics, typed prepared
+ownership, admitted output-gated cancellation and actual native dictionary/seed
+replay: `RUN='^TestReferenceGermanSnowball'`. The fixed corpus includes independent
+Snowball vocabulary/output pairs and release-negative -et/apostrophe witnesses.
+Private kernel/resources, seed authority, rejected publication and accepted-fold
+ownership: `RUN='^TestSnowballGerman'`. Actual emitted replay requires both backends;
+PG-only discovery cannot replace it. Feature smoke:
+`RUN='^TestReferenceGermanSnowballFeatureSmoke$'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

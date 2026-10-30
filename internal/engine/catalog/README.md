@@ -364,7 +364,7 @@ neither owns catalog authority.
   extension, its global language and three allocated C handlers with creation-owned
   display sources, canonical strictness and genuine language-to-handler dependencies),
   `Store.InstallSnowballLocked` (one allocated C helper pair/template and distinct
-  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian dictionary/configuration seeds, seven core-supplied
+  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German dictionary/configuration seeds, eight core-supplied
   compiled runtimes and real nineteen-token mappings),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
@@ -410,7 +410,7 @@ neither owns catalog authority.
   distinguishes unrecognized tokens from recognized-empty stopwords and retains
   prefix/variant metadata without SQL descriptors. Runtime authority is separate
   from genuine extension membership; bootstrap simple and Snowball are not extensions.
-  Allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian Snowball seeds retain finite private seed identities
+  Allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German Snowball seeds retain finite private seed identities
   across ordinary copies/remapping; canonical replay names/default options do not
   derive from mutable labels. Helpers, template, dictionary and configuration may
   have distinct current extension receivers or be detached; reciprocal membership
@@ -419,9 +419,9 @@ neither owns catalog authority.
   dependencies and DROP restrictions, whereas fixed simple/parser identities
   remain pinned. Seed roots replay through their genuine initialized identities
   rather than independent CREATE declarations.
-  English, Danish and Dutch defaults include their respective stoplists; Arabic, Armenian
-  and Basque/Estonian defaults contain only Language. Together with simple these are eight
-  dictionary/configuration seeds with 152 mapping rows; all Snowball seeds share
+  English, Danish, Dutch and German defaults include their respective stoplists; Arabic,
+  Armenian and Basque/Estonian defaults contain only Language. Together with simple these are nine
+  dictionary/configuration seeds with 171 mapping rows; all Snowball seeds share
   one helper pair/template.
   This follows [REL_18_6 initdb setup_depend](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/initdb/initdb.c):
   `pg_stop_making_pinned_objects()` precedes loading `snowball_create.sql`.

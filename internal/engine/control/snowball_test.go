@@ -43,7 +43,11 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime); err != nil {
+	germanRuntime, err := functions.DefaultGermanSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime); err != nil {
 		t.Fatal(err)
 	}
 	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
@@ -303,8 +307,41 @@ func TestSnowballSeedReplay(t *testing.T) {
 			}
 		})
 	}
+	var german *catalog.TSDictionary
+	for _, descriptor := range source.State.Descriptors() {
+		if d, ok := descriptor.(*catalog.TSDictionary); ok && d.SeedName() == "german_stem" {
+			german = d
+		}
+	}
+	if german == nil {
+		t.Fatal("missing German seed")
+	}
+	for _, tc := range []struct {
+		name    string
+		options []catalog.DictionaryOption
+		want    string
+	}{
+		{"stock", german.SeedOptions(), ""},
+		{"removed", []catalog.DictionaryOption{{Name: "language", Value: "german", Supplied: true}}, " (language, stopwords, language = 'german')"},
+		{"explicit_empty", []catalog.DictionaryOption{{Name: "language", Value: "german", Supplied: true}, {Name: "stopwords", Supplied: true}}, " (language, stopwords, language = 'german', stopwords = '')"},
+		{"spelling_order", []catalog.DictionaryOption{{Name: "stopwords", Value: "german", Supplied: true}, {Name: "language", Value: "GeRmAn", Supplied: true}}, " (language, stopwords, stopwords = 'german', language = 'GeRmAn')"},
+	} {
+		t.Run("german/"+tc.name, func(t *testing.T) {
+			d := *german
+			d.Options = tc.options
+			if got := seedDictionaryOptionDelta(&d); got != tc.want {
+				t.Fatal(got, tc.want)
+			}
+			if tc.want != "" {
+				changes := append([]catalog.DictionaryOption{{Name: "language"}, {Name: "stopwords"}}, tc.options...)
+				if got := extension.MergeDictionaryOptions(d.SeedOptions(), changes); !slices.Equal(got, tc.options) {
+					t.Fatal("German ordered canonical default delta", got, tc.options)
+				}
+			}
+		})
+	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian and fixed simple, independent of descriptor iteration.
+	// allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -327,7 +364,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 8 {
+	if len(providers) != 9 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
