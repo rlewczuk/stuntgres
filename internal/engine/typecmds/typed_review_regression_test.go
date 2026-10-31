@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
-	osexec "os/exec"
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
@@ -22,35 +20,38 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Run the actual callback replacement executor in an isolated test process:
-// the pre-remedy mutex deadlock cannot strand the parent suite or its cleanup.
+// Isolate actual provider reentry, with fixture admission separate from the
+// unchanged callback/assertion/teardown watchdog. Protocol events are diagnostic;
+// only the real executor's assertions and successful child exit prove success.
 func TestTypedPublicationCallbackReplacement(t *testing.T) {
 	if kind := os.Getenv("STUNTGRES_TYPED_CALLBACK_CASE"); kind != "" {
 		typedCallbackReplacement(t, kind)
 		return
 	}
-	binary, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
+	binary := typedCallbackBinary(t)
 	for _, kind := range []string{"alter", "drop", "create", "temporary", "attachment"} {
 		t.Run(kind, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cmd := osexec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationCallbackReplacement$", "-test.count=1", "-test.timeout=8s")
-			cmd.Env = append(os.Environ(), "STUNTGRES_TYPED_CALLBACK_CASE="+kind)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				t.Fatalf("actual %s provider replacement did not complete: %v\n%s", kind, err, output)
+			result := runTypedCallbackChild(binary, "^TestTypedPublicationCallbackReplacement$", kind, typedCallbackBudgets{})
+			if result.err != nil {
+				t.Fatalf("actual %s provider replacement failed in %s: %v\n%s", kind, result.phase, result.err, result.output)
 			}
 		})
 	}
 }
 
 func typedCallbackReplacement(t *testing.T, kind string) {
+	typedCallbackPhase("setup")
 	e, source, table := typedUnitCatalog(t, false)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
-	defer done()
+	stop := func() {}
+	defer func() {
+		defer func() { stop() }()
+		typedCallbackPhase("teardown")
+		done()
+		if !t.Failed() {
+			typedCallbackPhase("complete")
+		}
+	}()
 	enginetest.RoleExecute(t, e, op, "INSERT INTO typed VALUES(11,'kept')")
 	query := "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE"
 	if kind == "drop" {
@@ -78,14 +79,19 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 		called = true
 		e.Catalog.Providers[ids.RelationClassID] = original
+		typedCallbackPhase("callback")
 		if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
 			t.Fatal(err)
 		}
+		typedCallbackPhase("restored")
 	}}
+	stop = typedCallbackAdmit(t)
+	typedCallbackPhase("execute")
 	_, err := e.Execute(op, enginetest.Statement(t, query), 0, nil)
 	if !called || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("callback did not reject captured epoch", called, err)
 	}
+	typedCallbackPhase("assertions")
 	view := e.CatalogRead()
 	if view.Epoch() == epoch || view.Get(source.Address()) == source || view.Get(table.Address()) == table {
 		t.Fatal("stale typed state resurrected")

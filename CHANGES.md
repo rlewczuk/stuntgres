@@ -22,6 +22,16 @@
   Unattached sources are empty; explicitly missing attached files raise 58P01.
   This inspects configuration only and never simulates authentication.
 
+- Separate typed provider-callback regression fixture admission from its
+  unchanged bounded operation watchdog. Preserve all five actual callback
+  Restore routes and stale-publication/cleanup assertions, add phase-specific
+  diagnostics and independent fail-closed subprocess ownership/reaping checks.
+  Stream phase records through the actual subprocess copy path without a
+  promoted ReaderFrom bypass; injected controls retain independent real safety
+  deadlines, and diagnostic capture overflow fails explicitly.
+  This is a native test-lifetime correction, not a SQL or provider behavior
+  change; the phase and cause of the historical whole-suite kill remain unknown.
+
 - Support the request-scoped `query.aggregate.sort` execution pause after a
   successful real aggregate ordered-input comparison. The hold retains the live
   sort until Resume or operation cancellation, without suspending preparation
