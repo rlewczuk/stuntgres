@@ -279,6 +279,13 @@ direct/held inputs, complete diagnostics and actual seed/carrier replay share
 `RUN='^TestReferenceNorwegianSnowball'`. Admitted direct/prepared cancellation
 is gated by parameterized Norwegian output on both backends. Private rules,
 immutable resource backing and canonical seed replay use `RUN='^TestSnowballNorwegian'`.
+Portuguese released prelude/postlude, fixed RV/R1/R2, standard and verb suffix
+actions, exact stopword spellings, C-case/accent and original-byte boundaries,
+typed direct/held values, stock identities/maps, diagnostics and atomic changes
+share `RUN='^TestReferencePortugueseSnowball'`. Output-gated cancellation requires
+actual Portuguese lexization on both backends. Dictionary/configuration and
+edited-stock lifecycle scenarios replay actual native-emitted SQL. Private rules,
+immutable resource backing and canonical seed replay use `RUN='^TestSnowballPortuguese'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

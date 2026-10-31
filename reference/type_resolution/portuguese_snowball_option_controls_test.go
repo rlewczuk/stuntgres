@@ -1,0 +1,83 @@
+package reference_test
+
+import (
+	"bytes"
+	"database/sql"
+	"testing"
+
+	"stuntgres"
+	"stuntgres/reference/fixture"
+)
+
+func portugueseStockOptionControls(t *testing.T) {
+	for _, tc := range []struct{ name, alter, options, não, the string }{
+		{"explicit-empty", "stopwords=''", "language = 'portuguese', stopwords = ''", "{nã}", "{the}"},
+		{"reordered-mixed-language", "language='PoRtUgUeSe'", "stopwords = 'portuguese', language = 'PoRtUgUeSe'", "{}", "{the}"},
+		{"substituted-resource", "stopwords=english", "language = 'portuguese', stopwords = 'english'", "{nã}", "{}"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var emitted []byte
+			portugueseScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				defer portugueseStockCleanup(t, p, b, c)()
+				regtsExec(t, p, b, c, "ALTER TEXT SEARCH DICTIONARY portuguese_stem ("+tc.alter+")", 0)
+				check := func(p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+					regtsSelect(t, p, b, c, "SELECT dictinitoption FROM pg_ts_dict WHERE oid='portuguese_stem'::regdictionary", []string{"dictinitoption"}, []string{"TEXT"}, [][]any{{tc.options}})
+					for _, pair := range [][2]string{{"Não", tc.não}, {"THE", tc.the}, {"casas", "{cas}"}} {
+						portugueseSmokeBoth(t, p, b, c, fixture.Select("SELECT ts_lexize('portuguese_stem',$1::text) AS lexemes", []string{"lexemes"}, []string{"_TEXT"}, [][]any{{pair[1]}}, pair[0]))
+					}
+				}
+				check(p, b, c)
+				if b.PG {
+					if len(emitted) == 0 {
+						t.Fatal("actual native bytes required")
+					}
+					regtsExec(t, p, b, c, "ALTER TEXT SEARCH DICTIONARY portuguese_stem (language=portuguese,stopwords=portuguese)", 0)
+					if _, err := c.ExecContext(p.Ctx, string(emitted)); err != nil {
+						t.Fatal("actual stock option replay", err)
+					}
+					check(p, b, c)
+					return
+				}
+				var out bytes.Buffer
+				if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+					t.Fatal(err)
+				}
+				emitted = bytes.Clone(out.Bytes())
+				for _, reset := range []bool{false, true} {
+					if reset {
+						if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(emitted)); err != nil {
+						t.Fatal(err)
+					}
+					check(p, b, c)
+					var again bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(emitted, again.Bytes()) {
+						t.Fatal("ordered options redump", err)
+					}
+				}
+				connector, err := stuntgres.NewDriver().OpenConnector(t.Name() + "-fresh")
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw := sql.OpenDB(connector)
+				defer raw.Close()
+				recorded, recorder := fixture.RecordedNativePool(t, connector)
+				defer recorded.Close()
+				fresh := &fixture.Pair{Ctx: p.Ctx, Native: raw, Memory: recorded, MemoryRecord: recorder}
+				fc, err := recorded.Conn(p.Ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer fc.Close()
+				fb := fixture.Backend{DB: recorded, Recorder: recorder}
+				if err := stuntgres.Restore(p.Ctx, raw, bytes.NewReader(emitted)); err != nil {
+					t.Fatal(err)
+				}
+				check(fresh, fb, fc)
+			})
+		})
+	}
+}

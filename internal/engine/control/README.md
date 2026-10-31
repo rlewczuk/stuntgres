@@ -376,12 +376,12 @@ No physical WAL position or flush guarantee is serialized.
   equivalent default resource behavior; genuine unaccent dictionaries require
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
-  StopWords cannot reappear on Restore; English, Danish, Dutch, German, Hungarian, Italian and Norwegian own canonical stoplists,
+  StopWords cannot reappear on Restore; English, Danish, Dutch, German, Hungarian, Italian, Norwegian and Portuguese own canonical stoplists,
   while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Irish/Lithuanian have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian/Norwegian dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian/Norwegian/Portuguese dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
   Current owners/ACLs and each independent e-link follow identity reconstruction;
   intrinsic seeds never acquire installed-origin declaration slots.

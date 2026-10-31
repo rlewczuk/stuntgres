@@ -33,6 +33,7 @@ var snowballLanguages = [...]snowballLanguage{
 	{name: "italian", stem: italianStem},
 	{name: "lithuanian", stem: lithuanianStem},
 	{name: "norwegian", stem: norwegianStem},
+	{name: "portuguese", stem: portugueseStem},
 }
 
 // DefaultSnowballDictionary shares the immutable compiled bootstrap provider.
@@ -108,6 +109,11 @@ var DefaultLithuanianSnowballDictionary = sync.OnceValues(func() (*SnowballDicti
 // DefaultNorwegianSnowballDictionary includes the released Norwegian stoplist.
 var DefaultNorwegianSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
 	return CompileSnowballDictionary(context.Background(), "norwegian", "norwegian")
+})
+
+// DefaultPortugueseSnowballDictionary includes the released Portuguese stoplist.
+var DefaultPortugueseSnowballDictionary = sync.OnceValues(func() (*SnowballDictionary, error) {
+	return CompileSnowballDictionary(context.Background(), "portuguese", "portuguese")
 })
 
 func lookupSnowballLanguage(name string) *snowballLanguage {
