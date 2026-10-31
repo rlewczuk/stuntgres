@@ -54,11 +54,11 @@ func assertTemporaryNamespacePair(t *testing.T, e *core.Engine, token ids.Sessio
 
 func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE ROLE namespace_actor")
-	sessionSQL(t, s, "ALTER DEFAULT PRIVILEGES FOR ROLE namespace_actor GRANT USAGE,CREATE ON SCHEMAS TO PUBLIC")
-	sessionSQL(t, s, "SET ROLE namespace_actor")
-	sessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE ROLE namespace_actor")
+	enginetest.SessionSQL(t, s, "ALTER DEFAULT PRIVILEGES FOR ROLE namespace_actor GRANT USAGE,CREATE ON SCHEMAS TO PUBLIC")
+	enginetest.SessionSQL(t, s, "SET ROLE namespace_actor")
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
 	table := s.TemporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	object := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}))
@@ -116,11 +116,11 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 
 func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 	e := engine.New()
-	creator := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
+	creator := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	for _, commit := range []bool{false, true} {
-		sessionSQL(t, creator, "BEGIN")
-		sessionSQL(t, creator, "CREATE TEMP TABLE namespace_private(i INT)")
+		enginetest.SessionSQL(t, creator, "BEGIN")
+		enginetest.SessionSQL(t, creator, "CREATE TEMP TABLE namespace_private(i INT)")
 		op, err := creator.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -149,10 +149,10 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		}
 		op.Done()
 		if commit {
-			sessionSQL(t, creator, "COMMIT")
+			enginetest.SessionSQL(t, creator, "COMMIT")
 			assertTemporaryNamespacePair(t, e, creator.SessionToken, creator.TemporaryNamespace)
 		} else {
-			sessionSQL(t, creator, "ROLLBACK")
+			enginetest.SessionSQL(t, creator, "ROLLBACK")
 			if namespaceUnitCapture(t, e, e.CatalogRead()).Count() != 4 {
 				t.Fatal("rollback published TEMP pair")
 			}
@@ -165,11 +165,11 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 
 func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TEMP TABLE namespace_collation_table(i INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE namespace_collation_table(i INT)")
 	table := s.TemporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.SessionToken, table)
-	sessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
+	enginetest.SessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"})
 	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
@@ -192,7 +192,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 	for _, identity := range []bool{false, true} {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		op, err := s.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)

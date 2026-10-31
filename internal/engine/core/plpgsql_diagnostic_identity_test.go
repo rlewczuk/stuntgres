@@ -18,7 +18,7 @@ import (
 
 func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	e := engine.New()
-	creator := sessionStart(t, e, nil)
+	creator := enginetest.StartSession(t, e, nil)
 	setting, err := e.Settings.Lookup("search_path")
 	if err != nil {
 		t.Fatal(err)

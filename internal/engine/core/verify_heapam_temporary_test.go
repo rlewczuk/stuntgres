@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -20,15 +21,15 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 			e, _, persistent := typedUnitCatalog(t, false)
 			heapUnitInstalled(t, e)
 			n := heapUnitExpression(t, e)
-			owner := sessionStart(t, e, nil)
+			owner := enginetest.StartSession(t, e, nil)
 			if kind == "table" {
-				sessionSQL(t, owner, "CREATE TEMP TABLE heap_checked_tmp(v INT)")
-				sessionSQL(t, owner, "INSERT INTO heap_checked_tmp VALUES(99)")
+				enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE heap_checked_tmp(v INT)")
+				enginetest.SessionSQL(t, owner, "INSERT INTO heap_checked_tmp VALUES(99)")
 			} else {
-				sessionSQL(t, owner, "CREATE TEMP SEQUENCE heap_checked_tmp")
+				enginetest.SessionSQL(t, owner, "CREATE TEMP SEQUENCE heap_checked_tmp")
 				sequenceScalar(t, owner, "SELECT nextval('heap_checked_tmp')", 1)
 			}
-			sessionSQL(t, owner, "CREATE TEMP VIEW heap_wrong_tmp AS SELECT 1 AS v")
+			enginetest.SessionSQL(t, owner, "CREATE TEMP VIEW heap_wrong_tmp AS SELECT 1 AS v")
 			view := e.CatalogRead()
 			lookup := func(name string) *catalog.Relation {
 				return view.MustRelation(view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: name}))
@@ -58,10 +59,10 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 			}
 			for _, prior := range []bool{false, true} {
 				t.Run(fmt.Sprintf("foreign-prior-lock-%t", prior), func(t *testing.T) {
-					peer := sessionStart(t, e, nil)
-					sessionSQL(t, peer, "CREATE TEMP TABLE heap_unused_tmp(v INT)")
+					peer := enginetest.StartSession(t, e, nil)
+					enginetest.SessionSQL(t, peer, "CREATE TEMP TABLE heap_unused_tmp(v INT)")
 					namespace := peer.TemporaryNamespace
-					transactionBegin(t, peer)
+					enginetest.TransactionBegin(t, peer)
 					scope := pgrowlocksUnitScope(t, e, peer)
 					resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(view.Epoch(), target.Address())}
 					if prior {
@@ -91,7 +92,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 			}
 			// Missing/wrong-kind targets must not mark the owner's TEMP namespace.
 			t.Run("rejected-targets", func(t *testing.T) {
-				transactionBegin(t, owner)
+				enginetest.TransactionBegin(t, owner)
 				scope := pgrowlocksUnitScope(t, e, owner)
 				missing := *target
 				missing.ObjectAddress.ObjectID = e.Catalog.NextOID() + 999
@@ -107,9 +108,9 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				}
 				unchanged(t)
 			})
-			sessionSQL(t, owner, "ROLLBACK")
-			sessionSQL(t, owner, "BEGIN")
-			sessionSQL(t, owner, "SAVEPOINT heap_before")
+			enginetest.SessionSQL(t, owner, "ROLLBACK")
+			enginetest.SessionSQL(t, owner, "BEGIN")
+			enginetest.SessionSQL(t, owner, "SAVEPOINT heap_before")
 			t.Run("own-admitted", func(t *testing.T) {
 				scope := pgrowlocksUnitScope(t, e, owner)
 				rows, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
@@ -122,11 +123,11 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				}
 				unchanged(t)
 			})
-			sessionSQL(t, owner, "ROLLBACK TO heap_before")
+			enginetest.SessionSQL(t, owner, "ROLLBACK TO heap_before")
 			if !owner.Transactions.AccessedTemporary {
 				t.Fatal("ROLLBACK TO erased TEMP access footprint")
 			}
-			sessionSQL(t, owner, "ROLLBACK")
+			enginetest.SessionSQL(t, owner, "ROLLBACK")
 			unchanged(t)
 		})
 	}

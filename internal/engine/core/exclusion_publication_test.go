@@ -22,9 +22,9 @@ func TestExclusionPublication(t *testing.T) {
 	for _, method := range []string{"btree", "hash"} {
 		t.Run(method, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"((n+1) WITH =))")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 			parent := e.Catalog.State.MustRelation(roleTableRef(t, e, "public.t").Address)
 			store := e.Storage.Relations[parent.Address()]
 			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
@@ -100,10 +100,10 @@ func TestExclusionPublication(t *testing.T) {
 		})
 		t.Run(method+"/full_diagnostic", func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE SCHEMA exclusion_publication")
-			sessionSQL(t, s, "CREATE TABLE exclusion_publication.t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
-			sessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE SCHEMA exclusion_publication")
+			enginetest.SessionSQL(t, s, "CREATE TABLE exclusion_publication.t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
+			enginetest.SessionSQL(t, s, "INSERT INTO exclusion_publication.t VALUES(1),(2)")
 			parent := e.Catalog.State.MustRelation(roleTableRef(t, e, "exclusion_publication.t").Address)
 			store := e.Storage.Relations[parent.Address()]
 			value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "1", -1)
@@ -148,9 +148,9 @@ func TestExclusionPublicationFinalCancellation(t *testing.T) {
 	for _, method := range []string{"btree", "hash"} {
 		t.Run(method, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(n INT,CONSTRAINT ex EXCLUDE USING "+method+"(n WITH =))")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			counting := &cancelAtErrCheck{Context: ctx, cancel: cancel}

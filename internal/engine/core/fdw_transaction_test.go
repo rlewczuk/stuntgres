@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 )
@@ -59,8 +60,8 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	t.Run("ChainReadmission", fdwChainReadmission)
 	t.Run("HoldSettlement", fdwHoldSettlement)
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
-	op := transactionOperation(t, sess)
+	sess := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, sess)
 	defer op.Done()
 	ref, err := e.Begin(op, session.TxOptions{})
 	if err != nil {

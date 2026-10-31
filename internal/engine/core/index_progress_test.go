@@ -83,7 +83,7 @@ type indexProgressBuild struct {
 func indexProgressPrepare(t *testing.T, n int, explicit bool) *indexProgressBuild {
 	t.Helper()
 	e := engine.New()
-	worker := sessionStart(t, e, nil)
+	worker := enginetest.StartSession(t, e, nil)
 	return indexProgressPrepareFor(t, e, worker, n, explicit)
 }
 
@@ -94,7 +94,7 @@ func indexProgressPrepareFor(t *testing.T, e *core.Engine, worker *session.Sessi
 
 func indexProgressPrepareSQL(t *testing.T, e *core.Engine, worker *session.Session, n int, explicit bool, createSQL string) *indexProgressBuild {
 	t.Helper()
-	sessionSQL(t, worker, "CREATE TABLE progress_build(k INT)")
+	enginetest.SessionSQL(t, worker, "CREATE TABLE progress_build(k INT)")
 	if n > 0 {
 		var q strings.Builder
 		q.WriteString("INSERT INTO progress_build VALUES")
@@ -108,17 +108,17 @@ func indexProgressPrepareSQL(t *testing.T, e *core.Engine, worker *session.Sessi
 				fmt.Fprintf(&q, "(%d)", i%7)
 			}
 		}
-		sessionSQL(t, worker, q.String())
+		enginetest.SessionSQL(t, worker, q.String())
 	}
 	if explicit {
-		sessionSQL(t, worker, "BEGIN")
+		enginetest.SessionSQL(t, worker, "BEGIN")
 	}
 	return indexProgressStage(t, e, worker, createSQL)
 }
 
 func indexProgressStage(t *testing.T, e *core.Engine, worker *session.Session, createSQL string) *indexProgressBuild {
 	t.Helper()
-	op := transactionOperation(t, worker)
+	op := enginetest.TransactionOperation(t, worker)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()
@@ -177,7 +177,7 @@ func indexProgressStage(t *testing.T, e *core.Engine, worker *session.Session, c
 		binding.Observer = gate
 		stage.Indexes().Progress = binding
 	}()
-	observer := transactionOperation(t, sessionStart(t, e, nil))
+	observer := enginetest.TransactionOperation(t, enginetest.StartSession(t, e, nil))
 	build := &indexProgressBuild{e: e, worker: worker, op: op, observer: observer, scope: scope, stage: stage, gate: gate, parent: parentAddress, target: targetAddress}
 	t.Cleanup(func() {
 		if !scope.Finished {
@@ -276,7 +276,7 @@ func TestCreateIndexProgressBuildCallbacks(t *testing.T) {
 						t.Fatal("completed row retained", facts)
 					}
 					if explicit {
-						sessionSQL(t, b.worker, "COMMIT")
+						enginetest.SessionSQL(t, b.worker, "COMMIT")
 					}
 					return
 				}
@@ -330,7 +330,7 @@ func TestCreateIndexProgressLifetime(t *testing.T) {
 							t.Fatal("cancel published index")
 						}
 						if explicit {
-							sessionSQL(t, b.worker, "ROLLBACK")
+							enginetest.SessionSQL(t, b.worker, "ROLLBACK")
 						}
 						return
 					}

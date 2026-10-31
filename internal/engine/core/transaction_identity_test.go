@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -115,11 +116,11 @@ func TestTransactionIdentityHistory(t *testing.T) {
 	s, a := blockingUnitOwner(t, e)
 	id := uint64(pgLocksUnitAssign(t, e, a))
 	identityUnitStatus(t, e, id, "in progress", true)
-	transactionEnd(t, s, a.Ref(), true)
+	enginetest.TransactionEnd(t, s, a.Ref(), true)
 	identityUnitStatus(t, e, id, "committed", true)
 	s, b := blockingUnitOwner(t, e)
 	aborted := uint64(pgLocksUnitAssign(t, e, b))
-	transactionEnd(t, s, b.Ref(), false)
+	enginetest.TransactionEnd(t, s, b.Ref(), false)
 	identityUnitStatus(t, e, aborted, "aborted", true)
 	if e.Visibility.CommitTimestamps != nil {
 		t.Fatal("trackingOFF allocated timestamp history")
@@ -181,8 +182,8 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	identityUnitStatus(t, e, aborted, "aborted", true)
 	_, owner := blockingUnitOwner(t, e)
 	id = uint64(pgLocksUnitAssign(t, e, owner))
-	finisher := sessionStart(t, e, nil)
-	op := transactionOperation(t, finisher)
+	finisher := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, finisher)
 	defer op.Done()
 	entry := &session.PreparedTransaction{GID: "identity_claimed", Ref: owner.Ref(), Ticket: owner, Owner: finisher.Authorization.State.CurrentUser, Claimed: true}
 	e.Mu.Lock()

@@ -23,9 +23,9 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 			}{{"success", nil}, {"ordinary_error", errors.New("nested body failure")}, {"cancellation", context.Canceled}} {
 				t.Run(fmt.Sprintf("parent_%t_%t/%s", completed, sessionCompleted, outcome.name), func(t *testing.T) {
 					e := engine.New()
-					sess := sessionStart(t, e, nil)
-					sessionSQL(t, sess, "CREATE TABLE ex_log(v integer)")
-					sessionSQL(t, sess, "CREATE FUNCTION ex_put(x integer) RETURNS integer LANGUAGE SQL AS $$INSERT INTO ex_log VALUES(x); SELECT x$$")
+					sess := enginetest.StartSession(t, e, nil)
+					enginetest.SessionSQL(t, sess, "CREATE TABLE ex_log(v integer)")
+					enginetest.SessionSQL(t, sess, "CREATE FUNCTION ex_put(x integer) RETURNS integer LANGUAGE SQL AS $$INSERT INTO ex_log VALUES(x); SELECT x$$")
 					scope := foreignActionUnitScope(t, e, sess, "INSERT INTO ex_log VALUES(1)")
 					ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "ex_log")
 					prefix := scope.Stage.Rows[ref.Address][0]
@@ -83,7 +83,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 	}
 	t.Run("genuine_completed_root_survives_late_cancellation", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, scope := discardUnitScope(t, sess, ctx, parser.DiscardPlans)

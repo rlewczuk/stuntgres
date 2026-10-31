@@ -130,10 +130,10 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 	for _, phase := range []string{"live_source", "finish", "late_cardinality"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			owner := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, peer, "CREATE TABLE t(id INT,a INT,b INT)")
-			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10,20),(2,30,40)")
+			owner := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,a INT,b INT)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10,20),(2,30,40)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			q := "UPDATE t SET (a,b)=(SELECT a+1,b+2) RETURNING a,b"
@@ -180,12 +180,12 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 				t.Fatal("Finish lost cancellation veto", finishErr)
 			}
 			op.Done()
-			transactionRows(t, peer, "SELECT a FROM t ORDER BY id", 10, 30)
-			transactionRows(t, peer, "SELECT b FROM t ORDER BY id", 20, 40)
+			enginetest.TransactionRows(t, peer, "SELECT a FROM t ORDER BY id", 10, 30)
+			enginetest.TransactionRows(t, peer, "SELECT b FROM t ORDER BY id", 20, 40)
 			enginetest.LockEmpty(t, e)
-			sessionSQL(t, owner, "UPDATE t SET (a,b)=(SELECT a+1,b+2)")
-			transactionRows(t, peer, "SELECT a FROM t ORDER BY id", 11, 31)
-			transactionRows(t, peer, "SELECT b FROM t ORDER BY id", 22, 42)
+			enginetest.SessionSQL(t, owner, "UPDATE t SET (a,b)=(SELECT a+1,b+2)")
+			enginetest.TransactionRows(t, peer, "SELECT a FROM t ORDER BY id", 11, 31)
+			enginetest.TransactionRows(t, peer, "SELECT b FROM t ORDER BY id", 22, 42)
 		})
 	}
 }

@@ -21,7 +21,7 @@ import (
 
 func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	before := e.Catalog.State
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	const failed = `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0),CHECK(missing>0))`
@@ -35,7 +35,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	if e.Catalog.State != before || len(e.Storage.Sequences) != 0 {
 		t.Fatal("failed CHECK construction published descriptor/generator")
 	}
-	sessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
+	enginetest.SessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
 	table := e.Catalog.State.MustRelation(roleTableRef(t, e, "portable.i").Address)
 	identity := table.ColumnMeta.Identities[table.Attributes[0]]
 	provider := e.Catalog.State.MustRelation(identity.Sequence)
@@ -60,13 +60,13 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	if *g != beforeGenerator {
 		t.Fatal("Dump evaluated CHECK")
 	}
-	sessionSQL(t, s, `INSERT INTO portable.i DEFAULT VALUES`)
+	enginetest.SessionSQL(t, s, `INSERT INTO portable.i DEFAULT VALUES`)
 	sequenceScalar(t, s, `SELECT id FROM portable.i`, 1)
 	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 2)
-	sessionSQL(t, s, `INSERT INTO portable.c VALUES(10)`)
+	enginetest.SessionSQL(t, s, `INSERT INTO portable.c VALUES(10)`)
 	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 3)
-	sessionSQL(t, s, `DROP TABLE portable.c`)
-	sessionSQL(t, s, `DROP TABLE portable.i`)
+	enginetest.SessionSQL(t, s, `DROP TABLE portable.c`)
+	enginetest.SessionSQL(t, s, `DROP TABLE portable.i`)
 	if e.Catalog.State.Get(identity.Sequence) != nil || e.Storage.Sequences[identity.Sequence] != nil {
 		t.Fatal("own CHECK blocked reciprocal cleanup")
 	}
@@ -76,18 +76,18 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 	for _, mode := range []string{"ReplaceCatalog", "Restore"} {
 		t.Run(mode, func(t *testing.T) {
 			source, dest := engine.New(), engine.New()
-			a, b := sessionStart(t, source, nil), sessionStart(t, dest, nil)
-			sessionSQL(t, a, `CREATE SCHEMA collision_padding`)
+			a, b := enginetest.StartSession(t, source, nil), enginetest.StartSession(t, dest, nil)
+			enginetest.SessionSQL(t, a, `CREATE SCHEMA collision_padding`)
 			for _, q := range []string{`CREATE SCHEMA portable`, `CREATE TABLE portable.i(id INT GENERATED ALWAYS AS IDENTITY)`, `CREATE VIEW portable.v AS SELECT last_value FROM portable.i_id_seq`, `CREATE TABLE portable.c(p INT CHECK(nextval('portable.i_id_seq')>0))`} {
-				sessionSQL(t, a, q)
+				enginetest.SessionSQL(t, a, q)
 			}
-			sessionSQL(t, a, `INSERT INTO portable.i DEFAULT VALUES`)
+			enginetest.SessionSQL(t, a, `INSERT INTO portable.i DEFAULT VALUES`)
 			// Advance the imported candidate allocator beyond both dependents;
 			// replacement retains its allocation frontier, not destination padding.
-			sessionSQL(t, a, `CREATE TABLE portable.padding(v INT)`)
+			enginetest.SessionSQL(t, a, `CREATE TABLE portable.padding(v INT)`)
 			// The real table/toast namespace pair consumes two schema addresses;
 			// kept then consumes the padded source owner's table address.
-			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
+			enginetest.SessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			temp := description.Sequences.Constants[0].Ref.Address
@@ -102,7 +102,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			// independently of how many embedded definitions consume OIDs.
 			for n := 0; ; n++ {
 				name := "displaced_" + strconv.Itoa(n)
-				sessionSQL(t, b, `CREATE TABLE `+name+`(v INT)`)
+				enginetest.SessionSQL(t, b, `CREATE TABLE `+name+`(v INT)`)
 				address := roleTableRef(t, dest, "public."+name).Address
 				if address.ObjectID > originalView.ObjectID && address.ObjectID > originalCheck.ObjectID {
 					break
@@ -153,14 +153,14 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				t.Fatal("retained TEMP state changed")
 			}
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)
-			sessionSQL(t, b, `INSERT INTO portable.c VALUES(7)`)
+			enginetest.SessionSQL(t, b, `INSERT INTO portable.c VALUES(7)`)
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 2)
-			sessionSQL(t, b, `INSERT INTO portable.i DEFAULT VALUES`)
+			enginetest.SessionSQL(t, b, `INSERT INTO portable.i DEFAULT VALUES`)
 			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.i`, 2)
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 3)
-			sessionSQL(t, b, `DROP TABLE portable.i CASCADE`)
+			enginetest.SessionSQL(t, b, `DROP TABLE portable.i CASCADE`)
 			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.c`, 1)
-			sessionSQL(t, b, `INSERT INTO portable.c VALUES(9)`)
+			enginetest.SessionSQL(t, b, `INSERT INTO portable.c VALUES(9)`)
 			if dest.Catalog.State.Get(identity.Sequence) != nil || dest.Storage.Sequences[identity.Sequence] != nil {
 				t.Fatal("linked sequence survived owner cleanup")
 			}
@@ -171,11 +171,11 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 
 func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, `CREATE SEQUENCE incumbent`)
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, `CREATE SEQUENCE incumbent`)
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "incumbent")
-	tx := transactionBegin(t, a)
-	sessionSQL(t, a, `DROP SEQUENCE incumbent CASCADE`)
+	tx := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, `DROP SEQUENCE incumbent CASCADE`)
 	const create = `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('i_id_seq')>0 AND nextval('incumbent')>0))`
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -196,9 +196,9 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	if leaked {
 		t.Fatal("canceled provider admission published staged identity")
 	}
-	transactionEnd(t, a, tx, false)
-	sessionSQL(t, b, create)
-	sessionSQL(t, b, `INSERT INTO i DEFAULT VALUES`)
+	enginetest.TransactionEnd(t, a, tx, false)
+	enginetest.SessionSQL(t, b, create)
+	enginetest.SessionSQL(t, b, `INSERT INTO i DEFAULT VALUES`)
 	sequenceScalar(t, b, `SELECT id FROM i`, 1)
 	sequenceScalar(t, b, `SELECT last_value FROM i_id_seq`, 2)
 	sequenceScalar(t, b, `SELECT last_value FROM incumbent`, 1)
@@ -208,11 +208,11 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 
 func TestIdentityDumpProviderMapping(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('i_id_seq')>0))`)
-	sessionSQL(t, s, `CREATE TABLE c(p INT CHECK(nextval('i_id_seq')>0))`)
-	sessionSQL(t, s, `CREATE VIEW v AS SELECT nextval('i_id_seq') AS n`)
-	sessionSQL(t, s, `CREATE SEQUENCE ordinary`)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('i_id_seq')>0))`)
+	enginetest.SessionSQL(t, s, `CREATE TABLE c(p INT CHECK(nextval('i_id_seq')>0))`)
+	enginetest.SessionSQL(t, s, `CREATE VIEW v AS SELECT nextval('i_id_seq') AS n`)
+	enginetest.SessionSQL(t, s, `CREATE SEQUENCE ordinary`)
 	read := e.CatalogRead()
 	owner := roleTableRef(t, e, "i").Address
 	consumer := roleTableRef(t, e, "c").Address
@@ -258,8 +258,8 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 
 func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 	read := e.CatalogRead()
 	table := read.MustRelation(roleTableRef(t, e, "i").Address)
 	address := table.ColumnMeta.Identities[table.Attributes[0]].Sequence

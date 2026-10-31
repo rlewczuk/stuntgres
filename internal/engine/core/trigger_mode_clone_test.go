@@ -15,26 +15,26 @@ func TestTriggerModeCloneOwnership(t *testing.T) {
 		"CREATE TABLE mode_leaf PARTITION OF mode_mid FOR VALUES FROM(0) TO(100)",
 		"CREATE TRIGGER a BEFORE INSERT ON mode_tree FOR EACH ROW WHEN(NEW.v>0) EXECUTE FUNCTION mode_fn('kept')",
 	} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	ref := enginetest.RoleTableRef(t, e, "mode_leaf")
 	old := e.CatalogRead().MustRelation(ref.Address)
 	before := stored.TriggersOf(old)[0]
 	parts := before.Parts()
-	sessionSQL(t, s, "ALTER TABLE ONLY mode_tree DISABLE TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE ONLY mode_tree DISABLE TRIGGER a")
 	leaf := e.CatalogRead().MustRelation(ref.Address)
 	got := stored.TriggersOf(leaf)[0]
 	if got.Mode() != catalog.TriggerOrigin || got.Parts().Binding != parts.Binding || got.Parts().Presentation != parts.Presentation || &got.Parts().Arguments[0] != &parts.Arguments[0] {
 		t.Fatal("ONLY mode rebuilt clone executable owner")
 	}
-	sessionSQL(t, s, "ALTER TABLE mode_tree DISABLE TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_tree DISABLE TRIGGER a")
 	got = stored.TriggersOf(e.CatalogRead().MustRelation(ref.Address))[0]
 	if got.Mode() != catalog.TriggerDisabled || got.Parts().Binding != parts.Binding || got.Parts().Presentation != parts.Presentation {
 		t.Fatal("recursive mode rebuilt clone recipe")
 	}
-	sessionSQL(t, s, "ALTER TABLE mode_leaf ENABLE ALWAYS TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_leaf ENABLE ALWAYS TRIGGER a")
 	divergent := stored.TriggersOf(e.CatalogRead().MustRelation(ref.Address))[0]
-	sessionSQL(t, s, "ALTER TABLE mode_tree ADD CONSTRAINT mode_mixed CHECK(v >= 0), DISABLE TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_tree ADD CONSTRAINT mode_mixed CHECK(v >= 0), DISABLE TRIGGER a")
 	got = stored.TriggersOf(e.CatalogRead().MustRelation(ref.Address))[0]
 	if got.Mode() != catalog.TriggerDisabled || got.OID() != before.OID() || got.Parts().Parent != parts.Parent {
 		t.Fatal("mixed inherited stage lost explicit mode/identity")
@@ -48,11 +48,11 @@ func TestTriggerModeCloneOwnership(t *testing.T) {
 		"CREATE TRIGGER a BEFORE INSERT ON mode_old FOR EACH ROW EXECUTE FUNCTION mode_fn()",
 		"CREATE TRIGGER a BEFORE INSERT ON mode_inherited FOR EACH ROW EXECUTE FUNCTION mode_fn()",
 	} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	childRef := enginetest.RoleTableRef(t, e, "mode_inherited")
 	childBefore := e.CatalogRead().MustRelation(childRef.Address)
-	sessionSQL(t, s, "ALTER TABLE mode_old ADD COLUMN extra integer, DISABLE TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_old ADD COLUMN extra integer, DISABLE TRIGGER a")
 	child := e.CatalogRead().MustRelation(childRef.Address)
 	if child == childBefore || stored.TriggersOf(child)[0].Mode() != catalog.TriggerOrigin {
 		t.Fatal("traditional descendant received root trigger action")

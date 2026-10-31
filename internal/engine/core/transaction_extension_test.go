@@ -6,13 +6,14 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
 )
 
 func TestOwnerExtensionAllocatedWithSession(t *testing.T) {
 	e := engine.NewWithSettings(nil, "", false)
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	x, _ := s.Transactions.Extension.(*core.OwnerExtension)
 	if x == nil {
 		t.Fatal("session owner has no root extension")

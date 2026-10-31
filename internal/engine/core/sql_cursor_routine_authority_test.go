@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -23,7 +24,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 			for _, mutation := range []string{"intact", "relation_metadata", "missing", "foreign", "epoch", "revision"} {
 				t.Run(mutation, func(t *testing.T) {
 					s := cursorUnitSetup(t)
-					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
+					enginetest.SessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
 					c := core.PayloadOf(s).Cursors.Entries["c"]
 					root, catalog, actor := core.CursorRoot(c), core.CursorRoutineAuth(c).Catalog.State(), core.CursorRoutineAuth(c).State.CurrentUser
 					if core.AuthorizationInputs(core.CursorRoutineAuthRef(c)) != &core.EngineOf(s).Authority || catalog == nil || core.CursorAuthority(c).Host != nil {
@@ -45,7 +46,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					case "relation_metadata":
 						// Genuine same-transaction metadata publication changes a
 						// base relation revision, not its captured input layout.
-						sessionSQL(t, s, "ALTER TABLE unit_rows ENABLE ROW LEVEL SECURITY")
+						enginetest.SessionSQL(t, s, "ALTER TABLE unit_rows ENABLE ROW LEVEL SECURITY")
 					case "missing":
 						core.SetCursorRoutineDependencies(c, append(core.CursorRoutineDependencies(c)[:selected], core.CursorRoutineDependencies(c)[selected+1:]...))
 					case "foreign":
@@ -81,7 +82,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 							t.Fatal("FETCH replaced original graph, authority or manifest")
 						}
 					}
-					sessionSQL(t, s, "CLOSE c")
+					enginetest.SessionSQL(t, s, "CLOSE c")
 					if core.AuthorizationLive(core.CursorRoutineAuth(c)) || core.CursorRoutineDependencies(c) != nil {
 						t.Fatal("CLOSE retained declaration authority")
 					}

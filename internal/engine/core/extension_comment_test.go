@@ -67,16 +67,16 @@ func TestExtensionCommentPublicationCancellation(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e := engine.New()
-			worker := sessionStart(t, e, nil)
-			sessionSQL(t, worker, "CREATE EXTENSION fuzzystrmatch")
-			sessionSQL(t, worker, "CREATE TABLE comment_cancel_sentinel(v INT)")
-			sessionSQL(t, worker, "INSERT INTO comment_cancel_sentinel VALUES(77)")
+			worker := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, worker, "CREATE EXTENSION fuzzystrmatch")
+			enginetest.SessionSQL(t, worker, "CREATE TABLE comment_cancel_sentinel(v INT)")
+			enginetest.SessionSQL(t, worker, "INSERT INTO comment_cancel_sentinel VALUES(77)")
 			for _, literal := range []string{"'old 雪'", "NULL"} {
-				sessionSQL(t, worker, "COMMENT ON EXTENSION fuzzystrmatch IS "+literal)
+				enginetest.SessionSQL(t, worker, "COMMENT ON EXTENSION fuzzystrmatch IS "+literal)
 				before := e.CatalogRead()
 				ext := before.MustExtension(before.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 				if explicit {
-					sessionSQL(t, worker, "BEGIN")
+					enginetest.SessionSQL(t, worker, "BEGIN")
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				scope, op := cteDMLUnitScope(t, worker, ctx)
@@ -116,9 +116,9 @@ func TestExtensionCommentPublicationCancellation(t *testing.T) {
 					t.Fatal("canceled Finish changed committed descriptor/root")
 				}
 				if explicit {
-					sessionSQL(t, worker, "ROLLBACK")
+					enginetest.SessionSQL(t, worker, "ROLLBACK")
 				}
-				transactionRows(t, worker, "SELECT v FROM comment_cancel_sentinel", 77)
+				enginetest.TransactionRows(t, worker, "SELECT v FROM comment_cancel_sentinel", 77)
 				enginetest.LockEmpty(t, e)
 			}
 		})

@@ -147,10 +147,10 @@ func TestInsertUsernameScalarEvaluationAuthority(t *testing.T) {
 
 func TestInsertUsernameScalarEpochBridge(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
-	sessionSQL(t, owner, "CREATE TEMP TABLE iu_bridge_consumer(id integer)")
+	owner := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE iu_bridge_consumer(id integer)")
 	namespace := e.CatalogRead().MustNamespace(owner.TemporaryNamespace)
-	sessionSQL(t, owner, "CREATE EXTENSION insert_username SCHEMA "+catalog.QuoteIdentifier(namespace.Name()))
+	enginetest.SessionSQL(t, owner, "CREATE EXTENSION insert_username SCHEMA "+catalog.QuoteIdentifier(namespace.Name()))
 	before := e.CatalogRead()
 	installed := before.MustExtension(before.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "insert_username"}))
 	provider := before.MustProcedure(installed.Members[0])

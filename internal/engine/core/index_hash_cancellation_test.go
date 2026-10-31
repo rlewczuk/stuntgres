@@ -167,17 +167,17 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	idx, old := hashRoot(t, e, "hn")
 	parent := e.Catalog.State.MustRelation(idx.SQLIndex.Parent)
 	store := e.Storage.Relations[parent.Address()]
-	writer := sessionStart(t, e, nil)
-	ref := transactionBegin(t, writer)
+	writer := enginetest.StartSession(t, e, nil)
+	ref := enginetest.TransactionBegin(t, writer)
 	active := true
 	t.Cleanup(func() {
 		if active {
-			transactionEnd(t, writer, ref, false)
+			enginetest.TransactionEnd(t, writer, ref, false)
 		}
 	})
 	changes := []string{"UPDATE t SET n=4 WHERE n=2", "DELETE FROM t WHERE n=1", "INSERT INTO t VALUES(5)"}
 	for _, q := range changes {
-		sessionSQL(t, writer, q)
+		enginetest.SessionSQL(t, writer, q)
 	}
 	writes, deletes := writer.Transactions.Writes, writer.Transactions.Deletes
 	if len(writes[parent.Address()]) != 3 || deletes[parent.Address()] == nil {
@@ -223,15 +223,15 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	if store.Generation != generation || store.Ends != ends || e.Visibility.CommitSeq() != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
 		t.Fatal("canceled merge published rows/endings or mutated predecessor buckets")
 	}
-	transactionEnd(t, writer, ref, false)
+	enginetest.TransactionEnd(t, writer, ref, false)
 	active = false
 
-	ref = transactionBegin(t, writer)
+	ref = enginetest.TransactionBegin(t, writer)
 	active = true
 	for _, q := range changes {
-		sessionSQL(t, writer, q)
+		enginetest.SessionSQL(t, writer, q)
 	}
-	if !transactionEnd(t, writer, ref, true).Committed {
+	if !enginetest.TransactionEnd(t, writer, ref, true).Committed {
 		t.Fatal("fresh mutation did not commit")
 	}
 	active = false

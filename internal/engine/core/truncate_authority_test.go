@@ -111,7 +111,7 @@ func truncateUnitJoin(t *testing.T, done <-chan error, wantCode string) {
 func TestTruncateClosure(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
 	for _, q := range []string{"CREATE TABLE c(id INT PRIMARY KEY REFERENCES p)", "CREATE TABLE g(id INT REFERENCES c)", "CREATE TABLE u(id INT PRIMARY KEY)", "CREATE TABLE outgoing(id INT REFERENCES u)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	// c needs a real referenced key for the second edge; retain the ordinary
 	// target-independent table as proof that closure walks incoming edges only.
@@ -137,12 +137,12 @@ func TestTruncateGraph(t *testing.T) {
 			e, s, p, _ := truncateUnitFixture(t)
 			var inheritance *catalog.TableInheritance
 			if kind == "inheritance" {
-				sessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
+				enginetest.SessionSQL(t, s, "CREATE TABLE c(extra INT) INHERITS(p)")
 				c := roleTableRef(t, e, "c")
 				inheritance = e.Catalog.State.MustRelation(c.Address).Inheritance
 				truncateUnitReplace(t, e, c, func(d *catalog.Relation) { d.Inheritance = nil })
 			} else {
-				sessionSQL(t, s, "CREATE TABLE c(id INT)")
+				enginetest.SessionSQL(t, s, "CREATE TABLE c(id INT)")
 			}
 			child := roleTableRef(t, e, "c")
 			scope := truncateUnitStage(t, e, s, "p")
@@ -164,13 +164,13 @@ func TestTruncateGraph(t *testing.T) {
 }
 func TestTruncateGraphTemporarySessions(t *testing.T) {
 	e, owner, parent, _ := truncateUnitFixture(t)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, owner, "CREATE TEMP TABLE own_child() INHERITS(p)")
-	sessionSQL(t, owner, "INSERT INTO own_child VALUES(2)")
-	sessionSQL(t, owner, "CREATE TABLE persistent_child() INHERITS(p)")
-	sessionSQL(t, owner, "INSERT INTO persistent_child VALUES(4)")
-	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
-	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE own_child() INHERITS(p)")
+	enginetest.SessionSQL(t, owner, "INSERT INTO own_child VALUES(2)")
+	enginetest.SessionSQL(t, owner, "CREATE TABLE persistent_child() INHERITS(p)")
+	enginetest.SessionSQL(t, owner, "INSERT INTO persistent_child VALUES(4)")
+	enginetest.SessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
 	view := e.CatalogRead()
 	ownAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "own_child"})
 	peerAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.TemporaryNamespace, Name: "peer_child"})
@@ -211,16 +211,16 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	if e.Storage.Relations[peerAddress] != oldPeer || !storage.SameVersionRoot(oldPeer.Versions, oldVersions) || oldPeer.Ends != oldEnds || oldPeer.Generation != oldGeneration || oldPeer.TruncateLineage != nil {
 		t.Fatal("foreign-session temporary storage was replaced or stamped")
 	}
-	transactionRows(t, peer, "SELECT id FROM renamed_peer_child", 3)
-	transactionRows(t, owner, "SELECT id FROM own_child")
-	transactionRows(t, owner, "SELECT id FROM persistent_child")
-	transactionRows(t, owner, "SELECT id FROM p")
+	enginetest.TransactionRows(t, peer, "SELECT id FROM renamed_peer_child", 3)
+	enginetest.TransactionRows(t, owner, "SELECT id FROM own_child")
+	enginetest.TransactionRows(t, owner, "SELECT id FROM persistent_child")
+	enginetest.TransactionRows(t, owner, "SELECT id FROM p")
 }
 func TestTruncateLocks(t *testing.T) {
 	e, holder, p, q := truncateUnitFixture(t)
-	waiter := sessionStart(t, e, nil)
-	tx := transactionBegin(t, holder)
-	sessionSQL(t, holder, "LOCK q IN ACCESS SHARE MODE")
+	waiter := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, holder)
+	enginetest.SessionSQL(t, holder, "LOCK q IN ACCESS SHARE MODE")
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	enginetest.LockPending(t, e, 1)
 	lockState := e.Locks.Inspect()
@@ -247,16 +247,16 @@ func TestTruncateLocks(t *testing.T) {
 	if !clean || len(e.Storage.Relations[p.Address].Versions) != 2 || len(e.Storage.Relations[q.Address].Versions) != 1 {
 		t.Fatal("cancellation retained prefix or changed roots")
 	}
-	transactionEnd(t, holder, tx, false)
+	enginetest.TransactionEnd(t, holder, tx, false)
 	enginetest.LockEmpty(t, e)
 }
 func TestTruncateAdmission(t *testing.T) {
 	for _, kind := range []string{"name", "nontruncate-storage", "control-epoch"} {
 		t.Run(kind, func(t *testing.T) {
 			e, holder, p, _ := truncateUnitFixture(t)
-			waiter := sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
-			sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
+			waiter := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
+			enginetest.SessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
 			old := e.Storage.Relations[p.Address]
 			versions, ends := old.Versions, old.Ends
 			done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
@@ -280,12 +280,12 @@ func TestTruncateAdmission(t *testing.T) {
 				}
 			}
 			if kind != "control-epoch" {
-				transactionEnd(t, holder, tx, false)
+				enginetest.TransactionEnd(t, holder, tx, false)
 			}
 			enginetest.LockAwait(t, done, ids.ErrCatalogReplaced)
 			if kind == "control-epoch" {
-				transactionEnd(t, holder, tx, false)
-				transactionRows(t, waiter, "SELECT id FROM p", 9)
+				enginetest.TransactionEnd(t, holder, tx, false)
+				enginetest.TransactionRows(t, waiter, "SELECT id FROM p", 9)
 			}
 			if old.TruncateLineage != nil || !storage.SameVersionRoot(old.Versions, versions) || old.Ends != ends {
 				t.Fatal("rejected waiter stamped/mutated retired source")
@@ -296,20 +296,20 @@ func TestTruncateAdmission(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		t.Run(map[bool]string{false: "late-inheritance", true: "late-inheritance-only"}[only], func(t *testing.T) {
 			e, holder, p, _ := truncateUnitFixture(t)
-			sessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
-			sessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
+			enginetest.SessionSQL(t, holder, "CREATE TABLE c(extra INT) INHERITS(p)")
+			enginetest.SessionSQL(t, holder, "INSERT INTO c(id,extra) VALUES(1,9)")
 			child := roleTableRef(t, e, "c")
 			inheritance := e.Catalog.State.MustRelation(child.Address).Inheritance
 			truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = nil })
-			waiter := sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
-			sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
+			waiter := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
+			enginetest.SessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
 			stmt := truncateUnitAST("p")
 			stmt.Targets[0].Only = only
 			done, _ := truncateUnitAsync(t, e, waiter, stmt)
 			enginetest.LockPending(t, e, 1)
 			truncateUnitReplace(t, e, child, func(d *catalog.Relation) { d.Inheritance = inheritance })
-			transactionEnd(t, holder, tx, false)
+			enginetest.TransactionEnd(t, holder, tx, false)
 			truncateUnitJoin(t, done, "")
 			want := 0
 			if only {
@@ -323,14 +323,14 @@ func TestTruncateAdmission(t *testing.T) {
 	}
 	t.Run("queued-same-lineage", func(t *testing.T) {
 		e, holder, p, _ := truncateUnitFixture(t)
-		waiter := sessionStart(t, e, nil)
+		waiter := enginetest.StartSession(t, e, nil)
 		original := e.Storage.Relations[p.Address]
 		frontier := e.Visibility.CommitSeq()
-		tx := transactionBegin(t, holder)
+		tx := enginetest.TransactionBegin(t, holder)
 		truncateUnitExecute(t, e, holder, truncateUnitAST("p"))
 		done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 		enginetest.LockPending(t, e, 1)
-		transactionEnd(t, holder, tx, true)
+		enginetest.TransactionEnd(t, holder, tx, true)
 		truncateUnitJoin(t, done, "")
 		if e.Storage.Relations[p.Address].Generation != original.Generation+2 || !original.SameTruncateLineage(e.Storage.Relations[p.Address]) || e.Visibility.CommitSeq() != frontier+2 {
 			t.Fatal("queued truncate was retargeted or rejected legal lineage")
@@ -339,18 +339,18 @@ func TestTruncateAdmission(t *testing.T) {
 	})
 	t.Run("late-FK-at-grant", func(t *testing.T) {
 		e, holder, p, _ := truncateUnitFixture(t)
-		sessionSQL(t, holder, "CREATE TABLE c(id INT)")
-		sessionSQL(t, holder, "INSERT INTO c VALUES(1)")
+		enginetest.SessionSQL(t, holder, "CREATE TABLE c(id INT)")
+		enginetest.SessionSQL(t, holder, "INSERT INTO c VALUES(1)")
 		child := roleTableRef(t, e, "c")
-		waiter := sessionStart(t, e, nil)
-		tx := transactionBegin(t, holder)
-		sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
+		waiter := enginetest.StartSession(t, e, nil)
+		tx := enginetest.TransactionBegin(t, holder)
+		enginetest.SessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
 		stmt := truncateUnitAST("p")
 		stmt.Mode = parser.DropCascade
 		done, _ := truncateUnitAsync(t, e, waiter, stmt)
 		enginetest.LockPending(t, e, 1)
 		truncateUnitFK(t, e, p, child)
-		transactionEnd(t, holder, tx, false)
+		enginetest.TransactionEnd(t, holder, tx, false)
 		truncateUnitJoin(t, done, "")
 		if len(e.Storage.Relations[p.Address].Versions) != 0 || len(e.Storage.Relations[child.Address].Versions) != 0 {
 			t.Fatal("grant-time incoming graph was not captured")
@@ -360,23 +360,23 @@ func TestTruncateAdmission(t *testing.T) {
 }
 func TestTruncateAuthority(t *testing.T) {
 	e, holder, p, _ := truncateUnitFixture(t)
-	sessionSQL(t, holder, "CREATE USER reader")
+	enginetest.SessionSQL(t, holder, "CREATE USER reader")
 	reader, _ := e.Roles().Lookup("reader")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.TruncatePrivilege}}}
 	if err := enginetest.SetObjectACL(e, context.Background(), p, acl); err != nil {
 		t.Fatal(err)
 	}
-	waiter := sessionStart(t, e, nil)
-	sessionSQL(t, waiter, "SET SESSION AUTHORIZATION reader")
-	tx := transactionBegin(t, holder)
-	sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
+	waiter := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, waiter, "SET SESSION AUTHORIZATION reader")
+	tx := enginetest.TransactionBegin(t, holder)
+	enginetest.SessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
 	original := e.Storage.Relations[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	enginetest.LockPending(t, e, 1)
 	if err := enginetest.SetObjectACL(e, context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	transactionEnd(t, holder, tx, false)
+	enginetest.TransactionEnd(t, holder, tx, false)
 	truncateUnitJoin(t, done, "42501")
 	if e.Storage.Relations[p.Address] != original || original.TruncateLineage != nil {
 		t.Fatal("revoked queued statement changed incarnation")
@@ -389,9 +389,9 @@ func TestTruncateFinalVeto(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
 			var tx ids.TxRef
 			if explicit {
-				tx = transactionBegin(t, s)
-				sessionSQL(t, s, "INSERT INTO p VALUES(3)")
-				sessionSQL(t, s, "SAVEPOINT recover")
+				tx = enginetest.TransactionBegin(t, s)
+				enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(3)")
+				enginetest.SessionSQL(t, s, "SAVEPOINT recover")
 			}
 			priorWrites := s.Transactions.Writes[p.Address]
 			oldP, oldQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
@@ -409,11 +409,11 @@ func TestTruncateFinalVeto(t *testing.T) {
 				t.Fatal("final cancellation partially published roots")
 			}
 			if explicit {
-				sessionSQL(t, s, "ROLLBACK TO recover")
+				enginetest.SessionSQL(t, s, "ROLLBACK TO recover")
 				if !storage.SameVersionRoot(s.Transactions.Writes[p.Address], priorWrites) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
 					t.Fatal("failed statement/savepoint lost prior private root")
 				}
-				transactionEnd(t, s, tx, false)
+				enginetest.TransactionEnd(t, s, tx, false)
 			}
 		})
 	}

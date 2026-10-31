@@ -163,7 +163,7 @@ func TestAmcheckScopedOrdinaryDuringRecipe(t *testing.T) {
 					default:
 					}
 				}
-				sessionSQL(t, reader, "ROLLBACK")
+				enginetest.SessionSQL(t, reader, "ROLLBACK")
 				select {
 				case <-waiter.Done():
 					if err := waiter.Err(); err != nil {

@@ -21,8 +21,8 @@ import (
 func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(a OID CONSTRAINT c CHECK(col_description(a,1) IS NULL))")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(a OID CONSTRAINT c CHECK(col_description(a,1) IS NULL))")
 	view := e.CatalogRead()
 	ref := enginetest.CatalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
@@ -84,20 +84,20 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				ctx := context.Background()
 				source := engine.New()
-				s := sessionStart(t, source, nil)
-				sessionSQL(t, s, "CREATE TABLE t(a OID CONSTRAINT c CHECK("+expr+" IS NULL))")
-				sessionSQL(t, s, "INSERT INTO t VALUES(0)")
+				s := enginetest.StartSession(t, source, nil)
+				enginetest.SessionSQL(t, s, "CREATE TABLE t(a OID CONSTRAINT c CHECK("+expr+" IS NULL))")
+				enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(0)")
 				before := source.CatalogRead()
 				var dump bytes.Buffer
 				if err := engine.Dump(ctx, source, &dump); err != nil {
 					t.Fatal(err)
 				}
 				target := engine.New()
-				peer := sessionStart(t, target, nil)
+				peer := enginetest.StartSession(t, target, nil)
 				if self {
 					target, peer = source, s
 				}
-				sessionSQL(t, peer, "CREATE TEMP SEQUENCE kept START 30")
+				enginetest.SessionSQL(t, peer, "CREATE TEMP SEQUENCE kept START 30")
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
 				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.Sequences.Constants[0].Ref
@@ -108,7 +108,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				if target.Catalog.State.Get(tempRef.Address) != temp {
 					t.Fatal("replacement changed retained TEMP descriptor")
 				}
-				sessionSQL(t, peer, "UPDATE t SET a=0")
+				enginetest.SessionSQL(t, peer, "UPDATE t SET a=0")
 				var again bytes.Buffer
 				if err := engine.Dump(ctx, target, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
 					t.Fatal("row-dependent inquiry changed on replacement", err)
@@ -116,7 +116,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				if err := engine.Restore(ctx, target, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-				sessionSQL(t, peer, "INSERT INTO t VALUES(0)")
+				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(0)")
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 31)
 			})
 		}
@@ -126,11 +126,11 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE anchor(a INT)")
-	sessionSQL(t, s, "COMMENT ON TABLE anchor IS 'old'")
-	sessionSQL(t, s, "CREATE TABLE t(a TEXT CONSTRAINT c CHECK(obj_description('anchor'::regclass,'pg_class') IS NOT DISTINCT FROM a))")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE anchor(a INT)")
+	enginetest.SessionSQL(t, s, "COMMENT ON TABLE anchor IS 'old'")
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(a TEXT CONSTRAINT c CHECK(obj_description('anchor'::regclass,'pg_class') IS NOT DISTINCT FROM a))")
 	view := e.CatalogRead()
 	ref := enginetest.CatalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
@@ -155,7 +155,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	e.CaptureCheckCommentSnapshotLocked(scope, relation)
 	catalog, roles := scope.Inquiry.CommentCatalog, core.InquiryCommentRoles(&scope.Inquiry)
 	e.Mu.Unlock()
-	sessionSQL(t, peer, "COMMENT ON TABLE anchor IS 'new'")
+	enginetest.SessionSQL(t, peer, "COMMENT ON TABLE anchor IS 'new'")
 	e.Mu.Lock()
 	// A later query-source opening shares, rather than replaces, this pair.
 	source, captureErr := e.CaptureQuerySourcesLocked(scope, nil, true)
@@ -187,8 +187,8 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 
 func TestCheckReviewScalarNoInquirySnapshotDemand(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
 	view := e.CatalogRead()
 	ref := enginetest.CatalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)

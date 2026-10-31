@@ -34,9 +34,9 @@ func TestTruncateSnapshots(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			e, writer, p, q := truncateUnitFixture(t)
 			reader := enginetest.StartSession(t, e, nil)
-			sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+			enginetest.SessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			tx := reader.Transactions.Ref
-			transactionRows(t, reader, "SELECT id FROM q", 7)
+			enginetest.TransactionRows(t, reader, "SELECT id FROM q", 7)
 			frontier := reader.Transactions.Frontier
 			captured := reader.Transactions.Roots[p.Address]
 			qRoot := reader.Transactions.Roots[q.Address]
@@ -46,58 +46,58 @@ func TestTruncateSnapshots(t *testing.T) {
 			switch kind {
 			case "truncate":
 				truncateUnitExecute(t, e, writer, truncateUnitAST("p"))
-				sessionSQL(t, writer, "INSERT INTO p VALUES(9)")
+				enginetest.SessionSQL(t, writer, "INSERT INTO p VALUES(9)")
 			case "delete":
-				sessionSQL(t, writer, "DELETE FROM p")
+				enginetest.SessionSQL(t, writer, "DELETE FROM p")
 			case "rollback":
-				other := transactionBegin(t, writer)
+				other := enginetest.TransactionBegin(t, writer)
 				truncateUnitExecute(t, e, writer, truncateUnitAST("p"))
-				transactionEnd(t, writer, other, false)
+				enginetest.TransactionEnd(t, writer, other, false)
 			}
 			if kind == "truncate" {
-				transactionRows(t, reader, "SELECT id FROM p")
+				enginetest.TransactionRows(t, reader, "SELECT id FROM p")
 				live := e.Storage.Relations[p.Address]
 				if !captured.Storage.SameTruncateLineage(live) || len(live.Versions) != 1 || live.Versions[0].Born <= frontier {
 					t.Fatal("fresh incarnation did not retain ordinary birth frontier filtering")
 				}
 			} else {
-				transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
+				enginetest.TransactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
 			}
 			retained := reader.Transactions.Roots[p.Address]
 			if retained.Storage != captured.Storage || !storage.SameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.Transactions.Frontier != frontier || !storage.SameVersionRoot(reader.Transactions.Roots[q.Address].Versions, qRoot.Versions) {
 				t.Fatal("TRUNCATE became a second snapshot/root authority")
 			}
-			transactionEnd(t, reader, tx, false)
+			enginetest.TransactionEnd(t, reader, tx, false)
 		})
 	}
 }
 func TestTruncateSnapshotsInherited(t *testing.T) {
 	e, writer, p, _ := truncateUnitFixture(t)
-	sessionSQL(t, writer, "CREATE TABLE c() INHERITS(p)")
-	sessionSQL(t, writer, "INSERT INTO c VALUES(3)")
+	enginetest.SessionSQL(t, writer, "CREATE TABLE c() INHERITS(p)")
+	enginetest.SessionSQL(t, writer, "INSERT INTO c VALUES(3)")
 	child := roleTableRef(t, e, "c")
 	reader := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	tx := reader.Transactions.Ref
-	transactionRows(t, reader, "SELECT id FROM q", 7)
+	enginetest.TransactionRows(t, reader, "SELECT id FROM q", 7)
 	frontier := reader.Transactions.Frontier
 	oldParent, oldChild := reader.Transactions.Roots[p.Address], reader.Transactions.Roots[child.Address]
-	sessionSQL(t, writer, "TRUNCATE ONLY c")
-	sessionSQL(t, writer, "INSERT INTO c VALUES(9)")
-	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
+	enginetest.SessionSQL(t, writer, "TRUNCATE ONLY c")
+	enginetest.SessionSQL(t, writer, "INSERT INTO c VALUES(9)")
+	enginetest.TransactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
 	if !oldChild.Storage.SameTruncateLineage(e.Storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !storage.SameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
 		t.Fatal("inherited SELECT replaced the original snapshot authority")
 	}
-	sessionSQL(t, reader, "INSERT INTO c VALUES(4)")
-	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2, 4)
-	transactionEnd(t, reader, tx, false)
-	transactionRows(t, writer, "SELECT id FROM p ORDER BY id", 1, 2, 9)
+	enginetest.SessionSQL(t, reader, "INSERT INTO c VALUES(4)")
+	enginetest.TransactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2, 4)
+	enginetest.TransactionEnd(t, reader, tx, false)
+	enginetest.TransactionRows(t, writer, "SELECT id FROM p ORDER BY id", 1, 2, 9)
 }
 func TestTruncateBuffers(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
 	old := e.Storage.Relations[p.Address]
 	root, ends := old.Versions, old.Ends
-	result := sessionSQL(t, s, "SELECT id FROM p ORDER BY id")
+	result := enginetest.SessionSQL(t, s, "SELECT id FROM p ORDER BY id")
 	t.Cleanup(func() { result.Rows.Close() })
 	rows := result.Rows.(*exec.FinalRows)
 	schema := rows.Schema()
@@ -113,49 +113,49 @@ func TestTruncateBuffers(t *testing.T) {
 func TestTruncateActivity(t *testing.T) {
 	t.Run("exhausted-producer", func(t *testing.T) {
 		e, s, p, _ := truncateUnitFixture(t)
-		tx := transactionBegin(t, s)
-		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id FROM p ORDER BY id")
-		transactionRows(t, s, "FETCH ALL FROM c", 1, 2)
+		tx := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id FROM p ORDER BY id")
+		enginetest.TransactionRows(t, s, "FETCH ALL FROM c", 1, 2)
 		cursor := core.PayloadOf(s).Cursors.Entries["c"]
 		if core.CursorRoot(cursor) == nil || cursor.Place != exec.CursorAfter || len(core.CursorLeaves(cursor)) == 0 {
 			t.Fatal("fixture did not retain exhausted real producer")
 		}
-		sessionSQL(t, s, "SAVEPOINT recover")
+		enginetest.SessionSQL(t, s, "SAVEPOINT recover")
 		truncateUnitError(t, e, s, "TRUNCATE p", "55006")
 		if len(e.Storage.Relations[p.Address].Versions) != 2 || core.CursorRoot(cursor) == nil {
 			t.Fatal("activity rejection retired producer/storage")
 		}
-		sessionSQL(t, s, "ROLLBACK TO recover")
-		sessionSQL(t, s, "CLOSE c")
+		enginetest.SessionSQL(t, s, "ROLLBACK TO recover")
+		enginetest.SessionSQL(t, s, "CLOSE c")
 		truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-		transactionEnd(t, s, tx, true)
+		enginetest.TransactionEnd(t, s, tx, true)
 	})
 	t.Run("failed-producer", func(t *testing.T) {
 		e, s, _, _ := truncateUnitFixture(t)
-		tx := transactionBegin(t, s)
-		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id/(id-id) FROM p")
-		sessionSQL(t, s, "SAVEPOINT before_fetch")
+		tx := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id/(id-id) FROM p")
+		enginetest.SessionSQL(t, s, "SAVEPOINT before_fetch")
 		truncateUnitError(t, e, s, "FETCH ALL FROM c", "22012")
 		cursor := core.PayloadOf(s).Cursors.Entries["c"]
 		if cursor.Place != exec.CursorFailed || core.CursorRoot(cursor) != nil || core.CursorLeaves(cursor) != nil {
 			t.Fatal("failed portal retained producer references")
 		}
-		sessionSQL(t, s, "ROLLBACK TO before_fetch")
+		enginetest.SessionSQL(t, s, "ROLLBACK TO before_fetch")
 		truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-		transactionEnd(t, s, tx, true)
+		enginetest.TransactionEnd(t, s, tx, true)
 	})
 	t.Run("promoted-hold-buffer", func(t *testing.T) {
 		e, s, _, _ := truncateUnitFixture(t)
-		tx := transactionBegin(t, s)
-		sessionSQL(t, s, "DECLARE c CURSOR WITH HOLD FOR SELECT id FROM p ORDER BY id")
-		transactionEnd(t, s, tx, true)
+		tx := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "DECLARE c CURSOR WITH HOLD FOR SELECT id FROM p ORDER BY id")
+		enginetest.TransactionEnd(t, s, tx, true)
 		cursor := core.PayloadOf(s).Cursors.Entries["c"]
 		if !core.CursorPromoted(cursor) || core.CursorRoot(cursor) != nil || len(core.CursorLeaves(cursor)) != 0 || core.CursorCount(cursor) != 2 {
 			t.Fatal("HOLD fixture is not a detached real typed buffer")
 		}
 		truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-		transactionRows(t, s, "FETCH ALL FROM c", 1, 2)
-		sessionSQL(t, s, "CLOSE c")
+		enginetest.TransactionRows(t, s, "FETCH ALL FROM c", 1, 2)
+		enginetest.SessionSQL(t, s, "CLOSE c")
 	})
 }
 func TestTruncateGenerationExhaustion(t *testing.T) {
@@ -177,13 +177,13 @@ func TestTruncateGenerationExhaustion(t *testing.T) {
 func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 	e, writer, p, q := truncateUnitFixture(t)
 	reader := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	tx := reader.Transactions.Ref
-	transactionRows(t, reader, "SELECT id FROM q", 7)
+	enginetest.TransactionRows(t, reader, "SELECT id FROM q", 7)
 	frontier := reader.Transactions.Frontier
 	truncateUnitExecute(t, e, writer, truncateUnitAST("p"))
-	sessionSQL(t, writer, "INSERT INTO p VALUES(9)")
-	sessionSQL(t, writer, "INSERT INTO q VALUES(8)")
+	enginetest.SessionSQL(t, writer, "INSERT INTO p VALUES(9)")
+	enginetest.SessionSQL(t, writer, "INSERT INTO q VALUES(8)")
 
 	scope, op := truncateUnitScope(t, e, reader, context.Background())
 	result, err := scope.Execute(enginetest.Statement(t, "SELECT q.id FROM p RIGHT JOIN q ON p.id=q.id"), 0, nil)
@@ -225,7 +225,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 
 	// A private insert is always visible, but it must not make the undeleted
 	// committed peer9 prefix eligible for the all-occurrences shortcut.
-	sessionSQL(t, reader, "INSERT INTO p VALUES(3)")
+	enginetest.SessionSQL(t, reader, "INSERT INTO p VALUES(3)")
 	ownScope, ownOp := truncateUnitScope(t, e, reader, context.Background())
 	ownResult, err := ownScope.Execute(enginetest.Statement(t, "SELECT id FROM p ORDER BY id"), 0, nil)
 	if err != nil {
@@ -243,5 +243,5 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownOp.Done()
-	transactionEnd(t, reader, tx, false)
+	enginetest.TransactionEnd(t, reader, tx, false)
 }

@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/copyfmt"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,13 +37,13 @@ func TestCopyBinaryLifecycle(t *testing.T) {
 			t.Run(setting+"/"+phase, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					e := engine.New()
-					session := sessionStart(t, e, nil)
-					sessionSQL(t, session, "CREATE TABLE t(v INT)")
+					session := enginetest.StartSession(t, e, nil)
+					enginetest.SessionSQL(t, session, "CREATE TABLE t(v INT)")
 					if setting != "caller_cancel" {
-						sessionSQL(t, session, "SET "+setting+" TO '100ms'")
+						enginetest.SessionSQL(t, session, "SET "+setting+" TO '100ms'")
 					}
 					if setting == "transaction_timeout" {
-						sessionSQL(t, session, "BEGIN")
+						enginetest.SessionSQL(t, session, "BEGIN")
 					}
 					ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 					defer stop()
@@ -148,8 +149,8 @@ func TestCopyBinaryLifecycle(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					peer := sessionStart(t, e, nil)
-					result := sessionSQL(t, peer, "SELECT v FROM t")
+					peer := enginetest.StartSession(t, e, nil)
+					result := enginetest.SessionSQL(t, peer, "SELECT v FROM t")
 					if result.Rows != nil {
 						defer result.Rows.Close()
 					}
@@ -175,8 +176,8 @@ func TestCopyBinaryFinalCancellationVeto(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("final cancellation identity", err)
 	}
-	peer := sessionStart(t, e, nil)
-	result := sessionSQL(t, peer, "SELECT v FROM t")
+	peer := enginetest.StartSession(t, e, nil)
+	result := enginetest.SessionSQL(t, peer, "SELECT v FROM t")
 	if result.Rows != nil {
 		defer result.Rows.Close()
 	}
@@ -209,8 +210,8 @@ func TestCopyBinaryFraming(t *testing.T) {
 			} else if err != nil || count != tc.count {
 				t.Fatal(count, err)
 			}
-			peer := sessionStart(t, e, nil)
-			result := sessionSQL(t, peer, "SELECT v FROM t")
+			peer := enginetest.StartSession(t, e, nil)
+			result := enginetest.SessionSQL(t, peer, "SELECT v FROM t")
 			if result.Rows != nil {
 				defer result.Rows.Close()
 			}
@@ -222,10 +223,10 @@ func TestCopyBinaryFraming(t *testing.T) {
 }
 func TestCopyBinaryOutput(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
-	sessionSQL(t, session, "CREATE TABLE t(v INT)")
-	sessionSQL(t, session, "INSERT INTO t VALUES(1),(2)")
-	op := transactionOperation(t, session)
+	session := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, session, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, session, "INSERT INTO t VALUES(1),(2)")
+	op := enginetest.TransactionOperation(t, session)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()

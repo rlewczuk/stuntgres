@@ -64,7 +64,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			core.PayloadOf(b).PreparedSQL.Install("p", entry)
 			var tx ids.TxRef
 			if category != parser.DiscardAll {
-				tx = transactionBegin(t, a)
+				tx = enginetest.TransactionBegin(t, a)
 			}
 			cursor := core.NewCursor(core.CursorFields{Root: &plan.ProjectNode{}, Authority: &exec.Authority{}})
 			core.SetCursorTx(cursor, tx)
@@ -92,7 +92,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 				t.Fatal("sequence memories retained")
 			}
 			if category != parser.DiscardAll {
-				transactionEnd(t, a, tx, false)
+				enginetest.TransactionEnd(t, a, tx, false)
 			}
 		})
 	}
@@ -138,7 +138,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 	t.Run("TemporaryCancelBeforeFinish", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TEMP TABLE discard_cancel(v int)")
+		enginetest.SessionSQL(t, s, "CREATE TEMP TABLE discard_cancel(v int)")
 		catalog := e.Catalog.State
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -157,10 +157,10 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 	t.Run("SubsetPreservesPrivateRoots", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TEMP TABLE discard_pending(v int)")
-		sessionSQL(t, s, "BEGIN")
-		sessionSQL(t, s, "INSERT INTO discard_pending VALUES(7)")
-		sessionSQL(t, s, "SAVEPOINT mark")
+		enginetest.SessionSQL(t, s, "CREATE TEMP TABLE discard_pending(v int)")
+		enginetest.SessionSQL(t, s, "BEGIN")
+		enginetest.SessionSQL(t, s, "INSERT INTO discard_pending VALUES(7)")
+		enginetest.SessionSQL(t, s, "SAVEPOINT mark")
 		catalog, marks := s.Transactions.Catalog, len(s.Transactions.Savepoints)
 		var address ids.ObjectAddress
 		for a, rows := range s.Transactions.Writes {
@@ -178,7 +178,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 				t.Fatal("stage-free subset merged or replaced private roots")
 			}
 		}
-		sessionSQL(t, s, "ROLLBACK")
+		enginetest.SessionSQL(t, s, "ROLLBACK")
 	})
 }
 
@@ -186,15 +186,15 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	t.Run("ChangedSignatureDoesNotPublishCaptures", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE discard_signature_capture(v int)")
-		sessionSQL(t, s, "CREATE SEQUENCE discard_signature_seq")
+		enginetest.SessionSQL(t, s, "CREATE TABLE discard_signature_capture(v int)")
+		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_signature_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT *,TIMESTAMP 'now',nextval('discard_signature_seq'),'integer'::regtype FROM discard_signature_capture")
 		if len(d.Temporals) == 0 || d.Sequences == nil || d.Regtypes == nil {
 			t.Fatal("missing real capture groups")
 		}
 		before := d
 		sequenceBefore, regtypeBefore := *d.Sequences, *d.Regtypes
-		sessionSQL(t, s, "ALTER TABLE discard_signature_capture ADD COLUMN other text")
+		enginetest.SessionSQL(t, s, "ALTER TABLE discard_signature_capture ADD COLUMN other text")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
 			r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -214,14 +214,14 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	t.Run("ReplacementDoesNotPublishCaptures", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
+		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
 		before := d
 		sequenceBefore, regtypeBefore := *d.Sequences, *d.Regtypes
 		if err := engine.Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
-		sessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
+		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
 			r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -241,7 +241,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	// Genuine analyzer groups, retained descriptions and catalog fences; SQL is
 	// only fixture construction, not a duplicate public response witness.
-	sessionSQL(t, s, "CREATE SEQUENCE discard_capture_seq")
+	enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_capture_seq")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('discard_capture_seq'),'integer'::regtype")
 	if len(d.Temporals) < 2 || d.Sequences == nil || d.Regtypes == nil || d.PlanOwner != s.SessionToken {
 		t.Fatal("missing complete private capture fixture")
@@ -274,7 +274,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	}
 	// A genuine missing dependency fails reanalysis before publishing any stamp
 	// or capture group. The retained definition remains available to its owner.
-	sessionSQL(t, s, "DROP SEQUENCE discard_capture_seq")
+	enginetest.SessionSQL(t, s, "DROP SEQUENCE discard_capture_seq")
 	discardUnitApply(t, s, parser.DiscardPlans)
 	before := d
 	sequenceBefore, regtypeBefore := *d.Sequences, *d.Regtypes
@@ -296,8 +296,8 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 func TestDiscardTemporaryOverlay(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, s, "CREATE TEMP TABLE discard_overlay(v int)")
-	sessionSQL(t, s, "INSERT INTO discard_overlay VALUES(7)")
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE discard_overlay(v int)")
+	enginetest.SessionSQL(t, s, "INSERT INTO discard_overlay VALUES(7)")
 	namespace := s.TemporaryNamespace
 	var relation *catalog.Relation
 	for _, d := range e.Catalog.State.Descriptors() {
@@ -309,8 +309,8 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		t.Fatal("missing actual relation fixture")
 	}
 	storage := e.Storage.Relations[relation.Address()]
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
 	private := e.PrivateCatalogLocked(s.Transactions.Catalog)
 	var privateAddress ids.ObjectAddress
 	for a, d := range private.Descriptors() {
@@ -342,16 +342,16 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	if e.Catalog.State.Get(relation.Address()) != relation || s.Transactions.Catalog == nil || s.TemporaryNamespace != namespace {
 		t.Fatal("private deletion leaked to shared catalog or retired namespace")
 	}
-	sessionSQL(t, s, "ROLLBACK")
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 	if e.Catalog.State.Get(relation.Address()) != relation || e.Storage.Relations[relation.Address()] != storage || s.Transactions.Catalog != nil {
 		t.Fatal("rollback failed to release private deletion")
 	}
 	t.Run("CollationDependentProjection", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, `CREATE COLLATION pg_temp.discard_collation FROM pg_catalog."C"`)
-		sessionSQL(t, s, `CREATE TABLE discard_survivor(id int,v text COLLATE pg_temp.discard_collation)`)
-		sessionSQL(t, s, `INSERT INTO discard_survivor VALUES(7,'a')`)
+		enginetest.SessionSQL(t, s, `CREATE COLLATION pg_temp.discard_collation FROM pg_catalog."C"`)
+		enginetest.SessionSQL(t, s, `CREATE TABLE discard_survivor(id int,v text COLLATE pg_temp.discard_collation)`)
+		enginetest.SessionSQL(t, s, `INSERT INTO discard_survivor VALUES(7,'a')`)
 		namespace := s.TemporaryNamespace
 		var survivor *catalog.Relation
 		for _, d := range e.Catalog.State.Descriptors() {
@@ -382,10 +382,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 			t.Run(boundary, func(t *testing.T) {
 				e := engine.New()
 				s := enginetest.StartSession(t, e, nil)
-				sessionSQL(t, s, `CREATE COLLATION pg_temp.discard_private_coll FROM pg_catalog."C"`)
-				sessionSQL(t, s, "CREATE TABLE discard_private_survivor(id int,v text COLLATE pg_temp.discard_private_coll)")
-				sessionSQL(t, s, "INSERT INTO discard_private_survivor VALUES(7,'a')")
-				sessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
+				enginetest.SessionSQL(t, s, `CREATE COLLATION pg_temp.discard_private_coll FROM pg_catalog."C"`)
+				enginetest.SessionSQL(t, s, "CREATE TABLE discard_private_survivor(id int,v text COLLATE pg_temp.discard_private_coll)")
+				enginetest.SessionSQL(t, s, "INSERT INTO discard_private_survivor VALUES(7,'a')")
+				enginetest.SessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
 				var survivor *catalog.Relation
 				var providerAddress, indexAddress ids.ObjectAddress
 				for a, d := range e.Catalog.State.Descriptors() {
@@ -407,9 +407,9 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					t.Fatal("missing real dependent closure fixture")
 				}
 				namespace, storage := s.TemporaryNamespace, e.Storage.Relations[survivor.Address()]
-				sessionSQL(t, s, "BEGIN")
+				enginetest.SessionSQL(t, s, "BEGIN")
 				if boundary == "savepoint" {
-					sessionSQL(t, s, "SAVEPOINT original")
+					enginetest.SessionSQL(t, s, "SAVEPOINT original")
 				}
 				op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
 				_, err := core.ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
@@ -435,12 +435,12 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				}
 				switch boundary {
 				case "rollback":
-					sessionSQL(t, s, "ROLLBACK")
+					enginetest.SessionSQL(t, s, "ROLLBACK")
 				case "savepoint":
-					sessionSQL(t, s, "ROLLBACK TO original")
-					sessionSQL(t, s, "COMMIT")
+					enginetest.SessionSQL(t, s, "ROLLBACK TO original")
+					enginetest.SessionSQL(t, s, "COMMIT")
 				case "commit":
-					sessionSQL(t, s, "COMMIT")
+					enginetest.SessionSQL(t, s, "COMMIT")
 				}
 				if boundary == "commit" {
 					if len(e.Catalog.State.MustRelation(survivor.Address()).Columns) != 1 || len(e.Storage.Relations[survivor.Address()].Versions[0].Values) != 1 || e.Catalog.State.Get(providerAddress) != nil || e.Catalog.State.Get(indexAddress) != nil {
@@ -459,12 +459,12 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		for _, exhausted := range []bool{false, true} {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
-			sessionSQL(t, s, "CREATE TEMP TABLE discard_guard(v int)")
-			sessionSQL(t, s, "INSERT INTO discard_guard VALUES(7)")
-			sessionSQL(t, s, "BEGIN")
-			sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT v FROM discard_guard")
+			enginetest.SessionSQL(t, s, "CREATE TEMP TABLE discard_guard(v int)")
+			enginetest.SessionSQL(t, s, "INSERT INTO discard_guard VALUES(7)")
+			enginetest.SessionSQL(t, s, "BEGIN")
+			enginetest.SessionSQL(t, s, "DECLARE c CURSOR FOR SELECT v FROM discard_guard")
 			if exhausted {
-				rows := sessionSQL(t, s, "FETCH ALL FROM c")
+				rows := enginetest.SessionSQL(t, s, "FETCH ALL FROM c")
 				rows.Rows.Close()
 			}
 			cursor := core.PayloadOf(s).Cursors.Entries["c"]
@@ -488,7 +488,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 			}
 			scope.Finish(errors.New("discard unit candidate discarded"))
 			op.Done()
-			sessionSQL(t, s, "ROLLBACK")
+			enginetest.SessionSQL(t, s, "ROLLBACK")
 		}
 	})
 }

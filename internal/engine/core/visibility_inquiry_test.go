@@ -23,7 +23,7 @@ import (
 
 func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	view := e.CatalogRead()
 	if len(catalog.BuiltinConversions) != 128 || len(catalog.BuiltinCollations) != 7 {
 		t.Fatal("fixed inventory cardinality")
@@ -45,7 +45,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	if err := (catalog.ConversionProvider{}).Validate(view, &conversion); err == nil {
 		t.Fatal("invalid conversion accepted")
 	}
-	sessionSQL(t, s, "CREATE TABLE t(id OID CHECK(pg_type_is_visible(id) IS NOT NULL))")
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(id OID CHECK(pg_type_is_visible(id) IS NOT NULL))")
 	view = e.CatalogRead()
 	relation := view.MustRelation(enginetest.CatalogRef(t, e, view, "t").Address)
 	if !relation.Constraints.Check[0].VisibilitySnapshot {
@@ -98,10 +98,10 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE anchor(id INT)")
-	sessionSQL(t, s, "CREATE TABLE checks(id OID CHECK(pg_table_is_visible(id) IS NOT NULL))")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE anchor(id INT)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE checks(id OID CHECK(pg_table_is_visible(id) IS NOT NULL))")
 	view := e.CatalogRead()
 	anchor := enginetest.CatalogRef(t, e, view, "anchor")
 	op, err := s.Acquire(ctx)
@@ -121,7 +121,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	catalog := core.InquiryVisibilityCatalog(&scope.Inquiry)
-	sessionSQL(t, peer, "DROP TABLE anchor")
+	enginetest.SessionSQL(t, peer, "DROP TABLE anchor")
 	e.Mu.Lock()
 	source, err := e.CaptureQuerySourcesLocked(scope, nil, true)
 	e.Mu.Unlock()

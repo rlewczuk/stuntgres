@@ -30,20 +30,20 @@ func TestPgstattupleHeapRetention(t *testing.T) {
 	for _,q:=range []string{"CREATE TABLE retained_heap(n integer,s text)","INSERT INTO retained_heap VALUES(1,'A')","CREATE INDEX retained_index ON retained_heap(lower(s)) INCLUDE(n) WHERE n>0"} { enginetest.Run(t,e,q) }
 	base:=pgstatindexCaptureFixture(t,e,nil,"retained_index")
 	original:=base.Store.Versions[0]
-	horizon := sessionStart(t,e,nil)
-	sessionSQL(t,horizon,"BEGIN ISOLATION LEVEL REPEATABLE READ")
-	sessionSQL(t,horizon,"SELECT * FROM retained_heap")
-	s:=sessionStart(t,e,nil)
-	for _,q:=range []string{"BEGIN","UPDATE retained_heap SET n=2,s='B'","SAVEPOINT retained_mark"} { sessionSQL(t,s,q) }
+	horizon := enginetest.StartSession(t,e,nil)
+	enginetest.SessionSQL(t,horizon,"BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t,horizon,"SELECT * FROM retained_heap")
+	s:=enginetest.StartSession(t,e,nil)
+	for _,q:=range []string{"BEGIN","UPDATE retained_heap SET n=2,s='B'","SAVEPOINT retained_mark"} { enginetest.SessionSQL(t,s,q) }
 	first:=s.Transactions.Writes[base.Parent.Address()][0]
 	if first.PrivateHistory==nil || first.PrivateHistory.Version.Version!=original.Version || &first.PrivateHistory.Version.Values[0]!=&original.Values[0] { t.Fatal("first actual predecessor was not retained by immutable shared payload") }
-	sessionSQL(t,s,"UPDATE retained_heap SET n=3,s='C'")
+	enginetest.SessionSQL(t,s,"UPDATE retained_heap SET n=3,s='C'")
 	second:=s.Transactions.Writes[base.Parent.Address()][0]
 	if heapPredecessorCount(second.PrivateHistory)!=2 || second.PrivateHistory.Version.Version!=first.Version || second.PrivateHistory.Next!=first.PrivateHistory { t.Fatal("successor did not link actual O(1) immutable predecessor root") }
 	discarded:=second.Version
-	sessionSQL(t,s,"ROLLBACK TO retained_mark")
+	enginetest.SessionSQL(t,s,"ROLLBACK TO retained_mark")
 	if got:=s.Transactions.Writes[base.Parent.Address()][0]; got.Version!=first.Version || got.PrivateHistory!=first.PrivateHistory { t.Fatal("savepoint reconstructed or stranded predecessor root") }
-	sessionSQL(t,s,"UPDATE retained_heap SET n=4,s='D'")
+	enginetest.SessionSQL(t,s,"UPDATE retained_heap SET n=4,s='D'")
 	last:=s.Transactions.Writes[base.Parent.Address()][0]
 	if last.PrivateHistory.Version.Version!=first.Version || last.PrivateHistory.Next!=first.PrivateHistory || second.PrivateHistory.Version.Version!=first.Version { t.Fatal("append after rollback mutated an old capture") }
 	if err:=preparedUnitControl(t,e,s,parser.KindPrepareTransaction,"retained"); err!=nil { t.Fatal(err) }
@@ -52,7 +52,7 @@ func TestPgstattupleHeapRetention(t *testing.T) {
 	if entry==nil || entry.Writes[base.Parent.Address()][0].PrivateHistory!=last.PrivateHistory || s.Transactions.Writes!=nil { e.Mu.Unlock(); t.Fatal("PREPARE did not transfer the real root once") }
 	e.Mu.Unlock()
 	if s.TransactionState()!=session.TxIdle { t.Fatal("PREPARE left an active origin") }
-	finisher:=sessionStart(t,e,nil)
+	finisher:=enginetest.StartSession(t,e,nil)
 	if err:=preparedUnitControl(t,e,finisher,parser.KindCommitPrepared,"retained"); err!=nil { t.Fatal(err) }
 	after:=pgstatindexCaptureFixture(t,e,nil,"retained_index")
 	if after.Store.Versions[0].PrivateHistory!=nil || heapPredecessorCount(after.Store.Retained)!=2 || base.Store.Retained!=nil || base.Store.Versions[0].Version!=original.Version { t.Fatal("committed heads leaked private pins or mutated old physical capture") }
@@ -66,7 +66,7 @@ func TestPgstattupleHeapRetention(t *testing.T) {
 	if protected.Store.Retained!=after.Store.Retained || len(protected.Root.Entries)!=1 {
 		t.Fatal("VACUUM retired history still protected by an actual reader")
 	}
-	sessionSQL(t,horizon,"ROLLBACK")
+	enginetest.SessionSQL(t,horizon,"ROLLBACK")
 	enginetest.Run(t,e,"VACUUM retained_heap")
 	vacuumed:=pgstatindexCaptureFixture(t,e,nil,"retained_index")
 	if vacuumed.Store.Retained!=nil || len(vacuumed.Root.Entries)!=1 || heapPredecessorCount(after.Store.Retained)!=2 || len(after.Root.Entries)!=1 { t.Fatal("VACUUM mutated an old root or failed to retire eligible heap history") }
@@ -76,8 +76,8 @@ func TestPgstattupleHeapPublication(t *testing.T) {
 	e:=engine.New()
 	pgstatindexUnitInstalled(t,e)
 	for _,q:=range []string{"CREATE TABLE retained_a(n integer)","CREATE TABLE retained_b(n integer)","INSERT INTO retained_a VALUES(1)","INSERT INTO retained_b VALUES(1)","CREATE INDEX retained_ai ON retained_a(n)","CREATE INDEX retained_bi ON retained_b(n)"} { enginetest.Run(t,e,q) }
-	s,finisher:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-	for _,q:=range []string{"BEGIN","UPDATE retained_a SET n=2","UPDATE retained_a SET n=3","UPDATE retained_b SET n=2"} { sessionSQL(t,s,q) }
+	s,finisher:=enginetest.StartSession(t,e,nil),enginetest.StartSession(t,e,nil)
+	for _,q:=range []string{"BEGIN","UPDATE retained_a SET n=2","UPDATE retained_a SET n=3","UPDATE retained_b SET n=2"} { enginetest.SessionSQL(t,s,q) }
 	if err:=preparedUnitControl(t,e,s,parser.KindPrepareTransaction,"veto"); err!=nil { t.Fatal(err) }
 	beforeA,beforeB:=pgstatindexCaptureFixture(t,e,nil,"retained_ai"),pgstatindexCaptureFixture(t,e,nil,"retained_bi")
 	entry:=core.EnginePreparedRef(e).Lookup("veto")

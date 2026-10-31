@@ -18,8 +18,8 @@ import (
 // replaced.
 func TestStatementHostForeignActionAuthoritySwap(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO t VALUES(1)")
 	h := scope.WriteHost()
 	auth, err := h.ForeignKeyAuthority()
@@ -44,9 +44,9 @@ func TestStatementHostForeignActionAuthoritySwap(t *testing.T) {
 // as that owner, and the receiver keeps its user.
 func TestStatementHostForeignAuthorityActingAs(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(v INT)", "CREATE ROLE fk_owner", "ALTER TABLE t OWNER TO fk_owner"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	owner := e.CatalogRead().MustRelation(enginetest.CatalogRef(t, e, e.CatalogRead(), "t").Address).Owner
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO t VALUES(1)")
@@ -75,9 +75,9 @@ func TestStatementHostForeignAuthorityActingAs(t *testing.T) {
 // foreign key, and row-exclusive mode for a cascading child.
 func TestStatementHostForeignKeyJobs(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "CREATE TABLE unrelated(id INT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(1)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO unrelated VALUES(1)")
 	jobs, modes, auth, err := scope.WriteHost().ForeignKeyJobs()
@@ -104,9 +104,9 @@ func TestStatementHostForeignKeyJobs(t *testing.T) {
 // snapshot's committed image under REPEATABLE READ.
 func TestStatementHostRetainedForeignKeyRows(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(1)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "c")
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
@@ -121,8 +121,8 @@ func TestStatementHostRetainedForeignKeyRows(t *testing.T) {
 	}
 	scope.Finish(context.Canceled)
 
-	sessionSQL(t, s, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	sessionSQL(t, s, "SELECT * FROM c")
+	enginetest.SessionSQL(t, s, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t, s, "SELECT * FROM c")
 	scope = foreignActionUnitScope(t, e, s, "UPDATE p SET id=3")
 	h = scope.WriteHost()
 	current, err = h.ForeignKeyRows(ref, ids.ObjectAddress{})

@@ -40,10 +40,10 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				}
 			}
 			defer func() { rollback(owner); rollback(peer) }()
-			sessionSQL(t, owner, "CREATE TABLE t(id INT,v TEXT)")
-			sessionSQL(t, owner, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')")
-			sessionSQL(t, owner, "BEGIN")
-			sessionSQL(t, owner, "DECLARE c CURSOR FOR SELECT id FROM t WHERE id=1 FOR NO KEY UPDATE")
+			enginetest.SessionSQL(t, owner, "CREATE TABLE t(id INT,v TEXT)")
+			enginetest.SessionSQL(t, owner, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')")
+			enginetest.SessionSQL(t, owner, "BEGIN")
+			enginetest.SessionSQL(t, owner, "DECLARE c CURSOR FOR SELECT id FROM t WHERE id=1 FOR NO KEY UPDATE")
 			cursorUnitBatch(t, owner, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
 			c := core.PayloadOf(owner).Cursors.Entries["c"]
 			source, index, root := c.CurrentSource, c.CurrentIndex, core.CursorRoot(c)
@@ -66,11 +66,11 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			if got := committed(); got.Version != original.Version || enginetest.Export(got.Values[1]) != "one" {
 				t.Fatal("owner published before COMMIT", got)
 			}
-			if got := enginetest.Tuples(sessionSQL(t, owner, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"owner"}}) {
+			if got := enginetest.Tuples(enginetest.SessionSQL(t, owner, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"owner"}}) {
 				t.Fatal("positioned owner's private value", got)
 			}
 			deleteCount(t, peer, "UPDATE t SET v='other' WHERE id=2", 1)
-			if got := enginetest.Tuples(sessionSQL(t, peer, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"one"}}) {
+			if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"one"}}) {
 				t.Fatal("peer's precommit committed value", got)
 			}
 
@@ -141,7 +141,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 					t.Fatal("blocked peer saw premature owner publication", got)
 				}
 			}
-			sessionSQL(t, owner, "COMMIT")
+			enginetest.SessionSQL(t, owner, "COMMIT")
 			successor := committed()
 			if successor.Row != original.Row || successor.Version == original.Version || successor.Born <= frontier || enginetest.Export(successor.Values[1]) != "owner" {
 				t.Fatal("owner did not commit a distinct same-RowID successor beyond peer frontier", successor)
@@ -222,7 +222,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			op.Done()
 			released = true
 			want := [][]driver.Value{{int64(1), "owner-peer"}, {int64(2), "other"}, {int64(3), "three"}}
-			if got := enginetest.Tuples(sessionSQL(t, peer, "SELECT id,v FROM t ORDER BY id")); !reflect.DeepEqual(got, want) {
+			if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, "SELECT id,v FROM t ORDER BY id")); !reflect.DeepEqual(got, want) {
 				t.Fatal("wrong complete committed rows", got)
 			}
 			if got := committed(); got.Row != original.Row || enginetest.Export(got.Values[1]) != "owner-peer" {

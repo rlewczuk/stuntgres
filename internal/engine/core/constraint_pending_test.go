@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -14,12 +15,12 @@ import (
 
 func TestConstraintPendingEventOwnership(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-	sessionSQL(t, s, "INSERT INTO p VALUES(1)")
-	transactionBegin(t, s)
-	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1)")
+	enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1)")
 	ownerModes := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if len(ownerModes.Events) != 1 || ownerModes.Events[0].ForeignKey == nil {
 		t.Fatal("missing actual owner event")

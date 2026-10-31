@@ -17,8 +17,8 @@ func TestMergeNothingSelection(t *testing.T) {
 	for _, pred := range []string{"TRUE", "FALSE", "NULL"} {
 		t.Run(pred, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT)")
 			op, scope, b, target, source := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1)) s(id) ON TRUE WHEN MATCHED AND "+pred+" THEN DO NOTHING WHEN NOT MATCHED THEN DO NOTHING WHEN MATCHED THEN DELETE")
 			defer op.Done()
 			defer target.Close()
@@ -50,10 +50,10 @@ func TestMergeNothingPreflight(t *testing.T) {
 	for _, condition := range []string{"TRUE", "(SELECT 10/id FROM source)=1"} {
 		t.Run(condition, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT)")
-			sessionSQL(t, s, "CREATE TABLE source(id INT)")
-			sessionSQL(t, s, "INSERT INTO source VALUES(0)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE source(id INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO source VALUES(0)")
 			op, scope, b, target, source := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source s ON TRUE WHEN MATCHED AND "+condition+" THEN DO NOTHING")
 			defer op.Done()
 			defer target.Close()
@@ -85,10 +85,10 @@ func TestMergeNothingPublication(t *testing.T) {
 	for _, veto := range []bool{false, true} {
 		t.Run(map[bool]string{false: "finish", true: "veto"}[veto], func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
+			s := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			op, scope, b, target, source := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1),(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DO NOTHING RETURNING merge_action(),t.v")
 			defer op.Done()
 			defer target.Close()
@@ -129,15 +129,15 @@ func TestMergeNothingPublication(t *testing.T) {
 			if scope.View != nil || scope.LockTicket != nil || !scope.Finished {
 				t.Fatal("Finish retained ownership")
 			}
-			transactionRows(t, peer, "SELECT v FROM t", 10)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t", 10)
 			enginetest.LockEmpty(t, e)
 		})
 	}
 	t.Run("execute", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-		sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
+		s := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+		enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 		op, err := s.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)

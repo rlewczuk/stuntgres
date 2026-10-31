@@ -17,59 +17,59 @@ import (
 
 func TestSavepointsAcceptance(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-	ref := transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+	ref := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	controlsRequire(t, a, "SAVEPOINT s")
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	controlsRequire(t, a, "ROLLBACK TO s")
-	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 3)
-	transactionRows(t, b, "SELECT v FROM t")
-	if !transactionEnd(t, a, ref, true).Committed {
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(3)")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 3)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t")
+	if !enginetest.TransactionEnd(t, a, ref, true).Committed {
 		t.Fatal("Go reference lost through recovery")
 	}
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 3)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 3)
 }
 
 func TestSavepointsWriteState(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
 	controlsRequire(t, a, "BEGIN")
 	for _, q := range []string{"INSERT INTO t VALUES(1)", "INSERT INTO t VALUES(2)", "INSERT INTO t VALUES(3)"} {
-		sessionSQL(t, a, q)
+		enginetest.SessionSQL(t, a, q)
 	}
 	controlsRequire(t, a, "SAVEPOINT s")
-	sessionSQL(t, a, "INSERT INTO t VALUES(4)")
-	retained := sessionSQL(t, a, "SELECT v FROM t ORDER BY v")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(4)")
+	retained := enginetest.SessionSQL(t, a, "SELECT v FROM t ORDER BY v")
 	defer retained.Rows.Close()
 	controlsRequire(t, a, "ROLLBACK TO s")
-	sessionSQL(t, a, "INSERT INTO t VALUES(9)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(9)")
 	if got := enginetest.Tuples(retained); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}, {int64(4)}}) {
 		t.Fatal("abandoned suffix overwritten", got)
 	}
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2, 3, 9)
-	sessionSQL(t, b, "INSERT INTO t VALUES(7)")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2, 3, 9)
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
 	controlsRequire(t, a, "ROLLBACK TO s")
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2, 3, 7)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2, 3, 7)
 	controlsRequire(t, a, "COMMIT")
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2, 3, 7)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2, 3, 7)
 }
 
 func TestSavepointsLifecycle(t *testing.T) {
 	for _, end := range []string{"COMMIT", "ROLLBACK", "COMMIT AND CHAIN", "ROLLBACK AND CHAIN", "physical"} {
 		t.Run(end, func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 			controlsRequire(t, a, "BEGIN")
 			controlsRequire(t, a, "SAVEPOINT s")
-			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			enginetest.SessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			ticket := a.Transactions.Ticket
 			controlsRequire(t, a, "ROLLBACK TO s")
 			if a.Transactions.Ticket != ticket || len(e.Locks.Inspect(ticket).Journals[ticket]) != 0 {
@@ -102,7 +102,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 	for _, late := range []bool{false, true} {
 		t.Run(map[bool]string{false: "cancel_before", true: "cancel_after"}[late], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
+			a := enginetest.StartSession(t, e, nil)
 			controlsRequire(t, a, "BEGIN")
 			ref, command, frontier := a.Transactions.Ref, a.Transactions.Command, e.Visibility.CommitSeq()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -148,11 +148,11 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 
 func TestSavepointsCancellationAndControls(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 	controlsRequire(t, a, "BEGIN")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	controlsRequire(t, a, "SAVEPOINT s")
 	var dump strings.Builder
 	if err := engine.Dump(context.Background(), e, &dump); err != nil {
@@ -165,7 +165,7 @@ func TestSavepointsCancellationAndControls(t *testing.T) {
 		t.Fatal("Restore accepted control")
 	}
 	controlsRequire(t, a, "ROLLBACK TO s")
-	transactionRows(t, a, "SELECT v FROM t", 1)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t", 1)
 	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
@@ -182,17 +182,17 @@ func TestSavepointsCancellationAndControls(t *testing.T) {
 
 func TestSavepointsOperationAuthority(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, engine.New(), nil)
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, engine.New(), nil)
 	controlsRequire(t, a, "BEGIN")
 	controlsRequire(t, a, "SAVEPOINT s")
-	op := transactionOperation(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	copyOp := *op
 	missing := *op
 	missing.Self = &missing
-	done := transactionOperation(t, a)
+	done := enginetest.TransactionOperation(t, a)
 	done.Done()
-	foreign := transactionOperation(t, b)
+	foreign := enginetest.TransactionOperation(t, b)
 	for _, candidate := range []*session.Operation{nil, &copyOp, &missing, done, foreign} {
 		if _, err := e.Execute(candidate, enginetest.Statement(t, "ROLLBACK TO s"), 0, nil); err == nil {
 			t.Fatal("invalid operation admitted")
@@ -216,15 +216,15 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 
 func TestSavepointsErrorRecovery(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 	controlsRequire(t, a, "BEGIN")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	controlsRequire(t, a, "SAVEPOINT s")
 	ref, ticket := a.Transactions.Ref, a.Transactions.Ticket
 	controlsRequire(t, a, "SAVEPOINT child")
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	controlsRequire(t, a, "RELEASE child")
 	controlsAbort(t, a)
 	if a.TransactionState() != session.TxAborted || a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || len(a.Transactions.Savepoints) != 1 {
@@ -242,12 +242,12 @@ func TestSavepointsErrorRecovery(t *testing.T) {
 		}
 	}
 	controlsRequire(t, a, "ROLLBACK TO s")
-	transactionRows(t, a, "SELECT v FROM t", 1)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t", 1)
 	controlsRequire(t, a, "ROLLBACK TO s")
-	transactionRows(t, a, "SELECT v FROM t", 1)
-	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	if !transactionEnd(t, a, ref, true).Committed {
+	enginetest.TransactionRows(t, a, "SELECT v FROM t", 1)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(3)")
+	if !enginetest.TransactionEnd(t, a, ref, true).Committed {
 		t.Fatal("Go ref did not survive rollback-to")
 	}
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 3)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 3)
 }

@@ -45,12 +45,12 @@ func searchInquiryDefinitions(schema string) []string {
 
 func TestVisibilityInquirySearchKindsAndPaths(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, query := range searchInquiryDefinitions("search_owner") {
-		sessionSQL(t, s, query)
+		enginetest.SessionSQL(t, s, query)
 	}
 	ns := schemaRef(t, e, "search_owner")
-	sessionSQL(t, s, "CREATE TEMP TABLE search_temp_seed(x integer)")
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE search_temp_seed(x integer)")
 	view := e.CatalogRead()
 	temporary := s.TemporaryNamespace
 	stage := e.BeginCatalogStage(view)
@@ -206,12 +206,12 @@ func TestVisibilityInquirySearchKindsAndPaths(t *testing.T) {
 func TestVisibilityInquirySearchCapturedFrontier(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	for _, query := range searchInquiryDefinitions("search_frontier") {
-		sessionSQL(t, s, query)
+		enginetest.SessionSQL(t, s, query)
 	}
-	sessionSQL(t, s, "SET search_path=search_frontier")
+	enginetest.SessionSQL(t, s, "SET search_path=search_frontier")
 	op, err := s.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -268,7 +268,7 @@ func TestVisibilityInquirySearchCapturedFrontier(t *testing.T) {
 		"DROP TEXT SEARCH TEMPLATE search_frontier.v",
 		"DROP STATISTICS search_frontier.v",
 	} {
-		sessionSQL(t, peer, query)
+		enginetest.SessionSQL(t, peer, query)
 	}
 	oid, _ := captured.LookupType(sqltype.Oid)
 	boolean, _ := captured.LookupType(sqltype.Bool)
@@ -298,7 +298,7 @@ func TestVisibilityInquirySearchCapturedFrontier(t *testing.T) {
 	scope.Finish(context.Canceled)
 	op.Done()
 	released = true
-	sessionSQL(t, s, "SET search_path=public")
+	enginetest.SessionSQL(t, s, "SET search_path=public")
 	for i, tc := range searchInquiryKinds {
 		func() {
 			op, err := s.Acquire(ctx)

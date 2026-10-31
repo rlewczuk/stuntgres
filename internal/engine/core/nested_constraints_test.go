@@ -16,7 +16,7 @@ import (
 
 func nestedConstraintUnitScope(t *testing.T, e *core.Engine, s *session.Session) *core.StatementScope {
 	t.Helper()
-	op := transactionOperation(t, s)
+	op := enginetest.TransactionOperation(t, s)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -31,12 +31,12 @@ func nestedConstraintUnitScope(t *testing.T, e *core.Engine, s *session.Session)
 
 func TestNestedConstraintDescriptionOwnership(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE c(v INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-	transactionBegin(t, s)
-	sessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
-	sessionSQL(t, s, "INSERT INTO c VALUES(9)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE c(v INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+	enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9)")
 	before := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if len(before.Events) != 1 || before.Events[0].ForeignKey == nil {
 		t.Fatal("missing actual pending violation")
@@ -67,12 +67,12 @@ func TestNestedConstraintModeOwnership(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) DEFERRABLE)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) DEFERRABLE)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			oid := e.CatalogRead().MustRelation(ref.Address).Constraints.Unique[0].OID
 			if explicit {
-				transactionBegin(t, s)
+				enginetest.TransactionBegin(t, s)
 			}
 			scope := nestedConstraintUnitScope(t, e, s)
 			if scope.Owner.InBlock() != explicit || core.ScopeActiveSQLRoutineDepth(scope) != 0 {
@@ -99,8 +99,8 @@ func TestNestedConstraintModeOwnership(t *testing.T) {
 	}
 	t.Run("top-level-warning-is-unchanged", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) DEFERRABLE)")
+		s := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) DEFERRABLE)")
 		scope := nestedConstraintUnitScope(t, e, s)
 		_, err := core.EngineExecuteStatement(e, scope, enginetest.Statement(t, "SET CONSTRAINTS u DEFERRED"), 0, nil)
 		want := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"}
@@ -112,15 +112,15 @@ func TestNestedConstraintModeOwnership(t *testing.T) {
 
 func TestNestedConstraintSelectedEventOwnership(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE a(v INT CONSTRAINT fa REFERENCES p INITIALLY DEFERRED)")
-	sessionSQL(t, s, "CREATE TABLE b(v INT CONSTRAINT fb REFERENCES p INITIALLY DEFERRED)")
-	sessionSQL(t, s, "INSERT INTO p VALUES(1)")
-	transactionBegin(t, s)
-	sessionSQL(t, s, "SET CONSTRAINTS ALL DEFERRED")
-	sessionSQL(t, s, "INSERT INTO a VALUES(1)")
-	sessionSQL(t, s, "INSERT INTO b VALUES(9)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE a(v INT CONSTRAINT fa REFERENCES p INITIALLY DEFERRED)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE b(v INT CONSTRAINT fb REFERENCES p INITIALLY DEFERRED)")
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1)")
+	enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "SET CONSTRAINTS ALL DEFERRED")
+	enginetest.SessionSQL(t, s, "INSERT INTO a VALUES(1)")
+	enginetest.SessionSQL(t, s, "INSERT INTO b VALUES(9)")
 	before := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if len(before.Events) != 2 || before.Events[0].ForeignKey == nil || before.Events[1].ForeignKey == nil {
 		t.Fatal("missing actual separately owned pending obligations")
@@ -154,10 +154,10 @@ func TestNestedConstraintProceduralIncarnationOwnership(t *testing.T) {
 	for _, boundary := range []string{"COMMIT", "ROLLBACK", "COMMIT AND CHAIN", "ROLLBACK AND CHAIN"} {
 		t.Run(boundary, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
-			sessionSQL(t, s, "CREATE TABLE c(v INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-			sessionSQL(t, s, "INSERT INTO p VALUES(1),(2)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE p(v INT PRIMARY KEY)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE c(v INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+			enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1),(2)")
 			scope := nestedConstraintUnitScope(t, e, s)
 			_, err := scope.Execute(enginetest.Statement(t, "DO $$BEGIN SET CONSTRAINTS fk DEFERRED; INSERT INTO c VALUES(1); END$$"), 0, nil)
 			if err != nil {
@@ -195,7 +195,7 @@ func TestNestedConstraintProceduralIncarnationOwnership(t *testing.T) {
 		})
 		t.Run(boundary+"/no-work", func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
 			scope := nestedConstraintUnitScope(t, e, s)
 			ref := scope.TxRef
 			_, err := scope.Execute(enginetest.Statement(t, "DO $$BEGIN "+boundary+"; END$$"), 0, nil)

@@ -23,8 +23,8 @@ import (
 
 func blockingUnitOwner(t *testing.T, e *core.Engine) (*session.Session, *lock.Ticket) {
 	t.Helper()
-	s := sessionStart(t, e, nil)
-	transactionBegin(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.TransactionBegin(t, s)
 	return s, s.Transactions.Ticket
 }
 
@@ -60,7 +60,7 @@ func blockingUnitWant(t *testing.T, e *core.Engine, target ids.SessionID, want .
 
 func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		transactionBegin(t, high)
+		enginetest.TransactionBegin(t, high)
 		ht := high.Transactions.Ticket
 		resource := blockingUnitResource(e)
 		if err := e.Locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {

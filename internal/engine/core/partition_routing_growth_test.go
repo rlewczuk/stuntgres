@@ -56,8 +56,8 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			e.Storage.SetFrontierLocked(2, 2)
 			e.Visibility.SetCommitSeqLocked(1)
 			e.Mu.Unlock()
-			reader, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
+			reader, op := partitionAttachUnitScope(t, e, enginetest.StartSession(t, e, nil))
+			holder, _ := partitionAttachUnitScope(t, e, enginetest.StartSession(t, e, nil))
 			syntax := enginetest.Statement(t, "UPDATE routing_growth_parent SET k=2").(*parser.Update)
 			if err := reader.Gate(syntax); err != nil {
 				t.Fatal(err)

@@ -122,7 +122,7 @@ func TestCommitTimePublication(t *testing.T) {
 		for _, mode := range []string{"success", "cancel_before", "cancel_after"} {
 			t.Run(route+"_"+mode, func(t *testing.T) {
 				e := engine.NewWithSettings(nil, "", true)
-				sess := sessionStart(t, e, nil)
+				sess := enginetest.StartSession(t, e, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := sess.Acquire(ctx)

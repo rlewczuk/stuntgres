@@ -24,7 +24,7 @@ func TestAmcheckRestrictedContext(t *testing.T) {
 			enginetest.Run(t, e, "CREATE TABLE owned(n INT)")
 			enginetest.Run(t, e, "ALTER TABLE owned OWNER TO am_owner")
 			parent := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "owned").Address)
-			sess := sessionStart(t, e, nil)
+			sess := enginetest.StartSession(t, e, nil)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := sess.Acquire(ctx)

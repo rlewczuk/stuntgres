@@ -18,9 +18,9 @@ import (
 
 func TestTruncateGraphPartitions(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE r(id INT) PARTITION BY RANGE(id)", "CREATE TABLE nested PARTITION OF r FOR VALUES FROM(0) TO(10) PARTITION BY RANGE(id)", "CREATE TABLE left_leaf PARTITION OF nested FOR VALUES FROM(0) TO(5)", "CREATE TABLE right_leaf PARTITION OF nested FOR VALUES FROM(5) TO(10)", "INSERT INTO r VALUES(1),(7)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	root, nested := roleTableRef(t, e, "r"), roleTableRef(t, e, "nested")
 	left, right := roleTableRef(t, e, "left_leaf"), roleTableRef(t, e, "right_leaf")
@@ -58,13 +58,13 @@ func TestTruncateGraphPartitions(t *testing.T) {
 }
 func TestTruncateLocksSavepoint(t *testing.T) {
 	e, holder, p, _ := truncateUnitFixture(t)
-	waiter := sessionStart(t, e, nil)
-	held := transactionBegin(t, holder)
-	sessionSQL(t, holder, "LOCK q IN ACCESS SHARE MODE")
-	tx := transactionBegin(t, waiter)
-	sessionSQL(t, waiter, "INSERT INTO p VALUES(3)")
-	transactionRows(t, waiter, "SELECT id FROM p ORDER BY id", 1, 2, 3)
-	sessionSQL(t, waiter, "SAVEPOINT preserve")
+	waiter := enginetest.StartSession(t, e, nil)
+	held := enginetest.TransactionBegin(t, holder)
+	enginetest.SessionSQL(t, holder, "LOCK q IN ACCESS SHARE MODE")
+	tx := enginetest.TransactionBegin(t, waiter)
+	enginetest.SessionSQL(t, waiter, "INSERT INTO p VALUES(3)")
+	enginetest.TransactionRows(t, waiter, "SELECT id FROM p ORDER BY id", 1, 2, 3)
+	enginetest.SessionSQL(t, waiter, "SAVEPOINT preserve")
 	writes, ticket := waiter.Transactions.Writes[p.Address], waiter.Transactions.Ticket
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	enginetest.LockPending(t, e, 1)
@@ -79,28 +79,28 @@ func TestTruncateLocksSavepoint(t *testing.T) {
 	}
 	cancel()
 	enginetest.LockAwait(t, done, context.Canceled)
-	sessionSQL(t, waiter, "ROLLBACK TO preserve")
+	enginetest.SessionSQL(t, waiter, "ROLLBACK TO preserve")
 	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
 	if !storage.SameVersionRoot(waiter.Transactions.Writes[p.Address], writes) || waiter.Transactions.Catalog != nil && len(waiter.Transactions.Catalog.Storage) != 0 {
 		t.Fatal("canceled upgrade lost earlier roots/left empty generation")
 	}
-	transactionEnd(t, holder, held, false)
+	enginetest.TransactionEnd(t, holder, held, false)
 	truncateUnitExecute(t, e, waiter, truncateUnitAST("p"))
-	sessionSQL(t, waiter, "ROLLBACK TO preserve")
+	enginetest.SessionSQL(t, waiter, "ROLLBACK TO preserve")
 	if !storage.SameVersionRoot(waiter.Transactions.Writes[p.Address], writes) {
 		t.Fatal("rollback-to did not restore roots after later success")
 	}
 	foreignKeyHeldMode(t, e, p, 0, ticket, lock.AccessShare|lock.RowExclusive)
-	transactionEnd(t, waiter, tx, false)
+	enginetest.TransactionEnd(t, waiter, tx, false)
 	enginetest.LockEmpty(t, e)
 }
 func TestTruncateFinalVetoAdditional(t *testing.T) {
 	for _, kind := range []string{"storage", "ACL", "epoch"} {
 		t.Run(kind, func(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
-			tx := transactionBegin(t, s)
-			sessionSQL(t, s, "INSERT INTO p VALUES(3)")
-			sessionSQL(t, s, "SAVEPOINT preserve")
+			tx := enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(3)")
+			enginetest.SessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
 			writes := s.Transactions.Writes[p.Address]
 			scope := truncateUnitStage(t, e, s, "p", "q")
@@ -137,14 +137,14 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 				t.Fatal("late final veto changed committed predecessor")
 			}
 			if kind != "epoch" {
-				sessionSQL(t, s, "ROLLBACK TO preserve")
+				enginetest.SessionSQL(t, s, "ROLLBACK TO preserve")
 				if !storage.SameVersionRoot(s.Transactions.Writes[p.Address], writes) || s.Transactions.Catalog != nil && len(s.Transactions.Catalog.Storage) != 0 {
 					t.Fatal("final veto lost prior overlay roots")
 				}
 			}
-			transactionEnd(t, s, tx, false)
+			enginetest.TransactionEnd(t, s, tx, false)
 			if kind == "epoch" {
-				transactionRows(t, s, "SELECT id FROM p", 9)
+				enginetest.TransactionRows(t, s, "SELECT id FROM p", 9)
 			} else if len(e.Storage.Relations[p.Address].Versions) != 2 || e.Storage.Relations[q.Address] != oldQ {
 				t.Fatal("failed truncate overrode real host publication")
 			}
@@ -154,11 +154,11 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 }
 func TestTruncateAdmissionNamespace(t *testing.T) {
 	e, holder, p, _ := truncateUnitFixture(t)
-	sessionSQL(t, holder, "CREATE SCHEMA other")
-	waiter := sessionStart(t, e, nil)
-	sessionSQL(t, waiter, "SET search_path=public,other")
-	tx := transactionBegin(t, holder)
-	sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
+	enginetest.SessionSQL(t, holder, "CREATE SCHEMA other")
+	waiter := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, waiter, "SET search_path=public,other")
+	tx := enginetest.TransactionBegin(t, holder)
+	enginetest.SessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
 	old := e.Storage.Relations[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	enginetest.LockPending(t, e, 1)
@@ -177,11 +177,11 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 		}
 	}
 	truncateUnitPublish(t, e, stage)
-	transactionEnd(t, holder, tx, false)
+	enginetest.TransactionEnd(t, holder, tx, false)
 	enginetest.LockAwait(t, done, ids.ErrCatalogReplaced)
 	if e.Storage.Relations[p.Address] != old || old.TruncateLineage != nil || len(old.Versions) != 2 || e.Catalog.State.Get(p.Address).Namespace() != destination {
 		t.Fatal("queued name followed another namespace or undid real control publication")
 	}
-	transactionRows(t, waiter, "SELECT id FROM other.p ORDER BY id", 1, 2)
+	enginetest.TransactionRows(t, waiter, "SELECT id FROM other.p ORDER BY id", 1, 2)
 	enginetest.LockEmpty(t, e)
 }

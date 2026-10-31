@@ -15,12 +15,12 @@ import (
 
 func TestCopyProgressFailedFlush(t *testing.T) {
 	e := engine.New()
-	worker := sessionStart(t, e, nil)
-	sessionSQL(t, worker, "CREATE TABLE t(v INT PRIMARY KEY)")
-	observer := sessionStart(t, e, nil)
-	observerOp := transactionOperation(t, observer)
+	worker := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, worker, "CREATE TABLE t(v INT PRIMARY KEY)")
+	observer := enginetest.StartSession(t, e, nil)
+	observerOp := enginetest.TransactionOperation(t, observer)
 	defer observerOp.Done()
-	op := transactionOperation(t, worker)
+	op := enginetest.TransactionOperation(t, worker)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()
@@ -76,12 +76,12 @@ func TestCopyProgressFailedFlush(t *testing.T) {
 
 func TestCopyProgressPreconversionBytes(t *testing.T) {
 	e := engine.New()
-	worker := sessionStart(t, e, nil)
-	sessionSQL(t, worker, "CREATE TABLE t(v TEXT)")
-	observer := sessionStart(t, e, nil)
-	observerOp := transactionOperation(t, observer)
+	worker := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, worker, "CREATE TABLE t(v TEXT)")
+	observer := enginetest.StartSession(t, e, nil)
+	observerOp := enginetest.TransactionOperation(t, observer)
 	defer observerOp.Done()
-	op := transactionOperation(t, worker)
+	op := enginetest.TransactionOperation(t, worker)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()

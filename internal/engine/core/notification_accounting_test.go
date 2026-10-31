@@ -25,7 +25,7 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		local, remote, sender := sessionStart(t, e, nil), sessionStart(t, foreign, nil), sessionStart(t, e, nil)
+		local, remote, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, foreign, nil), enginetest.StartSession(t, e, nil)
 		notificationUnitListen(t, local)
 		notificationUnitListen(t, remote)
 		e.Mu.Lock()
@@ -134,7 +134,7 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 	for _, catalog := range []bool{false, true} {
 		t.Run(map[bool]string{false: "capacity-empty", true: "capacity-catalog"}[catalog], func(t *testing.T) {
 			e := engine.New()
-			receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			receiver, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			notificationUnitListen(t, receiver)
 			e.Mu.Lock()
 			head := &session.NotificationQueuePosition{Page: session.NotificationQueuePages - 1, Offset: 7924}
@@ -146,9 +146,9 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 			n.State, n.Busy = &next, true
 			root, state, frontier := n.State, e.Catalog.State, e.Visibility.CommitSeq()
 			e.Mu.Unlock()
-			ref := transactionBegin(t, sender)
+			ref := enginetest.TransactionBegin(t, sender)
 			sender.Transactions.NotificationEvents = notificationAccountingBatch()[:1]
-			op := transactionOperation(t, sender)
+			op := enginetest.TransactionOperation(t, sender)
 			var changes *session.Journal
 			if catalog {
 				changes = session.NewJournal()
@@ -188,14 +188,14 @@ func TestNotificationQueueAccountingControls(t *testing.T) {
 	if core.DatabaseClusterNotificationHead(e.Cluster) != nil || core.EngineNotificationQueueUsageLocked(e) != 0 {
 		t.Fatal("fresh accounting allocated or retained state")
 	}
-	receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	receiver, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	notificationUnitListen(t, receiver)
 	e.Mu.Lock()
 	core.PayloadNotificationsRef(core.PayloadOf(receiver)).Busy = true
 	e.Mu.Unlock()
-	ref := transactionBegin(t, sender)
+	ref := enginetest.TransactionBegin(t, sender)
 	sender.Transactions.NotificationEvents = notificationAccountingBatch()
-	transactionEnd(t, sender, ref, true)
+	enginetest.TransactionEnd(t, sender, ref, true)
 	head, root := core.DatabaseClusterNotificationHead(e.Cluster), core.PayloadNotifications(core.PayloadOf(receiver)).State
 	if head == nil || root == nil || !root.Unread {
 		t.Fatal("missing committed roots")

@@ -46,7 +46,7 @@ func TestCopyProgressForeignFinishPanicCleanup(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	worker := sessionStart(t, e, nil)
+	worker := enginetest.StartSession(t, e, nil)
 	for _, query := range []string{
 		"CREATE FOREIGN DATA WRAPPER unit_finish HANDLER unit_finish_handler",
 		"CREATE SERVER unit_finish_server FOREIGN DATA WRAPPER unit_finish",
@@ -56,12 +56,12 @@ func TestCopyProgressForeignFinishPanicCleanup(t *testing.T) {
 		"CREATE FUNCTION unit_finish_after() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN INSERT INTO unit_finish_log VALUES(NEW.v); RETURN NULL; END$$",
 		"CREATE TRIGGER unit_finish_trigger AFTER INSERT ON unit_finish_target FOR EACH ROW EXECUTE FUNCTION unit_finish_after()",
 	} {
-		sessionSQL(t, worker, query)
+		enginetest.SessionSQL(t, worker, query)
 	}
-	observer := sessionStart(t, e, nil)
-	observerOp := transactionOperation(t, observer)
+	observer := enginetest.StartSession(t, e, nil)
+	observerOp := enginetest.TransactionOperation(t, observer)
 	defer observerOp.Done()
-	op := transactionOperation(t, worker)
+	op := enginetest.TransactionOperation(t, worker)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -143,5 +143,5 @@ func TestCopyProgressForeignFinishPanicCleanup(t *testing.T) {
 	if probe().TuplesProcessed != 1 {
 		t.Fatal("failed Finish replayed COPY acceptance")
 	}
-	transactionRows(t, worker, "SELECT count(*) FROM unit_finish_log", 0)
+	enginetest.TransactionRows(t, worker, "SELECT count(*) FROM unit_finish_log", 0)
 }

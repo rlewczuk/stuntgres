@@ -202,7 +202,7 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			held := true
 			defer func() {
 				if held {
-					transactionEnd(t, holderSession, holder.Ref(), false)
+					enginetest.TransactionEnd(t, holderSession, holder.Ref(), false)
 				}
 			}()
 			args := heapUnitArgs(t, e, d, false)
@@ -228,7 +228,7 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 				e.Mu.Lock()
 				e.Storage.Relations[d.Address()] = &storage.Relation{}
 				e.Mu.Unlock()
-				transactionEnd(t, holderSession, holder.Ref(), false)
+				enginetest.TransactionEnd(t, holderSession, holder.Ref(), false)
 				held = false
 				want = ids.ErrCatalogReplaced
 			}

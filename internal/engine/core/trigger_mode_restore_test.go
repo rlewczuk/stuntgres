@@ -19,10 +19,10 @@ import (
 
 func TestTriggerModeRestoreReplay(t *testing.T) {
 	e,s := triggerModeUnitSetup(t)
-	sessionSQL(t,s,"ALTER TABLE mode_parent DISABLE TRIGGER ALL")
+	enginetest.SessionSQL(t,s,"ALTER TABLE mode_parent DISABLE TRIGGER ALL")
 	for fact := range catalog.ForeignKeyTriggerFacts(e.CatalogRead()) {
 		if fact.Slot >= 2 {
-			sessionSQL(t,s,"ALTER TABLE mode_child ENABLE REPLICA TRIGGER "+catalog.QuoteIdentifier(fact.Name))
+			enginetest.SessionSQL(t,s,"ALTER TABLE mode_child ENABLE REPLICA TRIGGER "+catalog.QuoteIdentifier(fact.Name))
 		}
 	}
 	oldRead := e.CatalogRead()
@@ -89,7 +89,7 @@ func triggerModeRestoreBulkOwnership(t *testing.T) {
 		"ALTER TABLE mode_child ADD CONSTRAINT mode_not_valid_fk FOREIGN KEY(pid) REFERENCES mode_other_parent(id) NOT VALID",
 		"CREATE FUNCTION mode_keep() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$",
 		"CREATE TRIGGER keep BEFORE INSERT ON mode_child FOR EACH ROW EXECUTE FUNCTION mode_keep()",
-	} { sessionSQL(t, s, q) }
+	} { enginetest.SessionSQL(t, s, q) }
 	read := e.CatalogRead()
 	child := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_child").Address)
 	before := append([]catalog.ForeignKeyConstraint(nil), child.Constraints.ForeignKeys...)

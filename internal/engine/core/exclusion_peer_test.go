@@ -40,10 +40,10 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 		for _, commit := range []bool{false, true} {
 			t.Run(method+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 				e := engine.New()
-				a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
-				sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =))")
-				ar := transactionBegin(t, a)
-				sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+				a, b, c := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =))")
+				ar := enginetest.TransactionBegin(t, a)
+				enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 				done, _ := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
 				enginetest.LockPending(t, e, 1)
 				lockState := e.Locks.Inspect()
@@ -59,7 +59,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				other, _ := uniqueAsyncUnit(t, c, "INSERT INTO t VALUES(2)")
 				exclusionInsertAwait(t, other, 1, "")
 				enginetest.LockPending(t, e, 1)
-				transactionEnd(t, a, ar, commit)
+				enginetest.TransactionEnd(t, a, ar, commit)
 				if commit {
 					exclusionInsertAwait(t, done, 0, "23P01")
 				} else {
@@ -81,15 +81,15 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 				name := method + map[bool]string{false: "/nondeferrable", true: "/deferrable"}[deferrable] + map[bool]string{false: "/rollback", true: "/commit"}[commit]
 				t.Run(name, func(t *testing.T) {
 					e := engine.New()
-					a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+					a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 					properties := ""
 					if deferrable {
 						properties = " DEFERRABLE"
 					}
-					sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =)"+properties+")")
-					sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-					ar := transactionBegin(t, a)
-					sessionSQL(t, a, "DELETE FROM t")
+					enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =)"+properties+")")
+					enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+					ar := enginetest.TransactionBegin(t, a)
+					enginetest.SessionSQL(t, a, "DELETE FROM t")
 					at := a.Transactions.Ticket
 					projection := e.Exclusions.OwnLocked(at)
 					parent := roleTableRef(t, e, "public.t")
@@ -116,7 +116,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					if !matched {
 						t.Fatal("provisional deletion lacks its exact expected owner wait", deferrable)
 					}
-					transactionEnd(t, a, ar, commit)
+					enginetest.TransactionEnd(t, a, ar, commit)
 					if commit {
 						exclusionInsertAwait(t, done, 1, "")
 					} else {
@@ -134,13 +134,13 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 
 func TestExclusionCompletionDeadlock(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
-	ar, br := transactionBegin(t, a), transactionBegin(t, b)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	sessionSQL(t, b, "INSERT INTO t VALUES(2)")
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
-	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
+	ar, br := enginetest.TransactionBegin(t, a), enginetest.TransactionBegin(t, b)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(2)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	at, bt := a.Transactions.Ticket, b.Transactions.Ticket
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(a.Transactions)).Events) != 1 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(b.Transactions)).Events) != 1 {
 		t.Fatal("crossed admissions must independently enlist both owners")

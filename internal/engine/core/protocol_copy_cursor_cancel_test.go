@@ -89,7 +89,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 		}
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			session := sessionStart(t, e, nil)
+			session := enginetest.StartSession(t, e, nil)
 			source, cancel := context.WithCancelCause(context.Background())
 			defer cancel(nil)
 			op, _, err := session.AcquireCommand(source)
@@ -177,8 +177,8 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			session := sessionStart(t, e, nil)
-			sessionSQL(t, session, "CREATE TABLE t(v integer)")
+			session := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, session, "CREATE TABLE t(v integer)")
 			source, cancel := context.WithCancelCause(context.Background())
 			defer cancel(nil)
 			op, _, err := session.AcquireCommand(source)

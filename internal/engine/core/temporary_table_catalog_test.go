@@ -29,7 +29,7 @@ import (
 func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*core.Engine, *session.Operation, *session.Journal, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -268,7 +268,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 
 func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	e := engine.New()
-	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE TEMP TABLE live_provider(v INT)",
 		"CREATE INDEX live_provider_index ON live_provider(v)",
@@ -276,9 +276,9 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		"INSERT INTO live_consumer(a,z) VALUES(7,9)",
 		"CREATE TABLE public.persistent_consumer(v INT)",
 	} {
-		sessionSQL(t, owner, q)
+		enginetest.SessionSQL(t, owner, q)
 	}
-	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
+	enginetest.SessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
 	lookup := func(view catalog.Read, name string, namespace ids.SessionToken) *catalog.Relation {
 		t.Helper()
 		for _, descriptor := range view.Descriptors() {
@@ -364,7 +364,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("foreign engine, persistent or generic consumer gained authority")
 		}
 	}
-	sessionSQL(t, owner, "CREATE DOMAIN public.live_domain AS INT")
+	enginetest.SessionSQL(t, owner, "CREATE DOMAIN public.live_domain AS INT")
 	domainView := e.CatalogRead()
 	domain := domainUnitType(t, domainView, "live_domain")
 	domainRef := e.Catalog.Domain.Ref(domainView.Epoch(), domain.Address())
@@ -440,12 +440,12 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if e.CatalogRead().State() != retained.State() || e.Storage.Relations[consumer.Address()] != store || e.Storage.IndexRoots[providerIndex.Address()] != indexRoot || !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
-	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")
+	enginetest.SessionSQL(t, owner, "DROP TABLE live_provider CASCADE")
 	if stored.ReferenceEpochValid(e.CatalogRead(), consumer, captured) || stored.ReferenceEpochValid(e.CatalogRead(), consumer, capturedIndex) {
 		t.Fatal("retired provider resurrected")
 	}
-	sessionSQL(t, owner, "CREATE TEMP TABLE live_provider(v INT)")
-	sessionSQL(t, owner, "CREATE INDEX live_provider_index ON live_provider(v)")
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE live_provider(v INT)")
+	enginetest.SessionSQL(t, owner, "CREATE INDEX live_provider_index ON live_provider(v)")
 	current := e.CatalogRead()
 	if lookup(current, "live_provider", owner.SessionToken).Address() == provider.Address() || lookup(current, "live_provider_index", owner.SessionToken).Address() == providerIndex.Address() || stored.ReferenceEpochValid(current, consumer, captured) || stored.ReferenceEpochValid(current, consumer, capturedIndex) {
 		t.Fatal("same-name recreated provider rebound old identity")

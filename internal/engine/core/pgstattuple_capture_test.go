@@ -66,8 +66,8 @@ func TestPgstattupleHeapCapture(t *testing.T) {
 	base:=pgstatindexCaptureFixture(t,e,nil,"capture_index")
 	exact:=pgstattupleHeapUnitExpression(t,e,"pgstattuple","capture_heap")
 	approx:=pgstattupleHeapUnitExpression(t,e,"pgstattuple_approx","capture_heap")
-	writer,peer:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-	for _,q:=range []string{"BEGIN","UPDATE capture_heap SET n=2","UPDATE capture_heap SET n=3"} { sessionSQL(t,writer,q) }
+	writer,peer:=enginetest.StartSession(t,e,nil),enginetest.StartSession(t,e,nil)
+	for _,q:=range []string{"BEGIN","UPDATE capture_heap SET n=2","UPDATE capture_heap SET n=3"} { enginetest.SessionSQL(t,writer,q) }
 	for _,tc:=range []struct{ owner *session.Session; call plan.InstalledPgstattupleExpr; live,dead int64 }{{writer,exact,1,2},{writer,approx,2,1},{peer,exact,3,0},{peer,approx,1,2}} {
 		stats,err:=heapUnitCapture(e,tc.owner,tc.call,"capture_heap",base.Parent.Address().ObjectID)
 		if err!=nil || stats.TupleCount!=tc.live || stats.DeadCount!=tc.dead { t.Fatal("actual owner capture",stats,err,tc.live,tc.dead) }
@@ -89,7 +89,7 @@ func TestPgstattupleHeapCapture(t *testing.T) {
 		private:=writer.Transactions.Writes[base.Parent.Address()][0].PrivateHistory
 		start:=make(chan struct{})
 		result:=make(chan error,3)
-		closing:=sessionStart(t,e,nil)
+		closing:=enginetest.StartSession(t,e,nil)
 		go func(){<-start; stats,err:=heapUnitCapture(e,peer,exact,"capture_heap",base.Parent.Address().ObjectID);if err==nil && (stats.TupleCount!=3 || stats.DeadCount!=0){err=fmt.Errorf("transfer capture %+v",stats)};result<-err}()
 		go func(){
 			<-start
@@ -140,9 +140,9 @@ func heapUnitStatementBoundary(t *testing.T) {
 	for _,q:=range []string{"CREATE TABLE atomic_heap(n integer CHECK(n>0))","INSERT INTO atomic_heap VALUES(1)","CREATE INDEX atomic_index ON atomic_heap(n)"} {enginetest.Run(t,e,q)}
 	base:=pgstatindexCaptureFixture(t,e,nil,"atomic_index")
 	n:=pgstattupleHeapUnitExpression(t,e,"pgstattuple","atomic_heap")
-	writer,peer:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-	sessionSQL(t,writer,"BEGIN")
-	op:=transactionOperation(t,writer)
+	writer,peer:=enginetest.StartSession(t,e,nil),enginetest.StartSession(t,e,nil)
+	enginetest.SessionSQL(t,writer,"BEGIN")
+	op:=enginetest.TransactionOperation(t,writer)
 	scope,err:=e.StartStatement(op)
 	if err!=nil {op.Done();t.Fatal(err)}
 	_,err=scope.Execute(enginetest.Statement(t,"UPDATE atomic_heap SET n=2"),0,nil)
@@ -157,30 +157,30 @@ func heapUnitStatementBoundary(t *testing.T) {
 	root:=writer.Transactions.Writes[base.Parent.Address()][0].PrivateHistory
 	after,err:=heapUnitCapture(e,peer,n,"atomic_heap",base.Parent.Address().ObjectID)
 	if err!=nil || after.TupleCount!=2 || after.DeadCount!=0 {t.Fatal("completed private command omitted",after,err)}
-	sessionSQL(t,writer,"SAVEPOINT atomic_save")
-	op=transactionOperation(t,writer)
+	enginetest.SessionSQL(t,writer,"SAVEPOINT atomic_save")
+	op=enginetest.TransactionOperation(t,writer)
 	scope,err=e.StartStatement(op)
 	if err!=nil {op.Done();t.Fatal(err)}
 	_,failure=scope.Execute(enginetest.Statement(t,"UPDATE atomic_heap SET n=-1"),0,nil)
 	failure=scope.Finish(failure)
 	op.Done()
 	if failure==nil {t.Fatal("actual failed statement was accepted")}
-	sessionSQL(t,writer,"ROLLBACK TO atomic_save")
+	enginetest.SessionSQL(t,writer,"ROLLBACK TO atomic_save")
 	if writer.Transactions.Writes[base.Parent.Address()][0].PrivateHistory!=root || base.Store.Retained!=nil {t.Fatal("failed command changed surviving owner or committed predecessor root")}
 	after,err=heapUnitCapture(e,peer,n,"atomic_heap",base.Parent.Address().ObjectID)
 	if err!=nil || after.TupleCount!=2 || after.DeadCount!=0 {t.Fatal("failed peer command leaked",after,err)}
-	sessionSQL(t,writer,"ROLLBACK")
+	enginetest.SessionSQL(t,writer,"ROLLBACK")
 }
 
 func heapUnitNewHeapOwners(t *testing.T) {
 	e:=engine.New()
 	pgstatindexUnitInstalled(t,e)
 	for _,q:=range []string{"CREATE TABLE heap_owner_source(n integer)","INSERT INTO heap_owner_source VALUES(1)"} {enginetest.Run(t,e,q)}
-	s:=sessionStart(t,e,nil)
-	sessionSQL(t,s,"BEGIN")
+	s:=enginetest.StartSession(t,e,nil)
+	enginetest.SessionSQL(t,s,"BEGIN")
 	exact:=pgstattupleHeapUnitExpression(t,e,"pgstattuple","-")
 	approx:=pgstattupleHeapUnitExpression(t,e,"pgstattuple_approx","-")
-	for _,q:=range []string{"CREATE TABLE owner_ctas AS SELECT n FROM heap_owner_source","CREATE MATERIALIZED VIEW owner_mv AS SELECT n FROM heap_owner_source"} {sessionSQL(t,s,q)}
+	for _,q:=range []string{"CREATE TABLE owner_ctas AS SELECT n FROM heap_owner_source","CREATE MATERIALIZED VIEW owner_mv AS SELECT n FROM heap_owner_source"} {enginetest.SessionSQL(t,s,q)}
 	for _,name:=range []string{"owner_ctas","owner_mv"} {
 		var address ids.ObjectAddress
 		for a,d:=range s.Transactions.Catalog.Descriptors {if r,ok:=d.(*catalog.Relation);ok && r.Name()==name {address=a}}
@@ -190,14 +190,14 @@ func heapUnitNewHeapOwners(t *testing.T) {
 			if err!=nil || stats.TupleCount!=tc.live || stats.DeadCount!=tc.dead {t.Fatal("private new-heap creator provenance",name,stats,err)}
 		}
 		if name=="owner_ctas" {
-			sessionSQL(t,s,"DELETE FROM owner_ctas")
+			enginetest.SessionSQL(t,s,"DELETE FROM owner_ctas")
 			for _,tc:=range []struct{call plan.InstalledPgstattupleExpr;live,dead int64}{{exact,0,1},{approx,1,0}} {
 				stats,err:=heapUnitCapture(e,s,tc.call,name,address.ObjectID)
 				if err!=nil || stats.TupleCount!=tc.live || stats.DeadCount!=tc.dead {t.Fatal("private new-heap end provenance",stats,err)}
 			}
 		}
 	}
-	sessionSQL(t,s,"ROLLBACK")
+	enginetest.SessionSQL(t,s,"ROLLBACK")
 }
 
 // Native DDL need not construct these targets: retain real storage and installed
@@ -278,7 +278,7 @@ func TestPgstattupleHeapTargetDispatch(t *testing.T) {
 					}
 				}
 			}
-			s := sessionStart(t,e,nil)
+			s := enginetest.StartSession(t,e,nil)
 			pages := pgstattupleHeapUnitExpression(t,e,"pg_relpages",target.Name())
 			stats, err := heapUnitCapture(e,s,pages,target.Name(),target.Address().ObjectID)
 			if err != nil || stats.TableLen<=0 || stats.TableLen%8192!=0 { t.Fatal("page host capture",stats,err) }

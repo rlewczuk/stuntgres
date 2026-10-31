@@ -56,7 +56,7 @@ func TestAmcheckCallableAuthorityPrecedence(t *testing.T) {
 					seq := enginetest.CatalogRef(t, e, e.CatalogRead(), "callable_seq")
 					table := enginetest.CatalogRef(t, e, e.CatalogRead(), "callable_rows")
 					reader, ticket := blockingUnitOwner(t, e)
-					sessionSQL(t, reader, "SET ROLE am_caller")
+					enginetest.SessionSQL(t, reader, "SET ROLE am_caller")
 					scope := pgrowlocksUnitScope(t, e, reader)
 					scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: pg.Ref, Revision: pg.Procedure.Revision()}}
 					// Admit a genuine singleton query before entering the
@@ -212,7 +212,7 @@ func TestAmcheckCallableAuthorityPrecedence(t *testing.T) {
 						if allowed {
 							want = 2
 						}
-						sequenceScalar(t, sessionStart(t, e, nil), "SELECT nextval('callable_seq')", want)
+						sequenceScalar(t, enginetest.StartSession(t, e, nil), "SELECT nextval('callable_seq')", want)
 						if !allowed && core.PayloadOf(reader).Sequences.Last() != (ids.ObjectAddress{}) {
 							t.Fatal("denied sequence changed session memory")
 						}

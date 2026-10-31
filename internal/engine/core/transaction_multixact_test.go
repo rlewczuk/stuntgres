@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -88,7 +89,7 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 		if e.Locks.NextMultiXact(e.Catalog.Domain) != 2 {
 			t.Fatal("exact-pair reentry allocated")
 		}
-		transactionEnd(t, bs, b.Ref(), false)
+		enginetest.TransactionEnd(t, bs, b.Ref(), false)
 		identityMultiEmit(t, e, a, tuple, lock.MultiKeyShare)
 		if e.Locks.NextMultiXact(e.Catalog.Domain) != 2 {
 			t.Fatal("exact-pair reentry pruned finished member")
@@ -129,7 +130,7 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 			identityMultiGrant(t, e, b, tuple, lock.ForNoKeyUpdate)
 			identityMultiEmit(t, e, b, tuple, lock.MultiNoKeyAction)
 			identityMultiWant(t, e, 1, "3/keysh", "4/nokeyupd")
-			transactionEnd(t, bs, b.Ref(), committed)
+			enginetest.TransactionEnd(t, bs, b.Ref(), committed)
 			identityMultiGrant(t, e, c, tuple, lock.ForShare)
 			identityMultiEmit(t, e, c, tuple, lock.MultiShare)
 			if committed {

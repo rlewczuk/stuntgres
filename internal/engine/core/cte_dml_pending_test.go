@@ -21,15 +21,15 @@ func TestCTEDMLTargetReplacementDuringWait(t *testing.T) { cteDMLPendingBoundary
 func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	t.Helper()
 	e := engine.New()
-	holder, worker, peer := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+	holder, worker, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT UNIQUE,v INT)", "CREATE TABLE audit(id INT)", "INSERT INTO t VALUES(1,10)"} {
-		sessionSQL(t, peer, q)
+		enginetest.SessionSQL(t, peer, q)
 	}
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	audit := enginetest.CatalogRef(t, e, e.CatalogRead(), "audit")
 	row := e.Storage.Relations[ref.Address].Versions[0].Row
-	tx := transactionBegin(t, holder)
-	sessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=1")
+	tx := enginetest.TransactionBegin(t, holder)
+	enginetest.SessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=1")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ast := enginetest.Statement(t, "WITH a AS (INSERT INTO audit VALUES(1) RETURNING id), u AS (UPDATE t SET v=t.v+1 FROM a WHERE t.id=a.id RETURNING t.id,t.v) SELECT * FROM u")
@@ -71,7 +71,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 			t.Error("CTE pending worker did not retire")
 		}
 		if holder.TransactionState() != session.TxIdle {
-			transactionEnd(t, holder, tx, false)
+			enginetest.TransactionEnd(t, holder, tx, false)
 		}
 	})
 	var scope *core.StatementScope
@@ -99,8 +99,8 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	if _, ok := view.Committed[ref.Address]; !ok {
 		t.Fatal("later target absent from shared view")
 	}
-	transactionRows(t, peer, "SELECT id FROM audit")
-	transactionRows(t, peer, "SELECT v FROM t", 10)
+	enginetest.TransactionRows(t, peer, "SELECT id FROM audit")
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t", 10)
 	want := error(context.Canceled)
 	if replacement {
 		// Exercise the genuine physical-storage fence while a different target
@@ -110,7 +110,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		e.Storage.InstallRelationLocked(audit.Address, &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation})
 		e.Mu.Unlock()
 		want = ids.ErrCatalogReplaced
-		transactionEnd(t, holder, tx, false)
+		enginetest.TransactionEnd(t, holder, tx, false)
 	} else {
 		cancel()
 	}
@@ -126,13 +126,13 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		t.Fatal("pending cancellation did not finish")
 	}
 	if !replacement {
-		transactionEnd(t, holder, tx, false)
+		enginetest.TransactionEnd(t, holder, tx, false)
 	}
-	transactionRows(t, peer, "SELECT id FROM audit")
-	transactionRows(t, peer, "SELECT v FROM t", 10)
+	enginetest.TransactionRows(t, peer, "SELECT id FROM audit")
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t", 10)
 	enginetest.LockEmpty(t, e)
-	sessionSQL(t, peer, "INSERT INTO audit VALUES(2)")
-	sessionSQL(t, peer, "UPDATE t SET v=v+1")
-	transactionRows(t, peer, "SELECT v FROM t", 11)
+	enginetest.SessionSQL(t, peer, "INSERT INTO audit VALUES(2)")
+	enginetest.SessionSQL(t, peer, "UPDATE t SET v=v+1")
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t", 11)
 	enginetest.LockEmpty(t, e)
 }

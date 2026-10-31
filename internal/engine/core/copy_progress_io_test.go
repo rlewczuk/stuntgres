@@ -34,10 +34,10 @@ func TestCopyProgressPartialIO(t *testing.T) {
 	for _, phase := range []string{"read_eof", "read_error", "write_error", "write_short"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			worker := sessionStart(t, e, nil)
-			sessionSQL(t, worker, "CREATE TABLE t(v INT)")
-			sessionSQL(t, worker, "INSERT INTO t VALUES(123)")
-			op := transactionOperation(t, worker)
+			worker := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, worker, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, worker, "INSERT INTO t VALUES(123)")
+			op := enginetest.TransactionOperation(t, worker)
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				op.Done()

@@ -554,13 +554,13 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 		}
 		peer.Done()
 		enginetest.LockEmpty(t, e)
-		if rows := enginetest.Tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+		if rows := enginetest.Tuples(enginetest.SessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
 			t.Fatal("fatal mutation published rows", rows)
 		}
-		if result := sessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
+		if result := enginetest.SessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
 			t.Fatal("healthy peer could not publish its own mutation", result)
 		}
-		rows := enginetest.Tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
+		rows := enginetest.Tuples(enginetest.SessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
 		if len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != int64(9) {
 			t.Fatal("healthy peer readback includes fatal mutation or lost its own write", rows)
 		}
@@ -581,10 +581,10 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 			t.Fatal("releasing initial peer holder", err)
 		}
 		release.Done()
-		if result := sessionSQL(t, s, "INSERT INTO pending_timeout_data VALUES(8)"); result.Count != 1 {
+		if result := enginetest.SessionSQL(t, s, "INSERT INTO pending_timeout_data VALUES(8)"); result.Count != 1 {
 			t.Fatal("staging owner mutation", result)
 		}
-		if rows := enginetest.Tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+		if rows := enginetest.Tuples(enginetest.SessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
 			t.Fatal("private owner mutation was visible before timeout", rows)
 		}
 		time.Sleep(300 * time.Millisecond)
@@ -695,13 +695,13 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 			t.Fatal("ending explicit peer after lock grant", err)
 		}
 		enginetest.LockEmpty(t, e)
-		if rows := enginetest.Tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+		if rows := enginetest.Tuples(enginetest.SessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
 			t.Fatal("idle owner timeout published its private mutation", rows)
 		}
-		if result := sessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
+		if result := enginetest.SessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
 			t.Fatal("healthy peer could not publish after idle owner timeout", result)
 		}
-		rows := enginetest.Tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
+		rows := enginetest.Tuples(enginetest.SessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
 		if len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != int64(9) {
 			t.Fatal("idle timeout lost peer write or retained rolled-back owner write", rows)
 		}

@@ -288,7 +288,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 	t.Run("terminal-veto", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(v INT)")
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
 		op, _, err := s.AcquireCommand(context.Background())
 		if err != nil {
 			t.Fatal(err)

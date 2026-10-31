@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -25,7 +26,7 @@ func TestAlterSystemEligibility(t *testing.T) {
 	} {
 		t.Run(tc.message, func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t,e,nil)
+			sess := enginetest.StartSession(t,e,nil)
 			op,err := sess.Acquire(context.Background())
 			if err != nil { t.Fatal(err) }
 			defer op.Done()

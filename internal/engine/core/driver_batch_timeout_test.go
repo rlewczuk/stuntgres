@@ -16,9 +16,9 @@ type batchContextKey struct{}
 
 func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"SET statement_timeout='1h'", "SET transaction_timeout='3h'", "SET lock_timeout='2h'"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	source := context.WithValue(context.Background(), batchContextKey{}, "caller")
 	m := batchUnitStart(t, s, source)
@@ -70,9 +70,9 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 }
 func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"SET transaction_timeout='3h'", "SET idle_in_transaction_session_timeout='4h'", "SET idle_session_timeout='5h'"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
@@ -117,8 +117,8 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 }
 func TestDriverBatchFatalTransactionBudget(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "SET transaction_timeout='3h'")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "SET transaction_timeout='3h'")
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	result, err := m.step(enginetest.Statement(t, "SELECT 1"))

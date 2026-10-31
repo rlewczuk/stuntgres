@@ -130,7 +130,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
 			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 			advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
-			transactionEnd(t, b, rb, false)
+			enginetest.TransactionEnd(t, b, rb, false)
 			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 			m := e.Locks
 			lockState := m.Inspect(ticket)
@@ -200,13 +200,13 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
-		transactionEnd(t, b, rb, false)
+		enginetest.TransactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
 		// Inject a cleanup observer in place of the now-installed SQL-name owner.
 		if err := b.Detach(b.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 			t.Fatal(err)
 		}
-		op := transactionOperation(t, b)
+		op := enginetest.TransactionOperation(t, b)
 		_, err := op.Attach(session.PreparedSQL, &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error {
 			observed <- b.TransactionState() == session.TxIdle && advisoryUnitHold(b, key).Shared == 1
 			return nil

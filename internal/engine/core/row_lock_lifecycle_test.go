@@ -20,16 +20,16 @@ func TestRowLockRepeatableRead(t *testing.T) {
 			for _, commit := range []bool{false, true} {
 				t.Run(clause+"/"+change+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 					e, a, b, _ := rowLockEngineFixture(t)
-					sessionSQL(t, b, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-					transactionRows(t, b, "SELECT v FROM t WHERE id=1", 10)
-					ar := transactionBegin(t, a)
-					transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
-					sessionSQL(t, a, change)
+					enginetest.SessionSQL(t, b, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+					enginetest.TransactionRows(t, b, "SELECT v FROM t WHERE id=1", 10)
+					ar := enginetest.TransactionBegin(t, a)
+					enginetest.TransactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
+					enginetest.SessionSQL(t, a, change)
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					done := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 "+clause)
 					rowLockQueued(t, e, a.Transactions.Ticket, analyze.RowLockMode(clause))
-					transactionEnd(t, a, ar, commit)
+					enginetest.TransactionEnd(t, a, ar, commit)
 					if commit && !(clause == "FOR KEY SHARE" && change[0] == 'U') {
 						select {
 						case outcome := <-done:
@@ -44,7 +44,7 @@ func TestRowLockRepeatableRead(t *testing.T) {
 					} else {
 						rowLockAwait(t, done, 10)
 					}
-					sessionSQL(t, b, "ROLLBACK")
+					enginetest.SessionSQL(t, b, "ROLLBACK")
 					enginetest.LockEmpty(t, e)
 				})
 			}
@@ -55,10 +55,10 @@ func TestRowLockControls(t *testing.T) {
 	for _, restore := range []bool{false, true} {
 		t.Run(map[bool]string{false: "reset", true: "restore"}[restore], func(t *testing.T) {
 			e, a, b, c := rowLockEngineFixture(t)
-			ar := transactionBegin(t, a)
-			retained := sessionSQL(t, c, "SELECT v FROM t ORDER BY v FOR KEY SHARE")
+			ar := enginetest.TransactionBegin(t, a)
+			retained := enginetest.SessionSQL(t, c, "SELECT v FROM t ORDER BY v FOR KEY SHARE")
 			defer retained.Rows.Close()
-			transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
+			enginetest.TransactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
@@ -71,8 +71,8 @@ func TestRowLockControls(t *testing.T) {
 				if err := engine.Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
-				sessionSQL(t, c, "CREATE TABLE t(id INT,v INT)")
-				sessionSQL(t, c, "INSERT INTO t VALUES(1,99)")
+				enginetest.SessionSQL(t, c, "CREATE TABLE t(id INT,v INT)")
+				enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1,99)")
 			}
 			select {
 			case outcome := <-done:
@@ -85,15 +85,15 @@ func TestRowLockControls(t *testing.T) {
 			if got := enginetest.Tuples(retained); len(got) != 2 || got[0][0] != int64(10) || got[1][0] != int64(20) {
 				t.Fatal("retained locker changed", got)
 			}
-			transactionEnd(t, a, ar, false)
+			enginetest.TransactionEnd(t, a, ar, false)
 			enginetest.LockEmpty(t, e)
 			deleteReplacementAdmissionEmpty(t, e)
-			transactionRows(t, b, "SELECT v FROM t FOR UPDATE", 99)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t FOR UPDATE", 99)
 		})
 	}
 	t.Run("immediate_admission", func(t *testing.T) {
 		e, _, b, _ := rowLockEngineFixture(t)
-		op := transactionOperation(t, b)
+		op := enginetest.TransactionOperation(t, b)
 		defer op.Done()
 		scope, err := e.StartStatement(op)
 		if err != nil {
@@ -126,40 +126,40 @@ func TestRowLockControls(t *testing.T) {
 }
 func TestRowLockLifetime(t *testing.T) {
 	e, a, b, _ := rowLockEngineFixture(t)
-	ar := transactionBegin(t, a)
-	transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
-	sessionSQL(t, a, "SAVEPOINT s")
-	transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
-	transactionRows(t, a, "SELECT v FROM t WHERE id=2 FOR SHARE", 20)
-	sessionSQL(t, a, "ROLLBACK TO s")
+	ar := enginetest.TransactionBegin(t, a)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
+	enginetest.SessionSQL(t, a, "SAVEPOINT s")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t WHERE id=2 FOR SHARE", 20)
+	enginetest.SessionSQL(t, a, "ROLLBACK TO s")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := deleteAsync(t, b, ctx, "UPDATE t SET v=21 WHERE id=2")
 	deleteAwait(t, done, 1, nil)
-	transactionRows(t, b, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
-	transactionEnd(t, a, ar, false)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
+	enginetest.TransactionEnd(t, a, ar, false)
 	enginetest.LockEmpty(t, e)
 }
 func TestRowLockDiagnostics(t *testing.T) {
 	for _, clause := range rowLockTestClauses {
 		t.Run(clause, func(t *testing.T) {
 			e, a, _, _ := rowLockEngineFixture(t)
-			sessionSQL(t, a, "BEGIN READ ONLY")
+			enginetest.SessionSQL(t, a, "BEGIN READ ONLY")
 			done := deleteAsync(t, a, context.Background(), "SELECT v FROM t WHERE id=99 "+clause)
 			outcome := <-done
 			waitsDiagnostic(t, outcome.err, "25006", "cannot execute SELECT "+clause+" in a read-only transaction")
-			sessionSQL(t, a, "ROLLBACK")
+			enginetest.SessionSQL(t, a, "ROLLBACK")
 			enginetest.LockEmpty(t, e)
 		})
 	}
 	t.Run("projection_atomicity", func(t *testing.T) {
 		e, a, b, _ := rowLockEngineFixture(t)
-		sessionSQL(t, a, "CREATE TABLE dest(v INT)")
+		enginetest.SessionSQL(t, a, "CREATE TABLE dest(v INT)")
 		done := deleteAsync(t, a, context.Background(), "INSERT INTO dest SELECT 100/(20-v) FROM t ORDER BY id FOR UPDATE")
 		outcome := <-done
 		waitsDiagnostic(t, outcome.err, "22012", "division by zero")
-		transactionRows(t, b, "SELECT v FROM dest")
-		sessionSQL(t, b, "UPDATE t SET v=30")
+		enginetest.TransactionRows(t, b, "SELECT v FROM dest")
+		enginetest.SessionSQL(t, b, "UPDATE t SET v=30")
 		enginetest.LockEmpty(t, e)
 	})
 }

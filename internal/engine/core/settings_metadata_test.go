@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -50,7 +51,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 		"metadata.flag": "off", "metadata.text": "", "metadata.duration": "2s",
 		"metadata.real": "1.23456789", "metadata.mode": "FAST",
 	}, calls: map[string]int{}}
-	a := sessionStart(t, e, provider)
+	a := enginetest.StartSession(t, e, provider)
 	capture := func(s *session.Session) map[string]string {
 		t.Helper()
 		facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
@@ -166,7 +167,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	if got := capture(a); got["application_name"] != initial["application_name"] || got["statement_timeout"] != initial["statement_timeout"] {
 		t.Fatal(got)
 	}
-	b := sessionStart(t, e, provider)
+	b := enginetest.StartSession(t, e, provider)
 	if got := capture(b); got["application_name"] != "replacement/client/replacement" || got["statement_timeout"] != "3000/client/3000" {
 		t.Fatal(got)
 	}
@@ -201,7 +202,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 
 func TestPGSettingsCoherentCapture(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	runtime := settingsRuntimeForTest(t, e, s)

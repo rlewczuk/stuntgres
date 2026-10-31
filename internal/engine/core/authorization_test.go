@@ -381,13 +381,13 @@ func TestAuthorizationInitializationDefaults(t *testing.T) {
 	e := engine.New()
 	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{})}
 	close(gate.release)
-	s := sessionStart(t, e, gate)
+	s := enginetest.StartSession(t, e, gate)
 	sessionValue(t, s, "initial")
-	sessionSQL(t, s, "SET application_name TO changed")
-	sessionSQL(t, s, "SET application_name TO DEFAULT")
+	enginetest.SessionSQL(t, s, "SET application_name TO changed")
+	enginetest.SessionSQL(t, s, "SET application_name TO DEFAULT")
 	sessionValue(t, s, "initial")
 	for _, query := range []string{"SHOW client_min_messages", "SET client_min_messages TO warning", "SET client_min_messages TO DEFAULT", "SHOW client_min_messages"} {
-		r := sessionSQL(t, s, query)
+		r := enginetest.SessionSQL(t, s, query)
 		if strings.HasPrefix(query, "SHOW") && !reflect.DeepEqual(enginetest.Tuples(r), [][]driver.Value{{"notice"}}) {
 			t.Fatal("integrated boot default was not captured", r, enginetest.Tuples(r))
 		}

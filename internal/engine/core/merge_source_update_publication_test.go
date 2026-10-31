@@ -12,10 +12,10 @@ import (
 
 func TestMergeSourceUpdatePublication(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	before := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 	op, err := s.Acquire(context.Background())
@@ -36,11 +36,11 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 		scope.Finish(context.Canceled)
 		t.Fatal(result, scope.Stage.Rows)
 	}
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 110, 120)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 110, 120)
 	enginetest.LockEmpty(t, e)
 	for i, old := range before {
 		value, err := old.Values[1].Integer()
@@ -54,10 +54,10 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 // This is an actual native executor safety proof, not PostgreSQL parity.
 func TestMergeSourceUpdateCorrelatedArrayBound(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE t(id INT,a INT[])")
-	sessionSQL(t, peer, "INSERT INTO t VALUES(2,ARRAY[10,20,30])")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,a INT[])")
+	enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(2,ARRAY[10,20,30])")
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET a[(SELECT t.id)]=t.a[1],a[1]=t.a[t.id]")
 	defer op.Done()
 	result, err := core.ExecuteMerge(context.Background(), scope, b, target, inputs, nil, "public")
@@ -69,12 +69,12 @@ func TestMergeSourceUpdateCorrelatedArrayBound(t *testing.T) {
 		scope.Finish(context.Canceled)
 		t.Fatal(result)
 	}
-	transactionRows(t, peer, "SELECT a[1] FROM t", 10)
+	enginetest.TransactionRows(t, peer, "SELECT a[1] FROM t", 10)
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	transactionRows(t, peer, "SELECT a[1] FROM t", 20)
-	transactionRows(t, peer, "SELECT a[2] FROM t", 10)
-	transactionRows(t, peer, "SELECT a[3] FROM t", 30)
+	enginetest.TransactionRows(t, peer, "SELECT a[1] FROM t", 20)
+	enginetest.TransactionRows(t, peer, "SELECT a[2] FROM t", 10)
+	enginetest.TransactionRows(t, peer, "SELECT a[3] FROM t", 30)
 	enginetest.LockEmpty(t, e)
 }

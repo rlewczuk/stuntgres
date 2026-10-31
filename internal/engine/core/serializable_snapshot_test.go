@@ -19,7 +19,7 @@ import (
 
 func serializableUnitAcquisition(t *testing.T, e *core.Engine, parent context.Context, readOnly, deferrable bool) (*core.StatementScope, *visibility.SerializableTx) {
 	t.Helper()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	op, err := sess.Acquire(parent)
 	if err != nil {
 		t.Fatal(err)
@@ -193,9 +193,9 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 	for _, mode := range []string{"cancel", "same_owner", "foreign_owner"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			setup := sessionStart(t, e, nil)
-			sessionSQL(t, setup, "CREATE TABLE replacement_rows(v INT UNIQUE)")
-			sessionSQL(t, setup, "INSERT INTO replacement_rows VALUES(11)")
+			setup := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, setup, "CREATE TABLE replacement_rows(v INT UNIQUE)")
+			enginetest.SessionSQL(t, setup, "INSERT INTO replacement_rows VALUES(11)")
 			relation := enginetest.CatalogRef(t, e, e.CatalogRead(), "replacement_rows")
 			writerScope, writer := serializableUnitAcquisition(t, e, context.Background(), false, false)
 			writerScope.Owner.Mu.Lock()
@@ -231,9 +231,9 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				replacement, replacementSource := e.CatalogRead(), e
 				if mode == "foreign_owner" {
 					other := engine.New()
-					otherSession := sessionStart(t, other, nil)
-					sessionSQL(t, otherSession, "CREATE TABLE replacement_rows(v INT UNIQUE)")
-					sessionSQL(t, otherSession, "INSERT INTO replacement_rows VALUES(22)")
+					otherSession := enginetest.StartSession(t, other, nil)
+					enginetest.SessionSQL(t, otherSession, "CREATE TABLE replacement_rows(v INT UNIQUE)")
+					enginetest.SessionSQL(t, otherSession, "INSERT INTO replacement_rows VALUES(22)")
 					replacement, replacementSource = other.CatalogRead(), other
 				}
 				// Reach a real post-copy capacity failure, not a fabricated
@@ -420,9 +420,9 @@ func TestSerializableSafeSnapshotAttemptedWriterRemainsCandidate(t *testing.T) {
 func TestSerializableGoBirthDeferrableOverridePresence(t *testing.T) {
 	for _, override := range []bool{false, true} {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
-		sessionSQL(t, sess, "SET default_transaction_deferrable=on")
-		op := transactionOperation(t, sess)
+		sess := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, sess, "SET default_transaction_deferrable=on")
+		op := enginetest.TransactionOperation(t, sess)
 		ref, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable, ReadOnly: true, DeferrableSet: override, Deferrable: false})
 		if err != nil {
 			t.Fatal(err)

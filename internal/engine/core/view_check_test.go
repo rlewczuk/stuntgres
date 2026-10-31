@@ -263,7 +263,7 @@ func TestViewCheckCancellation(t *testing.T) {
 
 func TestViewCheckFinish(t *testing.T) {
 	f := viewWriteMechanics(t)
-	session := sessionStart(t, f.e, nil)
+	session := enginetest.StartSession(t, f.e, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := session.Acquire(ctx)

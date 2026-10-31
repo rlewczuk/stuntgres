@@ -12,9 +12,9 @@ import (
 
 func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t()", "CREATE TABLE s()", "INSERT INTO t DEFAULT VALUES", "INSERT INTO t DEFAULT VALUES", "INSERT INTO s DEFAULT VALUES", "INSERT INTO s DEFAULT VALUES"} {
-		sessionSQL(t, session, q)
+		enginetest.SessionSQL(t, session, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s RETURNING 1 AS one")
 	if b.Delete.SourceWidth != 0 || len(b.Relation.Columns) != 0 || target.Count() != 2 {
@@ -37,12 +37,12 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	result := sessionSQL(t, session, "SELECT 1 FROM t")
+	result := enginetest.SessionSQL(t, session, "SELECT 1 FROM t")
 	if rows := enginetest.Tuples(result); len(rows) != 0 {
 		t.Fatal(rows)
 	}
 	result.Rows.Close()
-	result = sessionSQL(t, session, "SELECT 1 FROM s")
+	result = enginetest.SessionSQL(t, session, "SELECT 1 FROM s")
 	if rows := enginetest.Tuples(result); len(rows) != 2 {
 		t.Fatal(rows)
 	}

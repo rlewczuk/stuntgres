@@ -24,7 +24,7 @@ func temporaryProjectionFixture(t *testing.T) (*core.Engine, *session.Session, *
 func temporaryProjectionFixtureWithIndexExpression(t *testing.T, expression string) (*core.Engine, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
+	owner := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE TEMP TABLE shape_provider(v INT)",
 		"CREATE TABLE public.shape_survivor(a INT,g BOOL GENERATED ALWAYS AS('shape_provider'::regclass IS NOT NULL) STORED,z INT)",
@@ -32,7 +32,7 @@ func temporaryProjectionFixtureWithIndexExpression(t *testing.T, expression stri
 		"CREATE INDEX shape_z_expr ON public.shape_survivor((" + expression + "))",
 		"INSERT INTO public.shape_survivor(a,z) VALUES(7,9)",
 	} {
-		sessionSQL(t, owner, q)
+		enginetest.SessionSQL(t, owner, q)
 	}
 	var provider, survivor, index *catalog.Relation
 	for _, d := range e.Catalog.State.Descriptors() {
@@ -88,7 +88,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			var unrelatedRoot *storage.IndexRoot
 			switch mode {
 			case "CurrentRows":
-				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
+				enginetest.SessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")
 			case "AffectedIndexRoot":
 				root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, survivor, idx.SQLIndex, e.Storage.Relations[survivor.Address()], nil)
 				if err != nil {
@@ -98,13 +98,13 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 				e.Storage.InstallIndexRootLocked(idx.Address(), root)
 				e.Mu.Unlock()
 			case "UnrelatedRoot":
-				sessionSQL(t, owner, "CREATE TABLE public.shape_unrelated(v INT)")
-				sessionSQL(t, owner, "CREATE INDEX shape_unrelated_v ON public.shape_unrelated(v)")
+				enginetest.SessionSQL(t, owner, "CREATE TABLE public.shape_unrelated(v INT)")
+				enginetest.SessionSQL(t, owner, "CREATE INDEX shape_unrelated_v ON public.shape_unrelated(v)")
 				// Reprepare after its catalog creation, then only its row/index publication.
 				e.DiscardCatalogStage(stage)
 				stage, indexes = temporaryProjectionStage(t, e, provider)
 				captured = e.Catalog.State
-				sessionSQL(t, owner, "INSERT INTO public.shape_unrelated VALUES(99)")
+				enginetest.SessionSQL(t, owner, "INSERT INTO public.shape_unrelated VALUES(99)")
 				for address, d := range e.Catalog.State.Descriptors() {
 					if d.Name() == "shape_unrelated_v" {
 						unrelated = address
@@ -234,11 +234,11 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 
 func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
-	sessionSQL(t, owner, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape_provider(v INT)")
-	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape(a INT,g BOOL GENERATED ALWAYS AS('private_shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)")
-	sessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
+	owner := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE private_shape_provider(v INT)")
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE private_shape(a INT,g BOOL GENERATED ALWAYS AS('private_shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)")
+	enginetest.SessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
 	before := owner.Transactions.Catalog.Clone()
 	var address ids.ObjectAddress
 	for a, d := range before.Descriptors {
@@ -248,8 +248,8 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 		}
 	}
 	originalRows := owner.Transactions.Writes[address]
-	sessionSQL(t, owner, "SAVEPOINT before_shape")
-	sessionSQL(t, owner, "DROP TABLE private_shape_provider CASCADE")
+	enginetest.SessionSQL(t, owner, "SAVEPOINT before_shape")
+	enginetest.SessionSQL(t, owner, "DROP TABLE private_shape_provider CASCADE")
 	shape := owner.Transactions.Catalog.Storage[address]
 	if shape.Original != nil || e.Storage.Relations[address] != nil || len(shape.Relation.Columns) != 2 {
 		t.Fatal("invented committed predecessor")
@@ -262,11 +262,11 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	if err != nil || value != 9 {
 		t.Fatal("private projected z", value, err)
 	}
-	sessionSQL(t, owner, "ROLLBACK TO before_shape")
+	enginetest.SessionSQL(t, owner, "ROLLBACK TO before_shape")
 	if len(owner.Transactions.Writes[address][0].Values) != 3 || owner.Transactions.Catalog.Storage[address].Relation != before.Storage[address].Relation {
 		t.Fatal("savepoint shape root not restored")
 	}
-	sessionSQL(t, owner, "ROLLBACK")
+	enginetest.SessionSQL(t, owner, "ROLLBACK")
 }
 
 func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
@@ -355,7 +355,7 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 
 func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
+	owner := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE TEMP TABLE shape_provider(v INT)",
 		"CREATE TEMP TABLE shape_survivor(a INT,g BOOL GENERATED ALWAYS AS('shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)",
@@ -363,7 +363,7 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 		"CREATE INDEX shape_z_idx ON shape_survivor(z)",
 		"INSERT INTO shape_survivor(a,z) VALUES(7,9)",
 	} {
-		sessionSQL(t, owner, q)
+		enginetest.SessionSQL(t, owner, q)
 	}
 	var survivor *catalog.Relation
 	for _, descriptor := range e.Catalog.State.Descriptors() {
@@ -371,8 +371,8 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 			survivor = table
 		}
 	}
-	sessionSQL(t, owner, "INSERT INTO shape_survivor(a,z) VALUES(8,10)")
-	frozen := sessionSQL(t, owner, "SELECT * FROM shape_survivor ORDER BY a").Rows.(*exec.FinalRows)
+	enginetest.SessionSQL(t, owner, "INSERT INTO shape_survivor(a,z) VALUES(8,10)")
+	frozen := enginetest.SessionSQL(t, owner, "SELECT * FROM shape_survivor ORDER BY a").Rows.(*exec.FinalRows)
 	defer frozen.Close()
 	original := e.Storage.Relations[survivor.Address()].Versions
 	check := func(phase string) {
@@ -409,7 +409,7 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 		"ROLLBACK TO before_shape",
 		"ROLLBACK",
 	} {
-		result := sessionSQL(t, owner, q)
+		result := enginetest.SessionSQL(t, owner, q)
 		if result.Rows != nil {
 			result.Rows.Close()
 		}

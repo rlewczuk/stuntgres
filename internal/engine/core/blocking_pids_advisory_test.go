@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -27,7 +28,7 @@ func TestBlockingPidsAdvisorySafeSnapshot(t *testing.T) {
 	}
 	blockingUnitWant(t, e, b.SessionToken.ID(), int64(a.SessionToken.ID()))
 	blockingUnitSafeWant(t, e, b.SessionToken.ID())
-	transactionEnd(t, b, rb, false)
+	enginetest.TransactionEnd(t, b, rb, false)
 	if err := deadlockResult(t, r); !errors.Is(err, lock.ErrOwnerEnded) {
 		t.Fatal("aborted provenance", err)
 	}

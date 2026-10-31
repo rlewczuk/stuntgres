@@ -19,9 +19,9 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 		for _, commit := range []bool{false, true} {
 			t.Run(map[bool]string{false: "existing_", true: "private_"}[private]+map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
+				s := enginetest.StartSession(t, e, nil)
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE INDEX refresh_source_idx ON refresh_source(v)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
-					sessionSQL(t, s, q)
+					enginetest.SessionSQL(t, s, q)
 				}
 				base, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 				source := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_source")
@@ -122,9 +122,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 	for _, fence := range []string{"cancel", "epoch", "ref", "generation", "ends", "store", "descriptor", "roles", "source_index_generation"} {
 		t.Run(fence, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE INDEX refresh_source_idx ON refresh_source(v)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			target := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_target")
 			source := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_source")
@@ -200,9 +200,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 
 func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	target := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_target")
 	source := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_source")
@@ -225,12 +225,12 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	if err == nil || m.end(err) != err || s.Transactions.State != session.TxAborted {
 		t.Fatal("promoted mark did not preserve failed-block recovery", err)
 	}
-	sessionSQL(t, s, "ROLLBACK TO kept")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO kept")
 	restored := s.Transactions.Catalog.Storage[target.Address]
 	if s.Transactions.State != session.TxActive || s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.Writes[source.Address]) != 1 || e.Storage.Relations[target.Address] != original || e.Visibility.CommitSeq() != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "COMMIT")
 	if e.Storage.Relations[target.Address] != shape.Replacement || len(shape.Replacement.Versions) != 2 || e.Visibility.CommitSeq() != frontier+1 {
 		t.Fatal("promoted replacement did not survive savepoint publication")
 	}
@@ -258,9 +258,9 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 		for _, own := range []bool{false, true} {
 			t.Run(tc.name+map[bool]string{false: "/peer", true: "/own"}[own], func(t *testing.T) {
 				e := engine.New()
-				s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
-					sessionSQL(t, s, q)
+					enginetest.SessionSQL(t, s, q)
 				}
 				base, roles, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
 				target := enginetest.CatalogRef(t, e, e.CatalogRead(), "refresh_target")
@@ -294,7 +294,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 						t.Fatal("real role write lost baseline or mutated retained producer journal")
 					}
 				} else {
-					sessionSQL(t, peer, "CREATE ROLE producer_peer")
+					enginetest.SessionSQL(t, peer, "CREATE ROLE producer_peer")
 					roles, frontier = e.RoleStore.Published, e.Visibility.CommitSeq()
 				}
 				err := m.end(nil)
@@ -330,7 +330,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 						t.Fatal("NO DATA published a populated materialized view")
 					}
 				} else {
-					transactionRows(t, peer, "SELECT v FROM "+name, want...)
+					enginetest.TransactionRows(t, peer, "SELECT v FROM "+name, want...)
 				}
 			})
 		}
@@ -339,17 +339,17 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 
 func TestDriverBatchProducerRoleAuthoritySavepoint(t *testing.T) {
 	e := engine.New()
-	s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE source(v INT)", "INSERT INTO source VALUES(1)", "CREATE INDEX source_idx ON source(v)", "BEGIN", "ALTER INDEX source_idx SET(fillfactor=80)", "SAVEPOINT before_producer"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	metadata := s.Transactions.Catalog
-	sessionSQL(t, s, "CREATE TABLE discarded AS SELECT v FROM source")
+	enginetest.SessionSQL(t, s, "CREATE TABLE discarded AS SELECT v FROM source")
 	producer := s.Transactions.Catalog
 	if producer == metadata {
 		t.Fatal("producer mutated metadata journal")
 	}
-	sessionSQL(t, s, "ROLLBACK TO before_producer")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO before_producer")
 	if s.Transactions.Catalog != metadata {
 		t.Fatal("savepoint did not restore producer-free journal")
 	}
@@ -369,11 +369,11 @@ func TestDriverBatchProducerRoleAuthoritySavepoint(t *testing.T) {
 			t.Fatal("producer read escaped its savepoint lifetime")
 		}
 	}
-	sessionSQL(t, peer, "INSERT INTO source VALUES(2)")
-	sessionSQL(t, peer, "CREATE ROLE after_discard")
-	sessionSQL(t, s, "INSERT INTO source VALUES(3)")
-	sessionSQL(t, s, "COMMIT")
-	transactionRows(t, peer, "SELECT v FROM source ORDER BY v", 1, 2, 3)
+	enginetest.SessionSQL(t, peer, "INSERT INTO source VALUES(2)")
+	enginetest.SessionSQL(t, peer, "CREATE ROLE after_discard")
+	enginetest.SessionSQL(t, s, "INSERT INTO source VALUES(3)")
+	enginetest.SessionSQL(t, s, "COMMIT")
+	enginetest.TransactionRows(t, peer, "SELECT v FROM source ORDER BY v", 1, 2, 3)
 	view := e.CatalogRead()
 	idx := view.MustRelation(enginetest.CatalogRef(t, e, view, "source_idx").Address)
 	if len(idx.StorageOptions.Base) != 1 || idx.StorageOptions.Base[0].Text != "80" {

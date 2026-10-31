@@ -39,8 +39,8 @@ func TestPageinspectHeapAttrsCapture(t *testing.T) {
 	}
 	// A bare synthetic scope attaches no transaction ticket. Real descriptor
 	// capture must enter the normal transaction owner before acquiring locks.
-	transaction := transactionBegin(t, s)
-	t.Cleanup(func() { transactionEnd(t, s, transaction, false) })
+	transaction := enginetest.TransactionBegin(t, s)
+	t.Cleanup(func() { enginetest.TransactionEnd(t, s, transaction, false) })
 	scope := pgrowlocksUnitScope(t, e, s)
 	if scope.LockTicket == nil || scope.LockTicket != s.Transactions.Ticket || scope.TxRef != transaction {
 		t.Fatal("capture fixture lacks admitted transaction ownership")

@@ -82,10 +82,10 @@ func TestPgstatindexCapture(t *testing.T) {
 			t.Fatal("invalid actual association accepted", damage)
 		}
 	}
-	s := sessionStart(t, e, nil)
-	tx := transactionBegin(t, s)
-	defer transactionEnd(t, s, tx, false)
-	sessionSQL(t, s, "INSERT INTO stats_heap VALUES(4,'D'),(0,'E')")
+	s := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, s)
+	defer enginetest.TransactionEnd(t, s, tx, false)
+	enginetest.SessionSQL(t, s, "INSERT INTO stats_heap VALUES(4,'D'),(0,'E')")
 	inserted := pgstatindexCaptureFixture(t, e, s, "stats_i")
 	members, nonmembers := 0, 0
 	for _, r := range inserted.Writes {
@@ -103,12 +103,12 @@ func TestPgstatindexCapture(t *testing.T) {
 		t.Fatal(members, nonmembers)
 	}
 	pgstatindexCaptureWant(t, inserted, 3, 0, 180)
-	sessionSQL(t, s, "SAVEPOINT stats_before")
-	sessionSQL(t, s, "UPDATE stats_heap SET n=5,s='F' WHERE n=2")
+	enginetest.SessionSQL(t, s, "SAVEPOINT stats_before")
+	enginetest.SessionSQL(t, s, "UPDATE stats_heap SET n=5,s='F' WHERE n=2")
 	pgstatindexCaptureWant(t, pgstatindexCaptureFixture(t, e, s, "stats_i"), 3, 1, 240)
-	sessionSQL(t, s, "DELETE FROM stats_heap WHERE n=3")
+	enginetest.SessionSQL(t, s, "DELETE FROM stats_heap WHERE n=3")
 	pgstatindexCaptureWant(t, pgstatindexCaptureFixture(t, e, s, "stats_i"), 2, 2, 240)
-	sessionSQL(t, s, "ROLLBACK TO stats_before")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO stats_before")
 	pgstatindexCaptureWant(t, pgstatindexCaptureFixture(t, e, s, "stats_i"), 3, 0, 180)
 	if e.Storage.IndexRoots[baseline.Index.Address()] != baseline.Root {
 		t.Fatal("private stats published/rebuilt baseline")
@@ -211,7 +211,7 @@ func TestPgstatindexCaptureTempAndOrder(t *testing.T) {
 		enginetest.Run(t, e, q)
 	}
 	c := pgstatindexCaptureFixture(t, e, nil, "stats_order_i")
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	before := e.Catalog.State
 	namespace := e.CatalogRead().MustNamespace(before.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "stats_foreign"}))
 	for _, tc := range []struct {

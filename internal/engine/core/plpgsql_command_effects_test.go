@@ -24,11 +24,11 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		} {
 			t.Run(query, func(t *testing.T) {
 				e := engine.New()
-				sess := sessionStart(t, e, nil)
-				sessionSQL(t, sess, "CREATE TABLE unrelated(v integer)")
-				sessionSQL(t, sess, "INSERT INTO unrelated VALUES(1)")
-				sessionSQL(t, sess, "CREATE TABLE parent(id integer PRIMARY KEY)")
-				sessionSQL(t, sess, "CREATE TABLE child(id integer REFERENCES parent(id))")
+				sess := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, sess, "CREATE TABLE unrelated(v integer)")
+				enginetest.SessionSQL(t, sess, "INSERT INTO unrelated VALUES(1)")
+				enginetest.SessionSQL(t, sess, "CREATE TABLE parent(id integer PRIMARY KEY)")
+				enginetest.SessionSQL(t, sess, "CREATE TABLE child(id integer REFERENCES parent(id))")
 				scope := foreignActionUnitScope(t, e, sess, query)
 				if core.ScopeForeignActionsSlot(scope) != nil {
 					t.Fatal("unconstrained DML allocated exception/FK effect bookkeeping")
@@ -44,8 +44,8 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	})
 	t.Run("relevant_accepted_events_keep_command_and_versions", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
-		sessionSQL(t, sess, "CREATE TABLE relevant(id integer PRIMARY KEY,parent integer REFERENCES relevant(id))")
+		sess := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, sess, "CREATE TABLE relevant(id integer PRIMARY KEY,parent integer REFERENCES relevant(id))")
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO relevant VALUES(1,NULL),(2,1)")
 		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "relevant")
 		events := core.ScopeForeignActionsOrZero(scope).Transitions
@@ -61,7 +61,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	})
 	t.Run("incoming_not_valid_fk_using_unique_index_remains_relevant", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		for _, query := range []string{
 			"CREATE TABLE parent(id integer)",
 			"CREATE UNIQUE INDEX parent_key ON parent(id)",
@@ -70,7 +70,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			"INSERT INTO parent VALUES(1)",
 			"INSERT INTO child VALUES(1)",
 		} {
-			sessionSQL(t, sess, query)
+			enginetest.SessionSQL(t, sess, query)
 		}
 		scope := foreignActionUnitScope(t, e, sess, "DELETE FROM parent")
 		events := core.ScopeForeignActionsOrZero(scope).Transitions
@@ -84,9 +84,9 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	})
 	t.Run("exclusion_only_keeps_bounded_command_ownership", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
-		sessionSQL(t, sess, "CREATE TABLE guarded(v integer,CONSTRAINT guarded_ex EXCLUDE USING btree(v WITH =) DEFERRABLE INITIALLY DEFERRED)")
-		sessionSQL(t, sess, "INSERT INTO guarded VALUES(1)")
+		sess := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, sess, "CREATE TABLE guarded(v integer,CONSTRAINT guarded_ex EXCLUDE USING btree(v WITH =) DEFERRABLE INITIALLY DEFERRED)")
+		enginetest.SessionSQL(t, sess, "INSERT INTO guarded VALUES(1)")
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO guarded VALUES(1)")
 		events := core.ScopeForeignActionsOrZero(scope).Transitions
 		if len(events) != 1 || events[0].Command != core.ScopeEffectCommand(scope) {
@@ -158,9 +158,9 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
-			sessionSQL(t, sess, "CREATE TABLE node(id INT PRIMARY KEY,parent INT REFERENCES node(id))")
-			sessionSQL(t, sess, "CREATE TABLE auxiliary(id INT)")
+			sess := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, sess, "CREATE TABLE node(id INT PRIMARY KEY,parent INT REFERENCES node(id))")
+			enginetest.SessionSQL(t, sess, "CREATE TABLE auxiliary(id INT)")
 			scope := foreignActionUnitScope(t, e, sess, "INSERT INTO node VALUES(1,2)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "node")
 			pending := scope.Stage.Rows[ref.Address][0]
@@ -195,7 +195,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	}
 	t.Run("causal_fixed_point_once_and_authority_restore", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{
 			"CREATE TABLE p(id INT PRIMARY KEY)",
 			"CREATE TABLE a(id INT PRIMARY KEY REFERENCES p ON UPDATE CASCADE)",
@@ -203,7 +203,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			"CREATE TABLE g(id INT,aid INT REFERENCES a ON UPDATE CASCADE,bid INT REFERENCES b ON UPDATE CASCADE)",
 			"INSERT INTO p VALUES(1)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)", "INSERT INTO g VALUES(99,1,1)",
 		} {
-			sessionSQL(t, sess, q)
+			enginetest.SessionSQL(t, sess, q)
 		}
 		scope := foreignActionUnitScope(t, e, sess, "UPDATE p SET id=2")
 		auth, err := scope.WriteHost().ForeignKeyAuthority()

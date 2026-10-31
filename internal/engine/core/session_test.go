@@ -36,43 +36,9 @@ func (p *defaultProvider) SessionDefault(_ context.Context, d settings.Definitio
 	}
 	return p.value, true, p.err
 }
-func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
-	t.Helper()
-	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: p})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		s.RequestEnd(session.CleanClose)
-		if err := s.WaitEnd(context.Background()); err != nil {
-			t.Error(err)
-		}
-	})
-	return s
-}
-func sessionSQL(t *testing.T, s *session.Session, q string) core.Result {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	r, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Rows != nil {
-		t.Cleanup(func() {
-			if err := r.Rows.Close(); err != nil {
-				t.Error(err)
-			}
-		})
-	}
-	return r
-}
 func sessionValue(t *testing.T, s *session.Session, want string) {
 	t.Helper()
-	r := sessionSQL(t, s, "SHOW application_name")
+	r := enginetest.SessionSQL(t, s, "SHOW application_name")
 	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []catalog.Column{{Name: "application_name", Usage: enginetest.Usage(core.EngineOf(s), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(enginetest.Tuples(r), [][]driver.Value{{want}}) {
 		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Rows.Schema(), enginetest.Tuples(r), want)
 	}
@@ -80,15 +46,15 @@ func sessionValue(t *testing.T, s *session.Session, want string) {
 func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	e := engine.New()
 	p := &defaultProvider{value: "provider-a"}
-	a := sessionStart(t, e, p)
-	b := sessionStart(t, e, &defaultProvider{value: "provider-b"})
+	a := enginetest.StartSession(t, e, p)
+	b := enginetest.StartSession(t, e, &defaultProvider{value: "provider-b"})
 	sessionValue(t, a, "provider-a")
 	sessionValue(t, b, "provider-b")
-	sessionSQL(t, a, "SET application_name TO custom")
+	enginetest.SessionSQL(t, a, "SET application_name TO custom")
 	p.value = "replacement"
-	sessionSQL(t, a, "SET application_name TO DEFAULT")
+	enginetest.SessionSQL(t, a, "SET application_name TO DEFAULT")
 	sessionValue(t, a, "provider-a")
-	c := sessionStart(t, e, p)
+	c := enginetest.StartSession(t, e, p)
 	sessionValue(t, c, "replacement")
 	for _, tc := range []struct{ sql, want string }{
 		{"'DEFAULT'", "DEFAULT"}, {"+00042", "42"}, {"-00042", "-42"}, {"-00000", "0"},
@@ -100,13 +66,13 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		{"'" + strings.Repeat("a", 62) + "é'", strings.Repeat("a", 62)},
 		{"'a\n\tb'", `a\x0a\x09b`},
 	} {
-		sessionSQL(t, a, "SET application_name TO "+tc.sql)
+		enginetest.SessionSQL(t, a, "SET application_name TO "+tc.sql)
 		sessionValue(t, a, tc.want)
 	}
-	sessionSQL(t, a, "SET application_name TO retained")
-	snapshot := sessionSQL(t, a, "SHOW application_name")
-	sessionSQL(t, a, "CREATE TABLE sentinel(v INT)")
-	sessionSQL(t, a, "INSERT INTO sentinel VALUES(7)")
+	enginetest.SessionSQL(t, a, "SET application_name TO retained")
+	snapshot := enginetest.SessionSQL(t, a, "SHOW application_name")
+	enginetest.SessionSQL(t, a, "CREATE TABLE sentinel(v INT)")
+	enginetest.SessionSQL(t, a, "INSERT INTO sentinel VALUES(7)")
 	var dump strings.Builder
 	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
@@ -115,9 +81,9 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	if err := engine.Restore(context.Background(), restored, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	fresh := sessionStart(t, restored, &defaultProvider{value: "fresh-default"})
+	fresh := enginetest.StartSession(t, restored, &defaultProvider{value: "fresh-default"})
 	sessionValue(t, fresh, "fresh-default")
-	if got := enginetest.Tuples(sessionSQL(t, fresh, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, fresh, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 		t.Fatal("dump lost sentinel data", got)
 	}
 	if err := engine.Reset(context.Background(), e); err != nil {
@@ -132,7 +98,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		if err := engine.Restore(context.Background(), e, strings.NewReader(q)); err == nil {
 			t.Fatal("restore accepted setting")
 		}
-		if got := enginetest.Tuples(sessionSQL(t, b, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+		if got := enginetest.Tuples(enginetest.SessionSQL(t, b, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 			t.Fatal(got)
 		}
 	}
@@ -301,7 +267,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 }
 func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, _ := s.Acquire(context.Background())
 	count := 0
 	owner := &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error { count++; return nil }}
@@ -327,7 +293,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	if err = s.Detach(foreign, session.CleanClose); err == nil {
 		t.Fatal("foreign detach")
 	}
-	sessionSQL(t, s, "SET application_name TO safe")
+	enginetest.SessionSQL(t, s, "SET application_name TO safe")
 	ctx, cancel := context.WithCancel(context.Background())
 	op, err = s.Acquire(ctx)
 	if err != nil {
@@ -440,10 +406,10 @@ func TestSessionPrivateInitializationUnwind(t *testing.T) {
 
 func TestSessionProviderNormalizationAndInitializationCancellation(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, &defaultProvider{value: "é"})
+	s := enginetest.StartSession(t, e, &defaultProvider{value: "é"})
 	sessionValue(t, s, `\xc3\xa9`)
-	sessionSQL(t, s, "SET application_name TO override")
-	sessionSQL(t, s, "SET application_name TO DEFAULT")
+	enginetest.SessionSQL(t, s, "SET application_name TO override")
+	enginetest.SessionSQL(t, s, "SET application_name TO DEFAULT")
 	sessionValue(t, s, `\xc3\xa9`)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

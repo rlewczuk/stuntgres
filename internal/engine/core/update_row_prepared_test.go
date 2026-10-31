@@ -27,7 +27,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			s := enginetest.StartSession(t, e, nil)
 			setup := func() {
 				for _, q := range []string{"CREATE TABLE input(id INT)", "CREATE TABLE t(id INT,a INT,b INT)", "CREATE SEQUENCE draw", "CREATE SEQUENCE gate", "CREATE SEQUENCE own_draw"} {
-					sessionSQL(t, s, q)
+					enginetest.SessionSQL(t, s, q)
 				}
 				action := "UPDATE t SET (a,b)=(WITH v AS MATERIALIZED (SELECT nextval('draw')+t.id*0 AS x) SELECT x,x+100 FROM v) WHERE t.id=NEW.id AND 'integer'::regtype='integer'::regtype"
 				rule := "CREATE RULE r AS ON INSERT TO input DO ALSO " + action
@@ -37,7 +37,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				if tc.cte {
 					rule = "CREATE RULE r AS ON INSERT TO input DO INSTEAD " + action + " RETURNING id"
 				}
-				sessionSQL(t, s, rule)
+				enginetest.SessionSQL(t, s, rule)
 			}
 			setup()
 			query := func(value string) string {
@@ -75,7 +75,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				t.Fatal("direct regtype capture was discarded")
 			}
 			before := description.Analysis
-			sessionSQL(t, s, "COMMENT ON TABLE t IS 'invalidate rule target dependency'")
+			enginetest.SessionSQL(t, s, "COMMENT ON TABLE t IS 'invalidate rule target dependency'")
 			result, err := sequencePreparedExecute(e, s, ast, &description)
 			if result.Rows != nil {
 				result.Rows.Close()

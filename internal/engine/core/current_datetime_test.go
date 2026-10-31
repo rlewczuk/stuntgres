@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -97,7 +98,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 // and the admission gate exercise the same owner birth functions as SQL/driver.
 func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	assertClock := func(stamp time.Time) {
 		t.Helper()
 		if stamp.IsZero() || stamp.Location() != time.UTC || stamp.Nanosecond()%1000 != 0 {
@@ -106,7 +107,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	}
 	scopeFor := func() *core.StatementScope {
 		t.Helper()
-		op := transactionOperation(t, session)
+		op := enginetest.TransactionOperation(t, session)
 		scope, err := e.StartStatement(op)
 		if err != nil {
 			op.Done()
@@ -143,7 +144,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 		t.Fatal("implicit clock retained after end")
 	}
 	advance(first)
-	ref := transactionBegin(t, session)
+	ref := enginetest.TransactionBegin(t, session)
 	owner := session.Transactions
 	outer := owner.Start
 	assertClock(outer)
@@ -158,7 +159,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	if !restored.Equal(outer) {
 		t.Fatal("savepoint rebirthed clock", outer, restored)
 	}
-	transactionEnd(t, session, ref, false)
+	enginetest.TransactionEnd(t, session, ref, false)
 	advance(outer)
 	start := scopeFor()
 	_, err := core.ScopeExecuteControl(start, &parser.TransactionControl{Kind: parser.KindStart}, 0)
@@ -176,5 +177,5 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	if !owner.Start.After(sqlClock) {
 		t.Fatal("CHAIN birth did not refresh", owner.Start, sqlClock)
 	}
-	transactionEnd(t, session, owner.Ref, false)
+	enginetest.TransactionEnd(t, session, owner.Ref, false)
 }

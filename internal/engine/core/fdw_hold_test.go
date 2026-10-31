@@ -8,17 +8,18 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 )
 
 func fdwHoldSettlement(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
-	sessionSQL(t, session, "CREATE TABLE hold_local(v integer)")
-	sessionSQL(t, session, "INSERT INTO hold_local VALUES(1),(2)")
-	sessionSQL(t, session, "BEGIN")
-	sessionSQL(t, session, "DECLARE hold_owned NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM hold_local")
-	op := transactionOperation(t, session)
+	session := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, session, "CREATE TABLE hold_local(v integer)")
+	enginetest.SessionSQL(t, session, "INSERT INTO hold_local VALUES(1),(2)")
+	enginetest.SessionSQL(t, session, "BEGIN")
+	enginetest.SessionSQL(t, session, "DECLARE hold_owned NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM hold_local")
+	op := enginetest.TransactionOperation(t, session)
 	defer op.Done()
 	s, err := e.StartStatement(op)
 	if err != nil {

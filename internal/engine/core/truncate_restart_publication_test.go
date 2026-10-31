@@ -25,9 +25,9 @@ func truncateRestartUnitAST(names ...string) *parser.Truncate {
 func truncateRestartUnitFixture(t *testing.T) (*core.Engine, *session.Session, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id SERIAL PRIMARY KEY)", "CREATE TABLE q(id INT GENERATED ALWAYS AS IDENTITY(START 44))", "INSERT INTO p DEFAULT VALUES", "INSERT INTO p DEFAULT VALUES", "INSERT INTO q DEFAULT VALUES"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	return e, s, roleTableRef(t, e, "p"), roleTableRef(t, e, "q"), roleTableRef(t, e, "p_id_seq"), roleTableRef(t, e, "q_id_seq")
 }
@@ -97,10 +97,10 @@ func TestTruncateRestartGeneration(t *testing.T) {
 
 func TestTruncateRestartPublication(t *testing.T) {
 	e, s, p, q, ps, qs := truncateRestartUnitFixture(t)
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	oldP, oldQ, oldPS, oldQS := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address], e.Storage.Sequences[ps.Address], e.Storage.Sequences[qs.Address]
 	oldD := e.Catalog.State.Get(ps.Address)
-	tx := transactionBegin(t, s)
+	tx := enginetest.TransactionBegin(t, s)
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
 	first := s.Transactions.Catalog
@@ -111,7 +111,7 @@ func TestTruncateRestartPublication(t *testing.T) {
 		t.Fatal("repeat lost originals or mutated live binding")
 	}
 	frontier := e.Visibility.CommitSeq()
-	transactionEnd(t, s, tx, true)
+	enginetest.TransactionEnd(t, s, tx, true)
 	if e.Visibility.CommitSeq() != frontier+1 || e.Storage.Sequences[ps.Address] != second.Generators[ps.Address] || e.Storage.Sequences[qs.Address] != second.Generators[qs.Address] || e.Storage.Relations[p.Address] != second.Storage[p.Address].Replacement || e.Storage.Relations[q.Address] != second.Storage[q.Address].Replacement {
 		t.Fatal("explicit commit did not install combined candidate once")
 	}
@@ -124,8 +124,8 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 	for _, kind := range []string{"Context", "Authorization", "Roles", "SequenceRevision", "SequenceACL", "GeneratorBinding", "Storage"} {
 		t.Run(kind, func(t *testing.T) {
 			e, s, p, q, ps, qs := truncateRestartUnitFixture(t)
-			tx := transactionBegin(t, s)
-			sessionSQL(t, s, "SAVEPOINT preserve")
+			tx := enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "SAVEPOINT preserve")
 			oldP, oldQ, oldPS, oldQS := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address], e.Storage.Sequences[ps.Address], e.Storage.Sequences[qs.Address]
 			oldPD, oldQD := e.Catalog.State.Get(ps.Address), e.Catalog.State.Get(qs.Address)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -142,8 +142,8 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				s.Authorization.Revision++
 				s.Mu.Unlock()
 			case "Roles":
-				peer := sessionStart(t, e, nil)
-				sessionSQL(t, peer, "CREATE ROLE restart_changed_authority")
+				peer := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, peer, "CREATE ROLE restart_changed_authority")
 			case "SequenceRevision":
 				truncateUnitReplace(t, e, ps, func(d *catalog.Relation) { d.SequencePlanStamp++ })
 			case "SequenceACL":
@@ -188,11 +188,11 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			if kind != "SequenceRevision" && kind != "SequenceACL" && e.Catalog.State.Get(ps.Address) != oldPD {
 				t.Fatal("descriptor replaced on veto")
 			}
-			sessionSQL(t, s, "ROLLBACK TO preserve")
+			enginetest.SessionSQL(t, s, "ROLLBACK TO preserve")
 			if s.Transactions.Catalog != nil {
 				t.Fatal("failed statement leaked overlay past savepoint")
 			}
-			transactionEnd(t, s, tx, false)
+			enginetest.TransactionEnd(t, s, tx, false)
 			enginetest.LockEmpty(t, e)
 		})
 	}
@@ -223,9 +223,9 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 	for _, change := range []string{"Incoming", "Removed", "Reassigned"} {
 		t.Run(change, func(t *testing.T) {
 			e, s, p, q, ps, _ := truncateRestartUnitFixture(t)
-			sessionSQL(t, s, "CREATE SEQUENCE incoming START 90")
+			enginetest.SessionSQL(t, s, "CREATE SEQUENCE incoming START 90")
 			incoming := roleTableRef(t, e, "incoming")
-			tx := transactionBegin(t, s)
+			tx := enginetest.TransactionBegin(t, s)
 			scope := truncateRestartUnitStage(t, e, s, "p")
 			oldStore, oldGenerator := e.Storage.Relations[p.Address], e.Storage.Sequences[ps.Address]
 			if change == "Incoming" {
@@ -250,7 +250,7 @@ func TestTruncateRestartOwnershipFence(t *testing.T) {
 			if e.Storage.Relations[p.Address] != oldStore || e.Storage.Sequences[ps.Address] != oldGenerator || oldGenerator.Last != 2 || len(oldStore.Versions) != 2 {
 				t.Fatal("ownership veto published reset prefix")
 			}
-			transactionEnd(t, s, tx, false)
+			enginetest.TransactionEnd(t, s, tx, false)
 			enginetest.LockEmpty(t, e)
 		})
 	}

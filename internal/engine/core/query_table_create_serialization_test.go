@@ -39,8 +39,8 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			}
 			queryCreatePublish(t, e, sourceStage)
 			sourceRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), sourceDescriptor.Address())
-			sess := sessionStart(t, e, nil)
-			op := transactionOperation(t, sess)
+			sess := enginetest.StartSession(t, e, nil)
+			op := enginetest.TransactionOperation(t, sess)
 			isolation := "serializable"
 			if _, err := core.EngineApplySetting(e, op, sess.Settings, e.Settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
 				t.Fatal(err)

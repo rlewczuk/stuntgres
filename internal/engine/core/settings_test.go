@@ -25,7 +25,7 @@ import (
 func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	e := engine.New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "initial"}, calls: map[string]int{}}
-	sess := sessionStart(t, e, provider)
+	sess := enginetest.StartSession(t, e, provider)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := sess.Acquire(ctx)
@@ -85,12 +85,12 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 
 func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE sentinel(v INT)")
-	sessionSQL(t, s, "INSERT INTO sentinel VALUES(7)")
-	retained := sessionSQL(t, s, "SELECT v FROM sentinel")
-	sessionSQL(t, s, "SET statement_timeout TO '1ms'")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE sentinel(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO sentinel VALUES(7)")
+	retained := enginetest.SessionSQL(t, s, "SELECT v FROM sentinel")
+	enginetest.SessionSQL(t, s, "SET statement_timeout TO '1ms'")
 	op, options, err := s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -116,14 +116,14 @@ func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	sessionSQL(t, s, "RESET statement_timeout")
-	if got := enginetest.Tuples(sessionSQL(t, s, "SELECT v FROM sentinel")); len(got) != 1 || got[0][0] != int64(7) {
+	enginetest.SessionSQL(t, s, "RESET statement_timeout")
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT v FROM sentinel")); len(got) != 1 || got[0][0] != int64(7) {
 		t.Fatal(got)
 	}
 	if got := enginetest.Tuples(retained); len(got) != 1 || got[0][0] != int64(7) {
 		t.Fatal(got)
 	}
-	if got := enginetest.Tuples(sessionSQL(t, peer, "SELECT v FROM sentinel")); len(got) != 1 || got[0][0] != int64(7) {
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, "SELECT v FROM sentinel")); len(got) != 1 || got[0][0] != int64(7) {
 		t.Fatal(got)
 	}
 	caller, cancel := context.WithCancel(context.Background())
@@ -140,7 +140,7 @@ func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 func TestSettingCapturedDefaults(t *testing.T) {
 	e := engine.New()
 	p := &defaultProvider{value: "éééééééééééééééééééé"}
-	s := sessionStart(t, e, p)
+	s := enginetest.StartSession(t, e, p)
 	d, err := e.Settings.Lookup("application_name")
 	if err != nil {
 		t.Fatal(err)
@@ -150,11 +150,11 @@ func TestSettingCapturedDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := normalized.Text
-	sessionSQL(t, s, "SET application_name TO changed")
-	sessionSQL(t, s, "RESET application_name")
+	enginetest.SessionSQL(t, s, "SET application_name TO changed")
+	enginetest.SessionSQL(t, s, "RESET application_name")
 	sessionValue(t, s, want)
-	sessionSQL(t, s, "SET application_name TO changed")
-	sessionSQL(t, s, "RESET ALL")
+	enginetest.SessionSQL(t, s, "SET application_name TO changed")
+	enginetest.SessionSQL(t, s, "RESET ALL")
 	sessionValue(t, s, want)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -194,7 +194,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	}
 	e := engine.NewWithSettings(defs, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.mode": "FAST"}, calls: map[string]int{}}
-	a := sessionStart(t, e, p)
+	a := enginetest.StartSession(t, e, p)
 	for _, name := range e.Settings.Order() {
 		if p.calls[name] != 1 {
 			t.Fatal(name, p.calls)
@@ -203,20 +203,20 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	if a.Settings.DefaultTyped["demo.ratio"].Number != 1.23456789 {
 		t.Fatal("default lost precision")
 	}
-	if got := enginetest.Tuples(sessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
 		t.Fatal(got)
 	}
-	sessionSQL(t, a, "SET demo.mode TO safe")
+	enginetest.SessionSQL(t, a, "SET demo.mode TO safe")
 	p.values["demo.mode"] = "safe"
-	sessionSQL(t, a, "RESET demo.mode")
-	if got := enginetest.Tuples(sessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
+	enginetest.SessionSQL(t, a, "RESET demo.mode")
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
 		t.Fatal(got)
 	}
-	b := sessionStart(t, e, p)
-	if got := enginetest.Tuples(sessionSQL(t, b, "SHOW demo.mode"))[0][0]; got != "safe" {
+	b := enginetest.StartSession(t, e, p)
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, b, "SHOW demo.mode"))[0][0]; got != "safe" {
 		t.Fatal(got)
 	}
-	sessionSQL(t, b, "SET demo.mode TO FAST") // Provider could not corrupt shared enum definitions.
+	enginetest.SessionSQL(t, b, "SET demo.mode TO FAST") // Provider could not corrupt shared enum definitions.
 	for _, tc := range []struct{ name, value string }{{"server_encoding", "LATIN1"}, {"shared_buffers", "32768"}, {"fsync", "off"}} {
 		name, value := tc.name, tc.value
 		bad := &settingsDefaultProviderForTest{values: map[string]string{name: value}, calls: map[string]int{}}
@@ -237,20 +237,20 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	}
 	e := engine.NewWithSettings([]settings.Definition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
-	a := sessionStart(t, e, p)
+	a := enginetest.StartSession(t, e, p)
 	if p.calls["demo.ratio"] != 1 || a.Settings.DefaultTyped["demo.ratio"].Number != -0x1p-1023 {
 		t.Fatal("provider default lost exactness", p.calls, a.Settings.DefaultTyped)
 	}
 	p.values["demo.ratio"] = "1"
-	sessionSQL(t, a, "SET demo.ratio TO '2'")
-	sessionSQL(t, a, "RESET demo.ratio")
-	if got := enginetest.Tuples(sessionSQL(t, a, "SHOW demo.ratio"))[0][0]; got != "-1.11254e-308" {
+	enginetest.SessionSQL(t, a, "SET demo.ratio TO '2'")
+	enginetest.SessionSQL(t, a, "RESET demo.ratio")
+	if got := enginetest.Tuples(enginetest.SessionSQL(t, a, "SHOW demo.ratio"))[0][0]; got != "-1.11254e-308" {
 		t.Fatal(got)
 	}
 	if a.Settings.TypedValue("demo.ratio").Number != -0x1p-1023 {
 		t.Fatal("reset reparsed rounded display")
 	}
-	b := sessionStart(t, e, p)
+	b := enginetest.StartSession(t, e, p)
 	if b.Settings.DefaultTyped["demo.ratio"].Number != 1 {
 		t.Fatal("replacement did not capture new default")
 	}
@@ -258,7 +258,7 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 
 func TestSettingAdmissionCapturesNoticeFilter(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, _, err := s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func TestSettingAdmissionCapturesNoticeFilter(t *testing.T) {
 	defer op.Done()
 	// A concurrent native command may change current state after admission;
 	// the already admitted command retains its original threshold.
-	sessionSQL(t, s, "SET client_min_messages TO error")
+	enginetest.SessionSQL(t, s, "SET client_min_messages TO error")
 	input := strings.Repeat("a", 64)
 	if _, err = e.Execute(op, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{input}}, 0, nil); err != nil {
 		t.Fatal(err)
@@ -277,7 +277,7 @@ func TestSettingAdmissionCapturesNoticeFilter(t *testing.T) {
 		t.Fatal(got)
 	}
 	op.Done()
-	sessionSQL(t, s, "SET statement_timeout TO '1ms'")
+	enginetest.SessionSQL(t, s, "SET statement_timeout TO '1ms'")
 	op, _, err = s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -294,14 +294,14 @@ func TestSettingAdmissionCapturesNoticeFilter(t *testing.T) {
 		t.Fatal(err, d)
 	}
 	op.Done()
-	sessionSQL(t, s, "RESET statement_timeout")
+	enginetest.SessionSQL(t, s, "RESET statement_timeout")
 	sessionValue(t, s, strings.Repeat("a", 63))
 }
 
 func TestSettingDefaultsRemainSilentAtNoticeThreshold(t *testing.T) {
 	e := engine.New()
 	p := &settingsDefaultProviderForTest{values: map[string]string{"application_name": strings.Repeat("a", 64), "client_min_messages": "notice"}, calls: map[string]int{}}
-	a := sessionStart(t, e, p)
+	a := enginetest.StartSession(t, e, p)
 	for _, q := range []string{"SET application_name TO DEFAULT", "RESET application_name", "RESET ALL", "SELECT set_config('application_name',NULL,false)"} {
 		op, _, err := a.AcquireCommand(context.Background())
 		if err != nil {
@@ -316,7 +316,7 @@ func TestSettingDefaultsRemainSilentAtNoticeThreshold(t *testing.T) {
 		sessionValue(t, a, strings.Repeat("a", 63))
 	}
 	p.values["application_name"] = "new"
-	b := sessionStart(t, e, p)
+	b := enginetest.StartSession(t, e, p)
 	sessionValue(t, b, "new")
 	sessionValue(t, a, strings.Repeat("a", 63))
 }

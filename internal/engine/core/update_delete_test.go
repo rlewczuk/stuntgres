@@ -70,13 +70,13 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 		for _, commit := range []bool{false, true} {
 			t.Run(lane+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 				e := engine.New()
-				holder := sessionStart(t, e, nil)
-				worker := sessionStart(t, e, nil)
-				peer := sessionStart(t, e, nil)
-				sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-				sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
-				h := transactionBegin(t, holder)
-				w := transactionBegin(t, worker)
+				holder := enginetest.StartSession(t, e, nil)
+				worker := enginetest.StartSession(t, e, nil)
+				peer := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
+				h := enginetest.TransactionBegin(t, holder)
+				w := enginetest.TransactionBegin(t, worker)
 				hold, q := "DELETE FROM t WHERE id=1", "UPDATE t SET v=30 WHERE v=10"
 				if lane != "delete_blocks_update" {
 					hold = "UPDATE t SET v=20 WHERE id=1"
@@ -85,7 +85,7 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				if lane == "update_latest_delete" {
 					q = "DELETE FROM t WHERE id=1"
 				}
-				sessionSQL(t, holder, hold)
+				enginetest.SessionSQL(t, holder, hold)
 				await := updateDeleteAsync(t, e, worker, context.Background(), q)
 				enginetest.LockPending(t, e, 1)
 				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
@@ -96,13 +96,13 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				if !actual {
 					t.Fatal("not a shared logical-row arbitration wait")
 				}
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 				if lane == "update_latest_delete" {
 					updateDeleteExecute(t, e, peer, "UPDATE t SET v=21 WHERE id=2", 1)
 				} else {
 					updateDeleteExecute(t, e, peer, "UPDATE t SET v=10 WHERE id=2", 1)
 				}
-				transactionEnd(t, holder, h, commit)
+				enginetest.TransactionEnd(t, holder, h, commit)
 				result, err := await()
 				want := int64(1)
 				if commit && lane != "update_latest_delete" {
@@ -111,22 +111,22 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				if err != nil || result.Count != want || result.Rows != nil {
 					t.Fatal(result, err, want)
 				}
-				transactionEnd(t, worker, w, true)
+				enginetest.TransactionEnd(t, worker, w, true)
 				switch lane {
 				case "delete_blocks_update":
 					if commit {
-						transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10)
+						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10)
 					} else {
-						transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 30, 10)
+						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 30, 10)
 					}
 				case "update_changes_predicate":
 					if commit {
-						transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 10)
+						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 10)
 					} else {
-						transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10)
+						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10)
 					}
 				case "update_latest_delete":
-					transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21)
+					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21)
 					store := e.Storage.Relations[ref.Address]
 					head := store.Versions[0]
 					if store.Ends.Rows[head.Row].Version != head.Version {
@@ -143,18 +143,18 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 	for _, deletedBefore := range []bool{false, true} {
 		t.Run(map[bool]string{false: "captured_before_delete", true: "visible_after_delete"}[deletedBefore], func(t *testing.T) {
 			e := engine.New()
-			owner := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
-			retained := sessionSQL(t, peer, "SELECT v FROM t ORDER BY id").Rows
+			owner := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
+			retained := enginetest.SessionSQL(t, peer, "SELECT v FROM t ORDER BY id").Rows
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			store := e.Storage.Relations[ref.Address]
 			oldGeneration := store.Generation
 			oldEnds := store.Ends
 			row := store.Versions[2].Row
 			if deletedBefore {
-				sessionSQL(t, peer, "DELETE FROM t WHERE id=1")
+				enginetest.SessionSQL(t, peer, "DELETE FROM t WHERE id=1")
 			}
 			op, scope, b, source := updateBoundSource(t, e, owner, context.Background(), "UPDATE t SET v=33 WHERE id=3")
 			defer func() {
@@ -166,7 +166,7 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 				t.Fatal("visible index confused with physical slot")
 			}
 			if !deletedBefore {
-				sessionSQL(t, peer, "DELETE FROM t WHERE id=1")
+				enginetest.SessionSQL(t, peer, "DELETE FROM t WHERE id=1")
 			}
 			if len(store.Versions) != 3 || store.Versions[2].Row != row || store.Generation <= oldGeneration || store.Ends == oldEnds {
 				t.Fatal("DELETE compacted or failed to advance guard")
@@ -179,7 +179,7 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			op.Done()
-			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 33)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 33)
 			if got := enginetest.Tuples(core.Result{Rows: retained}); !reflect.DeepEqual(got, [][]driver.Value{{int64(10)}, {int64(20)}, {int64(30)}}) {
 				t.Fatal("retained source changed", got)
 			}
@@ -195,23 +195,23 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 	for _, reverse := range []bool{false, true} {
 		t.Run(map[bool]string{false: "delete_wait", true: "update_wait"}[reverse], func(t *testing.T) {
 			e := engine.New()
-			holder := sessionStart(t, e, nil)
-			owner := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
-			h := transactionBegin(t, holder)
-			o := transactionBegin(t, owner)
+			holder := enginetest.StartSession(t, e, nil)
+			owner := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
+			h := enginetest.TransactionBegin(t, holder)
+			o := enginetest.TransactionBegin(t, owner)
 			q := "DELETE FROM t WHERE id=3"
 			if reverse {
-				sessionSQL(t, holder, "DELETE FROM t WHERE id=3")
-				sessionSQL(t, owner, "DELETE FROM t WHERE id=1")
-				sessionSQL(t, owner, "UPDATE t SET v=22 WHERE id=2")
+				enginetest.SessionSQL(t, holder, "DELETE FROM t WHERE id=3")
+				enginetest.SessionSQL(t, owner, "DELETE FROM t WHERE id=1")
+				enginetest.SessionSQL(t, owner, "UPDATE t SET v=22 WHERE id=2")
 				q = "UPDATE t SET v=33 WHERE id=3"
 			} else {
-				sessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=3")
-				sessionSQL(t, owner, "UPDATE t SET v=20 WHERE id=1")
-				sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
+				enginetest.SessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=3")
+				enginetest.SessionSQL(t, owner, "UPDATE t SET v=20 WHERE id=1")
+				enginetest.SessionSQL(t, owner, "DELETE FROM t WHERE id=2")
 			}
 			ticket := owner.Transactions.Ticket
 			ctx, cancel := context.WithCancel(context.Background())
@@ -231,7 +231,7 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 			if held != 0 {
 				t.Fatal("mixed row grants survived", held)
 			}
-			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 			if reverse {
 				updateDeleteExecute(t, e, peer, "DELETE FROM t WHERE id=1", 1)
 				updateDeleteExecute(t, e, peer, "UPDATE t SET v=21 WHERE id=2", 1)
@@ -239,12 +239,12 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 				updateDeleteExecute(t, e, peer, "UPDATE t SET v=11 WHERE id=1", 1)
 				updateDeleteExecute(t, e, peer, "DELETE FROM t WHERE id=2", 1)
 			}
-			transactionEnd(t, owner, o, false)
-			transactionEnd(t, holder, h, false)
+			enginetest.TransactionEnd(t, owner, o, false)
+			enginetest.TransactionEnd(t, holder, h, false)
 			if reverse {
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21, 30)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21, 30)
 			} else {
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 30)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 30)
 			}
 			enginetest.LockEmpty(t, e)
 		})
@@ -255,12 +255,12 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 	for _, mode := range []string{"commit", "canceled_final_publication", "restore_fenced"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			owner := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, peer, "CREATE TABLE t(v INT)")
-			sessionSQL(t, peer, "CREATE TABLE u(v INT)")
-			sessionSQL(t, peer, "INSERT INTO t VALUES(1)")
-			sessionSQL(t, peer, "INSERT INTO u VALUES(2)")
+			owner := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, peer, "CREATE TABLE u(v INT)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO u VALUES(2)")
 			tr := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			ur := enginetest.CatalogRef(t, e, e.CatalogRead(), "u")
 			ts, us := e.Storage.Relations[tr.Address], e.Storage.Relations[ur.Address]
@@ -268,9 +268,9 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			old := [2]storage.RowVersion{roots[0][0], roots[1][0]}
 			ends := [2]*storage.DeletionRoot{ts.Ends, us.Ends}
 			frontier := e.Visibility.CommitSeq()
-			tx := transactionBegin(t, owner)
-			sessionSQL(t, owner, "UPDATE t SET v=11")
-			sessionSQL(t, owner, "DELETE FROM u")
+			tx := enginetest.TransactionBegin(t, owner)
+			enginetest.SessionSQL(t, owner, "UPDATE t SET v=11")
+			enginetest.SessionSQL(t, owner, "DELETE FROM u")
 			ticket := owner.Transactions.Ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -323,19 +323,19 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 				t.Fatal("old journal survived")
 			}
 			if owner.TransactionState() != session.TxIdle {
-				transactionEnd(t, owner, tx, false)
+				enginetest.TransactionEnd(t, owner, tx, false)
 			}
 			enginetest.LockEmpty(t, e)
 			switch mode {
 			case "commit":
-				transactionRows(t, peer, "SELECT v FROM t", 11)
-				transactionRows(t, peer, "SELECT v FROM u")
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 11)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM u")
 			case "restore_fenced":
-				transactionRows(t, peer, "SELECT v FROM t", 91)
-				transactionRows(t, peer, "SELECT v FROM u", 92)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 91)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM u", 92)
 			default:
-				transactionRows(t, peer, "SELECT v FROM t", 1)
-				transactionRows(t, peer, "SELECT v FROM u", 2)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 1)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM u", 2)
 			}
 			updateDeleteExecute(t, e, peer, "UPDATE t SET v=3", 1)
 			count := int64(1)
@@ -428,13 +428,13 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 
 func TestUpdateCoreDeletePrivateCandidateIdentity(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
-	tx := transactionBegin(t, owner)
-	sessionSQL(t, owner, "UPDATE t SET v=31 WHERE id=3")
-	sessionSQL(t, peer, "DELETE FROM t WHERE id=1")
+	owner := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
+	tx := enginetest.TransactionBegin(t, owner)
+	enginetest.SessionSQL(t, owner, "UPDATE t SET v=31 WHERE id=3")
+	enginetest.SessionSQL(t, peer, "DELETE FROM t WHERE id=1")
 	op, scope, b, source := updateBoundSource(t, e, owner, context.Background(), "UPDATE t SET v=33 WHERE id=3")
 	defer func() {
 		source.Close()
@@ -452,10 +452,10 @@ func TestUpdateCoreDeletePrivateCandidateIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionRows(t, owner, "SELECT v FROM t ORDER BY id", 20, 33)
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 30)
-	transactionEnd(t, owner, tx, true)
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 33)
+	enginetest.TransactionRows(t, owner, "SELECT v FROM t ORDER BY id", 20, 33)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 30)
+	enginetest.TransactionEnd(t, owner, tx, true)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 20, 33)
 	enginetest.LockEmpty(t, e)
 }
 
@@ -463,17 +463,17 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 	for _, mode := range []string{"invalid", "reader", "canceled"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			owner := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
+			owner := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			store := e.Storage.Relations[ref.Address]
 			root := store.Versions
 			ends, frontier, epoch := store.Ends, e.Visibility.CommitSeq(), e.Catalog.State.Epoch()
-			tx := transactionBegin(t, owner)
-			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
-			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
+			tx := enginetest.TransactionBegin(t, owner)
+			enginetest.SessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
+			enginetest.SessionSQL(t, owner, "DELETE FROM t WHERE id=2")
 			writes, deletes, ticket := owner.Transactions.Writes[ref.Address], owner.Transactions.Deletes[ref.Address], owner.Transactions.Ticket
 			sentinel := errors.New("mixed replacement reader")
 			var err error
@@ -496,11 +496,11 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			if err == nil || e.Catalog.State.Epoch() != epoch || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != session.TxActive || owner.Transactions.Ticket != ticket || owner.Transactions.Deletes[ref.Address] != deletes || &owner.Transactions.Writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
-			transactionRows(t, owner, "SELECT v FROM t", 11)
-			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
-			sessionSQL(t, owner, "UPDATE t SET v=12 WHERE id=1")
-			transactionEnd(t, owner, tx, true)
-			transactionRows(t, peer, "SELECT v FROM t", 12)
+			enginetest.TransactionRows(t, owner, "SELECT v FROM t", 11)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+			enginetest.SessionSQL(t, owner, "UPDATE t SET v=12 WHERE id=1")
+			enginetest.TransactionEnd(t, owner, tx, true)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t", 12)
 			enginetest.LockEmpty(t, e)
 		})
 	}

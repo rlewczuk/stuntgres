@@ -19,9 +19,9 @@ import (
 
 func TestMergeInsertBinding(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT,v INT DEFAULT 8,g INT GENERATED ALWAYS AS(v+1) STORED)", "CREATE TABLE source(id INT,v INT)", "INSERT INTO t VALUES(1,10,DEFAULT)", "INSERT INTO source VALUES(1,7),(2,8),(3,9)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source s ON t.id=s.id WHEN NOT MATCHED AND s.id=2 THEN INSERT(v,id) VALUES(s.v,s.id) WHEN NOT MATCHED THEN INSERT(id) VALUES(s.id)")
 	if !reflect.DeepEqual(b.Targets, []int{1, 0}) || !reflect.DeepEqual(b.UsedColumns, []int{0}) || len(b.Merge.Arms) != 2 {
@@ -43,8 +43,8 @@ func TestMergeInsertBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionRows(t, s, "SELECT v FROM t ORDER BY id", 10, 8, 8)
-	transactionRows(t, s, "SELECT g FROM t ORDER BY id", 11, 9, 9)
+	enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY id", 10, 8, 8)
+	enginetest.TransactionRows(t, s, "SELECT g FROM t ORDER BY id", 11, 9, 9)
 	enginetest.LockEmpty(t, e)
 }
 
@@ -81,8 +81,8 @@ func TestMergeInsertPublication(t *testing.T) {
 	for _, phase := range []string{"complete", "late_source", "close", "primary_wins_close"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT)")
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(7),(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)")
 			typ := b.Relation.Columns[0].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
@@ -123,9 +123,9 @@ func TestMergeInsertPublication(t *testing.T) {
 			target.Close()
 			inputs.Close()
 			if phase == "complete" {
-				transactionRows(t, s, "SELECT id FROM t", 7, 7)
+				enginetest.TransactionRows(t, s, "SELECT id FROM t", 7, 7)
 			} else {
-				transactionRows(t, s, "SELECT id FROM t")
+				enginetest.TransactionRows(t, s, "SELECT id FROM t")
 			}
 			enginetest.LockEmpty(t, e)
 		})
@@ -136,9 +136,9 @@ func TestMergeInsertCancellation(t *testing.T) {
 	for _, phase := range []string{"source", "probe", "when", "assignment", "default", "before_apply"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT DEFAULT 8)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(99,99)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT DEFAULT 8)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(99,99)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN NOT MATCHED AND s.id>0 THEN INSERT(id) VALUES(s.id)")
@@ -188,7 +188,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 			}
 			scope.Finish(err)
 			op.Done()
-			transactionRows(t, s, "SELECT id FROM t", 99)
+			enginetest.TransactionRows(t, s, "SELECT id FROM t", 99)
 			enginetest.LockEmpty(t, e)
 		})
 	}
@@ -228,9 +228,9 @@ func TestMergeInsertColumnAuthority(t *testing.T) {
 
 func TestMergeInsertSystemCondition(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(id INT)")
-	sessionSQL(t, s, "CREATE TABLE source(id INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE source(id INT)")
 	for _, name := range []string{"xmin", "ctid", "cmin", "xmax", "cmax"} {
 		op, err := s.Acquire(context.Background())
 		if err != nil {

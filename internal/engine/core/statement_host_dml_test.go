@@ -31,9 +31,9 @@ func wantErrorText(t *testing.T, err error, want string) {
 // kind's own predecessor error.
 func TestStatementHostLatestRowGates(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
 	h := scope.WriteHost()
 	version := source.Committed[0]
@@ -95,14 +95,14 @@ func TestStatementHostLatestRowGates(t *testing.T) {
 // committed changes rather than following a successor outside the snapshot.
 func TestStatementHostLatestRowIsolation(t *testing.T) {
 	e := engine.New()
-	reader := sessionStart(t, e, nil)
-	writer := sessionStart(t, e, nil)
-	sessionSQL(t, writer, "CREATE TABLE t(v INT)")
-	sessionSQL(t, writer, "INSERT INTO t VALUES(1),(2)")
-	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	sessionSQL(t, reader, "SELECT v FROM t")
-	sessionSQL(t, writer, "UPDATE t SET v = 10 WHERE v = 1")
-	sessionSQL(t, writer, "DELETE FROM t WHERE v = 2")
+	reader := enginetest.StartSession(t, e, nil)
+	writer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, writer, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, writer, "INSERT INTO t VALUES(1),(2)")
+	enginetest.SessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.SessionSQL(t, reader, "SELECT v FROM t")
+	enginetest.SessionSQL(t, writer, "UPDATE t SET v = 10 WHERE v = 1")
+	enginetest.SessionSQL(t, writer, "DELETE FROM t WHERE v = 2")
 	scope, b, source := deleteProbeScope(t, reader)
 	h := scope.WriteHost()
 	if len(source.Committed) != 2 {
@@ -142,9 +142,9 @@ func wantSerialization(t *testing.T, err error, message string) {
 // successful window.
 func TestStatementHostStageReplacement(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	h := scope.WriteHost()
 	old := source.Committed[:1]
@@ -183,9 +183,9 @@ func TestStatementHostStageReplacement(t *testing.T) {
 // the statement before an internal FK action's admission.
 func TestStatementHostPrepareReplacement(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	old := source.Committed[:1]
 	if err := scope.WriteHost().PrepareReplacement(b.Ref, old); err != nil {
@@ -209,8 +209,8 @@ func TestStatementHostPrepareReplacement(t *testing.T) {
 // and the statement's ticket, catalog reads and activity follow the scope.
 func TestStatementHostStatementSlots(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
 	scope, _, _ := deleteProbeScope(t, s)
 	h := scope.WriteHost()
 	if h.IndexScope(false) != nil || h.ForeignActions(false) != nil {
@@ -244,8 +244,8 @@ func TestStatementHostStatementSlots(t *testing.T) {
 // Engine.mu on both its success and its capture failure.
 func TestStatementHostReadmitRevalidation(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT UNIQUE)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT UNIQUE)")
 	scope, b, _ := deleteProbeScope(t, s)
 	h := scope.WriteHost()
 	binding, err := dml.BindUniqueWrite(scope.WriteHost(), b.Ref)

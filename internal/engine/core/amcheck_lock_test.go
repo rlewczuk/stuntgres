@@ -100,7 +100,7 @@ func TestAmcheckCaptureReadmission(t *testing.T) {
 			n := amcheckUnitExpression(t, e, true)
 			reader, waiter := blockingUnitOwner(t, e)
 			if action == "revoke" {
-				sessionSQL(t, reader, "SET ROLE am_reader")
+				enginetest.SessionSQL(t, reader, "SET ROLE am_reader")
 			}
 			scope := pgrowlocksUnitScope(t, e, reader)
 			scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}

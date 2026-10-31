@@ -17,9 +17,9 @@ import (
 
 func TestTypeDescribeCapturedTypePath(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TEMP TABLE captured_type(v integer)")
-	sessionSQL(t, s, "SET search_path=pg_temp,public,pg_catalog")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE captured_type(v integer)")
+	enginetest.SessionSQL(t, s, "SET search_path=pg_temp,public,pg_catalog")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -83,8 +83,8 @@ func TestTypeDescribeCopySnapshotDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE copy_capture("+tc.declaration+")")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE copy_capture("+tc.declaration+")")
 			view := e.CatalogRead()
 			relation := view.MustRelation(enginetest.CatalogRef(t, e, view, "copy_capture").Address)
 			recipes := relation.ColumnMeta

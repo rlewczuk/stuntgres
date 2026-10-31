@@ -56,16 +56,16 @@ func TestCollationPrivateSessionIdentity(t *testing.T) {
 
 func TestCollationTemporaryCleanupAX(t *testing.T) {
 	e := engine.New()
-	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup FROM pg_catalog."C"`)
-	sessionSQL(t, owner, `CREATE TABLE coll_cleanup_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup)`)
-	sessionSQL(t, owner, `INSERT INTO coll_cleanup_t VALUES(7,'é')`)
-	sessionSQL(t, owner, `CREATE TEMP TABLE coll_cleanup_local(id SERIAL,v TEXT COLLATE pg_temp.coll_cleanup)`)
-	sessionSQL(t, owner, `CREATE INDEX coll_cleanup_local_ix ON coll_cleanup_local(v)`)
-	sessionSQL(t, owner, `INSERT INTO coll_cleanup_local(v) VALUES('a')`)
+	owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup FROM pg_catalog."C"`)
+	enginetest.SessionSQL(t, owner, `CREATE TABLE coll_cleanup_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup)`)
+	enginetest.SessionSQL(t, owner, `INSERT INTO coll_cleanup_t VALUES(7,'é')`)
+	enginetest.SessionSQL(t, owner, `CREATE TEMP TABLE coll_cleanup_local(id SERIAL,v TEXT COLLATE pg_temp.coll_cleanup)`)
+	enginetest.SessionSQL(t, owner, `CREATE INDEX coll_cleanup_local_ix ON coll_cleanup_local(v)`)
+	enginetest.SessionSQL(t, owner, `INSERT INTO coll_cleanup_local(v) VALUES('a')`)
 	namespace := owner.TemporaryNamespace
 	before := e.CatalogRead()
-	tx := transactionBegin(t, peer)
+	tx := enginetest.TransactionBegin(t, peer)
 	ref := enginetest.CatalogRef(t, e, before, "coll_cleanup_t")
 	if err := e.Locks.Acquire(context.Background(), peer.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	if !valid || e.CatalogRead().State() != before.State() {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")
 	}
-	transactionEnd(t, peer, tx, false)
+	enginetest.TransactionEnd(t, peer, tx, false)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := owner.WaitEnd(ctx); err != nil {
@@ -92,7 +92,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 			}
 		}
 	}
-	r := sessionSQL(t, peer, `SELECT * FROM coll_cleanup_t`)
+	r := enginetest.SessionSQL(t, peer, `SELECT * FROM coll_cleanup_t`)
 	if got := enginetest.Tuples(r); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) || len(r.Rows.Schema()) != 1 {
 		t.Fatal("cleanup lost stable surviving storage", got)
 	}
@@ -101,8 +101,8 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 
 func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
-	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_first FROM pg_catalog."C"`)
+	owner := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_first FROM pg_catalog."C"`)
 	base := e.CatalogRead()
 	ns := base.MustNamespace(owner.TemporaryNamespace)
 	var children []ids.ObjectAddress
@@ -111,7 +111,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 			children = append(children, a)
 		}
 	}
-	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_late FROM pg_catalog."POSIX"`)
+	enginetest.SessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_late FROM pg_catalog."POSIX"`)
 	current := e.CatalogRead()
 	private := collationPrivateSession(t, e)
 	if _, err := core.EngineRemoveTemporaryNamespaceCandidate(e, private, base, []*catalog.Namespace{ns}, children, owner.SessionToken); err == nil {
@@ -134,9 +134,9 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_exhausted FROM pg_catalog."C"`)
-	sessionSQL(t, owner, `CREATE TABLE coll_cleanup_exhausted_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup_exhausted)`)
-	sessionSQL(t, owner, `INSERT INTO coll_cleanup_exhausted_t VALUES(7,'é')`)
+	enginetest.SessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_exhausted FROM pg_catalog."C"`)
+	enginetest.SessionSQL(t, owner, `CREATE TABLE coll_cleanup_exhausted_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup_exhausted)`)
+	enginetest.SessionSQL(t, owner, `INSERT INTO coll_cleanup_exhausted_t VALUES(7,'é')`)
 	e.Mu.Lock()
 	state := catalog.CloneState(e.Catalog.State)
 	state.SetNamespaceGeneration(^uint64(0))
@@ -164,7 +164,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	if _, ok := before.Descriptor(namespace); !ok {
 		t.Fatal("cleanup mutated captured namespace root")
 	}
-	result := sessionSQL(t, sessionStart(t, e, nil), "SELECT * FROM coll_cleanup_exhausted_t")
+	result := enginetest.SessionSQL(t, enginetest.StartSession(t, e, nil), "SELECT * FROM coll_cleanup_exhausted_t")
 	if got := enginetest.Tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) || len(result.Rows.Schema()) != 1 {
 		t.Fatal("exhausted cleanup lost projected surviving rows", got)
 	}
@@ -204,9 +204,9 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	// Its real remaining expression index supplies the detached-build boundary;
 	// the independently committed encoded-text table has no index/dependency.
 	e, _, provider, _, _ := temporaryProjectionFixture(t)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE ce_cleanup_storage(v TEXT)")
-	sessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('象')")
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE ce_cleanup_storage(v TEXT)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('象')")
 	address := enginetest.RoleTableRef(t, e, "ce_cleanup_storage").Address
 	base := e.CatalogRead()
 	oldStore := e.Storage.Relations[address]
@@ -256,8 +256,8 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("maintenance did not reach detached index rebuild", ctx.Err())
 	}
-	sessionSQL(t, peer, "TRUNCATE ce_cleanup_storage")
-	sessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('あ')")
+	enginetest.SessionSQL(t, peer, "TRUNCATE ce_cleanup_storage")
+	enginetest.SessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('あ')")
 	current := e.Storage.Relations[address]
 	if current == oldStore || e.CatalogRead().State() != base.State() || len(current.Versions) != 1 || len(oldStore.Versions) != 1 {
 		t.Fatal("peer did not replace the actual heap without catalog replacement")
@@ -280,7 +280,7 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	if e.Storage.Relations[address] != current {
 		t.Fatal("maintenance reinstalled the retired encoded-text heap")
 	}
-	result := sessionSQL(t, peer, "SELECT v FROM ce_cleanup_storage")
+	result := enginetest.SessionSQL(t, peer, "SELECT v FROM ce_cleanup_storage")
 	if got := enginetest.Tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"あ"}}) {
 		t.Fatal("maintenance lost the successful peer write", got)
 	}

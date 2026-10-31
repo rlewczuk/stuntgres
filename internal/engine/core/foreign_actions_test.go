@@ -55,9 +55,9 @@ func foreignActionUnitJob(t *testing.T, jobs []dml.ForeignKeyJob, name string) *
 
 func TestForeignActionsDefinition(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(a INT,b INT,PRIMARY KEY(a,b))", "CREATE TABLE c(id INT,a INT,dead INT,b INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p ON UPDATE CASCADE ON DELETE SET NULL(b,b))"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	view := e.CatalogRead()
 	ref := enginetest.CatalogRef(t, e, view, "c")
@@ -81,8 +81,8 @@ func TestForeignActionsDefinition(t *testing.T) {
 	if !reflect.DeepEqual(original, child.Constraints.ForeignKeys[0]) {
 		t.Fatal("validation changed retained definition")
 	}
-	sessionSQL(t, s, "ALTER TABLE c DROP COLUMN dead")
-	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
+	enginetest.SessionSQL(t, s, "ALTER TABLE c DROP COLUMN dead")
+	enginetest.SessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
 	current := next.MustRelation(ref.Address)
 	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !dml.SameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
@@ -102,9 +102,9 @@ func TestForeignActionsEquality(t *testing.T) {
 	for _, tc := range []struct{ typ, old, next string }{{"NUMERIC", "1.0", "1.00"}, {"DOUBLE PRECISION", "0", "-0"}, {"INTERVAL", "1 day", "24 hours"}} {
 		t.Run(tc.typ, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE p(id "+tc.typ+" PRIMARY KEY)")
-			sessionSQL(t, s, "CREATE TABLE c(pid "+tc.typ+" REFERENCES p ON UPDATE CASCADE)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE p(id "+tc.typ+" PRIMARY KEY)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE c(pid "+tc.typ+" REFERENCES p ON UPDATE CASCADE)")
 			view := e.CatalogRead()
 			child := view.MustRelation(enginetest.CatalogRef(t, e, view, "c").Address)
 			f := child.Constraints.ForeignKeys[0]
@@ -138,9 +138,9 @@ func TestForeignActionsEquality(t *testing.T) {
 
 func TestForeignActionsAdmission(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "CREATE TABLE unrelated(id INT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(1)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
 	named, stored, descriptor := scope.LockedRef, scope.LockedStorage, scope.LockedDescriptor
@@ -231,9 +231,9 @@ func TestForeignActionsAdmission(t *testing.T) {
 
 func TestForeignActionsClosure(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE a(id INT PRIMARY KEY REFERENCES p ON UPDATE CASCADE)", "CREATE TABLE b(id INT PRIMARY KEY REFERENCES p ON UPDATE CASCADE)", "CREATE TABLE g(id INT,aid INT REFERENCES a ON UPDATE CASCADE,bid INT REFERENCES b ON UPDATE CASCADE)", "INSERT INTO p VALUES(1)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)", "INSERT INTO g VALUES(99,1,1)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
 	if err := dml.SettleForeignActions(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost()); err != nil {
@@ -266,9 +266,9 @@ func TestForeignActionsDefaults(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "per-row", true: "late-failure"}[fail], func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE d(id INT,pid INT DEFAULT 1 REFERENCES p ON DELETE SET DEFAULT)", "INSERT INTO p VALUES(1),(2),(10)", "INSERT INTO d VALUES(11,10),(12,10)"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			probe := &defaultOrdinal{}
 			if fail {

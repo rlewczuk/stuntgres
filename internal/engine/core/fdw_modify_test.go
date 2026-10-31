@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/session"
@@ -106,8 +107,8 @@ func TestFDWModifyCapabilities(t *testing.T) {
 		{"missing_batch", fdwUnitOnlySize{fdwUnitSingle: fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{present: true}}, ForeignBatchSizer: &fdwUnitBatch{size: 0}}, 5, 5, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			session := sessionStart(t, engine.New(), nil)
-			op := transactionOperation(t, session)
+			session := enginetest.StartSession(t, engine.New(), nil)
+			op := enginetest.TransactionOperation(t, session)
 			defer op.Done()
 			s := core.NewStatementScope(op, session.Transactions, op.StatementStart())
 			m := &fdw.Modification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
@@ -197,8 +198,8 @@ func TestFDWModifyLifecycle(t *testing.T) {
 	t.Run("CopyInputVeto", fdwUnitCopyVeto)
 	for _, partial := range []bool{false, true} {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
-		op := transactionOperation(t, sess)
+		sess := enginetest.StartSession(t, e, nil)
+		op := enginetest.TransactionOperation(t, sess)
 		ref, err := e.Begin(op, session.TxOptions{})
 		if err != nil {
 			t.Fatal(err)
@@ -276,11 +277,11 @@ func fdwUnitCopyVeto(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	for _, sql := range []string{"CREATE FOREIGN DATA WRAPPER unit_copy HANDLER unit_copy_handler", "CREATE SERVER unit_copy_server FOREIGN DATA WRAPPER unit_copy", "CREATE USER MAPPING FOR CURRENT_USER SERVER unit_copy_server", "CREATE FOREIGN TABLE unit_copy_target(v integer) SERVER unit_copy_server"} {
-		sessionSQL(t, session, sql)
+		enginetest.SessionSQL(t, session, sql)
 	}
-	op := transactionOperation(t, session)
+	op := enginetest.TransactionOperation(t, session)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {

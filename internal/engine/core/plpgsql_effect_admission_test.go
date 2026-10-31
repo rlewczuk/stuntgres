@@ -12,13 +12,13 @@ import (
 
 func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	for _, query := range []string{
 		"CREATE TABLE routed(v integer) PARTITION BY LIST(v)",
 		"CREATE TABLE routed_zero PARTITION OF routed FOR VALUES IN (0)",
 		"CREATE TABLE routed_one PARTITION OF routed FOR VALUES IN (1)",
 	} {
-		sessionSQL(t, sess, query)
+		enginetest.SessionSQL(t, sess, query)
 	}
 	scope := foreignActionUnitScope(t, e, sess, "INSERT INTO routed VALUES(0),(1),(0),(1) RETURNING v")
 	state := scope.PartitionInsert
@@ -54,8 +54,8 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	// Real unrelated DDL publishes a different immutable catalog authority
 	// while the admitted routed statement remains live. Even unchanged parent
 	// descriptors cannot authorize reuse of the old catalog's relevance bit.
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE relevance_catalog_tick(v integer)")
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE relevance_catalog_tick(v integer)")
 	current := e.CatalogRead()
 	if current.State() == view.State() {
 		t.Fatal("catalog invalidation witness did not publish a new root")
@@ -116,9 +116,9 @@ func TestPLExceptionEffectBindingRelevance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
+			sess := enginetest.StartSession(t, e, nil)
 			for _, query := range tc.setup {
-				sessionSQL(t, sess, query)
+				enginetest.SessionSQL(t, sess, query)
 			}
 			view := e.CatalogRead()
 			ref := enginetest.CatalogRef(t, e, view, "target")

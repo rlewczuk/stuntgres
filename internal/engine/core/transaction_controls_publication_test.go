@@ -21,12 +21,12 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 	for _, end := range []string{"COMMIT", "COMMIT AND CHAIN"} {
 		t.Run(end, func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(77)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(77)")
 			controlsRequire(t, a, "BEGIN")
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 			if a.TransactionState() != session.TxIdle || a.Transactions.Ticket != nil || a.Transactions.Ref != (ids.TxRef{}) {
 				t.Fatal("failed end installed chain or retained old owner")
 			}
-			transactionRows(t, b, "SELECT v FROM t", 99)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t", 99)
 		})
 	}
 }
@@ -75,12 +75,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 	for _, boundary := range []string{"success", "cancel_before", "cancel_after", "terminal_before", "epoch_before", "counter_before", "ref_before"} {
 		t.Run(boundary, func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT)")
-			sessionSQL(t, b, "CREATE TABLE u(v INT)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, b, "CREATE TABLE u(v INT)")
 			for _, q := range []string{"INSERT INTO t VALUES(7)", "INSERT INTO t VALUES(8)", "INSERT INTO t VALUES(10)", "INSERT INTO u VALUES(70)"} {
-				sessionSQL(t, b, q)
+				enginetest.SessionSQL(t, b, q)
 			}
 			addresses := [2]ids.ObjectAddress{enginetest.CatalogRef(t, e, e.CatalogRead(), "t").Address, enginetest.CatalogRef(t, e, e.CatalogRead(), "u").Address}
 			stores := [2]*storage.Relation{e.Storage.Relations[addresses[0]], e.Storage.Relations[addresses[1]]}
@@ -94,15 +94,15 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					prefixes[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
 				}
 			}
-			retained := [2]*exec.FinalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
+			retained := [2]*exec.FinalRows{enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
 			retainedCatalog := e.Catalog.State
 			retainedEpoch := e.Catalog.State.Epoch()
 			retainedFrontier := e.Visibility.CommitSeq()
 			spare := append([]storage.RowVersion(nil), roots[0][3:4]...)
 			frontier := e.Visibility.CommitSeq()
 			controlsRequire(t, a, "BEGIN")
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, a, "INSERT INTO u VALUES(9)")
 			staged := [2]storage.RowVersion{a.Transactions.Writes[addresses[0]][0], a.Transactions.Writes[addresses[1]][0]}
 			old := a.Transactions.Ref
 			oldTicket := a.Transactions.Ticket
@@ -183,8 +183,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 				next := a.Transactions.Ref
 				ticket := a.Transactions.Ticket
-				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
-				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
+				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
+				enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
 				if e.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one frontier")
 				}
@@ -202,8 +202,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("repeated Finish mutated chain", err)
 				}
 				if boundary == "cancel_after" {
-					transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
-					transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
+					enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
+					enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
 					if e.Visibility.CommitSeq() != frontier+1 {
 						t.Fatal("not one frontier")
 					}
@@ -265,7 +265,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if a.Transactions.Ref != old || a.TransactionState() != session.TxActive || len(a.Transactions.Writes) != 2 {
 					t.Fatal("bad ref disposed genuine work")
 				}
-				transactionEnd(t, a, old, false)
+				enginetest.TransactionEnd(t, a, old, false)
 				enginetest.LockEmpty(t, e)
 			}
 		})
@@ -273,17 +273,17 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 	for _, boundary := range []string{"terminal_after_execute", "replacement_before_first_finish"} {
 		t.Run(boundary, func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(7)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
 			address := enginetest.CatalogRef(t, e, e.CatalogRead(), "t").Address
 			controlsRequire(t, a, "BEGIN")
-			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			old, oldTicket := a.Transactions.Ref, a.Transactions.Ticket
 			frontier := e.Visibility.CommitSeq()
-			op := transactionOperation(t, a)
+			op := enginetest.TransactionOperation(t, a)
 			defer op.Done()
 			scope, err := e.StartStatement(op)
 			if err != nil {
@@ -301,7 +301,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			// A real peer SELECT completes before control Finish: the old AX
 			// hold is gone and both typed rows have already been published.
-			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
+			retained := enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
 			data := retained.Source.View.Data()
 			catalog, epoch := data.Catalog.State(), data.Catalog.Epoch()
 			versions := append([]storage.RowVersion(nil), data.Committed[address]...)
@@ -383,7 +383,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if err := a.WaitEnd(context.Background()); err != nil || e.Visibility.CommitSeq() != completedFrontier {
 					t.Fatal("repeated drain changed accepted publication", err)
 				}
-				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
+				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
 			} else {
 				// Replacement fences lock authority independently of the
 				// transaction owner and retained snapshot lifetimes.
@@ -393,7 +393,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("Finish recreated ticket fenced by replacement")
 				}
 				op.Done()
-				probe := transactionOperation(t, a)
+				probe := enginetest.TransactionOperation(t, a)
 				_, err := e.Execute(probe, enginetest.Statement(t, "SELECT v FROM t"), 0, nil)
 				probe.Done()
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -404,10 +404,10 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					a.TransactionState() != session.TxActive || a.Transactions.Command != 0 {
 					t.Fatal("replacement recovery did not create current-epoch chain")
 				}
-				sessionSQL(t, b, "CREATE TABLE t(v INT)")
-				sessionSQL(t, a, "INSERT INTO t VALUES(2)")
+				enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+				enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
 				controlsRequire(t, a, "COMMIT")
-				transactionRows(t, b, "SELECT v FROM t", 2)
+				enginetest.TransactionRows(t, b, "SELECT v FROM t", 2)
 				enginetest.LockEmpty(t, e)
 			}
 			assertRetained()

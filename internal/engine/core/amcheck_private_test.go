@@ -46,10 +46,10 @@ func TestAmcheckPrivateAuthority(t *testing.T) {
 					t.Fatal("fixture has no genuine required output")
 				}
 			}
-			s := sessionStart(t, e, nil)
-			tx := transactionBegin(t, s)
-			defer transactionEnd(t, s, tx, false)
-			sessionSQL(t, s, "INSERT INTO t VALUES(3,'c'),(4,'d')")
+			s := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, s)
+			defer enginetest.TransactionEnd(t, s, tx, false)
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(3,'c'),(4,'d')")
 			if err := amcheckSessionCall(t, e, s, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 				t.Fatal("healthy actual private union", err)
 			}
@@ -57,16 +57,16 @@ func TestAmcheckPrivateAuthority(t *testing.T) {
 				t.Fatal("DML rebuilt committed authority")
 			}
 			if damage == "implicit" {
-				sessionSQL(t, s, "SAVEPOINT private")
-				sessionSQL(t, s, "UPDATE t SET n=5 WHERE n=3")
+				enginetest.SessionSQL(t, s, "SAVEPOINT private")
+				enginetest.SessionSQL(t, s, "UPDATE t SET n=5 WHERE n=3")
 				if err := amcheckSessionCall(t, e, s, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 					t.Fatal(err)
 				}
-				sessionSQL(t, s, "DELETE FROM t WHERE n=5")
+				enginetest.SessionSQL(t, s, "DELETE FROM t WHERE n=5")
 				if err := amcheckSessionCall(t, e, s, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 					t.Fatal(err)
 				}
-				sessionSQL(t, s, "ROLLBACK TO private")
+				enginetest.SessionSQL(t, s, "ROLLBACK TO private")
 				if err := amcheckSessionCall(t, e, s, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 					t.Fatal(err)
 				}
@@ -141,12 +141,12 @@ func TestAmcheckPrivateAuthority(t *testing.T) {
 // retains outputs even though their insertion admission cannot name this index.
 func TestAmcheckPrivateDDLAuthority(t *testing.T) {
 	e, d, committed := amcheckUnitRoot(t, false)
-	s := sessionStart(t, e, nil)
-	tx := transactionBegin(t, s)
-	defer transactionEnd(t, s, tx, false)
-	sessionSQL(t, s, "INSERT INTO t VALUES(4,'D'),(5,'E')")
-	sessionSQL(t, s, "UPDATE t SET n=6,s='F' WHERE n=1")
-	sessionSQL(t, s, "CREATE INDEX ddl_i ON t(lower(s)) WHERE n>1 AND n<>4")
+	s := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, s)
+	defer enginetest.TransactionEnd(t, s, tx, false)
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(4,'D'),(5,'E')")
+	enginetest.SessionSQL(t, s, "UPDATE t SET n=6,s='F' WHERE n=1")
+	enginetest.SessionSQL(t, s, "CREATE INDEX ddl_i ON t(lower(s)) WHERE n>1 AND n<>4")
 	// Resolve using the same catalog authority captured for this private owner.
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -212,11 +212,11 @@ func TestAmcheckPrivateEquivalentRepresentation(t *testing.T) {
 	amcheckUnitInstalled(t, e)
 	enginetest.Run(t, e, "CREATE TABLE numeric_private(n NUMERIC)")
 	enginetest.Run(t, e, "INSERT INTO numeric_private VALUES(2.0)")
-	s := sessionStart(t, e, nil)
-	tx := transactionBegin(t, s)
-	defer transactionEnd(t, s, tx, false)
-	sessionSQL(t, s, "INSERT INTO numeric_private VALUES(1.0)")
-	sessionSQL(t, s, "CREATE INDEX numeric_private_i ON numeric_private(n)")
+	s := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, s)
+	defer enginetest.TransactionEnd(t, s, tx, false)
+	enginetest.SessionSQL(t, s, "INSERT INTO numeric_private VALUES(1.0)")
+	enginetest.SessionSQL(t, s, "CREATE INDEX numeric_private_i ON numeric_private(n)")
 	var target *catalog.Relation
 	var address ids.ObjectAddress
 	for parent, rows := range s.Transactions.Writes {

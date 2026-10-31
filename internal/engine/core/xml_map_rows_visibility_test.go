@@ -163,8 +163,8 @@ func TestXMLMapRowsPreparationVisibility(t *testing.T) {
 			enginetest.RoleExecute(t, e, op, `INSERT INTO xr_prepare_owner VALUES(1),(2)`)
 			done()
 			reader, _ := blockingUnitOwner(t, e)
-			sessionSQL(t, reader, `INSERT INTO xr_prepare_owner VALUES(3)`)
-			sessionSQL(t, reader, `DELETE FROM xr_prepare_owner WHERE x=1`)
+			enginetest.SessionSQL(t, reader, `INSERT INTO xr_prepare_owner VALUES(3)`)
+			enginetest.SessionSQL(t, reader, `DELETE FROM xr_prepare_owner WHERE x=1`)
 			scope := pgrowlocksUnitScope(t, e, reader)
 			address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}), Name: "xr_prepare_owner"})
 			if len(scope.OwnWrites[address]) != 1 || scope.OwnDeletes[address] == nil { t.Fatal("missing real private INSERT/DELETE") }

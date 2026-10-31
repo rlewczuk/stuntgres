@@ -11,7 +11,7 @@ import (
 
 func triggerModeEventOwnership(t *testing.T) {
 	e, s := triggerModeUnitSetup(t)
-	sessionSQL(t, s, "ALTER TABLE mode_child ADD CONSTRAINT mode_second_fk FOREIGN KEY(pid) REFERENCES mode_parent(id)")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_child ADD CONSTRAINT mode_second_fk FOREIGN KEY(pid) REFERENCES mode_parent(id)")
 	child := e.CatalogRead().MustRelation(enginetest.RoleTableRef(t, e, "mode_child").Address)
 	constraint := child.Constraints.ForeignKeys[0].OID
 	capture := func(sql string) dml.ForeignActionTransition {
@@ -44,7 +44,7 @@ func triggerModeEventOwnership(t *testing.T) {
 		}
 		return event
 	}
-	sessionSQL(t, s, "SET session_replication_role=replica")
+	enginetest.SessionSQL(t, s, "SET session_replication_role=replica")
 	first := capture("INSERT INTO mode_child VALUES(1,99)")
 	if first.TriggerFires(constraint, 2) || len(first.Suppressed) != 2 {
 		t.Fatal("replica event did not capture check suppression", first)
@@ -57,14 +57,14 @@ func triggerModeEventOwnership(t *testing.T) {
 	}
 	firstID := first.Suppressed[0].Constraint
 	backing := &first.Suppressed[0]
-	sessionSQL(t, s, "SET session_replication_role=origin")
-	sessionSQL(t, s, "ALTER TABLE mode_child DISABLE TRIGGER ALL")
+	enginetest.SessionSQL(t, s, "SET session_replication_role=origin")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_child DISABLE TRIGGER ALL")
 	second := capture("INSERT INTO mode_child VALUES(2,98)")
 	if second.TriggerFires(constraint, 2) || &second.Suppressed[0] == backing {
 		t.Fatal("catalog transition reused mutable event eligibility")
 	}
-	sessionSQL(t, s, "ALTER TABLE mode_child ENABLE TRIGGER ALL")
-	sessionSQL(t, s, "INSERT INTO mode_parent VALUES(100,5)")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_child ENABLE TRIGGER ALL")
+	enginetest.SessionSQL(t, s, "INSERT INTO mode_parent VALUES(100,5)")
 	third := capture("INSERT INTO mode_child VALUES(3,100)")
 	if !third.TriggerFires(constraint, 2) || len(third.Suppressed) != 0 {
 		t.Fatal("fresh enabled event retained suppression")

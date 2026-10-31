@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -79,8 +80,8 @@ func TestStatementTimeoutAdmissionOrdinaryCancellation(t *testing.T) {
 					t.Fatalf("ordinary cancellation scope=%p err=%v translated=%v; want exact %v", scope, err, op.CommandError(err), want)
 				}
 				preserved()
-				transactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
-				transactionEnd(t, sess, ref, false)
+				enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
+				enginetest.TransactionEnd(t, sess, ref, false)
 			})
 		}
 	}
@@ -101,15 +102,15 @@ func TestStatementTimeoutAdmissionReplacement(t *testing.T) {
 	for _, queued := range []bool{false, true} {
 		t.Run(map[bool]string{false: "initial", true: "held_admission"}[queued], func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
-			sessionSQL(t, sess, "CREATE TABLE timeout_admission_rows(v INT PRIMARY KEY)")
-			sessionSQL(t, sess, "SET transaction_timeout TO '1h'")
-			old := transactionBegin(t, sess)
+			sess := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, sess, "CREATE TABLE timeout_admission_rows(v INT PRIMARY KEY)")
+			enginetest.SessionSQL(t, sess, "SET transaction_timeout TO '1h'")
+			old := enginetest.TransactionBegin(t, sess)
 			op, cancel := statementTimeoutAdmissionCommand(t, sess)
 			var fresh ids.TxRef
 			var preserved func()
 			replace := func(admitted bool) {
-				control := transactionOperation(t, sess)
+				control := enginetest.TransactionOperation(t, sess)
 				if admitted {
 					if _, err := core.EngineEndAdmitted(e, control, sess.Transactions, old, false, false, false, time.Time{}, nil); err != nil {
 						t.Fatal(err)
@@ -120,8 +121,8 @@ func TestStatementTimeoutAdmissionReplacement(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					transactionEnd(t, sess, old, false)
-					fresh = transactionBegin(t, sess)
+					enginetest.TransactionEnd(t, sess, old, false)
+					fresh = enginetest.TransactionBegin(t, sess)
 				}
 				control.Done()
 				// The waiter is stopped at its context barrier, so release only
@@ -134,8 +135,8 @@ func TestStatementTimeoutAdmissionReplacement(t *testing.T) {
 					if admitted {
 						defer sess.Transactions.Admission.Lock()
 					}
-					sessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(20)")
-					sessionSQL(t, sess, "SET LOCAL application_name TO timeout_admission_private")
+					enginetest.SessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(20)")
+					enginetest.SessionSQL(t, sess, "SET LOCAL application_name TO timeout_admission_private")
 				}()
 				preserved = statementTimeoutAdmissionPreserved(t, e, sess)
 				cancel(session.StatementTimeoutCause)
@@ -158,29 +159,29 @@ func TestStatementTimeoutAdmissionReplacement(t *testing.T) {
 			if sess.TransactionState() != session.TxActive || sess.Transactions.Ref != fresh || sess.Transactions.Ticket == nil {
 				t.Fatal("old timeout aborted replacement owner")
 			}
-			transactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
-			if !transactionEnd(t, sess, fresh, true).Committed {
+			enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
+			if !enginetest.TransactionEnd(t, sess, fresh, true).Committed {
 				t.Fatal("replacement could not commit")
 			}
-			transactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
+			enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
 		})
 	}
 }
 
 func TestStatementTimeoutAdmissionIdleOrigin(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	op, cancel := statementTimeoutAdmissionCommand(t, sess)
 	if op.OriginTransaction != (ids.TxRef{}) {
 		t.Fatal("idle acquisition captured an incarnation")
 	}
-	ref := transactionBegin(t, sess)
+	ref := enginetest.TransactionBegin(t, sess)
 	cancel(session.StatementTimeoutCause)
 	scope, err := e.StartStatement(op)
 	if scope != nil || err != context.Canceled || sess.TransactionState() != session.TxActive || sess.Transactions.Ref != ref || op.OriginTransaction != (ids.TxRef{}) {
 		t.Fatal("idle-origin timeout poisoned later explicit owner", scope, err)
 	}
-	transactionEnd(t, sess, ref, false)
+	enginetest.TransactionEnd(t, sess, ref, false)
 }
 
 func TestStatementTimeoutAdmissionAuthority(t *testing.T) {
@@ -269,15 +270,15 @@ func TestStatementTimeoutAdmissionAuthority(t *testing.T) {
 
 func TestStatementTimeoutAdmissionIdleNoBirth(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	op, cancel := statementTimeoutAdmissionCommand(t, sess)
 	cancel(session.StatementTimeoutCause)
 	scope, err := e.StartStatement(op)
 	if scope != nil || err != context.Canceled || sess.TransactionState() != session.TxIdle || sess.Transactions.Ref != (ids.TxRef{}) || sess.Transactions.Ticket != nil {
 		t.Fatal("idle own timeout created a transaction or lock owner", scope, err)
 	}
-	ref := transactionBegin(t, sess)
-	transactionEnd(t, sess, ref, false)
+	ref := enginetest.TransactionBegin(t, sess)
+	enginetest.TransactionEnd(t, sess, ref, false)
 }
 
 func TestStatementTimeoutAdmissionNonCommand(t *testing.T) {

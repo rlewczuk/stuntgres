@@ -20,14 +20,14 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		for _, cancelOutput := range []bool{false, true} {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
 			var tx ids.TxRef
 			if explicit {
-				tx = transactionBegin(t, s)
-				sessionSQL(t, s, "UPDATE t SET v=7 WHERE v=1")
-				sessionSQL(t, s, "DELETE FROM t WHERE v=3")
+				tx = enginetest.TransactionBegin(t, s)
+				enginetest.SessionSQL(t, s, "UPDATE t SET v=7 WHERE v=1")
+				enginetest.SessionSQL(t, s, "DELETE FROM t WHERE v=3")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			op, scope, b, source := updateBoundSource(t, e, s, ctx, "UPDATE t SET v=v+1 RETURNING old.v,new.v")
@@ -70,9 +70,9 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				if s.TransactionState() != session.TxAborted {
 					t.Fatal(s.TransactionState())
 				}
-				transactionEnd(t, s, tx, false)
+				enginetest.TransactionEnd(t, s, tx, false)
 			}
-			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
+			enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
 			enginetest.LockEmpty(t, e)
 		}
 	}
@@ -80,9 +80,9 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 
 func TestUpdateReturningConstraintBeforeProjection(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT NOT NULL CHECK(v>0))")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT NOT NULL CHECK(v>0))")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	for _, q := range []string{"UPDATE t SET v=NULL RETURNING old.v", "UPDATE t SET v=0 RETURNING old.v"} {
 		op, scope, b, source := updateBoundSource(t, e, s, context.Background(), q)
 		calls := 0
@@ -93,7 +93,7 @@ func TestUpdateReturningConstraintBeforeProjection(t *testing.T) {
 		}
 		scope.Finish(err)
 		op.Done()
-		transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2)
+		enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2)
 		enginetest.LockEmpty(t, e)
 	}
 }

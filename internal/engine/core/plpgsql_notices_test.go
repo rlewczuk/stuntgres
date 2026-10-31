@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -18,7 +19,7 @@ import (
 
 func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 	e := engine.New()
-	creator := sessionStart(t, e, nil)
+	creator := enginetest.StartSession(t, e, nil)
 	var routines []*catalog.Procedure
 	func() {
 		op, err := creator.Acquire(t.Context())

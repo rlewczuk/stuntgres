@@ -86,11 +86,11 @@ func (f viewWriteFixture) authorization(t *testing.T, op *session.Operation) cor
 }
 func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*core.StatementScope, *session.Operation) {
 	t.Helper()
-	session := sessionStart(t, f.e, nil)
+	session := enginetest.StartSession(t, f.e, nil)
 	if len(explicit) != 0 && explicit[0] {
-		transactionBegin(t, session)
+		enginetest.TransactionBegin(t, session)
 	}
-	op := transactionOperation(t, session)
+	op := enginetest.TransactionOperation(t, session)
 	scope, err := f.e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)

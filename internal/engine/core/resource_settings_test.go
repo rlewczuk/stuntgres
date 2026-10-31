@@ -20,10 +20,10 @@ import (
 
 func TestResourceTemporaryAccessBoundaries(t *testing.T) {
 	e:=engine.New()
-	owner:=sessionStart(t,e,nil)
-	peer:=sessionStart(t,e,nil)
-	sessionSQL(t,owner,"CREATE TEMP TABLE resource_boundary(v integer CHECK(v>0))")
-	sessionSQL(t,owner,"SET temp_buffers=2048")
+	owner:=enginetest.StartSession(t,e,nil)
+	peer:=enginetest.StartSession(t,e,nil)
+	enginetest.SessionSQL(t,owner,"CREATE TEMP TABLE resource_boundary(v integer CHECK(v>0))")
+	enginetest.SessionSQL(t,owner,"SET temp_buffers=2048")
 	executeError:=func(s *session.Session,query,code,message string) {
 		t.Helper(); op,err:=s.Acquire(context.Background()); if err!=nil { t.Fatal(err) }
 		_,err=e.Execute(op,enginetest.Statement(t,query),0,nil); op.Done()
@@ -33,23 +33,23 @@ func TestResourceTemporaryAccessBoundaries(t *testing.T) {
 	// Failing a CHECK before any successful table storage access must not
 	// initialize the logical simulation.
 	executeError(owner,"INSERT INTO resource_boundary VALUES(-1)","23514",`new row for relation "resource_boundary" violates check constraint "resource_boundary_v_check"`)
-	sessionSQL(t,owner,"SET temp_buffers=3072")
+	enginetest.SessionSQL(t,owner,"SET temp_buffers=3072")
 	namespace:=e.Catalog.State.Get(owner.TemporaryNamespace).Name()
 	executeError(peer,"SELECT v FROM "+namespace+".resource_boundary","0A000","cannot access temporary tables of other sessions")
-	sessionSQL(t,peer,"SET temp_buffers=2048")
+	enginetest.SessionSQL(t,peer,"SET temp_buffers=2048")
 	// Native's specified boundary is successful logical table access, not
 	// PostgreSQL's physical page/cache initialization timing.
-	result:=sessionSQL(t,owner,"SELECT v FROM resource_boundary")
+	result:=enginetest.SessionSQL(t,owner,"SELECT v FROM resource_boundary")
 	if rows:=enginetest.Tuples(result); len(rows)!=0 { t.Fatal(rows) }
-	sessionSQL(t,owner,"BEGIN")
+	enginetest.SessionSQL(t,owner,"BEGIN")
 	store:=owner.Settings
 	store.Mu.Lock(); before:=len(store.Actions); store.Mu.Unlock()
 	executeError(owner,"SET temp_buffers='1024'","22023",`invalid value for parameter "temp_buffers": 1024`)
 	store.Mu.Lock(); after:=len(store.Actions); store.Mu.Unlock()
 	if after!=before { t.Fatal("refused assignment touched setting actions",before,after) }
-	sessionSQL(t,owner,"ROLLBACK")
-	sessionSQL(t,owner,"RESET temp_buffers")
-	sessionSQL(t,owner,"SET temp_buffers=3072")
+	enginetest.SessionSQL(t,owner,"ROLLBACK")
+	enginetest.SessionSQL(t,owner,"RESET temp_buffers")
+	enginetest.SessionSQL(t,owner,"SET temp_buffers=3072")
 }
 
 // Publication must reject initialized candidates before Touch, even when
@@ -67,8 +67,8 @@ func TestResourceTemporaryInitializedValidation(t *testing.T) {
 			} {
 				t.Run(fmt.Sprintf("prepared=%v/bound=%v/%s",prepared,bound,tc.input),func(t *testing.T) {
 					e:=engine.New()
-					s:=sessionStart(t,e,nil)
-					for _,query:=range []string{"CREATE TEMP TABLE resource_initialized(v integer)","SET temp_buffers=2048","INSERT INTO resource_initialized VALUES(11)","RESET temp_buffers","BEGIN","SET application_name='journal-sentinel'","SAVEPOINT resource_validation"} { sessionSQL(t,s,query) }
+					s:=enginetest.StartSession(t,e,nil)
+					for _,query:=range []string{"CREATE TEMP TABLE resource_initialized(v integer)","SET temp_buffers=2048","INSERT INTO resource_initialized VALUES(11)","RESET temp_buffers","BEGIN","SET application_name='journal-sentinel'","SAVEPOINT resource_validation"} { enginetest.SessionSQL(t,s,query) }
 					query:="SET temp_buffers='"+tc.input+"'"
 					count:=0
 					var importer core.FrameImporter
@@ -103,10 +103,10 @@ func TestResourceTemporaryInitializedValidation(t *testing.T) {
 					var got *sqlstate.Error
 					if !errors.As(err,&got) || *got!=want { t.Fatalf("diagnostic got %#v want %#v",got,want) }
 					if !unchanged { t.Fatal("rejected candidate changed journal/value/typed/default/source provenance before Finish") }
-					sessionSQL(t,s,"ROLLBACK TO resource_validation")
-					rows:=enginetest.Tuples(sessionSQL(t,s,"SELECT setting,source FROM pg_settings WHERE name='temp_buffers'"))
+					enginetest.SessionSQL(t,s,"ROLLBACK TO resource_validation")
+					rows:=enginetest.Tuples(enginetest.SessionSQL(t,s,"SELECT setting,source FROM pg_settings WHERE name='temp_buffers'"))
 					if !reflect.DeepEqual(rows,[][]driver.Value{{"1024","default"}}) { t.Fatal("failed assignment changed value/source",rows) }
-					sessionSQL(t,s,"ROLLBACK")
+					enginetest.SessionSQL(t,s,"ROLLBACK")
 				})
 			}
 		}

@@ -20,8 +20,8 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 		for _, boundary := range []string{"cancel_before", "end_before", "cancel_after", "replace_after"} {
 			t.Run(query+"/"+boundary, func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
-				sessionSQL(t, s, "SET application_name TO initial")
+				s := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, s, "SET application_name TO initial")
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := s.Acquire(ctx)
@@ -113,22 +113,22 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 	for _, n := range []int{256, 512, 1024} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(v INT)")
-			sessionSQL(t, s, "CREATE TABLE u(v INT)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE u(v INT)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			store := e.Storage.Relations[ref.Address]
 			changes, copied := 0, 0
 			var retained *exec.FinalRows
 			for i := range n {
 				old := store.Versions
-				sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+				enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 				if len(old) == 0 || &old[0] != &store.Versions[0] {
 					changes++
 					copied += len(old)
 				}
 				if i == 0 {
-					retained = transactionRows(t, s, "SELECT v FROM t", 1)
+					retained = enginetest.TransactionRows(t, s, "SELECT v FROM t", 1)
 				}
 			}
 			// Geometric growth copies 1+2+...+N/2=N-1 entries. This
@@ -145,18 +145,18 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 				t.Fatal("append widened retained prefix")
 			}
 			for range n {
-				sessionSQL(t, s, "INSERT INTO u VALUES(9)")
+				enginetest.SessionSQL(t, s, "INSERT INTO u VALUES(9)")
 			}
-			tx := transactionBegin(t, s)
-			sessionSQL(t, s, "INSERT INTO t VALUES(2)")
-			sessionSQL(t, s, "INSERT INTO u VALUES(3)")
-			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*exec.FinalRows)
+			tx := enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(2)")
+			enginetest.SessionSQL(t, s, "INSERT INTO u VALUES(3)")
+			own := enginetest.SessionSQL(t, s, "SELECT v FROM t").Rows.(*exec.FinalRows)
 			defer own.Close()
 			data := own.Source.View.Data()
 			if len(data.Committed) != 1 || len(data.Own) != 1 || len(data.Committed[ref.Address]) != n || len(data.Own[ref.Address]) != 1 {
 				t.Fatal("query retained unrelated committed/private relation roots")
 			}
-			transactionEnd(t, s, tx, false)
+			enginetest.TransactionEnd(t, s, tx, false)
 			if err := engine.Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}

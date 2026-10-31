@@ -351,8 +351,8 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	reserved := core.StageInitialTables(discarded)[d.Address()].Versions[0]
 	e.DiscardCatalogStage(discarded)
 	queryCreateAssertAbsent(t, e, d)
-	session := sessionStart(t, e, nil)
-	op := transactionOperation(t, session)
+	session := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, session)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)

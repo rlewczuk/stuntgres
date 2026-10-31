@@ -30,13 +30,13 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		"CREATE TYPE public.routine_operator_pair AS (p regprocedure,o regoperator,t regtype)",
 		"SET search_path TO public",
 	} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	ns := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "routine_types"})
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"})
 	typ := e.CatalogRead().MustType(address)
 	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
-	sessionSQL(t, s, "SET ROLE routine_operand_a")
+	enginetest.SessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
 	if d.Regtypes == nil || len(d.Regtypes.Constants) != 3 {
 		t.Fatal("mixed datum did not enter shared analysis", d.Regtypes)
@@ -136,7 +136,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	signature := slices.Clone(d.Results)
 	before := d.Analysis
-	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_b")
+	enginetest.SessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_b")
 	if regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("qualified operand authority change retained mixed cell")
 	}
@@ -151,7 +151,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if d.Analysis != before || !reflect.DeepEqual(d.Regtypes.Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
-	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
+	enginetest.SessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
 	result, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("held mixed statement did not recover", err)

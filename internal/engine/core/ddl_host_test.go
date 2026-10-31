@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -85,8 +86,8 @@ func TestDDLHostStageKeepsLifecycle(t *testing.T) {
 
 func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, `CREATE TEMP TABLE typedef_search_seam(id INT)`)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, `CREATE TEMP TABLE typedef_search_seam(id INT)`)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +134,7 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 
 func TestDDLHostConfigurationSourceNamespaces(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, query := range []string{
 		"CREATE ROLE config_source_actor",
 		"CREATE SCHEMA config_source_private",
@@ -141,7 +142,7 @@ func TestDDLHostConfigurationSourceNamespaces(t *testing.T) {
 		"SET search_path = config_source_private, pg_temp, pg_catalog",
 		"SET SESSION AUTHORIZATION config_source_actor",
 	} {
-		sessionSQL(t, s, query)
+		enginetest.SessionSQL(t, s, query)
 	}
 	op, err := s.Acquire(context.Background())
 	if err != nil {

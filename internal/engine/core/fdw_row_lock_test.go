@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 )
 
@@ -40,8 +41,8 @@ func TestForeignRowMarkOwnerCharacteristics(t *testing.T) {
 	} {
 		t.Run(test.isolation, func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
-			op := transactionOperation(t, sess)
+			sess := enginetest.StartSession(t, e, nil)
+			op := enginetest.TransactionOperation(t, sess)
 			defer op.Done()
 			ref, err := e.Begin(op, test.options)
 			if err != nil {

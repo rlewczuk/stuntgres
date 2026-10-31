@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -73,7 +74,7 @@ func preparedBoundaryUpdate(t *testing.T, entry *session.PreparedTransaction, pa
 func preparedBoundaryFixture(t *testing.T) (*core.Engine, *session.Session, *session.PreparedTransaction, ids.ObjectAddress) {
 	t.Helper()
 	e := engine.New()
-	origin := sessionStart(t, e, nil)
+	origin := enginetest.StartSession(t, e, nil)
 	name := preparedBoundaryName("prepared_boundary")
 	preparedUnitStatement(t, e, origin, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "v", TypeName: parser.TypeName{Name: "int4"}}},
@@ -96,7 +97,7 @@ func preparedBoundaryFixture(t *testing.T) (*core.Engine, *session.Session, *ses
 		Else: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}},
 	}
 	preparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: key}}})
-	op := transactionOperation(t, origin)
+	op := enginetest.TransactionOperation(t, origin)
 	_, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 	op.Done()
 	if err != nil {
@@ -268,7 +269,7 @@ func preparedBoundaryUnchanged(t *testing.T, e *core.Engine, entry *session.Prep
 
 func TestPreparedPopulatedReplaceCatalogGuards(t *testing.T) {
 	e, _, entry, _ := preparedBoundaryFixture(t)
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	for _, source := range []*core.Engine{e, engine.New()} {
 		before := preparedBoundaryCapture(e, entry)
 		changes, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead())
@@ -334,7 +335,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 	for _, veto := range []string{"cancel", "counter"} {
 		t.Run(veto, func(t *testing.T) {
 			e, origin, entry, parent := preparedBoundaryFixture(t)
-			finisher, competitor := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			finisher, competitor := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			arrived, release := preparedBoundaryBarrier(t, e, origin, finisher, entry)
 			if veto == "counter" {
 				e.Mu.Lock()
@@ -474,11 +475,11 @@ func preparedBoundaryPublished(t *testing.T, e *core.Engine, entry *session.Prep
 func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	e := engine.New()
 	serializableUnitRelation(t, e)
-	owners := []*session.Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
+	owners := []*session.Session{enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)}
 	refs := make([]ids.TxRef, 2)
 	tickets := make([]*lock.Ticket, 2)
 	for i, owner := range owners {
-		op := transactionOperation(t, owner)
+		op := enginetest.TransactionOperation(t, owner)
 		var err error
 		refs[i], err = e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 		op.Done()
@@ -612,8 +613,8 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 
 func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	e, _, entry, parent := preparedBoundaryFixture(t)
-	finisher, waiter := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	waiterRef := transactionBegin(t, waiter)
+	finisher, waiter := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	waiterRef := enginetest.TransactionBegin(t, waiter)
 	var resource lock.Resource
 	found := false
 	for held := range e.Locks.Inspect(entry.Ticket).Journals[entry.Ticket] {
@@ -682,12 +683,12 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 		t.Fatal("late cancellation retracted installed outcome", outcome, ctx.Err())
 	}
 	preparedBoundaryPublished(t, e, entry, parent)
-	transactionEnd(t, waiter, waiterRef, false)
+	enginetest.TransactionEnd(t, waiter, waiterRef, false)
 }
 
 func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	e, _, entry, parent := preparedBoundaryFixture(t)
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	before := preparedBoundaryCapture(e, entry)
 	original := e.Storage.Relations[parent]
 	store := e.PrivateStorageLocked(entry.Catalog, parent)

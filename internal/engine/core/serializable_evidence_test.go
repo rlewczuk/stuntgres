@@ -227,17 +227,17 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 
 func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
-	sessionSQL(t, session, "CREATE SEQUENCE persistent_s")
-	sessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
-	sessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
+	session := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, session, "CREATE SEQUENCE persistent_s")
+	enginetest.SessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
+	enginetest.SessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
 	view := e.CatalogRead()
 	matches := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: session.TemporaryNamespace, Name: "eligibility"})
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}
 	relation := e.Catalog.Domain.Ref(view.Epoch(), matches[0])
-	sessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+	enginetest.SessionSQL(t, session, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 	for _, query := range []string{
 		"SELECT last_value,is_called FROM persistent_s",
 		"SELECT last_value,is_called FROM temporary_s",
@@ -245,7 +245,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		"SELECT nextval('persistent_s')",
 		"SELECT nextval('temporary_s')",
 	} {
-		result := sessionSQL(t, session, query)
+		result := enginetest.SessionSQL(t, session, query)
 		if result.Rows != nil {
 			_ = enginetest.Tuples(result)
 			result.Rows.Close()
@@ -292,7 +292,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		t.Fatal("actual provider draws missing")
 	}
 	e.Mu.Unlock()
-	sessionSQL(t, session, "ROLLBACK")
+	enginetest.SessionSQL(t, session, "ROLLBACK")
 	if persistentGenerator.Last != 1 || temporaryGenerator.Last != 1 || !persistentGenerator.Called || !temporaryGenerator.Called {
 		t.Fatal("SSI rollback undid nontransactional sequence draws")
 	}

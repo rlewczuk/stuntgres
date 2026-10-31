@@ -137,10 +137,10 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 		t.Fatal(candidate, err)
 	}
 	_, retained := hashRoot(t, e, "hn")
-	s := sessionStart(t, e, nil)
-	tx := transactionBegin(t, s)
-	sessionSQL(t, s, "INSERT INTO t VALUES(2)")
-	op := transactionOperation(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(2)")
+	op := enginetest.TransactionOperation(t, s)
 	t.Cleanup(op.Done)
 	query, source, release := hashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
 	if len(source.HashIndexes) != 0 {
@@ -156,7 +156,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	stage.Close()
 	release()
 	op.Done()
-	transactionEnd(t, s, tx, false)
+	enginetest.TransactionEnd(t, s, tx, false)
 	_, after := hashRoot(t, e, "hn")
 	if after != retained {
 		t.Fatal("rollback published private hash root")

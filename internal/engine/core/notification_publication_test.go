@@ -63,9 +63,9 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				e := engine.New()
-				receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				receiver, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 				notificationUnitListen(t, receiver)
-				ref := transactionBegin(t, sender)
+				ref := enginetest.TransactionBegin(t, sender)
 				sender.Transactions.NotificationEvents = []session.Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -151,14 +151,14 @@ func TestNotificationPublicationRoots(t *testing.T) {
 	for _, catalog := range []bool{false, true} {
 		t.Run(map[bool]string{false: "empty", true: "catalog"}[catalog], func(t *testing.T) {
 			e := engine.New()
-			r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			r, s := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			notificationUnitListen(t, r)
-			ref := transactionBegin(t, s)
+			ref := enginetest.TransactionBegin(t, s)
 			s.Transactions.NotificationEvents = []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
 			replacement := *core.PayloadNotifications(core.PayloadOf(r)).State
 			replacement.Ready = replacement.Ready.Append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: core.PayloadNotificationsRef(core.PayloadOf(r)), replacement: &replacement}
-			op := transactionOperation(t, s)
+			op := enginetest.TransactionOperation(t, s)
 			op.Ctx = ctx
 			var changes *session.Journal
 			if catalog {
@@ -184,7 +184,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 		})
 	}
 	e := engine.New()
-	r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	r, s := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	notificationUnitListen(t, r)
 	event := []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "candidate"}}
 	for _, change := range []string{"busy", "dequeue", "registration", "retire"} {
@@ -219,8 +219,8 @@ func TestNotificationPublicationRoots(t *testing.T) {
 
 func TestNotificationSavepointRoots(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	transactionBegin(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.TransactionBegin(t, s)
 	owner := s.Transactions
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
@@ -289,34 +289,34 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rows := tc.rows
 			e := engine.New()
-			origin, finisher, receiver := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+			origin, finisher, receiver := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			notificationUnitListen(t, finisher)
 			notificationUnitListen(t, receiver)
 			if rows {
-				sessionSQL(t, origin, "CREATE TABLE prepared_notification_rows(v INT)")
+				enginetest.SessionSQL(t, origin, "CREATE TABLE prepared_notification_rows(v INT)")
 			}
-			transactionBegin(t, origin)
+			enginetest.TransactionBegin(t, origin)
 			if rows {
-				sessionSQL(t, origin, "INSERT INTO prepared_notification_rows VALUES (7)")
+				enginetest.SessionSQL(t, origin, "INSERT INTO prepared_notification_rows VALUES (7)")
 			}
 			if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "notification-progress"); err != nil {
 				t.Fatal(err)
 			}
-			live := transactionBegin(t, origin)
+			live := enginetest.TransactionBegin(t, origin)
 			notificationUnitNotify(t, origin, "uncommitted")
 			notificationUnitUtility(t, origin, &parser.Listen{Channel: parser.Identifier{Text: "origin-only"}})
 			notificationUnitUtility(t, origin, &parser.Unlisten{Channel: parser.Identifier{Text: "unit"}})
 
 			// Held cases retain origin admission until completion returns;
 			// progress cases merge a statement into the live owner concurrently.
-			originOp := transactionOperation(t, origin)
+			originOp := enginetest.TransactionOperation(t, origin)
 			scope, err := e.StartStatement(originOp)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer originOp.Done()
 			defer scope.Finish(nil)
-			finishOp := transactionOperation(t, finisher)
+			finishOp := enginetest.TransactionOperation(t, finisher)
 			defer finishOp.Done()
 			start, completed := make(chan struct{}), make(chan error, 1)
 			go func() {
@@ -346,7 +346,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 			originOp.Done()
 			finishOp.Done()
 			if rows {
-				transactionRows(t, finisher, "SELECT v FROM prepared_notification_rows", 7)
+				enginetest.TransactionRows(t, finisher, "SELECT v FROM prepared_notification_rows", 7)
 			}
 			// A committed positive sentinel checks absence without a timeout.
 			notificationUnitNotify(t, finisher, "before-origin-end")
@@ -362,7 +362,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 			if !kept || stolen {
 				t.Fatal("detached completion changed finisher subscriptions")
 			}
-			transactionEnd(t, origin, live, false)
+			enginetest.TransactionEnd(t, origin, live, false)
 			notificationUnitNotify(t, finisher, "after-origin-rollback")
 			for _, recipient := range []*session.Session{receiver, finisher} {
 				if got := notificationUnitReceive(t, recipient); got.Payload != "after-origin-rollback" {
@@ -375,12 +375,12 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 
 func TestNotificationEffectsOwnership(t *testing.T) {
 	e := engine.New()
-	origin, other := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	old := transactionBegin(t, origin)
-	transactionEnd(t, origin, old, false)
-	live := transactionBegin(t, origin)
+	origin, other := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	old := enginetest.TransactionBegin(t, origin)
+	enginetest.TransactionEnd(t, origin, old, false)
+	live := enginetest.TransactionBegin(t, origin)
 	notificationUnitNotify(t, origin, "live")
-	op := transactionOperation(t, origin)
+	op := enginetest.TransactionOperation(t, origin)
 	defer op.Done()
 	for _, ref := range []ids.TxRef{old, e.Catalog.Domain.Tx(other.SessionToken, live.ID(), 0, other.Transactions, 0)} {
 		actions, events, err := core.NotificationEffects(op, ref, nil, nil)
@@ -395,7 +395,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 
 	// A statement of another operation or owner is rejected after the owner
 	// checks; the exact statement's effects follow the owner's, deduplicated.
-	peerOp := transactionOperation(t, origin)
+	peerOp := enginetest.TransactionOperation(t, origin)
 	for _, scope := range []*core.StatementScope{{Op: peerOp, Owner: origin.Transactions}, {Op: op, Owner: &session.TransactionOwner{}}} {
 		actions, events, err := core.NotificationEffects(op, live, nil, scope)
 		if err == nil || err.Error() != "stuntgres: foreign notification statement" || len(actions) != 0 || len(events) != 0 {

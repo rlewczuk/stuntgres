@@ -36,17 +36,17 @@ func TestDeferredForeignKeyEventEligibilityAbsent(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
-				sessionSQL(t, s, "CREATE TABLE p(a INT,b INT,marker INT,UNIQUE(a,b))")
-				sessionSQL(t, s, "CREATE TABLE c(a INT,b INT,note INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p(a,b) MATCH "+tc.match+" INITIALLY DEFERRED)")
-				sessionSQL(t, s, "INSERT INTO p VALUES("+tc.parent+",0),(9,9,1)")
+				s := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, s, "CREATE TABLE p(a INT,b INT,marker INT,UNIQUE(a,b))")
+				enginetest.SessionSQL(t, s, "CREATE TABLE c(a INT,b INT,note INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p(a,b) MATCH "+tc.match+" INITIALLY DEFERRED)")
+				enginetest.SessionSQL(t, s, "INSERT INTO p VALUES("+tc.parent+",0),(9,9,1)")
 				if tc.parent == "1,1" {
-					sessionSQL(t, s, "INSERT INTO c VALUES(1,1,0)")
+					enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1,1,0)")
 				}
-				transactionBegin(t, s)
-				sessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
+				enginetest.TransactionBegin(t, s)
+				enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
 				if prefix {
-					sessionSQL(t, s, "INSERT INTO c VALUES(9,9,99)")
+					enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9,9,99)")
 				}
 				before := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 				savedModes := maps.Clone(before.ByConstraint)
@@ -59,7 +59,7 @@ func TestDeferredForeignKeyEventEligibilityAbsent(t *testing.T) {
 					savedPayload = *before.Events[0].ForeignKey
 					savedPayload.Next.Values = slices.Clone(savedPayload.Next.Values)
 				}
-				sessionSQL(t, s, tc.mutation)
+				enginetest.SessionSQL(t, s, tc.mutation)
 				after := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 				if len(after.Events) != len(before.Events) || !reflect.DeepEqual(after.Events, savedEvents) || !maps.Equal(after.ByConstraint, savedModes) || !maps.Equal(before.ByConstraint, savedModes) || after.AllSet != before.AllSet || after.AllDeferred != before.AllDeferred {
 					t.Fatal("ineligible transition appended an event or changed saved modes")
@@ -93,21 +93,21 @@ func TestDeferredForeignKeyEventEligibilityAdmission(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE p(a INT,b INT,marker INT,UNIQUE(a,b))")
-			sessionSQL(t, s, "CREATE TABLE c(a INT,b INT,note INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p(a,b) MATCH "+tc.match+" INITIALLY DEFERRED)")
-			sessionSQL(t, s, "INSERT INTO p VALUES(1,1,0),(2,2,1)")
-			sessionSQL(t, s, "INSERT INTO c VALUES(1,1,0)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE p(a INT,b INT,marker INT,UNIQUE(a,b))")
+			enginetest.SessionSQL(t, s, "CREATE TABLE c(a INT,b INT,note INT,CONSTRAINT fk FOREIGN KEY(a,b) REFERENCES p(a,b) MATCH "+tc.match+" INITIALLY DEFERRED)")
+			enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1,1,0),(2,2,1)")
+			enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1,1,0)")
 			child := enginetest.CatalogRef(t, e, e.CatalogRead(), "c")
 			parent := enginetest.CatalogRef(t, e, e.CatalogRead(), "p")
 			definition := e.CatalogRead().MustRelation(child.Address).Constraints.ForeignKeys[0]
-			transactionBegin(t, s)
+			enginetest.TransactionBegin(t, s)
 			if tc.own != "" {
-				sessionSQL(t, s, tc.own)
+				enginetest.SessionSQL(t, s, tc.own)
 				// Remove every earlier event; the next UPDATE must enlist its
 				// own obligation even if its key equals the ultimate base key.
-				sessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
-				sessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
+				enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
+				enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
 			}
 			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 0 {
 				t.Fatal("replacement witness inherited an earlier obligation")
@@ -173,13 +173,13 @@ func TestDeferredForeignKeyEventEligibilityRetention(t *testing.T) {
 	} {
 		t.Run(tc.mutation, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
-			sessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-			sessionSQL(t, s, "INSERT INTO p VALUES(1)")
-			transactionBegin(t, s)
-			sessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
-			sessionSQL(t, s, "INSERT INTO c VALUES(9)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
+			enginetest.SessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+			enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1)")
+			enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk DEFERRED")
+			enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9)")
 			before := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 			if len(before.Events) != 1 || before.Events[0].ForeignKey == nil {
 				t.Fatal("missing original event")
@@ -188,8 +188,8 @@ func TestDeferredForeignKeyEventEligibilityRetention(t *testing.T) {
 			saved := *payload
 			saved.Next.Values = slices.Clone(payload.Next.Values)
 			savedModes := maps.Clone(before.ByConstraint)
-			sessionSQL(t, s, "SAVEPOINT retained")
-			sessionSQL(t, s, tc.mutation)
+			enginetest.SessionSQL(t, s, "SAVEPOINT retained")
+			enginetest.SessionSQL(t, s, tc.mutation)
 			after := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 			if len(after.Events) != tc.count || after.Events[0].ForeignKey != payload || !reflect.DeepEqual(*payload, saved) || !maps.Equal(before.ByConstraint, savedModes) {
 				t.Fatal("repair/deletion pruned or mutated authentic original event")
@@ -197,13 +197,13 @@ func TestDeferredForeignKeyEventEligibilityRetention(t *testing.T) {
 			if tc.count == 1 && &after.Events[0] != &before.Events[0] {
 				t.Fatal("non-enlisting transition detached saved event backing")
 			}
-			sessionSQL(t, s, "ROLLBACK TO retained")
+			enginetest.SessionSQL(t, s, "ROLLBACK TO retained")
 			restored := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 			if !reflect.DeepEqual(before, restored) || &restored.Events[0] != &before.Events[0] || restored.Events[0].ForeignKey != payload {
 				t.Fatal("savepoint did not restore exact event ownership")
 			}
-			sessionSQL(t, s, "DELETE FROM c")
-			sessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
+			enginetest.SessionSQL(t, s, "DELETE FROM c")
+			enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
 			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 0 || !reflect.DeepEqual(*payload, saved) || !maps.Equal(before.ByConstraint, savedModes) {
 				t.Fatal("consumption retained work or mutated a saved source owner")
 			}

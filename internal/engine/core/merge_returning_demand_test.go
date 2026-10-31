@@ -21,9 +21,9 @@ import (
 func TestMergeReturningOutputDemand(t *testing.T) {
 	t.Run("virtualSourceAndTarget", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE TABLE t(id INT,v INT,g INT GENERATED ALWAYS AS(v+1) VIRTUAL)", "INSERT INTO t(id,v) VALUES(1,10),(2,20)", "CREATE TABLE source(id INT,g INT GENERATED ALWAYS AS(7) VIRTUAL)", "INSERT INTO source(id) VALUES(1)"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source src ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+1 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=t.v+1 RETURNING t.id,src.g,old.g,new.g,src")
 		defer op.Done()
@@ -94,14 +94,14 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err = scope.Finish(nil); err != nil {
 			t.Fatal(err)
 		}
-		transactionRows(t, s, "SELECT g FROM t ORDER BY id", 12, 22)
+		enginetest.TransactionRows(t, s, "SELECT g FROM t ORDER BY id", 12, 22)
 		enginetest.LockEmpty(t, e)
 	})
 	t.Run("outputCommentSnapshot", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE TABLE t(id INT)", "INSERT INTO t VALUES(1)", "COMMENT ON TABLE t IS 'table snapshot'", "COMMENT ON COLUMN t.id IS 'column snapshot'"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -134,9 +134,9 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 	})
 	t.Run("zeroMemberReadAndPresence", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t()")
-		sessionSQL(t, s, "INSERT INTO t DEFAULT VALUES")
+		s := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t()")
+		enginetest.SessionSQL(t, s, "INSERT INTO t DEFAULT VALUES")
 		op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1)) src(x) ON TRUE WHEN MATCHED THEN DELETE RETURNING old,new,t")
 		defer op.Done()
 		defer target.Close()

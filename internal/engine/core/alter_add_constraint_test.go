@@ -20,12 +20,12 @@ import (
 
 func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
-	sessionSQL(t, s, "INSERT INTO p VALUES(1)")
-	sessionSQL(t, s, "CREATE TABLE t(a BIGINT,b INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(9223372036854775807,1)")
-	sessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(a BIGINT,b INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(9223372036854775807,1)")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
 	child, parent := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "p")
 	f := child.Constraints.ForeignKeys[0]
 	index := e.Catalog.State.MustRelation(f.Index)
@@ -38,8 +38,8 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	if err != nil || !equal {
 		t.Fatal("narrowed committed unchanged child key", equal, err)
 	}
-	tx := transactionBegin(t, s)
-	sessionSQL(t, s, "UPDATE t SET b=2")
+	tx := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "UPDATE t SET b=2")
 	scope, err := alterConstraintExecuteScope(t, e, s, "UPDATE t SET b=3")
 	if err != nil {
 		_ = scope.Finish(err)
@@ -63,18 +63,18 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 		t.Fatal("prior own key skipped", err)
 	}
 	scope.Op.Done()
-	transactionEnd(t, s, tx, false)
+	enginetest.TransactionEnd(t, s, tx, false)
 }
 
 func TestAlterAddConstraintProjectionProvenance(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "INSERT INTO p VALUES(1)", "CREATE TABLE t(a INT,b INT)", "CREATE TABLE u(a INT,b INT)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
-	tx := transactionBegin(t, s)
+	tx := enginetest.TransactionBegin(t, s)
 	for _, q := range []string{"INSERT INTO t VALUES(9,1)", "INSERT INTO u VALUES(9,1)", "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID", "ALTER TABLE u ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	tDesc, uDesc := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "u")
 	// Explicit metadata is private; relation addresses remain the committed refs.
@@ -107,7 +107,7 @@ func TestAlterAddConstraintProjectionProvenance(t *testing.T) {
 		t.Fatal("following born-current DML lost enforcement", err)
 	}
 	write.Op.Done()
-	transactionEnd(t, s, tx, false)
+	enginetest.TransactionEnd(t, s, tx, false)
 }
 
 func alterConstraintDescriptor(t *testing.T, e *core.Engine, name string) *catalog.Relation {

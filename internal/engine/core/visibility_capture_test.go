@@ -29,7 +29,7 @@ func visibilityInquiryCaptureDemand(t *testing.T, name string) {
 		return q
 	}
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE TABLE capture_ids(id OID)",
 		"INSERT INTO capture_ids VALUES(23)",
@@ -40,7 +40,7 @@ func visibilityInquiryCaptureDemand(t *testing.T, name string) {
 		"INSERT INTO capture_checked VALUES(23)",
 		"CREATE TABLE capture_destination(visible BOOL)",
 	} {
-		sessionSQL(t, s, query(q))
+		enginetest.SessionSQL(t, s, query(q))
 	}
 	for _, tc := range []struct {
 		sql      string

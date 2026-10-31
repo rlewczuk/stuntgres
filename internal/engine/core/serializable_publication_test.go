@@ -114,18 +114,18 @@ func serializableUnitCycle(t *testing.T, e *core.Engine, node *visibility.Serial
 
 func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	setup := sessionStart(t, e, nil)
-	sessionSQL(t, setup, "CREATE TABLE indexed(v INT UNIQUE)")
-	sessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
-	sessionSQL(t, setup, "CREATE SEQUENCE existing_s")
+	a := enginetest.StartSession(t, e, nil)
+	setup := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, setup, "CREATE TABLE indexed(v INT UNIQUE)")
+	enginetest.SessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
+	enginetest.SessionSQL(t, setup, "CREATE SEQUENCE existing_s")
 	var validations atomic.Int32
 	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() { validations.Add(1) }}
-	sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
-	sessionSQL(t, a, "INSERT INTO indexed VALUES(7),(8)")
-	sessionSQL(t, a, "ALTER TABLE indexed ADD COLUMN marker INT DEFAULT 7")
-	sessionSQL(t, a, "CREATE SEQUENCE private_s START WITH 100")
-	sessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
+	enginetest.SessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+	enginetest.SessionSQL(t, a, "INSERT INTO indexed VALUES(7),(8)")
+	enginetest.SessionSQL(t, a, "ALTER TABLE indexed ADD COLUMN marker INT DEFAULT 7")
+	enginetest.SessionSQL(t, a, "CREATE SEQUENCE private_s START WITH 100")
+	enginetest.SessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
 	node := e.Visibility.Serializable.Nodes[a.Transactions.Ref]
 	peer := serializableUnitCycle(t, e, node)
 	e.Mu.Lock()
@@ -139,7 +139,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	before := serializableSnapshotPublication(e)
 	e.Mu.Unlock()
 	validatedBefore := validations.Load()
-	op := transactionOperation(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	err := core.EnginePublishRows(e, op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
 	serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 	if validations.Load() <= validatedBefore {
@@ -155,15 +155,15 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 
 func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	setup := sessionStart(t, e, nil)
-	sessionSQL(t, setup, "CREATE TABLE indexed(v INT UNIQUE)")
-	sessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
-	sessionSQL(t, setup, "CREATE SEQUENCE existing_s")
-	sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
-	sessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
-	sessionSQL(t, a, "CREATE SEQUENCE private_s")
-	sessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
+	a := enginetest.StartSession(t, e, nil)
+	setup := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, setup, "CREATE TABLE indexed(v INT UNIQUE)")
+	enginetest.SessionSQL(t, setup, "INSERT INTO indexed VALUES(0)")
+	enginetest.SessionSQL(t, setup, "CREATE SEQUENCE existing_s")
+	enginetest.SessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+	enginetest.SessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
+	enginetest.SessionSQL(t, a, "CREATE SEQUENCE private_s")
+	enginetest.SessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
 	node := e.Visibility.Serializable.Nodes[a.Transactions.Ref]
 	peer := serializableUnitCycle(t, e, node)
 	address := enginetest.CatalogRef(t, e, e.CatalogRead(), "indexed").Address
@@ -171,7 +171,7 @@ func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *tes
 	e.Storage.Relations[address].Generation = ^uint64(0)
 	before := serializableSnapshotPublication(e)
 	e.Mu.Unlock()
-	op := transactionOperation(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	err := core.EnginePublishRows(e, op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
 	if err == nil || err.Error() != "stuntgres: storage generation exhausted" {
 		t.Fatal("nonempty final ordinary veto", err)
@@ -233,15 +233,15 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 	for _, veto := range []bool{false, true} {
 		t.Run(map[bool]string{false: "successful_retry", true: "veto_after_retry"}[veto], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			writer := sessionStart(t, e, nil)
-			sessionSQL(t, writer, "CREATE TABLE indexed(v INT)")
-			sessionSQL(t, writer, "CREATE INDEX indexed_idx ON indexed(v)")
-			sessionSQL(t, writer, "INSERT INTO indexed VALUES(0)")
+			a := enginetest.StartSession(t, e, nil)
+			writer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, writer, "CREATE TABLE indexed(v INT)")
+			enginetest.SessionSQL(t, writer, "CREATE INDEX indexed_idx ON indexed(v)")
+			enginetest.SessionSQL(t, writer, "INSERT INTO indexed VALUES(0)")
 			address := enginetest.CatalogRef(t, e, e.CatalogRead(), "indexed").Address
 			index := enginetest.CatalogRef(t, e, e.CatalogRead(), "indexed_idx").Address
-			sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
-			sessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
+			enginetest.SessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+			enginetest.SessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
 			node := e.Visibility.Serializable.Nodes[a.Transactions.Ref]
 			peer := serializableUnitCycle(t, e, node)
 			base, cancel := context.WithCancel(context.Background())
@@ -286,7 +286,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 				t.Fatal("outside-lock index merge barrier not reached")
 			}
 			// Real peer publication changes exactly the captured store/root/generation.
-			sessionSQL(t, writer, "INSERT INTO indexed VALUES(9)")
+			enginetest.SessionSQL(t, writer, "INSERT INTO indexed VALUES(9)")
 			e.Mu.Lock()
 			afterPeer = serializableSnapshotPublication(e)
 			e.Mu.Unlock()

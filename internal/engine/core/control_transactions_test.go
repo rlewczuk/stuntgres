@@ -24,13 +24,13 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 				for _, end := range []string{"COMMIT", "END AND NO CHAIN", "COMMIT AND CHAIN", "ROLLBACK", "ABORT AND CHAIN"} {
 					t.Run(replacement+"/"+map[bool]string{false: "reader", true: "writer"}[writer]+"/"+state+"/"+end, func(t *testing.T) {
 						e := engine.New()
-						a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+						a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 						token := a.SessionToken
-						sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-						sessionSQL(t, b, "INSERT INTO t VALUES(77)")
+						enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+						enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(77)")
 						controlsRequire(t, a, "BEGIN")
 						if writer {
-							sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+							enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 						}
 						old := a.Transactions.Ref
 						if state == "sql_failure" {
@@ -48,7 +48,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						frontier := e.Visibility.CommitSeq()
 						if state == "stale_failure" {
 							for range 2 {
-								op := transactionOperation(t, a)
+								op := enginetest.TransactionOperation(t, a)
 								_, err = e.Execute(op, enginetest.Statement(t, "SELECT v FROM t"), 0, nil)
 								op.Done()
 								if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -79,7 +79,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						}
 						enginetest.LockEmpty(t, e)
 						if replacement == "restore" {
-							transactionRows(t, b, "SELECT v FROM t", 99)
+							enginetest.TransactionRows(t, b, "SELECT v FROM t", 99)
 						}
 					})
 				}
@@ -117,10 +117,10 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			enginetest.Run(t, source, "INSERT INTO t VALUES(99)")
 			enginetest.Run(t, source, "CREATE SUBSCRIPTION boundary_import CONNECTION 'password=import_secret' PUBLICATION remote_import WITH (connect=false,slot_name=NONE,binary=true,two_phase=true)")
 			enginetest.Run(t, target, "CREATE SUBSCRIPTION boundary_retained CONNECTION 'password=retained_secret' PUBLICATION remote_retained WITH (connect=false,slot_name=NONE)")
-			a, b := sessionStart(t, target, nil), sessionStart(t, target, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(77)")
-			retained := transactionRows(t, b, "SELECT v FROM t", 77)
+			a, b := enginetest.StartSession(t, target, nil), enginetest.StartSession(t, target, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(77)")
+			retained := enginetest.TransactionRows(t, b, "SELECT v FROM t", 77)
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := enginetest.CatalogRef(t, target, before, "t")
@@ -129,7 +129,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			var reservedNext ids.OID
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			boundary := &controlReplacementContext{Context: ctx, cancel: cancel, late: late}
@@ -206,7 +206,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if imports != 1 {
 					t.Fatal("successful install subscription count", imports)
 				}
-				transactionRows(t, b, "SELECT v FROM t", 99)
+				enginetest.TransactionRows(t, b, "SELECT v FROM t", 99)
 				if !errors.Is(enginetest.ValidateObjectRef(target, target.CatalogRead(), ref), ids.ErrCatalogReplaced) {
 					t.Fatal("old ref eligible")
 				}
@@ -217,7 +217,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if _, err = enginetest.PublishCatalog(target, prepared, core.PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("old stage publishable", err)
 				}
-				op := transactionOperation(t, a)
+				op := enginetest.TransactionOperation(t, a)
 				_, err = target.Execute(op, enginetest.Statement(t, "SELECT v FROM t"), 0, nil)
 				op.Done()
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -254,7 +254,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					t.Fatal("eligible stage fenced", err)
 				}
 				controlsRequire(t, a, "COMMIT")
-				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
+				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
 			}
 			if retained.Count != 1 || retained.Source.View.Data().Catalog.State() != before.State() || enginetest.Export(stored.Versions[0].Values[0]) != int64(77) {
 				t.Fatal("retained generation changed")

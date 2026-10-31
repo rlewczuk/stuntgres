@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -42,7 +43,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			if tc.noProvider {
 				defaults = nil
 			}
-			s := sessionStart(t, e, defaults)
+			s := enginetest.StartSession(t, e, defaults)
 			source := "default"
 			if tc.supplied {
 				source = "client"
@@ -158,7 +159,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			}
 			// A separately started physical session recaptures the now-supplied
 			// value; its startup and settings do not alter the original session.
-			replacement := sessionStart(t, e, defaults)
+			replacement := enginetest.StartSession(t, e, defaults)
 			if tc.noProvider {
 				check(replacement, "on", "on", "default")
 			} else {

@@ -40,8 +40,8 @@ func TestAmcheckInquiryEffectiveSettings(t *testing.T) {
 					t.Fatal("inquiry subject must be an ordinary nonowner")
 				}
 				s, _ := blockingUnitOwner(t, e)
-				sessionSQL(t, s, "SET lo_compat_privileges="+caller)
-				sessionSQL(t, s, "SET ROLE am_caller")
+				enginetest.SessionSQL(t, s, "SET lo_compat_privileges="+caller)
+				enginetest.SessionSQL(t, s, "SET ROLE am_caller")
 				scope := pgrowlocksUnitScope(t, e, s)
 				op := scope.Op
 				beforeRole := op.RoleState()

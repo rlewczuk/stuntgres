@@ -32,16 +32,16 @@ func TestPgstathashindexSimulation(t *testing.T) {
 	root.Hash = nil
 	if _, err := index.CapturePgstattupleStats(context.Background(), c); err == nil { t.Fatal("missing root accepted") }
 	pgstatindexUnitInstalled(t, e)
-	s := sessionStart(t, e, nil)
-	tx := transactionBegin(t, s)
-	defer transactionEnd(t, s, tx, false)
-	sessionSQL(t, s, "INSERT INTO hash_sample VALUES(9)")
-	sessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
-	sessionSQL(t, s, "SAVEPOINT hash_before")
-	sessionSQL(t, s, "DELETE FROM hash_sample")
-	sessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
-	sessionSQL(t, s, "ROLLBACK TO hash_before")
-	sessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
+	s := enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, s)
+	defer enginetest.TransactionEnd(t, s, tx, false)
+	enginetest.SessionSQL(t, s, "INSERT INTO hash_sample VALUES(9)")
+	enginetest.SessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
+	enginetest.SessionSQL(t, s, "SAVEPOINT hash_before")
+	enginetest.SessionSQL(t, s, "DELETE FROM hash_sample")
+	enginetest.SessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO hash_before")
+	enginetest.SessionSQL(t, s, "SELECT pgstathashindex('hash_sample_i')")
 	if e.Storage.IndexRoots[baseline.Index.Address()] != baseline.Root { t.Fatal("statistics published a root") }
 	pgstatindexCaptureWant(t, baseline, 3, 0, 60)
 }

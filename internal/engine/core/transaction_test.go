@@ -20,78 +20,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func transactionOperation(t *testing.T, s *session.Session) *session.Operation {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(op.Done)
-	return op
-}
-func transactionBegin(t *testing.T, s *session.Session) ids.TxRef {
-	t.Helper()
-	op := transactionOperation(t, s)
-	defer op.Done()
-	ref, err := core.EngineOf(s).Begin(op, session.TxOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ref
-}
-func transactionEnd(t *testing.T, s *session.Session, ref ids.TxRef, commit bool) core.EndResult {
-	t.Helper()
-	op := transactionOperation(t, s)
-	defer op.Done()
-	var r core.EndResult
-	var err error
-	if commit {
-		r, err = core.EngineOf(s).Commit(op, ref)
-	} else {
-		r, err = core.EngineOf(s).Rollback(op, ref)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return r
-}
-func transactionRows(t *testing.T, s *session.Session, q string, want ...int64) *exec.FinalRows {
-	t.Helper()
-	r := sessionSQL(t, s, q)
-	t.Cleanup(func() {
-		if err := r.Rows.Close(); err != nil {
-			t.Error(err)
-		}
-	})
-	got := enginetest.Tuples(r)
-	expected := make([][]driver.Value, len(want))
-	for i, v := range want {
-		expected[i] = []driver.Value{v}
-	}
-	if !reflect.DeepEqual(got, expected) {
-		t.Fatalf("%s got %v want %v", q, got, expected)
-	}
-	return r.Rows.(*exec.FinalRows)
-}
 func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	sessionSQL(t, b, "CREATE TABLE u(v INT)")
-	ref := transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
-	sessionSQL(t, a, "INSERT INTO u VALUES(9)")
-	own := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1)
-	empty := transactionRows(t, b, "SELECT v FROM t ORDER BY v")
-	sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 7)
-	transactionRows(t, b, "SELECT v FROM u ORDER BY v")
-	if !transactionEnd(t, a, ref, true).Committed {
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, b, "CREATE TABLE u(v INT)")
+	ref := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
+	enginetest.SessionSQL(t, a, "INSERT INTO u VALUES(9)")
+	own := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1)
+	empty := enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 7)
+	enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v")
+	if !enginetest.TransactionEnd(t, a, ref, true).Committed {
 		t.Fatal("successful commit reported rollback")
 	}
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
-	transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
+	enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", 9)
 	if own.Count != 2 || empty.Count != 0 {
 		t.Fatal("retained result widened")
 	}
@@ -108,11 +55,11 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 		}
 		seen[v.Row] = true
 	}
-	ref = transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
-	private := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 2, 7)
-	transactionEnd(t, a, ref, false)
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
+	ref = enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	private := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 2, 7)
+	enginetest.TransactionEnd(t, a, ref, false)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
 	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
@@ -126,11 +73,11 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 }
 func TestTransactionScopeFinishAndViewOwnership(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	ref := transactionBegin(t, a)
-	op := transactionOperation(t, a)
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	ref := enginetest.TransactionBegin(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -167,22 +114,22 @@ func TestTransactionScopeFinishAndViewOwnership(t *testing.T) {
 	if _, err = scope.Execute(enginetest.Statement(t, "INSERT INTO t VALUES(2)"), 0, nil); err == nil {
 		t.Fatal("finished scope executed")
 	}
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1)
-	transactionEnd(t, a, ref, true)
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1)
+	enginetest.TransactionEnd(t, a, ref, true)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1)
 }
 func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(7)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
 			var ref ids.TxRef
 			if explicit {
-				ref = transactionBegin(t, a)
-				sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+				ref = enginetest.TransactionBegin(t, a)
+				enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			op, err := a.Acquire(ctx)
@@ -208,42 +155,42 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 				if a.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
-				op = transactionOperation(t, a)
+				op = enginetest.TransactionOperation(t, a)
 				_, err = e.Execute(op, enginetest.Statement(t, "SELECT v FROM missing"), 0, nil)
 				enginetest.State(t, err, "25P02")
 				op.Done()
-				if transactionEnd(t, a, ref, true).Committed {
+				if enginetest.TransactionEnd(t, a, ref, true).Committed {
 					t.Fatal("aborted commit")
 				}
 			} else if a.TransactionState() != session.TxIdle {
 				t.Fatal("implicit not idle")
 			}
-			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
 		})
 	}
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	ref := transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	ref := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT); INSERT INTO t VALUES(99)")); err != nil {
 		t.Fatal(err)
 	}
-	op := transactionOperation(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	_, err := e.Execute(op, enginetest.Statement(t, "SELECT v FROM t"), 0, nil)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionEnd(t, a, ref, false)
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 99)
-	ref = transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	enginetest.TransactionEnd(t, a, ref, false)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 99)
+	ref = enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	if err = engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	op = transactionOperation(t, a)
+	op = enginetest.TransactionOperation(t, a)
 	_, err = e.Commit(op, ref)
 	op.Done()
 	if !errors.Is(err, ids.ErrCatalogReplaced) || a.TransactionState() != session.TxIdle {
@@ -252,11 +199,11 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 }
 func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	ref := transactionBegin(t, a)
-	op := transactionOperation(t, a)
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	ref := enginetest.TransactionBegin(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	defer op.Done()
 	if _, err := e.Begin(op, session.TxOptions{}); err == nil {
 		t.Fatal("nested begin")
@@ -267,7 +214,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		}
 	}
 	copyOp := *op
-	for _, bad := range []*session.Operation{nil, &copyOp, transactionOperation(t, b)} {
+	for _, bad := range []*session.Operation{nil, &copyOp, enginetest.TransactionOperation(t, b)} {
 		if _, err := e.Commit(bad, ref); err == nil {
 			t.Fatal("foreign/copy operation")
 		}
@@ -280,22 +227,22 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if a.TransactionState() != session.TxActive {
 		t.Fatal("pre-cancel mutated state")
 	}
-	transactionEnd(t, a, ref, false)
-	next := transactionBegin(t, a)
+	enginetest.TransactionEnd(t, a, ref, false)
+	next := enginetest.TransactionBegin(t, a)
 	if next.ID() == 0 || next.ID() <= ref.ID() {
 		t.Fatal("reused incarnation")
 	}
 	if _, err := e.Rollback(op, ref); err == nil {
 		t.Fatal("old reference ended new work")
 	}
-	transactionEnd(t, a, next, false)
-	done := transactionOperation(t, a)
+	enginetest.TransactionEnd(t, a, next, false)
+	done := enginetest.TransactionOperation(t, a)
 	done.Done()
-	next = transactionBegin(t, a)
+	next = enginetest.TransactionBegin(t, a)
 	if _, err := e.Commit(done, next); err == nil || a.TransactionState() != session.TxActive {
 		t.Fatal("done operation mutated state")
 	}
-	transactionEnd(t, a, next, false)
+	enginetest.TransactionEnd(t, a, next, false)
 	if _, err := e.Begin(op, session.TxOptions{Isolation: session.Isolation(99)}); err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("option mutation")
 	}
@@ -304,27 +251,27 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		t.Fatal("identity wrapped")
 	}
 	a.Transactions.Next = next.ID()
-	ref = transactionBegin(t, a)
+	ref = enginetest.TransactionBegin(t, a)
 	a.Transactions.Command = ids.CommandID(^uint64(0))
 	_, err := e.Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("command wrapped")
 	}
-	transactionEnd(t, a, ref, false)
+	enginetest.TransactionEnd(t, a, ref, false)
 	e.Storage.SetFrontierLocked(^uint64(0), e.Storage.VersionFrontier())
 	_, err = e.Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("row identity wrapped")
 	}
 	e.Storage.SetFrontierLocked(0, e.Storage.VersionFrontier())
-	ref = transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	ref = enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	_, err = e.Commit(op, ref)
 	if err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("commit frontier wrapped")
 	}
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v")
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v")
 }
 
 // Context.Err is the existing cooperative preflight seam, not a production hook.
@@ -353,18 +300,18 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 	for _, boundary := range []string{"cancel_before", "cancel_after", "success", "terminal_before", "epoch_before", "counter_before", "ref_before"} {
 		t.Run(boundary, func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT)")
-			sessionSQL(t, b, "CREATE TABLE u(v INT)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, b, "CREATE TABLE u(v INT)")
 			// Separate singleton commits select geometric spare capacity in t
 			// and a full committed vector in u, without manufacturing storage.
 			for _, query := range []string{"INSERT INTO t VALUES(7)", "INSERT INTO t VALUES(8)", "INSERT INTO t VALUES(10)", "INSERT INTO u VALUES(70)"} {
-				sessionSQL(t, b, query)
+				enginetest.SessionSQL(t, b, query)
 			}
 			retained := [2]*exec.FinalRows{
-				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10),
-				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70),
+				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10),
+				enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", 70),
 			}
 			addresses := [2]ids.ObjectAddress{
 				enginetest.CatalogRef(t, e, e.CatalogRead(), "t").Address,
@@ -384,9 +331,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			frontier := e.Visibility.CommitSeq()
 			retainedFrontier, retainedEpoch := frontier, e.Catalog.State.Epoch()
 			retainedCatalog := e.Catalog.State
-			ref := transactionBegin(t, a)
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
+			ref := enginetest.TransactionBegin(t, a)
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			enginetest.SessionSQL(t, a, "INSERT INTO u VALUES(9)")
 			staged := [2]storage.RowVersion{a.Transactions.Writes[addresses[0]][0], a.Transactions.Writes[addresses[1]][0]}
 			for i, root := range roots {
 				size := len(root) + len(a.Transactions.Writes[addresses[i]])
@@ -528,14 +475,14 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if a.TransactionState() != session.TxActive || len(a.Transactions.Writes) != 2 {
 					t.Fatal("invalid reference discarded current incarnation")
 				}
-				transactionEnd(t, a, ref, false)
+				enginetest.TransactionEnd(t, a, ref, false)
 			}
 			wantT, wantU := []int64{7, 8, 10}, []int64{70}
 			if published {
 				wantT, wantU = []int64{1, 7, 8, 10}, []int64{9, 70}
 			}
-			transactionRows(t, b, "SELECT v FROM t ORDER BY v", wantT...)
-			transactionRows(t, b, "SELECT v FROM u ORDER BY v", wantU...)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", wantT...)
+			enginetest.TransactionRows(t, b, "SELECT v FROM u ORDER BY v", wantU...)
 			op.Done()
 			if boundary == "terminal_before" {
 				if err := a.WaitEnd(context.Background()); err != nil {
@@ -549,14 +496,14 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 	for _, reason := range []session.EndReason{session.CleanClose, session.Terminated, session.Abandoned} {
 		t.Run(map[session.EndReason]string{session.CleanClose: "close", session.Terminated: "terminate", session.Abandoned: "abandon"}[reason], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-			sessionSQL(t, b, "SET application_name TO peer")
-			transactionBegin(t, a)
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			op := transactionOperation(t, a)
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
+			enginetest.SessionSQL(t, b, "SET application_name TO peer")
+			enginetest.TransactionBegin(t, a)
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			op := enginetest.TransactionOperation(t, a)
 			a.RequestEnd(reason)
 			<-op.Context().Done()
 			if len(a.Transactions.Writes) == 0 {
@@ -569,17 +516,17 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 			if a.TransactionState() != session.TxIdle {
 				t.Fatal("owned writes survived physical end")
 			}
-			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
 			sessionValue(t, b, "peer")
 		})
 	}
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	ref := transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	op := transactionOperation(t, a)
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	ref := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	op := enginetest.TransactionOperation(t, a)
 	a.RequestEnd(session.Terminated)
 	_, err := e.Commit(op, ref)
 	if err == nil {
@@ -587,15 +534,15 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 	}
 	op.Done()
 	_ = a.WaitEnd(context.Background())
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v")
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v")
 }
 func TestTransactionConcurrentPeerRetention(t *testing.T) {
 	e := engine.New()
-	setup := sessionStart(t, e, nil)
-	sessionSQL(t, setup, "CREATE TABLE t(v INT)")
+	setup := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, setup, "CREATE TABLE t(v INT)")
 	var wg sync.WaitGroup
 	for i := range 8 {
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		wg.Add(1)
 		go func(v int64) {
 			defer wg.Done()
@@ -620,5 +567,5 @@ func TestTransactionConcurrentPeerRetention(t *testing.T) {
 		}(int64(i))
 	}
 	wg.Wait()
-	transactionRows(t, setup, "SELECT v FROM t ORDER BY v", 0, 1, 2, 3, 4, 5, 6, 7)
+	enginetest.TransactionRows(t, setup, "SELECT v FROM t ORDER BY v", 0, 1, 2, 3, 4, 5, 6, 7)
 }

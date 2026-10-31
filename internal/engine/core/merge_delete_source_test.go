@@ -17,10 +17,10 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 	for _, phase := range []string{"next", "close", "primaryWins", "cancelAtClose"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
+			s := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE WHEN NOT MATCHED BY SOURCE THEN DELETE")
@@ -62,7 +62,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 				t.Fatal("source failure escaped into deletion", err, cursor.closed, premature)
 			}
 			scope.Finish(err)
-			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 			enginetest.LockEmpty(t, e)
 		})
 	}

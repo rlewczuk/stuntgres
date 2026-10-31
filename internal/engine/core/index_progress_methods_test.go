@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 )
@@ -29,7 +30,7 @@ func indexProgressMethodCallbacks(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				e := engine.New()
-				b := indexProgressPrepareSQL(t, e, sessionStart(t, e, nil), 129, explicit, tc.sql)
+				b := indexProgressPrepareSQL(t, e, enginetest.StartSession(t, e, nil), 129, explicit, tc.sql)
 				done := b.run()
 				joined := false
 				defer func() {
@@ -86,7 +87,7 @@ func indexProgressMethodCallbacks(t *testing.T) {
 							t.Fatal(scans, sorts, visits)
 						}
 						if explicit {
-							sessionSQL(t, b.worker, "COMMIT")
+							enginetest.SessionSQL(t, b.worker, "COMMIT")
 						}
 						return
 					}
@@ -98,14 +99,14 @@ func indexProgressMethodCallbacks(t *testing.T) {
 
 func indexProgressCrossDatabase(t *testing.T) {
 	e := engine.New()
-	admin := sessionStart(t, e, nil)
-	sessionSQL(t, admin, "CREATE DATABASE progress_other_database")
+	admin := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, admin, "CREATE DATABASE progress_other_database")
 	other, err := e.SelectDatabase(context.Background(), "progress_other_database")
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := indexProgressPrepareFor(t, e, admin, 1, false)
-	second := indexProgressPrepareFor(t, other, sessionStart(t, other, nil), 1, false)
+	second := indexProgressPrepareFor(t, other, enginetest.StartSession(t, other, nil), 1, false)
 	identities := make(map[int64]ids.OID)
 	for _, b := range []*indexProgressBuild{first, second} {
 		parent := b.e.CatalogRead().MustRelation(b.parent)
@@ -141,7 +142,7 @@ func indexProgressReindexTargets(t *testing.T) {
 	if err := <-b.run(); err != nil {
 		t.Fatal(err)
 	}
-	op := transactionOperation(t, b.worker)
+	op := enginetest.TransactionOperation(t, b.worker)
 	scope, err := b.e.StartStatement(op)
 	if err != nil {
 		op.Done()

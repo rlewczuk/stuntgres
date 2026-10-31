@@ -24,14 +24,14 @@ func TestAmcheckTemporarySettingsAuthority(t *testing.T) {
 			e := engine.New()
 			enginetest.Run(t, e, "CREATE TABLE am_temp_parent(n INT)")
 			parent := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "am_temp_parent").Address)
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TEMP TABLE am_temp_data(n INT)")
-			sessionSQL(t, s, "SET temp_buffers=2048")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TEMP TABLE am_temp_data(n INT)")
+			enginetest.SessionSQL(t, s, "SET temp_buffers=2048")
 			if mode == "initialized-before-entry" {
-				sessionSQL(t, s, "SELECT n FROM am_temp_data")
+				enginetest.SessionSQL(t, s, "SELECT n FROM am_temp_data")
 			}
-			sessionSQL(t, s, "BEGIN")
-			sessionSQL(t, s, "SET application_name='caller-journal'")
+			enginetest.SessionSQL(t, s, "BEGIN")
+			enginetest.SessionSQL(t, s, "SET application_name='caller-journal'")
 			beforeValues, beforeTyped := maps.Clone(s.Settings.Values), maps.Clone(s.Settings.Typed)
 			beforeActions := maps.Clone(s.Settings.Actions)
 			beforeTimers, beforeRoleAction := s.Timeouts, s.Settings.RoleAction

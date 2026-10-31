@@ -40,15 +40,15 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e := engine.New()
-			worker, observer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			worker, observer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE a(id INT)", "CREATE TABLE b(id INT)", "INSERT INTO a VALUES(1),(2)", "INSERT INTO b VALUES(9)"} {
-				sessionSQL(t, worker, q)
+				enginetest.SessionSQL(t, worker, q)
 			}
 			a, b := enginetest.CatalogRef(t, e, e.CatalogRead(), "a"), enginetest.CatalogRef(t, e, e.CatalogRead(), "b")
 			var tx ids.TxRef
 			if explicit {
-				tx = transactionBegin(t, worker)
-				sessionSQL(t, worker, "INSERT INTO b VALUES(7)")
+				tx = enginetest.TransactionBegin(t, worker)
+				enginetest.SessionSQL(t, worker, "INSERT INTO b VALUES(7)")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -65,8 +65,8 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 			if view == nil || len(view.Committed) < 2 || &view.Committed[a.Address][0].Values[0] != &e.Storage.Relations[a.Address].Versions[0].Values[0] || &view.Committed[b.Address][0].Values[0] != &e.Storage.Relations[b.Address].Versions[0].Values[0] {
 				t.Fatal("snapshot did not retain both original roots")
 			}
-			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
-			transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 9)
+			enginetest.TransactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
+			enginetest.TransactionRows(t, observer, "SELECT id FROM b ORDER BY id", 9)
 			cancel()
 			if err := scope.Finish(nil); err != context.Canceled {
 				t.Fatal(err)
@@ -76,8 +76,8 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 			if scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || core.ScopeMutations(scope) != nil || core.ScopeCTEInvocation(scope) != nil {
 				t.Fatal("cancel retained statement roots")
 			}
-			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
-			transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 9)
+			enginetest.TransactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
+			enginetest.TransactionRows(t, observer, "SELECT id FROM b ORDER BY id", 9)
 			want := session.TxIdle
 			if explicit {
 				want = session.TxAborted
@@ -86,7 +86,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal(worker.TransactionState(), want)
 			}
 			if explicit {
-				transactionEnd(t, worker, tx, false)
+				enginetest.TransactionEnd(t, worker, tx, false)
 			}
 			enginetest.LockEmpty(t, e)
 		})
@@ -95,9 +95,9 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 
 func TestCTEDMLAtomicPublication(t *testing.T) {
 	e := engine.New()
-	worker, observer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	worker, observer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE a(id INT)", "CREATE TABLE b(id INT)", "INSERT INTO a VALUES(1),(2)"} {
-		sessionSQL(t, worker, q)
+		enginetest.SessionSQL(t, worker, q)
 	}
 	scope, op := cteDMLUnitScope(t, worker, context.Background())
 	result, err := scope.Execute(enginetest.Statement(t, "WITH d AS (DELETE FROM a RETURNING id), i AS (INSERT INTO b SELECT id FROM d RETURNING id) SELECT * FROM i"), 0, nil)
@@ -106,8 +106,8 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 	}
 	defer result.Rows.Close()
 	before := e.Visibility.CommitSeq()
-	transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
-	transactionRows(t, observer, "SELECT id FROM b")
+	enginetest.TransactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
+	enginetest.TransactionRows(t, observer, "SELECT id FROM b")
 	if scope.Completed {
 		t.Fatal("auxiliary published before Finish")
 	}
@@ -118,8 +118,8 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 	if e.Visibility.CommitSeq() != before+1 {
 		t.Fatal("more than one publication frontier", before, e.Visibility.CommitSeq())
 	}
-	transactionRows(t, observer, "SELECT id FROM a")
-	transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)
+	enginetest.TransactionRows(t, observer, "SELECT id FROM a")
+	enginetest.TransactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)
 	if scope.View != nil || scope.LockTicket != nil || core.ScopeMutations(scope) != nil {
 		t.Fatal("successful Finish retained owner")
 	}
@@ -130,9 +130,9 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 	for _, phase := range []string{"output_error", "output_cancel", "close_veto", "close_veto_exec", "primary_error_before_close"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			worker, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			worker, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE a(id INT)", "CREATE TABLE b(id INT)", "INSERT INTO b VALUES(1)"} {
-				sessionSQL(t, worker, q)
+				enginetest.SessionSQL(t, worker, q)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -205,8 +205,8 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				t.Fatal(err, want)
 			}
 			op.Done()
-			transactionRows(t, peer, "SELECT id FROM a")
-			transactionRows(t, peer, "SELECT id FROM b", 1)
+			enginetest.TransactionRows(t, peer, "SELECT id FROM a")
+			enginetest.TransactionRows(t, peer, "SELECT id FROM b", 1)
 			enginetest.LockEmpty(t, e)
 		})
 	}
@@ -216,9 +216,9 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 	for _, canceled := range []bool{false, true} {
 		t.Run(map[bool]string{false: "commit", true: "cancel_before_finish"}[canceled], func(t *testing.T) {
 			e := engine.New()
-			worker, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			sessionSQL(t, worker, "CREATE TABLE a(id INT)")
-			sessionSQL(t, worker, "INSERT INTO a VALUES(1),(2)")
+			worker, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, worker, "CREATE TABLE a(id INT)")
+			enginetest.SessionSQL(t, worker, "INSERT INTO a VALUES(1),(2)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			scope, op := cteDMLUnitScope(t, worker, ctx)
@@ -235,7 +235,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			if created == (ids.ObjectAddress{}) || e.Catalog.State.Get(created) != nil || e.Storage.Relations[created] != nil || len(scope.Stage.Rows[created]) != 2 {
 				t.Fatal("destination published before Finish")
 			}
-			transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
+			enginetest.TransactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
 			if canceled {
 				cancel()
 			}
@@ -245,13 +245,13 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 				if err != context.Canceled || e.Catalog.State.Get(created) != nil || e.Storage.Relations[created] != nil {
 					t.Fatal("cancellation published destination", err)
 				}
-				transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
+				enginetest.TransactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
 			} else {
 				if err != nil || e.Catalog.State.Get(created) == nil {
 					t.Fatal(err)
 				}
-				transactionRows(t, peer, "SELECT id FROM a")
-				transactionRows(t, peer, "SELECT id FROM copied ORDER BY id", 1, 2)
+				enginetest.TransactionRows(t, peer, "SELECT id FROM a")
+				enginetest.TransactionRows(t, peer, "SELECT id FROM copied ORDER BY id", 1, 2)
 			}
 			enginetest.LockEmpty(t, e)
 		})

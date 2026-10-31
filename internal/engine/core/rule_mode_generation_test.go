@@ -33,7 +33,7 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			for _, q := range tc.setup {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			op, err := s.Acquire(context.Background())
 			if err != nil {
@@ -66,20 +66,20 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 	t.Run("restoration-and-intervening-discard", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "BEGIN")
-		sessionSQL(t, s, "SAVEPOINT settings")
+		enginetest.SessionSQL(t, s, "BEGIN")
+		enginetest.SessionSQL(t, s, "SAVEPOINT settings")
 		s.DiscardPlansGeneration = ^uint64(0) - 8
-		sessionSQL(t, s, "SET LOCAL session_replication_role=replica")
+		enginetest.SessionSQL(t, s, "SET LOCAL session_replication_role=replica")
 		first := s.DiscardPlansGeneration
-		sessionSQL(t, s, "DISCARD PLANS")
+		enginetest.SessionSQL(t, s, "DISCARD PLANS")
 		if s.DiscardPlansGeneration != first+1 {
 			t.Fatal("DISCARD did not consume the shared generation")
 		}
-		sessionSQL(t, s, "ROLLBACK TO settings")
+		enginetest.SessionSQL(t, s, "ROLLBACK TO settings")
 		if s.DiscardPlansGeneration != first+2 {
 			t.Fatal("savepoint did not invalidate restored effective role")
 		}
-		sessionSQL(t, s, "COMMIT")
+		enginetest.SessionSQL(t, s, "COMMIT")
 		if s.DiscardPlansGeneration != first+2 {
 			t.Fatal("unchanged completion spuriously invalidated")
 		}
@@ -87,9 +87,9 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 	t.Run("discard-all-two-consumers", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "SET session_replication_role=replica")
+		enginetest.SessionSQL(t, s, "SET session_replication_role=replica")
 		s.DiscardPlansGeneration = ^uint64(0) - 2
-		sessionSQL(t, s, "DISCARD ALL")
+		enginetest.SessionSQL(t, s, "DISCARD ALL")
 		if s.DiscardPlansGeneration != ^uint64(0) {
 			t.Fatal("DISCARD ALL failed to consume reset and explicit discard generations", s.DiscardPlansGeneration)
 		}
@@ -129,7 +129,7 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 	t.Run("detached-exit", func(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE parent(id INT)")
+		enginetest.SessionSQL(t, s, "CREATE TABLE parent(id INT)")
 		parent := e.CatalogRead().MustRelation(enginetest.RoleTableRef(t, e, "parent").Address)
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -161,7 +161,7 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		s.DiscardPlansGeneration = ^uint64(0)
 		for _, q := range []string{"SET session_replication_role=origin", "RESET session_replication_role", "RESET ALL"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		if s.DiscardPlansGeneration != ^uint64(0) || s.Settings.TypedValue("session_replication_role").Text != "origin" {
 			t.Fatal("equal effective assignments consumed generation")

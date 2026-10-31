@@ -26,9 +26,9 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 	for _, declaration := range []string{"k INT CONSTRAINT old UNIQUE", "k INT CONSTRAINT old PRIMARY KEY", "k INT,CONSTRAINT old EXCLUDE(k WITH =) DEFERRABLE"} {
 		t.Run(declaration, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t("+declaration+")")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t("+declaration+")")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 			ref := roleTableRef(t, e, "t")
 			parent := e.Catalog.State.MustRelation(ref.Address)
 			var indexAddress ids.ObjectAddress
@@ -57,7 +57,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			idx = e.Catalog.State.MustRelation(indexAddress)
 			beforeUnique := slices.Clone(parent.Constraints.Unique)
 			beforeExclusion := slices.Clone(parent.Constraints.Exclusion)
-			sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+			enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 			after := e.Catalog.State.MustRelation(ref.Address)
 			backing := e.Catalog.State.MustRelation(indexAddress)
 			if after == parent || backing == idx || after.Address() != parent.Address() || backing.Address() != idx.Address() || e.Storage.Relations[ref.Address] != store || e.Storage.IndexRoots[indexAddress] != root {
@@ -92,7 +92,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 				t.Fatal("revision exhaustion admitted")
 			}
 			// Ordinary backing-index rename still uses the same group helper.
-			sessionSQL(t, s, "ALTER INDEX new RENAME TO again")
+			enginetest.SessionSQL(t, s, "ALTER INDEX new RENAME TO again")
 			if e.Storage.IndexRoots[indexAddress] != root || !index.BackingConstraintPresent(e.Catalog.State.MustRelation(ref.Address), e.Catalog.State.MustRelation(indexAddress)) {
 				t.Fatal("ordinary helper caller changed root/group")
 			}
@@ -102,8 +102,8 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 
 func TestConstraintRenameCheckOrder(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT a CHECK(k>0) NO INHERIT,CONSTRAINT b CHECK(k>1))")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT a CHECK(k>0) NO INHERIT,CONSTRAINT b CHECK(k>1))")
 	ref := roleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
 	a, b := old.Constraints.Check[0], old.Constraints.Check[1]
@@ -127,7 +127,7 @@ func TestConstraintRenameCheckOrder(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal("real CHECK provider rejected sorted vector", err)
 	}
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT a TO z")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT a TO z")
 	var dump bytes.Buffer
 	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
@@ -139,36 +139,36 @@ func TestConstraintRenameCheckOrder(t *testing.T) {
 
 func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	ref := roleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
 	index := old.Constraints.Unique[0].Index
 	store, root := e.Storage.Relations[ref.Address], e.Storage.IndexRoots[index]
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	tx := s.Transactions
 	first := tx.Catalog
 	if first == nil || first.Originals[ref.Address] != old || e.Catalog.State.Get(ref.Address) != old {
 		t.Fatal("private overlay/original authority absent")
 	}
-	sessionSQL(t, s, "SAVEPOINT saved")
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO later")
+	enginetest.SessionSQL(t, s, "SAVEPOINT saved")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO later")
 	second := tx.Catalog
 	if second == first || first.Descriptors[index].Name() != "new" || second.Descriptors[index].Name() != "later" || second.Originals[ref.Address] != old {
 		t.Fatal("repeated rename mutated saved overlay")
 	}
-	sessionSQL(t, s, "ROLLBACK TO saved")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO saved")
 	if tx.Catalog != first {
 		t.Fatal("savepoint did not restore exact overlay")
 	}
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO old")
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO old")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	if tx.Catalog.Originals[ref.Address] != old || e.Storage.Relations[ref.Address] != store || e.Storage.IndexRoots[index] != root {
 		t.Fatal("name reuse lost originals/storage/root")
 	}
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "COMMIT")
 	if e.Storage.Relations[ref.Address] != store || e.Storage.IndexRoots[index] != root {
 		t.Fatal("metadata commit copied roots")
 	}
@@ -179,8 +179,8 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 		for _, change := range []string{"cancel", "reset", "restore", "collision", "descriptor", "authorization"} {
 			t.Run(phase+"/"+change, func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
-				sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
+				s := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
 				ref := roleTableRef(t, e, "t")
 				old := e.Catalog.State.MustRelation(ref.Address)
 				index := old.Constraints.Unique[0].Index
@@ -268,33 +268,33 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 
 func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT old EXCLUDE(k WITH =) DEFERRABLE)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT,CONSTRAINT old EXCLUDE(k WITH =) DEFERRABLE)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	parent := e.Catalog.State.MustRelation(roleTableRef(t, e, "t").Address)
 	oid := parent.Constraints.Exclusion[0].OID
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
-	sessionSQL(t, s, "SAVEPOINT saved")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, s, "SAVEPOINT saved")
 	modes := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	if !core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).ByConstraint[oid] || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 1 || core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events[0].Constraint != oid {
 		t.Fatal("rename reset selected mode/event")
 	}
-	sessionSQL(t, s, "ROLLBACK TO saved")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO saved")
 	if !reflect.DeepEqual(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)), modes) {
 		t.Fatal("rollback lost deferred obligation")
 	}
-	sessionSQL(t, s, "ROLLBACK")
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 }
 
 func TestConstraintRenameAuthorization(t *testing.T) {
 	for _, declaration := range []string{"a INT CONSTRAINT old NOT NULL", "a INT CONSTRAINT old CHECK(a>0)", "a INT CONSTRAINT old UNIQUE", "a INT CONSTRAINT old PRIMARY KEY", "a INT,CONSTRAINT old EXCLUDE(a WITH =)"} {
 		t.Run(declaration, func(t *testing.T) {
 			e, admin, owner, ns, acl := renameAuthorityFixture(t)
-			sessionSQL(t, owner, "DROP TABLE protected.t")
-			sessionSQL(t, owner, "CREATE TABLE protected.t("+declaration+")")
+			enginetest.SessionSQL(t, owner, "DROP TABLE protected.t")
+			enginetest.SessionSQL(t, owner, "CREATE TABLE protected.t("+declaration+")")
 			acl.Entries[0].Privileges = authorization.UsagePrivilege
 			if err := enginetest.SetObjectACL(e, context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
@@ -308,13 +308,13 @@ func TestConstraintRenameAuthorization(t *testing.T) {
 				t.Fatal("syntax-only Prepare", err)
 			}
 			op.Done()
-			tx := transactionBegin(t, admin)
-			sessionSQL(t, admin, "LOCK TABLE protected.t IN ACCESS SHARE MODE")
+			tx := enginetest.TransactionBegin(t, admin)
+			enginetest.SessionSQL(t, admin, "LOCK TABLE protected.t IN ACCESS SHARE MODE")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := enginetest.LockAsync(e, owner, ctx, "ALTER TABLE protected.t RENAME CONSTRAINT old TO new", false)
 			enginetest.LockPending(t, e, 1)
-			transactionEnd(t, admin, tx, false)
+			enginetest.TransactionEnd(t, admin, tx, false)
 			select {
 			case err := <-done:
 				if err != nil {
@@ -330,13 +330,13 @@ func TestConstraintRenameAuthorization(t *testing.T) {
 
 func TestConstraintRenameNotNullIdentity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old NOT NULL)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old NOT NULL)")
 	ref := roleTableRef(t, e, "t")
 	before := e.Catalog.State.MustRelation(ref.Address)
 	definition := before.Constraints.NotNull[0]
 	storage := e.Storage.Relations[ref.Address]
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	after := e.Catalog.State.MustRelation(ref.Address)
 	renamed := after.Constraints.NotNull[0]
 	renamed.Name = definition.Name
@@ -347,12 +347,12 @@ func TestConstraintRenameNotNullIdentity(t *testing.T) {
 
 func TestConstraintRenamePrivateRoots(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	ref := roleTableRef(t, e, "t")
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
 	earlier := s.Transactions.Catalog
 	parent := earlier.Descriptors[ref.Address].(*catalog.Relation)
 	idx := parent.Constraints.Unique[0].Index
@@ -361,17 +361,17 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	if root == nil || storage == nil {
 		t.Fatal("TYPE did not establish genuine private roots")
 	}
-	sessionSQL(t, s, "SAVEPOINT saved")
-	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
+	enginetest.SessionSQL(t, s, "SAVEPOINT saved")
+	enginetest.SessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	renamed := s.Transactions.Catalog
 	if renamed == earlier || index.JournalIndexesOrZero(renamed).UniqueRoots[idx] != root || renamed.Storage[ref.Address].Replacement != storage || earlier.Descriptors[idx].Name() != "old" {
 		t.Fatal("rename copied/mutated prior private roots")
 	}
-	sessionSQL(t, s, "ROLLBACK TO saved")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO saved")
 	if s.Transactions.Catalog != earlier {
 		t.Fatal("private root savepoint pointer lost")
 	}
-	sessionSQL(t, s, "ROLLBACK")
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 }
 
 type alterDropProvider struct {
@@ -392,9 +392,9 @@ func (p alterDropProvider) Validate(v catalog.Read, d catalog.Descriptor) error 
 func renameAuthorityFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, ids.ObjectRef, authorization.ACLValue) {
 	t.Helper()
 	e := engine.New()
-	admin, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, admin, "CREATE USER rename_transition_owner")
-	sessionSQL(t, admin, "CREATE SCHEMA protected")
+	admin, owner := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, admin, "CREATE USER rename_transition_owner")
+	enginetest.SessionSQL(t, admin, "CREATE SCHEMA protected")
 	actor, _ := e.Roles().Lookup("rename_transition_owner")
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"})
@@ -403,8 +403,8 @@ func renameAuthorityFixture(t *testing.T) (*core.Engine, *session.Session, *sess
 	if err := enginetest.SetObjectACL(e, context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
-	sessionSQL(t, owner, "SET SESSION AUTHORIZATION rename_transition_owner")
-	sessionSQL(t, owner, "CREATE TABLE protected.t(a INT CONSTRAINT nn NOT NULL,b TEXT)")
-	sessionSQL(t, owner, "INSERT INTO protected.t VALUES(7,'keep')")
+	enginetest.SessionSQL(t, owner, "SET SESSION AUTHORIZATION rename_transition_owner")
+	enginetest.SessionSQL(t, owner, "CREATE TABLE protected.t(a INT CONSTRAINT nn NOT NULL,b TEXT)")
+	enginetest.SessionSQL(t, owner, "INSERT INTO protected.t VALUES(7,'keep')")
 	return e, admin, owner, ns, acl
 }

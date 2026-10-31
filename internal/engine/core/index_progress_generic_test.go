@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 )
 
 func indexProgressGenericMethods(t *testing.T) {
@@ -13,11 +14,11 @@ func indexProgressGenericMethods(t *testing.T) {
 		for _, explicit := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/overlay=%v", method, explicit), func(t *testing.T) {
 				e := engine.New()
-				worker := sessionStart(t, e, nil)
-				sessionSQL(t, worker, "CREATE TABLE progress_build(k point)")
-				sessionSQL(t, worker, "INSERT INTO progress_build VALUES('(1,2)'),('(3,4)'),(NULL),('(1,2)')")
+				worker := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, worker, "CREATE TABLE progress_build(k point)")
+				enginetest.SessionSQL(t, worker, "INSERT INTO progress_build VALUES('(1,2)'),('(3,4)'),(NULL),('(1,2)')")
 				if explicit {
-					sessionSQL(t, worker, "BEGIN")
+					enginetest.SessionSQL(t, worker, "BEGIN")
 				}
 				b := indexProgressStage(t, e, worker, "CREATE INDEX progress_new ON progress_build USING "+method+"(k)")
 				done := b.run()
@@ -70,7 +71,7 @@ func indexProgressGenericMethods(t *testing.T) {
 							t.Fatal(err, scans, visits, finishes)
 						}
 						if explicit {
-							sessionSQL(t, worker, "COMMIT")
+							enginetest.SessionSQL(t, worker, "COMMIT")
 						}
 						return
 					}

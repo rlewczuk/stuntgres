@@ -27,7 +27,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if err != nil || len(empty.Anonymous) != 0 || empty.Ref != ref {
 		t.Fatal(empty, err)
 	}
-	sessionSQL(t, s, "DECLARE own SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+	enginetest.SessionSQL(t, s, "DECLARE own SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 	cursor := core.PayloadOf(s).Cursors.Entries["own"]
 	original := core.CursorRoot(cursor).Expressions[0]
 	calls := 0
@@ -77,7 +77,7 @@ func TestPGCursorsSource(t *testing.T) {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
 	}
 	peer := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
+	enginetest.SessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
 	peerSource, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Cursors: core.PayloadOf(peer).Cursors})}, capturePGCursors)
 	if err != nil || len(peerSource.Anonymous) != 1 {
 		t.Fatal(peerSource, err)
@@ -90,7 +90,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// Restore the real expression, then explicitly fail the cursor producer.
 	// The recovered failed entry is still observable without rerunning it.
 	core.CursorRoot(cursor).Expressions[0] = original
-	sessionSQL(t, s, "SAVEPOINT recover")
+	enginetest.SessionSQL(t, s, "SAVEPOINT recover")
 	core.CursorRoot(cursor).Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("failed producer")
@@ -98,7 +98,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if _, err := cursorUnitExecute(t, s, context.Background(), "FETCH 1 FROM own"); err == nil {
 		t.Fatal("producer unexpectedly succeeded")
 	}
-	sessionSQL(t, s, "ROLLBACK TO recover")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO recover")
 	failed, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Cursors: core.PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil || !reflect.DeepEqual(failed.Anonymous, source.Anonymous) || cursor.Place != exec.CursorFailed || calls != 1 {
 		t.Fatal("failed cursor metadata changed/demanded", failed, err, calls)
@@ -106,7 +106,7 @@ func TestPGCursorsSource(t *testing.T) {
 
 	// With two entries, cancel at preflight, either entry, and the final
 	// publication boundary. No canceled observation publishes a prefix.
-	sessionSQL(t, s, "DECLARE second NO SCROLL CURSOR FOR SELECT 2")
+	enginetest.SessionSQL(t, s, "DECLARE second NO SCROLL CURSOR FOR SELECT 2")
 	for _, at := range []int32{1, 2, 3, 4} {
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}

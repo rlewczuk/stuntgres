@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -170,7 +171,7 @@ func TestCreateIndexProgressCaptureRetention(t *testing.T) {
 	}
 	core.ScopeEndIndexProgressEntry(b.scope, p)
 	// A stale terminal owner cannot remove a subsequent command's entry.
-	op := transactionOperation(t, b.worker)
+	op := enginetest.TransactionOperation(t, b.worker)
 	scope, err := b.e.StartStatement(op)
 	if err != nil {
 		op.Done()

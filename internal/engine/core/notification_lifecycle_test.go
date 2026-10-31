@@ -31,7 +31,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 	for _, reason := range []session.EndReason{session.CleanClose, session.InitFailure, session.InvalidConnection, session.Terminated, session.Abandoned} {
 		t.Run(map[session.EndReason]string{session.CleanClose: "close", session.InitFailure: "init", session.InvalidConnection: "invalid", session.Terminated: "terminated", session.Abandoned: "abandoned"}[reason], func(t *testing.T) {
 			e := engine.New()
-			receiver, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			receiver, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			notificationUnitListen(t, receiver)
 			notificationUnitListen(t, peer)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -83,7 +83,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 	}
 	t.Run("detach-and-initialization-unwind", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		notificationUnitListen(t, s)
 		// Duplicate identity fails after normal resource attachment; initialized
 		// resources must unwind without retiring the existing exact token owner.
@@ -118,7 +118,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 
 func TestNotificationReceiveOwnership(t *testing.T) {
 	e := engine.New()
-	receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	receiver, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	notificationUnitListen(t, receiver)
 	notificationUnitNotify(t, sender, "retained")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -204,15 +204,15 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 
 func TestNotificationBatchOwnership(t *testing.T) {
 	e := engine.New()
-	a, b, sender := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+	a, b, sender := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	notificationUnitListen(t, a)
 	notificationUnitListen(t, b)
-	ref := transactionBegin(t, sender)
+	ref := enginetest.TransactionBegin(t, sender)
 	sender.Transactions.NotificationEvents = []session.Notification{
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "first"},
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "second"},
 	}
-	transactionEnd(t, sender, ref, true)
+	enginetest.TransactionEnd(t, sender, ref, true)
 	e.Mu.Lock()
 	left, right := core.PayloadNotifications(core.PayloadOf(a)).State.Ready.Back, core.PayloadNotifications(core.PayloadOf(b)).State.Ready.Back
 	shared := left != nil && right != nil && left != right && &left.Batch[0] == &right.Batch[0]

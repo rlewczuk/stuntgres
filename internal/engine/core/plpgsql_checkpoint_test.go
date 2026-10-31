@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -19,8 +20,8 @@ import (
 func plExceptionUnitScope(t *testing.T) (*core.Engine, *core.StatementScope) {
 	t.Helper()
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
-	op := transactionOperation(t, sess)
+	sess := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, sess)
 	ref, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		op.Done()

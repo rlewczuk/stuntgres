@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -96,7 +97,7 @@ func indexProgressPublicationVeto(t *testing.T) {
 			t.Fatal("veto fabricated loading")
 		}
 		if explicit {
-			sessionSQL(t, b.worker, "ROLLBACK")
+			enginetest.SessionSQL(t, b.worker, "ROLLBACK")
 		}
 	}
 }

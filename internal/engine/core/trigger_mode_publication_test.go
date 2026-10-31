@@ -21,11 +21,11 @@ func TestTriggerModeStageCancellation(t *testing.T) {
 					"CREATE TABLE mode_leaf PARTITION OF mode_tree FOR VALUES FROM(0) TO(100)",
 					"CREATE TRIGGER a BEFORE INSERT ON mode_tree FOR EACH ROW EXECUTE FUNCTION mode_fn()",
 				} {
-					sessionSQL(t, s, q)
+					enginetest.SessionSQL(t, s, q)
 				}
-				sessionSQL(t, s, "INSERT INTO mode_parent VALUES(1,5)")
+				enginetest.SessionSQL(t, s, "INSERT INTO mode_parent VALUES(1,5)")
 				if explicit {
-					sessionSQL(t, s, "BEGIN")
+					enginetest.SessionSQL(t, s, "BEGIN")
 				}
 				ast, description := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
 				result, err := sequencePreparedExecute(e, s, ast, &description)
@@ -106,7 +106,7 @@ func TestTriggerModeStageCancellation(t *testing.T) {
 
 func TestTriggerModePreparedPublication(t *testing.T) {
 	e, s := triggerModeUnitSetup(t)
-	sessionSQL(t, s, "INSERT INTO mode_parent VALUES(1,5)")
+	enginetest.SessionSQL(t, s, "INSERT INTO mode_parent VALUES(1,5)")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
 	execute := func() {
 		r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -121,7 +121,7 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 	}
 	originalAnalysis, originalFolds := d.Analysis, d.Folds.Current()
 	generation := s.DiscardPlansGeneration
-	sessionSQL(t, s, "ALTER TABLE mode_parent ENABLE TRIGGER a")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_parent ENABLE TRIGGER a")
 	execute()
 	if d.Analysis != originalAnalysis || s.DiscardPlansGeneration != generation || &d.Folds.Current().Entries[0] != &originalFolds.Entries[0] {
 		t.Fatal("no-op replaced accepted owner/backing")
@@ -137,7 +137,7 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 		before, folds := d.Analysis, d.Folds.Current()
 		discard := s.DiscardPlansGeneration
 		for _, q := range queries {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		execute()
 		accepted := d.Folds.Current()
@@ -164,7 +164,7 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 	insert, held := sequencePreparedDescription(t, e, s, "INSERT INTO mode_parent VALUES(2,5)")
 	for _, q := range []string{"ALTER TABLE mode_parent DISABLE TRIGGER a", "ALTER TABLE mode_parent ENABLE ALWAYS TRIGGER a", "SET session_replication_role=replica", "RESET session_replication_role"} {
 		previous := held.Analysis
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 		r, err := sequencePreparedExecute(e, s, insert, &held)
 		if err != nil {
 			t.Fatal(err)
@@ -176,6 +176,6 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 			t.Fatal("held DML retained stale analysis", q)
 		}
 		// Keep the same held INSERT reusable without a uniqueness collision.
-		sessionSQL(t, s, "DELETE FROM mode_parent WHERE id=2")
+		enginetest.SessionSQL(t, s, "DELETE FROM mode_parent WHERE id=2")
 	}
 }

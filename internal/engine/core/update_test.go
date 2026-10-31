@@ -18,30 +18,30 @@ import (
 
 func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	b := sessionStart(t, e, nil)
-	sessionSQL(t, b, "CREATE TABLE t(v INT)")
-	sessionSQL(t, b, "INSERT INTO t VALUES(1),(1)")
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(1)")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	original := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
-	saved := transactionRows(t, b, "SELECT v FROM t", 1, 1)
-	tx := transactionBegin(t, a)
-	sessionSQL(t, a, "UPDATE t SET v=2")
+	saved := enginetest.TransactionRows(t, b, "SELECT v FROM t", 1, 1)
+	tx := enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=2")
 	first := append([]storage.RowVersion(nil), a.Transactions.Writes[ref.Address]...)
-	transactionRows(t, a, "SELECT v FROM t", 2, 2)
-	transactionRows(t, b, "SELECT v FROM t", 1, 1)
-	sessionSQL(t, a, "UPDATE t SET v=3")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t", 2, 2)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t", 1, 1)
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=3")
 	for i, row := range a.Transactions.Writes[ref.Address] {
 		if row.Row != original[i].Row || row.Base != original[i].Version || row.Version <= first[i].Version {
 			t.Fatal("replacement provenance", row, original[i], first[i])
 		}
 	}
-	sessionSQL(t, a, "INSERT INTO t VALUES(4)")
-	sessionSQL(t, a, "UPDATE t SET v=5 WHERE v=4")
-	sessionSQL(t, a, "UPDATE t SET v=6 WHERE v=5")
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 3, 3, 6)
-	transactionEnd(t, a, tx, true)
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(4)")
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=5 WHERE v=4")
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=6 WHERE v=5")
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 3, 3, 6)
+	enginetest.TransactionEnd(t, a, tx, true)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
 	current := e.Storage.Relations[ref.Address].Versions
 	if len(current) != 3 || current[0].Row != original[0].Row || current[1].Row != original[1].Row || current[0].Version == original[0].Version || current[0].Born <= original[0].Born || current[0].Base != 0 {
 		t.Fatal("current committed heads", current)
@@ -49,24 +49,24 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	if saved.Count != 2 || enginetest.Export(original[0].Values[0]) != int64(1) {
 		t.Fatal("retained predecessor changed")
 	}
-	tx = transactionBegin(t, a)
-	sessionSQL(t, a, "UPDATE t SET v=9")
-	transactionEnd(t, a, tx, false)
-	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
+	tx = enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=9")
+	enginetest.TransactionEnd(t, a, tx, false)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
 }
 
 func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
-			b := sessionStart(t, e, nil)
-			sessionSQL(t, b, "CREATE TABLE t(v INT)")
-			sessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
+			a := enginetest.StartSession(t, e, nil)
+			b := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
 			var tx ids.TxRef
 			if explicit {
-				tx = transactionBegin(t, a)
-				sessionSQL(t, a, "INSERT INTO t VALUES(3)")
+				tx = enginetest.TransactionBegin(t, a)
+				enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(3)")
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -92,24 +92,24 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 			if err = scope.Finish(nil); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2)
+			enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2)
 			if explicit {
 				if a.TransactionState() != session.TxAborted {
 					t.Fatal(a.TransactionState())
 				}
-				transactionEnd(t, a, tx, false)
+				enginetest.TransactionEnd(t, a, tx, false)
 			}
-			sessionSQL(t, b, "UPDATE t SET v=7")
+			enginetest.SessionSQL(t, b, "UPDATE t SET v=7")
 			enginetest.LockEmpty(t, e)
 		})
 	}
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(v INT)")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	before := e.Storage.Relations[enginetest.CatalogRef(t, e, e.CatalogRead(), "t").Address].Versions[0]
 	e.Storage.SetFrontierLocked(e.Storage.RowFrontier(), ^uint64(0))
-	op := transactionOperation(t, a)
+	op := enginetest.TransactionOperation(t, a)
 	_, err := e.Execute(op, enginetest.Statement(t, "UPDATE t SET v=2"), 0, nil)
 	if err == nil || err.Error() != "stuntgres: version identity exhausted" {
 		t.Fatal(err)
@@ -123,10 +123,10 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 
 func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(v INT)")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1),(2)")
-	op := transactionOperation(t, a)
+	a := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1),(2)")
+	op := enginetest.TransactionOperation(t, a)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -181,6 +181,6 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2)
 	enginetest.LockEmpty(t, e)
 }

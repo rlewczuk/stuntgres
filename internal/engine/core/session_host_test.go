@@ -6,13 +6,14 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
 func TestSessionHostRecoversEngine(t *testing.T) {
 	e := engine.NewWithSettings(nil, "", false)
-	public := sessionStart(t, e, nil)
+	public := enginetest.StartSession(t, e, nil)
 	private := collationPrivateSession(t, e)
 	for name, s := range map[string]*session.Session{"public": public, "private": private} {
 		if got := core.EngineOf(s); got != e {
@@ -26,7 +27,7 @@ func TestSessionHostRecoversEngine(t *testing.T) {
 
 func TestSessionHostUnregisterKeepsOtherOwner(t *testing.T) {
 	e := engine.NewWithSettings(nil, "", false)
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	host := s.Host
 	other := &session.Session{SessionToken: s.SessionToken}
 	core.EngineSessionMuRef(e).Lock()

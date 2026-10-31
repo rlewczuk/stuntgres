@@ -21,9 +21,9 @@ import (
 
 func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT,label TEXT)", "INSERT INTO t VALUES(2,20),(2,20),(3,30)", "INSERT INTO s VALUES(2,'same'),(2,'same'),(3,'third')"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "DELETE FROM t d USING s x WHERE d.id=x.k RETURNING d.id,d.v,x.label,new.id")
 	data := target.View.Data()
@@ -75,8 +75,8 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 			t.Fatal("immutable predecessor changed")
 		}
 	}
-	transactionRows(t, s, "SELECT id FROM t")
-	transactionRows(t, s, "SELECT k FROM s ORDER BY k", 2, 2, 3)
+	enginetest.TransactionRows(t, s, "SELECT id FROM t")
+	enginetest.TransactionRows(t, s, "SELECT k FROM s ORDER BY k", 2, 2, 3)
 	enginetest.LockEmpty(t, e)
 }
 
@@ -85,15 +85,15 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 		for _, explicit := range []bool{false, true} {
 			t.Run(phase+map[bool]string{false: "/implicit", true: "/explicit"}[explicit], func(t *testing.T) {
 				e := engine.New()
-				writer := sessionStart(t, e, nil)
-				peer := sessionStart(t, e, nil)
+				writer := enginetest.StartSession(t, e, nil)
+				peer := enginetest.StartSession(t, e, nil)
 				for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT)", "CREATE TABLE r(k INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1),(2)", "INSERT INTO r VALUES(1),(2)"} {
-					sessionSQL(t, peer, q)
+					enginetest.SessionSQL(t, peer, q)
 				}
 				var tx ids.TxRef
 				if explicit {
-					tx = transactionBegin(t, writer)
-					sessionSQL(t, writer, "UPDATE t SET v=11 WHERE id=1")
+					tx = enginetest.TransactionBegin(t, writer)
+					enginetest.SessionSQL(t, writer, "UPDATE t SET v=11 WHERE id=1")
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -172,9 +172,9 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					if writer.TransactionState() != session.TxAborted || writer.Transactions.Writes != nil || writer.Transactions.Deletes != nil {
 						t.Fatal("private work survived abort")
 					}
-					transactionEnd(t, writer, tx, false)
+					enginetest.TransactionEnd(t, writer, tx, false)
 				}
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 				enginetest.LockEmpty(t, e)
 			})
 		}
@@ -183,16 +183,16 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 
 func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	bSession := sessionStart(t, e, nil)
+	a := enginetest.StartSession(t, e, nil)
+	bSession := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT,n INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1,100),(2,200)"} {
-		sessionSQL(t, a, q)
+		enginetest.SessionSQL(t, a, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, bSession, context.Background(), "DELETE FROM t USING s WHERE t.id=s.k RETURNING old.v,s.n")
-	sessionSQL(t, a, "UPDATE t SET v=11 WHERE id=1")
-	sessionSQL(t, a, "UPDATE s SET n=999")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
-	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=11 WHERE id=1")
+	enginetest.SessionSQL(t, a, "UPDATE s SET n=999")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
+	enginetest.SessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
 	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Context: scope.ActivateRuntime(scope.Op.Context()), Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
@@ -210,6 +210,6 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionRows(t, a, "SELECT v FROM t", 30)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t", 30)
 	enginetest.LockEmpty(t, e)
 }

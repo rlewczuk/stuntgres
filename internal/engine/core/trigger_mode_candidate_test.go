@@ -25,14 +25,14 @@ func triggerModeUnitSetup(t *testing.T) (*core.Engine, *session.Session) {
 		"CREATE FUNCTION mode_fn() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN NEW.v:=NEW.v+100; RETURN NEW; END$$",
 		"CREATE TRIGGER a BEFORE INSERT OR UPDATE OF v ON mode_parent FOR EACH ROW WHEN(NEW.v>0) EXECUTE FUNCTION mode_fn('kept')",
 	} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	return e, s
 }
 
 func TestTriggerModeCandidate(t *testing.T) {
 	e, s := triggerModeUnitSetup(t)
-	sessionSQL(t, s, "CREATE TRIGGER z BEFORE INSERT ON mode_parent FOR EACH ROW EXECUTE FUNCTION mode_fn()")
+	enginetest.SessionSQL(t, s, "CREATE TRIGGER z BEFORE INSERT ON mode_parent FOR EACH ROW EXECUTE FUNCTION mode_fn()")
 	read := e.CatalogRead()
 	ref := enginetest.RoleTableRef(t, e, "mode_parent")
 	old := read.MustRelation(ref.Address)
@@ -75,8 +75,8 @@ func TestTriggerModeCandidate(t *testing.T) {
 
 func TestTriggerModeForeignKeyOwnership(t *testing.T) {
 	e, s := triggerModeUnitSetup(t)
-	sessionSQL(t, s, "CREATE TABLE mode_other_parent(id integer PRIMARY KEY)")
-	sessionSQL(t, s, "ALTER TABLE mode_child ADD CONSTRAINT mode_other_fk FOREIGN KEY(id) REFERENCES mode_other_parent(id)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE mode_other_parent(id integer PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "ALTER TABLE mode_child ADD CONSTRAINT mode_other_fk FOREIGN KEY(id) REFERENCES mode_other_parent(id)")
 	read := e.CatalogRead()
 	parent := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_parent").Address)
 	child := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_child").Address)
@@ -183,7 +183,7 @@ func TestTriggerModeBulkCandidate(t *testing.T) {
 			"CREATE FUNCTION mode_keep() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$",
 			"CREATE TRIGGER keep BEFORE INSERT ON mode_child FOR EACH ROW EXECUTE FUNCTION mode_keep()",
 		} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		read := e.CatalogRead()
 		parent := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_parent").Address)
@@ -256,7 +256,7 @@ func TestTriggerModeBulkCandidate(t *testing.T) {
 			"CREATE TRIGGER b BEFORE INSERT ON mode_bulk_tree FOR EACH ROW EXECUTE FUNCTION mode_fn('b')",
 			"CREATE TRIGGER local BEFORE INSERT ON mode_bulk_leaf FOR EACH ROW EXECUTE FUNCTION mode_fn('local')",
 		} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		read := e.CatalogRead()
 		root := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_bulk_tree").Address)
@@ -285,7 +285,7 @@ func TestTriggerModeComposition(t *testing.T) {
 		"CREATE TRIGGER z BEFORE INSERT OR UPDATE OF v ON mode_parent FOR EACH ROW WHEN(NEW.v>0) EXECUTE FUNCTION mode_fn('z')",
 		"ALTER TABLE mode_parent ADD CONSTRAINT mode_self_a FOREIGN KEY(id) REFERENCES mode_parent(id)",
 		"ALTER TABLE mode_parent ADD CONSTRAINT mode_self_b FOREIGN KEY(id) REFERENCES mode_parent(id)",
-	} { sessionSQL(t, s, q) }
+	} { enginetest.SessionSQL(t, s, q) }
 	read := e.CatalogRead()
 	original := read.MustRelation(enginetest.RoleTableRef(t, e, "mode_parent").Address)
 	candidates, err := table.TriggerModeCandidate(context.Background(), read, original,

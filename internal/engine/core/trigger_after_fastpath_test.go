@@ -44,13 +44,13 @@ func TestTriggerAfterCascadeDeleteFastPath(t *testing.T) {
 	for _, kind := range []string{"none", "irrelevant", "applicable"} {
 		t.Run(kind, func(t *testing.T) {
 			e := engine.New()
-			session := sessionStart(t, e, nil)
+			session := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{
 				"CREATE TABLE p(id integer PRIMARY KEY)",
 				"CREATE TABLE c(pid integer REFERENCES p ON UPDATE CASCADE ON DELETE CASCADE)",
 				"INSERT INTO p VALUES(1)",
 				"INSERT INTO c VALUES(1),(1)",
-			} { sessionSQL(t, session, q) }
+			} { enginetest.SessionSQL(t, session, q) }
 			scope := foreignActionUnitScope(t, e, session, "UPDATE p SET id=2")
 			named, physical := scope.LockedRef, scope.LockedStorage
 			jobs, auth, err := dml.PrepareForeignActions(scope.WriteHost())

@@ -29,7 +29,7 @@ func foreignActionLockFixture(t *testing.T, definition string) (*core.Engine, *s
 	e := engine.New()
 	a, b, c := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT " + definition + ",note TEXT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(1,'old')"} {
-		sessionSQL(t, c, q)
+		enginetest.SessionSQL(t, c, q)
 	}
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "c")
 	return e, a, b, c, ref, e.Storage.Relations[ref.Address].Versions[0].Row
@@ -46,8 +46,8 @@ func TestForeignActionsLocks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, a, b, _, ref, row := foreignActionLockFixture(t, tc.definition)
-			holder, waiter := transactionBegin(t, a), transactionBegin(t, b)
-			sessionSQL(t, a, "UPDATE c SET note='latest'")
+			holder, waiter := enginetest.TransactionBegin(t, a), enginetest.TransactionBegin(t, b)
+			enginetest.SessionSQL(t, a, "UPDATE c SET note='latest'")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := enginetest.LockAsync(e, b, ctx, tc.q, false)
@@ -55,13 +55,13 @@ func TestForeignActionsLocks(t *testing.T) {
 			defer func() {
 				cancel()
 				if !holderEnded {
-					transactionEnd(t, a, holder, false)
+					enginetest.TransactionEnd(t, a, holder, false)
 				}
 				if !joined {
 					enginetest.LockAwait(t, done, context.Canceled)
 				}
 				if !waiterEnded {
-					transactionEnd(t, b, waiter, false)
+					enginetest.TransactionEnd(t, b, waiter, false)
 				}
 			}()
 			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.Ticket, tc.queued)
@@ -85,7 +85,7 @@ func TestForeignActionsLocks(t *testing.T) {
 				runtime.Gosched()
 			}
 			b.Transactions.Mu.Unlock()
-			transactionEnd(t, a, holder, true)
+			enginetest.TransactionEnd(t, a, holder, true)
 			holderEnded = true
 			latest := e.Storage.Relations[ref.Address].Versions[0]
 			enginetest.LockAwait(t, done, nil)
@@ -111,7 +111,7 @@ func TestForeignActionsLocks(t *testing.T) {
 				}
 			}
 			b.Transactions.Mu.Unlock()
-			transactionEnd(t, b, waiter, false)
+			enginetest.TransactionEnd(t, b, waiter, false)
 			waiterEnded = true
 			enginetest.LockEmpty(t, e)
 		})
@@ -122,8 +122,8 @@ func TestForeignActionsCancellation(t *testing.T) {
 	for _, replace := range []bool{false, true} {
 		t.Run(map[bool]string{false: "cancel", true: "replacement"}[replace], func(t *testing.T) {
 			e, a, b, c, ref, row := foreignActionLockFixture(t, "REFERENCES p ON DELETE CASCADE")
-			holder := transactionBegin(t, a)
-			sessionSQL(t, a, "UPDATE c SET note='held'")
+			holder := enginetest.TransactionBegin(t, a)
+			enginetest.SessionSQL(t, a, "UPDATE c SET note='held'")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := enginetest.LockAsync(e, b, ctx, "DELETE FROM p", false)
@@ -131,7 +131,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 			defer func() {
 				cancel()
 				if !ended {
-					transactionEnd(t, a, holder, false)
+					enginetest.TransactionEnd(t, a, holder, false)
 				}
 				if !joined {
 					enginetest.LockAwait(t, done, context.Canceled)
@@ -148,11 +148,11 @@ func TestForeignActionsCancellation(t *testing.T) {
 				enginetest.LockAwait(t, done, context.Canceled)
 			}
 			joined = true
-			transactionEnd(t, a, holder, false)
+			enginetest.TransactionEnd(t, a, holder, false)
 			ended = true
 			if replace {
-				sessionSQL(t, c, "CREATE TABLE p(id INT PRIMARY KEY)")
-				sessionSQL(t, c, "CREATE TABLE c(pid INT REFERENCES p ON DELETE CASCADE,note TEXT)")
+				enginetest.SessionSQL(t, c, "CREATE TABLE p(id INT PRIMARY KEY)")
+				enginetest.SessionSQL(t, c, "CREATE TABLE c(pid INT REFERENCES p ON DELETE CASCADE,note TEXT)")
 				next := enginetest.CatalogRef(t, e, e.CatalogRead(), "c")
 				if next == ref || next.Address == ref.Address {
 					t.Fatal("replacement revived child action authority")
@@ -200,7 +200,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE d(id INT,pid INT DEFAULT 1 REFERENCES p ON DELETE SET DEFAULT)", "INSERT INTO p VALUES(1),(2),(6),(7),(10)", "INSERT INTO d VALUES(11,10),(12,10)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	probe := &defaultOrdinal{}
 	defaultProbe(t, e, probe)
@@ -231,18 +231,18 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e, a, b, c, ref, row := foreignActionLockFixture(t, "REFERENCES p ON DELETE CASCADE")
-			origin := transactionBegin(t, a)
+			origin := enginetest.TransactionBegin(t, a)
 			ticket := a.Transactions.Ticket
-			sessionSQL(t, a, "DELETE FROM p")
+			enginetest.SessionSQL(t, a, "DELETE FROM p")
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
-			sessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
+			enginetest.SessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
 			prepared := core.EnginePreparedRef(e).Lookup("action_unit")
 			if prepared == nil || prepared.Ref != origin || prepared.Ticket != ticket || a.Transactions.Ticket != nil || prepared.Deletes[ref.Address] == nil {
 				t.Fatal("action deletion/grants did not transfer to prepared owner")
 			}
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
-			waiter := transactionBegin(t, b)
+			waiter := enginetest.TransactionBegin(t, b)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := enginetest.LockAsync(e, b, ctx, "UPDATE c SET note='peer'", false)
@@ -250,13 +250,13 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			defer func() {
 				cancel()
 				if !completed {
-					sessionSQL(t, c, "ROLLBACK PREPARED 'action_unit'")
+					enginetest.SessionSQL(t, c, "ROLLBACK PREPARED 'action_unit'")
 				}
 				if !joined {
 					enginetest.LockAwait(t, done, context.Canceled)
 				}
 				if !waiterEnded {
-					transactionEnd(t, b, waiter, false)
+					enginetest.TransactionEnd(t, b, waiter, false)
 				}
 			}()
 			foreignKeyQueuedMode(t, e, ref, row, ticket, lock.ForNoKeyUpdate)
@@ -264,11 +264,11 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			if commit {
 				command = "COMMIT PREPARED 'action_unit'"
 			}
-			sessionSQL(t, c, command)
+			enginetest.SessionSQL(t, c, command)
 			completed = true
 			enginetest.LockAwait(t, done, nil)
 			joined = true
-			transactionEnd(t, b, waiter, true)
+			enginetest.TransactionEnd(t, b, waiter, true)
 			waiterEnded = true
 			if core.EnginePreparedRef(e).Len() != 0 {
 				t.Fatal("completed action prepared owner retained")
@@ -297,7 +297,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 		t.Run(map[bool]string{false: "unforced", true: "forced"}[force], func(t *testing.T) {
 			e, a, _, creator, childRef, _ := foreignActionLockFixture(t, "NOT NULL REFERENCES p ON DELETE SET NULL")
 			for _, q := range []string{"CREATE ROLE fa_owner", "CREATE ROLE fa_actor", "ALTER TABLE c ENABLE ROW LEVEL SECURITY", "GRANT DELETE ON p TO fa_actor"} {
-				sessionSQL(t, creator, q)
+				enginetest.SessionSQL(t, creator, q)
 			}
 			// Use the incumbent validated immutable owner stage, not excluded
 			// public ALTER TABLE OWNER syntax or an authorization bypass callback.
@@ -317,9 +317,9 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			if force {
-				sessionSQL(t, creator, "ALTER TABLE c FORCE ROW LEVEL SECURITY")
+				enginetest.SessionSQL(t, creator, "ALTER TABLE c FORCE ROW LEVEL SECURITY")
 			}
-			sessionSQL(t, a, "SET ROLE fa_actor")
+			enginetest.SessionSQL(t, a, "SET ROLE fa_actor")
 			scope := foreignActionUnitScope(t, e, a, "DELETE FROM p")
 			original := scope.Identity.Current
 			err = dml.SettleForeignActions(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost())
@@ -393,8 +393,8 @@ func TestForeignActionsLocksSnapshot(t *testing.T) {
 	for _, isolation := range []session.Isolation{session.RepeatableRead, session.Serializable} {
 		t.Run(map[session.Isolation]string{session.RepeatableRead: "repeatable", session.Serializable: "serializable"}[isolation], func(t *testing.T) {
 			e, holder, waiter, creator, child, _ := foreignActionLockFixture(t, "REFERENCES p ON DELETE CASCADE")
-			sessionSQL(t, creator, "INSERT INTO p VALUES(2)")
-			op := transactionOperation(t, waiter)
+			enginetest.SessionSQL(t, creator, "INSERT INTO p VALUES(2)")
+			op := enginetest.TransactionOperation(t, waiter)
 			ref, err := e.Begin(op, session.TxOptions{Isolation: isolation})
 			op.Done()
 			if err != nil {
@@ -403,11 +403,11 @@ func TestForeignActionsLocksSnapshot(t *testing.T) {
 			ended := false
 			defer func() {
 				if !ended {
-					transactionEnd(t, waiter, ref, false)
+					enginetest.TransactionEnd(t, waiter, ref, false)
 				}
 			}()
-			transactionRows(t, waiter, "SELECT pid FROM c", 1)
-			sessionSQL(t, holder, "UPDATE c SET pid=2")
+			enginetest.TransactionRows(t, waiter, "SELECT pid FROM c", 1)
+			enginetest.SessionSQL(t, holder, "UPDATE c SET pid=2")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			done := enginetest.LockAsync(e, waiter, ctx, "DELETE FROM p WHERE id=1", false)
 			joined := false
@@ -428,13 +428,13 @@ func TestForeignActionsLocksSnapshot(t *testing.T) {
 			if !errors.As(err, &d) || *d != want {
 				t.Fatal(d, err, want)
 			}
-			transactionEnd(t, waiter, ref, false)
+			enginetest.TransactionEnd(t, waiter, ref, false)
 			ended = true
 			parent := enginetest.CatalogRef(t, e, e.CatalogRead(), "p")
 			if e.Storage.Relations[parent.Address].Ends != nil || e.Storage.Relations[child.Address].Ends != nil {
 				t.Fatal("failed stable action published a deletion")
 			}
-			transactionRows(t, creator, "SELECT pid FROM c", 2)
+			enginetest.TransactionRows(t, creator, "SELECT pid FROM c", 2)
 			enginetest.LockEmpty(t, e)
 		})
 	}

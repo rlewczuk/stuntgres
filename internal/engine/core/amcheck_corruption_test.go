@@ -220,10 +220,10 @@ func TestAmcheckBaselineCorruptionWithPrivateRows(t *testing.T) {
 	for _, damage := range []string{"order", "missing", "unique"} {
 		t.Run(damage, func(t *testing.T) {
 			e, d, root := amcheckUnitRoot(t, true)
-			s := sessionStart(t, e, nil)
-			tx := transactionBegin(t, s)
-			defer transactionEnd(t, s, tx, false)
-			sessionSQL(t, s, "INSERT INTO t VALUES(3,'c'),(4,'d')")
+			s := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, s)
+			defer enginetest.TransactionEnd(t, s, tx, false)
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(3,'c'),(4,'d')")
 			if err := amcheckSessionCall(t, e, s, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 				t.Fatal(err)
 			}

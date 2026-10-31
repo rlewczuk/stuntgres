@@ -7,14 +7,15 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 )
 
 func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{`CREATE TABLE t(id INT,v INT)`, `INSERT INTO t VALUES(1,10),(2,20),(3,30)`, `CREATE TABLE l(x INT)`, `INSERT INTO l VALUES(1),(2),(3)`, `CREATE TABLE g(a INT,c INT GENERATED ALWAYS AS(1) VIRTUAL)`, `INSERT INTO g(a) VALUES(NULL)`, `CREATE TABLE witness(n INT)`, `INSERT INTO witness VALUES(1)`} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), `MERGE INTO t USING l LEFT JOIN g p ON l.x=1 LEFT JOIN g q ON l.x=2 ON t.id=l.x WHEN MATCHED THEN UPDATE SET v=(SELECT CASE WHEN p.c IS NULL THEN q.c ELSE p.c END FROM witness WHERE n=1)`)
 	defer op.Done()

@@ -27,11 +27,11 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 	for _, mode := range []string{"abort", "cancel_commit", "replace_command", "replace_commit", "foreign_ref", "cleanup"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "SET application_name='b'")
-			ref := transactionBegin(t, s)
-			sessionSQL(t, s, "SET application_name='s'")
-			sessionSQL(t, s, "SET LOCAL application_name='l'")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "SET application_name='b'")
+			ref := enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "SET application_name='s'")
+			enginetest.SessionSQL(t, s, "SET LOCAL application_name='l'")
 			switch mode {
 			case "abort", "replace_command":
 				if mode == "replace_command" {
@@ -39,7 +39,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				op := transactionOperation(t, s)
+				op := enginetest.TransactionOperation(t, s)
 				scope, err := e.StartStatement(op)
 				if err != nil {
 					t.Fatal(err)
@@ -54,7 +54,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				if s.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
-				transactionEnd(t, s, ref, false)
+				enginetest.TransactionEnd(t, s, ref, false)
 			case "cancel_commit":
 				ctx, cancel := context.WithCancel(context.Background())
 				op, err := s.Acquire(ctx)
@@ -71,14 +71,14 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				if err := engine.Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
-				op := transactionOperation(t, s)
+				op := enginetest.TransactionOperation(t, s)
 				_, err := e.Commit(op, ref)
 				op.Done()
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
 			case "foreign_ref":
-				op := transactionOperation(t, s)
+				op := enginetest.TransactionOperation(t, s)
 				_, err := e.Commit(op, ids.TxRef{})
 				op.Done()
 				if err == nil {
@@ -90,7 +90,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				if got != "l" {
 					t.Fatal("foreign ended live tx", got)
 				}
-				transactionEnd(t, s, ref, false)
+				enginetest.TransactionEnd(t, s, ref, false)
 			case "cleanup":
 				if err := core.EndTransactionSession(s.Transactions, s.Token()); err != nil {
 					t.Fatal(err)
@@ -103,12 +103,12 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 
 func TestSettingsLocalTypedConsumersAbort(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	ref := transactionBegin(t, s)
-	sessionSQL(t, s, "SET LOCAL standard_conforming_strings=off")
-	sessionSQL(t, s, "SET LOCAL statement_timeout='1s'")
-	sessionSQL(t, s, "SET LOCAL client_min_messages=error")
-	op := transactionOperation(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	ref := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "SET LOCAL standard_conforming_strings=off")
+	enginetest.SessionSQL(t, s, "SET LOCAL statement_timeout='1s'")
+	enginetest.SessionSQL(t, s, "SET LOCAL client_min_messages=error")
+	op := enginetest.TransactionOperation(t, s)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -133,19 +133,19 @@ func TestSettingsLocalTypedConsumersAbort(t *testing.T) {
 	if op.NoticeThreshold != session.LevelNotice {
 		t.Fatal("next admission captured stale notice threshold")
 	}
-	transactionEnd(t, s, ref, false)
+	enginetest.TransactionEnd(t, s, ref, false)
 }
 
 func TestSettingsLocalCapturedDefaults(t *testing.T) {
 	e := engine.New()
 	p := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "startup"}, calls: map[string]int{}}
-	s := sessionStart(t, e, p)
+	s := enginetest.StartSession(t, e, p)
 	for _, value := range []string{"DEFAULT", "'startup'", "''"} {
-		ref := transactionBegin(t, s)
-		sessionSQL(t, s, "SET application_name='s'")
-		sessionSQL(t, s, "SET LOCAL application_name="+value)
-		sessionSQL(t, s, "RESET ALL")
-		transactionEnd(t, s, ref, true)
+		ref := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "SET application_name='s'")
+		enginetest.SessionSQL(t, s, "SET LOCAL application_name="+value)
+		enginetest.SessionSQL(t, s, "RESET ALL")
+		enginetest.TransactionEnd(t, s, ref, true)
 		want := "startup"
 		if value == "DEFAULT" {
 			want = "s"

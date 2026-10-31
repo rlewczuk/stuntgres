@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -105,7 +106,7 @@ func TestPgrowlocksEligibility(t *testing.T) {
 		if rows := pgrowlocksUnitCapture(t, e, observer, tuple, true); len(rows) != 1 || !rows[0].Multi {
 			t.Fatal("private insertion non-lock-only Multi branch", rows)
 		}
-		transactionEnd(t, bs, b.Ref(), true)
+		enginetest.TransactionEnd(t, bs, b.Ref(), true)
 		rows := pgrowlocksUnitCapture(t, e, observer, tuple, false)
 		if len(rows) != 1 || !rows[0].Multi || len(rows[0].Members) != 2 || rows[0].Members[1].Mode != lock.MultiNoKeyAction || rows[0].Members[1].PID != 0 {
 			t.Fatal("RR predecessor compatible survivor after updater commits", rows)

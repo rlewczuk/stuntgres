@@ -66,16 +66,16 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 		for _, deadline := range []bool{false, true} {
 			t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit]+"/"+map[bool]string{false: "cancel", true: "deadline"}[deadline], func(t *testing.T) {
 				e := engine.New()
-				a := sessionStart(t, e, nil)
-				peer := sessionStart(t, e, nil)
-				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
-				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
+				a := enginetest.StartSession(t, e, nil)
+				peer := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT)")
+				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 				saved := e.Storage.Relations[ref.Address].Versions
 				var tx ids.TxRef
 				if explicit {
-					tx = transactionBegin(t, a)
-					sessionSQL(t, a, "UPDATE t SET v=3 WHERE v=1")
+					tx = enginetest.TransactionBegin(t, a)
+					enginetest.SessionSQL(t, a, "UPDATE t SET v=3 WHERE v=1")
 				}
 				var ctx context.Context
 				var cancel context.CancelFunc
@@ -127,19 +127,19 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					if a.TransactionState() != session.TxAborted || a.Transactions.Writes != nil {
 						t.Fatal("prior private effects not discarded")
 					}
-					op := transactionOperation(t, a)
+					op := enginetest.TransactionOperation(t, a)
 					_, err = e.Execute(op, enginetest.Statement(t, "UPDATE t SET v=4"), 0, nil)
 					op.Done()
 					var d *sqlstate.Error
 					if !errors.As(err, &d) || d.Code != "25P02" {
 						t.Fatal(err)
 					}
-					transactionEnd(t, a, tx, false)
+					enginetest.TransactionEnd(t, a, tx, false)
 				}
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2)
 				enginetest.LockEmpty(t, e)
-				sessionSQL(t, peer, "UPDATE t SET v=7")
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 7, 7)
+				enginetest.SessionSQL(t, peer, "UPDATE t SET v=7")
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 7, 7)
 				enginetest.LockEmpty(t, e)
 			})
 		}

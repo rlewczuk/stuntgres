@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 )
 
 func indexProgressPartitionCallbacks(t *testing.T) {
@@ -14,7 +15,7 @@ func indexProgressPartitionCallbacks(t *testing.T) {
 		for _, reuseTree := range []bool{false, true} {
 			t.Run(fmt.Sprintf("overlay=%v/reuse_tree=%v", explicit, reuseTree), func(t *testing.T) {
 				e := engine.New()
-				worker := sessionStart(t, e, nil)
+				worker := enginetest.StartSession(t, e, nil)
 				for _, q := range []string{
 					"CREATE TABLE progress_build(k INT) PARTITION BY RANGE(k)",
 					"CREATE TABLE progress_lower PARTITION OF progress_build FOR VALUES FROM (0) TO (50) PARTITION BY RANGE(k)",
@@ -23,15 +24,15 @@ func indexProgressPartitionCallbacks(t *testing.T) {
 					"CREATE TABLE progress_upper PARTITION OF progress_build FOR VALUES FROM (50) TO (100)",
 					"INSERT INTO progress_build VALUES(1),(30),(70)",
 				} {
-					sessionSQL(t, worker, q)
+					enginetest.SessionSQL(t, worker, q)
 				}
 				if reuseTree {
-					sessionSQL(t, worker, "CREATE UNIQUE INDEX progress_reused ON progress_lower(k)")
+					enginetest.SessionSQL(t, worker, "CREATE UNIQUE INDEX progress_reused ON progress_lower(k)")
 				} else {
-					sessionSQL(t, worker, "CREATE UNIQUE INDEX progress_reused ON progress_first(k)")
+					enginetest.SessionSQL(t, worker, "CREATE UNIQUE INDEX progress_reused ON progress_first(k)")
 				}
 				if explicit {
-					sessionSQL(t, worker, "BEGIN")
+					enginetest.SessionSQL(t, worker, "BEGIN")
 				}
 				b := indexProgressStage(t, e, worker, "CREATE UNIQUE INDEX progress_new ON progress_build(k)")
 				p := core.ScopeIndexProgressEntry(b.scope)
@@ -84,7 +85,7 @@ func indexProgressPartitionCallbacks(t *testing.T) {
 							t.Fatal(facts)
 						}
 						if explicit {
-							sessionSQL(t, worker, "COMMIT")
+							enginetest.SessionSQL(t, worker, "COMMIT")
 						}
 						return
 					}
@@ -94,9 +95,9 @@ func indexProgressPartitionCallbacks(t *testing.T) {
 	}
 	t.Run("only", func(t *testing.T) {
 		e := engine.New()
-		worker := sessionStart(t, e, nil)
-		sessionSQL(t, worker, "CREATE TABLE progress_build(k INT) PARTITION BY RANGE(k)")
-		sessionSQL(t, worker, "CREATE TABLE progress_child PARTITION OF progress_build FOR VALUES FROM (0) TO (10)")
+		worker := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, worker, "CREATE TABLE progress_build(k INT) PARTITION BY RANGE(k)")
+		enginetest.SessionSQL(t, worker, "CREATE TABLE progress_child PARTITION OF progress_build FOR VALUES FROM (0) TO (10)")
 		b := indexProgressStage(t, e, worker, "CREATE UNIQUE INDEX progress_new ON ONLY progress_build(k)")
 		p := core.ScopeIndexProgressEntry(b.scope)
 		close(b.gate.release)

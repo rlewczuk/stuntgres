@@ -17,9 +17,9 @@ import (
 
 func TestViewReplaceCurrentVisibilityCaptureDemand(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE ids(id OID)", "INSERT INTO ids VALUES(23),(NULL)", "CREATE VIEW v AS SELECT FALSE AS visible FROM ids", "CREATE VIEW w AS SELECT visible FROM v", "CREATE VIEW z AS SELECT visible FROM w", "CREATE TABLE destination(visible BOOL)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	read := func(query string, captured bool, want [][]driver.Value) {
 		t.Helper()
@@ -56,23 +56,23 @@ func TestViewReplaceCurrentVisibilityCaptureDemand(t *testing.T) {
 	plain := [][]driver.Value{{false}, {false}}
 	inquiry := [][]driver.Value{{true}, {nil}}
 	read("SELECT visible FROM z ORDER BY visible", false, plain)
-	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT pg_type_is_visible(id) AS visible FROM ids")
+	enginetest.SessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT pg_type_is_visible(id) AS visible FROM ids")
 	read("SELECT visible FROM w ORDER BY visible", true, inquiry)
 	read("SELECT visible FROM z ORDER BY visible", true, inquiry)
 	read("INSERT INTO destination SELECT visible FROM z", true, nil)
-	sessionSQL(t, s, "CREATE VIEW late_dependent AS SELECT visible FROM v")
-	sessionSQL(t, s, "CREATE VIEW late_outer AS SELECT visible FROM late_dependent")
-	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT FALSE AS visible FROM ids")
+	enginetest.SessionSQL(t, s, "CREATE VIEW late_dependent AS SELECT visible FROM v")
+	enginetest.SessionSQL(t, s, "CREATE VIEW late_outer AS SELECT visible FROM late_dependent")
+	enginetest.SessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT FALSE AS visible FROM ids")
 	read("SELECT visible FROM z ORDER BY visible", false, plain)
 	read("SELECT visible FROM late_outer ORDER BY visible", false, plain)
 	read("INSERT INTO destination SELECT visible FROM late_outer", false, nil)
 	read("SELECT id IS NULL FROM ids ORDER BY id", false, [][]driver.Value{{false}, {true}})
-	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT pg_type_is_visible(id) AS visible FROM ids")
+	enginetest.SessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT pg_type_is_visible(id) AS visible FROM ids")
 	read("SELECT visible FROM late_outer ORDER BY visible", true, inquiry)
 	read("SELECT visible FROM z ORDER BY visible", true, inquiry)
 	// Current-demand discovery must remain bounded on the admitted recursive
 	// graph, leaving the ordinary read-expansion diagnostic authoritative.
-	sessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT visible FROM v")
+	enginetest.SessionSQL(t, s, "CREATE OR REPLACE VIEW v AS SELECT visible FROM v")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

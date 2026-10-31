@@ -17,7 +17,7 @@ func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 	e, sess, ref := statementTimeoutAdmissionOwner(t, session.Serializable)
 	// TEMP exercises both the shared catalog/storage journal and session-owned
 	// namespace cleanup when admission times out.
-	private := sessionSQL(t, sess, "CREATE TEMP TABLE timeout_admission_private(v INT)").Created
+	private := enginetest.SessionSQL(t, sess, "CREATE TEMP TABLE timeout_admission_private(v INT)").Created
 	sess.Transactions.Mu.Lock()
 	journal := sess.Transactions.Catalog
 	staged := journal != nil && journal.Descriptors[private.Address] != nil && journal.Storage[private.Address].Replacement != nil
@@ -28,8 +28,8 @@ func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 	if _, published := e.CatalogRead().Descriptor(private.Address); published {
 		t.Fatal("private TEMP descriptor was published before transaction end")
 	}
-	sessionSQL(t, sess, "NOTIFY timeout_admission_channel, 'private'")
-	sessionSQL(t, sess, "DECLARE timeout_admission_cursor NO SCROLL CURSOR WITHOUT HOLD FOR SELECT v FROM timeout_admission_rows")
+	enginetest.SessionSQL(t, sess, "NOTIFY timeout_admission_channel, 'private'")
+	enginetest.SessionSQL(t, sess, "DECLARE timeout_admission_cursor NO SCROLL CURSOR WITHOUT HOLD FOR SELECT v FROM timeout_admission_rows")
 	cursor := core.PayloadOf(sess).Cursors.Entries["timeout_admission_cursor"]
 	pin := cursor.Source.View
 	if pin.Load() == nil {
@@ -47,7 +47,7 @@ func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 	}
 	// Enlist the existing unit provider through the actual participant registry.
 	// This is callback lifecycle coverage, not a remote/network I/O claim.
-	work := transactionOperation(t, sess)
+	work := enginetest.TransactionOperation(t, sess)
 	scope, err := e.StartStatement(work)
 	if err != nil {
 		t.Fatal(err)
@@ -109,14 +109,14 @@ func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 		t.Fatal("retired ticket remains registered")
 	}
 	// Another lawful owner can actually acquire the formerly conflicting hold.
-	peer := sessionStart(t, e, nil)
-	peerRef := transactionBegin(t, peer)
+	peer := enginetest.StartSession(t, e, nil)
+	peerRef := enginetest.TransactionBegin(t, peer)
 	peerTicket := peer.Transactions.Ticket
 	rowRef := enginetest.CatalogRef(t, e, e.CatalogRead(), "timeout_admission_rows")
 	if _, err := e.Locks.StartAcquire(context.Background(), peerTicket, lock.Resource{ObjectRef: rowRef}, lock.AccessExclusive, lock.Policy{NoWait: true}); err != nil {
 		t.Fatal("failed owner retained conflicting table hold", err)
 	}
-	transactionEnd(t, peer, peerRef, false)
+	enginetest.TransactionEnd(t, peer, peerRef, false)
 	// Shared outcome asserts all private roots/journals/events/settings cleared,
 	// immediate 25P02, rollback and unchanged committed rows, then healthy commit.
 	statementTimeoutAdmissionOutcome(t, e, sess, ref, op, failed, err)
@@ -133,9 +133,9 @@ func TestStatementTimeoutAdmissionSavepoint(t *testing.T) {
 	parentTicket := sess.Transactions.Ticket
 	controlsRequire(t, sess, "SAVEPOINT timeout_mark")
 	mark := sess.Transactions.Savepoints[len(sess.Transactions.Savepoints)-1]
-	sessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(30)")
-	sessionSQL(t, sess, "SET LOCAL application_name TO timeout_admission_child")
-	sessionSQL(t, sess, "LOCK TABLE timeout_admission_rows IN ACCESS EXCLUSIVE MODE")
+	enginetest.SessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(30)")
+	enginetest.SessionSQL(t, sess, "SET LOCAL application_name TO timeout_admission_child")
+	enginetest.SessionSQL(t, sess, "LOCK TABLE timeout_admission_rows IN ACCESS EXCLUSIVE MODE")
 	for range 2 {
 		op, cancel := statementTimeoutAdmissionCommand(t, sess)
 		cancel(session.StatementTimeoutCause)
@@ -161,12 +161,12 @@ func TestStatementTimeoutAdmissionSavepoint(t *testing.T) {
 		op.Done()
 	}
 	controlsRequire(t, sess, "ROLLBACK TO timeout_mark")
-	transactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
-	sessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(40)")
-	if !transactionEnd(t, sess, ref, true).Committed {
+	enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 20)
+	enginetest.SessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(40)")
+	if !enginetest.TransactionEnd(t, sess, ref, true).Committed {
 		t.Fatal("recovered savepoint could not commit parent work")
 	}
-	transactionRows(t, sess, "SELECT v FROM timeout_admission_rows ORDER BY v", 20, 40)
+	enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows ORDER BY v", 20, 40)
 }
 
 func TestStatementTimeoutAdmissionAlreadyAborted(t *testing.T) {
@@ -180,8 +180,8 @@ func TestStatementTimeoutAdmissionAlreadyAborted(t *testing.T) {
 		}
 		op.Done()
 	}
-	transactionEnd(t, sess, ref, false)
-	transactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 10)
+	enginetest.TransactionEnd(t, sess, ref, false)
+	enginetest.TransactionRows(t, sess, "SELECT v FROM timeout_admission_rows", 10)
 }
 
 func TestStatementTimeoutAdmissionProtocol(t *testing.T) {
@@ -195,7 +195,7 @@ func TestStatementTimeoutAdmissionProtocol(t *testing.T) {
 	})
 	t.Run("foreign_cycle", func(t *testing.T) {
 		e, sess, _ := statementTimeoutAdmissionOwner(t)
-		peer := sessionStart(t, e, nil)
+		peer := enginetest.StartSession(t, e, nil)
 		op, cancel := statementTimeoutAdmissionCommand(t, sess)
 		cancel(session.StatementTimeoutCause)
 		scope, err := e.StartProtocolCommand(op, peer.NewProtocolCycle())

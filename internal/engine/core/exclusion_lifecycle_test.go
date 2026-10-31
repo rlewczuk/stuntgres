@@ -91,15 +91,15 @@ func exclusionCommitAwait(t *testing.T, done <-chan error) {
 
 func TestExclusionPeerCompletion(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
-	ar, br := transactionBegin(t, a), transactionBegin(t, b)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
+	ar, br := enginetest.TransactionBegin(t, a), enginetest.TransactionBegin(t, b)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.Transactions.Ticket
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(a.Transactions)).Events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
-	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	bt := b.Transactions.Ticket
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(b.Transactions)).Events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
@@ -112,7 +112,7 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	}
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, at, bt, done)
-	transactionEnd(t, a, ar, false)
+	enginetest.TransactionEnd(t, a, ar, false)
 	exclusionCommitAwait(t, done)
 	if e.Exclusions.CountLocked() != 0 {
 		t.Fatal("completed owners retained dirty projections")
@@ -122,33 +122,33 @@ func TestExclusionPeerCompletion(t *testing.T) {
 
 func TestExclusionPendingLifecycle(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
-	transactionBegin(t, a)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
+	enginetest.TransactionBegin(t, a)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.Transactions.Ticket
 	before := e.Exclusions.OwnLocked(at)
-	sessionSQL(t, a, "SAVEPOINT m")
-	sessionSQL(t, a, "SET CONSTRAINTS ex IMMEDIATE")
-	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
+	enginetest.SessionSQL(t, a, "SAVEPOINT m")
+	enginetest.SessionSQL(t, a, "SET CONSTRAINTS ex IMMEDIATE")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	if e.Exclusions.OwnLocked(at) == before {
 		t.Fatal("dirty projection was mutated rather than replaced")
 	}
-	sessionSQL(t, a, "ROLLBACK TO m")
+	enginetest.SessionSQL(t, a, "ROLLBACK TO m")
 	if e.Exclusions.OwnLocked(at) != before || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(a.Transactions)).ByConstraint) != 0 {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
-	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
+	enginetest.SessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
 	prepared := core.EnginePreparedRef(e).Lookup("exclusion_unit")
 	if prepared == nil || prepared.Ticket != at || a.Transactions.Ticket != nil || e.Exclusions.OwnLocked(at) != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
-	br := transactionBegin(t, b)
-	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
+	br := enginetest.TransactionBegin(t, b)
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	bt := b.Transactions.Ticket
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, at, bt, done)
-	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")
+	enginetest.SessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")
 	exclusionCommitAwait(t, done)
 	if e.Exclusions.CountLocked() != 0 || core.EnginePreparedRef(e).Len() != 0 {
 		t.Fatal("prepared completion retained exclusion ownership")
@@ -160,10 +160,10 @@ func TestExclusionEagerClaims(t *testing.T) {
 	for _, method := range []string{"btree", "hash"} {
 		t.Run(method, func(t *testing.T) {
 			e := engine.New()
-			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =))")
-			ar := transactionBegin(t, a)
-			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING "+method+"(k WITH =))")
+			ar := enginetest.TransactionBegin(t, a)
+			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			done, cancel := uniqueAsyncUnit(t, b, "INSERT INTO t VALUES(1)")
 			enginetest.LockPending(t, e, 1)
 			lockState := e.Locks.Inspect()
@@ -179,7 +179,7 @@ func TestExclusionEagerClaims(t *testing.T) {
 			cancel()
 			deleteAwait(t, done, 0, context.Canceled)
 			enginetest.LockPending(t, e, 0)
-			transactionEnd(t, a, ar, false)
+			enginetest.TransactionEnd(t, a, ar, false)
 			if e.Exclusions.CountLocked() != 0 {
 				t.Fatal("cancelled eager admission retained dirty projection")
 			}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -229,8 +230,8 @@ func TestTransactionTimeWallDemand(t *testing.T) {
 
 func TestTransactionTimeCommandOwnership(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
-	op := transactionOperation(t, session)
+	session := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, session)
 	defer op.Done()
 	fixed := time.Date(2000, 1, 1, 12, 0, 0, 123456000, time.UTC)
 	op.CommandStart = fixed
@@ -310,12 +311,12 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if !session.Transactions.Start.Equal(op.CommandStart) {
 		t.Error("CHAIN discarded command clock")
 	}
-	transactionEnd(t, session, session.Transactions.Ref, false)
+	enginetest.TransactionEnd(t, session, session.Transactions.Ref, false)
 }
 
 func TestTransactionTimeAdmissionWait(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	sess.Settings.Mu.Lock()

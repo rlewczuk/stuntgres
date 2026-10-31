@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -43,7 +44,7 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 func TestRowSecuritySettingProvenance(t *testing.T) {
 	e := engine.New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"row_security": "off"}, calls: map[string]int{}}
-	sess := sessionStart(t, e, provider)
+	sess := enginetest.StartSession(t, e, provider)
 	settings := sess.Settings
 	view := e.CatalogRead()
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})

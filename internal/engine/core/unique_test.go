@@ -68,9 +68,9 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 
 func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(k NUMERIC CONSTRAINT u UNIQUE)")
-	transactionBegin(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(k NUMERIC CONSTRAINT u UNIQUE)")
+	enginetest.TransactionBegin(t, s)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

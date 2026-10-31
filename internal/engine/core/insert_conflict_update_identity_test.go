@@ -21,11 +21,11 @@ import (
 func TestInsertConflictUpdateIdentity(t *testing.T) {
 	for _, isolation := range []session.Isolation{session.ReadCommitted, session.ReadUncommitted, session.RepeatableRead, session.Serializable} {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		observer := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
-		sessionSQL(t, s, "INSERT INTO t VALUES(9,0),(1,10)")
-		sessionSQL(t, s, "DELETE FROM t WHERE k=9")
+		s := enginetest.StartSession(t, e, nil)
+		observer := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
+		enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(9,0),(1,10)")
+		enginetest.SessionSQL(t, s, "DELETE FROM t WHERE k=9")
 		op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,2) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		scope.Owner.Isolation = isolation
 		scope.Owner.Frontier = e.Visibility.CommitSeq()
@@ -61,9 +61,9 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		op.Done()
-		transactionRows(t, observer, "SELECT v FROM t", 2)
-		tx := transactionBegin(t, s)
-		sessionSQL(t, s, "UPDATE t SET v=3 WHERE k=1")
+		enginetest.TransactionRows(t, observer, "SELECT v FROM t", 2)
+		tx := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "UPDATE t SET v=3 WHERE k=1")
 		prior := s.Transactions.Writes[b.Ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
@@ -84,10 +84,10 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		op2.Done()
-		transactionRows(t, s, "SELECT v FROM t", 4)
-		transactionRows(t, observer, "SELECT v FROM t", 2)
-		transactionEnd(t, s, tx, false)
-		transactionRows(t, observer, "SELECT v FROM t", 2)
+		enginetest.TransactionRows(t, s, "SELECT v FROM t", 4)
+		enginetest.TransactionRows(t, observer, "SELECT v FROM t", 2)
+		enginetest.TransactionEnd(t, s, tx, false)
+		enginetest.TransactionRows(t, observer, "SELECT v FROM t", 2)
 		enginetest.LockEmpty(t, e)
 	}
 }
@@ -103,9 +103,9 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 	} {
 		t.Run(mode.name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			op, err := s.Acquire(context.Background())
 			if err != nil {
@@ -178,7 +178,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			op.Done()
-			transactionRows(t, s, "SELECT v FROM t", 10)
+			enginetest.TransactionRows(t, s, "SELECT v FROM t", 10)
 			enginetest.LockEmpty(t, e)
 		})
 	}
@@ -186,14 +186,14 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 func TestInsertConflictUpdateMixedStage(t *testing.T) {
 	for _, cancelFinish := range []bool{false, true} {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		observer := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
-		sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(3,30)")
+		s := enginetest.StartSession(t, e, nil)
+		observer := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
+		enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10),(3,30)")
 		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 		before := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
-		tx := transactionBegin(t, s)
-		sessionSQL(t, s, "INSERT INTO t VALUES(4,40)")
+		tx := enginetest.TransactionBegin(t, s)
+		enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(4,40)")
 		ctx, cancel := context.WithCancel(context.Background())
 		op, err := s.Acquire(ctx)
 		if err != nil {
@@ -230,16 +230,16 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || s.TransactionState() != session.TxAborted {
 				t.Fatal("Finish cancellation veto", err, s.TransactionState())
 			}
-			transactionEnd(t, s, tx, false)
-			transactionRows(t, observer, "SELECT v FROM t ORDER BY k", 10, 30)
+			enginetest.TransactionEnd(t, s, tx, false)
+			enginetest.TransactionRows(t, observer, "SELECT v FROM t ORDER BY k", 10, 30)
 		} else {
 			if err != nil {
 				t.Fatal(err)
 			}
-			transactionRows(t, s, "SELECT v FROM t ORDER BY k", 11, 20, 30, 40)
-			transactionRows(t, observer, "SELECT v FROM t ORDER BY k", 10, 30)
-			transactionEnd(t, s, tx, true)
-			transactionRows(t, observer, "SELECT v FROM t ORDER BY k", 11, 20, 30, 40)
+			enginetest.TransactionRows(t, s, "SELECT v FROM t ORDER BY k", 11, 20, 30, 40)
+			enginetest.TransactionRows(t, observer, "SELECT v FROM t ORDER BY k", 10, 30)
+			enginetest.TransactionEnd(t, s, tx, true)
+			enginetest.TransactionRows(t, observer, "SELECT v FROM t ORDER BY k", 11, 20, 30, 40)
 		}
 		if enginetest.Export(before[0].Values[1]) != int64(10) {
 			t.Fatal("retained storage mutated")
@@ -249,25 +249,25 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 	for _, level := range []string{"REPEATABLE READ", "SERIALIZABLE"} {
 		t.Run("retained_deleted_snapshot_"+level, func(t *testing.T) {
 			e := engine.New()
-			worker := sessionStart(t, e, nil)
-			holder := sessionStart(t, e, nil)
-			sessionSQL(t, holder, "CREATE TABLE t(k INT UNIQUE,v INT)")
-			sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
+			worker := enginetest.StartSession(t, e, nil)
+			holder := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, holder, "CREATE TABLE t(k INT UNIQUE,v INT)")
+			enginetest.SessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			old := e.Storage.Relations[ref.Address].Versions[0]
-			tx := transactionBegin(t, worker)
-			sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
-			transactionRows(t, worker, "SELECT v FROM t", 10)
-			sessionSQL(t, holder, "DELETE FROM t WHERE k=1")
-			result := sessionSQL(t, worker, "INSERT INTO t VALUES(1,11) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE FALSE")
+			tx := enginetest.TransactionBegin(t, worker)
+			enginetest.SessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
+			enginetest.TransactionRows(t, worker, "SELECT v FROM t", 10)
+			enginetest.SessionSQL(t, holder, "DELETE FROM t WHERE k=1")
+			result := enginetest.SessionSQL(t, worker, "INSERT INTO t VALUES(1,11) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE FALSE")
 			fresh := worker.Transactions.Writes[ref.Address]
 			if result.Count != 1 || len(fresh) != 1 || fresh[0].Row == old.Row || fresh[0].Base != 0 {
 				t.Fatal("no-hit insertion must not reuse deleted snapshot identity", result, fresh, old)
 			}
-			transactionRows(t, worker, "SELECT v FROM t ORDER BY v", 10, 11)
-			transactionRows(t, holder, "SELECT v FROM t")
-			transactionEnd(t, worker, tx, false)
-			transactionRows(t, holder, "SELECT v FROM t")
+			enginetest.TransactionRows(t, worker, "SELECT v FROM t ORDER BY v", 10, 11)
+			enginetest.TransactionRows(t, holder, "SELECT v FROM t")
+			enginetest.TransactionEnd(t, worker, tx, false)
+			enginetest.TransactionRows(t, holder, "SELECT v FROM t")
 			if enginetest.Export(old.Values[1]) != int64(10) {
 				t.Fatal("stable predecessor payload mutated")
 			}

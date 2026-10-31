@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -13,9 +14,9 @@ import (
 
 func TestTransactionalTypesPrivateRootSelection(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	ref := transactionBegin(t, s)
-	defer transactionEnd(t, s, ref, false)
+	s := enginetest.StartSession(t, e, nil)
+	ref := enginetest.TransactionBegin(t, s)
+	defer enginetest.TransactionEnd(t, s, ref, false)
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123}
 	committed, private := new(storage.IndexRoot), new(storage.IndexRoot)
 	e.Storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: committed}

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 
 func preparedUnitControl(t *testing.T, e *core.Engine, s *session.Session, kind parser.TransactionControlKind, gid string) error {
 	t.Helper()
-	op := transactionOperation(t, s)
+	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -31,8 +32,8 @@ func preparedUnitControl(t *testing.T, e *core.Engine, s *session.Session, kind 
 
 func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	e := engine.New()
-	origin, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	op := transactionOperation(t, origin)
+	origin, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, origin)
 	ref, err := e.Begin(op, session.TxOptions{})
 	op.Done()
 	if err != nil {
@@ -90,8 +91,8 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 
 func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	op := transactionOperation(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, s)
 	_, err := e.Begin(op, session.TxOptions{})
 	op.Done()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -26,12 +27,12 @@ func (p *fdwChainTransaction) Commit(context.Context) error { p.record("commit")
 // that exact replacement lock, without a production hook or timing-only race.
 func fdwChainReadmission(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
-	sessionSQL(t, sess, "CREATE TABLE chain_local(v integer)")
-	sessionSQL(t, sess, "BEGIN")
-	sessionSQL(t, sess, "SET application_name='committed-old'")
-	sessionSQL(t, sess, "INSERT INTO chain_local VALUES(7)")
-	sessionSQL(t, sess, "DECLARE chain_hold NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM chain_local")
+	sess := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, sess, "CREATE TABLE chain_local(v integer)")
+	enginetest.SessionSQL(t, sess, "BEGIN")
+	enginetest.SessionSQL(t, sess, "SET application_name='committed-old'")
+	enginetest.SessionSQL(t, sess, "INSERT INTO chain_local VALUES(7)")
+	enginetest.SessionSQL(t, sess, "DECLARE chain_hold NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM chain_local")
 	promoted := core.PayloadOf(sess).Cursors.Entries["chain_hold"]
 	owner := sess.Transactions
 	ref := owner.Ref
@@ -48,7 +49,7 @@ func fdwChainReadmission(t *testing.T) {
 		return nil
 	}
 	core.OwnerExtensionForeignRef(core.OwnerExtensionOf(owner)).Enlist(&fdw.Participant{Tx: remote})
-	op := transactionOperation(t, sess)
+	op := enginetest.TransactionOperation(t, sess)
 	if err := owner.AcquireAdmission(op.Context(), op); err != nil {
 		t.Fatal(err)
 	}

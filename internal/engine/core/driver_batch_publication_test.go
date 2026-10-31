@@ -52,8 +52,8 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 	for _, boundary := range []string{"success", "cancel_before", "cancel_after", "epoch_before", "counter_before", "ref_before", "terminal_before"} {
 		t.Run(boundary, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(v INT)")
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
 			table := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			store := e.Storage.Relations[table.Address]
 			ctx, cancel := context.WithCancel(context.Background())
@@ -171,10 +171,10 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 	for _, roleChange := range []bool{false, true} {
 		t.Run(map[bool]string{false: "acl_metadata", true: "roles_and_acl"}[roleChange], func(t *testing.T) {
 			e := engine.New()
-			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(v INT)")
+			s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
 			if !roleChange {
-				sessionSQL(t, s, "CREATE ROLE pending LOGIN")
+				enginetest.SessionSQL(t, s, "CREATE ROLE pending LOGIN")
 			}
 			table := roleTableRef(t, e, "t")
 			state, store := e.Catalog.State, e.Storage.Relations[table.Address]
@@ -210,8 +210,8 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			if !granted {
 				t.Fatal("candidate lost the actual owner-origin SELECT grant")
 			}
-			transactionRows(t, peer, "SELECT v FROM t")
-			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t")
+			enginetest.SessionSQL(t, peer, "CREATE ROLE peer LOGIN")
 			roles, frontier := e.RoleStore.Published, e.Visibility.CommitSeq()
 			peerRole, exists := e.Roles().Lookup("peer")
 			if !exists {
@@ -235,7 +235,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			if s.Authorization.State != identity || peer.Authorization.State != peerIdentity {
 				t.Fatal("ACL publication changed session identity")
 			}
-			transactionRows(t, peer, "SELECT v FROM t", 1)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t", 1)
 		})
 	}
 }

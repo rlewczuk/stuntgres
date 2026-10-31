@@ -26,14 +26,14 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 	for _, mode := range []string{"Ordinary", "OrdinaryOverflow", "TerminalMaximum"} {
 		t.Run(mode, func(t *testing.T) {
 			e := engine.New()
-			owner := sessionStart(t, e, nil)
+			owner := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{
 				"CREATE TEMP TABLE composition_owner(id SERIAL)",
 				"CREATE TEMP TABLE composition_survivor(a INT,g BOOL GENERATED ALWAYS AS('composition_owner'::regclass IS NOT NULL) STORED,h BOOL GENERATED ALWAYS AS('composition_owner_id_seq'::regclass IS NOT NULL) STORED,z INT)",
 				"CREATE INDEX composition_index ON composition_survivor((z+0))",
 				"INSERT INTO composition_survivor(a,z) VALUES(7,9)",
 			} {
-				sessionSQL(t, owner, q)
+				enginetest.SessionSQL(t, owner, q)
 			}
 			var provider, survivor, idx *catalog.Relation
 			for _, descriptor := range e.Catalog.State.Descriptors() {
@@ -211,10 +211,10 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 
 func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	e := engine.New()
-	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, session := range []*session.Session{owner, peer} {
-		sessionSQL(t, session, "CREATE TEMP TABLE deparse_owner_table(v INT)")
-		sessionSQL(t, session, "CREATE INDEX deparse_owner_index ON deparse_owner_table(v)")
+		enginetest.SessionSQL(t, session, "CREATE TEMP TABLE deparse_owner_table(v INT)")
+		enginetest.SessionSQL(t, session, "CREATE INDEX deparse_owner_index ON deparse_owner_table(v)")
 	}
 	view := e.CatalogRead()
 	var own, foreign *catalog.Relation
@@ -255,10 +255,10 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 
 func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	e := engine.New()
-	owner := sessionStart(t, e, nil)
-	sessionSQL(t, owner, "CREATE TEMP TABLE retained_partial(v INT)")
-	sessionSQL(t, owner, "CREATE INDEX retained_partial_index ON retained_partial(v) WHERE v>0")
-	sessionSQL(t, owner, "INSERT INTO retained_partial VALUES(7),(-3)")
+	owner := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE retained_partial(v INT)")
+	enginetest.SessionSQL(t, owner, "CREATE INDEX retained_partial_index ON retained_partial(v) WHERE v>0")
+	enginetest.SessionSQL(t, owner, "INSERT INTO retained_partial VALUES(7),(-3)")
 	before := e.CatalogRead()
 	var parent, idx *catalog.Relation
 	for _, descriptor := range before.Descriptors() {

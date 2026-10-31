@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
@@ -85,8 +86,8 @@ func TestCopyProgressRuleMetadata(t *testing.T) {
 
 func TestCopyProgressRuleImportCollision(t *testing.T) {
 	e := engine.New()
-	worker := sessionStart(t, e, nil)
-	sessionSQL(t, worker, "CREATE VIEW copy_progress_import AS SELECT 1 AS v")
+	worker := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, worker, "CREATE VIEW copy_progress_import AS SELECT 1 AS v")
 	base := e.CatalogRead()
 	source := base.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ProgressCopyOID})
 	public := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})

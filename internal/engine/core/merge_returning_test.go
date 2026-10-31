@@ -19,8 +19,8 @@ import (
 
 func TestMergeReturningFrames(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1,7)) src(id,delta) ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+src.delta RETURNING merge_action(),old.v,new.v,t,old,new,src")
 	defer op.Done()
 	defer target.Close()
@@ -90,10 +90,10 @@ func TestMergeReturningPublication(t *testing.T) {
 	for _, phase := range []string{"success", "outputLate", "producerClose", "typeDrift", "finishVeto", "noReturning"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
+			s := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
 			q := "MERGE INTO t USING (VALUES(1),(2)) src(id) ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+1"
 			if phase != "noReturning" {
 				q += " RETURNING old.v,new.v"
@@ -138,7 +138,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("evaluation timing", phase, calls)
 				}
 				scope.Finish(err)
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 				enginetest.LockEmpty(t, e)
 				return
 			}
@@ -159,7 +159,7 @@ func TestMergeReturningPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 			if phase == "finishVeto" {
 				err = injected
 			}
@@ -167,9 +167,9 @@ func TestMergeReturningPublication(t *testing.T) {
 				t.Fatal("Finish outcome", got, err)
 			}
 			if phase == "finishVeto" {
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 			} else {
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 21)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 21)
 			}
 			if phase == "success" && !reflect.DeepEqual(enginetest.Tuples(core.Result{Rows: rows.Returning}), [][]driver.Value{{int64(10), int64(11)}, {int64(20), int64(21)}}) {
 				t.Fatal("completed output changed")

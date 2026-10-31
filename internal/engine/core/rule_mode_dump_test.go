@@ -17,7 +17,7 @@ func TestRuleModeDump(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE public.\"old table\"(id INT)", "CREATE RULE \"old rule\" AS ON INSERT TO public.\"old table\" DO NOTHING", "ALTER TABLE public.\"old table\" " + action + " \"old rule\"", "ALTER RULE \"old rule\" ON public.\"old table\" RENAME TO \"new rule\"", "ALTER TABLE public.\"old table\" RENAME TO \"new table\""} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			op, err := s.Acquire(context.Background())
 			if err != nil {

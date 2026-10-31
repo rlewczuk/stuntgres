@@ -221,7 +221,7 @@ func refreshUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 
 func refreshUnitScope(t *testing.T, e *core.Engine, ctx context.Context) *core.StatementScope {
 	t.Helper()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	op, err := session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)

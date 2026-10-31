@@ -13,11 +13,11 @@ func TestDeferredUniqueBatchIdentity(t *testing.T) {
 		for _, repair := range []string{"DELETE FROM t WHERE id=2", "UPDATE t SET v=2 WHERE id=2"} {
 			t.Run(kind+"/"+repair, func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
-				sessionSQL(t, s, "CREATE TABLE t(id INT,v INT,CONSTRAINT u "+kind+"(v) INITIALLY DEFERRED)")
-				transactionBegin(t, s)
-				sessionSQL(t, s, "CREATE TABLE private_marker(v INT)")
-				sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
+				s := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT,CONSTRAINT u "+kind+"(v) INITIALLY DEFERRED)")
+				enginetest.TransactionBegin(t, s)
+				enginetest.SessionSQL(t, s, "CREATE TABLE private_marker(v INT)")
+				enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 				ref := enginetest.RoleTableRef(t, e, "t")
 				idx := enginetest.RoleTableRef(t, e, "u")
 				writes := s.Transactions.Writes[ref.Address]
@@ -45,22 +45,22 @@ func TestDeferredUniqueBatchIdentity(t *testing.T) {
 				if len(modes.Events) != 1 || modes.Events[0].Row != writes[1].Row || modes.Events[0].Version != writes[1].Version {
 					t.Fatal("potential conflict event does not name the physical later row", modes.Events, writes)
 				}
-				sessionSQL(t, s, "SAVEPOINT m")
-				sessionSQL(t, s, repair)
+				enginetest.SessionSQL(t, s, "SAVEPOINT m")
+				enginetest.SessionSQL(t, s, repair)
 				if e.Exclusions.OwnLocked(s.Transactions.Ticket) == projection {
 					t.Fatal("repair mutated its saved projection instead of replacing it")
 				}
-				sessionSQL(t, s, "SET CONSTRAINTS u IMMEDIATE")
+				enginetest.SessionSQL(t, s, "SET CONSTRAINTS u IMMEDIATE")
 				if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 0 {
 					t.Fatal("repair failed to retire the original physical event")
 				}
-				sessionSQL(t, s, "ROLLBACK TO m")
+				enginetest.SessionSQL(t, s, "ROLLBACK TO m")
 				if e.Exclusions.OwnLocked(s.Transactions.Ticket) != projection {
 					t.Fatal("savepoint lost exact original physical projection")
 				}
-				sessionSQL(t, s, repair)
-				sessionSQL(t, s, "SET CONSTRAINTS u IMMEDIATE")
-				sessionSQL(t, s, "COMMIT")
+				enginetest.SessionSQL(t, s, repair)
+				enginetest.SessionSQL(t, s, "SET CONSTRAINTS u IMMEDIATE")
+				enginetest.SessionSQL(t, s, "COMMIT")
 				if e.Exclusions.CountLocked() != 0 {
 					t.Fatal("committed batch retained projection ownership")
 				}

@@ -37,8 +37,8 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 	}
 	exercise := func(n int) (zero, sparse, private uint64) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+		s := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
 		var q strings.Builder
 		q.WriteString("INSERT INTO t VALUES")
 		for i := range n {
@@ -49,7 +49,7 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 			q.WriteString(strconv.Itoa(i))
 			q.WriteString(",1)")
 		}
-		sessionSQL(t, s, q.String())
+		enginetest.SessionSQL(t, s, q.String())
 		// Measure UPDATE execution, as the benchmark does, not GC-evictable
 		// parser receiver checkouts inside these small byte envelopes.
 		noMatchFalse := enginetest.Statement(t, "UPDATE t SET v=2 WHERE FALSE")
@@ -182,8 +182,8 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 	var previous uint64
 	for _, n := range []int{128, 512, 2048} {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+		s := enginetest.StartSession(t, e, nil)
+		enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
 		var q strings.Builder
 		q.WriteString("INSERT INTO t VALUES")
 		for i := range n {
@@ -194,7 +194,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 			q.WriteString(strconv.Itoa(i))
 			q.WriteString(",1)")
 		}
-		sessionSQL(t, s, q.String())
+		enginetest.SessionSQL(t, s, q.String())
 		op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
 		retained := source.View.Retain()
 		old := retained.Data().Committed[bound.Ref.Address]
@@ -239,9 +239,9 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 // other accepted targets may still append.
 func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 	op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
 	committed := source.Committed
 	payload := append([]sqltype.Value(nil), committed[0].Values...)

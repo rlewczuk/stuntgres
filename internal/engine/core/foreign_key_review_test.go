@@ -25,9 +25,9 @@ import (
 // snapshots, not public SQL goldens (which live in the shared reference tests).
 func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(id BIGINT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE c(pid BIGINT REFERENCES p)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(id BIGINT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE c(pid BIGINT REFERENCES p)")
 	var insert strings.Builder
 	insert.WriteString("INSERT INTO p VALUES")
 	for i := range 4096 {
@@ -36,9 +36,9 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 		}
 		fmt.Fprintf(&insert, "(%d)", i)
 	}
-	sessionSQL(t, s, insert.String())
-	sessionSQL(t, s, "CREATE TABLE probe_input(value BIGINT)")
-	sessionSQL(t, s, "INSERT INTO probe_input VALUES(4096)")
+	enginetest.SessionSQL(t, s, insert.String())
+	enginetest.SessionSQL(t, s, "CREATE TABLE probe_input(value BIGINT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO probe_input VALUES(4096)")
 	view := e.CatalogRead()
 	parent := view.MustRelation(enginetest.CatalogRef(t, e, view, "p").Address)
 	child := view.MustRelation(enginetest.CatalogRef(t, e, view, "c").Address)
@@ -132,12 +132,12 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.Constraints.ForeignKeys[0].Index != index.Address() {
 		t.Fatal("binding changed the source attachment")
 	}
-	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1)")
 }
 
 func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	e, _, _, s, parentRef, _ := foreignKeyLockFixture(t)
-	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1)")
 	view := e.CatalogRead()
 	childRef := enginetest.CatalogRef(t, e, view, "c")
 	child := view.MustRelation(childRef.Address)
@@ -171,7 +171,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 			t.Fatal("failed TYPE mutated borrowed data or attachment", trial.sql)
 		}
 	}
-	sessionSQL(t, s, "ALTER TABLE c ALTER pid TYPE BIGINT")
+	enginetest.SessionSQL(t, s, "ALTER TABLE c ALTER pid TYPE BIGINT")
 	next := e.CatalogRead().MustRelation(childRef.Address)
 	if next == child || next.Constraints.ForeignKeys[0].OID == f.OID || next.Constraints.ForeignKeys[0].Index != f.Index || next.Constraints.ForeignKeys[0].Target != parent.Address() || e.CatalogRead().Get(index.Address()) != index {
 		t.Fatal("successful child TYPE lost stable supporting/target identities", next.Constraints.ForeignKeys[0], f)
@@ -179,15 +179,15 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.Versions, childRows) || !reflect.DeepEqual(root.Entries, entries) {
 		t.Fatal("successful TYPE changed retained snapshot authority")
 	}
-	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1)")
 }
 
 func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE ROLE fk_namespace_alpha")
-	sessionSQL(t, s, "CREATE SCHEMA fk_namespace_alpha AUTHORIZATION fk_namespace_alpha")
-	sessionSQL(t, s, "SET ROLE fk_namespace_alpha")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE ROLE fk_namespace_alpha")
+	enginetest.SessionSQL(t, s, "CREATE SCHEMA fk_namespace_alpha AUTHORIZATION fk_namespace_alpha")
+	enginetest.SessionSQL(t, s, "SET ROLE fk_namespace_alpha")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -221,14 +221,14 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 
 func TestForeignKeyCreateOutcomeIdentity(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	created := sessionSQL(t, s, "CREATE TABLE outcome(pid INT)").Created
+	s := enginetest.StartSession(t, e, nil)
+	created := enginetest.SessionSQL(t, s, "CREATE TABLE outcome(pid INT)").Created
 	view := e.CatalogRead()
 	ref := enginetest.CatalogRef(t, e, view, "outcome")
 	if created != ref {
 		t.Fatal("creator did not return its exact minted reference", created, ref)
 	}
-	skipped := sessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").Created
+	skipped := enginetest.SessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").Created
 	if skipped != (ids.ObjectRef{}) || e.CatalogRead().State() != view.State() {
 		t.Fatal("no-op masqueraded as a successful creation", skipped)
 	}

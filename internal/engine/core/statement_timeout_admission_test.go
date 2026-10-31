@@ -128,7 +128,7 @@ func statementTimeoutAdmissionOwner(t *testing.T, isolation ...session.Isolation
 	t.Helper()
 	e := engine.New()
 	sess := enginetest.StartSession(t, e, nil)
-	// sessionSQL invokes package owner APIs, not database/sql or public adapters.
+	// enginetest.SessionSQL invokes package owner APIs, not database/sql or public adapters.
 	enginetest.SessionSQL(t, sess, "CREATE TABLE timeout_admission_rows(v INT PRIMARY KEY)")
 	enginetest.SessionSQL(t, sess, "INSERT INTO timeout_admission_rows VALUES(10)")
 	// This independent transaction budget is a resource-retirement witness,

@@ -103,8 +103,8 @@ func TestAmcheckCoherentCapture(t *testing.T) {
 	e, d, root := amcheckUnitRoot(t, false)
 	n := amcheckUnitExpression(t, e, false, true, true)
 	reader, _ := blockingUnitOwner(t, e)
-	sessionSQL(t, reader, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	before := sessionSQL(t, reader, "SELECT n FROM t")
+	enginetest.SessionSQL(t, reader, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	before := enginetest.SessionSQL(t, reader, "SELECT n FROM t")
 	if rows := enginetest.Tuples(before); len(rows) != 5 {
 		t.Fatal(rows)
 	}
@@ -131,7 +131,7 @@ func TestAmcheckCoherentCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.Op.Done()
-	if rows := enginetest.Tuples(sessionSQL(t, reader, "SELECT n FROM t")); len(rows) != 5 {
+	if rows := enginetest.Tuples(enginetest.SessionSQL(t, reader, "SELECT n FROM t")); len(rows) != 5 {
 		t.Fatal("verification overwrote outer RR snapshot", rows)
 	}
 }
@@ -141,9 +141,9 @@ func TestAmcheckPrivateCancellation(t *testing.T) {
 		t.Run(lane, func(t *testing.T) {
 			e, d, root := amcheckUnitRoot(t, true)
 			reader, ticket := blockingUnitOwner(t, e)
-			sessionSQL(t, reader, "INSERT INTO t VALUES(3,'c'),(4,'d')")
+			enginetest.SessionSQL(t, reader, "INSERT INTO t VALUES(3,'c'),(4,'d')")
 			if lane == "produced" {
-				sessionSQL(t, reader, "CREATE INDEX produced_i ON t(lower(s)) WHERE n>1")
+				enginetest.SessionSQL(t, reader, "CREATE INDEX produced_i ON t(lower(s)) WHERE n>1")
 				for _, row := range reader.Transactions.Writes[d.SQLIndex.Parent] {
 					for _, output := range row.IndexOutputs {
 						if output.Index.Name() == "produced_i" {

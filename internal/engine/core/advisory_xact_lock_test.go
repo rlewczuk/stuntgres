@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -90,11 +91,11 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 			if err := r.Wait(); err == nil {
 				t.Fatal("ended waiter granted")
 			}
-			transactionEnd(t, a, a.Transactions.Ref, false)
+			enginetest.TransactionEnd(t, a, a.Transactions.Ref, false)
 			if err := e.Locks.UnlockAdvisoryAll(a.Advisory.Ticket); err != nil {
 				t.Fatal(err)
 			}
-			transactionBegin(t, a)
+			enginetest.TransactionBegin(t, a)
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
 			advisoryXactUnitGrant(t, c, key, lock.AdvisoryShare, true)
 			if _, err := advisoryXactUnitAcquire(t, a, key, lock.AdvisoryExclusive, true, true); !errors.Is(err, lock.ErrUnavailable) {
@@ -208,7 +209,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 			persistent := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 88}
 			advisoryUnitGrant(t, a, ra, persistent, lock.AdvisoryShare)
-			transactionEnd(t, b, rb, false)
+			enginetest.TransactionEnd(t, b, rb, false)
 			ticket, _, done := advisoryUnitScopeWait(t, b, key, functions.AdvisoryTransaction)
 			if grantBeforeFence {
 				e.ReplacementMu.Lock()

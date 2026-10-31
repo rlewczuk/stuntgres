@@ -143,9 +143,9 @@ func TestStringCoreMissingOperatorOwner(t *testing.T) {
 
 func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	eng := engine.New()
-	session := sessionStart(t, eng, nil)
-	sessionSQL(t, session, "CREATE TABLE regclass_source(v INT)")
-	sessionSQL(t, session, `CREATE TABLE regclass_store(v TEXT DEFAULT btrim(' stored '),CHECK(('x'::text||'regclass_source'::regclass) IS NORMALIZED))`)
+	session := enginetest.StartSession(t, eng, nil)
+	enginetest.SessionSQL(t, session, "CREATE TABLE regclass_source(v INT)")
+	enginetest.SessionSQL(t, session, `CREATE TABLE regclass_store(v TEXT DEFAULT btrim(' stored '),CHECK(('x'::text||'regclass_source'::regclass) IS NORMALIZED))`)
 	view := eng.CatalogRead()
 	ref := enginetest.CatalogRef(t, eng, view, "regclass_store")
 	relation := view.MustRelation(ref.Address)
@@ -172,8 +172,8 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	if _, err := (&core.StatementScope{}).FormatRegclass(uint32(sourceRef.Address.ObjectID)); err == nil {
 		t.Fatal("missing snapshot silently fell back")
 	}
-	sessionSQL(t, session, "INSERT INTO regclass_store DEFAULT VALUES")
-	sessionSQL(t, session, "ALTER TABLE regclass_store ALTER COLUMN v TYPE TEXT")
+	enginetest.SessionSQL(t, session, "INSERT INTO regclass_store DEFAULT VALUES")
+	enginetest.SessionSQL(t, session, "ALTER TABLE regclass_store ALTER COLUMN v TYPE TEXT")
 }
 
 func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {

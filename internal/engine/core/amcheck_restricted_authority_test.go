@@ -45,7 +45,7 @@ func TestAmcheckRestrictedAuthorityPrecedence(t *testing.T) {
 			}
 			n := node.(plan.InstalledAmcheckExpr)
 			reader, ticket := blockingUnitOwner(t, e)
-			sessionSQL(t, reader, "SET ROLE am_caller")
+			enginetest.SessionSQL(t, reader, "SET ROLE am_caller")
 			scope := pgrowlocksUnitScope(t, e, reader)
 			scope.RoutineDependencies = binder.Dependencies
 			e.Mu.Lock()

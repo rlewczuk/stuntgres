@@ -100,9 +100,9 @@ func updateFromBoundSources(t *testing.T, e *core.Engine, session *session.Sessi
 
 func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
+	a := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT,a INT,b INT)", "CREATE TABLE s(k BIGINT,v VARCHAR(7))", "CREATE TABLE r(k INT)", "CREATE TABLE unused(k INT)", "INSERT INTO t VALUES(1,10,20),(1,10,20)", "INSERT INTO s VALUES(1,'x'),(1,'y')", "INSERT INTO r VALUES(1)"} {
-		sessionSQL(t, a, q)
+		enginetest.SessionSQL(t, a, q)
 	}
 	op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t AS dst SET a=dst.b,b=dst.a FROM s JOIN r USING(k) WHERE dst.id=k RETURNING dst.*,k,s.k,r.k,s.v,old.a,new.a")
 	data := target.View.Data()
@@ -145,7 +145,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if len(store.Versions) != 2 || store.Versions[0].Row != original[0].Row || store.Versions[1].Row != original[1].Row || original[0].Row == original[1].Row || store.Versions[0].Version == original[0].Version || enginetest.Export(original[0].Values[1]) != int64(10) {
 		t.Fatal("physical identity/head immutability", store.Versions, original)
 	}
-	transactionRows(t, a, "SELECT a FROM t", 20, 20)
+	enginetest.TransactionRows(t, a, "SELECT a FROM t", 20, 20)
 	enginetest.LockEmpty(t, e)
 }
 
@@ -153,9 +153,9 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 	for _, failLast := range []bool{false, true} {
 		t.Run(map[bool]string{false: "demand", true: "late_error"}[failLast], func(t *testing.T) {
 			e := engine.New()
-			a := sessionStart(t, e, nil)
+			a := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE t(id INT,a INT)", "CREATE TABLE s(k INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1),(1),(1),(2),(2),(2)"} {
-				sessionSQL(t, a, q)
+				enginetest.SessionSQL(t, a, q)
 			}
 			op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t SET a=id FROM s WHERE id=k RETURNING old.a,new.a,s.k")
 			children := append([]*exec.Source(nil), from.Sources...)
@@ -206,9 +206,9 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				t.Fatal("retained predecessor changed")
 			}
 			if failLast {
-				transactionRows(t, a, "SELECT a FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, a, "SELECT a FROM t ORDER BY id", 10, 20)
 			} else {
-				transactionRows(t, a, "SELECT a FROM t ORDER BY id", 1, 2)
+				enginetest.TransactionRows(t, a, "SELECT a FROM t ORDER BY id", 1, 2)
 			}
 			enginetest.LockEmpty(t, e)
 		})
@@ -217,16 +217,16 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 
 func TestUpdateFromImmediateGrantFreezesSource(t *testing.T) {
 	e := engine.New()
-	a := sessionStart(t, e, nil)
-	bSession := sessionStart(t, e, nil)
+	a := enginetest.StartSession(t, e, nil)
+	bSession := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT,n INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1,100),(2,200)"} {
-		sessionSQL(t, a, q)
+		enginetest.SessionSQL(t, a, q)
 	}
 	op, scope, b, target, from := updateFromBoundSources(t, e, bSession, context.Background(), "UPDATE t SET v=t.v+s.n FROM s WHERE t.id=s.k RETURNING old.v,new.v,s.n")
-	sessionSQL(t, a, "UPDATE t SET v=11 WHERE id=1")
-	sessionSQL(t, a, "UPDATE s SET n=999")
-	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
-	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
+	enginetest.SessionSQL(t, a, "UPDATE t SET v=11 WHERE id=1")
+	enginetest.SessionSQL(t, a, "UPDATE s SET n=999")
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
+	enginetest.SessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
 	r, err := core.ExecuteUpdate(op.Ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
@@ -240,6 +240,6 @@ func TestUpdateFromImmediateGrantFreezesSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 30, 111, 220)
+	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 30, 111, 220)
 	enginetest.LockEmpty(t, e)
 }

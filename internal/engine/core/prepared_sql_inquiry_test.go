@@ -15,7 +15,7 @@ import (
 
 func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	op, err := session.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -77,8 +77,8 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 
 func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
-	op := transactionOperation(t, session)
+	session := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, session)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -120,8 +120,8 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 		}
 	}
 	foreign := engine.New()
-	foreignSession := sessionStart(t, foreign, nil)
-	foreignOp := transactionOperation(t, foreignSession)
+	foreignSession := enginetest.StartSession(t, foreign, nil)
+	foreignOp := enginetest.TransactionOperation(t, foreignSession)
 	defer foreignOp.Done()
 	foreign.Mu.Lock()
 	auth, authErr := foreign.AuthorizationLocked(foreignOp)

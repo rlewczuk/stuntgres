@@ -58,7 +58,7 @@ func TestAmcheckRestrictedCallbacks(t *testing.T) {
 			e = engine.NewWithSettings([]settings.Definition{d}, "", false)
 			enginetest.Run(t, e, "CREATE TABLE callback_parent(n INT)")
 			parent := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "callback_parent").Address)
-			s = sessionStart(t, e, nil)
+			s = enginetest.StartSession(t, e, nil)
 			op, err = s.Acquire(ctx)
 			if err != nil {
 				t.Fatal(err)

@@ -23,9 +23,9 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 	for _, invalid := range []bool{false, true} {
 		t.Run(map[bool]string{false: "valid", true: "invalid"}[invalid], func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE t(n INT,s TEXT)", "INSERT INTO t VALUES(1,'a'),(2,'b'),(NULL,NULL)", "CREATE INDEX ix ON t(lower(s) text_pattern_ops,n DESC NULLS LAST) INCLUDE(s) WHERE n>0", "CREATE INDEX sibling ON t(n)"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			old, root := btreeRoot(t, e, "ix")
 			if invalid {
@@ -54,12 +54,12 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 			store := e.Storage.Relations[definition.Parent]
 			sibling, siblingRoot := btreeRoot(t, e, "sibling")
 			entries := transactionalIndexSnapshot(root)
-			tx := transactionBegin(t, s)
+			tx := enginetest.TransactionBegin(t, s)
 			for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)", "ALTER INDEX fresh RESET(fillfactor)", "ALTER INDEX fresh RESET(deduplicate_items)"} {
 				previous := e.PrivateCatalogLocked(s.Transactions.Catalog).MustRelation(old.Address())
 				previousName := previous.Name()
 				previousOptions := slices.Clone(previous.StorageOptions.Base)
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 				view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 				next := view.MustRelation(old.Address())
 				if previous.Name() != previousName || !reflect.DeepEqual(previous.StorageOptions.Base, previousOptions) {
@@ -94,15 +94,15 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 					}
 				}
 			}
-			transactionEnd(t, s, tx, true)
+			enginetest.TransactionEnd(t, s, tx, true)
 			next, same := btreeRoot(t, e, "fresh")
 			if same != root || next.Address() != old.Address() || next.SQLIndex != definition || next.SQLIndex.Valid == invalid || e.Storage.Relations[definition.Parent] != store {
 				t.Fatal("commit rebuilt or normalized index")
 			}
 			if invalid {
-				sessionSQL(t, s, "BEGIN")
-				sessionSQL(t, s, "DROP INDEX fresh")
-				sessionSQL(t, s, "ROLLBACK")
+				enginetest.SessionSQL(t, s, "BEGIN")
+				enginetest.SessionSQL(t, s, "DROP INDEX fresh")
+				enginetest.SessionSQL(t, s, "ROLLBACK")
 				if e.Catalog.State.Get(old.Address()) != next || e.Storage.IndexRoots[old.Address()] != root {
 					t.Fatal("invalid drop rollback lost exact index")
 				}
@@ -114,18 +114,18 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 
 func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE t(n INT,s TEXT)", "INSERT INTO t VALUES(1,'a'),(2,'b')", "CREATE UNIQUE INDEX ix ON t(n)", "CREATE INDEX expression ON t(lower(s)) WHERE n>0", "CREATE TABLE unrelated(n INT)", "CREATE INDEX unrelated_idx ON unrelated(n)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	old, root := btreeRoot(t, e, "ix")
 	derived, derivedRoot := btreeRoot(t, e, "expression")
 	stored := e.Storage.Relations[old.SQLIndex.Parent]
 	committed := indexMaintenanceCapture(e)
 	retained := transactionalIndexSnapshot(root)
-	tx := transactionBegin(t, s)
+	tx := enginetest.TransactionBegin(t, s)
 	for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)", "INSERT INTO t VALUES(3,'before')", "SAVEPOINT keep"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	prefix := s.Transactions.Catalog
 	copy := prefix.Clone()
@@ -137,7 +137,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	prefixOptions := slices.Clone(prefixDescriptor.(*catalog.Relation).StorageOptions.Base)
 	for range 2 {
 		for _, q := range []string{"ALTER INDEX fresh RESET(fillfactor)", "ALTER INDEX fresh RENAME TO later", "DROP INDEX later,expression", "INSERT INTO t VALUES(1,'after')"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		removed := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		if removed.Get(old.Address()) != nil || removed.Get(derived.Address()) != nil {
@@ -149,7 +149,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 		if prefixDescriptor.Name() != "fresh" || !reflect.DeepEqual(prefixDescriptor.(*catalog.Relation).StorageOptions.Base, prefixOptions) {
 			t.Fatal("postmark operation mutated retained prefix options/name")
 		}
-		sessionSQL(t, s, "ROLLBACK TO keep")
+		enginetest.SessionSQL(t, s, "ROLLBACK TO keep")
 		restored := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		if s.Transactions.Catalog != prefix || restored.Get(old.Address()) != prefixDescriptor || restored.MustRelation(old.Address()).SQLIndex != prefixDefinition || restored.Get(derived.Address()) != derived || !storage.SameVersionRoot(s.Transactions.Writes[old.SQLIndex.Parent], writes) || s.Transactions.Deletes[old.SQLIndex.Parent] != deletes {
 			t.Fatal("savepoint did not restore exact descriptor/provider/write/deletion authority")
@@ -158,8 +158,8 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 			t.Fatal("savepoint lost dependency observations/root/storage")
 		}
 	}
-	sessionSQL(t, s, "RELEASE keep")
-	transactionEnd(t, s, tx, false)
+	enginetest.SessionSQL(t, s, "RELEASE keep")
+	enginetest.TransactionEnd(t, s, tx, false)
 	indexMaintenanceUnchanged(t, e, committed)
 	enginetest.LockEmpty(t, e)
 }
@@ -168,15 +168,15 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 	for _, veto := range []string{"none", "cancel", "epoch", "caller"} {
 		t.Run(veto, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t(n)", "CREATE INDEX sibling ON t(n DESC)"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			old, root := btreeRoot(t, e, "ix")
 			sibling, oldSibling := btreeRoot(t, e, "sibling")
-			tx := transactionBegin(t, s)
-			sessionSQL(t, s, "SAVEPOINT recover")
+			tx := enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "SAVEPOINT recover")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := s.Acquire(ctx)
@@ -224,7 +224,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				transactionEnd(t, s, tx, false)
+				enginetest.TransactionEnd(t, s, tx, false)
 				enginetest.LockEmpty(t, e)
 				return
 			}
@@ -254,14 +254,14 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			}
 			// New unrelated/auth frontiers and parent DML are legitimate, not stale
 			// statement-auth or table-root commit conflicts for metadata-only edits.
-			sessionSQL(t, peer, "INSERT INTO t VALUES(2)")
-			sessionSQL(t, peer, "CREATE ROLE unrelated")
+			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(2)")
+			enginetest.SessionSQL(t, peer, "CREATE ROLE unrelated")
 			newSibling := e.Storage.IndexRoots[sibling.Address()]
 			if newSibling == oldSibling {
 				t.Fatal("peer did not install real newest sibling")
 			}
-			sessionSQL(t, s, "INSERT INTO t VALUES(3)")
-			transactionEnd(t, s, tx, true)
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(3)")
+			enginetest.TransactionEnd(t, s, tx, true)
 			final, finalRoot := btreeRoot(t, e, "ix")
 			if final.Address() != old.Address() || len(final.StorageOptions.Base) != 1 || old.StorageOptions.Base != nil || finalRoot == root {
 				t.Fatal("combined publication lost metadata/own DML or mutated old descriptor")
@@ -276,18 +276,18 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 	}
 	t.Run("newest-untouched-sibling", func(t *testing.T) {
 		e := engine.New()
-		owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+		owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t(n)", "CREATE INDEX sibling ON t(n DESC)"} {
-			sessionSQL(t, owner, q)
+			enginetest.SessionSQL(t, owner, q)
 		}
 		selected, old := btreeRoot(t, e, "ix")
 		sibling, _ := btreeRoot(t, e, "sibling")
 		retained := transactionalIndexSnapshot(old)
-		tx := transactionBegin(t, owner)
-		sessionSQL(t, owner, "ALTER INDEX ix SET(fillfactor=80)")
-		sessionSQL(t, peer, "INSERT INTO t VALUES(2)")
+		tx := enginetest.TransactionBegin(t, owner)
+		enginetest.SessionSQL(t, owner, "ALTER INDEX ix SET(fillfactor=80)")
+		enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(2)")
 		newSelected, newSibling := e.Storage.IndexRoots[selected.Address()], e.Storage.IndexRoots[sibling.Address()]
-		transactionEnd(t, owner, tx, true)
+		enginetest.TransactionEnd(t, owner, tx, true)
 		if e.Storage.IndexRoots[selected.Address()] != newSelected || e.Storage.IndexRoots[sibling.Address()] != newSibling || !reflect.DeepEqual(old.Entries, retained) {
 			t.Fatal("metadata commit overwrote newest selected/sibling root or mutated retained capture")
 		}
@@ -297,14 +297,14 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 	})
 	t.Run("commit-context-veto", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1)", "CREATE UNIQUE INDEX ix ON t(n)", "CREATE INDEX sibling ON t(n)"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		before := indexMaintenanceCapture(e)
-		tx := transactionBegin(t, s)
+		tx := enginetest.TransactionBegin(t, s)
 		for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80)", "DROP INDEX fresh", "INSERT INTO t VALUES(1)"} {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		if e.PrivateCatalogLocked(s.Transactions.Catalog).Get(roleTableRef(t, e, "ix").Address) != nil {
 			t.Fatal("fixture did not assemble private removal")
@@ -326,7 +326,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 		if s.TransactionState() != session.TxIdle || s.Transactions.Catalog != nil {
 			t.Fatal("canceled commit retained private transaction state")
 		}
-		sessionSQL(t, s, "ROLLBACK")
+		enginetest.SessionSQL(t, s, "ROLLBACK")
 		enginetest.LockEmpty(t, e)
 	})
 }
@@ -336,16 +336,16 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 		for _, veto := range []string{"replace", "epoch", "cancel", "terminal"} {
 			t.Run(action+"/"+veto, func(t *testing.T) {
 				e := engine.New()
-				holder, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				holder, owner := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 				for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t(n)"} {
-					sessionSQL(t, holder, q)
+					enginetest.SessionSQL(t, holder, q)
 				}
 				if action == "reset" {
-					sessionSQL(t, holder, "ALTER INDEX ix SET(fillfactor=80)")
+					enginetest.SessionSQL(t, holder, "ALTER INDEX ix SET(fillfactor=80)")
 				}
 				old, _ := btreeRoot(t, e, "ix")
-				ht := transactionBegin(t, holder)
-				ot := transactionBegin(t, owner)
+				ht := enginetest.TransactionBegin(t, holder)
+				ot := enginetest.TransactionBegin(t, owner)
 				resource := roleTableRef(t, e, "ix")
 				held := lock.Share
 				q := "ALTER INDEX ix RENAME TO fresh"
@@ -377,7 +377,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 					owner.RequestEnd(session.Terminated)
 				}
 				before := indexMaintenanceCapture(e)
-				transactionEnd(t, holder, ht, false)
+				enginetest.TransactionEnd(t, holder, ht, false)
 				err := await()
 				if err == nil {
 					t.Fatal("stale/terminal/canceled admission succeeded")
@@ -398,7 +398,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 					}
 				}
 				if veto != "terminal" {
-					transactionEnd(t, owner, ot, false)
+					enginetest.TransactionEnd(t, owner, ot, false)
 				} else {
 					if err := owner.WaitEnd(context.Background()); err != nil {
 						t.Fatal(err)
@@ -411,11 +411,11 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 	for _, action := range []string{"rename", "set", "reset", "drop"} {
 		t.Run(action+"/grant-owner-revoked", func(t *testing.T) {
 			e := engine.New()
-			admin, actor := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			admin, actor := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE USER actor", "CREATE TABLE t(n INT)", "ALTER TABLE t OWNER TO actor", "CREATE INDEX ix ON t(n)", "ALTER INDEX ix SET(fillfactor=80)"} {
-				sessionSQL(t, admin, q)
+				enginetest.SessionSQL(t, admin, q)
 			}
-			sessionSQL(t, actor, "SET ROLE actor")
+			enginetest.SessionSQL(t, actor, "SET ROLE actor")
 			// ALTER RENAME needs schema CREATE in addition to exact index owner.
 			ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 			user, _ := e.Roles().Lookup("actor")
@@ -423,8 +423,8 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 			if err := enginetest.SetObjectACL(e, context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: root.Ref, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
-			at := transactionBegin(t, admin)
-			ot := transactionBegin(t, actor)
+			at := enginetest.TransactionBegin(t, admin)
+			ot := enginetest.TransactionBegin(t, actor)
 			ref := roleTableRef(t, e, "ix")
 			resource := ref
 			held := lock.Share
@@ -467,10 +467,10 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := indexMaintenanceCapture(e)
-			transactionEnd(t, admin, at, false)
+			enginetest.TransactionEnd(t, admin, at, false)
 			enginetest.State(t, await(), "42501")
 			indexMaintenanceUnchanged(t, e, before)
-			transactionEnd(t, actor, ot, false)
+			enginetest.TransactionEnd(t, actor, ot, false)
 			enginetest.LockEmpty(t, e)
 		})
 	}

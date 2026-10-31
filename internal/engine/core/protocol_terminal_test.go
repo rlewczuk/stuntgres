@@ -24,7 +24,7 @@ import (
 func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	e := engine.New()
 	sess := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, sess, "BEGIN")
+	enginetest.SessionSQL(t, sess, "BEGIN")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, _, err := sess.AcquireCommand(ctx)

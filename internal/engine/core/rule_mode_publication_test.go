@@ -17,12 +17,12 @@ func TestRuleModeStageCancellation(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE src(id INT,v INT)", "CREATE TABLE sink(id INT,v INT)", "CREATE RULE r AS ON INSERT TO src DO ALSO INSERT INTO sink VALUES(NEW.id,NEW.v)"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			ref := enginetest.RoleTableRef(t, e, "src")
 			original := e.CatalogRead().MustRelation(ref.Address)
 			if explicit {
-				sessionSQL(t, s, "BEGIN")
+				enginetest.SessionSQL(t, s, "BEGIN")
 			}
 			journal := s.Transactions.Catalog
 			ctx, cancel := context.WithCancel(context.Background())
@@ -72,7 +72,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE src(id INT,v INT)", "CREATE TABLE sink(id INT,v INT)", "INSERT INTO src VALUES(1,10)", "CREATE RULE r AS ON INSERT TO src DO ALSO INSERT INTO sink VALUES(NEW.id,NEW.v)"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM src")
 	execute := func() {
@@ -89,7 +89,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 	originalAnalysis := d.Analysis
 	originalFolds := d.Folds.Current()
 	generation := s.DiscardPlansGeneration
-	sessionSQL(t, s, "ALTER TABLE src ENABLE RULE r")
+	enginetest.SessionSQL(t, s, "ALTER TABLE src ENABLE RULE r")
 	execute()
 	if d.Analysis != originalAnalysis || s.DiscardPlansGeneration != generation || &d.Folds.Current().Entries[0] != &originalFolds.Entries[0] {
 		t.Fatal("no-op mode discarded genuine accepted backing")
@@ -109,7 +109,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 		beforeFolds := d.Folds.Current()
 		beforeGeneration := s.DiscardPlansGeneration
 		for _, q := range transition {
-			sessionSQL(t, s, q)
+			enginetest.SessionSQL(t, s, q)
 		}
 		execute()
 		accepted := d.Folds.Current()
@@ -144,7 +144,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 			r.Rows.Close()
 		}
 		previous := held.Analysis
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 		r, err = sequencePreparedExecute(e, s, insert, &held)
 		if err != nil {
 			t.Fatal(err)

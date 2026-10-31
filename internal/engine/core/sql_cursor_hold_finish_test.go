@@ -21,12 +21,12 @@ import (
 func TestSQLCursorHoldPublication(t *testing.T) {
 	t.Run("independent_promotion_before_failure", func(t *testing.T) {
 		s := cursorUnitSetup(t)
-		sessionSQL(t, s, "DECLARE old CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		sessionSQL(t, s, "COMMIT")
-		sessionSQL(t, s, "BEGIN")
-		sessionSQL(t, s, "DECLARE good CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		sessionSQL(t, s, "DECLARE bad CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		sessionSQL(t, s, "DECLARE ordinary CURSOR FOR SELECT i FROM unit_rows")
+		enginetest.SessionSQL(t, s, "DECLARE old CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+		enginetest.SessionSQL(t, s, "COMMIT")
+		enginetest.SessionSQL(t, s, "BEGIN")
+		enginetest.SessionSQL(t, s, "DECLARE good CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+		enginetest.SessionSQL(t, s, "DECLARE bad CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+		enginetest.SessionSQL(t, s, "DECLARE ordinary CURSOR FOR SELECT i FROM unit_rows")
 		good, bad := core.PayloadOf(s).Cursors.Entries["good"], core.PayloadOf(s).Cursors.Entries["bad"]
 		goodPin, badPin, badCell := good.Source.View, bad.Source.View, core.CursorAuthority(bad)
 		original, calls := core.CursorRoot(bad).Expressions[0], 0
@@ -38,37 +38,37 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 			}
 			return original.Eval(ctx)
 		})
-		sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
+		enginetest.SessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
 		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !core.CursorPromoted(good) || core.PayloadOf(s).Cursors.Entries["good"] != good || core.PayloadOf(s).Cursors.Entries["bad"] != nil || core.PayloadOf(s).Cursors.Entries["ordinary"] != nil || core.CursorValues(bad) != nil || bad.Source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != session.TxIdle {
 			t.Fatal("failed end retracts promotion or publishes pending store", result, err, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM good", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
 		cursorUnitBatch(t, s, "FETCH 1 FROM old", [][]driver.Value{{int64(1)}})
-		if got := enginetest.Tuples(sessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}}) {
+		if got := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}}) {
 			t.Fatal("failed commit publishes private write", got)
 		}
 	})
 	t.Run("promotion_before_real_ssi_publication", func(t *testing.T) {
 		e := engine.New()
 		s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
-		sessionSQL(t, s, "CREATE TABLE hold_ssi(class INT,v INT)")
-		sessionSQL(t, s, "INSERT INTO hold_ssi VALUES(1,10),(2,20)")
-		sessionSQL(t, s, "CREATE SEQUENCE hold_ssi_draw START 10 CACHE 1")
-		sessionSQL(t, s, "BEGIN ISOLATION LEVEL SERIALIZABLE")
-		sessionSQL(t, peer, "BEGIN ISOLATION LEVEL SERIALIZABLE")
-		sessionSQL(t, s, "SELECT v FROM hold_ssi WHERE class=1").Rows.Close()
-		sessionSQL(t, peer, "SELECT v FROM hold_ssi WHERE class=2").Rows.Close()
-		sessionSQL(t, s, "INSERT INTO hold_ssi VALUES(2,30)")
-		sessionSQL(t, peer, "INSERT INTO hold_ssi VALUES(1,40)")
-		sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
+		enginetest.SessionSQL(t, s, "CREATE TABLE hold_ssi(class INT,v INT)")
+		enginetest.SessionSQL(t, s, "INSERT INTO hold_ssi VALUES(1,10),(2,20)")
+		enginetest.SessionSQL(t, s, "CREATE SEQUENCE hold_ssi_draw START 10 CACHE 1")
+		enginetest.SessionSQL(t, s, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+		enginetest.SessionSQL(t, peer, "BEGIN ISOLATION LEVEL SERIALIZABLE")
+		enginetest.SessionSQL(t, s, "SELECT v FROM hold_ssi WHERE class=1").Rows.Close()
+		enginetest.SessionSQL(t, peer, "SELECT v FROM hold_ssi WHERE class=2").Rows.Close()
+		enginetest.SessionSQL(t, s, "INSERT INTO hold_ssi VALUES(2,30)")
+		enginetest.SessionSQL(t, peer, "INSERT INTO hold_ssi VALUES(1,40)")
+		enginetest.SessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
 		c := core.PayloadOf(s).Cursors.Entries["h"]
 		original, calls := core.CursorRoot(c).Expressions[0], 0
 		core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 			calls++
 			return original.Eval(eval)
 		})
-		sessionSQL(t, peer, "COMMIT")
+		enginetest.SessionSQL(t, peer, "COMMIT")
 		before := serializableSnapshotPublication(e)
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
 		serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
@@ -81,13 +81,13 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		if calls != 1 {
 			t.Fatal("post-publication-failure FETCH reevaluates sequence target", calls)
 		}
-		if got := enginetest.Tuples(sessionSQL(t, s, "SELECT last_value,is_called FROM hold_ssi_draw")); !reflect.DeepEqual(got, [][]driver.Value{{int64(10), true}}) {
+		if got := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT last_value,is_called FROM hold_ssi_draw")); !reflect.DeepEqual(got, [][]driver.Value{{int64(10), true}}) {
 			t.Fatal("failed publication changes consumed sequence effects", got)
 		}
 	})
 	t.Run("implicit_install_is_not_completion", func(t *testing.T) {
 		s := cursorUnitSetup(t)
-		sessionSQL(t, s, "ROLLBACK")
+		enginetest.SessionSQL(t, s, "ROLLBACK")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, err := s.Acquire(ctx)
@@ -116,8 +116,8 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 	})
 	t.Run("late_cancel_keeps_successful_export", func(t *testing.T) {
 		s := cursorUnitSetup(t)
-		sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
+		enginetest.SessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+		enginetest.SessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, err := s.Acquire(ctx)
@@ -132,7 +132,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		cancel()
 		op.Done()
 		cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
-		if got := enginetest.Tuples(sessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); len(got) != 4 {
+		if got := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); len(got) != 4 {
 			t.Fatal("late cancel retracts durable publication", got)
 		}
 	})
@@ -148,27 +148,27 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			holder := enginetest.StartSession(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
-			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2),(3)")
-			sessionSQL(t, s, "CREATE SEQUENCE hold_draw START 10 CACHE 1")
-			sessionSQL(t, s, "DECLARE old CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-			sessionSQL(t, s, "BEGIN")
+			enginetest.SessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
+			enginetest.SessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2),(3)")
+			enginetest.SessionSQL(t, s, "CREATE SEQUENCE hold_draw START 10 CACHE 1")
+			enginetest.SessionSQL(t, s, "DECLARE old CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+			enginetest.SessionSQL(t, s, "BEGIN")
 			query := "SELECT i FROM unit_rows ORDER BY i"
 			if sequenceWait {
 				query = "SELECT nextval('hold_draw') AS n FROM unit_rows"
 			}
-			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR "+query)
+			enginetest.SessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR "+query)
 			c, ref := core.PayloadOf(s).Cursors.Entries["h"], s.Transactions.Ref
 			ticket := s.Transactions.Ticket
 			pin, cell := c.Source.View, core.CursorAuthority(c)
-			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
+			enginetest.SessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			entered := make(chan struct{})
 			if sequenceWait {
-				holderRef := transactionBegin(t, holder)
-				sessionSQL(t, holder, "ALTER SEQUENCE hold_draw RESTART 20")
-				defer transactionEnd(t, holder, holderRef, false)
+				holderRef := enginetest.TransactionBegin(t, holder)
+				enginetest.SessionSQL(t, holder, "ALTER SEQUENCE hold_draw RESTART 20")
+				defer enginetest.TransactionEnd(t, holder, holderRef, false)
 			} else {
 				original, calls := core.CursorRoot(c).Expressions[0], 0
 				core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
@@ -233,7 +233,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				t.Fatal("failed materialization retains transaction timeout authority")
 			}
 			cursorUnitBatch(t, s, "FETCH 1 FROM old", [][]driver.Value{{int64(1)}})
-			if got := enginetest.Tuples(sessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}}) {
+			if got := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}}) {
 				t.Fatal("canceled commit publishes private write", got)
 			}
 			s.RequestEnd(session.CleanClose)

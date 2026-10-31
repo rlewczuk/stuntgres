@@ -26,10 +26,10 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 	for _, phase := range []string{"next", "close", "primaryWins", "cancelAtClose"} {
 		t.Run(phase, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			peer := sessionStart(t, e, nil)
-			sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
-			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
+			s := enginetest.StartSession(t, e, nil)
+			peer := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
+			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			q := "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=20 WHEN NOT MATCHED THEN INSERT VALUES(s.id,30)"
@@ -86,7 +86,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 				t.Fatal("source completion escaped into mutation", err, cursor.closed, premature, scope.Stage.Rows)
 			}
 			scope.Finish(err)
-			transactionRows(t, peer, "SELECT v FROM t", 10)
+			enginetest.TransactionRows(t, peer, "SELECT v FROM t", 10)
 			enginetest.LockEmpty(t, e)
 		})
 	}

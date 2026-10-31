@@ -148,7 +148,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	e.Mu.Unlock()
 	op.Done()
 	for _, query := range []string{"CREATE ROLE regop_unrelated", "ALTER ROLE regop_unrelated LOGIN", "DROP ROLE regop_unrelated"} {
-		sessionSQL(t, s, query)
+		enginetest.SessionSQL(t, s, query)
 		next, err := sequencePreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
@@ -165,7 +165,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE SCHEMA regop_a", "CREATE SCHEMA regop_b", "SET search_path TO regop_a,regop_b"} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	view := e.CatalogRead()
 	a := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_a"})
@@ -183,7 +183,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	typeIDs := []sqltype.ID{sqltype.Regoper, sqltype.Regoperator}
 	texts := []string{"#=#", "#=#(integer,integer)"}
 	// Hold the unread finalized cursor across successful reanalysis.
-	sessionSQL(t, s, "SET search_path TO regop_b,regop_a")
+	enginetest.SessionSQL(t, s, "SET search_path TO regop_b,regop_a")
 	next, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	sessionSQL(t, s, "SET search_path TO regop_a")
+	enginetest.SessionSQL(t, s, "SET search_path TO regop_a")
 	before := regoperatorPreparedSnapshot(d.Regtypes.Constants)
 	analysis := d.Analysis
 	failed, err := sequencePreparedExecute(e, s, ast, &d)
@@ -225,7 +225,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	if !reflect.DeepEqual(d.Regtypes.Constants, before) || d.Analysis != analysis || !reflect.DeepEqual(d.Results, oldSignature) {
 		t.Fatal("failed reanalysis partially published constants, plan or signature")
 	}
-	sessionSQL(t, s, "SET search_path TO regop_b")
+	enginetest.SessionSQL(t, s, "SET search_path TO regop_b")
 	recovered, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
@@ -241,16 +241,16 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			s := enginetest.StartSession(t, e, nil)
 			admin := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE ROLE regop_operand_a", "CREATE ROLE regop_operand_b", "CREATE SCHEMA regop_types AUTHORIZATION regop_operand_a", "CREATE DOMAIN regop_types.secret AS integer", "SET search_path TO public"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			ns := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_types"})
 			address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"})
 			typ := e.CatalogRead().MustType(address)
 			regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92000, ids.OID(typ.SQLType.ID()), 23)
-			sessionSQL(t, s, "SET ROLE regop_operand_a")
+			enginetest.SessionSQL(t, s, "SET ROLE regop_operand_a")
 			query := "SELECT '||/'::regoper AS first,'public.#=#(regop_types.secret,integer)'::regoperator AS second"
 			if change == "TypePath" {
-				sessionSQL(t, s, "SET search_path TO regop_types,public")
+				enginetest.SessionSQL(t, s, "SET search_path TO regop_types,public")
 				query = "SELECT '||/'::regoper AS first,'public.#=#(secret,integer)'::regoperator AS second"
 			}
 			ast, d := sequencePreparedDescription(t, e, s, query)
@@ -304,13 +304,13 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 					t.Fatal(err)
 				}
 				collationUnitPublish(t, e, stage)
-				sessionSQL(t, admin, "CREATE DOMAIN regop_types.secret AS integer")
+				enginetest.SessionSQL(t, admin, "CREATE DOMAIN regop_types.secret AS integer")
 			} else if change == "Authority" {
-				sessionSQL(t, admin, "ALTER SCHEMA regop_types OWNER TO regop_operand_b")
+				enginetest.SessionSQL(t, admin, "ALTER SCHEMA regop_types OWNER TO regop_operand_b")
 			} else if change == "Role" {
-				sessionSQL(t, s, "SET ROLE regop_operand_b")
+				enginetest.SessionSQL(t, s, "SET ROLE regop_operand_b")
 			} else {
-				sessionSQL(t, s, "SET search_path TO public")
+				enginetest.SessionSQL(t, s, "SET search_path TO public")
 			}
 			if regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 				t.Error("changed operand environment passed direct shared-cell validation", change)
@@ -353,11 +353,11 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			regoperatorPreparedValues(t, r, []sqltype.ID{sqltype.Regoper, sqltype.Regoperator}, []string{"||/", text})
 			if change == "Authority" || change == "Role" || change == "TypePath" {
 				if change == "Authority" {
-					sessionSQL(t, admin, "ALTER SCHEMA regop_types OWNER TO regop_operand_a")
+					enginetest.SessionSQL(t, admin, "ALTER SCHEMA regop_types OWNER TO regop_operand_a")
 				} else if change == "Role" {
-					sessionSQL(t, s, "SET ROLE regop_operand_a")
+					enginetest.SessionSQL(t, s, "SET ROLE regop_operand_a")
 				} else {
-					sessionSQL(t, s, "SET search_path TO regop_types,public")
+					enginetest.SessionSQL(t, s, "SET search_path TO regop_types,public")
 				}
 				recovered, err := sequencePreparedExecute(e, s, ast, &d)
 				if err != nil {

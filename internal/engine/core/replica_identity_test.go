@@ -22,7 +22,7 @@ import (
 func replicaUnitFixture(t *testing.T) (*core.Engine, *session.Session, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	name := preparedBoundaryName("ri_unit")
 	preparedUnitStatement(t, e, s, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "k", TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{NotNull: true}}}},

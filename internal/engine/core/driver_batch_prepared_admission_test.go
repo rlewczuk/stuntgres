@@ -16,7 +16,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 		for _, control := range []string{"PREPARE TRANSACTION 'admission'", "COMMIT PREPARED 'admission'", "ROLLBACK PREPARED 'admission'"} {
 			t.Run(end+"_"+control, func(t *testing.T) {
 				e := engine.New()
-				s := sessionStart(t, e, nil)
+				s := enginetest.StartSession(t, e, nil)
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
 				var preceding ids.TxRef

@@ -95,10 +95,10 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 }
 func TestCheckCancellationBeforePublication(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE t(v INT CHECK(v>0))")
-	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT CHECK(v>0))")
+	enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, scope, b, source := updateBoundSource(t, e, s, ctx, "UPDATE t SET v=v")
@@ -119,8 +119,8 @@ func TestCheckCancellationBeforePublication(t *testing.T) {
 	}
 	scope.Finish(err)
 	op.Done()
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2)
 	enginetest.LockEmpty(t, e)
-	sessionSQL(t, peer, "UPDATE t SET v=7")
+	enginetest.SessionSQL(t, peer, "UPDATE t SET v=7")
 	enginetest.LockEmpty(t, e)
 }

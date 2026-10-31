@@ -26,7 +26,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if !errors.Is(err, injected) {
 			t.Fatal("actual initialization failure", err)
 		}
-		op := transactionOperation(t, s)
+		op := enginetest.TransactionOperation(t, s)
 		called := false
 		callerOwned := &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error { called = true; return nil }}
 		transferred, err := op.Attach(session.AdvisorySession, callerOwned)
@@ -57,7 +57,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
-		transactionEnd(t, b, rb, false)
+		enginetest.TransactionEnd(t, b, rb, false)
 		source, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		lockState := e.Locks.Inspect()
 		oldManagerEpoch := lockState.Epochs[e.Catalog.Domain]
@@ -86,7 +86,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 	t.Run("physical close after completed transfer cannot resurrect", func(t *testing.T) {
 		e := engine.New()
 		a, ra := advisoryUnitOwner(t, e)
-		b := sessionStart(t, e, nil)
+		b := enginetest.StartSession(t, e, nil)
 		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 21}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		_, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)

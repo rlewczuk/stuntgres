@@ -20,15 +20,15 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 		for _, phase := range []string{"source_rejected", "candidate_rejected", "output", "after_output"} {
 			t.Run(map[bool]string{false: "implicit/", true: "explicit/"}[explicit]+phase, func(t *testing.T) {
 				e := engine.New()
-				writer := sessionStart(t, e, nil)
-				peer := sessionStart(t, e, nil)
+				writer := enginetest.StartSession(t, e, nil)
+				peer := enginetest.StartSession(t, e, nil)
 				for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE s(k INT)", "CREATE TABLE r(k INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO s VALUES(1),(2)", "INSERT INTO r VALUES(1),(2)"} {
-					sessionSQL(t, peer, q)
+					enginetest.SessionSQL(t, peer, q)
 				}
 				var tx ids.TxRef
 				if explicit {
-					tx = transactionBegin(t, writer)
-					sessionSQL(t, writer, "UPDATE t SET v=11 WHERE id=1")
+					tx = enginetest.TransactionBegin(t, writer)
+					enginetest.SessionSQL(t, writer, "UPDATE t SET v=11 WHERE id=1")
 				}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -95,12 +95,12 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					if writer.TransactionState() != session.TxAborted || writer.Transactions.Writes != nil {
 						t.Fatal("prior private write survived abort")
 					}
-					transactionEnd(t, writer, tx, false)
+					enginetest.TransactionEnd(t, writer, tx, false)
 				}
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 				enginetest.LockEmpty(t, e)
-				sessionSQL(t, peer, "UPDATE t SET v=s.k FROM s WHERE t.id=s.k")
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 1, 2)
+				enginetest.SessionSQL(t, peer, "UPDATE t SET v=s.k FROM s WHERE t.id=s.k")
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 1, 2)
 				enginetest.LockEmpty(t, e)
 			})
 		}

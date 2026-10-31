@@ -385,7 +385,7 @@ func TestFDWScanState(t *testing.T) {
 
 func testFDWCursorCleanupOwner(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	txn := s.Transactions
 	failure := errors.New("owned cursor cleanup")
 	var blocked []string

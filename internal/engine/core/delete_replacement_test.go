@@ -57,11 +57,11 @@ func deleteReplacementAdmissionEmpty(t *testing.T, e *core.Engine) {
 
 func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE t(v INT)")
-	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
-	op := transactionOperation(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
+	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 		e.ReplacementMu.Unlock()
 		t.Fatal("immediate row grants lost continuous replacement reservation")
 	}
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 3)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 3)
 	frontier := e.Visibility.CommitSeq()
 	writer := make(chan bool, 1)
 	go func() {
@@ -132,7 +132,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Finish did not release replacement writer")
 	}
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 3)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 3)
 	enginetest.LockEmpty(t, e)
 	deleteReplacementAdmissionEmpty(t, e)
 }
@@ -238,20 +238,20 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 		for _, explicit := range []bool{false, true} {
 			t.Run(replacement+"/"+map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
 				e := engine.New()
-				holder := sessionStart(t, e, nil)
-				waiter := sessionStart(t, e, nil)
-				peer := sessionStart(t, e, nil)
-				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
-				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
+				holder := enginetest.StartSession(t, e, nil)
+				waiter := enginetest.StartSession(t, e, nil)
+				peer := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT)")
+				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 				oldStorage := e.Storage.Relations[ref.Address]
 				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.Versions[1].Row}
-				hr := transactionBegin(t, holder)
+				hr := enginetest.TransactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 				var wr ids.TxRef
 				if explicit {
-					wr = transactionBegin(t, waiter)
-					sessionSQL(t, waiter, "INSERT INTO t VALUES(7)")
+					wr = enginetest.TransactionBegin(t, waiter)
+					enginetest.SessionSQL(t, waiter, "INSERT INTO t VALUES(7)")
 					deleteCount(t, waiter, "DELETE FROM t WHERE v=3", 1)
 				}
 				scope, ticket, done := deleteReplacementScope(t, e, waiter)
@@ -273,8 +273,8 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					if err := engine.Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
-					sessionSQL(t, peer, "CREATE TABLE t(v INT)")
-					sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(2),(91)")
+					enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT)")
+					enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(2),(91)")
 				} else if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(1),(2),(2),(91)")); err != nil {
 					t.Fatal(err)
 				}
@@ -290,15 +290,15 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					if waiter.TransactionState() != session.TxAborted {
 						t.Fatal("explicit stale DELETE did not abort")
 					}
-					transactionEnd(t, waiter, wr, false)
+					enginetest.TransactionEnd(t, waiter, wr, false)
 				} else if waiter.TransactionState() != session.TxIdle {
 					t.Fatal("implicit stale DELETE did not clear transaction")
 				}
 				enginetest.LockEmpty(t, e)
 				deleteReplacementAdmissionEmpty(t, e)
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
-				transactionEnd(t, holder, hr, false)
-				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+				enginetest.TransactionEnd(t, holder, hr, false)
+				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
 				enginetest.LockEmpty(t, e)
 			})
 		}
@@ -307,16 +307,16 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 
 func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	e := engine.New()
-	holder := sessionStart(t, e, nil)
-	waiter := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TABLE t(v INT)")
-	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
+	holder := enginetest.StartSession(t, e, nil)
+	waiter := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TABLE t(v INT)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	oldStorage := e.Storage.Relations[ref.Address]
 	first, blocked := oldStorage.Versions[0].Row, oldStorage.Versions[1].Row
 	resource := lock.Resource{ObjectRef: ref, Row: blocked}
-	hr := transactionBegin(t, holder)
+	hr := enginetest.TransactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 	scope, ticket, done := deleteReplacementScope(t, e, waiter)
 	request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
@@ -350,7 +350,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 	}()
-	transactionEnd(t, holder, hr, false)
+	enginetest.TransactionEnd(t, holder, hr, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.Locks.Inspect(ticket)
@@ -408,6 +408,6 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	}
 	enginetest.LockEmpty(t, e)
 	deleteReplacementAdmissionEmpty(t, e)
-	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
 	enginetest.LockEmpty(t, e)
 }

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -37,11 +38,11 @@ func rangePartitionRetirementFixture(t *testing.T, s *session.Session, commitFix
 		"CREATE SEQUENCE rp_retire_other_seq OWNED BY rp_retire_other.v",
 		"CREATE VIEW rp_retire_view AS SELECT v FROM rp_retire_root",
 	} {
-		sessionSQL(t, s, q)
+		enginetest.SessionSQL(t, s, q)
 	}
 	if !commitFixture {
-		sessionSQL(t, s, "DELETE FROM rp_retire_provider WHERE v=9")
-		sessionSQL(t, s, "INSERT INTO rp_retire_root(k,v) VALUES(NULL,1),(NULL,2)")
+		enginetest.SessionSQL(t, s, "DELETE FROM rp_retire_provider WHERE v=9")
+		enginetest.SessionSQL(t, s, "INSERT INTO rp_retire_root(k,v) VALUES(NULL,1),(NULL,2)")
 	}
 }
 
@@ -73,7 +74,7 @@ func rangePartitionRetirementDescriptors(t *testing.T, view catalog.Read) (*cata
 
 func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	rangePartitionRetirementFixture(t, s, false)
 	base := e.CatalogRead()
 	provider, root := rangePartitionRetirementDescriptors(t, base)
@@ -125,7 +126,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 
 func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	rangePartitionRetirementFixture(t, s, true)
 	// Permanent CREATE/index/view utilities are not admitted in a native
 	// explicit transaction. Build those owned descriptors outside it, then
@@ -145,9 +146,9 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if committed.Get(provider.Address()) != provider || provider.OnCommit != originalAction {
 		t.Fatal("provider lifetime replacement mutated the published predecessor")
 	}
-	ref := transactionBegin(t, s)
-	sessionSQL(t, s, "INSERT INTO rp_retire_root(k,v) VALUES(NULL,1),(NULL,2)")
-	sessionSQL(t, s, "DELETE FROM rp_retire_provider WHERE v=9")
+	ref := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "INSERT INTO rp_retire_root(k,v) VALUES(NULL,1),(NULL,2)")
+	enginetest.SessionSQL(t, s, "DELETE FROM rp_retire_provider WHERE v=9")
 	owner := s.Transactions
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -205,7 +206,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		}
 	}
 	op.Done()
-	transactionEnd(t, s, ref, true)
+	enginetest.TransactionEnd(t, s, ref, true)
 	for a := range removed {
 		if e.Catalog.State.Get(a) != nil || e.Storage.Relations[a] != nil || e.Storage.IndexRoots[a] != nil || e.Storage.Sequences[a] != nil {
 			t.Fatal("outer commit retained closure state", a)
@@ -218,10 +219,10 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 
 func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	peer := sessionStart(t, e, nil)
-	sessionSQL(t, peer, "CREATE TEMP TABLE rp_retire_peer(v INT UNIQUE)")
-	sessionSQL(t, peer, "INSERT INTO rp_retire_peer VALUES(91)")
+	s := enginetest.StartSession(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, peer, "CREATE TEMP TABLE rp_retire_peer(v INT UNIQUE)")
+	enginetest.SessionSQL(t, peer, "INSERT INTO rp_retire_peer VALUES(91)")
 	rangePartitionRetirementFixture(t, s, false)
 	base := e.CatalogRead()
 	provider, _ := rangePartitionRetirementDescriptors(t, base)

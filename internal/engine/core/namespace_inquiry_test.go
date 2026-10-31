@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -22,7 +23,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 	for _, prior := range []bool{false, true} {
 		t.Run(map[bool]string{false: "new-stage", true: "existing-stage"}[prior], func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, &schemaDefaults{path: "pg_temp,public"})
+			s := enginetest.StartSession(t, e, &schemaDefaults{path: "pg_temp,public"})
 			op, err := s.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -109,7 +110,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 
 func TestNamespaceIdentityNoPendingFastPath(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, &schemaDefaults{path: "public,pg_temp"})
+	s := enginetest.StartSession(t, e, &schemaDefaults{path: "public,pg_temp"})
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +132,7 @@ func TestNamespaceIdentityNoPendingFastPath(t *testing.T) {
 
 func TestNamespaceIdentityTypedBinding(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

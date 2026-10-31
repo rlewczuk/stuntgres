@@ -26,7 +26,7 @@ func TestRoutineEffectiveUserEnvironment(t *testing.T) {
 			enginetest.Run(t, e, "CREATE TABLE re_parent(n integer)")
 			enginetest.Run(t, e, "ALTER TABLE re_parent OWNER TO re_owner")
 			parent := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "re_parent").Address)
-			sess := sessionStart(t, e, nil)
+			sess := enginetest.StartSession(t, e, nil)
 			selected := strings.HasPrefix(outcome, "self-")
 			outcome = strings.TrimPrefix(outcome, "self-")
 			if selected {
@@ -227,7 +227,7 @@ func TestRoutineEffectiveUserEnvironment(t *testing.T) {
 	}
 	t.Run("partial_entry", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		op, err := sess.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)

@@ -14,14 +14,14 @@ import (
 
 func TestDeferredUniqueEventOwnership(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) INITIALLY DEFERRED)")
-	ar, br := transactionBegin(t, a), transactionBegin(t, b)
-	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT,CONSTRAINT u UNIQUE(v) INITIALLY DEFERRED)")
+	ar, br := enginetest.TransactionBegin(t, a), enginetest.TransactionBegin(t, b)
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(a.Transactions)).Events) != 0 {
 		t.Fatal("first uncontested unique key enlisted retrospective work")
 	}
-	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
+	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	modes := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(b.Transactions))
 	if len(modes.Events) != 1 || modes.Events[0].ForeignKey != nil {
 		t.Fatal("missing concrete unique index event")
@@ -47,7 +47,7 @@ func TestDeferredUniqueEventOwnership(t *testing.T) {
 	}
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, a.Transactions.Ticket, b.Transactions.Ticket, done)
-	transactionEnd(t, a, ar, false)
+	enginetest.TransactionEnd(t, a, ar, false)
 	exclusionCommitAwait(t, done)
 	if e.Exclusions.CountLocked() != 0 {
 		t.Fatal("completed unique projections retained")
@@ -57,12 +57,12 @@ func TestDeferredUniqueEventOwnership(t *testing.T) {
 
 func TestDeferredForeignKeyEventOwnership(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-	sessionSQL(t, s, "INSERT INTO p VALUES(1)")
-	transactionBegin(t, s)
-	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(1)")
+	enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(1)")
 	before := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if len(before.Events) != 1 || before.Events[0].ForeignKey == nil {
 		t.Fatal("valid deferred child lost its trigger event at statement Finish")
@@ -71,37 +71,37 @@ func TestDeferredForeignKeyEventOwnership(t *testing.T) {
 	if payload.Owner.ID() == 0 || payload.Next.Row != before.Events[0].Row || payload.Next.Version != before.Events[0].Version || payload.Next.IndexOutputs != nil || payload.Next.IndexAdmission != nil {
 		t.Fatal("event retained command artifacts or lost actor/incarnation")
 	}
-	sessionSQL(t, s, "SAVEPOINT m")
-	sessionSQL(t, s, "INSERT INTO c VALUES(9)")
+	enginetest.SessionSQL(t, s, "SAVEPOINT m")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9)")
 	current := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if len(current.Events) != 2 || len(before.Events) != 1 || current.Events[0].ForeignKey != payload {
 		t.Fatal("append mutated captured event owner")
 	}
-	sessionSQL(t, s, "ROLLBACK TO m")
+	enginetest.SessionSQL(t, s, "ROLLBACK TO m")
 	after := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions))
 	if !reflect.DeepEqual(before, after) || after.Events[0].ForeignKey != payload {
 		t.Fatal("savepoint lost exact original event payload")
 	}
-	sessionSQL(t, s, "RELEASE m")
+	enginetest.SessionSQL(t, s, "RELEASE m")
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 1 {
 		t.Fatal("RELEASE checked or discarded trigger work")
 	}
-	sessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
+	enginetest.SessionSQL(t, s, "SET CONSTRAINTS fk IMMEDIATE")
 	if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(s.Transactions)).Events) != 0 {
 		t.Fatal("successful due check retained obligation")
 	}
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "COMMIT")
 }
 
 func TestDeferredCompletionFailureOwnership(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	sessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
-	sessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-	ref := transactionBegin(t, s)
-	sessionSQL(t, s, "CREATE TABLE private_definition(v INT)")
-	sessionSQL(t, s, "INSERT INTO c VALUES(9)")
-	op := transactionOperation(t, s)
+	s := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, s, "CREATE TABLE p(id INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, s, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+	ref := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "CREATE TABLE private_definition(v INT)")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9)")
+	op := enginetest.TransactionOperation(t, s)
 	_, err := e.Commit(op, ref)
 	op.Done()
 	var diagnostic *sqlstate.Error
@@ -112,10 +112,10 @@ func TestDeferredCompletionFailureOwnership(t *testing.T) {
 		t.Fatal("failed prepublication completion retained old incarnation")
 	}
 	enginetest.LockEmpty(t, e)
-	next := transactionBegin(t, s)
-	sessionSQL(t, s, "INSERT INTO p VALUES(9)")
-	sessionSQL(t, s, "INSERT INTO c VALUES(9)")
-	transactionEnd(t, s, next, true)
+	next := enginetest.TransactionBegin(t, s)
+	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(9)")
+	enginetest.SessionSQL(t, s, "INSERT INTO c VALUES(9)")
+	enginetest.TransactionEnd(t, s, next, true)
 }
 
 func TestDeferredSnapshotRootOwnership(t *testing.T) {
@@ -126,13 +126,13 @@ func TestDeferredSnapshotRootOwnership(t *testing.T) {
 
 func deferredSnapshotRootOwnership(t *testing.T, mutation string) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE p(id INT PRIMARY KEY)")
-	sessionSQL(t, a, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
-	sessionSQL(t, a, "INSERT INTO p VALUES(1)")
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE p(id INT PRIMARY KEY)")
+	enginetest.SessionSQL(t, a, "CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p INITIALLY DEFERRED)")
+	enginetest.SessionSQL(t, a, "INSERT INTO p VALUES(1)")
 	parent := enginetest.RoleTableRef(t, e, "p")
-	sessionSQL(t, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
-	transactionRows(t, a, "SELECT id FROM p", 1)
+	enginetest.SessionSQL(t, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
+	enginetest.TransactionRows(t, a, "SELECT id FROM p", 1)
 	retained := a.Transactions.Roots[parent.Address]
 	if len(retained.Indexes) != 1 {
 		t.Fatal("stable snapshot did not retain its supporting unique root")
@@ -142,27 +142,27 @@ func deferredSnapshotRootOwnership(t *testing.T, mutation string) {
 	if original.Root == nil || len(original.Root.Entries) != 1 || original.Definition == nil {
 		t.Fatal("snapshot lacks coherent descriptor/root pair")
 	}
-	sessionSQL(t, b, mutation)
-	sessionSQL(t, b, "CREATE UNIQUE INDEX later ON p(id)")
+	enginetest.SessionSQL(t, b, mutation)
+	enginetest.SessionSQL(t, b, "CREATE UNIQUE INDEX later ON p(id)")
 	if len(a.Transactions.Roots[parent.Address].Indexes) != 1 || a.Transactions.Roots[parent.Address].Indexes[rootAddress].Root != original.Root || len(original.Root.Entries) != 1 {
 		t.Fatal("live publication mutated snapshot roots or retrospectively added an index")
 	}
 	// Own replacement repairs integrity; the retained root cannot force a
 	// serialization failure after the current probe finds the final own key.
-	sessionSQL(t, a, "SAVEPOINT m")
-	sessionSQL(t, a, "INSERT INTO p VALUES(1)")
-	sessionSQL(t, a, "INSERT INTO c VALUES(1)")
-	sessionSQL(t, a, "ROLLBACK TO m")
+	enginetest.SessionSQL(t, a, "SAVEPOINT m")
+	enginetest.SessionSQL(t, a, "INSERT INTO p VALUES(1)")
+	enginetest.SessionSQL(t, a, "INSERT INTO c VALUES(1)")
+	enginetest.SessionSQL(t, a, "ROLLBACK TO m")
 	if a.Transactions.Roots[parent.Address].Indexes[rootAddress].Root != original.Root {
 		t.Fatal("savepoint mutated captured index owner")
 	}
-	sessionSQL(t, a, "ALTER TABLE p ADD COLUMN note TEXT")
+	enginetest.SessionSQL(t, a, "ALTER TABLE p ADD COLUMN note TEXT")
 	if len(retained.Relation.Columns) != 1 || len(original.Root.Entries) != 1 || retained.Indexes[rootAddress].Root != original.Root {
 		t.Fatal("column projection mutated original snapshot source")
 	}
-	sessionSQL(t, a, "INSERT INTO p(id) VALUES(1)")
-	sessionSQL(t, a, "INSERT INTO c VALUES(1)")
-	sessionSQL(t, a, "COMMIT")
+	enginetest.SessionSQL(t, a, "INSERT INTO p(id) VALUES(1)")
+	enginetest.SessionSQL(t, a, "INSERT INTO c VALUES(1)")
+	enginetest.SessionSQL(t, a, "COMMIT")
 	if len(original.Root.Entries) != 1 || retained.Indexes[rootAddress].Root != original.Root {
 		t.Fatal("completion mutated original snapshot source")
 	}

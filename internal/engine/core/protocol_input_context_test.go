@@ -20,7 +20,7 @@ import (
 func TestProtocolCopyInputContext(t *testing.T) {
 	t.Run("conversion_and_context_contract", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		deadline := time.Now().Add(time.Hour)
 		parent, stopDeadline := context.WithDeadline(context.Background(), deadline)
 		defer stopDeadline()
@@ -81,7 +81,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 	})
 	t.Run("ending_after_user_cancel", func(t *testing.T) {
 		e := engine.New()
-		sess := sessionStart(t, e, nil)
+		sess := enginetest.StartSession(t, e, nil)
 		source, cancel := context.WithCancelCause(context.Background())
 		defer cancel(nil)
 		op, _, err := sess.AcquireCommand(source)
@@ -108,7 +108,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 	t.Run("ordinary_cancellation_and_timeout", func(t *testing.T) {
 		for _, cause := range []error{context.Canceled, session.StatementTimeoutCause} {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
+			sess := enginetest.StartSession(t, e, nil)
 			source, cancel := context.WithCancelCause(context.Background())
 			op, _, err := sess.AcquireCommand(source)
 			if err != nil {
@@ -149,8 +149,8 @@ func TestProtocolCopyStartCancellation(t *testing.T) {
 		} {
 			t.Run(fmt.Sprintf("simple=%t/%s", simple, input.code), func(t *testing.T) {
 				e := engine.New()
-				session := sessionStart(t, e, nil)
-				sessionSQL(t, session, "CREATE TABLE t(v INT)")
+				session := enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, session, "CREATE TABLE t(v INT)")
 				ctx, cancel := context.WithCancelCause(context.Background())
 				defer cancel(nil)
 				op, _, err := session.AcquireCommand(ctx)

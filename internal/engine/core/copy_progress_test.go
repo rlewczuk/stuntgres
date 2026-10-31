@@ -36,7 +36,7 @@ func TestCopyProgressActualInsertionBoundaries(t *testing.T) {
 		for _, n := range []int{999, 1000} {
 			t.Run(fmt.Sprintf("%s/%d", kind, n), func(t *testing.T) {
 				e := engine.New()
-				worker := sessionStart(t, e, nil)
+				worker := enginetest.StartSession(t, e, nil)
 				ddl := "CREATE TABLE copy_progress_unit(v INT)"
 				if kind == "unique" {
 					ddl = "CREATE TABLE copy_progress_unit(v INT PRIMARY KEY)"
@@ -44,18 +44,18 @@ func TestCopyProgressActualInsertionBoundaries(t *testing.T) {
 				if kind == "partition" {
 					ddl = "CREATE TABLE copy_progress_unit(v INT PRIMARY KEY) PARTITION BY RANGE(v)"
 				}
-				sessionSQL(t, worker, ddl)
+				enginetest.SessionSQL(t, worker, ddl)
 				if kind == "partition" {
-					sessionSQL(t, worker, "CREATE TABLE copy_progress_child PARTITION OF copy_progress_unit FOR VALUES FROM (0) TO (2000)")
+					enginetest.SessionSQL(t, worker, "CREATE TABLE copy_progress_child PARTITION OF copy_progress_unit FOR VALUES FROM (0) TO (2000)")
 				}
 				if kind == "trigger" {
-					sessionSQL(t, worker, "CREATE FUNCTION copy_progress_suppress() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN CASE WHEN NEW.v=2 THEN NULL ELSE NEW END; END$$")
-					sessionSQL(t, worker, "CREATE TRIGGER suppress BEFORE INSERT ON copy_progress_unit FOR EACH ROW EXECUTE FUNCTION copy_progress_suppress()")
+					enginetest.SessionSQL(t, worker, "CREATE FUNCTION copy_progress_suppress() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN CASE WHEN NEW.v=2 THEN NULL ELSE NEW END; END$$")
+					enginetest.SessionSQL(t, worker, "CREATE TRIGGER suppress BEFORE INSERT ON copy_progress_unit FOR EACH ROW EXECUTE FUNCTION copy_progress_suppress()")
 				}
-				observer := sessionStart(t, e, nil)
-				observerOp := transactionOperation(t, observer)
+				observer := enginetest.StartSession(t, e, nil)
+				observerOp := enginetest.TransactionOperation(t, observer)
 				defer observerOp.Done()
-				op := transactionOperation(t, worker)
+				op := enginetest.TransactionOperation(t, worker)
 				scope, err := e.StartStatement(op)
 				if err != nil {
 					op.Done()
@@ -134,16 +134,16 @@ func TestCopyProgressActualInsertionBoundaries(t *testing.T) {
 
 func TestCopyProgressCancellationNoCompletion(t *testing.T) {
 	e := engine.New()
-	worker := sessionStart(t, e, nil)
-	sessionSQL(t, worker, "CREATE TABLE t(v INT PRIMARY KEY)")
-	op := transactionOperation(t, worker)
+	worker := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, worker, "CREATE TABLE t(v INT PRIMARY KEY)")
+	op := enginetest.TransactionOperation(t, worker)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
 	}
-	observer := sessionStart(t, e, nil)
-	observerOp := transactionOperation(t, observer)
+	observer := enginetest.StartSession(t, e, nil)
+	observerOp := enginetest.TransactionOperation(t, observer)
 	defer observerOp.Done()
 	// A single unique row is pending, not a successful 1000-row flush.
 	reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
@@ -193,8 +193,8 @@ func TestCopyProgressExactEntryCleanup(t *testing.T) {
 	e, _, op, scope := copyUnitStart(t, false)
 	defer op.Done()
 	defer scope.Finish(errors.New("registration unit complete"))
-	observer := sessionStart(t, e, nil)
-	observerOp := transactionOperation(t, observer)
+	observer := enginetest.StartSession(t, e, nil)
+	observerOp := enginetest.TransactionOperation(t, observer)
 	defer observerOp.Done()
 	old := core.ScopeBeginCopyProgress(scope, 111, true)
 	current := core.ScopeBeginCopyProgress(scope, 222, false)
@@ -213,7 +213,7 @@ func TestCopyProgressExactEntryCleanup(t *testing.T) {
 
 func TestCopyProgressSharedViewer(t *testing.T) {
 	e := engine.New()
-	admin := sessionStart(t, e, nil)
+	admin := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE ROLE progress_worker",
 		"CREATE ROLE progress_member",
@@ -224,7 +224,7 @@ func TestCopyProgressSharedViewer(t *testing.T) {
 		"GRANT pg_read_all_stats TO progress_reader",
 		"GRANT pg_monitor TO progress_monitor",
 	} {
-		sessionSQL(t, admin, q)
+		enginetest.SessionSQL(t, admin, q)
 	}
 	roles := e.RoleStore.Published.Root.Read(e.RoleStore.Domain.Principal(10))
 	owner := roles.LookupRef("progress_worker")

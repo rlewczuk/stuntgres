@@ -29,9 +29,9 @@ func indexProgressLogin(t *testing.T, e *core.Engine, name string) *session.Sess
 
 func indexProgressRecreatedRole(t *testing.T) {
 	e := engine.New()
-	admin := sessionStart(t, e, nil)
+	admin := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE ROLE progress_old_owner", "CREATE ROLE progress_inheritor", "GRANT progress_old_owner TO progress_inheritor"} {
-		sessionSQL(t, admin, q)
+		enginetest.SessionSQL(t, admin, q)
 	}
 	roles := e.RoleStore.Published.Root.Read(e.RoleStore.Domain.Principal(10))
 	old := roles.LookupRef("progress_old_owner")
@@ -40,7 +40,7 @@ func indexProgressRecreatedRole(t *testing.T) {
 		t.Fatal("original inherited principal", err)
 	}
 	for _, q := range []string{"DROP ROLE progress_old_owner", "CREATE ROLE progress_old_owner", "GRANT progress_old_owner TO progress_inheritor"} {
-		sessionSQL(t, admin, q)
+		enginetest.SessionSQL(t, admin, q)
 	}
 	roles = e.RoleStore.Published.Root.Read(e.RoleStore.Domain.Principal(10))
 	viewer, err = pgcatalog.NewProgressViewer(context.Background(), roles, roles.LookupRef("progress_inheritor"))
@@ -52,7 +52,7 @@ func indexProgressRecreatedRole(t *testing.T) {
 func TestCreateIndexProgressVisibility(t *testing.T) {
 	t.Run("drop_recreate", indexProgressRecreatedRole)
 	e := engine.New()
-	admin := sessionStart(t, e, nil)
+	admin := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE ROLE progress_auth LOGIN",
 		"CREATE ROLE progress_effective LOGIN",
@@ -66,15 +66,15 @@ func TestCreateIndexProgressVisibility(t *testing.T) {
 		"GRANT pg_monitor TO progress_monitor",
 		"GRANT CREATE ON SCHEMA public TO progress_effective",
 	} {
-		sessionSQL(t, admin, q)
+		enginetest.SessionSQL(t, admin, q)
 	}
 	worker := indexProgressLogin(t, e, "progress_auth")
-	sessionSQL(t, worker, "SET ROLE progress_effective")
-	sessionSQL(t, worker, "CREATE TABLE progress_build(k INT)")
-	sessionSQL(t, worker, "INSERT INTO progress_build VALUES(1),(NULL),(1)")
+	enginetest.SessionSQL(t, worker, "SET ROLE progress_effective")
+	enginetest.SessionSQL(t, worker, "CREATE TABLE progress_build(k INT)")
+	enginetest.SessionSQL(t, worker, "INSERT INTO progress_build VALUES(1),(NULL),(1)")
 	// Table SELECT alone is tested during actual work, but its setup need not
 	// contend with the admitted builder's catalog-authority predecessors.
-	sessionSQL(t, admin, "GRANT SELECT ON progress_build TO progress_other")
+	enginetest.SessionSQL(t, admin, "GRANT SELECT ON progress_build TO progress_other")
 	b := indexProgressStage(t, e, worker, "CREATE INDEX progress_new ON progress_build(k)")
 	done := b.run()
 	joined := false
@@ -97,7 +97,7 @@ func TestCreateIndexProgressVisibility(t *testing.T) {
 	}
 	capture := func(s *session.Session) pgcatalog.CreateIndexProgressFact {
 		t.Helper()
-		op := transactionOperation(t, s)
+		op := enginetest.TransactionOperation(t, s)
 		facts := indexProgressFacts(t, e, op)
 		op.Done()
 		if len(facts) != 1 {
@@ -127,19 +127,19 @@ func TestCreateIndexProgressVisibility(t *testing.T) {
 	if !capture(member).Visible {
 		t.Fatal("inherited authenticated owner not visible")
 	}
-	sessionSQL(t, admin, "REVOKE progress_auth FROM progress_member")
+	enginetest.SessionSQL(t, admin, "REVOKE progress_auth FROM progress_member")
 	if capture(member).Visible {
 		t.Fatal("revoked membership cached")
 	}
-	sessionSQL(t, admin, "GRANT progress_auth TO progress_member")
+	enginetest.SessionSQL(t, admin, "GRANT progress_auth TO progress_member")
 	if !capture(member).Visible {
 		t.Fatal("fresh grant missing")
 	}
-	sessionSQL(t, member, "SET ROLE progress_effective")
+	enginetest.SessionSQL(t, member, "SET ROLE progress_effective")
 	if capture(member).Visible {
 		t.Fatal("effective/table owner incorrectly owns worker progress")
 	}
-	sessionSQL(t, member, "RESET ROLE")
+	enginetest.SessionSQL(t, member, "RESET ROLE")
 	if !capture(member).Visible {
 		t.Fatal("RESET ROLE not recaptured")
 	}

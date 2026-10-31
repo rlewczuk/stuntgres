@@ -20,8 +20,8 @@ import (
 func TestCTEDMLBindingOwner(t *testing.T) {
 	e := engine.New()
 	session := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, session, "CREATE TABLE t(id INT,v INT)")
-	sessionSQL(t, session, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
+	enginetest.SessionSQL(t, session, "CREATE TABLE t(id INT,v INT)")
+	enginetest.SessionSQL(t, session, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	scope, op := cteDMLUnitScope(t, session, context.Background())
 	ast := enginetest.Statement(t, "WITH one AS (UPDATE t SET v=v+$1 WHERE id=1 RETURNING id,v), two AS (UPDATE t SET v=v+$2 WHERE id=2 RETURNING id,v) UPDATE t SET v=v+$3 WHERE id=3 RETURNING id,v")
@@ -61,18 +61,18 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	transactionRows(t, session, "SELECT v FROM t ORDER BY id", 10, 20, 30)
+	enginetest.TransactionRows(t, session, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 	enginetest.LockEmpty(t, e)
 	for _, kind := range []string{"frozen-select", "frozen-update", "frozen-foreign", "stale-child", "canceled"} {
 		t.Run(kind, func(t *testing.T) {
 			e := engine.New()
-			session := sessionStart(t, e, nil)
+			session := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{
 				"CREATE TABLE frozen_child(v integer)",
 				"CREATE TABLE frozen_descendant() INHERITS(frozen_child)",
 				"CREATE TABLE frozen_main(v integer)",
 			} {
-				sessionSQL(t, session, q)
+				enginetest.SessionSQL(t, session, q)
 			}
 			body := "WITH m AS (UPDATE frozen_child SET v=1 RETURNING v) SELECT v FROM m"
 			if kind == "frozen-update" {
@@ -87,11 +87,11 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 					"CREATE FOREIGN TABLE frozen_foreign(v integer) SERVER frozen_server",
 					"CREATE TABLE frozen_source(v integer)",
 				} {
-					sessionSQL(t, session, q)
+					enginetest.SessionSQL(t, session, q)
 				}
 				body = "WITH m AS (UPDATE frozen_foreign SET v=(SELECT v FROM frozen_source) RETURNING v) SELECT v FROM m"
 			}
-			sessionSQL(t, session, "CREATE FUNCTION frozen_admission() RETURNS integer LANGUAGE SQL BEGIN ATOMIC "+body+"; END")
+			enginetest.SessionSQL(t, session, "CREATE FUNCTION frozen_admission() RETURNS integer LANGUAGE SQL BEGIN ATOMIC "+body+"; END")
 			read := e.CatalogRead()
 			addresses := read.State().ProceduresNamed(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "frozen_admission")
 			if len(addresses) != 1 {

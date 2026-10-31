@@ -29,7 +29,7 @@ func (p protocolDisposalProbe) Close() error { return p.close() }
 func TestProtocolSimpleDisposalFence(t *testing.T) {
 	e := engine.New()
 	session := enginetest.StartSession(t, e, nil)
-	sessionSQL(t, session, "BEGIN")
+	enginetest.SessionSQL(t, session, "BEGIN")
 	op, _, err := session.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)

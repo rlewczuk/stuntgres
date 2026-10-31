@@ -18,20 +18,23 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 	for _, worked := range []string{"no-row-query", "unchanged-parent-key"} {
 		t.Run(worked, func(t *testing.T) {
 			e := engine.New()
-			creator, control, deferred := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+			creator, control, deferred := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT REFERENCES p ON UPDATE CASCADE)", "INSERT INTO p VALUES(1),(2)"} {
-				sessionSQL(t, creator, q)
+				enginetest.SessionSQL(t, creator, q)
 			}
 			var clauses []string
 			for i := 0; i < 32; i++ {
 				clauses = append(clauses, fmt.Sprintf("CONSTRAINT ex_%d EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED", i))
 			}
-			sessionSQL(t, creator, "CREATE TABLE guarded(k INT,"+strings.Join(clauses, ",")+")")
-			cr, dr := transactionBegin(t, control), transactionBegin(t, deferred)
-			t.Cleanup(func() { transactionEnd(t, control, cr, false); transactionEnd(t, deferred, dr, false) })
-			sessionSQL(t, control, "SET CONSTRAINTS ALL IMMEDIATE")
-			sessionSQL(t, control, "INSERT INTO guarded VALUES(2)")
-			sessionSQL(t, deferred, "INSERT INTO guarded VALUES(1),(1)")
+			enginetest.SessionSQL(t, creator, "CREATE TABLE guarded(k INT,"+strings.Join(clauses, ",")+")")
+			cr, dr := enginetest.TransactionBegin(t, control), enginetest.TransactionBegin(t, deferred)
+			t.Cleanup(func() {
+				enginetest.TransactionEnd(t, control, cr, false)
+				enginetest.TransactionEnd(t, deferred, dr, false)
+			})
+			enginetest.SessionSQL(t, control, "SET CONSTRAINTS ALL IMMEDIATE")
+			enginetest.SessionSQL(t, control, "INSERT INTO guarded VALUES(2)")
+			enginetest.SessionSQL(t, deferred, "INSERT INTO guarded VALUES(1),(1)")
 			if len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(deferred.Transactions)).Events) != 32 || len(core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(control.Transactions)).Events) != 0 {
 				t.Fatal("fixture did not create real retained deferred versus settled work")
 			}
@@ -81,8 +84,8 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 				t.Fatal("completion prematurely checked or lost genuine deferred violation", result, err)
 			}
 			// The prior worked commands neither publish deferred data nor cascade.
-			transactionRows(t, creator, "SELECT id FROM p ORDER BY id", 1, 2)
-			transactionRows(t, creator, "SELECT k FROM guarded ORDER BY k")
+			enginetest.TransactionRows(t, creator, "SELECT id FROM p ORDER BY id", 1, 2)
+			enginetest.TransactionRows(t, creator, "SELECT k FROM guarded ORDER BY k")
 		})
 	}
 }

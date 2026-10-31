@@ -89,14 +89,14 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 	if idx.SQLIndex.RequiresInsertionOutput() {
 		t.Fatal("gate fixture must retain its callable-free Execution recipe")
 	}
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		`CREATE COLLATION pg_temp.heap_end_coll FROM pg_catalog."C"`,
 		`CREATE TEMP TABLE heap_end_owned(id SERIAL,v TEXT)`,
 		`CREATE INDEX heap_end_owned_ix ON heap_end_owned(v)`,
 		`INSERT INTO heap_end_owned(v) VALUES('retire')`,
 	} {
-		sessionSQL(t, owner, q)
+		enginetest.SessionSQL(t, owner, q)
 	}
 	for _, q := range []string{
 		`CREATE TABLE heap_end_peer(v TEXT)`,
@@ -104,7 +104,7 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 		`CREATE TEMP TABLE heap_end_peer_temp(v TEXT)`,
 		`INSERT INTO heap_end_peer_temp VALUES('peer-kept')`,
 	} {
-		sessionSQL(t, peer, q)
+		enginetest.SessionSQL(t, peer, q)
 	}
 	address := enginetest.RoleTableRef(t, e, "heap_end_peer").Address
 	base := e.CatalogRead()
@@ -182,10 +182,10 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 	if gate.catalog.State() != base.State() || gate.catalog.Epoch() != base.Epoch() || gate.entries[address] != oldPeer {
 		t.Fatal("gate did not capture the old published heap map")
 	}
-	tx := transactionBegin(t, peer)
-	sessionSQL(t, peer, `TRUNCATE heap_end_peer`)
-	sessionSQL(t, peer, `INSERT INTO heap_end_peer VALUES('фоо')`)
-	transactionEnd(t, peer, tx, true)
+	tx := enginetest.TransactionBegin(t, peer)
+	enginetest.SessionSQL(t, peer, `TRUNCATE heap_end_peer`)
+	enginetest.SessionSQL(t, peer, `INSERT INTO heap_end_peer VALUES('фоо')`)
+	enginetest.TransactionEnd(t, peer, tx, true)
 	e.Mu.Lock()
 	current := e.Storage.Relations[address]
 	committed := e.Visibility.CommitSeq()
@@ -255,7 +255,7 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 		{`SELECT v FROM heap_end_peer`, "фоо"},
 		{`SELECT v FROM heap_end_peer_temp`, "peer-kept"},
 	} {
-		if got := enginetest.Tuples(sessionSQL(t, peer, q.sql)); !reflect.DeepEqual(got, [][]driver.Value{{q.value}}) {
+		if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, q.sql)); !reflect.DeepEqual(got, [][]driver.Value{{q.value}}) {
 			t.Fatal(q.sql, got)
 		}
 	}

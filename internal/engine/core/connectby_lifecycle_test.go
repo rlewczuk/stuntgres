@@ -149,9 +149,9 @@ func TestConnectbyAdmittedExecutionOwnership(t *testing.T) {
 			}
 			n, dependencies := connectbyLifecycleExpression(t, e, order)
 			reader, _ := blockingUnitOwner(t, e)
-			sessionSQL(t, reader, "INSERT INTO cb_source VALUES('private','a',2)")
-			sessionSQL(t, reader, "DELETE FROM cb_source WHERE k='b'")
-			sessionSQL(t, reader, "SET SESSION AUTHORIZATION cb_lifecycle")
+			enginetest.SessionSQL(t, reader, "INSERT INTO cb_source VALUES('private','a',2)")
+			enginetest.SessionSQL(t, reader, "DELETE FROM cb_source WHERE k='b'")
+			enginetest.SessionSQL(t, reader, "SET SESSION AUTHORIZATION cb_lifecycle")
 			scope := pgrowlocksUnitScope(t, e, reader)
 			scope.RoutineDependencies = dependencies
 			core.SetRoutineDemandPLDiagnostic(core.ScopeSQLRoutineRef(scope), "outer demand")

@@ -19,11 +19,11 @@ import (
 func TestSQLCursorHoldReplacement(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := core.EngineOf(s)
-	sessionSQL(t, s, "DECLARE retained NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
+	enginetest.SessionSQL(t, s, "DECLARE retained NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 	c := core.PayloadOf(s).Cursors.Entries["retained"]
 	pin, authority := c.Source.View, core.CursorAuthority(c)
 	cursorUnitBatch(t, s, "FETCH 1 FROM retained", [][]driver.Value{{int64(1)}})
-	sessionSQL(t, s, "COMMIT")
+	enginetest.SessionSQL(t, s, "COMMIT")
 	values, schema := core.CursorValues(c), core.CursorSchema(c)
 	owned := append([]sqltype.Value(nil), values...)
 	epoch := core.CursorEpoch(c)
@@ -57,7 +57,7 @@ func TestSQLCursorHoldReplacement(t *testing.T) {
 	scope.Finish(err)
 	op.Done()
 
-	sessionSQL(t, s, "DECLARE replacement CURSOR WITH HOLD FOR SELECT 99")
+	enginetest.SessionSQL(t, s, "DECLARE replacement CURSOR WITH HOLD FOR SELECT 99")
 	replacement := core.PayloadOf(s).Cursors.Entries["replacement"]
 	registry := core.PayloadOf(s).Cursors
 	registry.Entries["retained"] = replacement
@@ -78,8 +78,8 @@ func TestSQLCursorHoldReplacement(t *testing.T) {
 
 	// A nonpromoted producer and an old active transaction still carry their
 	// original epoch. Retained materialized output does not waive these fences.
-	sessionSQL(t, s, "BEGIN")
-	sessionSQL(t, s, "DECLARE live CURSOR WITH HOLD FOR SELECT 8")
+	enginetest.SessionSQL(t, s, "BEGIN")
+	enginetest.SessionSQL(t, s, "DECLARE live CURSOR WITH HOLD FOR SELECT 8")
 	live := registry.Entries["live"]
 	if core.CursorPromoted(live) {
 		t.Fatal("live producer promoted before commit")
@@ -95,5 +95,5 @@ func TestSQLCursorHoldReplacement(t *testing.T) {
 	if !errors.Is(err, ids.ErrCatalogReplaced) || result.Rows != nil {
 		t.Fatal("old transaction committed across replacement", result, err)
 	}
-	sessionSQL(t, s, "ROLLBACK")
+	enginetest.SessionSQL(t, s, "ROLLBACK")
 }
