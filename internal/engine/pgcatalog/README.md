@@ -1389,8 +1389,10 @@ units in `enginetests/` use
 
 Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`
-(or in `core/` when they reach core's capture runtime) and reach producers
-through the real registry; see the
+and reach producers through the real registry. Producer tests that drive core's
+capture runtime live in `core/enginetests/pgcatalog` (system catalogs) and
+`core/enginetests/infoschema` (information schema), or in `core/` while they
+need core accessors; see the
 [core Testing section](../core/README.md#system-catalog-producer-contract). Public
 catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 (large objects in `reference/object_grants`, settings in
@@ -1420,12 +1422,12 @@ a hash root alone does not select that access method.
 - Registry coverage and captured registration identity (engine):
   `RUN='^TestCatalog(SourceProducerCoverage|GrantRegistration)$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
-- Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`
-- Foreign-wrapper option producer units (core): `RUN='^TestInfoForeignDataWrapperOptions'`
-- Foreign-wrapper producer units (core): `RUN='^TestInfoForeignDataWrappers'`
-- Foreign-server producer units (core): `RUN='^TestInfoForeignServers'`
-- Raw foreign-server catalog units (core): `RUN='^TestPGForeignServer(Producer|Authority|Cancellation|Ownership)$'`
-- Foreign-server option producer units (core): `RUN='^TestInfoForeignServerOptions'`
+- Column-domain usage producer units (`core/enginetests/infoschema`): `RUN='^TestInfoColumnDomainUsage'`
+- Foreign-wrapper option producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrapperOptions'`
+- Foreign-wrapper producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrappers'`
+- Foreign-server producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignServers'`
+- Raw foreign-server catalog units (`core/enginetests/pgcatalog`): `RUN='^TestPGForeignServer(Producer|Authority|Cancellation|Ownership)$'`
+- Foreign-server option producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignServerOptions'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
 - Type procedure dependency ownership and retirement (composed engine):
   `RUN='^TestTypeProcedureDependencies'`.

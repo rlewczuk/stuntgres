@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `7731d0abf` (item 212 rebased on it).
+Last verified against `master` at `f6582ddb1` (item 210 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 208, 209, 210, 211, 214, 215, 216.
+- 208, 209, 211, 214, 215, 216, 218.
 
 ## Linear plan
 
@@ -56,9 +56,18 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 209. [ ] DDL family tests —
      [core](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) · needs 207 · P ·
      core after 9.6
-210. [ ] Catalog producer tests —
+210. [x] Catalog producer tests —
      [core](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) · needs 207 ·
-     P · core after 9.0
+     P · core after 9.0 (`2586cf192`, `ac9603d71`, `f1bc37edb`, docs commit) ·
+     test files only: 27 accessor-free `pg_*` and catalog producer files move to
+     `core/enginetests/pgcatalog` (289 KiB) and 16 `info_*` files to
+     `core/enginetests/infoschema` (256 KiB), 117 tests, by the re-run census;
+     `TestPGSubscriptionColumnAuthority` (owner roles) is split off and stays.
+     Core shrinks from 11.67 to 11.18 MiB. Passed: new packages and per-commit
+     compile, `revcheck` (test names unchanged; only gained literals, all from
+     56 helper copies proven identical), `layers.py`, deps, quickcheck (three
+     reference tests failed under load average 200 and passed alone). Racecheck
+     and finalcheck skipped at user request.
 211. [ ] Query and DML feature tests —
      [core](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) · needs
      207 · P · core after 7.8
