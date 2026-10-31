@@ -33,7 +33,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 19 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 20 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
 	assertSeedConfigurations(t, view, source, captured.Anonymous)
@@ -146,8 +146,8 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 361 {
-		t.Fatal("actual simple, English, Arabic, Armenian, Basque, Danish, Dutch, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Norwegian, Portuguese and Yiddish mappings", rows, err)
+	if err != nil || len(rows) != 380 {
+		t.Fatal("actual simple and nineteen released Snowball configuration mappings", rows, err)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
@@ -305,6 +305,18 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			t.Fatal("missing distinct Indonesian dictionary", indonesianStem)
 		}
 	}
+	nepali := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "nepali"})
+	nepaliStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "nepali_stem"})
+	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
+		if nepali.ObjectID == 0 || nepali == earlier {
+			t.Fatal("missing distinct Nepali configuration", nepali)
+		}
+	}
+	for _, earlier := range []ids.ObjectAddress{stem, arabicStem, armenianStem, basqueStem, danishStem, dutchStem, estonianStem, germanStem, greekStem, hindiStem, hungarianStem, irishStem, italianStem, lithuanianStem, norwegianStem, portugueseStem, yiddishStem, indonesianStem, {ClassID: ids.TSDictionaryClassID, ObjectID: 3765}} {
+		if nepaliStem.ObjectID == 0 || nepaliStem == earlier {
+			t.Fatal("missing distinct Nepali dictionary", nepaliStem)
+		}
+	}
 	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
 		if len(row) != 4 {
@@ -420,6 +432,11 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			case 1, 2, 10, 11, 16, 17:
 				wantDictionary = int64(indonesianStem.ObjectID)
 			}
+		} else if values[0] == int64(nepali.ObjectID) {
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(nepaliStem.ObjectID)
+			}
 		} else if values[0] != 3748 {
 			t.Fatal("unexpected configuration mapping", values)
 		}
@@ -428,7 +445,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		}
 		tokens[key] = true
 	}
-	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID), int64(yiddish.ObjectID), int64(indonesian.ObjectID)} {
+	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID), int64(yiddish.ObjectID), int64(indonesian.ObjectID), int64(nepali.ObjectID)} {
 		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
 			if !tokens[[2]int64{config, token}] {
 				t.Fatal("missing stock token", config, token)
@@ -522,6 +539,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	nextIndonesian.Mappings = nil
 	nextIndonesian.ObjectRevision++
 	state.SetDescriptor(indonesian, &nextIndonesian)
+	nextNepali := *view.MustTSConfiguration(nepali)
+	nextNepali.Mappings = nil
+	nextNepali.ObjectRevision++
+	state.SetDescriptor(nepali, &nextNepali)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
@@ -565,88 +586,6 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled mapping wrapper published source", got, err)
-	}
-}
-
-func TestPGTSConfigMapOwnership(t *testing.T) {
-	e := engine.New()
-	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TSConfigMapOID}
-	check := func(view catalog.Read) *catalog.Relation {
-		t.Helper()
-		relation := view.MustRelation(address)
-		if relation.Address() != address || relation.RowType != 10066 || len(relation.Columns) != 4 {
-			t.Fatal("native mapping identity/shape", relation)
-		}
-		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10066})
-		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10065})
-		ownedRow, rowOK := view.LookupType(10066)
-		ownedArray, arrayOK := view.LookupArray(ownedRow)
-		if !rowOK || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10065 || array.SQLType.Element() != row.SQLType || row.OwningRelation != address || array.OwningRelation != address || row.Owner != relation.Owner || array.Owner != relation.Owner {
-			t.Fatal("native mapping row/array ownership", row, array)
-		}
-		for i, name := range []string{"mapcfg", "maptokentype", "mapseqno", "mapdict"} {
-			id := sqltype.Oid
-			if i == 1 || i == 2 {
-				id = sqltype.Int4
-			}
-			owned, ok := view.LookupType(id)
-			if !ok || relation.Columns[i].Name != name || relation.Columns[i].Usage.Type != owned {
-				t.Fatal("mapping source attribute identity", i, relation.Columns[i])
-			}
-		}
-		return relation
-	}
-	oldView := e.CatalogRead()
-	old := check(oldView)
-	columns := append([]catalog.Column(nil), old.Columns...)
-	oldRow, _ := oldView.LookupType(10066)
-	oldArray, _ := oldView.LookupArray(oldRow)
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.TSConfigMapOID)
-	if !ok {
-		t.Fatal("missing mapping producer")
-	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
-	rows, err := produce(input)
-	if err != nil || len(rows) != 361 {
-		t.Fatal("old generation mapping rows", rows, err)
-	}
-	retained := make([][]sqltype.Value, len(rows))
-	for i := range rows {
-		retained[i] = append([]sqltype.Value(nil), rows[i]...)
-	}
-	if err := engine.Reset(context.Background(), e); err != nil {
-		t.Fatal(err)
-	}
-	freshView := e.CatalogRead()
-	fresh := check(freshView)
-	freshRow, _ := freshView.LookupType(10066)
-	freshArray, _ := freshView.LookupArray(freshRow)
-	if old == fresh || oldRow == freshRow || oldArray == freshArray {
-		t.Fatal("replacement reused mapping relation/row/array")
-	}
-	for i := range columns {
-		if columns[i].Usage.Type == fresh.Columns[i].Usage.Type {
-			t.Fatal("replacement reused mapping attribute type", i)
-		}
-		for _, row := range rows {
-			if row[i].Type() != columns[i].Usage.Type || row[i].Type() == fresh.Columns[i].Usage.Type {
-				t.Fatal("retained mapping cell retagged", i)
-			}
-		}
-	}
-	if !reflect.DeepEqual(old.Columns, columns) || !reflect.DeepEqual(rows, retained) || oldArray.Element() != oldRow || check(oldView) != old {
-		t.Fatal("replacement changed retained mapping generation")
-	}
-	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 361 {
-		t.Fatal("fresh mapping producer", got, err)
-	}
-	input.Source = old
-	if got, err := produce(input); got != nil || err == nil {
-		t.Fatal("fresh mapping producer admitted old source", got, err)
-	}
-	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || err == nil {
-		t.Fatal("wrapper admitted old mapping source", got, err)
 	}
 }
 

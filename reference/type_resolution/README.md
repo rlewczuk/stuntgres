@@ -301,6 +301,12 @@ share `RUN='^TestReferenceYiddishSnowball'`. Output-gated cancellation depends
 on actual Yiddish lexization; replay checks execute actual native-emitted SQL.
 Private byte-rule boundaries, resource backing, seed authority, publication,
 prepared ownership and canonical replay use `RUN='^TestSnowballYiddish'`.
+Nepali's ordered three-category rules, contextual marks, virama retention,
+304 independent stopwords, UTF8 byte boundaries and own-language ASCII mappings
+share `RUN='^TestReferenceNepaliSnowball'` with typed direct/held calls, complete
+diagnostics, cancellation and actual emitted seed/carrier replay. Private rules,
+resource authority, publication fences, accepted-fold backing and replay use
+`RUN='^TestSnowballNepali'`. Stream replay requires both backends.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

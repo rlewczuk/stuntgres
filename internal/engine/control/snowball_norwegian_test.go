@@ -61,7 +61,7 @@ func TestSnowballNorwegianSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 19 {
+	if err != nil || len(providers) != 20 {
 		t.Fatal("actual dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -71,7 +71,7 @@ func TestSnowballNorwegianSeedReplay(t *testing.T) {
 		t.Fatal("canonical identity and removed stopwords replay", lines, err)
 	}
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 19 {
+	if err != nil || len(providers) != 20 {
 		t.Fatal("actual configuration replay inventory", providers, err)
 	}
 	if lines, err := planProviderReplay(providers); err != nil || len(lines) != 0 {
