@@ -416,6 +416,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   (`row_detail.go`), single-relation source capture (`source_capture.go`),
   CURRENT OF scans (`cursor_scan.go`), `pgrowlocks` values and the session
   identity snapshot (`identity.go`).
+- **B-tree statistics** (`pgstatindex.go`): installed scalar/source calls check
+  current ordinary routine EXECUTE before evaluating their child or returning
+  STRICT NULL. The host captures the exact target and computes the compact
+  logical model; ten typed fields form one owned RECORD. FROM evaluates the
+  scalar once and expands NULL as one all-NULL row.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed two-value frame projects formal slots; its

@@ -68,6 +68,24 @@ builds a binder.
   their roots are rebuilt against destination row and descriptor identities.
   Ordinary GiST and SP-GiST partitioned indexes use the same parent/child publication and
   attachment path as partitioned constraint indexes.
+- **Compact B-tree statistics** (`pgstatindex.go`): `CapturePgstatindex` borrows
+  one effective immutable root, parent versions/ends, commit frontier and actual
+  private produced outputs. It validates row/version associations, counts resident
+  live/dead memberships once and never reevaluates predicates or expressions.
+  Removed committed memberships are absent, not invented dead heap history.
+  The admitted attribute-only row-backed lane reads actual key slots directly.
+  `CompactBtreeLayout` is a deterministic aggregate-packing approximation: each
+  item weighs 20 bytes plus shared storage datum slots (NULL 0, positive fixed
+  widths rounded to 8, variable slots 32), including INCLUDE attributes. Pages
+  are 8192 bytes with 40 bytes overhead; leaves are ceil(weight/8152), internal
+  fanout is 256. Metapage block 0 precedes leaves then bottom-up internal pages;
+  the last block is root (one leaf uses block 1). Size is all pages times 8192.
+  Empty captures use version 4, level/root 0, size 8192 and NaN density and
+  fragmentation. Nonempty density is round2(100*weight/(leaves*8152));
+  fragmentation, empty/deleted pages are 0. No retained page/split history is
+  modeled, including DELETE-to-empty. Counts and inputs are exact; these page,
+  byte, level, version and density outputs are explicitly the compact model,
+  not physical inspection. Arithmetic is checked and loops honor cancellation.
 - **Logical verification** (`amcheck*.go`): `CheckBtree` consumes an immutable
   `AmcheckCapture`, validates actual stored order/identity/positions and parent
   maps, searches the real baseline root independently, and checks demanded heap
@@ -355,6 +373,9 @@ write-time loops
 `dml`'s and reach this host through `dml.Host`.
 
 ## Testing
+
+Compact B-tree layout arithmetic and cancellation units use
+`RUN='^TestPgstatindexApproximation$'` from `enginetests/`.
 
 Package units cover column capabilities, `EffectiveRoot`, savepoint exclusion
 marks, access-method properties, operator-family validation and BRIN summaries.

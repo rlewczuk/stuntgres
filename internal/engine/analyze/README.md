@@ -102,6 +102,13 @@ and coercion. Binding retains genuine routine dependency/revision, result
 generation and frozen provider syntax; relabelled calls dispatch by checked
 provider identity rather than their original spelling.
 
+Installed pgstatindex calls enter shared catalog overload selection before
+provider binding, including the original released spelling on a fresh install.
+Unknown inputs select text; explicit regclass and implicit OID/integer inputs
+select the regclass declaration. The spelling only admits discovery: the live
+winner's sealed provider identity and immutable signature authorize binding.
+Relabelled routines retain the ordinary provider override/tombstone path.
+
 Installed ltree array routines enter the same catalog callable discovery and
 selection as their backing operators. Recipe spellings are discovery hints only;
 the selected declaration's sealed installed origin and released procedure symbol,

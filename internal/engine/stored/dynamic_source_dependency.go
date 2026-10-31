@@ -41,7 +41,7 @@ func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.Expres
 					return true, nil
 				}
 			}
-			if ok && (extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
+			if ok && (extension.PgstattupleProviderOf(procedure) == extension.StockPgstattuple || extension.PageinspectProviderOf(procedure) == extension.StockPageinspect || extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
 				return true, nil
 			}
 		}

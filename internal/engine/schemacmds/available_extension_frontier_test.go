@@ -89,30 +89,31 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					unaccentVersion = "1.1"
 				}
 				expected := map[string][]any{
-					"autoinc":       {"autoinc", "1.0", nil, "functions for autoincrementing fields"},
-					"amcheck":       {"amcheck", "1.5", nil, "functions for verifying relation integrity"},
-					"citext":        {"citext", "1.8", nil, "data type for case-insensitive character strings"},
-					"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
-					"earthdistance": {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
-					"hstore":        {"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"},
-					"unaccent":      {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
-					"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
-					"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
+					"autoinc":         {"autoinc", "1.0", nil, "functions for autoincrementing fields"},
+					"amcheck":         {"amcheck", "1.5", nil, "functions for verifying relation integrity"},
+					"citext":          {"citext", "1.8", nil, "data type for case-insensitive character strings"},
+					"cube":            {"cube", "1.5", nil, "data type for multidimensional cubes"},
+					"earthdistance":   {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
+					"hstore":          {"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"},
+					"unaccent":        {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
+					"intarray":        {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
+					"intagg":          {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
 					"insert_username": {"insert_username", "1.0", nil, "functions for tracking who changed a table"},
-					"isn":           {"isn", "1.3", nil, "data types for international product numbering standards"},
-					"lo":            {"lo", "1.2", nil, "Large Object maintenance"},
-					"ltree":         {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
-					"moddatetime":   {"moddatetime", "1.0", nil, "functions for tracking last modification time"},
-					"pageinspect":   {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
-					"seg":           {"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"},
-					"tablefunc":     {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
-					"tcn":           {"tcn", "1.0", nil, "Triggered change notifications"},
-					"pgrowlocks":    {"pgrowlocks", "1.2", nil, "show row-level locking information"},
-					"refint":        {"refint", "1.0", nil, "functions for implementing referential integrity (obsolete)"},
-					"fuzzystrmatch": {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
-					"plpgsql":       {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
-					"pgcrypto":      {"pgcrypto", "1.4", nil, "cryptographic functions"},
-					"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
+					"isn":             {"isn", "1.3", nil, "data types for international product numbering standards"},
+					"lo":              {"lo", "1.2", nil, "Large Object maintenance"},
+					"ltree":           {"ltree", "1.3", nil, "data type for hierarchical tree-like structures"},
+					"moddatetime":     {"moddatetime", "1.0", nil, "functions for tracking last modification time"},
+					"pageinspect":     {"pageinspect", "1.13", nil, "inspect the contents of database pages at a low level"},
+					"pgstattuple":     {"pgstattuple", "1.5", nil, "show tuple-level statistics"},
+					"seg":             {"seg", "1.4", nil, "data type for representing line segments or floating-point intervals"},
+					"tablefunc":       {"tablefunc", "1.0", nil, "functions that manipulate whole tables, including crosstab"},
+					"tcn":             {"tcn", "1.0", nil, "Triggered change notifications"},
+					"pgrowlocks":      {"pgrowlocks", "1.2", nil, "show row-level locking information"},
+					"refint":          {"refint", "1.0", nil, "functions for implementing referential integrity (obsolete)"},
+					"fuzzystrmatch":   {"fuzzystrmatch", "1.2", nil, "determine similarities and distance between strings"},
+					"plpgsql":         {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
+					"pgcrypto":        {"pgcrypto", "1.4", nil, "cryptographic functions"},
+					"uuid-ossp":       {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 				}
 				if oid == 12085 {
 					expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
@@ -130,6 +131,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["ltree"] = []any{"ltree", "1.3", false, true, true, true, nil, nil, "data type for hierarchical tree-like structures"}
 					expected["moddatetime"] = []any{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}
 					expected["pageinspect"] = []any{"pageinspect", "1.13", false, true, false, true, nil, nil, "inspect the contents of database pages at a low level"}
+					expected["pgstattuple"] = []any{"pgstattuple", "1.5", false, true, false, true, nil, nil, "show tuple-level statistics"}
 					expected["seg"] = []any{"seg", "1.4", false, true, true, true, nil, nil, "data type for representing line segments or floating-point intervals"}
 					expected["tablefunc"] = []any{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}
 					expected["tcn"] = []any{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}

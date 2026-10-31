@@ -132,9 +132,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 	}
 	switch r := raw.(type) {
 	case parser.XMLConstructExpr:
-		n,ok:=bound.(functions.XMLConstruct)
-		if !ok||!n.MatchesSyntax(r){return fmt.Errorf("stuntgres: mismatched XML constructor occurrence")}
-		return protocol(expr.CaptureXMLConstruct,r.Children())
+		n, ok := bound.(functions.XMLConstruct)
+		if !ok || !n.MatchesSyntax(r) {
+			return fmt.Errorf("stuntgres: mismatched XML constructor occurrence")
+		}
+		return protocol(expr.CaptureXMLConstruct, r.Children())
 	case parser.XMLDocumentPredicateExpr:
 		n, ok := bound.(functions.XMLDocumentPredicate)
 		if !ok || n.Negated != r.Negated {
@@ -752,6 +754,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 				return err
 			}
 			return children(r.Args, n.Args[:])
+		}
+		if n, ok := bound.(plan.InstalledPgstatindexExpr); ok {
+			if err := extension.ValidatePgstatindexIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledPageinspectExpr); ok {
 			if err := extension.ValidatePageinspectIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {

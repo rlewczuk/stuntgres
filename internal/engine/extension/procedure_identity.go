@@ -31,7 +31,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -386,6 +386,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
 				return invalid()
 			}
+		}
+	case StockPgstattuple:
+		count = len(PgstattupleMembers)
+		if slot >= count {
+			return invalid()
+		}
+		m := PgstattupleMembers[slot]
+		name, signature, result, volatility = "pgstatindex", m.Signature, 2249, expr.Volatile
+		if p.Installed != pgstatindexDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pgstattuple", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
 		}
 	case StockPageinspect:
 		count = len(PageinspectMembers)

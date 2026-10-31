@@ -109,6 +109,11 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
+	// Both installed pgstatindex declarations must reach catalog overload
+	// selection before the provider binds the winning immutable signature.
+	if name == "pgstatindex" {
+		providerOverride = true
+	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if extension.LtreePathProcedureName(name) {
 		providerOverride = true
@@ -677,10 +682,16 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err := extension.StockInsertUsername.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil {
 			return nil, err
 		}
-		if err := functions.ValidateCallSyntax(b, raw); err != nil { return nil, err }
-		if err := functions.CallDecorationError(raw); err != nil { return nil, err }
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
 		namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
-		if !ok { return nil, fmt.Errorf("stuntgres: missing insert_username namespace") }
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing insert_username namespace")
+		}
 		info := b.Info(b.Type(2279).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile})
 		info.RoutineReference = d
 		ref := b.Host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
@@ -688,15 +699,21 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return plan.InsertUsernameExpr{Info: info, Ref: ref, Namespace: namespace.Name()}, nil
 	}
 	if extension.ModdatetimeProviderOf(d) == extension.StockModdatetime {
-		if err := functions.ValidateCallSyntax(b, raw); err != nil { return nil, err }
+		if err := functions.ValidateCallSyntax(b, raw); err != nil {
+			return nil, err
+		}
 		if raw.Star {
 			name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 		}
-		if err := functions.CallDecorationError(raw); err != nil { return nil, err }
+		if err := functions.CallDecorationError(raw); err != nil {
+			return nil, err
+		}
 		view := selected.auth.ReadCatalog()
 		symbol, err := extension.ProcedureSymbol(view, d)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		info := b.Info(b.Type(2279).Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
 		b.dependency(b.Host.CatalogOwner().Domain.Ref(view.Epoch(), d.Address()), d.Revision())

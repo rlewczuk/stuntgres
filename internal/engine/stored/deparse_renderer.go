@@ -235,10 +235,10 @@ func (r Deparser) literal(ctx context.Context, n plan.LiteralExpr) (string, erro
 	if v.Type().ContainsRegproc() || v.Type().ContainsOperatorAlias() {
 		return regobj.Literal(ctx, r.View, n)
 	}
-	if v.Type().BaseType().ID()==sqltype.XML {
+	if v.Type().BaseType().ID() == sqltype.XML {
 		// XML's literal owner preserves original spelling and requested mode;
 		// typed output may normalize declarations and emit call-local warnings.
-		return v.Type().SQLLiteral(ctx,v)
+		return v.Type().SQLLiteral(ctx, v)
 	}
 	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
@@ -865,6 +865,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
+	case plan.InstalledPgstatindexExpr:
+		if err := ValidateInstalledPgstatindex(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Ref.Address)
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pgstatindex namespace")
+		}
+		return pgstatindexCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
 	case plan.InstalledPageinspectExpr:
 		if err := ValidateInstalledPageinspect(n, r.View); err != nil {
 			return "", err
@@ -936,10 +946,14 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), n.Args, true)
 	case plan.InstalledAutoincExpr:
-		if err := ValidateInstalledAutoinc(n, r.View); err != nil { return "", err }
+		if err := ValidateInstalledAutoinc(n, r.View); err != nil {
+			return "", err
+		}
 		procedure, _ := r.View.Procedure(n.Ref.Address)
 		namespace, ok := r.View.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing autoinc namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing autoinc namespace")
+		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), nil, true)
 	case plan.InstalledUUIDOsspExpr:
 		if err := ValidateInstalledUUIDOssp(n, r.View); err != nil {
@@ -965,7 +979,9 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ReferenceEpochValid(r.View, r.Relation, n.Ref) {
 			return "", fmt.Errorf("stuntgres: invalid stored insert_username reference")
 		}
-		if err := ValidateInsertUsername(n, r.View); err != nil { return "", err }
+		if err := ValidateInsertUsername(n, r.View); err != nil {
+			return "", err
+		}
 		current := r.View.MustProcedure(n.Ref.Address)
 		namespace := r.View.MustNamespace(current.Namespace())
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(current.Name()), nil, true)

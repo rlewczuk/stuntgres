@@ -327,6 +327,11 @@ transaction-private deletion overlay and the single concrete
 [`visibility`](../visibility/README.md). Registered heap operations consume these
 version vectors and end roots; they do not wrap or replace `storage.Relation`.
 
+`IndexItemAllocation` shares relation-allocation datum-slot sizing with compact
+B-tree statistics, including actual INCLUDE row values. Its 20-byte item base
+includes the model line pointer and header; the unrelated 64-byte allocation
+fork base is not a PostgreSQL page size.
+
 ## Testing
 
 Signed-dimension collection invariants that require real `plan` expression

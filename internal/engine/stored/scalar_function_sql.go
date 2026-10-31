@@ -18,12 +18,30 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored autoinc reference")
 		}
-		if err := ValidateInstalledAutoinc(n, view); err != nil { return "", err }
+		if err := ValidateInstalledAutoinc(n, view); err != nil {
+			return "", err
+		}
 		procedure, _ := view.Procedure(n.Ref.Address)
 		namespace, ok := view.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing autoinc namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing autoinc namespace")
+		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), nil)
+	case plan.InstalledPgstatindexExpr:
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored pgstatindex reference")
+		}
+		if err := ValidateInstalledPgstatindex(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pgstatindex namespace")
+		}
+		r.record(n.Ref)
+		return pgstatindexCallSQL(n, procedure, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledPageinspectExpr:
 		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored pageinspect reference")
@@ -189,7 +207,9 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, p) {
 			return "", fmt.Errorf("stuntgres: invalid stored insert_username reference")
 		}
-		if err := ValidateInsertUsername(n, view); err != nil { return "", err }
+		if err := ValidateInsertUsername(n, view); err != nil {
+			return "", err
+		}
 		current := view.MustProcedure(p.Address())
 		namespace := view.MustNamespace(current.Namespace())
 		r.record(n.Ref)
@@ -234,13 +254,21 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		return r.rendering(ctx, view, spec)
 	case plan.HstoreComparisonExpr:
 		original, ok := n.RoutineReference.(*catalog.Procedure)
-		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, original) { return "", fmt.Errorf("stuntgres: invalid stored hstore comparison reference") }
+		if !ok || !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !r.sameRoutineDescriptor(view, n.Ref.Address, original) {
+			return "", fmt.Errorf("stuntgres: invalid stored hstore comparison reference")
+		}
 		procedure, err := currentHstoreComparison(n, view)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		namespace, ok := view.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing stored hstore comparison namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored hstore comparison namespace")
+		}
 		spec, err := hstoreComparisonRendering(n, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()))
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		r.record(n.Ref)
 		return r.rendering(ctx, view, spec)
 	case plan.CubeComparisonExpr:

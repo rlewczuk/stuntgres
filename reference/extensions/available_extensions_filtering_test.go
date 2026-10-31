@@ -109,6 +109,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"insert_username", "1.0", false, true, false, true, nil, nil, "functions for tracking who changed a table"})
 				wantAvailable = append(wantAvailable[:11:11], append([][]any{{"moddatetime", "1.0", nil, "functions for tracking last modification time"}}, wantAvailable[11:]...)...)
 				wantVersions = append(wantVersions[:12:12], append([][]any{{"moddatetime", "1.0", false, true, false, true, nil, nil, "functions for tracking last modification time"}}, wantVersions[12:]...)...)
+				wantAvailable = append(wantAvailable, []any{"pgstattuple", "1.5", nil, "show tuple-level statistics"})
+				wantVersions = append(wantVersions, []any{"pgstattuple", "1.5", false, true, false, true, nil, nil, "show tuple-level statistics"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

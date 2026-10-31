@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, citext, cube,
 earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
-moddatetime, pageinspect, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+moddatetime, pageinspect, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -373,6 +373,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
+- **pgstattuple** (`pgstattuple_provider.go`): the superuser, untrusted,
+  relocatable 1.5 provider installs only `pgstatindex(text)` and
+  `pgstatindex(regclass)`, with ten immutable fixed OUT fields, STRICT VOLATILE
+  RECORD results and PARALLEL SAFE C declarations. The sealed declaration slot
+  retains distinct released C symbols through rename, move, membership and
+  control remapping. Installation preserves creation defaults, revokes PUBLIC
+  EXECUTE and grants EXECUTE to the actual predefined pg_stat_scan_tables
+  principal through ordinary ACL authority; final script ACLs are recorded as
+  initial privileges. Runtime authorization is ordinary EXECUTE, not a
+  superuser-only or parent-table privilege policy.
 - **pageinspect** (`pageinspect_provider.go`): the superuser, untrusted,
   relocatable 1.13 manifest owns four BRIN byte decoders, `bt_page_items(bytea)`,
   `fsm_page_contents(bytea)`, three GIN BYTEA decoders, `page_header(bytea)`

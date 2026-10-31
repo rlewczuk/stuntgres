@@ -1631,3 +1631,8 @@ Please DO NOT modify this file.
 There is no need to record changes anymore.
 
 DO NOT add anything to changelog anywhere in this project.
+
+Installed pgstattuple 1.5 provides pgstatindex(text/regclass), ordinary scan-role
+EXECUTE ACLs, typed scalar/record/source calls and identity-preserving controls.
+Exact resident logical index contents drive the documented compact B-tree
+page/tree/density model; no physical PostgreSQL page inspection is claimed.

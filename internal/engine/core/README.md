@@ -921,6 +921,19 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
+## Installed pgstatindex runtime
+
+`pgstatindex_capture.go` authenticates the two pgstattuple declarations and
+checks ordinary EXECUTE before child evaluation/STRICT NULL and again after
+index AccessShare admission. Table ownership or SELECT is not authority. Text
+resolves a relation name at invocation; regclass carries supplied OID identity.
+Admission releases replacement reads around waits, rejoins them, and fences
+catalog domain/epoch, descriptors, parent storage and candidate roots. Capture
+borrows the effective root plus immutable versions/ends and exact private
+outputs under Owner.Mu then Engine.Mu. Model computation runs outside mutexes,
+without callbacks, parent ownership switching or parent Share locking. Declared
+AM403 and ordinary index kind precede foreign TEMP and validity checks.
+
 ## Installed byte pageinspect runtime
 
 `pageinspect_capture.go` checks genuine immutable released routine identity,
@@ -2441,6 +2454,9 @@ changes only that cell. Current-user capture occurs inside the routine
 environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
+
+Installed compact B-tree statistics provider, expression and capture ownership
+units use `RUN='^TestPgstatindex'`.
 
 TEMP tablespace preparation, admission and composed-creation units use
 `RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.

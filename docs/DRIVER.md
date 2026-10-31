@@ -217,6 +217,13 @@ policy, shared roles and other targets. Parameter ACL authority is the shared ex
 it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
+Their real function ACLs, fixed RECORD shapes and selected identities survive
+native controls; EXECUTE is checked even for NULL, independently of parent
+SELECT/ownership. Logical index membership and live/dead accounting are exact.
+Page/byte/tree/density metrics use the deterministic compact model in
+[the index owner contract](../internal/engine/index/README.md), not physical
+PostgreSQL page inspection.
 Installed amcheck members share one portable installation: `verify_heapam` and
 the seven scalar B-tree overloads retain distinct result shapes. Native controls
 preserve current installed routine ACLs, including PUBLIC entries, grant options

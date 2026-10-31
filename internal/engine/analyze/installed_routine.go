@@ -28,6 +28,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	}
 	text := name.Parts[len(name.Parts)-1].Text
 	earth := family == functions.EarthdistanceExtension
+	pgstats := family == functions.PgstattupleExtension && signature == ""
 	spatial := family == functions.CubeExtension && signature == ""
 	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
@@ -38,7 +39,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	if selected := b.Clause.selectedProcedure; selected != nil && family == functions.TablefuncExtension && string(selected.Signature) != signature {
 		return nil, nil
 	}
-	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
+	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 		symbol, failure := extension.ProcedureSymbol(auth.ReadCatalog(), selected)
 		if failure != nil {
 			return nil, failure
@@ -78,6 +79,9 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		}
 		return nil, nil
 	}
+	if pgstats && proc == nil {
+		signature = "25"
+	}
 	if proc != nil {
 		// The shared callable selector already resolved the live public name.
 	} else if family == functions.PgcryptoExtension {
@@ -105,6 +109,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.TcnProviderOf(proc) == extension.StockTcn
 	case functions.AutoincExtension:
 		installed = extension.AutoincProviderOf(proc) == extension.StockAutoinc
+	case functions.PgstattupleExtension:
+		installed = extension.PgstattupleProviderOf(proc) == extension.StockPgstattuple
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.UUIDOsspExtension:
@@ -151,6 +157,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockTcn.ValidateProcedure(r.catalog, p)
 	case extension.AutoincProviderOf(p) != nil:
 		return extension.StockAutoinc.ValidateProcedure(r.catalog, p)
+	case extension.PgstattupleProviderOf(p) != nil:
+		return extension.StockPgstattuple.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
@@ -175,6 +183,13 @@ func (r installedExtensionRoutine) Validate() error {
 		return (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(r.catalog, p)
 	}
 	return fmt.Errorf("stuntgres: invalid installed routine")
+}
+
+func (r installedExtensionRoutine) PgstatindexInput() sqltype.ID {
+	if r.procedure.Signature == "2205" {
+		return sqltype.Regclass
+	}
+	return sqltype.Text
 }
 
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
@@ -220,10 +235,22 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		if extension.AutoincProviderOf(p) != extension.StockAutoinc || c.Name != "autoinc" {
 			break
 		}
-		if err := extension.ValidateAutoincIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		if err := extension.ValidateAutoincIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledAutoincExpr{TriggerBuiltin: c, Procedure: p, Ref: ref}, nil
+	case functions.Pgstatindex:
+		if err := extension.ValidatePgstatindexIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgstatindexCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgstatindexExpr{Pgstatindex: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

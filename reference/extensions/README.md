@@ -16,6 +16,69 @@ descriptors and settings. Typed empty sources, genuine backend-local libraries,
 collector absence, exact format validation, live routine ACLs and portable ACL
 reconstruction use public fixture/control APIs only.
 
+## pgstattuple: pgstatindex ownership
+
+`pgstatindex_*_test.go` owns the public acceptance for the bounded installed
+`pgstattuple` 1.5 provider: **only `pgstatindex(text)` and
+`pgstatindex(regclass)`**. It does not claim the other module functions.
+The shared fixture installs in `ps_part`; all scenarios use public SQL,
+`reference/fixture`, and public native controls, never internal packages.
+
+- `Metadata`, `Values`, `Diagnostics`, and `Permissions` fix the released
+  signatures, ten OUT names/types, fresh-empty composite, strict NULL source
+  cardinality, complete logical diagnostics and ordinary per-overload EXECUTE
+  ACLs. Table ownership/SELECT is neither sufficient nor required; scan-role
+  membership and explicit EXECUTE grants are independently exercised.
+- `Binding` owns scalar/source/projection metadata, unknown and explicitly typed
+  prepared arguments, named arguments, coercions, NULL, lateral calls, and
+  sequence-backed once-per-occurrence evaluation.
+- `Contents` and `Transactions` exercise real partial/expression/INCLUDE indexes,
+  populated page relationships, private DML, savepoint/transaction rollback and
+  fresh-empty TRUNCATE. No test invents tuple-count OUT columns or infers index
+  membership from heap count. Exact logical live/dead capture is additionally
+  the production owner's private-unit responsibility.
+- `Identity` distinguishes names from OIDs, quoted/numeric/dash names, held text
+  versus bound regclass, rename/name reuse, routine rename/move, relocation,
+  user shadows and extension recreation.
+- `Controls` owns stored scalar/expanded callers, symbolic regclass dependencies,
+  scan ACL replay, held statements, retained rows, atomic rejected/canceled
+  Restore, independent-driver destination roots and preserved session TEMP data.
+- `Cancellation` checks native already-canceled ordinary context errors, then
+  observes real index AccessShare admission blocked by a peer's transactional
+  `DROP INDEX` AccessExclusive lock before cancellation. PostgreSQL asserts the
+  complete server-cancellation `57014` diagnostic, not fast pre-canceled pq
+  behavior. Rollback, successful reads and another exclusive `DROP INDEX` with
+  rollback prove both preserved index identity and admission resource release.
+  `FeatureSmoke` combines empty/populated calls, both overloads, permission
+  distinction, wrong-target diagnostics and native stored-view replay.
+
+Fresh-empty output is independently published by PostgreSQL 18.6:
+`(4,0,8192,0,0,0,0,0,NaN,NaN)`. Populated physical values are **not parity
+fixtures**. Native uses a deterministic compact model, not physical inspection:
+8192-byte pages, 8152-byte leaf capacity, aggregate resident-item weights
+(20-byte entry overhead plus stored key/include slots), fanout 256, no retained
+empty/deleted pages, two-decimal density and zero compact-order fragmentation.
+Exact target identity, ACLs and real logical membership remain exact. Shared
+populated assertions independently require valid types, page-size accounting,
+a usable root, nonnegative counters and finite bounded percentages. PostgreSQL
+may retain leaf/dead-page history after DELETE or rollback; these tests do not
+equate that history with the stateless native model.
+
+Selected proof (run each selector both without and with `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferencePgstatindex(Metadata|Values|Binding|Diagnostics|Permissions)$'
+make check RUN='^TestReferencePgstatindex(Identity|Controls|Contents|Transactions|Cancellation)$'
+make check RUN='^TestReferencePgstatindexFeatureSmoke$'
+```
+
+`TestReferencePgstatindexPermissionArgumentOrder` additionally fixes executor
+authorization precedence over a nonconstant failing child expression, through
+direct/prepared/held calls for both overloads and grant/revoke transitions.
+Run `make check RUN='^TestReferencePgstatindexPermissionArgumentOrder$'` both
+natively and with `REFERENCE=1`; denied callers expect `42501`, while explicitly
+authorized callers reach the child and expect `22012` (`division by zero`).
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in

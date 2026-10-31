@@ -782,6 +782,11 @@ reviewed decision:
   `VerifyHeapam` retains its non-STRICT record-set shape and defaults, while
   `Amcheck` remains STRICT scalar VOID. Provider membership alone does not
   classify every amcheck call as set-returning.
+  `Pgstatindex` binds the selected text or regclass declaration through the
+  shared callable selector, named `relname` mapping and ordinary coercions.
+  Its anonymous ten-field RecordShape supports scalar, field and one-row FROM
+  usage (including an all-NULL row for STRICT NULL). It is VOLATILE, stage
+  dependent and never folded; only the installed plan wrapper can execute it.
   `Pageinspect` binds the installed BRIN, B-tree, FSM, GIN and raw header/checksum
   byte decoders through the same handle. Children remain in native written
   order with checked formal slots; checksum's second formal is INT8, distinct

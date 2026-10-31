@@ -831,7 +831,7 @@ host methods.
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
-  crosstab, pgrowlocks, pageinspect, connectby and amcheck capture); view validation and
+  crosstab, pgrowlocks, pageinspect, pgstatindex, connectby and amcheck capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics, including global procedural
   languages and text-search templates, dictionaries and configurations with
@@ -1102,6 +1102,12 @@ No SQL-text normalization, alias-name heuristic or parallel provenance registry
 is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
+
+`InstalledPgstatindexExpr` uses immutable installation authority. Renderers
+preserve its selected overload and original text versus regclass argument;
+current names never select implementation. Reference walking, literal capture,
+dynamic-source dependencies, remapping and retagging carry its procedure, OUT
+shape and regclass object dependency into the destination identity universe.
 
 ## Testing
 

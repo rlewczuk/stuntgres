@@ -16,6 +16,8 @@ type Stage interface {
 	ddl.TypeStaging
 
 	// Read is the catalog the stage was begun from (its base).
+	// Roles is the installation authority's coherent role snapshot.
+	Roles() authorization.Read
 	Read() catalog.Read
 	// CurrentRead and Get expose the unpublished coherent candidate to the
 	// installation owner when sealing and validating a complete script.

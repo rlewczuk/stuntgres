@@ -104,22 +104,32 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
- case functions.LtreeLtxtquery:
-  n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
-  if ref != nil { n.Ref = ref(n.Ref) }
-  next = n
+	case functions.LtreeLtxtquery:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.LtreeHierarchy:
 		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
- case functions.LtreePath:
-  for i, arg := range n.Args[:n.Count] { n.Args[i] = child(arg) }
-  if ref != nil { n.Ref = ref(n.Ref) }
-  next = n
- case functions.LtreeLquery:
-  n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
-  if ref != nil { n.Ref = ref(n.Ref) }
-  next = n
+	case functions.LtreePath:
+		for i, arg := range n.Args[:n.Count] {
+			n.Args[i] = child(arg)
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
+	case functions.LtreeLquery:
+		n.Args = [2]expr.Expr{child(n.Args[0]), child(n.Args[1])}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.String:
 		n.Args = args(n.Args)
 		if n.Citext != nil && ref != nil {
@@ -473,6 +483,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
 		next = n
+	case plan.InstalledPgstatindexExpr:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.InstalledPageinspectExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
@@ -525,7 +541,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		next = n
 	case plan.InstalledAutoincExpr:
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
 	case plan.InstalledUUIDOsspExpr:
 		n.Args = args(n.Args)
