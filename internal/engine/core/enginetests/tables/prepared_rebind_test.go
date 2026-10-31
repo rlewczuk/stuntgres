@@ -1,0 +1,233 @@
+package tables_test
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
+)
+
+func preparedRebindValid(t *testing.T, e *core.Engine, s *session.Session, cell *core.Analysis) bool {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment, err := e.PreparedEnvironmentLocked(auth, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cell.Valid(auth.Catalog, environment)
+}
+
+func TestPreparedRebindValidity(t *testing.T) {
+	e := rootengine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE b.t(v INT)", "SET search_path TO a,b"} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	_, d := enginetest.PreparedDescription(t, e, s, "SELECT l.v,r.v FROM t AS l CROSS JOIN t AS r")
+	cell := d.Analysis
+	if cell == nil || len(cell.Sources) != 2 {
+		t.Fatal("occurrences were collapsed", cell)
+	}
+	var source ids.ObjectRef
+	for _, occurrence := range cell.Sources {
+		if source == (ids.ObjectRef{}) {
+			source = occurrence.Ref
+		}
+		if occurrence.Ref != source || occurrence.Query == nil {
+			t.Fatal("wrong occurrence identity", occurrence)
+		}
+	}
+	relations := 0
+	for _, dependency := range cell.Dependencies {
+		if dependency.Ref.Address.ClassID == ids.RelationClassID {
+			relations++
+			if dependency.Ref != source {
+				t.Fatal("wrong dependency identity", dependency)
+			}
+		}
+	}
+	if relations != 1 || !preparedRebindValid(t, e, s, cell) {
+		t.Fatal("dependency dedup or initial validity")
+	}
+	for _, q := range []string{"CREATE TABLE a.t(v INT)", "INSERT INTO b.t VALUES(7)", "CREATE TABLE b.unrelated(v INT)", "SELECT set_config('search_path','a,b,b,missing',false)"} {
+		enginetest.SessionSQL(t, s, q)
+		if !preparedRebindValid(t, e, s, cell) {
+			t.Fatal("unrelated mutation/equivalent path invalidated", q)
+		}
+	}
+	foreign := *cell
+	foreign.Domain = &ids.Domain{}
+	if preparedRebindValid(t, e, s, &foreign) {
+		t.Fatal("foreign owner was accepted")
+	}
+	private := *cell
+	private.Private = &session.Journal{}
+	if preparedRebindValid(t, e, s, &private) {
+		t.Fatal("different private catalog certified")
+	}
+	enginetest.SessionSQL(t, s, "CREATE SCHEMA other")
+	if preparedRebindValid(t, e, s, cell) {
+		t.Fatal("equal-path namespace callback ignored")
+	}
+	_, pathDescription := enginetest.PreparedDescription(t, e, s, "SELECT v FROM t")
+	enginetest.SessionSQL(t, s, "SET search_path TO b,a")
+	if preparedRebindValid(t, e, s, pathDescription.Analysis) {
+		t.Fatal("effective path reorder ignored")
+	}
+	_, dependencyDescription := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
+	enginetest.SessionSQL(t, s, "ALTER TABLE b.t ADD unused INT")
+	if preparedRebindValid(t, e, s, dependencyDescription.Analysis) {
+		t.Fatal("dependency definition change ignored")
+	}
+	_, removed := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
+	enginetest.SessionSQL(t, s, "DROP TABLE b.t")
+	if preparedRebindValid(t, e, s, removed.Analysis) {
+		t.Fatal("missing dependency accepted")
+	}
+	enginetest.SessionSQL(t, s, "CREATE TABLE b.t(v INT)")
+	if preparedRebindValid(t, e, s, removed.Analysis) {
+		t.Fatal("replacement dependency reused old identity")
+	}
+	_, native := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
+	if err := rootengine.Reset(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if preparedRebindValid(t, e, s, native.Analysis) {
+		t.Fatal("replacement catalog kept validity")
+	}
+	t.Run("PrivateRollback", func(t *testing.T) {
+		privateEngine := rootengine.New()
+		privateSession := enginetest.StartSession(t, privateEngine, nil)
+		for _, q := range []string{"BEGIN", "SAVEPOINT before_temp", "CREATE TEMP TABLE rollback_source(v INT)"} {
+			enginetest.SessionSQL(t, privateSession, q)
+		}
+		_, retained := enginetest.PreparedDescription(t, privateEngine, privateSession, "SELECT v FROM pg_temp.rollback_source")
+		if !preparedRebindValid(t, privateEngine, privateSession, retained.Analysis) {
+			t.Fatal("private analysis was not initially valid")
+		}
+		enginetest.SessionSQL(t, privateSession, "ROLLBACK TO before_temp")
+		if preparedRebindValid(t, privateEngine, privateSession, retained.Analysis) {
+			t.Fatal("rolled-back private metadata retained validity")
+		}
+		enginetest.SessionSQL(t, privateSession, "ROLLBACK")
+	})
+	t.Run("RealNamespaceACLInvalidation", func(t *testing.T) {
+		engine := rootengine.New()
+		caller := enginetest.StartSession(t, engine, nil)
+		for _, query := range []string{"CREATE USER acl_reader", "CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE a.t(v INT)", "CREATE TABLE b.t(v INT)", "GRANT SELECT ON a.t TO acl_reader", "GRANT SELECT ON b.t TO acl_reader"} {
+			enginetest.SessionSQL(t, caller, query)
+		}
+		admin, _ := engine.Roles().Lookup("postgres")
+		reader, _ := engine.Roles().Lookup("acl_reader")
+		usage := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege}}}
+		early, late := enginetest.SchemaRef(t, engine, "a"), enginetest.SchemaRef(t, engine, "b")
+		set := func(ref ids.ObjectRef, acl authorization.ACLValue) {
+			t.Helper()
+			if err := enginetest.SetObjectACL(engine, context.Background(), ref, acl); err != nil {
+				t.Fatal(err)
+			}
+		}
+		set(early, authorization.ACLValue{Explicit: true})
+		set(late, usage)
+		enginetest.SessionSQL(t, caller, "SET search_path TO a,b")
+		enginetest.SessionSQL(t, caller, "SET SESSION AUTHORIZATION acl_reader")
+		ast, description := enginetest.PreparedDescription(t, engine, caller, "SELECT v FROM t")
+		qualifiedAST, qualified := enginetest.PreparedDescription(t, engine, caller, "SELECT v FROM b.t")
+		if description.Analysis == nil || len(description.Analysis.Sources) != 1 || qualified.Analysis == nil || len(qualified.Analysis.Sources) != 1 {
+			t.Fatal("missing initial prepared namespace identities")
+		}
+		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: late.Address, Name: "t"})[0]
+		for _, source := range description.Analysis.Sources {
+			if source.Ref.Address != bound {
+				t.Fatal("inaccessible early schema participated in initial resolution")
+			}
+		}
+		initial := description.Analysis
+		set(early, usage)
+		if preparedRebindValid(t, engine, caller, initial) {
+			t.Fatal("real schema-USAGE callback retained validity")
+		}
+		result, err := enginetest.PreparedExecute(engine, caller, ast, &description)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result.Rows.Close()
+		bound = engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: early.Address, Name: "t"})[0]
+		if description.Analysis == initial {
+			t.Fatal("schema-USAGE invalidation did not publish a new identity cell")
+		}
+		for _, source := range description.Analysis.Sources {
+			if source.Ref.Address != bound {
+				t.Fatal("schema-USAGE grant did not rebind to early identity")
+			}
+		}
+		original := qualified
+		set(late, authorization.ACLValue{Explicit: true})
+		result, err = enginetest.PreparedExecute(engine, caller, qualifiedAST, &qualified)
+		if result.Rows != nil {
+			result.Rows.Close()
+			t.Fatal("schema denial exposed rows")
+		}
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema b" || diagnostic.Position != "15" {
+			t.Fatal("schema denial lost ordinary source-positioned authority diagnostic", err)
+		}
+		if qualified.Analysis != original.Analysis || !reflect.DeepEqual(qualified.Parameters, original.Parameters) || !reflect.DeepEqual(qualified.Results, original.Results) {
+			t.Fatal("schema denial published candidate identities or signatures")
+		}
+		set(late, usage)
+		result, err = enginetest.PreparedExecute(engine, caller, qualifiedAST, &qualified)
+		if err != nil {
+			t.Fatal("same qualified handle did not recover schema-USAGE", err)
+		}
+		result.Rows.Close()
+		if qualified.Analysis == original.Analysis {
+			t.Fatal("schema-USAGE repair kept invalid analysis")
+		}
+	})
+}
+
+func TestPreparedRebindDependencyManifest(t *testing.T) {
+	e := rootengine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, q := range []string{"CREATE TABLE t(v INT)", "CREATE TABLE dep(v INT)", "CREATE VIEW inner_view AS SELECT v FROM dep", "CREATE VIEW outer_view AS SELECT v FROM inner_view"} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	for _, query := range []string{
+		"WITH unused AS (SELECT v FROM dep) SELECT (SELECT v FROM t) FROM outer_view",
+		"INSERT INTO t(v) SELECT v FROM outer_view",
+		"UPDATE t SET v=src.v FROM outer_view AS src",
+		"DELETE FROM t USING outer_view AS src WHERE t.v=src.v",
+		"MERGE INTO t USING outer_view AS src ON t.v=src.v WHEN NOT MATCHED THEN INSERT(v) VALUES(src.v)",
+	} {
+		_, description := enginetest.PreparedDescription(t, e, s, query)
+		seen := make(map[ids.ObjectAddress]bool)
+		for _, dependency := range description.Analysis.Dependencies {
+			seen[dependency.Ref.Address] = true
+		}
+		for _, name := range []string{"t", "dep", "inner_view", "outer_view"} {
+			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
+			if !seen[ref.Address] {
+				t.Fatal("missing analyzed dependency", query, name)
+			}
+		}
+	}
+}
