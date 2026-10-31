@@ -762,7 +762,67 @@ Needs 228. Mode S. Gated.
 - 210: not started.
 - 211: not started.
 - 212: not started.
-- 213: not started.
+- 213: - 213: done (`66e8f81a5`, `b861d4501`), in place at `8850a34d2`. -
+  **Capability accessors.** `exec.Host` (109 methods) gains `Contrib()`,
+  `TextSearch()`, `CatalogInquiry()`, `SessionInquiry()` and
+  `TransactionInquiry()` (`exec/host_capabilities.go`); 57 methods leave Host
+  (now 57). Contrib has 18 methods (pgstattuple included, feature inflow), text
+  search 8: the five Host methods plus `DebugTextSearch`, `StatTextSearch` and
+  `ResolveFTSParser`, which the exec forwarders used to reach by type assertion
+  on the host. Inquiry is grouped like the `functions` runtime interfaces:
+  catalog 20 (with `VisibilityInquiry`), session 6, transaction 8. - **Core.**
+  Each group is a defined type over `StatementScope` (`contribHost`,
+  `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`,
+  `transactionInquiryHost`; `host_capabilities.go`); the accessors are pointer
+  conversions (no allocation). 69 receivers moved, including helpers only one
+  group calls. Helpers shared with other code stay on `statementHost` and are
+  reached through `host()`: `catalogInquiryCatalog` (catalog inquiry and
+  `GenericFileRead`), `Context`, `Environments`, `acquireDictionary(For)` and
+  `tsAcquisition.accept`/`dictionary` (shared with the tsvector trigger). -
+  **Nested SQL.** `exec.NestedSQL` (`exec/nested_sql.go`) is implemented by
+  `statementHost` (`core/nested_sql.go`): `EnterNestedSQL`/`LeaveNestedSQL`,
+  `ParseNestedSQL`, `PrepareNestedSQL`, `ExecuteNestedSQL` with a
+  `NestedRequest` value (diagnostic text, caller label, read-only SPI, borrowed
+  source roots, close-on-failure) and a `NestedConsumer` interface (before and
+  after analysis, rows), plus classification (`NestedCursorStatement`,
+  `NestedReadOnlyViolation`, `NestedCommandTag`). ts_rewrite and ts_stat
+  (`textSearchSQL`), crosstab (`crosstabCommand`) and connectby
+  (`connectbyCommand`) use only it. Each consumer keeps its own SPI policy, so
+  diagnostics, error order and closing stay byte-identical. `xml_map_rows` and
+  the PL/pgSQL query loop stay in core (items 222, 221) and still call
+  `nestedTupleStatement`/`nestedReadOnlyViolation`, now in `nested_sql.go`. -
+  **Tests (T5, T6).** 81 core test call sites go through the accessors.
+  `connectby_lifecycle_test.go` frames: `(*contribHost).Connectby`,
+  `(*statementHost).ExecuteNestedSQL`, and `ParseWithOptions` called from
+  `(*statementHost).ParseNestedSQL` inside `(*contribHost).connectbyQuery`. The
+  accessor `ActivateConnectbySource` became `ActivateNestedSource` and moved to
+  `export_routine_test.go`. No test was deleted. - **Measured.** Core 11.64 MiB
+  (+5.5 KiB), exec +6.1 KiB; no new package. Interleaved before/after binaries
+  (`bench.txt`): `BenchmarkOpenDatabase` 3,324–3,454 allocs/op on both; inquiry
+  and `ts_lexize` queries unchanged (622, 559 allocs/op); ts_rewrite, ts_stat,
+  crosstab and connectby +1 alloc/op each (655 → 656, 698 → 699, 897 → 898,
+  3,388 → 3,389). `escdiff.py`: the only new heap objects are those four
+  consumers. A pointer passed to a dynamic interface call always escapes in Go,
+  so a consumer interface costs one object per call; connectby's is hoisted to
+  one per call, not per traversal node. Quickcheck: core 480.9 s wall under
+  heavy load. - **Verified:** quickcheck
+  (`TestReferenceOrderedSetAggregateActiveCancellation/direct/memory` and
+  `TestReferenceDatetimeSleepStored/memory` failed under load and passed 3/3
+  alone); `REFERENCE=1
+  RUN='^TestReference(Amcheck|Tablefunc|Connectby|FTS|Thesaurus|Size)'`;
+  `layers.py` 0; `frames.py check` 0 broken; `lits.py` (only the deduplicated
+  parse settings and the templated parameter-frame label); deps unchanged.
+  Racecheck and finalcheck skipped (user decision). - **Notes for later items:**
+  - 214: `contrib.Host` embeds `exec.NestedSQL`; `crosstabCommand` and
+  `connectbyCommand` move as they are. The frame strings in the 214 section are
+  stale: `(*StatementScope).connectbyStatement` is gone (see above). crosstab's
+  type-name display needs `RoutineAuthorizationLocked` and
+  `CaptureTypeDiagnosticName` through the Host. - 215: `textSearchSQL` and the
+  consumers read `Op.Context()` at consume time; keep that (it is not
+  `Host.Context()`). - 219: the inquiry groups follow
+  `functions.{Catalog,Session,Transaction}InquiryRuntime`. - Finding:
+  ts_rewrite, ts_stat and crosstab do not close a failed execution's rows; only
+  connectby does (`CloseFailed`). Kept for byte-identical behaviour.
 - 214: not started.
 - 215: not started.
 - 216: not started.

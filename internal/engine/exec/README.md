@@ -474,9 +474,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   precedes target accounting; savepoint rollback does not erase that footprint.
   Virtual catalog views retain view-kind rejection; table-like catalog sources
   without stored heap roots report explicit stored-data unavailability.
-- **Seams**: `Host` (`host.go`), `DetachedPresentation`, `Preparation`
-  (`preparation.go`) and the admission slots `AdmissionAuthority` and
-  `RoutineProgram`.
+- **Seams**: `Host` (`host.go`) and its capability groups
+  (`host_capabilities.go`), `NestedSQL` (`nested_sql.go`),
+  `DetachedPresentation`, `Preparation` (`preparation.go`) and the admission
+  slots `AdmissionAuthority` and `RoutineProgram`.
 
 ## The host
 
@@ -492,6 +493,7 @@ on `statementHost`, a defined type over `StatementScope`.
 | Admission | `RoutineAdmission` | Reads statement-owned routine authority and dependency manifest without a lock; fails once the statement has finished. |
 | Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.Mu`. |
 | Capabilities | the function, expression and plan runtime bodies | Take `Engine.Mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
+| Capability groups | `Contrib`, `TextSearch`, `CatalogInquiry`, `SessionInquiry`, `TransactionInquiry` (`host_capabilities.go`) | Each accessor returns the group's runtime; the engine converts the host pointer to the group's own type, so nothing is allocated. The groups are the runtimes a package below core can own. |
 
 Every method is called without `Engine.Mu` held, and none returns an engine
 struct. Records store the host once, never per row. A record with no statement
@@ -499,6 +501,14 @@ scope holds an untyped nil host (`LiveHost` never returns a typed nil). Optional
 host capabilities such as `PgcryptoNotice` are resolved through `LiveHost` per
 delivery; the engine appends owned notice records and never calls user handlers
 under engine locks.
+
+`NestedSQL` (`nested_sql.go`) is the SPI analogue for functions that run SQL
+text inside the calling statement (ts_rewrite, ts_stat, crosstab, connectby).
+The engine implements it, because admission, binder construction and
+dispatch re-entry stay in core; the caller owns its statement loop, its SPI
+policy (`NestedRequest`) and a `NestedConsumer` that admits each command and
+consumes its rows. Each command runs in fresh lexical command scratch, with
+no parameters, over the caller's private catalog and data.
 
 The typed `ReplicationOrigin` capability resolves through `LiveHost` for each
 surviving invocation, after common routine admission and strict operand handling.

@@ -908,9 +908,10 @@ Provider failures inside debug acquire the actual SQL-standard function's
 statement context through the shared immutable SQL routine diagnostic helper;
 caller argument-input failures remain outside that body frame.
 
-`consumeTextSearchSQL` owns the shared rewrite/statistics nested cursor scope:
-ordinary settings-aware parse, complete preparation, ACL/planning and read-only
-cursor admission use the caller's private catalog/data with no outer parameters.
+`textSearchSQL` owns the shared rewrite/statistics nested cursor scope over the
+`exec.NestedSQL` capability: ordinary settings-aware parse, complete
+preparation, ACL/planning and read-only cursor admission use the caller's
+private catalog/data with no outer parameters.
 Stat enables canonical executable-binding `readOnlySPI` classification before
 description: derived/stored row marks are rejected, while unused analysis-only
 locking CTEs are not executable marks. Non-cursor command-kind precedence remains
@@ -1628,14 +1629,15 @@ with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`, `FTSQueryRuntime`) that `*exec.Context` forwards |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
+| `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
 | `EngineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
 
-`statementHost.SizeInquiry` uses the existing catalog-inquiry capability.
+`catalogInquiryHost.SizeInquiry` uses the existing catalog-inquiry capability.
 It fences the retained catalog's owner and replacement epoch, captures typed
 allocation roots from the current matching private catalog and transaction
 overlays under the shared cluster mutex, and counts outside that lock.
@@ -1649,7 +1651,7 @@ It retains immutable vectors, not mutable heap headers or prepared numeric/ACL
 results. The allocation model belongs to
 [`storage`](../storage/README.md#logical-allocation-estimates).
 
-`statementHost.FormatType` consumes the existing immutable visibility catalog
+`catalogInquiryHost.FormatType` consumes the existing immutable visibility catalog
 and authorized relation/type-compatible path, including the session's TEMP
 namespace. `BaseType` needs only that catalog. Both are captured at the execution
 frontier with schema USAGE filtering and normal implicit/explicit pg_catalog
@@ -1672,7 +1674,7 @@ PL/pgSQL exception checkpoints; `dropScopeOf` recovers the `DropScope`), and
 `CatalogStage.ExtensionSlot` holds the `schemacmds` extension host that began
 the stage (`extensionNamespaceOf`).
 
-`statementHost.VerifyHeapam` supplies the distinct heap-verification runtime.
+`contribHost.VerifyHeapam` supplies the distinct heap-verification runtime.
 It resolves exact regclass authority, borrows and releases only its added
 AccessShare contribution, readmits the same descriptor/storage after waiting,
 and scans immutable unfiltered captures outside metadata locks. Sequence

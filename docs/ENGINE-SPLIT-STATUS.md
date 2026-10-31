@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `d877a8539` (item 207 rebased on it).
+Last verified against `master` at `8850a34d2` (item 213 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 208, 209, 210, 211, 212, 213.
+- 208, 209, 210, 211, 212.
 
 ## Linear plan
 
@@ -64,9 +64,20 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      207 · P · core after 7.8
 212. [ ] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
      needs 206 · P, bench · core after 7.7
-213. [ ] Host capability seam —
+213. [x] Host capability seam —
      [core](ENGINE-SPLIT-core.md#item-213--host-capability-seam) · needs — · P,
-     bench · core after 7.7
+     bench · core after 7.7 (`66e8f81a5`, `b861d4501`, docs commit) ·
+     `exec.Host` capability accessors `Contrib`, `TextSearch`, `CatalogInquiry`,
+     `SessionInquiry`, `TransactionInquiry` (57 methods leave Host, 109 → 57;
+     core implements each group on its own `StatementScope` conversion), and the
+     `exec.NestedSQL` SPI capability on `statementHost` used by ts_rewrite,
+     ts_stat, crosstab and connectby. In place; core 11.64 MiB (+5.5 KiB), exec
+     +6.1 KiB. Bench: startup and inquiry allocations unchanged; +1 alloc per
+     nested-SQL function call (the consumer). Passed: quickcheck (two load
+     flakes passed alone), REFERENCE=1
+     `^TestReference(Amcheck|Tablefunc|Connectby|FTS|Thesaurus|Size)`,
+     `layers.py`, `frames.py check`, `lits.py`, deps. Racecheck and finalcheck
+     skipped at user request.
 214. [ ] Contrib runtimes —
      [core](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) · needs 207, 212,
      213 · P, bench · core after 7.6

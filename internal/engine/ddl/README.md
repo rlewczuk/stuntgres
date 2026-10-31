@@ -229,7 +229,7 @@ candidates through the ordinary journal, with no separate schema undo path.
 `schemacmds.ExecuteCreateTablespace` keeps the argument count
 check, the lock and the authority capture; `AlterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.Mu` unlock, and
-`statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
+`catalogInquiryHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
 snapshot and owner check and emit the returned warning.
 `rolecmds.ExecuteCreateDatabase` keeps the argument count check, `Engine.Mu`,
 the authority capture (`databaseCreateOwnerLocked`), the `exists` answer from
