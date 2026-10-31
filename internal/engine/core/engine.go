@@ -420,7 +420,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return Description{}, nil
-	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		return Description{}, nil
 	case *parser.CreateParser, *parser.AlterParser, *parser.DropParser:
 		return Description{}, nil

@@ -94,9 +94,14 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   single-relation binder; ddl never imports an evaluator. One expression forbids
   explicit kinds before kind-name validation. Bounded object-target mutation normalizes bounds/warnings
   before lookup/ownership and replaces only metadata, preserving collected facts.
-  `RestoredStatisticsOwner` retains exact descriptor, namespace and principal
-  generations for one immediate private replay; `schemacmds` owns its trusted
-  capture and owner-only replacement, and the replay driver expires it.
+  Rename and namespace movement shallow-copy the descriptor, retaining original
+  address, relation, selection and expression backing. Rename checks schema CREATE
+  before collisions (including self). Schema movement resolves the source, then
+  resolves and checks destination CREATE before its same-schema no-op or the
+  actual transition/source-owner/conflict checks.
+  Its bounded namespace host permits system destinations without bypassing CREATE
+  or temporary/TOAST restrictions. Constructors preserve ordinary CREATE policy;
+  genuine isolated imports alone may reconstruct a moved system-schema definition.
 - **Text-search parsers** (`ts_parser.go`): CREATE validates located options in
   written order against exact routine input/result signatures. Valid repetitions
   overwrite earlier values; absent optional HEADLINE remains zero. CREATE and
@@ -126,8 +131,8 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   Schema dependency classification includes configuration descriptors, so
   RESTRICT reports their actual dependency and CASCADE retires their closure.
 - **Generic namespace movement** (`namespace.go`): `StageObjectNamespace` stages
-  operator/class/family, collation/conversion and text-search parser/template/
-  dictionary/configuration identities with
+  statistics, operator/class/family, collation/conversion and text-search
+  parser/template/dictionary/configuration identities with
   real owner or ownerless-superuser admission, destination CREATE and exact name
   claims. Routine, type and relation mechanics remain with their actual owners.
   `catalog.CheckSetNamespace` is shared mechanical admission, not authorization.

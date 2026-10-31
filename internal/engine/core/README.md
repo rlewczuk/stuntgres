@@ -233,6 +233,10 @@ The DDL host preflights coercions and retains normal conditional execution
 recipes, stable input identities and external dependencies. CREATE does not
 evaluate volatile runtime values. Definition-object locks include these real
 dependencies; publication rejects retired inputs/providers.
+Statistics namespace movement uses the shared staged namespace resolver with
+system destinations enabled, retaining CREATE and temporary/TOAST transition
+checks. Its constructor enables that policy only for a genuine isolated import,
+so restoring a moved definition does not relax ordinary CREATE admission.
 The authenticated catalog runtime projects ndistinct, dependencies, joint MCV
 and expression summaries from one immutable extended fact. Missing payloads use
 the current descriptor's typed NULL. Catalog SELECT admission precedes capture;
@@ -2609,6 +2613,16 @@ These inspect the real authorized capture and preflight boundary; public SQL
 TEMP qualification and COPY rows/errors remain in the reference definitions.
 
 Statistics definition/capture/replay invariants use `RUN='^TestStatisticsObject'`.
+Control ownership witnesses admit ordinary transfers across intervening directives,
+validate remapped principals/definitions and retain destination roots on missing
+recipients or cancellation; no statistics paired-owner capability is involved.
+Metadata COW, genuine collected-root compatibility and original-source ordinary
+ownership admission use `RUN='^TestStatisticsAlter'`.
+Collectors consume the captured catalog's canonical type descriptors. No-op stages
+must contain no replacement while their overlay retains the exact base descriptor.
+Composed ownership witnesses enter the actual statement Gate to begin and register
+the implicit transaction/ticket before lock admission, rejecting early worker
+completion while observing the exact queue.
 Publication units use real provider barriers and exact namespace/name resources,
 join workers before cleanup, and reject retirement or competing bindings without
 adopting successors. Use `RACE=1` for the publication family.

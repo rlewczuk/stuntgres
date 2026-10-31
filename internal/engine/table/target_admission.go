@@ -73,7 +73,7 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		}
 		return target, true, nil
 	case *parser.AlterOwner:
-		if v.Kind == "type" || v.Kind == "domain" || v.Kind == "database" || v.Kind == "large object" {
+		if v.Kind == "statistics" || v.Kind == "type" || v.Kind == "domain" || v.Kind == "database" || v.Kind == "large object" {
 			return Target{}, false, nil
 		}
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil

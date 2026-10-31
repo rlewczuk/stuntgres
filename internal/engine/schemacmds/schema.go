@@ -388,6 +388,14 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
+	case *parser.AlterStatisticsRename:
+		if err = ddl.StageRenameStatistics(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterStatisticsSchema:
+		if err = ddl.StageStatisticsNamespace(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.AlterStatisticsTarget:
 		if err = ddl.StageAlterStatisticsTarget(schemaHost, auth, s); err != nil {
 			return nil, err
@@ -474,9 +482,13 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 			return nil, err
 		}
 	case *parser.CreateTransform:
-		if err = routine.StageCreateTransform(routineHost, auth, s); err != nil { return nil, err }
+		if err = routine.StageCreateTransform(routineHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.DropTransform:
-		if err = routine.StageDropTransform(routineHost, auth, s); err != nil { return nil, err }
+		if err = routine.StageDropTransform(routineHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateCast:
 		if err = routine.StageCreateCast(routineHost, auth, s); err != nil {
 			return nil, err

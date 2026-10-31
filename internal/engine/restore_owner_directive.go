@@ -4,7 +4,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
@@ -22,8 +21,6 @@ func beforeRestoreOwnerSnapshot(r *restoreRun, _ *session.Operation, _ parser.St
 	r.cur.priorAuthorization, r.cur.ownerForCreate, r.cur.ownerPair = r.lastAuthorization, r.createOwner, r.pairedOwner
 	r.cur.typeOwnerPair = r.pairedTypeOwner
 	r.pairedTypeOwner = typedef.RestoredTypeOwner{}
-	r.cur.statisticsOwnerPair = r.pairedStatisticsOwner
-	r.pairedStatisticsOwner = ddl.RestoredStatisticsOwner{}
 	r.lastAuthorization, r.createOwner = authorization.PrincipalRef{}, authorization.PrincipalRef{}
 	r.pairedOwner = table.RestoredInheritedOwner{}
 	return false, nil

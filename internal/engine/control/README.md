@@ -400,13 +400,14 @@ No physical WAL position or flush guarantee is serialized.
   all ordinary graph phases, in qualified-name order. This includes completed
   input attribute history and unrelated row events, so reminted OIDs cannot move
   definitions across data on redump. Stable keys resolve current column spellings;
-  generated original names replay explicitly. Named owner
-  directives pair privileged creation with one immediate owner transfer in the
-  isolated Restore, without enabling ordinary statistics owner alteration.
-  Bounded target alterations replay after that immediate owner pair, under the
-  actual owner. Replacement remaps object addresses, principals and relation refs.
-  The pair record belongs to `ddl`; `schemacmds` performs trusted capture and
-  owner-only COW, while the root driver alone carries and expires that pair.
+  generated original names replay explicitly. Privileged creation runs under
+  genuine authenticated superuser authority, followed by ordinary ALTER OWNER
+  under that same authority. It does not require the eventual owner to own the
+  table or retain schema CREATE. Explicit targets then replay under the actual
+  owner. Replacement remaps object addresses, principals and relation refs.
+  Definitions moved into system namespaces retain their actual coordinates;
+  reconstruction uses the existing genuine import authority, not an ordinary
+  CREATE exemption or a restored statistics-owner capability.
   Bootstrap-principal definitions use their named owner directive without a
   redundant transfer; DEFAULT may name a different authenticated role on replay.
   Deterministic strict `stuntgres-ndistinct-v1` comments transport checked

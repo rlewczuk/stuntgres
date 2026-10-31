@@ -34,6 +34,8 @@ func TestReferenceStatisticsObjectControlsOwners(t *testing.T) {
 		"RESET ROLE",
 		"ALTER TABLE statistics_control_schema.input OWNER TO statistics_table_owner",
 		"REVOKE CREATE ON SCHEMA statistics_control_schema FROM statistics_control_owner",
+		"ALTER STATISTICS statistics_control_schema.definition OWNER TO statistics_table_owner",
+		"ALTER STATISTICS statistics_control_schema.definition OWNER TO statistics_control_owner",
 	} {
 		run(fixture.Exec(q, 0))
 	}

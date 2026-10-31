@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
 )
 
 func TestStatisticsObjectControlRemap(t *testing.T) {
@@ -63,7 +64,7 @@ func TestStatisticsObjectControlRemap(t *testing.T) {
 	}
 }
 
-func TestStatisticsObjectControlOwnerPairGuards(t *testing.T) {
+func TestStatisticsObjectControlOrdinaryOwnership(t *testing.T) {
 	e, _ := statisticsUnitEngine(t)
 	aclUnitRoles(e, "statistics_guard_owner")
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -100,26 +101,45 @@ func TestStatisticsObjectControlOwnerPairGuards(t *testing.T) {
 		t.Fatal("owner transfer not emitted")
 	}
 	before := e.CatalogRead()
-	malformed := strings.Replace(text.String(), "ALTER STATISTICS", "SET SESSION AUTHORIZATION DEFAULT;\nALTER STATISTICS", 1)
-	if err := engine.Restore(t.Context(), e, strings.NewReader(malformed)); err == nil {
-		t.Fatal("intervening directive retained owner pair")
+	valid := strings.Replace(text.String(), "ALTER STATISTICS", "SET SESSION AUTHORIZATION DEFAULT;\nALTER STATISTICS", 1)
+	if err := engine.Restore(t.Context(), e, strings.NewReader(valid)); err != nil {
+		t.Fatal("ordinary ownership rejected an intervening directive", err)
 	}
-	if e.CatalogRead().State() != before.State() {
-		t.Fatal("invalid pair replaced root")
+	current := e.CatalogRead()
+	restored, ok := current.Statistics(current.NameAddress(catalog.DescriptorNameKey(original)))
+	if !ok || restored.Owner != owner || restored.Selection != original.Selection ||
+		restored.Relation.Domain() != current.Domain() || restored.Relation.Epoch != current.Epoch() ||
+		restored == &owned || current.Epoch() == before.Epoch() {
+		t.Fatal("ordinary owner replay lost definition/principal remapping", restored)
 	}
-	malformed = strings.Replace(text.String(), `OWNER TO "statistics_guard_owner"`, `OWNER TO "unknown_statistics_owner"`, 1)
-	if err := engine.Restore(t.Context(), e, strings.NewReader(malformed)); err == nil {
-		t.Fatal("wrong pair recipient accepted")
+	if err := (catalog.StatisticsProvider{}).Validate(current, restored); err != nil {
+		t.Fatal(err)
 	}
-	if e.CatalogRead().State() != before.State() {
-		t.Fatal("wrong recipient replaced root")
+	if before.Get(original.Address()) != &owned || owned.Owner != owner {
+		t.Fatal("successful replay mutated the retained source descriptor")
+	}
+	var again bytes.Buffer
+	if err := engine.Dump(t.Context(), e, &again); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(text.Bytes(), again.Bytes()) {
+		t.Fatal("ordinary ownership changed canonical redump")
+	}
+	malformed := strings.Replace(text.String(), `OWNER TO "statistics_guard_owner"`, `OWNER TO "unknown_statistics_owner"`, 1)
+	err = engine.Restore(t.Context(), e, strings.NewReader(malformed))
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || diagnostic.Message != `role "unknown_statistics_owner" does not exist` {
+		t.Fatal("missing ordinary recipient diagnostic", err)
+	}
+	if e.CatalogRead().State() != current.State() {
+		t.Fatal("missing recipient replaced destination root")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := engine.Restore(ctx, e, bytes.NewReader(text.Bytes())); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().State() != before.State() {
+	if e.CatalogRead().State() != current.State() {
 		t.Fatal("canceled replay replaced root")
 	}
 	for _, d := range before.Descriptors() {

@@ -70,7 +70,23 @@ func (h DDLHost) Recapture(a ddl.Authority, view catalog.Read) ddl.Authority {
 
 func (h DDLHost) CreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
 	v := DDLAuthorityOf(a)
-	ref, err := h.E.collationCreationNamespaceLocked(&v, h.CatalogStage, name)
+	ref, err := h.E.definitionCreationNamespaceLocked(&v, h.CatalogStage, name, false)
+	return ref, v, err
+}
+
+// Statistics constructors retain ordinary CREATE policy. Only a genuine isolated
+// import may reconstruct a definition previously moved into a system namespace.
+func (h DDLHost) StatisticsCreationNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
+	v := DDLAuthorityOf(a)
+	ref, err := h.E.definitionCreationNamespaceLocked(&v, h.CatalogStage, name, PartitionConstraintReplayImport(h.E, h.Op, v))
+	return ref, v, err
+}
+
+// Statistics movement uses creation-namespace lookup without CREATE's system
+// restriction. The caller checks destination CREATE and CheckSetNamespace.
+func (h DDLHost) StatisticsSchemaNamespace(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, ddl.Authority, error) {
+	v := DDLAuthorityOf(a)
+	ref, err := h.E.definitionCreationNamespaceLocked(&v, h.CatalogStage, name, true)
 	return ref, v, err
 }
 

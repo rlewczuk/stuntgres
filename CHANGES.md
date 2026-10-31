@@ -79,6 +79,13 @@
   OIDs disguised as filenodes. Logical definitions and routine metadata replay
   through native Dump/Restore; PostgreSQL files are not serialized.
 
+- Add ordinary extended-statistics rename, schema movement and ownership transfer,
+  retaining definition identity, immutable expressions and collected statistics
+  through metadata changes, transactions and native Dump/Restore. Preserve
+  PostgreSQL target defaults and warning/clamp behavior above 10000.
+  System-namespace movement retains ordinary destination permissions and
+  temporary/TOAST fences; native replay preserves moved definitions.
+
 - Add release-matched historical Dutch Porter Snowball stemming and its verbatim
   101-word stoplist, genuine `dutch_stem`/`dutch` bootstrap identities and nineteen
   token mappings, preserving typed prepared ownership, atomic publication and

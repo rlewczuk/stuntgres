@@ -46,6 +46,8 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		}
 	case *parser.AlterOwner:
 		switch s.Kind {
+		case "statistics":
+			return "ALTER STATISTICS", true
 		case "table":
 			return "ALTER TABLE", true
 		case "type":
@@ -88,7 +90,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.CreateDomain, *parser.AlterDomain, *parser.DropDomain,
 		*parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema,
 		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
-		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget,
+		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast,
 		*parser.CreateTransform, *parser.DropTransform,

@@ -126,6 +126,9 @@ func restoreForeignDefault(s *parser.ForeignDDL) *parser.AlterTableDefault {
 // admitRestoreAlterOwner admits captured installed-type ownership or pairs an
 // ALTER OWNER with the exact fresh type or ordinary table its directive created.
 func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
+	if s.Kind == "statistics" {
+		return nil // Ordinary execution, under the real replay actor.
+	}
 	if (s.Kind == "domain" || s.Kind == "type") && r.cur.typeOwnerPair.Kind == s.Kind {
 		return typecmds.RestoreTypeOwner(r.stage, op, s, r.cur.typeOwnerPair)
 	}

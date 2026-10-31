@@ -305,7 +305,8 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   maintenance restrictions and the most recently entered actor's precedence.
   Core owns balanced entry, authority/presentation refresh and unwinding.
 - **Statement classification** (pure functions of the AST and owner values):
-  command tags (`command_tag.go`), including non-counted ALTER STATISTICS targets;
+  command tags (`command_tag.go`), including all non-counted ALTER STATISTICS
+  forms with effect-free utility Describe and ordinary event/transaction admission;
   ALTER DATABASE defaults are modifying, non-counted transactional utilities,
   excluded from event-trigger dispatch independently of their completion tag.
   SECURITY LABEL is modifying and non-counted, with DescribeOperation before

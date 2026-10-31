@@ -171,7 +171,7 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE STATISTICS"
 	case *parser.DropStatistics:
 		base = "DROP STATISTICS"
-	case *parser.AlterStatisticsTarget:
+	case *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		base = "ALTER STATISTICS"
 	case *parser.CreateConversion:
 		base = "CREATE CONVERSION"
@@ -271,6 +271,8 @@ func ClassifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 	case *parser.AlterOwner:
 		// Keep the ownership family closed rather than uppercasing arbitrary AST text.
 		switch s.Kind {
+		case "statistics":
+			base = "ALTER STATISTICS"
 		case "table":
 			base = "ALTER TABLE"
 		case "type":

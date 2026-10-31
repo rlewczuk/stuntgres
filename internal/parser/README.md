@@ -214,10 +214,9 @@ ordinary assignments to an unreserved `security` variable.
   and contradictions. Execution owns current kind, ownership and eligibility.
   Domain enforcement remains a rejected domain operation, not a table alias.
   Existing-index enforcement diagnostics retain the PK/UNIQUE kind.
-- Statistics owner replay has a per-call `StatisticsOwnerReplay` option only
-  for the isolated native Restore parser. It yields the shared positioned
-  `AlterOwner` AST; ordinary calls retain the ALTER capability diagnostic.
-  Parsing permission supplies no execution or ownership authority.
+- Statistics target, rename, schema and ordinary owner alterations retain
+  positioned names and role operands. Only target alteration admits IF EXISTS;
+  parsing supplies no execution or ownership authority.
   The dedicated CREATE head cannot fall into generic unsupported-CREATE parsing
   on incomplete input, without changing STATISTICS's unreserved name legality.
   A supplied kind list requires at least one identifier.
@@ -489,12 +488,11 @@ Embedded static SQL variants and per-call syntax ownership use
 Diagnostics syntax/admission ownership uses `RUN='^TestPLpgSQLDiagnostics'`.
 Routine declaration syntax and positioned CALL/notation/full-input ownership units use
 `RUN='^TestRoutine(ResultDeclarations|ProcedureCall|Attribute)'`.
-Statistics owner replay option isolation and full-input positions use
-`RUN='^TestStatisticsObjectOwnerReplayParser$'`.
-Bounded `ALTER STATISTICS [IF EXISTS] ... SET STATISTICS` has its own positioned
-AST, independent of the private owner-replay option. Signed values reuse the
-released int32-magnitude grammar fence; DEFAULT retains distinct catalog meaning.
-AST/options/boundaries use `RUN='^TestStatisticsNDistinctTargetParser$'`.
+Statistics ordinary identity/owner ASTs and full-input positions use
+`RUN='^TestStatisticsAlterParser$'`. Target alterations have their own positioned
+AST; signed values reuse the released int32-magnitude grammar fence and DEFAULT
+retains distinct catalog meaning. Target boundaries use
+`RUN='^TestStatisticsNDistinctTargetParser$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

@@ -4,7 +4,7 @@ The role, privilege and ownership statement executors
 ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): CREATE,
 ALTER and DROP ROLE; GRANT and REVOKE of role membership; SET ROLE and SET
 SESSION AUTHORIZATION; GRANT and REVOKE on objects and on databases; ALTER
-DEFAULT PRIVILEGES; ALTER ... OWNER TO for types, domains, databases and large objects;
+DEFAULT PRIVILEGES; ALTER ... OWNER TO for types, domains, statistics, databases and large objects;
 REASSIGN OWNED and DROP OWNED; CREATE DATABASE and ALTER DATABASE defaults; and the `RoleHost` family
 host. The decisions are [`role`](../role/README.md)'s, the role graph and
 ACL algorithms [`authorization`](../authorization/README.md)'s and the
@@ -65,6 +65,11 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   private or publishes it with the transaction's other work.
 - `ExecuteOwnership` (ALTER ... OWNER TO) stages type, domain, database and
   large-object owners and hands relation kinds to `core.ExecuteRelationOwnership`.
+  Statistics resolve the recipient first, then retain the original definition and
+  live recipient through unlocked AccessExclusive definition/dependency admission.
+  Current authority is recaptured under Mu after waiting; source/name/namespace,
+  epoch and recipient-generation changes cannot redirect a pending command.
+  Same-owner success is resolved and locked before returning without a revision.
   Large-object transfer reuses the ownership publication/Finish journal and
   validates catalog/role/session predecessors without a relation lock or byte copy;
   `ExecuteOwned` (REASSIGN and DROP OWNED) pins every ownership root and

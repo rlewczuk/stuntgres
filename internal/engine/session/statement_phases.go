@@ -62,7 +62,7 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 		return DescribeOperation
 	case *parser.AlterDomain, *parser.DropDomain, *parser.CreateAccessMethod, *parser.DropAccessMethod:
 		return DescribeOperation
-	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		return DescribeOperation
 	case *parser.CreateParser, *parser.AlterParser, *parser.DropParser:
 		return DescribeOperation
@@ -71,7 +71,7 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 	case *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation:
 		return DescribeOperation
 	case *parser.AlterOwner:
-		if s.Kind == "domain" {
+		if s.Kind == "domain" || s.Kind == "statistics" {
 			return DescribeOperation
 		}
 	case *parser.CreateTransform, *parser.DropTransform:

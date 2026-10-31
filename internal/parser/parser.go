@@ -34,9 +34,6 @@ type Options struct {
 	// including parameters after a semantically unresolved call.
 	ClosedRoutineFormals bool
 	FormalCount          int
-	// StatisticsOwnerReplay admits only the native Restore owner's paired AST.
-	// Ordinary SQL and Prepare leave it false.
-	StatisticsOwnerReplay bool
 	// NotNullInheritReplay retains the canonical post-data invalid NO INHERIT
 	// attachment for isolated Restore. Ordinary SQL leaves this false.
 	NotNullInheritReplay bool
@@ -279,7 +276,11 @@ func selectedScalarOperators(l sqlLexer, expr Expr) bool {
 	}
 	switch e := expr.(type) {
 	case XMLConstructExpr:
-		for _,child:=range e.Children(){if !selectedScalarOperators(l,child){return false}}
+		for _, child := range e.Children() {
+			if !selectedScalarOperators(l, child) {
+				return false
+			}
+		}
 		return true
 	case XMLDocumentPredicateExpr:
 		return selectedScalarOperators(l, e.Child)
@@ -611,7 +612,11 @@ func (l *lexer) scalarInput(expr Expr) bool {
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
 	case XMLConstructExpr:
-		for _,child:=range r.Children(){if !l.scalarInputTree(child){return false}}
+		for _, child := range r.Children() {
+			if !l.scalarInputTree(child) {
+				return false
+			}
+		}
 		return true
 	case XMLDocumentPredicateExpr:
 		return l.scalarInputTree(r.Child)

@@ -272,6 +272,9 @@ stable and volatile functions are permitted, without evaluating them at CREATE.
 automatic. `DROP STATISTICS` supports conditional and dependency modes.
 Definitions appear in `pg_statistic_ext`, including genuine `stxexprs` trees;
 `pg_get_expr` resolves renamed inputs from their retained attribute identities.
+`ALTER STATISTICS` renames, moves schemas and transfers ownership with ordinary
+owner, schema CREATE and SET ROLE authorization. These metadata changes preserve
+the object identity, bound expressions and existing collected values.
 Creation does not collect payloads. `ANALYZE` computes joint ndistinct,
 functional dependencies and multivariate MCV from actual NULL-inclusive rows,
 including signed expression dimensions. MCV frequencies use full-population

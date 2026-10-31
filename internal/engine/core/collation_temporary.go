@@ -13,9 +13,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage *CatalogStage, name parser.ObjectName) (ids.ObjectRef, error) {
+func (e *Engine) definitionCreationNamespaceLocked(auth *AuthorizationView, stage *CatalogStage, name parser.ObjectName, system bool) (ids.ObjectRef, error) {
 	var changes session.Journal
-	ref, err := e.creationNamespaceStagedLocked(*auth, name, false, &changes, true)
+	ref, err := e.creationNamespaceStagedLocked(*auth, name, system, &changes, true)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}

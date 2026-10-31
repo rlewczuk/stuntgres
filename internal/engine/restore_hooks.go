@@ -42,7 +42,6 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: physical self foreign key", Before: beforeRestorePhysicalSelfForeignKey},
 
 	// Admission: the statement allow-list.
-	{Name: "statistics: paired owner", Admit: admitRestoreStatisticsOwner},
 	{Name: "ALTER OWNER", Admit: restoreAdmitChecked(admitRestoreAlterOwner)},
 	{Name: "CREATE TABLE", Admit: restoreAdmitChecked(admitRestoreCreateTable)},
 	{Name: "ALTER DOMAIN", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterDomain)},
@@ -100,7 +99,6 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "owner directive", After: afterRestoreOwnerDirective},
 	{Name: "host pair absence application", After: afterRestoreHostAbsences},
 	{Name: "typedef: fresh type owner", After: afterRestoreTypeOwner},
-	{Name: "statistics: fresh owner", After: afterRestoreStatisticsOwner},
 	{Name: "inheritance: historical relation", After: afterRestoreHistoricalRelation},
 	{Name: "inheritance: generation placeholders", After: afterRestoreGenerationPlaceholders},
 	{Name: "inheritance: inherited owner", After: afterRestoreInheritedOwner},

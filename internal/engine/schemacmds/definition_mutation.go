@@ -39,14 +39,14 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 		alter = stmt.(*parser.Subscription).Action != "create" && stmt.(*parser.Subscription).Action != "drop"
 	case *parser.Publication:
 		alter = stmt.(*parser.Publication).Action != "create" && stmt.(*parser.Publication).Action != "drop"
-	case *parser.AlterLanguage, *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
+	case *parser.AlterLanguage, *parser.AlterParser, *parser.AlterTemplate, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema, *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
 	case *parser.Subscription, *parser.Publication:
 	case *parser.CreateLanguage, *parser.AlterLanguage, *parser.DropLanguage:
 	case *parser.CreateTransform, *parser.DropTransform:
-	case *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 	case *parser.AlterParser, *parser.DropParser:
 	case *parser.AlterTemplate, *parser.DropTemplate, *parser.AlterConfiguration, *parser.DropConfiguration, *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
 		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,

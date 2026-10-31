@@ -14,6 +14,8 @@ import (
 
 type StatisticsHost interface {
 	Host
+	StatisticsCreationNamespace(Authority, parser.ObjectName) (ids.ObjectRef, Authority, error)
+	StatisticsSchemaNamespace(Authority, parser.ObjectName) (ids.ObjectRef, Authority, error)
 	ResolveRelation(Authority, parser.ObjectName) (ids.ObjectRef, error)
 	AddDomainBase(catalog.Descriptor)
 	BindStatisticsExpression(Authority, *catalog.Relation, parser.Expr, sqltype.InputEnvironment) (catalog.StatisticsExpression, error)
@@ -44,7 +46,7 @@ func StageCreateStatistics(h StatisticsHost, auth Authority, s *parser.CreateSta
 	if len(s.Name.Parts) == 0 {
 		ns = view.Owner.Domain.Ref(view.Catalog.Epoch(), rel.Namespace())
 	} else {
-		ns, auth, err = h.CreationNamespace(auth, s.Name)
+		ns, auth, err = h.StatisticsCreationNamespace(auth, s.Name)
 		if err != nil {
 			return err
 		}

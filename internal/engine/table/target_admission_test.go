@@ -70,14 +70,19 @@ func TestTableTargetAdmission(t *testing.T) {
 			t.Fatalf("%s: admitted = %v, %v", sql, ok, err)
 		}
 	}
-	// NumericOnly ownership has no relation target, even when its OID text is
-	// invalid or either semantic operand is absent. Resolution belongs to the
-	// ownership executor so role-before-OID diagnostic ordering is preserved.
+	// Non-relation ownership and statistics metadata utilities admit no relation
+	// target, even when semantic operands are absent. Resolution belongs to the
+	// actual executor, preserving recipient-first statistics ownership lookup.
 	for _, sql := range []string{
 		"ALTER LARGE OBJECT 910201 OWNER TO missing_owner",
 		"ALTER LARGE OBJECT 0 OWNER TO missing_owner",
 		"ALTER LARGE OBJECT 1.0 OWNER TO missing_owner",
 		"ALTER LARGE OBJECT 4294967296 OWNER TO CURRENT_USER",
+		"ALTER STATISTICS missing_statistics OWNER TO missing_owner",
+		"ALTER STATISTICS public.definition OWNER TO CURRENT_USER",
+		"ALTER STATISTICS definition RENAME TO renamed",
+		"ALTER STATISTICS definition SET SCHEMA destination",
+		"ALTER STATISTICS definition SET STATISTICS 0",
 	} {
 		stmt := admissionStatement(t, sql)
 		for _, execute := range []bool{false, true} {

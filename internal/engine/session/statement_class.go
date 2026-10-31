@@ -42,6 +42,8 @@ func ModifyingTag(stmt parser.Statement) string {
 	case *parser.AlterOwner:
 		s := stmt.(*parser.AlterOwner)
 		switch s.Kind {
+		case "statistics":
+			return "ALTER STATISTICS"
 		case "database":
 			return "ALTER DATABASE"
 		case "large object":
@@ -188,7 +190,7 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "CREATE STATISTICS"
 	case *parser.DropStatistics:
 		return "DROP STATISTICS"
-	case *parser.AlterStatisticsTarget:
+	case *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		return "ALTER STATISTICS"
 	case *parser.CreateConversion:
 		return "CREATE CONVERSION"
@@ -315,7 +317,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		return true
 	case *parser.CreateParser, *parser.AlterParser, *parser.DropParser:
 		return true
@@ -382,12 +384,12 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.CreateTemplate, *parser.AlterTemplate, *parser.DropTemplate,
 		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,
 		*parser.CreateParser, *parser.AlterParser, *parser.DropParser,
-		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget,
+		*parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast:
 		return true
 	case *parser.AlterOwner:
-		return s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database" || s.Kind == "large object"
+		return s.Kind == "statistics" || s.Kind == "table" || s.Kind == "type" || s.Kind == "domain" || s.Kind == "database" || s.Kind == "large object"
 	case *parser.ReassignOwned, *parser.DropOwned:
 		return true
 	case *parser.CreateQueryTable:

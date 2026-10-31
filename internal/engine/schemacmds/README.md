@@ -19,18 +19,18 @@ package orchestrates them over core's runtime.
 CREATE/DROP STATISTICS use `ddl.StageCreateStatistics`/`StageDropStatistics`
 on `SchemaHost`, with the ordinary name/definition admission and catalog
 publication. Input relation lifetime uses the shared relation lock owner;
-Bounded SET STATISTICS targets use `ddl.StageAlterStatisticsTarget` and the same
-definition mutation locks, revision fences and current-authority recapture.
-validation preserves duplicate-conditional precedence and immutable stable keys.
+Target, rename and schema alterations use the same definition mutation locks,
+original-source/name/namespace fences and current-authority recapture. Staging
+retains immutable selection/expression backing and collected facts. Destination
+CREATE precedes schema-move no-op and source-owner checks. Admitted same-schema
+no-ops still retain and lock their original definition. Provisional notices are
+discarded before recapture, so warnings are delivered once.
+Ordinary ownership belongs to `rolecmds`, including isolated Restore execution.
+
 ALTER FOREIGN TABLE reuses `table.ColumnStatisticsCandidate` for column targets
 and n_distinct SET/RESET options, with the same clamp warning and ordinary
 foreign-definition stage/revision/publication. These metadata-only actions never
 acquire local heap storage or invoke provider validation.
-`CaptureRestoredStatisticsOwner` and `RestoreStatisticsOwner` admit only the
-private import authority and exact fresh descriptor/namespace/principal pair.
-Capture and owner-only COW replacement revalidate under one catalog lock;
-the root replay driver consumes the pair at the next statement. Ordinary
-ownership execution gains no statistics ALTER capability.
 
 Subscription utilities use `subscription.Stage` on the ordinary schema command
 host. Definition/name locks, post-wait authority recapture, role fences and

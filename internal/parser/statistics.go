@@ -31,3 +31,20 @@ type AlterStatisticsTarget struct {
 
 func (*AlterStatisticsTarget) statement()                 {}
 func (s *AlterStatisticsTarget) SourcePosition() Position { return s.Pos }
+
+// Identity alterations retain the original definition and collected state.
+type AlterStatisticsRename struct {
+	Name    ObjectName
+	NewName Identifier
+	Pos     Position
+}
+type AlterStatisticsSchema struct {
+	Name   ObjectName
+	Schema Identifier
+	Pos    Position
+}
+
+func (*AlterStatisticsRename) statement()                 {}
+func (*AlterStatisticsSchema) statement()                 {}
+func (s *AlterStatisticsRename) SourcePosition() Position { return s.Pos }
+func (s *AlterStatisticsSchema) SourcePosition() Position { return s.Pos }

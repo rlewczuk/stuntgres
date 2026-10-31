@@ -21,6 +21,8 @@ func StageObjectNamespace(h Host, auth Authority, d catalog.Descriptor, destinat
 	kind := ""
 	ownerless := false
 	switch d.(type) {
+	case *catalog.Statistics:
+		kind = "statistics object"
 	case *catalog.Operator:
 		kind = "operator"
 	case *catalog.OperatorClass:
@@ -70,6 +72,11 @@ func StageObjectNamespace(h Host, auth Authority, d catalog.Descriptor, destinat
 	}
 	var next catalog.Descriptor
 	switch d := d.(type) {
+	case *catalog.Statistics:
+		n := *d
+		n.ObjectNamespace = destination
+		n.ObjectRevision = revision
+		next = &n
 	case *catalog.Operator:
 		n := *d
 		n.ObjectNamespace = destination

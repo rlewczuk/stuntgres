@@ -46,7 +46,7 @@ func pairRestoreHostAbsences(r *restoreRun) error {
 	// SessionAuthorization has no source position. Reuse the ordinary parser on
 	// this complete prefix to pair the one native comment to its exact next AST;
 	// no alternate SQL scanner, binder or authority is introduced.
-	prefix, err := parser.ParseWithOptions(r.source[:record.end], parser.Options{Context: r.hostContext, StandardConformingStrings: true, StatisticsOwnerReplay: true})
+	prefix, err := parser.ParseWithOptions(r.source[:record.end], parser.Options{Context: r.hostContext, StandardConformingStrings: true})
 	if err != nil {
 		return err
 	}

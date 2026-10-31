@@ -55,8 +55,9 @@ family in either native or real-reference mode with
 Statistics lifecycle scenarios include direct/prepared relation-kind admission,
 virtual-column rejection, creation/removal, namespace/temp lookup, NORMAL/AUTO
 cleanup, malformed source positions, bulk ownership and transaction lifecycle,
-held conditional notices, typed NULLs and native definition replay with exact
-paired-owner guards. Native-only phases cover pre-canceled utilities and gated
+held conditional notices, typed NULLs and native definition replay with ordinary
+ownership authorization and atomic failed imports. Native-only phases cover
+pre-canceled utilities and gated
 external I/O with live statistics definitions. Their family
 selector is `make check RUN='^TestReferenceStatisticsObject'` in either mode.
 Collected statistics remain independently owned.
@@ -215,3 +216,22 @@ in native and `REFERENCE=1` modes when changing these shared journal seams.
 Select with `make check RUN='^TestReferenceRelationStatistics'` and again with
 `REFERENCE=1`. Focused feature smoke is
 `make check RUN='^(TestReferenceRelationStatisticsRestoreClear|TestReferenceRelationStatisticsValidation|TestReferenceRelationStatisticsResetOrdering|TestReferenceRelationStatisticsNativeControls)$'`.
+
+Statistics metadata alterations exercise ordinary owner, rename, schema and
+target paths with direct and retained prepared execution, full diagnostics,
+transaction/savepoint rollback and actual admitted cancellation. Identity,
+dependency edges, expression backing and stale analyzed values survive metadata
+changes. Native controls preserve mixed owners without table/schema creation
+privileges and replay the actual emitted SQL on PostgreSQL. Select the family
+with `make check RUN='^TestReferenceStatisticsAlter'` (add `REFERENCE=1`).
+Privilege witnesses establish namespace USAGE separately from ownership and
+CREATE. Aborted-transaction coverage distinguishes a fresh Prepare rejection
+from execution of a statement prepared before the failure.
+System-namespace witnesses move definitions into/out of pg_catalog, retain
+destination CREATE and temporary/TOAST rejection, and round-trip actual moved
+definitions with stale facts. Their exact dependency bags omit pinned namespace
+references while retaining both input-column edges; descriptor namespace identity
+is asserted independently. Native pre-canceled direct/held ALTER witnesses
+retain identity, metadata, dependencies, facts and rows without delivering target
+warnings. Admitted tuple-update cancellation requires the physical operation/
+relation Context, varying only heap coordinates.

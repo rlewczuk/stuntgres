@@ -61,28 +61,20 @@ func TestReferenceStatisticsObjectGrammarPositions(t *testing.T) {
 	}
 }
 
-func TestReferenceStatisticsObjectOrdinaryOwnerBoundary(t *testing.T) {
+func TestReferenceStatisticsObjectOrdinaryOwnership(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 			run(fixture.Exec("CREATE TABLE stats_t(a INT,b INT)", 0))
 			run(fixture.Exec("CREATE STATISTICS sentinel_s ON a,b FROM stats_t", 0))
-			// Native-only capability boundary; general PostgreSQL ALTER is not excluded.
-			if !b.PG {
-				for _, prefix := range []string{"", "/* é界 */ "} {
-					for _, prepared := range []bool{false, true} {
-						want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
-						want.Position = strconv.Itoa(utf8.RuneCountInString(prefix) + 1)
-						s := fixture.ErrorDiagnostic(prefix+"ALTER STATISTICS public.sentinel_s OWNER TO CURRENT_USER", want)
-						if prepared {
-							s = fixture.Prepared(s)
-							s.ErrorStage = "prepare"
-						} else {
-							s.ErrorStage = "execute"
-						}
-						run(s)
+			for _, prefix := range []string{"", "/* é界 */ "} {
+				for _, prepared := range []bool{false, true} {
+					s := fixture.Exec(prefix+"ALTER STATISTICS public.sentinel_s OWNER TO CURRENT_USER", 0)
+					if prepared {
+						s = fixture.Prepared(s)
 					}
+					run(s)
 				}
 			}
 			run(statisticsRows([]any{"sentinel_s", "1 2", "{d,f,m}", nil, nil}))

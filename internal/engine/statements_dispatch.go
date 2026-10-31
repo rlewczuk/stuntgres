@@ -121,7 +121,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 			scope.CompleteUtility()
 		}
 		return result, true, err
-	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget:
+	case *parser.CreateStatistics, *parser.DropStatistics, *parser.AlterStatisticsTarget, *parser.AlterStatisticsRename, *parser.AlterStatisticsSchema:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.CompleteUtility()
@@ -141,7 +141,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return result, true, err
 	case *parser.CreateTransform, *parser.DropTransform:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
-		if err == nil { scope.CompleteUtility() }
+		if err == nil {
+			scope.CompleteUtility()
+		}
 		return result, true, err
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
 		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)

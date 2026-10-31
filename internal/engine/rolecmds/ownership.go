@@ -12,10 +12,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// ExecuteOwnership runs ALTER ... OWNER TO for types, domains, databases and large objects,
+// ExecuteOwnership runs ALTER ... OWNER TO for types, domains, statistics, databases and large objects,
 // and hands the relation kinds to core.ExecuteRelationOwnership.
 func ExecuteOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, count int) (core.Result, error) {
 	name, identity := access.OwnershipRoleOperand(s.Target)
+	if s.Kind == "statistics" {
+		return executeStatisticsOwnership(e, scope, s, name, identity, count)
+	}
 	if s.Kind == "database" || s.Kind == "large object" {
 		return executeUnqualifiedOwnership(e, scope, s, name, identity, count)
 	}

@@ -91,8 +91,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   snapshots disappear without resurrecting object/column history. Entries from
   an old owner or another grantor can remain dependencies until REASSIGN OWNED.
 - **Ownership** (`ownership.go`): `PlanTypeOwnership`,
-  `PlanDatabaseOwnership`, `PlanLargeObjectOwnership` and `PlanRelationOwnership`
-  check ALTER ... OWNER and return an `OwnerChange` (nil `Object`: unchanged).
+  `PlanStatisticsOwnership`, `PlanDatabaseOwnership`, `PlanLargeObjectOwnership`
+  and `PlanRelationOwnership` check ALTER ... OWNER and return an `OwnerChange`
+  (nil `Object`: unchanged). Statistics resolve recipient before source and
+  admit same-owner no-ops before owner/SET ROLE/recipient CREATE checks.
   Large objects resolve recipient before execution-time NumericOnly OID input;
   owner privileges and the recipient SET path are independent, with no namespace
   CREATE requirement. `StageOwnership` rewrites owner/ACL descriptors and reciprocal
