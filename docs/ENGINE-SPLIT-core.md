@@ -722,7 +722,41 @@ Needs 228. Mode S. Gated.
       `relation_scope.go` and `query_admission.go`.
     - 228/229: 1.35 MiB of staying files are accessor-blocked, and 1.93 MiB
       are mixed-owner files.
-- 207: not started.
+- 207: - 207: done, `69025b2bb`, `c17408e51`, `378f1b83f`, `f6c26512b`. -
+  **Accessor split** (names and users unchanged, by the production file each
+  entry reaches; `c1-split.py`): - `export_statement_test.go` keeps 20 entries
+  (statement host, replacement admission, execute, discard, presentation,
+  `preparedCommandExecution`, `foreignWrites`, `registerExtension`,
+  `authorizationOf`, `BindingHost.view`); `export_cursor_test.go` 52,
+  `export_portal_test.go` 38, `export_prepared_test.go` 9. -
+  `export_txsession_test.go` is gone: `export_scope_test.go` 53,
+  `export_transaction_test.go` 40 (serializable, blocking pids, owner extension,
+  publication, isolation snapshots, data views), `export_temporary_test.go` 9,
+  `export_notification_test.go` 9, `export_session_test.go` 8 (session host,
+  payload, operation validation, settings apply and execute, database admission
+  count). - **Session IDs.** `enginetest.NextSessionID()` mints from the
+  helpers' counter. Core (21 files) and tablecmds (7 files) lost `testSessionID`
+  and its 1<<20 offset; the counter is not rebased (the offset only kept clear
+  of the helpers' counter). rolecmds and schemacmds (same offset, named in their
+  READMEs), partitioncmds, indexcmds and the root keep their own counters. -
+  **enginetest stage 3:** `QueryFixture(t, e, sql)` (enginetest cannot import
+  the root, so callers pass `engine.New()`), `PreparedDescription`,
+  `PreparedExecute`, `ProtocolReader{Data, Position}`. Core's `sessionStart`,
+  `sessionSQL` and `transaction*` copies were replaced by the enginetest
+  originals (2,589 calls). Staying in core (core-only users): `sessionValue`,
+  `defaultProvider`, `sessionOwner`, `transactionBarrierContext`. -
+  **`readme-map.tsv`** (`readme-map.py GROUPS LAYOUT OUT` re-runs it; line
+  numbers shift with README edits): 236 blocks of the core README. By bytes:
+  core 190 KB; `core/contrib` 6.5, `core/plpgsql` 6.2, `core/catalogrt` 3.4,
+  `core/stats` 2.1, `core/inquiry` 0.9, `core/tsearch` 0.7, `core/nativetrig`
+  0.6; `core/enginetests/<area>` rows are `## Testing` selectors whose tests
+  move. - **Measured:** core 11.61 → 11.64 MiB; enginetest 23 → 28 KiB. Round-7
+  single-package exports left as they are (no move needs them). - **Notes for
+  later items:** - 208–211: `queryProbe`/`queryProbeExpression`/`evalContext`
+  (10 destinations) and `queryCountingContext` (2) are shared and accessor-free
+  but were not in this item's list; promote them when a move needs them. -
+  208–211: the census predates these renames; re-run it (block keys shift per
+  commit).
 - 208: not started.
 - 209: not started.
 - 210: not started.

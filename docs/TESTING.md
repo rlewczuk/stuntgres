@@ -58,7 +58,9 @@ package's `README.md` under `## Testing`.
   them in a test-only `enginetests/` subdirectory with a one-sentence `doc.go`:
   in the owner's own directory, `go test` would rebuild the root and every
   package in between against the owner's test variant. Internal tests cannot
-  import `enginetest` (import cycle).
+  import `enginetest` (import cycle). Tests extracted from core go to
+  `internal/engine/core/<x>` with their code, or to
+  `internal/engine/core/enginetests/<area>`.
 - Every new PostgreSQL feature needs new or changed reference coverage, and every
   compatibility bug needs a failing reference regression before its fix.
 - One test body serves both modes. Mode changes which backends exist, never the

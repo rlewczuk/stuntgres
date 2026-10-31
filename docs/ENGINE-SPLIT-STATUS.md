@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `3320f21b6` (item 206).
+Last verified against `master` at `d877a8539` (item 207 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 207, 212, 213.
+- 208, 209, 210, 211, 212, 213.
 
 ## Linear plan
 
@@ -35,9 +35,21 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      `statistics`). Passed: `layers.py` 0, the item-212 `cmdmv` dry run with
      0 violations, `check_links`, `check_linear`. Quickcheck not needed (docs
      only); racecheck and finalcheck skipped at user request.
-207. [ ] Test seams in place —
+207. [x] Test seams in place —
      [core](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) · needs 206 · P
-     · core after 11.5
+     · core after 11.5 (`69025b2bb`, `c17408e51`, `378f1b83f`, `f6c26512b`, docs
+     commit) · test files only: the statement and transaction-session accessor
+     files are split into cursor, portal, prepared, scope, transaction,
+     temporary, notification and session files; core and tablecmds mint test
+     session IDs from `enginetest.NextSessionID()`; enginetest stage 3 adds
+     `QueryFixture`, `PreparedDescription`, `PreparedExecute` and
+     `ProtocolReader`, and core's session and transaction helper copies are
+     gone. `readme-map.tsv` is in
+     `.cswd/tmp/PG18-ENGINE-SPLIT-207-TEST-SEAMS-IN-PLACE/`. Core grows from
+     11.61 to 11.64 MiB (the `enginetest.` qualifiers). Passed: core and
+     tablecmds packages, the 28 session-ID files alone, `revcheck` (test names
+     unchanged; one duplicate literal left with the deleted `transactionRows`
+     copy), quickcheck. Racecheck and finalcheck skipped at user request.
 208. [ ] Builtin function, type and extension tests —
      [core](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests)
      · needs 207 · P · core after 10.9
