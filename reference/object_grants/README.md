@@ -87,6 +87,18 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   volatile truth replay; ordinary held CHECK executions reinitialize admission.
 - Large-object isolation witnesses use two physical connections; SQL-body
   snapshot witnesses guard against SQL-function inlining with a one-row source.
+  Descriptor scenarios retain physical session ownership and recover expected
+  transaction errors with savepoints. They distinguish frozen READ openings,
+  current WRITE visibility, stable-isolation bases, SQL-body query frontiers,
+  ACL-at-open and ordinal savepoint lifetime without rewinding older cursors.
+  Literal-NULL planning witnesses assert erased sequence effects separately
+  from runtime row-NULL demand and arithmetic errors. Guarded STABLE/VOLATILE
+  bodies distinguish inherited/fresh own-write frontiers in RC and RR, retained
+  RR committed bases, and exact outer restoration after success/failure.
+  `descriptorOpen` checks INT4 metadata and captures each handle independently;
+  byte reads use the shared raw BYTEA contract. Held preparation and native
+  control phases retain actual statements and detached client results across
+  transaction/catalog boundaries; dumps contain committed bytes, not handles.
 - Transactional privilege families cover autocommit, SQL BEGIN and Go BeginTx
   with direct/held utilities and real consumers. Language/tablespace raw ACL
   metadata retains represented `aclexplode` witnesses; selected language,

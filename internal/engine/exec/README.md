@@ -552,6 +552,8 @@ mutation of the analyzed recipe. Generic parameter-demand barriers remain intact
 A domain conversion in the NULL-supplying argument is not a proof. Runtime row
 NULL is not a planning fact and retains sibling admission and effects.
 Declared RECORD results, SRFs and compound NULL-aware carriers are excluded.
+`LargeObjectCall` shares this strict scalar policy: known NULL can eliminate
+runtime siblings, while a reached runtime call demands its arguments once.
 Shared constant planning also retains every set-source node, including literal
 operands, for target lifting rather than calling scalar `Eval`. Installed set
 classification includes authenticated hstore declarations, so strict literal

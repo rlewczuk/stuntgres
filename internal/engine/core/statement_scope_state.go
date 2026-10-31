@@ -113,6 +113,7 @@ type StatementScope struct {
 	foreignConstructions        map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
 	EventCommand                *EventCommand                              // Borrowed lexical boundary; never publication authority.
 	largeObjectRead             catalog.Read                               // Immutable active-query READ view, saved/restored by SQL body activation.
+	largeObjectOpening catalog.Read // Descriptor-only active frontier, including stable isolation base.
 	CatalogAuthority            *session.CatalogAuthority
 	ProjectedRoots              bool // Stage owns complete private roots, not append-only suffixes.
 	ForeignActionAuth           *AuthorizationView

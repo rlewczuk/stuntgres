@@ -2241,6 +2241,29 @@ authorization, without retaining permission decisions. Compatibility is read
 from the operation's effective settings under that store's mutex only after
 existence, without changing byte-operation admission.
 
+Large-object SQL descriptors belong solely to the transaction owner's extension.
+Admission serializes table and cursor access; catalog resolution and COW journal
+updates then hold `Engine.Mu`, with the existing Engine → Settings → Session
+authorization order. Slots reuse the lowest free signed INT4 index. READ-only
+entries share immutable opening bytes; WRITE entries resolve current committed
+bytes plus the owner's journal on each access. Query admission captures a
+descriptor-only opening frontier before argument effects. Stable isolation
+composes its separately retained committed LO base with query-visible own LO
+changes. Nonvolatile SQL bodies inherit that exact immutable caller frontier,
+including exclusion of argument writes. VOLATILE commands capture fresh own
+changes but retain the stable-isolation committed LO base. SQL-body scratch
+restores the exact outer frontier on success, failure and nested unwind,
+without rewinding the live journal, retaining views in prepared recipes or
+changing convenience-function visibility.
+Object ACL admission occurs only at open; subsequent operations retain mode,
+not actor or role graphs. Savepoints retain opening ordinals, never cursor/table
+copies: rollback closes younger openings without rewinding cursors or undoing
+explicit close. Successful local unlink closes matching handles. Canonical
+transaction/error disposal releases the table and stable base, and native
+replacement uses the ordinary active-transaction epoch fence. Neither dump nor
+prepared definitions own descriptor IDs, offsets or content snapshots.
+
+
 amcheck's restricted-owner boundary enters that capture seam before replacing
 the inquiry presentation, preserving the admitted outer query's LO frontier
 even when its first callable uses restricted-owner rather than write authority.

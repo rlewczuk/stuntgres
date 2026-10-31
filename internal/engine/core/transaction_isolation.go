@@ -249,6 +249,7 @@ func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) er
 	}
 	t.CurrentSnapshot, t.Frontier = snapshot, e.Visibility.CommitSeq()
 	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.Catalog.State, &e.Storage), e.Catalog.State
+	ownerExtensionOf(t).largeObjectBase = e.Catalog.State
 	return nil
 }
 

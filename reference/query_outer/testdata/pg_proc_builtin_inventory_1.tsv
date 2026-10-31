@@ -411,6 +411,10 @@
 947	mod	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	20 20	\N	\N	\N	false	\N	int8mod	\N	false	\N
 948	int28div	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	20	21 20	\N	\N	\N	false	\N	int28div	\N	false	\N
 949	hashint8	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	20	\N	\N	\N	false	\N	hashint8	\N	false	\N
+952	lo_open	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	23	26 23	\N	\N	\N	false	\N	be_lo_open	\N	false	\N
+953	lo_close	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	23	23	\N	\N	\N	false	\N	be_lo_close	\N	false	\N
+954	loread	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	17	23 23	\N	\N	\N	false	\N	be_loread	\N	false	\N
+955	lowrite	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	23	23 17	\N	\N	\N	false	\N	be_lowrite	\N	false	\N
 957	lo_creat	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	26	23	\N	\N	\N	false	\N	be_lo_creat	\N	false	\N
 959	on_pl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	600 628	\N	\N	\N	false	\N	on_pl	\N	false	\N
 960	on_sl	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	601 628	\N	\N	\N	false	\N	on_sl	\N	false	\N

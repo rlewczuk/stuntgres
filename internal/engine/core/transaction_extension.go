@@ -1,6 +1,7 @@
 package core
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -14,6 +15,8 @@ type ownerExtension struct {
 	foreign         fdw.Transaction
 	constraintModes index.ConstraintModes
 	cursorCleanup   []*sqlCursor // Detached under owner lock; drained unlocked.
+	largeObjects largeObjectDescriptors
+	largeObjectBase *catalog.State
 }
 
 func (*ownerExtension) OwnerSlot() {}

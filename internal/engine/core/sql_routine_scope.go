@@ -49,6 +49,7 @@ type sqlRoutineScratch struct {
 	materialized        *view.MaterializedRefreshScope
 	truncate            *dml.TruncateScope
 	largeObjectRead     catalog.Read
+	largeObjectOpening catalog.Read
 	authority           *exec.Authority
 	routineAuth         AuthorizationView
 	routineDependencies []catalog.ExpressionDependency
@@ -94,6 +95,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		domainEvaluation: s.Domains.evaluation, domainInputCatalog: s.Domains.InputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.Identity,
 		largeObjectRead: s.largeObjectRead,
+		largeObjectOpening: s.largeObjectOpening,
 		rlsDataRefs:     s.rlsDataRefs,
 		completed:       s.Completed, sessionCompleted: s.sessionCompleted,
 	}
@@ -119,6 +121,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
 	s.presentationSlot, s.Identity = c.presentation, c.identity
 	s.largeObjectRead = c.largeObjectRead
+	s.largeObjectOpening = c.largeObjectOpening
 	s.rlsDataRefs = c.rlsDataRefs
 	s.Completed, s.sessionCompleted = c.completed, c.sessionCompleted
 }
@@ -155,7 +158,15 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	} else {
 		ownDeletes = visibility.MergeDeletions(ownDeletes, s.Stage.Deletes)
 	}
-	s.installSQLRoutineScratch(sqlRoutineScratch{methods: saved.methods, input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
+	// Nonvolatile bodies inherit the caller's already admitted immutable
+	// frontier, not the current journal after argument evaluation. VOLATILE
+	// commands leave it empty for fresh command admission (including the
+	// retained committed LO base under stable isolation).
+	opening := catalog.Read{}
+	if policy.readOnly {
+		opening = saved.largeObjectOpening
+	}
+	s.installSQLRoutineScratch(sqlRoutineScratch{methods: saved.methods, input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead, largeObjectOpening: opening})
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {

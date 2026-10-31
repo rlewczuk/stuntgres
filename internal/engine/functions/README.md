@@ -8,6 +8,21 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
+and descriptor functions. Descriptor IDs/modes use signed INT4 formals, while
+only object identities use OID; `loread` returns BYTEA and descriptor open/close/
+write return INT4. Shared strict planning replaces a planning-known NULL call
+with typed NULL after required child planning; runtime-only siblings are erased,
+but demanded child arithmetic errors remain. A reached runtime call evaluates
+written arguments once before typed NULL handling, preserving sibling errors
+and effects without borrowing descriptor authority for a NULL result.
+Incompatible formal types use ordinary missing-signature diagnostics.
+The existing `LargeObjectRuntime` capability borrows the executing transaction
+and session; capture, rebuild and rendering retain only typed operands and
+ordinary routine provenance, never descriptor tables, cursors, opening bytes or
+ACL decisions. Preparation/description do not invoke this runtime.
+
+
 `database_files.go` owns the three fixed PostgreSQL location signatures.
 `DatabaseFilesInquiry` retains typed REGCLASS/OID operands and released routine
 identity (2999/3034/3454), never a physical mapping. It is STRICT/STABLE,

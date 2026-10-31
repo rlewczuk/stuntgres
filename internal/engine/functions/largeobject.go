@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,10 +16,13 @@ type LargeObjectRequest struct {
 	Length   int64
 	Fragment bool
 	Data     string
+	Descriptor int32
+	Mode int32
 }
 type LargeObjectResult struct {
 	OID  ids.OID
 	Data string
+	Integer int32
 }
 type LargeObjectRuntime interface {
 	LargeObject(LargeObjectRequest) (LargeObjectResult, error)
@@ -35,6 +39,17 @@ func bindLargeObject(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	formal := [3]sqltype.ID{sqltype.Oid}
 	count, result := 1, sqltype.Oid
 	switch name {
+	case "lo_open":
+		count, result = 2, sqltype.Int4
+		formal[1] = sqltype.Int4
+	case "lo_close":
+		formal[0], result = sqltype.Int4, sqltype.Int4
+	case "loread":
+		count, result = 2, sqltype.Bytea
+		formal[0], formal[1] = sqltype.Int4, sqltype.Int4
+	case "lowrite":
+		count, result = 2, sqltype.Int4
+		formal[0], formal[1] = sqltype.Int4, sqltype.Bytea
 	case "lo_creat":
 		formal[0] = sqltype.Int4
 	case "lo_from_bytea":
@@ -67,6 +82,9 @@ func bindLargeObject(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	for i, r := range raw.Args {
 		node, err := b.CoerceArgument(Argument{Raw: r}, CoercionRequest{Intent: DirectFormalArgument, Target: b.Type(formal[i]).Usage()})
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42804" || diagnostic.Code == "42846") {
+				return nil, b.CallSignatureError(raw)
+			}
 			return nil, err
 		}
 		args[i] = node
@@ -97,12 +115,29 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	r := LargeObjectRequest{Name: x.Name, Length: -1}
-	if x.Name != "lo_creat" {
+	if x.Name == "lo_close" || x.Name == "loread" || x.Name == "lowrite" {
+		fd, err := values[0].Integer()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		r.Descriptor = int32(fd)
+	} else if x.Name != "lo_creat" {
 		oid, err := values[0].OID()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		r.OID = ids.OID(oid)
+	}
+	if x.Name == "lo_open" || x.Name == "loread" {
+		n, err := values[1].Integer()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if x.Name == "lo_open" {
+			r.Mode = int32(n)
+		} else {
+			r.Length = n
+		}
 	}
 	if x.Name == "lo_put" || x.Name == "lo_get" && len(x.Args) == 3 {
 		var err error
@@ -119,7 +154,7 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
-	if x.Name == "lo_from_bytea" || x.Name == "lo_put" {
+	if x.Name == "lo_from_bytea" || x.Name == "lo_put" || x.Name == "lowrite" {
 		i := 1
 		if x.Name == "lo_put" {
 			i = 2
@@ -139,12 +174,14 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	switch x.Name {
-	case "lo_get":
+	case "lo_get", "loread":
 		return sqltype.Binary(x.Usage.Type, out.Data)
 	case "lo_put":
 		return sqltype.VoidValue(x.Usage.Type), nil
 	case "lo_unlink":
 		return sqltype.Integer(x.Usage.Type, 1)
+	case "lo_open", "lo_close", "lowrite":
+		return sqltype.Integer(x.Usage.Type, int64(out.Integer))
 	default:
 		return sqltype.OIDValue(x.Usage.Type, uint32(out.OID))
 	}

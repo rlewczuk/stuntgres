@@ -51,6 +51,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 			s.largeObjectRead = e.PrivateCatalogLocked(s.PendingCatalog())
 		}
 	}
+	s.captureLargeObjectOpeningLocked(e)
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, err

@@ -170,6 +170,7 @@ func (e *Engine) CaptureCommentSnapshotLocked(scope *StatementScope) error {
 			return err
 		}
 	}
+	scope.captureLargeObjectOpeningLocked(e)
 	scope.Output.ACLItem = scope
 	scope.Output.Regrole = scope
 	scope.Output.Operator = scope

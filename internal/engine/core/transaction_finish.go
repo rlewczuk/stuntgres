@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -211,6 +212,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.multiEvents = nil
 	s.OwnDeletes = nil
 	s.OwnWrites = nil
+	s.largeObjectOpening = catalog.Read{}
 	s.indexesSlot.EndStatement()
 	s.Inheritance.endStatement()
 	s.LockTicket = nil
@@ -275,6 +277,8 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 		return nil
 	}
 	ownerExtensionOf(t).retireForeign()
+	ownerExtensionOf(t).largeObjects = largeObjectDescriptors{}
+	ownerExtensionOf(t).largeObjectBase = nil
 	t.Session.Settings.FinishTransaction(false)
 	e.endSerializable(t.Ref, false)
 	endedTicket := t.Abort()

@@ -18,7 +18,7 @@ func captureSavepoint(t *session.TransactionOwner, name string) session.Savepoin
 	t.Session.Mu.Lock()
 	identity := t.Session.Authorization.State
 	t.Session.Mu.Unlock()
-	return t.CaptureSavepoint(session.SavepointMark{Name: name, Settings: t.Session.Settings.Savepoint(), Locks: e.Locks.Checkpoint(t.Ticket), Cursors: PayloadOf(t.Session).Cursors.ordinal, Exclusion: index.ExclusionMarkSlotOf(ownerExtensionOrZero(t).constraintModes, projection), Identity: identity})
+	return t.CaptureSavepoint(session.SavepointMark{Name: name, Settings: t.Session.Settings.Savepoint(), Locks: e.Locks.Checkpoint(t.Ticket), Cursors: PayloadOf(t.Session).Cursors.ordinal, LargeObjects: ownerExtensionOrZero(t).largeObjects.ordinal, Exclusion: index.ExclusionMarkSlotOf(ownerExtensionOrZero(t).constraintModes, projection), Identity: identity})
 }
 
 // restoreSavepoint rolls the owner back to mark outside ROLLBACK TO: failed
@@ -44,6 +44,7 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 // -> Settings.Mu -> Session.Mu are held, with t.Mu.
 func (e *Engine) restoreSavepointLocked(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.rollback(mark.Cursors))
+	ownerExtensionOf(t).largeObjects.rollback(mark.LargeObjects)
 	retireProtocolPortalsAfter(t, mark.Cursors)
 	t.RollbackToLocked(mark, settings)
 	e.reconcileReplicationOriginsLocked(t)

@@ -63,6 +63,7 @@ func (s *StatementScope) AcquireSerializableSnapshot() error {
 			e.Visibility.DropSnapshotLocked(t.Ref)
 			t.Roots = nil
 			t.SequenceCatalog = nil
+			ownerExtensionOf(t).largeObjectBase = nil
 			t.CurrentSnapshot = nil
 			t.Frontier = 0
 			e.Mu.Unlock()
@@ -77,6 +78,7 @@ func (s *StatementScope) AcquireSerializableSnapshot() error {
 		// Discard their immutable roots and take a fresh authoritative snapshot.
 		t.Roots = nil
 		t.SequenceCatalog = nil
+		ownerExtensionOf(t).largeObjectBase = nil
 		t.CurrentSnapshot = nil
 		t.Frontier = 0
 		e.Mu.Unlock()

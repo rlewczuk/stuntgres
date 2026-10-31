@@ -456,6 +456,10 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{986, ids.PGCatalogNamespaceOID, "path_n_ge", "602,602"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider, nil},
 	// PostgreSQL REL_18_6 selected SQL large-object wrappers.
 	{catalog.RoutineIdentity{715, ids.PGCatalogNamespaceOID, "lo_create", "26"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{952, ids.PGCatalogNamespaceOID, "lo_open", "26,23"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{953, ids.PGCatalogNamespaceOID, "lo_close", "23"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{954, ids.PGCatalogNamespaceOID, "loread", "23,23"}, catalog.FunctionRoutine, 17, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{955, ids.PGCatalogNamespaceOID, "lowrite", "23,17"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{964, ids.PGCatalogNamespaceOID, "lo_unlink", "26"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{3457, ids.PGCatalogNamespaceOID, "lo_from_bytea", "26,17"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},

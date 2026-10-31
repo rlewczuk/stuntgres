@@ -18,6 +18,7 @@ type SavepointMark struct {
 	Name                string
 	Internal            bool   // unnamed procedural boundary, never SQL name lookup
 	Serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
+	LargeObjects uint64 // Opening ordinal; cursor motion and explicit closes never roll back.
 	Writes              map[ids.ObjectAddress][]storage.RowVersion
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Catalog             *Journal

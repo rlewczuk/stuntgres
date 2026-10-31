@@ -119,15 +119,13 @@ func TestReferenceServerFunctionCall(t *testing.T) {
 				serverNotificationError(t, frames, "42501", "permission denied for function abs", "")
 				serverWantReady(t, frames, 'I')
 			})
-			t.Run("unavailable_provider", func(t *testing.T) {
+			t.Run("lo_open_invalid_mode", func(t *testing.T) {
 				w := serverAuthenticated(t, dsn)
 				w.send(t, serverFunction(952, nil, [][]byte{[]byte("0"), []byte("0")}, 0))
 				frames := w.ready(t)
-				if b.PG {
-					serverNotificationError(t, frames, "22023", "invalid flags for opening a large object: 0", "")
-				} else {
-					serverNotificationError(t, frames, "0A000", "function \"lo_open\" is not supported", "")
-				}
+				serverWantTags(t, frames, "EZ")
+				serverNotificationError(t, frames, "22023", "invalid flags for opening a large object: 0", "")
+				serverWantReady(t, frames, 'I')
 				serverScalar(t, w, "SELECT 42", "42")
 			})
 		})

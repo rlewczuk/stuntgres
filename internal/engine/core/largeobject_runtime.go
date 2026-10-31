@@ -23,6 +23,10 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return out, ids.ErrCatalogReplaced
 	}
+	switch r.Name {
+	case "lo_open", "lo_close", "loread", "lowrite":
+		return s.largeObjectDescriptorLocked(e, r)
+	}
 	if r.Name == "lo_get" && r.Fragment && r.Length < 0 {
 		return out, SQLError("22023", "requested length cannot be negative")
 	}
@@ -128,6 +132,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 			return out, err
 		}
 		e.CatalogChangeLocked(changes, a, nil)
+		ownerExtensionOf(s.Owner).largeObjects.unlink(r.OID)
 	}
 	s.Catalog = changes
 	out.OID = a.ObjectID

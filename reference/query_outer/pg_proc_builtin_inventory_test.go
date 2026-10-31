@@ -52,6 +52,8 @@ import (
 // parallel-restricted, query and cursor functions VOLATILE/parallel-unsafe.
 // The six WAL-position declarations retain strict VOLATILE/parallel-safe scalar
 // PG_LSN results, unnamed formals, no defaults and released internal symbols.
+// The four large-object descriptor declarations retain strict VOLATILE/
+// parallel-unsafe scalar metadata, unnamed inputs and released be_lo* symbols.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -164,10 +166,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// three strict/volatile/parallel-unsafe logical-message/sync declarations,
 	// three strict/volatile/parallel-safe server-signal declarations, eight
 	// table/query/cursor XML row/schema mapping identities, five
-	// origin identity/progress routines, and six strict/volatile/parallel-safe
-	// WAL-position declarations.
-	if len(facts) != 2152 {
-		t.Fatalf("released represented overloads: got %d, want 2152", len(facts))
+	// origin identity/progress routines, six strict/volatile/parallel-safe
+	// WAL-position declarations, and four strict/volatile/parallel-unsafe
+	// large-object descriptor declarations.
+	if len(facts) != 2156 {
+		t.Fatalf("released represented overloads: got %d, want 2156", len(facts))
 	}
 	return facts
 }
