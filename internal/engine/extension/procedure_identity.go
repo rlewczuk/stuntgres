@@ -492,6 +492,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "moddatetime", Binary: "$libdir/moddatetime", HasBinary: true}) {
 			return invalid()
 		}
+	case StockLo:
+		count = 3
+		name, signature, result, volatility, strict = "lo_manage", "", 2279, expr.Volatile, false
+		if ext.Version != "1.2" || slot != 2 || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/lo", HasBinary: true}) {
+			return invalid()
+		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile

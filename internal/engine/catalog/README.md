@@ -146,11 +146,13 @@ neither owns catalog authority.
 - **DML trigger capability.** `SupportsDMLTrigger` selects zero-input PL
   declarations, including deferred source, the three genuine builtin declarations,
   or installed native declarations admitted through their provider's
-  `SupportsDMLTrigger` capability. TCN, refint, autoinc, insert_username and
-  moddatetime share this native contract with their sealed installed declarations.
+  `SupportsDMLTrigger` capability. TCN, refint, autoinc, insert_username,
+  moddatetime and lo_manage share this native contract with sealed declarations.
   This structural predicate is not permission or provider authority: DDL/stored
   owners retain ordinary provider validation and firing validates the current
-  routine carrier before dispatch. Literal trigger arguments carry no activation
+  routine carrier before dispatch. `InstalledTriggerSymbol` exposes only a
+  genuine installed native declaration's immutable source symbol to lower
+  expression layers, never current SQL spelling. Literal trigger arguments carry no activation
   state or implicit column/configuration/sequence identity.
 - **Event triggers.** `EventTriggerProvider` validates immutable, globally named
   database-local class 3466 descriptors, actual principal ownership and a

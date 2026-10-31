@@ -106,6 +106,10 @@ func (h *extensionHost) RecordInitialPrivilege(address ids.ObjectAddress, kind b
 
 func (h *extensionHost) Roles() authorization.Read { return h.Auth.Roles }
 
+func (h *extensionHost) CreationRoutineACL(owner authorization.PrincipalRef, namespace ids.ObjectAddress) authorization.ACLValue {
+	return h.Stage.CreationACL(owner, namespace, authorization.DefaultRoutines)
+}
+
 func (h *extensionHost) RoutineCreationACLWithoutPublic(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, error) {
 	if h.Stage == nil || h.Stage.Lifecycle != core.CatalogOpen || h.Stage.Invalid != nil {
 		return authorization.ACLValue{}, fmt.Errorf("stuntgres: invalid catalog stage")

@@ -5,14 +5,15 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-// LoProvider installs logical large-object reference identity over ordinary OID
-// values. It neither looks up objects nor attaches reference-management triggers.
+// LoProvider installs logical large-object references and the opt-in lo_manage
+// trigger body. Numeric coercion neither looks up objects nor attaches triggers.
 type LoProvider struct{ control catalog.ExtensionControl }
 
 var StockLo = &LoProvider{control: catalog.ExtensionControl{Version: "1.2", Superuser: true, Trusted: true, Relocatable: true, Comment: new("Large Object maintenance")}}
@@ -22,7 +23,7 @@ func (*LoProvider) Versions() catalog.ExtensionVersions {
 	return catalog.ExtensionVersions{Bases: []string{"1.2"}}
 }
 
-func (*LoProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
+func (p *LoProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	base, ok := stage.Read().LookupType(sqltype.Oid)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing lo OID base")
@@ -58,26 +59,53 @@ func (*LoProvider) Stage(stage Stage, ext *catalog.Extension, owner authorizatio
 	if err := stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil {
+		return err
+	}
+	procedureOID, err := stage.AllocateOID()
+	if err != nil {
+		return err
+	}
+	procedureRevision, err := stage.Revision()
+	if err != nil {
+		return err
+	}
+	procedure := &catalog.Procedure{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: procedureOID},
+		ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: procedureRevision,
+		ObjectName: "lo_manage", RoutineKind: catalog.FunctionRoutine, Owner: owner,
+		Result: 2279, Volatility: expr.Volatile,
+		Installed:      catalog.InstalledRoutineDeclaration{Parallel: 'u'},
+		Display:        catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "lo_manage", Binary: "$libdir/lo", HasBinary: true},
+		Implementation: p,
+		ACL:            stage.CreationRoutineACL(owner, ext.TargetNamespace),
+	}
+	if stage.LookupName(catalog.DescriptorNameKey(procedure)) != (ids.ObjectAddress{}) {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: `function "lo_manage" already exists with same argument types`, Context: "SQL statement \"CREATE FUNCTION lo_manage()\nRETURNS pg_catalog.trigger\nAS '$libdir/lo'\nLANGUAGE C\"\nextension script file \"lo--1.1.sql\", near line 22"}
+	}
+	if err := stage.Create(procedure); err != nil {
+		return err
+	}
+	ext.Members = append(ext.Members, procedure.Address())
+	return nil
 }
 
 func (p *LoProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid lo manifest") }
-	if p != StockLo || ext == nil || ext.Name() != "lo" || ext.Version != "1.2" || len(ext.Members) != 2 || v.Owner() == nil || v.Owner().Extensions["lo"] != p {
+	if p != StockLo || ext == nil || ext.Name() != "lo" || ext.Version != "1.2" || len(ext.Members) != 3 || v.Owner() == nil || v.Owner().Extensions["lo"] != p {
 		return invalid()
 	}
 	if err := ValidateProviderHeader(v, ext, ids.ExtensionClassID); err != nil {
 		return err
 	}
-	current, ok := v.Extension(ext.Address())
-	if !ok || current.Revision() != ext.Revision() || current.Name() != ext.Name() || current.Version != ext.Version || current.Owner != ext.Owner || current.TargetNamespace != ext.TargetNamespace || len(current.Members) != 2 || current.Members[0] != ext.Members[0] || current.Members[1] != ext.Members[1] {
+	if !currentManifest(v, ext) {
 		return invalid()
 	}
 	base, ok := v.LookupType(sqltype.Oid)
 	if !ok || ext.Members[0] == ext.Members[1] {
 		return invalid()
 	}
-	for _, address := range ext.Members {
+	for _, address := range ext.Members[:2] {
 		if address.ClassID != ids.TypeClassID || address.ObjectID == 0 || address.SubID != 0 {
 			return invalid()
 		}
@@ -100,5 +128,27 @@ func (p *LoProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) erro
 			return err
 		}
 	}
-	return nil
+	procedure, ok := v.Procedure(ext.Members[2])
+	if !ok || procedure.Extension != ext.Address() || procedure.Address().SubID != 0 || procedure.ObjectRevision == 0 {
+		return invalid()
+	}
+	return p.ValidateProcedure(v, procedure)
+}
+
+func (p *LoProvider) ValidateProcedure(v catalog.Read, procedure *catalog.Procedure) error {
+	return ValidateProcedureOrigin(v, procedure, p)
+}
+
+// SupportsDMLTrigger checks the immutable installed body, not mutable SQL names
+// or membership. Current catalog and execution authority are checked by callers.
+func (p *LoProvider) SupportsDMLTrigger(procedure *catalog.Procedure) bool {
+	if p != StockLo || procedure == nil || procedure.Implementation != p || !procedure.Origin.Valid(procedure.Address()) {
+		return false
+	}
+	installation := procedure.Origin.Installation
+	if installation.Implementation != p || installation.Name() != "lo" || installation.Version != "1.2" || len(installation.Members) != 3 || procedure.Origin.Declaration != 2 {
+		return false
+	}
+	declaration, ok := installation.Declarations[2].(*catalog.Procedure)
+	return ok && procedure.RoutineKind == catalog.FunctionRoutine && procedure.Signature == "" && procedure.Result == 2279 && !procedure.Strict && !procedure.SecurityDefiner && procedure.Volatility == expr.Volatile && procedure.Display == declaration.Display && procedure.Installed == declaration.Installed && procedure.SQL == nil && procedure.Builtin == nil && procedure.Foreign == nil
 }

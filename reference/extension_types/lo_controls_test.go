@@ -208,7 +208,7 @@ func loInvalidOwnerDump(t *testing.T, script string) string {
 		t.Fatal("actual owner record is not lo", name, err)
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 2 {
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 3 {
 		t.Fatal("actual lo owner member inventory", members, err)
 	}
 	changed := false

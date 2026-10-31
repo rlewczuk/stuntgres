@@ -6,6 +6,8 @@ type AfterTriggerTestFrame struct {
 	Rows, Statements, RowCursor, StatementCursor int
 	Qualified, Skipped int
 	Old, New [][]sqltype.Value
+	Targets, StatementTargets, ProducerTargets [][]int32
+	RowBacking, StatementBacking *afterTriggerEvent
 }
 func ScopeAfterTestFrames(s *StatementScope) map[uint64]AfterTriggerTestFrame {
 	frames := make(map[uint64]AfterTriggerTestFrame)
@@ -13,7 +15,22 @@ func ScopeAfterTestFrames(s *StatementScope) map[uint64]AfterTriggerTestFrame {
 	for id, f := range s.afterTriggers.frames {
 		entry := AfterTriggerTestFrame{Rows:len(f.rows), Statements:len(f.statements), RowCursor:f.row, StatementCursor:f.statement}
 		for _, event := range f.rows { entry.Old=append(entry.Old,event.old); entry.New=append(entry.New,event.next) }
+		for _, event := range f.rows {
+			entry.Targets = append(entry.Targets, event.targets)
+		}
+		if len(f.rows) != 0 {
+			entry.RowBacking = &f.rows[0]
+		}
+		if len(f.statements) != 0 {
+			entry.StatementBacking = &f.statements[0]
+		}
+		for _, producer := range f.producers {
+			for _, event := range producer.candidates {
+				entry.ProducerTargets = append(entry.ProducerTargets, event.targets)
+			}
+		}
 		for _, event := range f.statements {
+			entry.StatementTargets = append(entry.StatementTargets, event.targets)
 			if event.qualified { entry.Qualified++ }
 			if event.skip { entry.Skipped++ }
 		}
@@ -26,3 +43,8 @@ func ScopeDrainAfterTest(s *StatementScope) error {
 	return s.drainAfter()
 }
 func ScopeEffectTestIDs(s *StatementScope) (uint64,uint64) { return s.effectCommand,s.effectSerial }
+func ScopeDeferAfterProducersTest(s *StatementScope) func() {
+	deferred, command := s.deferAfterProducers, s.deferredAfterCommand
+	s.deferAfterProducers, s.deferredAfterCommand = true, s.effectCommand
+	return func() { s.deferAfterProducers, s.deferredAfterCommand = deferred, command }
+}

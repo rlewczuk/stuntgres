@@ -53,6 +53,13 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 		err = s.updateModdatetime(relation, p, event, next)
 		return result, err
 	}
+	if extension.StockLo.SupportsDMLTrigger(d) {
+		if event == stored.TriggerDelete {
+			result.Row = old
+		}
+		err = s.manageLargeObjectReference(relation, p, event, next, old, targets)
+		return result, err
+	}
 	builtin := catalog.BuiltinDMLTrigger(d)
 	if err = builtinTriggerProtocol(builtin == 1291, p, event); err != nil {
 		return result, err

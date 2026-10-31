@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
@@ -333,6 +334,150 @@ func TestTriggerAfterCatalogPublication(t *testing.T) {
 				}
 			} else if installed != original {
 				t.Fatal("rejected outer completion published its replacement")
+			}
+		})
+	}
+}
+
+func TestTriggerAfterTargetOwnership(t *testing.T) {
+	t.Run("accepted_checkpoint_and_producer", func(t *testing.T) {
+		e, s, read, relation, d := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
+		base := triggerUnitDefinition(t, read, relation, d, "a", stored.TriggerUpdate).Parts()
+		base.Timing = stored.TriggerAfter
+		var definitions []stored.Trigger
+		for i, name := range []string{"a", "z", "s", "t"} {
+			p := base
+			p.Name, p.OID = name, base.OID+ids.OID(i)
+			if i >= 2 {
+				p.Level = stored.TriggerStatement
+			}
+			definition, err := stored.NewTrigger(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			definitions = append(definitions, definition)
+		}
+		relation = triggerUnitInstall(t, e, relation, definitions...)
+		triggerUnitAdmit(t, s, relation)
+		integer, _ := read.LookupType(sqltype.Int4)
+		ref := read.Owner().Domain.Ref(read.Epoch(), relation.Address())
+		row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
+		queue := func(targets []int32) {
+			t.Helper()
+			if err := s.WriteHost().AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeUpdate, Targets: targets, Old: row, New: row}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.WriteHost().AfterStatement(ref, stored.TriggerUpdate, targets); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.WriteHost().CompleteAfterStatement(ref, stored.TriggerUpdate); err != nil {
+				t.Fatal(err)
+			}
+		}
+		defer core.ScopeDeferAfterProducersTest(s)()
+		targets := []int32{relation.Attributes[1], relation.Attributes[0]}
+		want := slices.Clone(targets)
+		queue(targets)
+		before := core.ScopeAfterTestFrames(s)[0]
+		if before.Rows != 2 || before.Statements != 2 || len(before.ProducerTargets) != 2 {
+			t.Fatal("missing accepted row, registration or producer", before)
+		}
+		for _, group := range [][][]int32{before.Targets, before.StatementTargets, before.ProducerTargets} {
+			for _, retained := range group {
+				if !slices.Equal(retained, want) || &retained[0] == &targets[0] {
+					t.Fatal("queue did not own exact ordered stable targets", retained, want)
+				}
+				if &retained[0] != &group[0][0] {
+					t.Fatal("same queue call copied targets per definition")
+				}
+			}
+		}
+		if &before.StatementTargets[0][0] != &before.ProducerTargets[0][0] {
+			t.Fatal("producer copied immutable registration payload")
+		}
+		targets[0], targets[1] = 99, 100
+		for _, group := range [][][]int32{before.Targets, before.StatementTargets, before.ProducerTargets} {
+			for _, retained := range group {
+				if !slices.Equal(retained, want) {
+					t.Fatal("caller mutation reached retained target payload", retained)
+				}
+			}
+		}
+		mark, err := s.BeginPLException()
+		if err != nil {
+			t.Fatal(err)
+		}
+		queue([]int32{relation.Attributes[0]})
+		if err := core.ScopeDrainAfterTest(s); err != nil {
+			t.Fatal(err)
+		}
+		if live := core.ScopeAfterTestFrames(s)[0]; live.Rows != 4 || live.RowCursor != 4 || live.StatementCursor != 2 {
+			t.Fatal("suffix did not advance independent queue progress", live)
+		}
+		if err := s.EndPLException(mark, true, errors.New("discard queued suffix")); err != nil {
+			t.Fatal(err)
+		}
+		restored := core.ScopeAfterTestFrames(s)[0]
+		if restored.Rows != 2 || restored.Statements != 2 || restored.RowCursor != 0 || restored.StatementCursor != 0 || restored.Qualified != 0 || restored.Skipped != 0 || len(restored.ProducerTargets) != 2 {
+			t.Fatal("checkpoint did not restore event slices, producers and cursors", restored)
+		}
+		if restored.RowBacking == before.RowBacking || restored.StatementBacking == before.StatementBacking {
+			t.Fatal("checkpoint borrowed mutable event backing")
+		}
+		for i, group := range [][][]int32{restored.Targets, restored.StatementTargets, restored.ProducerTargets} {
+			original := [][][]int32{before.Targets, before.StatementTargets, before.ProducerTargets}[i]
+			for j, retained := range group {
+				if !slices.Equal(retained, want) || &retained[0] != &original[j][0] {
+					t.Fatal("checkpoint copied or changed immutable target payload", retained)
+				}
+			}
+		}
+		if err := core.ScopeDrainAfterTest(s); err != nil {
+			t.Fatal(err)
+		}
+		registered := core.ScopeAfterTestFrames(s)[0]
+		for i, retained := range registered.StatementTargets {
+			if !slices.Equal(retained, want) || &retained[0] != &before.ProducerTargets[i][0] {
+				t.Fatal("producer replay failed to retain immutable targets", retained)
+			}
+		}
+	})
+	for _, kind := range []string{"filtered", "when_rejected", "nil", "empty"} {
+		t.Run(kind, func(t *testing.T) {
+			e, s, read, relation, d := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
+			p := triggerUnitDefinition(t, read, relation, d, "queued", stored.TriggerUpdate).Parts()
+			p.Timing = stored.TriggerAfter
+			if kind == "filtered" {
+				p.UpdateColumns = []int32{relation.Attributes[0]}
+			}
+			definition, err := stored.NewTrigger(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind == "when_rejected" {
+				definition = infoTriggersWhen(t, e, s, read, relation, definition)
+			}
+			relation = triggerUnitInstall(t, e, relation, definition)
+			triggerUnitAdmit(t, s, relation)
+			ref := read.Owner().Domain.Ref(read.Epoch(), relation.Address())
+			integer, _ := read.LookupType(sqltype.Int4)
+			row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, -1)}
+			targets := []int32{relation.Attributes[1]}
+			if kind == "nil" {
+				targets = nil
+			} else if kind == "empty" {
+				targets = []int32{}
+			}
+			if err := s.WriteHost().AfterRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeUpdate, Targets: targets, Old: row, New: row}); err != nil {
+				t.Fatal(err)
+			}
+			frame := core.ScopeAfterTestFrames(s)[0]
+			if kind == "filtered" || kind == "when_rejected" {
+				if frame.Rows != 0 || len(frame.Targets) != 0 || len(frame.New) != 0 || len(frame.Old) != 0 {
+					t.Fatal("rejected queue path retained event payload", frame)
+				}
+			} else if frame.Rows != 1 || len(frame.Targets) != 1 || len(frame.Targets[0]) != 0 {
+				t.Fatal("empty targets gained attribute membership", frame)
 			}
 		})
 	}

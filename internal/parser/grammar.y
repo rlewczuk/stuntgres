@@ -1247,7 +1247,7 @@ trigger_function: FUNCTION | PROCEDURE ;
 trigger_arguments: /* empty */ {$$=nil} | trigger_argument_list ;
 trigger_argument_list: trigger_argument {$$=[]string{$1.text}}
  | trigger_argument_list ',' trigger_argument {$$=append($1,$3.text)} ;
-trigger_argument: name | STRING | NUMBER ;
+trigger_argument: name | STRING | NUMBER | NULL ;
 alter_trigger: ALTER TRIGGER name ON relation_name RENAME TO name {
  $$=&AlterTrigger{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Action:"rename",Target:Identifier{Text:$8.text,Pos:$8.pos},Pos:$1.pos}
 } | ALTER TRIGGER name ON relation_name depends_word ON EXTENSION name {

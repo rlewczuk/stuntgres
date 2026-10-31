@@ -65,6 +65,12 @@ func (n TriggerBuiltin) Validate() error {
 		return fmt.Errorf("stuntgres: invalid builtin trigger result")
 	}
 	switch n.Name {
+	case "lo_manage":
+		installed, ok := n.RoutineReference.(interface{ InstalledTriggerSymbol() string })
+		if !ok || installed.InstalledTriggerSymbol() != n.Name {
+			return fmt.Errorf("stuntgres: lo_manage lacks installed provenance")
+		}
+		return nil
 	case "autoinc":
 		if n.RoutineReference == nil {
 			return fmt.Errorf("stuntgres: autoinc lacks installed provenance")
@@ -82,8 +88,8 @@ func (n TriggerBuiltin) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err := n.Validate(); err != nil {
 		return sqltype.Value{}, err
 	}
-	if n.Name == "moddatetime" {
-		return sqltype.Value{}, sqlError("XX000", "moddatetime: not fired by trigger manager")
+	if n.Name == "moddatetime" || n.Name == "lo_manage" {
+		return sqltype.Value{}, sqlError("XX000", n.Name+": not fired by trigger manager")
 	}
 	if n.Name == "suppress_redundant_updates_trigger" {
 		return sqltype.Value{}, sqlError("39P01", "suppress_redundant_updates_trigger: must be called as trigger")

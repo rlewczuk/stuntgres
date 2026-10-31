@@ -48,6 +48,7 @@ type afterTriggerEvent struct {
 	read       catalog.Read
 	event      stored.TriggerEvent
 	old, next  []sqltype.Value
+	targets    []int32            // Owned immutable stable UPDATE attributes.
 	actor      *AuthorizationView // Immutable RI authority; live grants are recaptured.
 	qualified  bool               // Statement WHEN is decided once at producer completion.
 	skip       bool
@@ -122,6 +123,8 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 	key := afterStatementKey{ref, event}
 	var ownedOld, ownedNext []sqltype.Value
 	owned := false
+	var ownedTargets []int32
+	targetsOwned := false
 	if level == stored.TriggerStatement && s.afterTriggers != nil {
 		if prior := s.afterTriggers.frames[s.effectCommand]; prior != nil {
 			prior.cancelStatements(key)
@@ -152,6 +155,12 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 				ownedOld, ownedNext, owned = slices.Clone(old), slices.Clone(next), true
 			}
 			queued.old, queued.next = ownedOld, ownedNext
+		}
+		if !targetsOwned {
+			ownedTargets, targetsOwned = slices.Clone(targets), true
+		}
+		queued.targets = ownedTargets
+		if level == stored.TriggerRow {
 			f.rows = append(f.rows, queued)
 		} else {
 			f.registerStatement(key, queued)
@@ -291,7 +300,7 @@ func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 		return err
 	}
 	if catalog.NativeDMLTrigger(d) {
-		result, err := s.invokeNativeTrigger(d, event.relation, p, event.event, event.next, event.old, nil)
+		result, err := s.invokeNativeTrigger(d, event.relation, p, event.event, event.next, event.old, event.targets)
 		if p.Timing == stored.TriggerBefore && p.Level == stored.TriggerStatement {
 			return beforeStatementNativeResult(result, err)
 		}

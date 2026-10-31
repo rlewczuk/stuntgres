@@ -75,6 +75,10 @@ these are shared across families:
   scenario and independently seeded rows. Failed public Restore preserves the
   incumbent identities, rows, metadata, retained reader and deterministic dump.
   The reusable family selector is `RUN='^TestReferenceLo'`.
+  Opt-in lo_manage coverage owns direct/prepared/held BEFORE and AFTER row cleanup,
+  exact firing diagnostics, transaction/statement rollback, role authority,
+  target-column identities, shared-reference hazards and native trigger/control replay.
+  Its reusable selector is `RUN='^TestReferenceLoManage'`.
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native

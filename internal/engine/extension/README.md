@@ -527,16 +527,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   the domain's actual Array identity, not `_earth`. Routine labels, namespaces,
   owners and membership can vary independently; domain/companion owner coherence
   remains the ordinary type owner's responsibility.
-- **lo** (`lo_provider.go`): the trusted, relocatable 1.2 provider stages a
-  constraint-free concrete domain over the catalog's builtin OID generation and
-  its lookup-only companion as two ordered extension members, each carrying a
-  nonzero allocated catalog revision rather than a bootstrap fallback. Ordinary domain
-  coercion, OID input/output and bind/result paths retain unsigned numeric
-  payloads and typed NULLs; logical lo identity has physical OID result metadata.
-  No large-object lookup or reference-management trigger is attached. Immutable
-  domain/companion declarations retain origin across independent membership
-  mutation. V3 import resolves their final portable SQL identities, preserving
-  common domain/companion owner authority without source OIDs.
+- **lo** (`lo_provider.go`): the trusted, relocatable 1.2 provider stages three
+  ordered declarations: the constraint-free concrete domain over builtin OID,
+  its lookup-only companion, and volatile non-strict parallel-unsafe
+  `lo_manage() RETURNS trigger`. Each carries an allocated catalog revision.
+  Ordinary domain coercion and OID transport retain unsigned payloads and typed
+  NULLs without looking up large objects; logical lo results have OID metadata.
+  No trigger is automatically attached. Opt-in BEFORE or AFTER row cleanup
+  unlinks non-NULL OLD references on DELETE, or on UPDATE when the column is
+  explicitly targeted and its reference changes (including to NULL).
+  Earlier row rewrites do not widen the target set. Equal values and NULL OLD references
+  preserve bytes. Cleanup shares row/LO rollback; TRUNCATE and DROP bypass it.
+  There is no reference counting: shared references can leave dangling rows.
+  Domain, companion and procedure retain sealed origin across independent
+  rename/schema/membership mutation. V3 import resolves final portable identities
+  and procedure ownership without source OIDs.
 - **Registry and update paths** (`extension_register.go`, `extension_paths.go`):
   `Register(registry, name, implementation)` checks one startup registration
   (name, control version, `ValidateActions`, duplicates, in that order) and
@@ -547,7 +552,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **Staging** (`stage.go`, `*_stage.go`, `extension_actions.go`): `Stage` is the
   host a provider installs through (the stage base, name lookup, checked
   `Create`/`Replace`, OID and revision allocation, the associated array helpers,
-  the creation type ACL and `ScriptFunctions`, the shared script helper lookup
+  creation type/routine ACLs and `ScriptFunctions`, the shared script helper lookup
   used by unaccent and citext). `Installer` is an implementation with
   `Stage(Stage, ext, owner)`; every stock provider is one, and fuzzystrmatch is
   also an `Updater` (`Updates`, one `UpdateAction` per executable version edge).

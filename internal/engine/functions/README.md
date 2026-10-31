@@ -223,13 +223,16 @@ reconstruction, stored capture and scalar sources retain no measured depth.
 
 `TriggerBuiltin` is a volatile, nonfoldable zero-child TRIGGER recipe for the
 three builtin DML declarations and genuine installed refint, autoinc and
-moddatetime declarations.
+moddatetime declarations, plus the genuine installed lo_manage body.
 The installed route first validates the immutable provider symbol and captures
 the selected procedure dependency; spelling alone never grants capability.
 It retains routine provenance, never activation state. Ordinary SQL evaluation
 always reports the function's outside-trigger protocol error with complete ERROR
 severity diagnostics; firing belongs to the shared core trigger owner. Rebuild,
 rendering, scalar-source and stored capture use ordinary recipes.
+The lo_manage recipe additionally requires the selected declaration's opaque
+installed-trigger symbol; constructing a same-spelled leaf without sealed native
+provenance cannot pass validation.
 Autoinc binding uses installed-provider resolution, not builtin visibility; its
 plan carrier retains current validated declaration authority through reconstruction
 and replay.

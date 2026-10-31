@@ -45,6 +45,20 @@ func NativeDMLTrigger(d *Procedure) bool {
 	return ok && p.SupportsDMLTrigger(d)
 }
 
+// InstalledTriggerSymbol exposes immutable native body identity to lower
+// expression layers without giving a public SQL name execution authority.
+// This is recipe validation only; callers still admit the live declaration.
+func (d *Procedure) InstalledTriggerSymbol() string {
+	if d == nil || !d.Origin.Valid(d.Address()) || !NativeDMLTrigger(d) {
+		return ""
+	}
+	declaration, ok := d.Origin.Installation.Declarations[d.Origin.Declaration].(*Procedure)
+	if !ok {
+		return ""
+	}
+	return declaration.Display.Source
+}
+
 // SupportsDMLTrigger is shared by installation, stored validation and firing.
 // It describes body capability, not permission or current catalog authority.
 func SupportsDMLTrigger(d *Procedure) bool {

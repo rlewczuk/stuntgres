@@ -14,7 +14,9 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/stored"
@@ -39,15 +41,49 @@ func TestLoProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	base, _ := view.LookupType(sqltype.Oid)
 	array := view.MustType(ext.Members[1])
-	if ext.Version != "1.2" || len(ext.Members) != 2 || !domain.SQLType.IsDomain() || !domain.SQLType.Concrete() || domain.SQLType.DomainBase() != base.Usage() || domain.SQLType.HasDomainConstraints() || domain.Owner != ext.Owner || domain.Extension != ext.Address() || domain.Array != array.SQLType.ID() || array.SQLType.Element() != domain.SQLType || array.SQLType.Concrete() || array.Owner != domain.Owner || array.Namespace() != domain.Namespace() || array.Extension != ext.Address() {
+	if ext.Version != "1.2" || len(ext.Members) != 3 || !domain.SQLType.IsDomain() || !domain.SQLType.Concrete() || domain.SQLType.DomainBase() != base.Usage() || domain.SQLType.HasDomainConstraints() || domain.Owner != ext.Owner || domain.Extension != ext.Address() || domain.Array != array.SQLType.ID() || array.SQLType.Element() != domain.SQLType || array.SQLType.Concrete() || array.Owner != domain.Owner || array.Namespace() != domain.Namespace() || array.Extension != ext.Address() {
 		t.Fatal("lo concrete domain/lookup companion recipe", ext, domain, array)
 	}
 	if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range ext.Members {
+	for _, a := range ext.Members[:2] {
 		if err := (stored.TypeProvider{}).Validate(view, view.Get(a)); err != nil {
 			t.Fatal(err)
+		}
+	}
+	routine := view.MustProcedure(ext.Members[2])
+	if routine.Name() != "lo_manage" || routine.Signature != "" || routine.Result != 2279 || routine.RoutineKind != catalog.FunctionRoutine || routine.Volatility != expr.Volatile || routine.Strict || routine.SecurityDefiner || routine.Installed.Parallel != 'u' || routine.Implementation != extension.StockLo || routine.Display.Language != catalog.CRoutineLanguage || routine.Display.Source != "lo_manage" || !routine.Display.HasBinary || routine.Display.Binary != "$libdir/lo" || !catalog.NativeDMLTrigger(routine) {
+		t.Fatal("lo_manage declaration/capability", routine)
+	}
+	if err := (stored.ProcedureProvider{}).Validate(view, routine); err != nil {
+		t.Fatal(err)
+	}
+	triggerType, _ := view.LookupType(2279)
+	scalar := functions.TriggerBuiltin{Info: expr.Info{Usage: triggerType.Usage(), RoutineReference: routine}, Name: "lo_manage"}
+	if err := scalar.Validate(); err != nil {
+		t.Fatal("authentic scalar provenance", err)
+	}
+	unbound := scalar
+	unbound.RoutineReference = nil
+	if err := unbound.Validate(); err == nil {
+		t.Fatal("spelling granted scalar native identity")
+	}
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.Origin = nil },
+		func(p *catalog.Procedure) { p.Implementation = nil },
+		func(p *catalog.Procedure) { p.Signature = "26" },
+		func(p *catalog.Procedure) { p.Result = 26 },
+	} {
+		forged := *routine
+		mutate(&forged)
+		if catalog.NativeDMLTrigger(&forged) {
+			t.Fatal("forged trigger capability admitted", forged)
+		}
+		badScalar := scalar
+		badScalar.RoutineReference = &forged
+		if err := badScalar.Validate(); err == nil {
+			t.Fatal("forged scalar installed provenance admitted", forged)
 		}
 	}
 	deps, err := catalog.ExtensionPrerequisites(view, ext)
@@ -106,8 +142,8 @@ func TestLoProviderConflicts(t *testing.T) {
 			t.Fatal("genuine collision must publish nothing", err)
 		}
 	})
-	for _, frontier := range []ids.OID{0, ^ids.OID(0) - 1} {
-		t.Run("allocation_"+map[bool]string{true: "empty", false: "companion"}[frontier == 0], func(t *testing.T) {
+	for _, frontier := range []ids.OID{0, ^ids.OID(0) - 1, ^ids.OID(0) - 2} {
+		t.Run("allocation_"+map[ids.OID]string{0: "empty", ^ids.OID(0) - 1: "companion", ^ids.OID(0) - 2: "procedure"}[frontier], func(t *testing.T) {
 			e := engine.New()
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
@@ -139,6 +175,9 @@ func TestLoManifestAdmission(t *testing.T) {
 	}{
 		{"version", func(x *catalog.Extension, d, a *catalog.Type) { x.Version = "1.1" }},
 		{"missing", func(x *catalog.Extension, d, a *catalog.Type) { x.Members = x.Members[:1] }},
+		{"missing_procedure", func(x *catalog.Extension, d, a *catalog.Type) { x.Members = x.Members[:2] }},
+		{"duplicate_procedure", func(x *catalog.Extension, d, a *catalog.Type) { x.Members = append(x.Members, x.Members[2]) }},
+		{"procedure_class", func(x *catalog.Extension, d, a *catalog.Type) { x.Members[2].ClassID = ids.TypeClassID }},
 		{"extra", func(x *catalog.Extension, d, a *catalog.Type) { x.Members = append(x.Members, a.Address()) }},
 		{"duplicate", func(x *catalog.Extension, d, a *catalog.Type) { x.Members[1] = x.Members[0] }},
 		{"class", func(x *catalog.Extension, d, a *catalog.Type) { x.Members[1].ClassID = ids.ProcedureClassID }},
@@ -189,6 +228,32 @@ func TestLoManifestAdmission(t *testing.T) {
 			}
 			if e.Catalog.State != view.State() || view.MustType(domain.Address()) != domain || view.MustType(array.Address()) != array {
 				t.Fatal("manifest validation mutated source")
+			}
+		})
+	}
+	routine := view.MustProcedure(ext.Members[2])
+	for _, tc := range []struct {
+		name   string
+		mutate func(*catalog.Procedure)
+	}{
+		{"procedure_revision", func(p *catalog.Procedure) { p.ObjectRevision = 0 }},
+		{"procedure_origin", func(p *catalog.Procedure) { p.Origin = nil }},
+		{"procedure_provider", func(p *catalog.Procedure) { p.Implementation = extension.StockCube }},
+		{"procedure_signature", func(p *catalog.Procedure) { p.Signature = "26" }},
+		{"procedure_result", func(p *catalog.Procedure) { p.Result = 26 }},
+		{"procedure_source", func(p *catalog.Procedure) { p.Display.Source = "other" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := catalog.CloneState(view.State())
+			corrupt := *routine
+			tc.mutate(&corrupt)
+			state.SetDescriptor(routine.Address(), &corrupt)
+			candidate := e.Catalog.Read(state)
+			if err := extension.StockLo.ValidateExtension(candidate, ext); err == nil {
+				t.Fatal("corrupt procedure admitted by manifest", corrupt)
+			}
+			if err := (stored.ProcedureProvider{}).Validate(candidate, &corrupt); err == nil {
+				t.Fatal("corrupt installed procedure admitted", corrupt)
 			}
 		})
 	}
@@ -267,6 +332,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 	want := extension.OwnerRecord{Name: "lo", Schema: "public", Version: "1.2", Owner: "postgres", Present: true, Members: []extension.MemberOwner{
 		{Declaration: new(0), Version: "1.2", Extension: "lo", Kind: "type", Schema: "public", Name: "lo", Owner: "postgres", ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}},
 		{Declaration: new(1), Version: "1.2", Extension: "lo", Kind: "type", Schema: "public", Name: "_lo", Owner: "postgres", ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}},
+		{Declaration: new(2), Version: "1.2", Extension: "lo", Kind: "procedure", Schema: "public", Name: "lo_manage", Owner: "postgres", ACL: &extension.MemberACL{Entries: []extension.MemberGrant{}}},
 	}}
 	if err != nil || !found || !reflect.DeepEqual(record, want) {
 		t.Fatal("lo symbolic owner record", record, err)
@@ -330,7 +396,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 	if record.Members[0].Declaration == nil || *record.Members[0].Declaration != 1 {
 		t.Fatal("import mutated caller record order")
 	}
-	for _, address := range ext.Members {
+	for _, address := range ext.Members[:2] {
 		mapped := next.MustType(address)
 		original := view.MustType(address)
 		if mapped == original || mapped.SQLType != original.SQLType || mapped.Owner != target.Ref || !mapped.ACLSyntheticDefault || !authorization.MatchesDefaultBaseline(mapped.ACL, target.Ref, authorization.DefaultTypes, false) {
@@ -339,6 +405,14 @@ func TestLoOwnerMetadata(t *testing.T) {
 		if err := (stored.TypeProvider{}).Validate(next, mapped); err != nil {
 			t.Fatal(err)
 		}
+	}
+	mapped := next.MustProcedure(ext.Members[2])
+	original := view.MustProcedure(ext.Members[2])
+	if mapped == original || mapped.Owner != target.Ref || mapped.Implementation != original.Implementation {
+		t.Fatal("lo_manage owner/implementation remap", mapped)
+	}
+	if err := (stored.ProcedureProvider{}).Validate(next, mapped); err != nil {
+		t.Fatal(err)
 	}
 	if domain.Owner != ext.Owner || view.MustType(ext.Members[1]).Owner != ext.Owner || e.Catalog.State != view.State() {
 		t.Fatal("owner import mutated source")
@@ -412,7 +486,8 @@ func TestLoOwnerMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		r, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
-		if err != nil || !found || len(r.Members) != 2 || r.Members[0].Name != companion.Name() || r.Members[0].Declaration == nil || *r.Members[0].Declaration != 1 || r.Members[1].Name != "lo" || r.Members[1].Declaration == nil || *r.Members[1].Declaration != 0 {
+		r = extensionOwnerRecipeOrder(r)
+		if err != nil || !found || len(r.Members) != 3 || r.Members[1].Name != companion.Name() || r.Members[1].Declaration == nil || *r.Members[1].Declaration != 1 || r.Members[0].Name != "lo" || r.Members[0].Declaration == nil || *r.Members[0].Declaration != 0 || r.Members[2].Name != "lo_manage" {
 			t.Fatal("companion role derived from spelling", r, err)
 		}
 		candidate := e.Catalog.Read(catalog.CloneState(view.State()))

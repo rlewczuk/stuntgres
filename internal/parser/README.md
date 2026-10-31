@@ -171,6 +171,8 @@ ordinary assignments to an unreserved `security` variable.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Repeated events are rejected at the
   repeated event token, preserving its raw spelling and character position.
+  Arguments remain strings: an unquoted NULL token means lowercase `null`,
+  while a quoted `'NULL'` preserves uppercase spelling; neither is a null datum.
   Parsing does not reinterpret the default statement kind as ROW; execution
   admits the supported timing and target kind.
   Embedded PL SQL retains full INSERT VALUES expression trees and original
@@ -479,6 +481,7 @@ Publication utility AST, source positions and complete-input units use
 `RUN='^TestPublicationGrammar$'`.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
+Literal lo_manage argument spelling units use `RUN='^TestParseLoManageArguments$'`.
 Constraint enforcement AST/property/full-input units use `RUN='^TestConstraintEnforcement(Parser|PropertySyntax|UsingIndexParser)$'`.
 Trigger-mode selectors, quoted names and complete-input AST units use
 `RUN='^TestTriggerModeGrammar$'`.

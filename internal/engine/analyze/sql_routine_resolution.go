@@ -105,7 +105,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
-	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime"
+	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime" || name == "lo_manage"
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
@@ -698,7 +698,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		b.dependency(ref, d.Revision())
 		return plan.InsertUsernameExpr{Info: info, Ref: ref, Namespace: namespace.Name()}, nil
 	}
-	if extension.ModdatetimeProviderOf(d) == extension.StockModdatetime {
+	if extension.ModdatetimeProviderOf(d) == extension.StockModdatetime || extension.StockLo.SupportsDMLTrigger(d) {
 		if err := functions.ValidateCallSyntax(b, raw); err != nil {
 			return nil, err
 		}

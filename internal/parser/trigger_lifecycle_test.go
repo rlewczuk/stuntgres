@@ -49,3 +49,22 @@ func TestParseTriggerLifecycle(t *testing.T) {
 		}
 	}
 }
+
+func TestParseLoManageArguments(t *testing.T) {
+	statements, err := Parse("CREATE TRIGGER lm_cleanup BEFORE DELETE ON lm FOR EACH ROW EXECUTE FUNCTION lo_manage(NULL,'NULL',v,'ignored',42)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statements) != 1 {
+		t.Fatal("statement count", len(statements))
+	}
+	trigger, ok := statements[0].(*CreateTrigger)
+	if !ok || len(trigger.Arguments) != 5 {
+		t.Fatal("literal trigger arguments", statements)
+	}
+	for i, want := range []string{"null", "NULL", "v", "ignored", "42"} {
+		if trigger.Arguments[i] != want {
+			t.Fatal("trigger argument spelling", i, trigger.Arguments[i], want)
+		}
+	}
+}

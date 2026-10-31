@@ -513,8 +513,11 @@ The three builtin DML trigger declarations and authentic installed native
 trigger providers share PL installation, stored validation and live invocation
 admission. Immediate and queued AFTER dispatch select the admitted native body
 before allocating any PL frame.
-Each body borrows OLD/current NEW and stable command UPDATE attributes; suppression uses
-cancellable typed payload comparison, not SQL equality. Vector bodies capture
+Each body borrows OLD/current NEW. Immediate bodies borrow stable command UPDATE
+attributes; queued events own an immutable target copy shared by the definitions
+accepted in one queue call and forward it unchanged to native firing. Earlier
+row rewrites never widen that lexical target set. Suppression uses cancellable
+typed payload comparison, not SQL equality. Vector bodies capture
 one immutable current FTS generation per invocation, resolving explicit names
 eagerly and row OIDs at the first non-NULL source. Parser, dictionary and notice
 callbacks run unlocked. Separate sources share a caller-owned position counter;
@@ -573,6 +576,16 @@ Ordinary SQL invocation is an unfolded evaluation-time protocol error.
 BEFORE/AFTER STATEMENT, including TRUNCATE, and AFTER ROW enter the shared
 native boundary and receive the helper's row-before-timing protocol checks.
 Arbitrary shared-library loading and general PostgreSQL SPI are not engine paths.
+
+`trigger_lo.go` consumes authentic lo_manage dispatch through that same boundary.
+It borrows OLD/current NEW and stable target attribute identities, using inline
+unsigned OID/domain comparison on the common path and shared scalar output for
+other representations. The direct unlink host call enforces existence/ownership
+in the existing statement catalog journal, without another function EXECUTE
+check or undo store. Trigger lookup errors occur only when fired; extra literal
+arguments are ignored. No timing restriction, automatic attachment, reference
+counting or TRUNCATE/DROP cleanup is added.
+
 
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
 the calling command's initial data-view capture: lazy trigger-body reads are
@@ -1675,7 +1688,8 @@ owner; all RI changes precede row/body draining, and later same-target/event
 statement sets supersede earlier sets. Routine/helper SQL remains independently
 framed, and all effects share the existing outer rollback stage.
 Checkpoints detach event/producer suffixes, qualification decisions and completion/
-drain cursors while preserving suspended frame identity; effect serials never rewind. Finish releases
+drain cursors while sharing immutable tuple and target payloads and preserving
+suspended frame identity; effect serials never rewind. Finish releases
 all queue captures on success, failure and cancellation. No callback holds engine
 or owner mutexes, and trigger-body SQL uses the existing private stage.
 Each AFTER invocation retains the current immutable function descriptor validated
@@ -2568,6 +2582,9 @@ Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDept
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share
 `RUN='^TestTriggerBuiltins'`; public SQL/control witnesses live in `reference/operators`.
+LO cleanup datum/decimal-prefix decision units use `RUN='^TestLoManage'`;
+shared SQL, diagnostics and native-control witnesses live in
+`reference/extension_types`.
 Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;
 provider-authority units share that family in `schemacmds`, and public SQL,
 notification ordering and controls belong to `reference/sessions`.

@@ -26,6 +26,8 @@ type Stage interface {
 	LookupName(ids.NameKey) ids.ObjectAddress
 	Create(catalog.Descriptor) error
 	Replace(catalog.Descriptor) error
+	// CreationRoutineACL observes the creator's ordinary routine defaults.
+	CreationRoutineACL(authorization.PrincipalRef, ids.ObjectAddress) authorization.ACLValue
 	// RoutineCreationACLWithoutPublic applies the supported script's PUBLIC
 	// EXECUTE revoke to the creator's global/schema routine defaults.
 	RoutineCreationACLWithoutPublic(authorization.PrincipalRef, ids.ObjectAddress) (authorization.ACLValue, error)

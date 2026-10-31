@@ -32,8 +32,8 @@ Installed autoinc scalar binding resolves the actual stock provider and sealed
 zero-input declaration, then attaches its identity to an unfolded TRIGGER recipe.
 The selected public name may move or change; intrinsic builtin visibility never
 selects this installed helper.
-Moddatetime ordinary calls likewise enter catalog selection before builtin
-fallback, including the released name and catalog-tracked renamed spellings.
+Moddatetime and lo_manage ordinary calls likewise enter catalog selection before
+builtin fallback, including released names and catalog-tracked renamed spellings.
 Only the selected authenticated installed declaration supplies its unfolded
 outside-trigger guard; the name gate itself grants no provider authority.
 
