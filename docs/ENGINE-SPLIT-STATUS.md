@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `b7e30241f` (planning).
+Last verified against `master` at `3320f21b6` (item 206).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 206, 213.
+- 207, 212, 213.
 
 ## Linear plan
 
@@ -25,76 +25,83 @@ One item per session. Start one with "Implement Item N from Linear Plan in
 `docs/ENGINE-SPLIT-STATUS.md`". Mode is from ENGINE-SPLIT.md §4; "core after"
 is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 
-206. [ ] Tooling and owner census —
+206. [x] Tooling and owner census —
      [core](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census) · needs — ·
-     P · core after 11.2
+     P · core after 11.5 (docs commit) · tools retargeted to core in
+     `.cswd/tmp/PG18-ENGINE-SPLIT-206-TOOLING-CENSUS/`; census of 2,849 core
+     tests at `3320f21b6`. Rule 2 uses the plurality area (user decision).
+     Core is 11.53 MiB; phase A moves 3.73 MiB and phase B 0.46. Rewritten:
+     the §1 and §4 projection, and §3 (pgcatalog moves to L6.5; adds `xml` and
+     `statistics`). Passed: `layers.py` 0, the item-212 `cmdmv` dry run with
+     0 violations, `check_links`, `check_linear`. Quickcheck not needed (docs
+     only); racecheck and finalcheck skipped at user request.
 207. [ ] Test seams in place —
      [core](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) · needs 206 · P
-     · core after 11.2
+     · core after 11.5
 208. [ ] Builtin function, type and extension tests —
      [core](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests)
-     · needs 207 · P · core after 10.4
+     · needs 207 · P · core after 10.9
 209. [ ] DDL family tests —
      [core](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) · needs 207 · P ·
-     core after 9.9
+     core after 9.6
 210. [ ] Catalog producer tests —
      [core](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) · needs 207 ·
-     P · core after 9.4
+     P · core after 9.0
 211. [ ] Query and DML feature tests —
      [core](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) · needs
-     207 · P · core after 8.9
+     207 · P · core after 7.8
 212. [ ] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
-     needs 206 · P, bench · core after 8.75
+     needs 206 · P, bench · core after 7.7
 213. [ ] Host capability seam —
      [core](ENGINE-SPLIT-core.md#item-213--host-capability-seam) · needs — · P,
-     bench · core after 8.75
+     bench · core after 7.7
 214. [ ] Contrib runtimes —
      [core](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) · needs 207, 212,
-     213 · P, bench · core after 8.55
+     213 · P, bench · core after 7.6
 215. [ ] Text-search runtime —
      [core](ENGINE-SPLIT-core.md#item-215--text-search-runtime) · needs 207,
-     212, 213 · P, bench · core after 8.4
+     212, 213 · P, bench · core after 7.6
 216. [ ] Statistics runtime —
      [core](ENGINE-SPLIT-core.md#item-216--statistics-runtime) · needs 207, 212
-     · P, bench · core after 8.2
+     · P, bench · core after 7.55
 217. [ ] Native triggers —
      [core](ENGINE-SPLIT-core.md#item-217--native-triggers) · needs 215 · P,
-     bench · core after 8.15
+     bench · core after 7.5
 218. [ ] Catalog runtime —
      [core](ENGINE-SPLIT-core.md#item-218--catalog-runtime) · needs 210, 212 ·
-     P, bench · core after 7.8
+     P, bench · core after 7.4
 219. [ ] Inquiry runtime —
      [core](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) · needs 213, 218 ·
-     P, bench · core after 7.7
+     P, bench · core after 7.35
 220. [ ] Closing review 6 (checkpoint, docs only) —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-220--closing-review-6) · needs
      207–219
 221. [ ] PL/pgSQL above core —
      [core](ENGINE-SPLIT-core.md#item-221--plpgsql-above-core) · needs 220 · S,
-     bench · core after 7.1
+     bench · core after 6.65
 222. [ ] Cursor, prepare and COPY commands —
      [core](ENGINE-SPLIT-core.md#item-222--cursor-prepare-and-copy-commands) ·
-     needs 220 · S, bench · core after 6.6
+     needs 220 · S, bench · core after 6.15
 223. [ ] DML statement assembly —
      [core](ENGINE-SPLIT-core.md#item-223--dml-statement-assembly) · needs 220 ·
-     S, bench · core after 5.9
+     S, bench · core after 5.95
 224. [ ] Event triggers — [core](ENGINE-SPLIT-core.md#item-224--event-triggers)
-     · needs 220 · P, bench · core after 5.75
+     · needs 220 · P, bench · core after 5.9
 225. [ ] Advisory locks and notifications —
      [core](ENGINE-SPLIT-core.md#item-225--advisory-locks-and-notifications) ·
-     needs 220 · P, bench · core after 5.5
+     needs 220 · P, bench · core after 5.55
 226. [ ] Settings commands —
      [core](ENGINE-SPLIT-core.md#item-226--settings-commands) · needs 220 · P,
      bench · core after 5.35
 227. [ ] Foreign-data and replication commands —
      [core](ENGINE-SPLIT-core.md#item-227--foreign-data-and-replication-commands)
-     · needs 220 · P · core after 5.15
+     · needs 220 · P · core after 5.25
 228. [ ] Hub accessor retirement —
      [core](ENGINE-SPLIT-core.md#item-228--hub-accessor-retirement) · needs
-     221–227 · P · core after 4.7
+     221–227 · P · core after 3.9
 229. [ ] Core engine test packages —
      [core](ENGINE-SPLIT-core.md#item-229--core-engine-test-packages) · needs
-     228 · S · core after ≈ 3.8
+     228 · S · core after ≈ 2
 230. [ ] Closing review 7 —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-230--closing-review-7) · needs
      229

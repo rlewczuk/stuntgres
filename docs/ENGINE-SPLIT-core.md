@@ -622,7 +622,106 @@ Needs 228. Mode S. Gated.
 
 ## Status
 
-- 206: not started.
+- 206: done (docs commit), census at `3320f21b6`.
+  - **Tools** in `.cswd/tmp/PG18-ENGINE-SPLIT-206-TOOLING-CENSUS/` (copies; the
+    originals are unchanged). Go tools build with `go build -o ../bin/<tool> .`
+    and run from a worktree root.
+    - `cmdmv`: `-src internal/engine/core -dest core/<x>` (or
+      `core/enginetests/<area> -testonly -doc "Package <area> …"`). It moves
+      `core_test` files as `ext` lines, rewrites `core.X` to `x.X`, copies the
+      staying helpers a moved file reaches, and moves accessor entries to
+      `<dest>/export_test.go` when every core name they reach moves (merging
+      into an existing `export_test.go` is not supported yet). It reports
+      three classes, and `-w` needs all three empty:
+      - `VIOLATION`, for example T3 "needs core accessor X";
+      - `SEAM`: `out` is moved production reaching staying core, the Host
+        input; `in` is staying core reaching unexported moved code, the
+        exports needed;
+      - `T6`: accessors that reach both moved and staying names.
+    - `closure`/`reach`: `-pkg internal/engine/core`, with the seven core god
+      types as the default `-gods`.
+    - `inv`: per-test accessor files, helper files and T1 flags.
+    - `layers.py`: full import paths and rules 1, 6, 9 and 10.
+    - `lits.py`/`revcheck.py`: root plus `core/**`.
+    - `frames.py`: `list`, `check` and `edit`.
+    - `split.py`: `--src`.
+    - copies of `check_links.py`, `check_linear.py` and `escdiff.py`.
+  - **Census.** `census/census.sh OUT` builds three coverage binaries (core,
+    `functions/enginetests`, `pgcatalog/enginetests`), runs every test alone
+    (24 in parallel) and packs the covered blocks. Then `census.py T` writes
+    `tests.tsv`, `layout.tsv`, `summary.txt` and `calibration.txt`.
+    - Groups are in `groups.json` (`mkgroups.py`). The B groups come from the
+      "What moves" lists of items 212 and 214–219, plus
+      `pageinspect_heap_capture` and `pgstattuple_capture` (feature inflow,
+      for item 214). The C groups come from the §1 prefixes. Lower packages
+      sum into areas (`areas.json`).
+    - On apu1 it ran 2,849 core tests, 361 functions tests and 163 pgcatalog
+      tests, all passing alone. The core run took 54 s; the data is 117,820
+      covered blocks. Block keys shift per commit, so later items re-run the
+      whole census.
+  - **Calibration and weights (user decision).** With the spec's weights,
+    only 9% of functions tests and 28% of pgcatalog tests are rule-2 owned by
+    their own package. These are the best principled weights, now
+    `census.py`'s defaults:
+    - blocks covered by more than 5% of tests dropped;
+    - IDF over all three suites;
+    - `parser`, `sqlstate` and `util` out of the denominator;
+    - shares summed per area.
+
+    With them, 100% of functions and 97% of pgcatalog tests leave core (core
+    share ≤ 0.3), but own-area agreement is only 73% and 65%. The rest is
+    label noise: the json, datetime and string tests mostly exercise
+    `sqltype`, and the catalog tests exercise `stored` and ACL code. The user
+    chose a plurality rule 2: core share ≤ 0.3 plus the top lower area.
+    Calibration gates on leaving core.
+  - **Result** (core 11.53 MiB):
+    - rule 1: 121 tests; rule 2: 2,144; rule 3: 562; no coverage: 22;
+    - 403 rule-2 tests are accessor-blocked (T3).
+    - Files: 411 move whole, 121 split cleanly by test function and 567 stay.
+      92 of the staying files have no 70% agreement.
+    - Phase A moves 3.73 MiB (prefix estimate 2.36). Phase B moves 0.46 MiB
+      (estimate 1.2), mostly production, because leaf-area tests classify to
+      lower areas. §1 and §4 were rewritten.
+    - Every area is under 2 MiB, so no T9 pre-split was needed. The largest
+      are binder (628 KiB), executor, types and tables (about 310–320 each),
+      pgcatalog (276) and infoschema (249).
+  - **Docs.**
+    - §3 moves `pgcatalog` to L6.5: since `29bb7a019` it imports `plan` for
+      `plan.OwnExpressionListTree`.
+    - §3 adds `xml` (L0) and `engine/statistics` (L1).
+    - The pgcatalog README's Imports paragraph is corrected (it also imports
+      `storage`, `proc` and `plan`).
+  - **Verified:**
+    - `layers.py`: 0 violations and 0 unknown packages;
+    - item 212 dry run: 0 VIOLATION, 95 SEAM (34 out, 61 in) and 2 T6
+      (`ExplainObservationForTest`, `ExplainBoundForTest`);
+    - adding `explain_foreign_context_test.go` gives the expected two T3
+      violations;
+    - a real `-testonly -w` run of three files into
+      `core/enginetests/{functions,types}` built and passed, then was reset;
+    - `check_links.py` and `check_linear.py` pass;
+    - quickcheck is not needed (no code change); racecheck and finalcheck are
+      skipped (user decision).
+  - **Notes for later items:**
+    - 207: helpers are needed by two or more destinations in 114 files,
+      topped by `concurrent_index_type`, `session`, `sequence_prepared` (11
+      each), `transaction` and `prepared_folds` (10); see `summary.txt`. 119
+      movable tests reach `testSessionID`.
+    - 208–211: areas with no item yet. Proposed: `textsearch` → 208;
+      `stored`, `dump`, `routines`, `fdw` and `replication` → 209; `catalog`
+      → 210. §4 assumes this.
+    - 212: the census sends only `explain_json_presentation_test.go` (internal)
+      and `explain_foreign_context_test.go` (accessor-blocked) with the cut.
+      Most explain tests go to `core/enginetests/executor`.
+    - 212 Host input: the 34 `SEAM out` lines name about 11 core names,
+      including `executionContext` ×14, `foreignUnlocked`, `inheritanceRead`,
+      `ruleAuthorizationOf`, `authorizeViewSourceLocked`,
+      `CheckRestoreEffect`, `ReferencePath`, `AuthorizationView` and
+      `explainBound`. The 61 `in` lines come from `explain.go`,
+      `explain_analyze.go`, `execute_prepared_bound.go`, `execute.go`,
+      `relation_scope.go` and `query_admission.go`.
+    - 228/229: 1.35 MiB of staying files are accessor-blocked, and 1.93 MiB
+      are mixed-owner files.
 - 207: not started.
 - 208: not started.
 - 209: not started.

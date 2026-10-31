@@ -24,11 +24,13 @@ cannot replace these descriptor-owned facts.
 
 ## Imports
 
-Layer L5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
+Layer L6.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `catalog`, `authorization`, `functions`, `largeobject`, `lock` (lock
-records), `expr`, `ids`, `settings`, `sqltype`, `sqlstate`, `parser` (catalog
-descriptors store parser enums) and the standard library. It never imports the
-root engine, `access`, `storage` or `visibility`.
+records), `storage` (relation statistics), `proc` (routine definitions),
+`plan` (expression trees for `pg_statistic_ext`), `expr`, `ids`, `settings`,
+`sqltype`, `sqlstate`, `parser` (catalog descriptors store parser enums) and
+the standard library. It never imports the root engine, `access`, `visibility`
+or `session`.
 
 ## Producer contract
 

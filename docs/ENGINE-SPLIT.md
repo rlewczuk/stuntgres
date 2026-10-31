@@ -86,11 +86,17 @@ replaces them per test.
 | C security | 56 | 31 | 265 | 96 | 123 |
 | core rest | 493 | 124 | 870 | 641 | 135 |
 
-**Projection.** Core is about 8.9 MiB after phase A (items 208–211), 7.7 after
-phase B (212–219), 5.15 after the C cuts (221–227), 4.7 after accessor
-retirement (228), and ≈ 3.8 MiB (3.3–4.6) after the core engine test packages
-(229). Phases A and B alone cannot reach 4 MiB, because the hub tests stay with
-the hub code. Phase C is gated by item 220.
+**Projection** (item 206's census at `3320f21b6`, when core was 11.53 MiB):
+- after phase A (items 208–211, 3.7 MiB of tests): about 7.8 MiB;
+- after phase B (212–219): 7.35. The census sends most tests of the leaf
+  areas to phase A, so phase B mainly moves production.
+- after the C cuts (221–227): about 5.25;
+- after accessor retirement (228, 1.35 MiB of accessor-blocked tests): about 3.9;
+- after the core engine test packages (229: 1.9 MiB of mixed-owner files and
+  0.6 MiB of others): about 1.5–2.5 MiB.
+
+Phases A and B alone cannot reach 4 MiB, because the hub tests stay with the hub
+code. Phase C is gated by item 220.
 
 ## 2. Method
 
@@ -231,6 +237,11 @@ source; item 206 retargets them to core and nested destinations.
   - `PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/`: `frontier`, `expspec`, `movespec`;
   - `PG18-ENGINE-SPLIT-ANALYZE-EXPRESSION-CORE/`: `movex`.
 
+- **Item 206's retargeted tools** (`PG18-ENGINE-SPLIT-206-TOOLING-CENSUS/`):
+  `cmdmv`, `closure`, `reach`, `inv`, `layers.py`, `lits.py`, `revcheck.py`,
+  `frames.py`, `split.py`, and the census (`census/`, `census.py`); its
+  Status entry in the prompt file says how to re-run them.
+
 Re-run the census and `closure` before planning a move set; the sizes in §1 and
 §4 are approximate.
 
@@ -240,7 +251,7 @@ Re-run the census and `closure` before planning a move set; the sizes in §1 and
 |---|---|---|
 | L-1 | `engine/fts` | immutable full-text-search codecs; below `sqltype`, imports only `sqlstate` |
 | L-1 | `workadmission` | cooperative request workload-credit admission; standard library only |
-| L0 | `parser`, `sqltype`, `sqlstate`, `util` | grammar and AST, SQL types and codecs, shared errors, SQL-independent data structures |
+| L0 | `parser`, `sqltype`, `sqlstate`, `util`, `xml` | grammar and AST, SQL types and codecs, shared errors, SQL-independent data structures, the XML parser and XPath evaluator |
 | L1 | `engine/ids` | identity values and the provenance `Domain` |
 | L1 | `engine/authorization` | roles, membership and ACL algorithms over immutable values |
 | L1 | `engine/largeobject` | immutable large-object bytes and replay shapes |
@@ -248,6 +259,7 @@ Re-run the census and `closure` before planning a move set; the sizes in §1 and
 | L1 | `engine/proc` | SQL routine definitions, PL/pgSQL programs, the statement walk and invocation frames |
 | L1 | `engine/host` | immutable application-provisioned scalar routine contracts and executable tokens |
 | L1 | `engine/replication` | pure replication slot and plugin argument validation |
+| L1 | `engine/statistics` | cumulative statistics facts, the per-session writer and its ledger |
 | L2 | `engine/expr` | the expression contract and node protocol |
 | L2 | `engine/lock` | the heavyweight lock manager, with its own innermost mutex |
 | L3 | `engine/functions` | builtin functions: signatures, nodes, evaluation, aggregates, windows |
@@ -257,8 +269,8 @@ Re-run the census and `closure` before planning a move set; the sizes in §1 and
 | L4 | `engine/access` | authorization enforcement on catalog objects (`access.View`), the role store |
 | L4 | `engine/copyfmt` | COPY text, CSV and binary codecs and options |
 | L5 | `engine/visibility` | xids, commit order and timestamps, snapshots, SSI |
-| L5 | `engine/pgcatalog` | system relation producers |
 | L6 | `engine/plan` | the plan IR and the concrete expression nodes |
+| L6.5 | `engine/pgcatalog` | system relation producers; above `plan` for expression trees |
 | L7 | `engine/session` | sessions, operations, the transaction owner, the journal, the settings store, the protocol cycle |
 | L8 | `engine/ddl` | the shared DDL contract (`Authority`, `Stage`, `Host`), schema, tablespace, database and LOAD decisions |
 | L9 | `engine/sequence` | sequences, identity and serial DDL decisions, sequence functions |
@@ -379,30 +391,30 @@ below. "Core after" is the §1 projection in MiB; the census replaces it.
 
 | Item | Mode | Moves | Core after ≈ | Needs |
 |---|---|---|---:|---|
-| 206 | P | [tooling and owner census](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census) | 11.2 | — |
-| 207 | P | [test seams in place](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) | 11.2 | 206 |
-| 208 | P | [builtin function, type and extension tests](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests) | 10.4 | 207 |
-| 209 | P | [DDL family tests](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) | 9.9 | 207 |
-| 210 | P | [catalog producer tests](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) | 9.4 | 207 |
-| 211 | P | [query and DML feature tests](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) | 8.9 | 207 |
-| 212 | P, bench | [explain pilot](ENGINE-SPLIT-core.md#item-212--explain-pilot) | 8.75 | 206 |
-| 213 | P, bench | [host capability seam](ENGINE-SPLIT-core.md#item-213--host-capability-seam) | 8.75 | — |
-| 214 | P, bench | [contrib runtimes](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) | 8.55 | 207, 212, 213 |
-| 215 | P, bench | [text-search runtime](ENGINE-SPLIT-core.md#item-215--text-search-runtime) | 8.4 | 207, 212, 213 |
-| 216 | P, bench | [statistics runtime](ENGINE-SPLIT-core.md#item-216--statistics-runtime) | 8.2 | 207, 212 |
-| 217 | P, bench | [native triggers](ENGINE-SPLIT-core.md#item-217--native-triggers) | 8.15 | 215 |
-| 218 | P, bench | [catalog runtime](ENGINE-SPLIT-core.md#item-218--catalog-runtime) | 7.8 | 210, 212 |
-| 219 | P, bench | [inquiry runtime](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) | 7.7 | 213, 218 |
+| 206 | P | [tooling and owner census](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census) | 11.5 | — |
+| 207 | P | [test seams in place](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) | 11.5 | 206 |
+| 208 | P | [builtin function, type and extension tests](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests) | 10.9 | 207 |
+| 209 | P | [DDL family tests](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) | 9.6 | 207 |
+| 210 | P | [catalog producer tests](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) | 9.0 | 207 |
+| 211 | P | [query and DML feature tests](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) | 7.8 | 207 |
+| 212 | P, bench | [explain pilot](ENGINE-SPLIT-core.md#item-212--explain-pilot) | 7.7 | 206 |
+| 213 | P, bench | [host capability seam](ENGINE-SPLIT-core.md#item-213--host-capability-seam) | 7.7 | — |
+| 214 | P, bench | [contrib runtimes](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) | 7.6 | 207, 212, 213 |
+| 215 | P, bench | [text-search runtime](ENGINE-SPLIT-core.md#item-215--text-search-runtime) | 7.6 | 207, 212, 213 |
+| 216 | P, bench | [statistics runtime](ENGINE-SPLIT-core.md#item-216--statistics-runtime) | 7.55 | 207, 212 |
+| 217 | P, bench | [native triggers](ENGINE-SPLIT-core.md#item-217--native-triggers) | 7.5 | 215 |
+| 218 | P, bench | [catalog runtime](ENGINE-SPLIT-core.md#item-218--catalog-runtime) | 7.4 | 210, 212 |
+| 219 | P, bench | [inquiry runtime](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) | 7.35 | 213, 218 |
 | 220 | — | [closing review 6](#item-220--closing-review-6) | — | 207–219 |
-| 221 | S, bench | [PL/pgSQL above core](ENGINE-SPLIT-core.md#item-221--plpgsql-above-core) | 7.1 | 220 |
-| 222 | S, bench | [cursor, prepare and COPY commands](ENGINE-SPLIT-core.md#item-222--cursor-prepare-and-copy-commands) | 6.6 | 220 |
-| 223 | S, bench | [DML statement assembly](ENGINE-SPLIT-core.md#item-223--dml-statement-assembly) | 5.9 | 220 |
-| 224 | P, bench | [event triggers](ENGINE-SPLIT-core.md#item-224--event-triggers) | 5.75 | 220 |
-| 225 | P, bench | [advisory locks and notifications](ENGINE-SPLIT-core.md#item-225--advisory-locks-and-notifications) | 5.5 | 220 |
+| 221 | S, bench | [PL/pgSQL above core](ENGINE-SPLIT-core.md#item-221--plpgsql-above-core) | 6.65 | 220 |
+| 222 | S, bench | [cursor, prepare and COPY commands](ENGINE-SPLIT-core.md#item-222--cursor-prepare-and-copy-commands) | 6.15 | 220 |
+| 223 | S, bench | [DML statement assembly](ENGINE-SPLIT-core.md#item-223--dml-statement-assembly) | 5.95 | 220 |
+| 224 | P, bench | [event triggers](ENGINE-SPLIT-core.md#item-224--event-triggers) | 5.9 | 220 |
+| 225 | P, bench | [advisory locks and notifications](ENGINE-SPLIT-core.md#item-225--advisory-locks-and-notifications) | 5.55 | 220 |
 | 226 | P, bench | [settings commands](ENGINE-SPLIT-core.md#item-226--settings-commands) | 5.35 | 220 |
-| 227 | P | [foreign-data and replication commands](ENGINE-SPLIT-core.md#item-227--foreign-data-and-replication-commands) | 5.15 | 220 |
-| 228 | P | [hub accessor retirement](ENGINE-SPLIT-core.md#item-228--hub-accessor-retirement) | 4.7 | 221–227 |
-| 229 | S | [core engine test packages](ENGINE-SPLIT-core.md#item-229--core-engine-test-packages) | ≈ 3.8 | 228 |
+| 227 | P | [foreign-data and replication commands](ENGINE-SPLIT-core.md#item-227--foreign-data-and-replication-commands) | 5.25 | 220 |
+| 228 | P | [hub accessor retirement](ENGINE-SPLIT-core.md#item-228--hub-accessor-retirement) | 3.9 | 221–227 |
+| 229 | S | [core engine test packages](ENGINE-SPLIT-core.md#item-229--core-engine-test-packages) | ≈ 2 | 228 |
 | 230 | — | [closing review 7](#item-230--closing-review-7) | — | 229 |
 
 **Gating.** Phase C (items 221–229) starts only after item 220 and with the
