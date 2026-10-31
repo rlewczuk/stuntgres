@@ -757,7 +757,47 @@ Needs 228. Mode S. Gated.
   but were not in this item's list; promote them when a move needs them. -
   208–211: the census predates these renames; re-run it (block keys shift per
   commit).
-- 208: not started.
+- 208: done, `7b29bdf50`, `5012f8abc`, `d3d2f660d`, `bc5f842eb`, `ef4ec863f`,
+  `aa90090a6`. **Census** re-run locally at `9af072317` (2,864 core tests, all
+  passing; files in
+  `.cswd/tmp/PG18-ENGINE-SPLIT-208-BUILTIN-FUNCTION-TYPE-EXTENSION-TESTS/census/`).
+  Calibration unchanged. Areas: `functions`, `types` (`sqltype`, `regobj`,
+  `typedef`, `typecmds`, `xml`), `extension` and `textsearch` (`fts`, as item
+  206 proposed). **Split** (`split208.py`, `bin/splitdecl`: movedecl that keeps
+  each file's formatting): 38 mixed files give 41 `<base>_<area>_test.go` parts,
+  which move under their original basename. A file whose groups are all 208
+  areas keeps its largest group and moves whole. Skipped, because they have a
+  `pgcatalog`, `infoschema` or `catalog` part (item 210 ran in parallel):
+  `error_test.go`, `fts_parser_test.go`, `ts_configuration_test.go`. **Moved**
+  (`move.sh AREA`, cmdmv `-testonly`): 119 files, 216 tests; functions 32 files,
+  types 55, extension 30, textsearch 2. Sizes: functions 199 KiB, types 345,
+  extension 255, textsearch 10. No accessor entry moved (T6: none needed); no
+  test deleted (T2). **Helpers (T4).** 26 helpers that two or more destinations
+  reach moved to `enginetest` (`promote.py`, `promote.spec`): the prepared-fold
+  helpers (`folds.go`), catalog-stage publication and dictionary statements
+  (`catalog_stage.go`), probe and expression helpers (`expressions.go`;
+  `queryProbeExpression.eval` is now `Probe`). Core's users call them there.
+  Exact duplicates were mapped: `newTestExpressionBinder` → `ExpressionBinder`,
+  `extensionUnitError` → `State` (failure text only), `nullCountRaw` →
+  `FunctionCall`, and in moved files `roleTableRef`, `catalogAuthorization` →
+  the enginetest originals. Single-destination helpers are copied (cmdmv);
+  `dictionaryUnitPrepare` stays copied in functions and extension because it
+  needs `schemacmds`, which `enginetest` does not import. `dropdead.sh` deleted
+  the core helpers only moved tests used, and five emptied
+  `extension_ownership_*` helper files. **Measured:** core 11.08 → 10.34 MiB (at
+  `da9c9b9ad`, after item 210); enginetest 28 → 46 KiB. **Verified:** compile
+  check per commit; the four packages (216/216); the files with package globals
+  alone; `RACE=1` for the cluster, datetime-sleep and execution-pause tests;
+  `revcheck.py` (test names 2,971 unchanged; literals: −1 `extensionUnitError`
+  text, +199 from copied helpers); `layers.py` 0; quickcheck. Racecheck and
+  finalcheck skipped (user decision). **Notes for later items.** 209 and 211:
+  the split files keep their other areas' tests in core under the original name;
+  re-run the census on them. Mixed files with a 208-area part left whole: the
+  three skipped above. 218 and 229: `namespace_temporary_test.go`'s `capture*`
+  producer vars (33) are copied into `types/pg_type_test.go`; promote them if
+  catalog-runtime moves need them too. Feature inflow:
+  `snowball_turkish_test.go` (after the census) is not classified; it mirrors
+  `snowball_romanian_test.go`, which has a catalog part, so it stays.
 - 209: not started.
 - 210: done, `2586cf192`, `ac9603d71`, `f1bc37edb`. **Census** re-run locally on
   `9af072317` (`.cswd/tmp/PG18-ENGINE-SPLIT-210-CATALOG-PRODUCER-TESTS/`,

@@ -2564,6 +2564,11 @@ environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
 
+Engine tests whose code is mostly in a lower package live in test-only
+`core/enginetests/<area>` packages (`functions`, `types`, `extension`,
+`textsearch`); `make check RUN=…` selects across packages, so the selectors
+below cover them too.
+
 Shared-dependency immutable-root, local-OID collision and referenced-pin units
 use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
 `reference/catalog_privileges`.

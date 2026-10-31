@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `f6582ddb1` (item 210 rebased on it).
+Last verified against `master` at `da9c9b9ad` (item 208 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 208, 209, 211, 214, 215, 216, 218.
+- 209, 211, 214, 215, 216, 218.
 
 ## Linear plan
 
@@ -50,9 +50,18 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      tablecmds packages, the 28 session-ID files alone, `revcheck` (test names
      unchanged; one duplicate literal left with the deleted `transactionRows`
      copy), quickcheck. Racecheck and finalcheck skipped at user request.
-208. [ ] Builtin function, type and extension tests —
+208. [x] Builtin function, type and extension tests —
      [core](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests)
-     · needs 207 · P · core after 10.9
+     · needs 207 · P · core after 10.9 (`7b29bdf50`, `5012f8abc`, `d3d2f660d`,
+     `bc5f842eb`, `ef4ec863f`, `aa90090a6`, docs commit) · test files only: 38
+     mixed files split by test function (41 parts), then 119 accessor-free files
+     with 216 tests move to `core/enginetests/functions` (0.19 MiB), `types`
+     (0.34), `extension` (0.25) and `textsearch` (0.01); 26 helpers that two or
+     more of them share move to `enginetest` (`folds.go`, `catalog_stage.go`,
+     `expressions.go`). Core 11.08 → 10.34 MiB. Passed: the four packages, the
+     files with package globals alone, `RACE=1` for the concurrency files,
+     `revcheck.py` (test names unchanged), `layers.py`, quickcheck. Racecheck
+     and finalcheck skipped at user request.
 209. [ ] DDL family tests —
      [core](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) · needs 207 · P ·
      core after 9.6
