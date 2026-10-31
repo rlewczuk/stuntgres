@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -139,4 +140,16 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 	if err := stored.ValidateInstalledVerifyHeapam(m, destination); err == nil {
 		t.Fatal("removed identity revived")
 	}
+}
+
+func heapUnitExpression(t *testing.T, e *core.Engine) plan.InstalledVerifyHeapamExpr {
+	t.Helper()
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b.Clause.AggregateClause = "SELECT"
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "verify_heapam"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "typed"}}}}
+	node, err := b.BindFunctionProvider(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return node.(plan.InstalledVerifyHeapamExpr)
 }

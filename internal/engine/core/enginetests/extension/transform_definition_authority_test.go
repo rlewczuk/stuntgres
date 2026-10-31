@@ -1,15 +1,16 @@
-package core_test
+package extension_test
 
 import (
- "testing"
+	"testing"
 
- "stuntgres/internal/engine"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/enginetest"
- "stuntgres/internal/engine/host"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/sqltype"
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/host"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
+
 
 func TestTransformDefinitionAuthority(t *testing.T) {
  definition:=enginetest.HostOwnerDefinition(func() error { t.Error("metadata validation invoked a callback"); return nil })

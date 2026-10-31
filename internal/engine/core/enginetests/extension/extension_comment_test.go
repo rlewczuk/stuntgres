@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -123,4 +124,24 @@ func TestExtensionCommentPublicationCancellation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func cteDMLUnitScope(t *testing.T, session *session.Session, ctx context.Context) (*core.StatementScope, *session.Operation) {
+	t.Helper()
+	op, err := session.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := core.EngineOf(session).StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if !scope.Finished {
+			scope.Finish(errors.New("unit cleanup"))
+		}
+		op.Done()
+	})
+	return scope, op
 }

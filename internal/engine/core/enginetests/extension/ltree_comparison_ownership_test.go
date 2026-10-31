@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
+
 
 // These are ownership assertions on actual protocol definitions and accepted
 // bindings, not another SQL-result fixture. Public outcomes live in reference/.

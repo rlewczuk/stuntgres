@@ -1,9 +1,14 @@
-package core_test
+package extension_test
 
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 )
 
@@ -28,4 +33,14 @@ func TestDictionaryDependencyDescriptions(t *testing.T) {
 			}
 		}
 	}
+}
+
+func extensionUnitInstalled(t *testing.T) (*core.Engine, *session.Operation, *catalog.Extension) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION unaccent")
+	a := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	return e, op, e.Catalog.State.MustExtension(a)
 }

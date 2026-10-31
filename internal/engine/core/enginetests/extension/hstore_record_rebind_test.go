@@ -1,9 +1,11 @@
-package core_test
+package extension_test
 
 import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -13,7 +15,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // A genuine replacement changes both catalog lifetime and installed descriptor

@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 )
+
 
 func TestInsertUsernameControls(t *testing.T) {
 	e, ext := ownershipUnitInstall(t, "insert_username")

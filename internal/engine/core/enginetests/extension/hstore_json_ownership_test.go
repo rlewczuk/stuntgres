@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"context"

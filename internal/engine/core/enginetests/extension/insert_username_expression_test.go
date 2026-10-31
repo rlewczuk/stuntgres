@@ -1,4 +1,4 @@
-package core_test
+package extension_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 )
+
 
 func TestInsertUsernameScalarEvaluationAuthority(t *testing.T) {
 	e, installed := ownershipUnitInstall(t, "insert_username")

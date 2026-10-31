@@ -1,13 +1,12 @@
-package core_test
+package extension_test
 
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/sqlstate"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -15,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 

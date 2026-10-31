@@ -1,11 +1,12 @@
-package core_test
+package extension_test
 
 import (
+	"testing"
+
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"testing"
 )
 
 func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
