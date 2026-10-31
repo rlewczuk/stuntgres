@@ -798,7 +798,59 @@ Needs 228. Mode S. Gated.
   catalog-runtime moves need them too. Feature inflow:
   `snowball_turkish_test.go` (after the census) is not classified; it mirrors
   `snowball_romanian_test.go`, which has a catalog part, so it stays.
-- 209: not started.
+- 209: done, `5d6bd7653`, `f6a1c3baa`, `48133b565`, `16b4e18cb`, `fa11d6286`,
+  `6d82aa38d`, `ee055850f`, `a0da5fc37`, `98ce0e13d`, `5d8cf4e3e`, `3e20e5d9a`,
+  `7836018dc`. **Census** re-run locally at `e6e052a5f` (after item 211; 2,092
+  core, 361 functions and 167 pgcatalog tests, all passing alone; 110,848
+  blocks; `.cswd/tmp/PG18-ENGINE-SPLIT-209-DDL-FAMILY-TESTS/census/`).
+  Calibration: functions 100% leave core (72.0% own), pgcatalog 97.0% (65.3%
+  own). **Areas:** `tables` (`table`, `tablecmds`), `indexes` (`index`,
+  `indexcmds`, `partition`, `partitioncmds`), `views` (`view`, `viewcmds`),
+  `schema` (`schemacmds`, `ddl`, `sequence`, `routine`), `roles` (`role`,
+  `rolecmds`, `access`, `authorization`), and item 206's proposed `stored`,
+  `dump` (`control`, `dump`) and `routines` (`proc`, `host`); `typedef`
+  leftovers join item 208's `types`. **Split** (`split209.py`, item 208's
+  `splitdecl`): 49 mixed files give 60 `<base>_<area>_test.go` parts, which move
+  under their original basename; the eight files whose groups are all item-209
+  areas keep their largest group and move whole. **Moved** (`move.sh AREA`,
+  cmdmv `-testonly`; 0 VIOLATION, 0 SEAM, 0 T6): 230 files, 360 tests; tables 57
+  files, indexes 28, views 26, schema 14, roles 24, stored 35, dump 34, routines
+  7, types 5. Sizes: tables 380 KiB, stored 239, indexes 238, dump 223, roles
+  160, views 155, schema 82, routines 41, types 345 → 368. No accessor entry
+  moved, no export, no frame string changed, no test deleted. cmdmv dropped the
+  `prepared_xml` helper copies in `types` when their original moved there.
+  **Helpers (T4).** The cmdmv dry runs show 59 declarations that two or more
+  destinations copy; `classify.py` promotes 42 to `enginetest` (`promote209.py`;
+  files `role_fixtures.go`, `ddl.go`, `rules.go`, `statistics.go`, `writes.go`,
+  `prepared_units.go`; names capitalized, `t *testing.T` → `testing.TB`), and
+  core's users call them there. Seventeen stay copied (T4 exceptions):
+  `ruleUnitCatalog`, `statisticsUnitEngine`, `triggerModeUnitSetup`,
+  `transformDefinitionOwner`, `plUnitScope`, `newDefaultUnitFixture` and
+  `operatorFamilyUnitSeed` (with `operatorFamilyTestRead`) build the engine
+  through the root or reach `tablecmds`; `alterDropProvider`, `batchUnitMessage`
+  (with `batchUnitStart`), `deleteOutcome` (with `uniqueAsyncUnit`),
+  `defaultUnitFixture`, `fdwUnitScan` and `fdwUnitWrapper` are types whose
+  callers use unexported fields or methods; the `capture*` producer `var` block
+  of `namespace_temporary_test.go` is grouped. Other copies are
+  single-destination (`copycheck.py`: 312 copied declarations, equal to their
+  originals modulo the `-map` qualifiers and gofmt). `dropdead.sh` deleted 17
+  core declarations only moved tests used and the files they emptied.
+  **Measured:** core 9.21 → 7.83 MiB (at `e6e052a5f`); enginetest 49 → 72 KiB.
+  One `go test` run of the nine packages and core (load about 10): core 24.6 s,
+  the new packages 0.2–4.1 s each; quickcheck at load 100 before item 211
+  landed: core 167 s, the new packages 2–30 s. **Verified:** compile check per
+  commit; the nine packages and core; the files with package globals or session
+  IDs alone; `RACE=1` for 24 concurrent-index, lock, wait and synctest files;
+  `revcheck.py` (test names 2,971 unchanged; literals: −3 from the dropped
+  `prepared_xml` copies, the rest gained from copies); `layers.py` 0; `frames.py
+  list` (no new unresolved); deps; quickcheck. Racecheck and finalcheck skipped
+  (user decision). **Not moved (notes for later items).** `fdw` (two files, 14
+  KiB), `replication` (one file, 4 KiB) and `catalog` stay, as in item 210: a
+  tiny package is not worth a test binary (227/229). Staying split files keep
+  their core and other-area tests under the original name; a replay of item
+  211's `split211.py` can now pick up the 211-area tests of the files it
+  skipped. `core/enginetests/pgcatalog` and `infoschema` keep item 210's
+  role-fixture copies though `enginetest` now has them.
 - 210: done, `2586cf192`, `ac9603d71`, `f1bc37edb`. **Census** re-run locally on
   `9af072317` (`.cswd/tmp/PG18-ENGINE-SPLIT-210-CATALOG-PRODUCER-TESTS/`,
   `census/out`, `tests.tsv`, `layout.tsv`, `summary.txt`): 2,864 core, 361

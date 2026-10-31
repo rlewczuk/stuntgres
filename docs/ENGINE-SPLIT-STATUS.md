@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `3175b2b35` (item 211 rebased on it).
+Last verified against `master` at `e6e052a5f` (item 209 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 209, 214, 216, 217, 218.
+- 214, 216, 217, 218.
 
 ## Linear plan
 
@@ -62,9 +62,21 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      files with package globals alone, `RACE=1` for the concurrency files,
      `revcheck.py` (test names unchanged), `layers.py`, quickcheck. Racecheck
      and finalcheck skipped at user request.
-209. [ ] DDL family tests —
+209. [x] DDL family tests —
      [core](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) · needs 207 · P ·
-     core after 9.6
+     core after 9.6 (`5d6bd7653`, `f6a1c3baa`, `48133b565`, `16b4e18cb`,
+     `fa11d6286`, `6d82aa38d`, `ee055850f`, `a0da5fc37`, `98ce0e13d`,
+     `5d8cf4e3e`, `3e20e5d9a`, `7836018dc`, docs commit) · test files only: 49
+     mixed files split by test function (60 parts), then 230 accessor-free files
+     with 360 tests move by the re-run census to `core/enginetests/tables` (380
+     KiB), `stored` (239), `indexes` (238), `dump` (223), `roles` (160), `views`
+     (155), `schema` (82) and `routines` (41), plus five type leftovers into
+     `types`; 42 helpers that two or more of them share move to `enginetest`.
+     Core 9.21 → 7.83 MiB. Passed: per-commit compile, the nine packages and
+     core, the files with package globals or session IDs alone, `RACE=1` for the
+     concurrent-index, lock and wait files, `revcheck.py` (test names
+     unchanged), `layers.py`, deps, quickcheck. Racecheck and finalcheck skipped
+     at user request.
 210. [x] Catalog producer tests —
      [core](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) · needs 207 ·
      P · core after 9.0 (`2586cf192`, `ac9603d71`, `f1bc37edb`, docs commit) ·
