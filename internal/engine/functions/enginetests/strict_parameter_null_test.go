@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -137,6 +138,46 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type)}
 			_, _, err = planner.run(&evaluation, node, true)
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
+			// Imported parameters are available to this demanded arithmetic
+			// sibling even though the analyzed recipe remains parameter-dependent.
+			// Planning must report its error before pruning the known-NULL parent,
+			// and fresh frames must neither reuse its error nor mutate the graph.
+			node, b, evaluation = strictNullUnitBind(t, e, op, scope, "($1::integer)+(10/$2::integer)")
+			for _, tc := range []struct{ null bool; left, right int64; fail bool; want any }{
+				{true,0,0,true,nil}, {true,0,2,false,nil},
+				{false,7,2,false,int64(12)}, {true,0,0,true,nil},
+			} {
+				left, err := sqltype.Integer(b.Params.Parameters[1].Type,tc.left)
+				if err != nil {t.Fatal(err)}
+				if tc.null {left=sqltype.Null(b.Params.Parameters[1].Type)}
+				right, err := sqltype.Integer(b.Params.Parameters[2].Type,tc.right)
+				if err != nil {t.Fatal(err)}
+				evaluation.Parameters=[]sqltype.Value{left,right}
+				planned, _, err := planner.run(&evaluation,node,true)
+				if tc.fail {
+					nullCountUnitDiagnostic(t,err,sqlstate.Error{Code:"22012",Message:"division by zero"})
+				} else {
+					if err != nil {t.Fatal(err)}
+					value, err := planned.Eval(&evaluation)
+					if got:=enginetest.Export(value);err!=nil||got!=tc.want {t.Fatal("fresh arithmetic frame",got,tc.want,err)}
+				}
+				var numbers []int
+				plan.WalkExpression(node,func(child expr.Expr){if p,ok:=child.(plan.ParameterExpr);ok {numbers=append(numbers,p.Number)}})
+				if len(numbers)!=2||numbers[0]!=1||numbers[1]!=2 {t.Fatal("NULL planning substituted original parameters",numbers)}
+			}
+			// Definition/readiness probes call the NULL proof itself without
+			// ordinary preflight, which separately requires initialized inputs.
+			var arithmetic expr.Expr
+			plan.WalkExpression(node,func(child expr.Expr){if _,ok:=child.(plan.ArithmeticExpr);ok&&arithmetic==nil {arithmetic=child}})
+			if arithmetic==nil {t.Fatal("bound arithmetic provider absent")}
+			evaluation.Parameters=[]sqltype.Value{sqltype.Null(b.Params.Parameters[1].Type),{}}
+			if _,folded,err:=exec.FoldStrictParameterNull(&evaluation,arithmetic);err!=nil||!folded {t.Fatal("uninitialized parameter entered arithmetic planning",folded,err)}
+			// Generic/imported planning must not use the execution frame to
+			// prune demand or execute parameter arithmetic.
+			evaluation.Parameters[1],err=sqltype.Integer(b.Params.Parameters[2].Type,0)
+			if err!=nil {t.Fatal(err)}
+			evaluation.PreserveParameterDemand=true
+			if _,folded,err:=exec.FoldStrictParameterNull(&evaluation,arithmetic);err!=nil||folded {t.Fatal("generic planning used parameter demand",folded,err)}
 		})
 	}
 }

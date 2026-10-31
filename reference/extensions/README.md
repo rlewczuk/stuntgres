@@ -65,6 +65,13 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   current privileges; stored consumers and native controls preserve symbolic
   installed identities, raw bytes and immutable retained results. Unsafe C
   layouts belong only in native decoder units, not the PostgreSQL oracle.
+- Header/checksum pageinspect fixtures in `reference/fixture/pageinspect_header.go`
+  independently assemble released headers and published checksum vectors.
+  Shared cases assert exact fields, signed INT2 results, PG_LSN/XID raw
+  transport, strict NULL/source cardinality, full diagnostics and current
+  permissions. Constant-NULL scalar checksum elision is distinguished from
+  RECORD and stored-NULL invocation ACLs. Stored consumers and native controls
+  preserve symbolic identities and caller bytes without acquiring physical pages.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.
@@ -98,6 +105,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
 - BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
 - GIN pageinspect: `RUN='^TestReferencePageinspectGIN'`
+- Header/checksum pageinspect: `RUN='^TestReferencePageinspect(Header|Checksum)'`
 - tablefunc hierarchy sources: `RUN='^TestReferenceConnectby'`. Shared helpers
   own caller-record metadata, full SQL diagnostics, retained statements and
   explicit native-control phases. Renamed members use current names or stored

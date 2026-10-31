@@ -35,9 +35,9 @@ func ownershipPageinspectSurvivors(t *testing.T) {
 				id := fixture.OwnershipID(t, p, c, `SELECT 'eo_old.brin_page_type(bytea)'::regprocedure::bigint`)
 				// Capture genuine declarations, including OUT arrays of the record
 				// routines. No engine descriptor, discovery filter or fabricated rows.
-				declarations := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.pronamespace='eo_old'::regnamespace AND ((p.prosrc IN ('brin_page_type','brin_metapage_info','brin_revmap_data','brin_page_items','fsm_page_contents','gin_metapage_info','gin_page_opaque_info','gin_leafpage_items')) OR (p.proname='bt_page_items' AND p.proargtypes::text='17')) ORDER BY p.oid`
+				declarations := `SELECT p.oid::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.pronamespace='eo_old'::regnamespace AND ((p.prosrc IN ('brin_page_type','brin_metapage_info','brin_revmap_data','brin_page_items','fsm_page_contents','gin_metapage_info','gin_page_opaque_info','gin_leafpage_items')) OR (p.proname='bt_page_items' AND p.proargtypes::text='17') OR (p.prosrc='page_header' AND p.proargtypes::text='17') OR (p.prosrc='page_checksum_1_9' AND p.proargtypes::text='17 20')) ORDER BY p.oid`
 				baseline := fixture.OwnershipSnapshot(t, p, c, declarations)
-				if len(baseline) != 9 {
+				if len(baseline) != 11 {
 					t.Fatalf("released represented pageinspect declaration count: %d", len(baseline))
 				}
 				identity := `SELECT p.oid::bigint,p.pronamespace::bigint,p.proowner::bigint,p.proacl::text,p.proargtypes::text,p.proallargtypes::text,p.proargmodes::text,p.proargnames::text,p.prorettype::bigint,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid=` + fixture.OwnershipNumber(id)

@@ -7,10 +7,11 @@ import (
  "stuntgres/internal/sqltype"
 )
 
-var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items"}
+var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items","page_header","page_checksum"}
 type Pageinspect struct { expr.Info; Args []expr.Expr; Slots [2]uint8; Member string }
 func pageinspectFormals(member string)([]string,[]sqltype.ID){
  if member=="brin_page_items" {return []string{"page","index_oid"},[]sqltype.ID{sqltype.Bytea,sqltype.Regclass}}
+ if member=="page_checksum" {return []string{"page","blkno"},[]sqltype.ID{sqltype.Bytea,sqltype.Int8}}
  return []string{"page"},[]sqltype.ID{sqltype.Bytea}
 }
 func bindPageinspect(b Binder,raw parser.FunctionExpr)(expr.Expr,error){
@@ -18,7 +19,7 @@ func bindPageinspect(b Binder,raw parser.FunctionExpr)(expr.Expr,error){
  for i,child:=range raw.Args {v,err:=b.AnalyzeArgument(child,AnalysisRequest{Intent:ComparisonArgument});if err!=nil{return nil,err};operands[i]=v}
  if err:=ValidateCallSyntax(b,raw);err!=nil{return nil,err}
  member:=raw.Name.Parts[len(raw.Name.Parts)-1].Text
- labels,types:=pageinspectFormals(member);signature:="17";if len(types)==2{signature="17,2205"}
+ labels,types:=pageinspectFormals(member);signature:="17";if member=="brin_page_items"{signature="17,2205"};if member=="page_checksum"{signature="17,20"}
  routine,err:=b.InstalledRoutine(raw.Name,PageinspectExtension,signature);if err!=nil{return nil,err}
  slots,valid:=namedSlots(raw,labels,len(labels))
  if !valid || len(operands)!=len(types) || routine==nil || raw.ResolutionOnly || raw.Variadic{return nil,b.SignatureError(raw.Name,raw.Pos,installedArgumentNames(b,raw,operands))}
@@ -42,6 +43,8 @@ func bindPageinspect(b Binder,raw parser.FunctionExpr)(expr.Expr,error){
  case "gin_metapage_info":names=[]string{"pending_head","pending_tail","tail_free_size","n_pending_pages","n_pending_tuples","n_total_pages","n_entry_pages","n_data_pages","n_entries","version"};ids=[]sqltype.ID{sqltype.Int8,sqltype.Int8,sqltype.Int4,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int4}
  case "gin_page_opaque_info":names=[]string{"rightlink","maxoff","flags"};ids=[]sqltype.ID{sqltype.Int8,sqltype.Int4,1009}
  case "gin_leafpage_items":names=[]string{"first_tid","nbytes","tids"};ids=[]sqltype.ID{sqltype.Tid,sqltype.Int2,1010}
+ case "page_header":names=[]string{"lsn","checksum","flags","lower","upper","special","pagesize","version","prune_xid"};ids=[]sqltype.ID{sqltype.PgLSN,sqltype.Int2,sqltype.Int2,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int2,sqltype.Xid}
+ case "page_checksum":usage=b.Type(sqltype.Int2).Usage()
  }
  if names!=nil {
   members:=make([]sqltype.CompositeMember,len(names));for i,name:=range names{members[i]=sqltype.CompositeMember{Attribute:int32(i+1),Name:name,Usage:b.Type(ids[i]).Usage()}}
@@ -60,8 +63,8 @@ func(n Pageinspect)Children()[]expr.Expr{return n.Args}
 func(n Pageinspect)ValidateArguments(children []expr.Expr)error{
  count:=1
  switch n.Member{
- case "brin_page_type","brin_metapage_info","brin_revmap_data","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items":
- case "brin_page_items":count=2
+ case "brin_page_type","brin_metapage_info","brin_revmap_data","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items","page_header":
+ case "brin_page_items","page_checksum":count=2
  default:return fmt.Errorf("stuntgres: invalid pageinspect member")
  }
  if len(children)!=count{return fmt.Errorf("stuntgres: invalid pageinspect arguments")}
@@ -70,7 +73,7 @@ func(n Pageinspect)ValidateArguments(children []expr.Expr)error{
   slot:=n.Slots[i]
   if int(slot)>=count || seen&(1<<slot)!=0 || child==nil || child.ResultUsage().Type==nil{return fmt.Errorf("stuntgres: invalid pageinspect argument")}
   expected:=sqltype.Bytea
-  if slot==1{expected=sqltype.Regclass}
+  if slot==1{expected=sqltype.Regclass;if n.Member=="page_checksum"{expected=sqltype.Int8}}
   if child.ResultUsage().Type.BaseType().ID()!=expected{return fmt.Errorf("stuntgres: invalid pageinspect argument")}
   seen|=1<<slot
  }

@@ -24,6 +24,8 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 		{fixture.GINMembers[0], fixture.GINNames[0], fixture.GINTypes[0], [][]byte{fixture.GINMeta()}, [][][]any{fixture.GINMetaRows}, fixture.GINNullRows(0), ""},
 		{fixture.GINMembers[1], fixture.GINNames[1], fixture.GINTypes[1], [][]byte{fixture.GINPage(0xffff)}, [][][]any{fixture.GINOpaqueRows}, fixture.GINNullRows(1), ""},
 		{fixture.GINMembers[2], fixture.GINNames[2], fixture.GINTypes[2], [][]byte{fixture.GINPosting()}, [][][]any{fixture.GINLeafRows}, nil, " ORDER BY first_tid"},
+		{"page_header", fixture.HeaderNames, fixture.HeaderTypes, [][]byte{fixture.HeaderAsymmetric()}, [][][]any{{fixture.HeaderAsymmetricRow}}, fixture.HeaderNullRows(), ""},
+		{"page_checksum", []string{"checksum"}, []string{"INT2"}, [][]byte{fixture.HeaderPattern(1), fixture.HeaderPattern(0xab,0xcd)}, [][][]any{{{int64(1175)}}, {{int64(-30781)}}}, [][]any{{nil}}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -38,13 +40,17 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						run := fixture.OwnershipRun(t, p, b, c)
 						fixture.OwnershipSurvivorRoles(run)
 						run(fixture.Exec(`CREATE EXTENSION pageinspect SCHEMA eo_old`, 0))
-						original := "eo_old." + tc.name + "(bytea)"
+						args := "bytea"
+						if tc.name == "page_checksum" { args = "bytea,bigint" }
+						original := "eo_old." + tc.name + "(" + args + ")"
 						fixture.OwnershipSurvivorACL(run, original)
 						switch tc.name {
 						case "bt_page_items":
 							run(fixture.BTDeclaration(tc.name, "eo_old", "eo_survivor_owner"))
 						case "fsm_page_contents":
 							run(fixture.FSMDeclaration(tc.name, "eo_old", "eo_survivor_owner"))
+						case "page_header", "page_checksum":
+							run(fixture.HeaderDeclaration(tc.name == "page_checksum",tc.name,"eo_old","eo_survivor_owner"))
 						default:
 							for i, name := range fixture.GINMembers {
 								if name == tc.name {
@@ -61,8 +67,8 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						fixture.OwnershipUnchanged(t, p, c, fixture.OwnershipSurvivorDeclaration(original), declaration)
 						run(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid=`+fixture.OwnershipNumber(id)+` AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))
 						run(fixture.Exec(`ALTER FUNCTION `+original+` RENAME TO eo_inspect`, 0))
-						run(fixture.Exec(`ALTER FUNCTION eo_old.eo_inspect(bytea) SET SCHEMA eo_new`, 0))
-						signature := "eo_new.eo_inspect(bytea)"
+						run(fixture.Exec(`ALTER FUNCTION eo_old.eo_inspect(`+args+`) SET SCHEMA eo_new`, 0))
+						signature := "eo_new.eo_inspect("+args+")"
 						if got := fixture.OwnershipID(t, p, c, `SELECT '`+signature+`'::regprocedure::bigint`); got != id {
 							t.Fatal("survivor identity changed", got, id)
 						}
@@ -71,6 +77,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 							if tc.name == "fsm_page_contents" {
 								return `SELECT eo_new.eo_inspect(` + argument + `) AS contents`
 							}
+							if tc.name == "page_checksum" {return `SELECT eo_new.eo_inspect(`+argument+`,0::bigint) AS checksum`}
 							return `SELECT * FROM eo_new.eo_inspect(` + argument + `)` + tc.order
 						}
 						metadata := func(s fixture.Step, view bool) fixture.Step {
@@ -79,6 +86,8 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 								return fixture.BTMetadata(s, b.PG, view)
 							case "fsm_page_contents":
 								return fixture.FSMMetadata(s, b.PG, view)
+							case "page_header", "page_checksum":
+								return fixture.HeaderMetadata(s,b.PG,view)
 							default:
 								return fixture.GINMetadata(s, b.PG, view)
 							}
@@ -97,6 +106,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 							if tc.name == "bt_page_items" {
 								zeroRows = fixture.BTNullRows
 							}
+							if tc.name == "page_header" {zeroRows=[][]any{fixture.HeaderZero}}
 							if tc.name == "gin_leafpage_items" {
 								zeroRows = fixture.GINNullRows(2)
 							}
@@ -108,7 +118,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 						run(fixture.Exec(`ALTER EXTENSION "uuid-ossp" ADD FUNCTION `+signature, 0))
 						values(c, b.Recorder)
 						for _, suffix := range []string{"", " CASCADE"} {
-							s := fixture.OwnershipError(`DROP FUNCTION `+signature+suffix, "2BP01", `cannot drop function eo_new.eo_inspect(bytea) because extension uuid-ossp requires it`)
+							s := fixture.OwnershipError(`DROP FUNCTION `+signature+suffix, "2BP01", `cannot drop function eo_new.eo_inspect(`+args+`) because extension uuid-ossp requires it`)
 							s.Diagnostic.Hint = "You can drop extension uuid-ossp instead."
 							run(s)
 						}

@@ -9,38 +9,48 @@ import (
  "stuntgres/internal/sqlstate"
 )
 
-func(c *Context)pageinspectInput(n plan.InstalledPageinspectExpr)(string,[]sqltype.BrinStoredColumn,bool,error){
- if err:=EvaluationContext(c);err!=nil{return "",nil,false,err}
+// pageinspectValues retains the already evaluated second formal without a
+// second child evaluation or a heap-backed argument frame.
+type pageinspectValues struct {
+ raw string
+ columns []sqltype.BrinStoredColumn
+ second sqltype.Value
+ null bool
+}
+func(c *Context)pageinspectInput(n plan.InstalledPageinspectExpr)(input pageinspectValues,err error){
+ if err=EvaluationContext(c);err!=nil{return input,err}
  view:=preparation.DomainCatalog(c)
- if n.Procedure==nil || n.CallRoutineReference()!=n.Procedure || n.Ref.Address!=n.Procedure.Address() || !preparation.StoredReferenceValid(view,c.RoutineConsumer,n.Ref){return "",nil,false,fmt.Errorf("stuntgres: invalid installed pageinspect reference")}
- current,err:=ValidateStoredRoutineDescriptor(view,n.Procedure);if err!=nil{return "",nil,false,err}
- symbol,err:=extension.ProcedureSymbol(view,current);if err!=nil{return "",nil,false,err};if symbol!=n.Member{return "",nil,false,fmt.Errorf("stuntgres: invalid pageinspect member")}
+ if n.Procedure==nil || n.CallRoutineReference()!=n.Procedure || n.Ref.Address!=n.Procedure.Address() || !preparation.StoredReferenceValid(view,c.RoutineConsumer,n.Ref){return input,fmt.Errorf("stuntgres: invalid installed pageinspect reference")}
+ current,err:=ValidateStoredRoutineDescriptor(view,n.Procedure);if err!=nil{return input,err}
+ symbol,err:=extension.ProcedureSymbol(view,current);if err!=nil{return input,err};if symbol!=n.Member{return input,fmt.Errorf("stuntgres: invalid pageinspect member")}
  boundary:=n.Pageinspect;boundary.RoutineReference=current
- if err:=extension.ValidatePageinspectCall(view,current,boundary);err!=nil{return "",nil,false,err}
- var values [2]sqltype.Value;null:=false
- for i,child:=range n.Args{v,err:=child.Eval(c);if err!=nil{return "",nil,false,err};values[n.Slots[i]]=v;null=null||v.IsNull()}
- if null{return "",nil,true,nil}
- auth,dependencies,err:=RoutineAdmissionAuthority(c);if err!=nil{return "",nil,false,err}
- if err:=CheckRecipeRoutineDescriptor(c,auth,dependencies,n.Procedure);err!=nil{return "",nil,false,err}
- current,err=ValidateRoutineDescriptor(auth.Catalog,auth.Roles,n.Procedure);if err!=nil{return "",nil,false,err}
+ if err=extension.ValidatePageinspectCall(view,current,boundary);err!=nil{return input,err}
+ var values [2]sqltype.Value
+ for i,child:=range n.Args{v,failure:=child.Eval(c);if failure!=nil{return input,failure};values[n.Slots[i]]=v;input.null=input.null||v.IsNull()}
+ input.second=values[1]
+ if input.null{return input,nil}
+ auth,dependencies,err:=RoutineAdmissionAuthority(c);if err!=nil{return input,err}
+ if err=CheckRecipeRoutineDescriptor(c,auth,dependencies,n.Procedure);err!=nil{return input,err}
+ current,err=ValidateRoutineDescriptor(auth.Catalog,auth.Roles,n.Procedure);if err!=nil{return input,err}
  n.Ref.Epoch=auth.Catalog.Epoch();n.Procedure,n.RoutineReference=current,current
  var oid uint32
- if n.Member=="brin_page_items"{oid,err=values[1].ClassOID();if err!=nil{return "",nil,false,err}}
- host:=c.LiveHost();if host==nil{return "",nil,false,fmt.Errorf("stuntgres: missing pageinspect statement runtime")}
- columns,err:=host.Pageinspect(n,oid);if err!=nil{return "",nil,false,err}
- raw,err:=values[0].Binary();return raw,columns,false,err
+ if n.Member=="brin_page_items"{oid,err=values[1].ClassOID();if err!=nil{return input,err}}
+ host:=c.LiveHost();if host==nil{return input,fmt.Errorf("stuntgres: missing pageinspect statement runtime")}
+ input.columns,err=host.Pageinspect(n,oid);if err!=nil{return input,err}
+ input.raw,err=values[0].Binary();return input,err
 }
 func(c *Context)pageinspect(n plan.InstalledPageinspectExpr)(sqltype.BrinPage,[]sqltype.BrinStoredColumn,bool,error){
- raw,columns,null,err:=c.pageinspectInput(n);if err!=nil || null{return sqltype.BrinPage{},columns,null,err}
+ input,err:=c.pageinspectInput(n);if err!=nil || input.null{return sqltype.BrinPage{},input.columns,input.null,err}
  required:=uint16(0);switch n.Member{case "brin_metapage_info":required=0xf091;case "brin_revmap_data":required=0xf092;case "brin_page_items":required=0xf093}
- page,err:=sqltype.ReadBrinPage(raw,required);return page,columns,false,err
+ page,err:=sqltype.ReadBrinPage(input.raw,required);return page,input.columns,false,err
 }
 func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,error){
+ if n.Member=="page_header" || n.Member=="page_checksum"{return c.evalHeaderPageinspect(n)}
  if n.Member=="gin_metapage_info" || n.Member=="gin_page_opaque_info"{return c.evalGinPageinspect(n)}
  if n.Member=="fsm_page_contents"{
-  raw,_,null,err:=c.pageinspectInput(n);if err!=nil{return sqltype.Value{},err};d:=n.Usage.Type
-  if null{return sqltype.Null(d),nil}
-  contents,isNew,err:=sqltype.ReadFSMPageContents(raw);if err!=nil{return sqltype.Value{},err}
+  input,err:=c.pageinspectInput(n);if err!=nil{return sqltype.Value{},err};d:=n.Usage.Type
+  if input.null{return sqltype.Null(d),nil}
+  contents,isNew,err:=sqltype.ReadFSMPageContents(input.raw);if err!=nil{return sqltype.Value{},err}
   if isNew{return sqltype.Null(d),nil};return sqltype.String(d,contents),nil
  }
  page,_,null,err:=c.pageinspect(n);if err!=nil{return sqltype.Value{},err};d:=n.Usage.Type
@@ -55,7 +65,7 @@ func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,e
 func(c *Context)OpenPageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCursor,error){
  if n.Member=="bt_page_items"{return c.openBtreePageinspect(n)}
  if n.Member=="gin_leafpage_items"{return c.openGinPageinspect(n)}
- if n.Member=="brin_page_type" || n.Member=="brin_metapage_info" || n.Member=="fsm_page_contents" || n.Member=="gin_metapage_info" || n.Member=="gin_page_opaque_info"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}
+ if n.Member=="brin_page_type" || n.Member=="brin_metapage_info" || n.Member=="fsm_page_contents" || n.Member=="gin_metapage_info" || n.Member=="gin_page_opaque_info" || n.Member=="page_header" || n.Member=="page_checksum"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}
  page,columns,null,err:=c.pageinspect(n);if err!=nil{return expr.SourceCursor{},err};d:=n.Usage.Type
  if null{return expr.OwnedSource(d,nil),nil}
  if n.Member=="brin_revmap_data"{rows,err:=page.Revmap(d);if err!=nil{return expr.SourceCursor{},err};return expr.OwnedSource(d,rows),nil}
@@ -77,9 +87,9 @@ func(c *Context)OpenPageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCurs
 }
 
 func(c *Context)openBtreePageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCursor,error){
- raw,_,null,err:=c.pageinspectInput(n);if err!=nil{return expr.SourceCursor{},err};d:=n.Usage.Type
- if null{return expr.OwnedSource(d,nil),nil}
- page,err:=sqltype.ReadBtreePage(raw);if err!=nil{return expr.SourceCursor{},err}
+ input,err:=c.pageinspectInput(n);if err!=nil{return expr.SourceCursor{},err};d:=n.Usage.Type
+ if input.null{return expr.OwnedSource(d,nil),nil}
+ page,err:=sqltype.ReadBtreePage(input.raw);if err!=nil{return expr.SourceCursor{},err}
  if page.IsNew(){return expr.OwnedSource(d,[]sqltype.Value{sqltype.Null(d)}),nil}
  if page.IsDeleted(){
   for _,message:=range []string{"page is deleted","page from block is deleted"}{c.LiveHost().PageinspectNotice(sqlstate.Error{Severity:"NOTICE",SeverityUnlocalized:"NOTICE",Code:"00000",Message:message})}

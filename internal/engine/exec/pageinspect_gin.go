@@ -7,10 +7,10 @@ import (
 )
 
 func(c *Context)evalGinPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,error) {
- raw,_,null,err:=c.pageinspectInput(n);if err!=nil {return sqltype.Value{},err}
- d:=n.Usage.Type;if null {return sqltype.Null(d),nil}
+ input,err:=c.pageinspectInput(n);if err!=nil {return sqltype.Value{},err}
+ d:=n.Usage.Type;if input.null {return sqltype.Null(d),nil}
  kind:=sqltype.GinMetapage;if n.Member=="gin_page_opaque_info" {kind=sqltype.GinOpaquePage}
- page,err:=sqltype.ReadGinPage(raw,kind);if err!=nil {return sqltype.Value{},err}
+ page,err:=sqltype.ReadGinPage(input.raw,kind);if err!=nil {return sqltype.Value{},err}
  if page.IsNew() {return sqltype.Null(d),nil}
  fields:=make([]sqltype.Value,d.CompositeLen())
  if kind==sqltype.GinMetapage {
@@ -26,9 +26,9 @@ func(c *Context)evalGinPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Valu
  return sqltype.OwnedCompositeValue(d,fields)
 }
 func(c *Context)openGinPageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCursor,error) {
- raw,_,null,err:=c.pageinspectInput(n);if err!=nil {return expr.SourceCursor{},err}
- d:=n.Usage.Type;if null {return expr.OwnedSource(d,nil),nil}
- page,err:=sqltype.ReadGinPage(raw,sqltype.GinLeafPage);if err!=nil {return expr.SourceCursor{},err}
+ input,err:=c.pageinspectInput(n);if err!=nil {return expr.SourceCursor{},err}
+ d:=n.Usage.Type;if input.null {return expr.OwnedSource(d,nil),nil}
+ page,err:=sqltype.ReadGinPage(input.raw,sqltype.GinLeafPage);if err!=nil {return expr.SourceCursor{},err}
  if page.IsNew() {return expr.OwnedSource(d,[]sqltype.Value{sqltype.Null(d)}),nil}
  items,err:=page.LeafItems(c.Context);if err!=nil {return expr.SourceCursor{},err}
  rows:=make([]sqltype.Value,len(items))

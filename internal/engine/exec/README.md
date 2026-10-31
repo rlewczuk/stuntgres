@@ -417,16 +417,23 @@ typmods; naming is captured only on failure and is never retained in result tupl
   CURRENT OF scans (`cursor_scan.go`), `pgrowlocks` values and the session
   identity snapshot (`identity.go`).
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
-  shares installed identity admission and written-order STRICT argument
-  evaluation. The host supplies current superuser and, for BRIN items, exact
-  index-descriptor authority before raw validation. Separate immutable BRIN,
-  B-tree, FSM and GIN readers decode bytea without table-row access. GIN routes
-  in `pageinspect_gin.go` build ordinary typed composites and arrays; scalar
-  NULL/new records, STRICT leaf NULL (no rows), new leaf (one NULL record) and
-  empty compressed leaf (no rows) remain distinct. FSM scalar and FROM routes
-  return one typed NULL TEXT row for SQL NULL or new pages. Declared result
-  shapes own cursor metadata and generic TID arrays; deleted B-tree notices
-  use the current statement operation.
+  shares installed identity admission and once-only native written-order
+  argument evaluation. A fixed two-value frame projects formal slots; its
+  result retains the already evaluated checksum INT8 operand without copying
+  a page or evaluating a child twice. The host supplies current superuser and,
+  for BRIN items, exact index-descriptor authority before raw validation.
+  Immutable BRIN, B-tree, FSM, GIN and raw-header readers decode bytea without
+  table-row access. Header/checksum routes in `pageinspect_header.go` produce
+  owned PG_LSN/XID composites or INT2; header preserves all-zero records,
+  while checksum alone returns NULL for `pd_upper==0`. Their non-set FROM
+  routes always return one row, including SQL NULL. Shared planning may
+  eliminate strict scalar constant-NULL calls before EXECUTE admission, but
+  retains RECORD calls and runtime NULL columns for permission checks.
+  GIN routes in `pageinspect_gin.go` build ordinary typed composites and
+  arrays; STRICT leaf NULL (no rows), new leaf (one NULL record) and empty
+  compressed leaf (no rows) remain distinct. FSM returns one typed NULL TEXT
+  row for SQL NULL or new pages. Declared result shapes own cursor metadata;
+  deleted B-tree notices use the current statement operation.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST
   requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,
@@ -530,6 +537,13 @@ and custom-plan pruning retain their existing behavior. This does not add a
 generic/custom plan cache or change SQL/PL/host invocation owners. Immutable
 child errors and their current-actor EXECUTE checks still precede erasure; a
 runtime-only sibling, including a domain coercion, is discarded without execution.
+Within this already-proven NULL frontier, initialized custom-plan parameters
+also supply demanded immutable arithmetic children through the existing planning
+admission evaluator. Only typed arithmetic and its selected operator/coercion
+wrappers enter; arbitrary functions, row/stage/domain/volatile providers and
+uninitialized frames do not. The temporary value is discarded after checking
+errors, without parameter substitution, a global arithmetic-folding change or
+mutation of the analyzed recipe. Generic parameter-demand barriers remain intact.
 A domain conversion in the NULL-supplying argument is not a proof. Runtime row
 NULL is not a planning fact and retains sibling admission and effects.
 Declared RECORD results, SRFs and compound NULL-aware carriers are excluded.

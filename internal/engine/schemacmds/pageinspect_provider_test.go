@@ -22,7 +22,7 @@ import (
 func TestPageinspectBrinProviderIdentity(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
  view:=e.CatalogRead();ext:=view.MustExtension(view.State().NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"pageinspect"}))
- if len(ext.Members)!=9 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
+ if len(ext.Members)!=11 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
  for i,address:=range ext.Members{
   p:=view.MustProcedure(address);m:=extension.PageinspectMembers[i]
   if p.Name()!=m.Name || p.Signature!=m.Signature || p.Result!=m.Result || p.Installed!=m.Declaration || p.Volatility!=expr.Volatile || !p.Strict || core.ProcedureReturnsSet(p)!=m.Declaration.ReturnsSet{t.Fatal(p)}
@@ -73,6 +73,12 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 		"ALTER FUNCTION brin_moved.gin_leafpage_items(bytea) SET SCHEMA gin_moved",
 		"ALTER FUNCTION gin_moved.gin_leafpage_items(bytea) RENAME TO leaf_items",
 		"ALTER FUNCTION gin_moved.leaf_items(bytea) OWNER TO gin_owner",
+		"ALTER FUNCTION brin_moved.page_header(bytea) RENAME TO header_info",
+		"ALTER FUNCTION brin_moved.header_info(bytea) SET SCHEMA gin_moved",
+		"ALTER FUNCTION gin_moved.header_info(bytea) OWNER TO pi_owner",
+		"ALTER FUNCTION brin_moved.page_checksum(bytea,bigint) RENAME TO page_sum",
+		"ALTER FUNCTION brin_moved.page_sum(bytea,bigint) SET SCHEMA gin_moved",
+		"ALTER FUNCTION gin_moved.page_sum(bytea,bigint) OWNER TO gin_owner",
 	} {
 		enginetest.RoleExecute(t, e, op, sql)
 	}
@@ -87,7 +93,7 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 	if err != nil || !present {
 		t.Fatal(record, present, err)
 	}
-	first, items, ginLeaf := -1, -1, -1
+	first, items, ginLeaf, header, checksum := -1, -1, -1, -1, -1
 	wants := []struct{ schema, name, signature, owner string }{
 		{"brin_moved", "page_kind", "pg_catalog.bytea", "pi_owner"},
 		{"brin_moved", "brin_metapage_info", "pg_catalog.bytea", "postgres"},
@@ -98,6 +104,8 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 		{"gin_moved", "meta_info", "pg_catalog.bytea", "gin_owner"},
 		{"gin_moved", "opaque_info", "pg_catalog.bytea", "postgres"},
 		{"gin_moved", "leaf_items", "pg_catalog.bytea", "gin_owner"},
+		{"gin_moved", "header_info", "pg_catalog.bytea", "pi_owner"},
+		{"gin_moved", "page_sum", "pg_catalog.bytea, bigint", "gin_owner"},
 	}
 	if len(record.Members) != len(wants) {
 		t.Fatal("incomplete released owner inventory", record)
@@ -123,9 +131,13 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 			items = i
 		case 8:
 			ginLeaf = i
+		case 9:
+			header = i
+		case 10:
+			checksum = i
 		}
 	}
-	if first < 0 || items < 0 || ginLeaf < 0 || record.Members[first].Name != "page_kind" || record.Members[first].Owner != "pi_owner" || record.Members[first].Schema != "brin_moved" {
+	if first < 0 || items < 0 || ginLeaf < 0 || header < 0 || checksum < 0 || record.Members[first].Name != "page_kind" || record.Members[first].Owner != "pi_owner" || record.Members[first].Schema != "brin_moved" {
 		t.Fatal("current owner identity lost after genuine relocation", record)
 	}
 	encode := func(record extension.OwnerRecord) string {
@@ -154,6 +166,8 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 		{"foreign_declaration", func(r *extension.OwnerRecord) { declaration := len(wants); r.Members[items].Declaration = &declaration }},
 		{"wrong_signature", func(r *extension.OwnerRecord) { r.Members[items].Signature = "pg_catalog.bytea, pg_catalog.oid" }},
 		{"gin_wrong_signature", func(r *extension.OwnerRecord) { r.Members[ginLeaf].Signature = "pg_catalog.text" }},
+		{"header_wrong_signature", func(r *extension.OwnerRecord) { r.Members[header].Signature = "pg_catalog.text" }},
+		{"checksum_wrong_second_type", func(r *extension.OwnerRecord) { r.Members[checksum].Signature = "pg_catalog.bytea, pg_catalog.regclass" }},
 		{"wrong_kind", func(r *extension.OwnerRecord) { r.Members[first].Kind = "type" }},
 		{"missing_namespace", func(r *extension.OwnerRecord) { r.Members[first].Schema = "" }},
 		{"missing_owner", func(r *extension.OwnerRecord) { r.Members[first].Owner = "" }},

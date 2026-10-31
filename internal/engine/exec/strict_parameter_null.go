@@ -20,9 +20,9 @@ func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error
 }
 
 // planChild completes ordinary child planning when the caller has only
-// preflighted conversions. Definition eligibility callers leave it nil: their
-// NULL proof must not execute children. Conditional planning also leaves it nil
-// because it has already planned the children.
+// preflighted conversions. Definition eligibility supplies no execution frame,
+// so its NULL proof does not compute children. Conditional planning leaves the
+// callback nil because it has already planned them.
 func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Expr) error) (expr.Expr, bool, error) {
 	if folded, changed, handled, err := foldRandomNullInputs(c, node); handled {
 		return folded, changed, err
@@ -68,8 +68,62 @@ func foldStrictParameterNull(c *Context, node expr.Expr, planChild func(expr.Exp
 			return nil, false, failure
 		}
 	}
+	// A custom-plan parameter NULL must not erase an independently demanded
+	// arithmetic error in another supplied parameter expression. Ordinary child
+	// planning leaves these expressions parameter-dependent; complete only this
+	// narrow immutable available-frame frontier before discarding the call.
+	if err := planStrictNullArithmetic(c, node); err != nil {
+		return nil, false, err
+	}
 	info := foldedExpressionInfo(node)
 	return plan.LiteralExpr{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
+}
+
+func planStrictNullArithmetic(c *Context, node expr.Expr) error {
+	// Definition eligibility has no execution frame and must never compute.
+	if c == nil || c.Context == nil || c.PreserveParameterDemand || len(c.Parameters) == 0 {
+		return nil
+	}
+	var failure error
+	plan.ExpressionChildren(node, func(child expr.Expr) {
+		if failure != nil || child == nil || !child.Properties().ParameterDependent || !OperatorExecutionConstant(child, c) {
+			return
+		}
+		arithmetic, ready := strictNullArithmeticTree(child, c)
+		if arithmetic && ready {
+			_, failure = FoldPlanningExpression(c, child)
+		}
+	})
+	return failure
+}
+
+// Availability alone must not admit arbitrary immutable functions. Only typed
+// arithmetic, its selected operator/coercion wrappers and owned frame leaves
+// enter this demand point; row, stage, domain and volatile providers stay out.
+func strictNullArithmeticTree(node expr.Expr, c *Context) (arithmetic, ready bool) {
+	switch n := node.(type) {
+	case plan.LiteralExpr:
+		return false, true
+	case plan.ParameterExpr:
+		return false, n.Number > 0 && n.Number <= len(c.Parameters) && c.Parameters[n.Number-1].Type() != nil
+	case plan.CollationExpr:
+		return strictNullArithmeticTree(n.Child, c)
+	case plan.CoercionExpr:
+		if n.Usage.Type == nil || n.Usage.Type.IsDomain() {
+			return false, false
+		}
+		return strictNullArithmeticTree(n.Child, c)
+	case plan.SelectedOperatorExpr:
+		return strictNullArithmeticTree(n.Provider, c)
+	case plan.ArithmeticExpr:
+		_, left := strictNullArithmeticTree(n.Left, c)
+		right := true
+		if n.Right != nil {
+			_, right = strictNullArithmeticTree(n.Right, c)
+		}
+		return true, left && right
+	}
+	return false, false
 }
 
 // ExecutionKnownNullArgument reports whether node is known NULL from a

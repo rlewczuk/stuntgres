@@ -44,6 +44,8 @@ var PageinspectMembers = [...]PageinspectMember{
 	{"gin_metapage_info", "gin_metapage_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 20, 23, 20, 20, 20, 20, 20, 20, 23}, "page", "pending_head", "pending_tail", "tail_free_size", "n_pending_pages", "n_pending_tuples", "n_total_pages", "n_entry_pages", "n_data_pages", "n_entries", "version")}},
 	{"gin_page_opaque_info", "gin_page_opaque_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 23, 1009}, "page", "rightlink", "maxoff", "flags")}},
 	{"gin_leafpage_items", "gin_leafpage_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{27, 21, 1010}, "page", "first_tid", "nbytes", "tids")}},
+	{"page_header", "page_header", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{3220, 21, 21, 23, 23, 23, 23, 21, 28}, "page", "lsn", "checksum", "flags", "lower", "upper", "special", "pagesize", "version", "prune_xid")}},
+	{"page_checksum", "page_checksum_1_9", "17,20", 21, catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"page", "blkno"}}},
 }
 
 func (p *PageinspectProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {

@@ -15,7 +15,7 @@ oracle options as `reference/extensions`
 Helpers shared with `reference/extensions` live in `reference/fixture`:
 `ExtensionDump`, the physical TEMP owner (`ExtensionTemporaryOwner`), tablefunc
 connectby/crosstab/normal helpers, template lexeme helpers and the released
-pageinspect page images (`pageinspect_pages.go`). Ownership scenario and control
+pageinspect page images (`pageinspect_pages.go`, `pageinspect_header.go`). Ownership scenario and control
 helpers shared with `reference/extension_ownership_ltree` live in
 `reference/fixture/extension_ownership_helpers.go` (`OwnershipScenario`,
 `OwnershipSurvivorControls`, ...); the rest are in
@@ -159,7 +159,9 @@ and its `REFERENCE=1` counterpart.
 The same Controls families also register `crosstab_survivors`,
 `hstore_survivors` and `pageinspect_families_survivors`. These use genuine released
 record/named crosstab providers, the retained hstore nominal/helper graph and
-BTREE/FSM/GIN fixture images. Shared SQL mutates membership and current identities,
+BTREE/FSM/GIN/header/checksum fixture images. The checksum survivor retains its
+BYTEA/INT8 signature and header retains all nine OUT fields through the same
+membership/control harness. Shared SQL mutates membership and current identities,
 retires the original extension lawfully, and checks direct/prepared/stored/NULL
 behavior with exact logical declaration metadata. Native phases repeat the
 survivor behavior through same-driver and independent-driver restoration; they
@@ -189,7 +191,7 @@ flags for direct/prepared calls and the stored view. Native controls repeat
 these assertions after same-driver and independent-driver Dump/Reset/Restore,
 including current e/normal edges and symbolic declaration/ACL equality, without
 resurrecting pageinspect or serializing physical page handles.
-BRIN and BTREE/FSM/GIN survivor controls keep raw pools for Reset/Restore only.
+BRIN and BTREE/FSM/GIN/header/checksum survivor controls keep raw pools for Reset/Restore only.
 Every restored SQL witness uses that destination's wrapped recording pool and
 matching recorder, including prepared calls and permission failures. A prior
 strict-NULL or zero-page result cannot substitute for the restored image's

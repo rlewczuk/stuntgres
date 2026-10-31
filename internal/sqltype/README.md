@@ -168,6 +168,14 @@ admission and removes it before nested binding.
   Safe low page-version, reported GIN-version and stored offset mutations are
   not extra validation gates. Undefined corrupt layouts use the ordinary native
   layout error, never fabricated PostgreSQL SQLSTATEs or physical acquisition.
+- `ReadPageHeader` owns the numeric PostgreSQL 18 raw header fields, including
+  high-word-first PG_LSN, signed checksum/flags, unsigned offsets and full XID.
+  It checks exact byte length, not layout version, page type or offset order.
+  `ReadPageChecksum` validates the unsigned physical block range before length
+  and `pd_upper==0` handling. Its fixed 32-lane uint32 kernel follows the
+  released checksum algorithm, masking stored-checksum bytes while retaining
+  flags, then mixing the block and narrowing to signed INT2. Both readers use
+  immutable little-endian access: no 8 KiB copy, mutation or physical acquisition.
 - `PgNDistinct`, `PgDependencies` and `PgMCVList` are concrete internal base
   descriptors. Non-NULL text and binary input reject with 0A000; typed NULL
   remains valid for storage, parameters and results. Checked internal producer
@@ -832,7 +840,7 @@ Cooperative provider admission, class precision and failure ownership use
 add `RACE=1` for cancellation and cursor-lifetime proof.
 JSON text-search filter/traversal ownership uses `RUN='^TestJSONTextSearch'`.
 
-Native physical datum and BRIN/B-tree/FSM byte-reader units use `RUN='^TestPageinspect'`;
+Native physical datum and BRIN/B-tree/FSM/header/checksum byte-reader units use `RUN='^TestPageinspect'`;
 GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.
 The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
 lists separately from page-context dead flags. Posting results use executable

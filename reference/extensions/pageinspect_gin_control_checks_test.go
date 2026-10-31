@@ -116,7 +116,7 @@ func ginControlCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	ginBoth(t, p, b, c, fixture.Select("SELECT meta,opaque,leaf FROM gin_images", []string{"meta", "opaque", "leaf"}, []string{"BYTEA", "BYTEA", "BYTEA"}, [][]any{{string(fixture.GINMeta()), string(fixture.GINPage(0xffff)), string(fixture.GINPosting())}}))
 	ginBoth(t, p, b, c, fixture.Select("SELECT n.nspname::text AS target,r.rolname::text AS owner FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace JOIN pg_roles r ON r.oid=e.extowner WHERE e.extname='pageinspect'", []string{"target", "owner"}, []string{"TEXT", "TEXT"}, [][]any{{"gin_part", principal}}))
 	if !b.PG {
-		rows := [][]any{{"brin_page_type", "gin_part", principal}, {"brin_metapage_info", "gin_part", principal}, {"brin_revmap_data", "gin_part", principal}, {"brin_page_items", "gin_part", principal}, {"bt_page_items", "gin_part", principal}, {"fsm_page_contents", "gin_part", principal}}
+		rows := [][]any{{"brin_page_type", "gin_part", principal}, {"brin_metapage_info", "gin_part", principal}, {"brin_revmap_data", "gin_part", principal}, {"brin_page_items", "gin_part", principal}, {"bt_page_items", "gin_part", principal}, {"fsm_page_contents", "gin_part", principal}, {"page_header", "gin_part", principal}, {"page_checksum", "gin_part", principal}}
 		for i, name := range fixture.GINMembers {
 			schema, owner := "gin_part", principal
 			if moved {

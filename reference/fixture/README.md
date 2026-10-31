@@ -49,6 +49,8 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
   `AssertRawValue` checks non-NULL arrays, including internal-char (`_CHAR`) and
   regtype (`_REGTYPE`) arrays, as native strings and pq byte slices before
   normalization; scalar `CHAR` remains a string on both backends.
+  Scalar `XID` retains a nonnil byte slice on both backends; exact unsigned
+  decimal payloads are compared after the raw transport assertion.
 - Before and after each case, the reset borrows the admin pool's one idle session
   and runs standalone `ROLLBACK`, then standalone `DISCARD ALL` (it cannot run in a
   transaction block), then `DROP SCHEMA public CASCADE; CREATE SCHEMA public`, on
@@ -157,6 +159,7 @@ production dependency is involved.
 - **Extension shared ownership.** `extension_controls.go` (`ExtensionDump`,
   the physical TEMP owner `ExtensionTemporaryOwner`), `pageinspect_pages.go`
   (released BRIN/BTREE/FSM/GIN page images and their metadata checkers),
+  `pageinspect_header.go` (independent header/checksum images and metadata),
   `tablefunc_helpers.go` (connectby/crosstab/normal) and `ts_template_helpers.go`
   serve [extensions](../extensions/README.md#testing) and
   [extension_ownership](../extension_ownership/README.md#testing).

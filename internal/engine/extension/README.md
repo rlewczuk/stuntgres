@@ -375,7 +375,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   identities).
 - **pageinspect** (`pageinspect_provider.go`): the superuser, untrusted,
   relocatable 1.13 manifest owns four BRIN byte decoders, `bt_page_items(bytea)`,
-  `fsm_page_contents(bytea)` and the three GIN BYTEA decoders. GIN metadata and
+  `fsm_page_contents(bytea)`, three GIN BYTEA decoders, `page_header(bytea)`
+  and `page_checksum(bytea,bigint)`. Header inspection owns nine typed OUT
+  fields; checksum uses the released `page_checksum_1_9` C identity and INT2
+  result. Both are scalar, STRICT, VOLATILE and parallel safe. GIN metadata and
   opaque inspection return scalar records; compressed leaf inspection returns
   a record set. FSM has no named OUT parameter: its source label follows the
   SQL function name or range alias.
@@ -387,7 +390,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   public names or the live original extension. Explicit C source identities
   preserve `bt_page_items_bytea` through member renames. Detachment, foreign
   membership and original-extension retirement do not change released capability.
-  The v3 owner codec preserves all nine declaration slots, symbolic signatures
+  The v3 owner codec preserves all eleven declaration slots, symbolic signatures
   and immutable OUT payload alongside current owners and membership; import
   still validates each actual destination member identity.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
