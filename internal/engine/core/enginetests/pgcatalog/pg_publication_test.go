@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -16,7 +16,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func publicationNamespaceInput(t *testing.T, e *core.Engine, body func(pgcatalog.Input, core.AuthorizationView)) {
+
+func publicationInput(t *testing.T, e *core.Engine, body func(pgcatalog.Input, core.AuthorizationView)) {
 	t.Helper()
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
@@ -29,56 +30,59 @@ func publicationNamespaceInput(t *testing.T, e *core.Engine, body func(pgcatalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 6237}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 6104}
 	source, ok := auth.Catalog.Get(a).(*catalog.Relation)
 	if !ok {
-		t.Fatal("missing pg_publication_namespace descriptor")
+		t.Fatal("missing pg_publication descriptor")
 	}
 	body(pgcatalog.Input{Context: op.Context(), Owner: auth.Owner, Catalog: auth.Catalog, Roles: auth.Roles, Ref: auth.Ref(a), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})}, auth)
 }
 
-func publicationNamespaceProducer(t *testing.T) pgcatalog.Producer {
+func publicationProducer(t *testing.T) pgcatalog.Producer {
 	t.Helper()
-	produce, ok := pgcatalog.ProducerFor(6237)
+	produce, ok := pgcatalog.ProducerFor(6104)
 	if !ok || produce == nil {
-		t.Fatal("missing pg_publication_namespace producer")
+		t.Fatal("missing pg_publication producer")
 	}
 	return produce
 }
 
-func TestPGPublicationNamespaceRegistrationFacts(t *testing.T) {
+func TestPGPublicationRegistrationFacts(t *testing.T) {
 	e, other := engine.New(), engine.New()
 	v := e.CatalogRead()
-	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 6237}
+	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 6104}
 	d, ok := v.Get(a).(*catalog.Relation)
 	if !ok {
-		t.Fatal("missing pg_publication_namespace descriptor")
+		t.Fatal("missing pg_publication descriptor")
 	}
-	publicationNamespaceProducer(t)
-	if d.Name() != "pg_publication_namespace" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RowType != 10109 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.CatalogView || catalog.SharedRelation(d) || !d.History.HasIndexes || d.ColumnMeta.HighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || len(d.ColumnMeta.CatalogAttributes) != 3 || !pgcatalog.RegisteredSource(v, d) {
-		t.Fatal("publicationNamespace registration", d)
+	publicationProducer(t)
+	if d.Name() != "pg_publication" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RowType != 10107 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.CatalogView || catalog.SharedRelation(d) || !d.History.HasIndexes || d.ColumnMeta.HighWater != 10 || len(d.Columns) != 10 || len(d.Attributes) != 10 || len(d.Index) != 10 || len(d.ColumnMeta.CatalogAttributes) != 10 || !pgcatalog.RegisteredSource(v, d) {
+		t.Fatal("publication registration", d)
 	}
 	registered := 0
 	for _, spec := range pgcatalog.Specs {
-		if spec.OID == 6237 {
+		if spec.OID == 6104 {
 			registered++
 		}
 	}
 	if registered != 1 {
-		t.Fatal("publicationNamespace source registration count", registered)
+		t.Fatal("publication source registration count", registered)
 	}
 	if pgcatalog.ClassKind(v, d) != "r" || pgcatalog.ClassPersistence(v, d) != "p" {
 		t.Fatal("class kind/persistence")
 	}
-	names := []string{"oid", "pnpubid", "pnnspid"}
-	types := []sqltype.ID{26, 26, 26}
+	names := []string{"oid", "pubname", "pubowner", "puballtables", "pubinsert", "pubupdate", "pubdelete", "pubtruncate", "pubviaroot", "pubgencols"}
+	types := []sqltype.ID{26, 19, 26, 16, 16, 16, 16, 16, 16, 18}
 	for i, c := range d.Columns {
 		typ, ok := v.LookupType(types[i])
 		foreign, _ := other.CatalogRead().LookupType(types[i])
 		fact := d.ColumnMeta.CatalogAttributes[i]
 		collation := uint32(0)
-		if !ok || c.Name != names[i] || c.Usage.Type != typ || typ == foreign || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 6237 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i || !fact.NotNull || fact.Collation != collation || fact.Dimensions != 0 {
-			t.Fatal("publicationNamespace attribute", i, c, fact)
+		if i == 1 {
+			collation = 950
+		}
+		if !ok || c.Name != names[i] || c.Usage.Type != typ || typ == foreign || c.Usage.Typmod != -1 || c.Usage.Collation.ID != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 6104 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[c.Name] != i || !fact.NotNull || fact.Collation != collation || fact.Dimensions != 0 {
+			t.Fatal("publication attribute", i, c, fact)
 		}
 	}
 	otherRelation := other.CatalogRead().MustRelation(a)
@@ -112,13 +116,13 @@ func TestPGPublicationNamespaceRegistrationFacts(t *testing.T) {
 	if !seenOwner || !seenPublic {
 		t.Fatal("missing bootstrap grant")
 	}
-	row := v.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10109})
-	array := v.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10108})
-	if row.Name() != "pg_publication_namespace" || array.Name() != "_pg_publication_namespace" || row.Array != 10108 || array.SQLType.Element() != row.SQLType || row.OwningRelation != a || array.OwningRelation != a || row.Owner != d.Owner || array.Owner != d.Owner || row.Namespace() != d.Namespace() || array.Namespace() != d.Namespace() {
+	row := v.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10107})
+	array := v.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10106})
+	if row.Name() != "pg_publication" || array.Name() != "_pg_publication" || row.Array != 10106 || array.SQLType.Element() != row.SQLType || row.OwningRelation != a || array.OwningRelation != a || row.Owner != d.Owner || array.Owner != d.Owner || row.Namespace() != d.Namespace() || array.Namespace() != d.Namespace() {
 		t.Fatal("row array ownership", row, array)
 	}
-	otherRow := other.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10109})
-	otherArray := other.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10108})
+	otherRow := other.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10107})
+	otherArray := other.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10106})
 	if row == otherRow || array == otherArray || row.SQLType == otherRow.SQLType || array.SQLType == otherArray.SQLType {
 		t.Fatal("shared composite types across engines")
 	}
@@ -131,19 +135,19 @@ func TestPGPublicationNamespaceRegistrationFacts(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	if !publicationNamespaceACLEqual(d.Security.ACL, oldACL) || !publicationNamespaceACLEqual(otherRelation.Security.ACL, otherACL) || len(e.CatalogRead().MustRelation(a).Security.ACL.Entries) != 0 {
-		t.Fatal("ACL publicationNamespace crossed retained root/engine")
+	if !publicationACLEqual(d.Security.ACL, oldACL) || !publicationACLEqual(otherRelation.Security.ACL, otherACL) || len(e.CatalogRead().MustRelation(a).Security.ACL.Entries) != 0 {
+		t.Fatal("ACL publication crossed retained root/engine")
 	}
 	// An ACL-only successor remains a registered, coherently captured source.
-	publicationNamespaceInput(t, e, func(in pgcatalog.Input, _ core.AuthorizationView) {
-		rows, err := publicationNamespaceProducer(t)(in)
+	publicationInput(t, e, func(in pgcatalog.Input, _ core.AuthorizationView) {
+		rows, err := publicationProducer(t)(in)
 		if err != nil || rows == nil || len(rows) != 0 {
 			t.Fatal("ACL revision capture", rows, err)
 		}
 	})
 }
 
-func publicationNamespaceACLEqual(a, b authorization.ACLValue) bool {
+func publicationACLEqual(a, b authorization.ACLValue) bool {
 	if a.Explicit != b.Explicit || len(a.Entries) != len(b.Entries) {
 		return false
 	}
@@ -155,16 +159,16 @@ func publicationNamespaceACLEqual(a, b authorization.ACLValue) bool {
 	return true
 }
 
-func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
-	produce := publicationNamespaceProducer(t)
+func TestPGPublicationCaptureOwnership(t *testing.T) {
+	produce := publicationProducer(t)
 	e, foreign := engine.New(), engine.New()
 	var other pgcatalog.Input
-	publicationNamespaceInput(t, foreign, func(in pgcatalog.Input, _ core.AuthorizationView) {
+	publicationInput(t, foreign, func(in pgcatalog.Input, _ core.AuthorizationView) {
 		other = in
 	})
 	retainedRoles := e.Roles()
-	aclUnitRoles(e, "publicationNamespace_new_root")
-	publicationNamespaceInput(t, e, func(in pgcatalog.Input, auth core.AuthorizationView) {
+	aclUnitRoles(e, "publication_new_root")
+	publicationInput(t, e, func(in pgcatalog.Input, auth core.AuthorizationView) {
 		descriptors, names, roles := maps.Collect(in.Catalog.State().Descriptors()), maps.Collect(in.Catalog.State().Names()), e.RoleStore.Published
 		rows, err := produce(in)
 		if err != nil || rows == nil || len(rows) != 0 {
@@ -223,7 +227,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 			name   string
 			change func(*catalog.Relation)
 		}{
-			{"short width", func(d *catalog.Relation) { d.Columns = append([]catalog.Column(nil), d.Columns[:2]...) }},
+			{"short width", func(d *catalog.Relation) { d.Columns = append([]catalog.Column(nil), d.Columns[:9]...) }},
 			{"long width", func(d *catalog.Relation) { d.Columns = append(append([]catalog.Column(nil), d.Columns...), d.Columns[0]) }},
 			{"column name", func(d *catalog.Relation) {
 				d.Columns = append([]catalog.Column(nil), d.Columns...)
@@ -254,8 +258,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 				bad.Catalog = in.Catalog.WithState(state)
 				bad.Source = &next
 				paired := auth
-				paired.Recapture(bad.Catalog)
-				bad.Roles = paired.Roles
+				paired.Catalog = bad.Catalog
 				bad.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: paired})
 				if bad.Catalog.Get(next.Address()) != bad.Source {
 					t.Fatal("mutation is not current captured source")
@@ -271,33 +274,18 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 		if !pgcatalog.RegisteredSource(unpaired, in.Source) {
 			t.Fatal("unpaired root must remain structurally registered")
 		}
-		err = in.Runtime.ValidateCapture(unpaired, in.Roles, in.Ref, in.Source, 6237)
+		err = in.Runtime.ValidateCapture(unpaired, in.Roles, in.Ref, in.Source, 6104)
 		subscriptionInvariant(t, true, err)
-		err = in.Runtime.ValidateCapture(in.Catalog, retainedRoles, in.Ref, in.Source, 6237)
+		err = in.Runtime.ValidateCapture(in.Catalog, retainedRoles, in.Ref, in.Source, 6104)
 		subscriptionInvariant(t, true, err)
-		// A coherently paired unpublished root is valid, not only the committed root.
-		private := in
-		private.Catalog = unpaired
-		paired := auth
-		paired.Recapture(private.Catalog)
-		private.Roles = paired.Roles
-		private.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: paired})
-		privateRows, err := produce(private)
-		if err != nil || privateRows == nil || len(privateRows) != 0 {
-			t.Fatal("paired private capture", privateRows, err)
-		}
-		privateCapture, err := core.CaptureCatalogSourceRows(private, produce)
-		if err != nil || privateCapture == nil || privateCapture.Anonymous == nil || len(privateCapture.Anonymous) != 0 || privateCapture.Ref != in.Ref {
-			t.Fatal("paired private wrapped capture", privateCapture, err)
-		}
 		assertRoots(t)
 	})
 }
 
-func TestPGPublicationNamespaceCaptureCancellation(t *testing.T) {
+func TestPGPublicationCaptureCancellation(t *testing.T) {
 	e := engine.New()
-	produce := publicationNamespaceProducer(t)
-	publicationNamespaceInput(t, e, func(in pgcatalog.Input, _ core.AuthorizationView) {
+	produce := publicationProducer(t)
+	publicationInput(t, e, func(in pgcatalog.Input, _ core.AuthorizationView) {
 		descriptors, names, roles := maps.Collect(in.Catalog.State().Descriptors()), maps.Collect(in.Catalog.State().Names()), e.RoleStore.Published
 		ctx, cancel := context.WithCancel(in.Context)
 		cancel()

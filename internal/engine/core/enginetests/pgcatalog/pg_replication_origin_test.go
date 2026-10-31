@@ -1,9 +1,11 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
 	"errors"
 	"maps"
+	"testing"
+
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -12,7 +14,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func originInput(t *testing.T, e *core.Engine, body func(pgcatalog.Input, core.AuthorizationView)) {

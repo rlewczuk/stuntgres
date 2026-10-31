@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
+
 
 func TestFTSParserHandlerProjection(t *testing.T) {
 	e := engine.New()

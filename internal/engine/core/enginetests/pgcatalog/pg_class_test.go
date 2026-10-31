@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"

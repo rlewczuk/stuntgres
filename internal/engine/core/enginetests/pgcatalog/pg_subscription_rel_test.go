@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 // Literal release identity lets the tests compile before the producer exists.
 func subscriptionRelInput(t *testing.T, e *core.Engine, body func(pgcatalog.Input, core.AuthorizationView)) {

@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func pgOperatorUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
 	t.Helper()
-	f, err := os.Open("../../../docs/design/" + name)
+	f, err := os.Open("../../../../../docs/design/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}

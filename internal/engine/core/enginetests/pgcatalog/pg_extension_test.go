@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -266,4 +266,10 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	if bootstrapRows.Count() != 1 || captured.Ref != ref || !reflect.DeepEqual(bootstrapRows.Anonymous[0], pgExtensionUnitCapturedRow(t, captured.Anonymous, bootstrap, false)) {
 		t.Fatal("capture resampled or lost bound identity", bootstrapRows, captured)
 	}
+}
+
+// replaceWithFreshCatalog replaces e's catalog with a new engine's.
+func replaceWithFreshCatalog(ctx context.Context, e *core.Engine) (core.ChangeSet, error) {
+	fresh := engine.New()
+	return e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 }

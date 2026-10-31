@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 func newPGFSFixture(t *testing.T) serversFixture {
 	t.Helper()
@@ -350,3 +351,41 @@ func TestPGForeignServerOwnership(t *testing.T) {
 		t.Fatal("retained immutable array/type/backing changed")
 	}
 }
+
+
+type serversFixture struct {
+	f                       defaultUnitFixture
+	state                   *catalog.State
+	wrapper, server, second *catalog.ForeignObject
+}
+
+func (f serversFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
+	t.Helper()
+	view := f.f.e.Catalog.Read(state)
+	auth := dtpUnitAuthority(t, f.f, view)
+	auth.State.CurrentUser = actor
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: infoForeignServersOID})
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+}
+
+func newServersFixture(t *testing.T) serversFixture {
+	t.Helper()
+	f := newDefaultUnitFixture(t)
+	state := catalog.CloneState(f.e.Catalog.State)
+	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 22600}, ObjectName: "server_wrapper", ObjectRevision: 1, Owner: f.reader, Options: []catalog.ForeignOption{{Name: "password", Value: "wrapper-secret"}}}
+	kind, version := "é=🙂", ""
+	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 22601}, ObjectName: "view_server", ObjectRevision: 1, Owner: f.owner, Wrapper: wrapper.Address(), ServerType: &kind, Version: &version, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UsagePrivilege, 0)}}, Options: []catalog.ForeignOption{{Name: "password", Value: "server-secret"}, {Name: "empty", Value: ""}}}
+	second := *server
+	second.ObjectAddress.ObjectID++
+	second.ObjectName = "null_server"
+	second.ServerType, second.Version, second.Options = nil, nil, nil
+	mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: 22603}, ObjectName: catalog.ForeignMappingName(server.Address(), f.reader), ObjectRevision: 1, Owner: f.owner, Server: server.Address(), MappedRole: f.reader, Options: []catalog.ForeignOption{{Name: "password", Value: "mapping-secret"}}}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22604}, ObjectNamespace: f.schema, ObjectName: "foreign_decoy", ObjectRevision: 1, Owner: f.owner, Foreign: &catalog.ForeignTableDefinition{Server: server.Address(), Options: []catalog.ForeignOption{{Name: "password", Value: "table-secret"}}}}
+	for _, d := range []catalog.Descriptor{wrapper, server, &second, mapping, table} {
+		state.SetDescriptor(d.Address(), d)
+	}
+	return serversFixture{f: f, state: state, wrapper: wrapper, server: server, second: &second}
+}
+
+// Native identity is independent of the release allocator.
+const infoForeignServersOID ids.OID = 16246

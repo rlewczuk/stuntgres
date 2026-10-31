@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 var amopUnitNames = []string{"oid", "amopfamily", "amoplefttype", "amoprighttype", "amopstrategy", "amoppurpose", "amopopr", "amopmethod", "amopsortfamily"}
 

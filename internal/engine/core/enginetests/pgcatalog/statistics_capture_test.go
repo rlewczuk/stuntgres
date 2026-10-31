@@ -1,15 +1,21 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
@@ -98,4 +104,78 @@ func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
 	if err = (catalog.StatisticsProvider{}).Validate(view, &definition); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func statisticsUnitEngine(t *testing.T) (*core.Engine, *catalog.Relation) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	syntax := &parser.CreateTable{Name: configName("statistics_input")}
+	for _, name := range []string{"a", "b", "unselected", "c"} {
+		syntax.Elements = append(syntax.Elements, parser.TableElement{Column: &parser.Column{Name: name, TypeName: parser.TypeName{Name: "integer"}}})
+	}
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, op.Session)
+	err = tablecmds.SchemaTableLocked(e, op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	e.Mu.Unlock()
+	if err != nil {
+		e.DiscardCatalogStage(stage)
+		t.Fatal(err)
+	}
+	defer e.DiscardCatalogStage(stage)
+	extensionUnitPublish(t, e, op, stage)
+	view := e.CatalogRead()
+	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "statistics_input"})
+	return e, view.MustRelation(address)
+}
+
+func statisticsUnitStage(t *testing.T, e *core.Engine, op *session.Operation, s *parser.CreateStatistics) (*core.CatalogStage, error) {
+	t.Helper()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		return nil, err
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, op.Session)
+	err = ddl.StageCreateStatistics(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s, sqltype.InputEnvironment{})
+	return stage, err
+}
+
+func statisticsUnitCreate() *parser.CreateStatistics {
+	return &parser.CreateStatistics{Name: configName("statistics_definition"), Relation: configName("statistics_input"), Elements: []parser.Expr{parser.ColumnExpr{Name: configName("c")}, parser.ColumnExpr{Name: configName("a")}}, Kinds: []parser.Identifier{{Text: "mcv"}, {Text: "dependencies"}}}
+}
+
+func statisticsUnitDescriptor(t *testing.T, stage *core.CatalogStage) *catalog.Statistics {
+	t.Helper()
+	for _, d := range stage.Descriptors() {
+		if d, ok := d.(*catalog.Statistics); ok {
+			return d
+		}
+	}
+	t.Fatal("missing staged statistics")
+	return nil
+}
+
+func extensionUnitPublish(t *testing.T, e *core.Engine, op *session.Operation, stage *core.CatalogStage) {
+	t.Helper()
+	p, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.PublishCatalogOperation(op, nil, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func configName(name string) parser.ObjectName {
+	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
 }

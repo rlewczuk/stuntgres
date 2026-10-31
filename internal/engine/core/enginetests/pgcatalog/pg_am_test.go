@@ -1,10 +1,12 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"reflect"
+	"sync/atomic"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -196,4 +198,31 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGAM); got != nil || err == nil || err.Error() != "stuntgres: foreign access-method source type" {
 		t.Fatal("old source accepted by fresh generation", got, err)
 	}
+}
+
+// captureCatalogSourceLocked runs source's registered producer over view and
+// roles, without the per-source policy of openCatalogSourceLocked.
+func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
+	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: unknown catalog source")
+	}
+	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
+	return core.CaptureCatalogSourceRows(in, produce)
+}
+
+// cancelAtErrCheck drives existing cooperative cancellation boundaries without
+// sleeps or production hooks. Its embedded real context owns Done and Err state.
+type cancelAtErrCheck struct {
+	context.Context
+	cancel context.CancelFunc
+	at     int32
+	checks atomic.Int32
+}
+
+func (c *cancelAtErrCheck) Err() error {
+	if c.checks.Add(1) == c.at {
+		c.cancel()
+	}
+	return c.Context.Err()
 }

@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 func TestPGAuthMembersSourceDescriptor(t *testing.T) {
 	e := engine.New()
@@ -129,4 +130,22 @@ func TestPGAuthMembersSourceCapture(t *testing.T) {
 	bad := in
 	bad.Roles = e.RoleStore.Read(&e.Catalog.Owner,view,highState)
 	if got,err := produce(bad); got != nil || err == nil { t.Fatal("truncated principal",got,err) }
+}
+
+
+func emptyRoleFixture(e *core.Engine) *access.RoleRecord {
+	root := authorization.Seed(&e.RoleStore.Domain)
+	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
+	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
+		targets[ref] = d
+	}
+	return &access.RoleRecord{Root: root.Retire(targets), Revision: 1}
+}
+
+func pgGroupUnitRole(e *core.Engine, state *access.RoleRecord, id uint64, name string, login bool) authorization.PrincipalRef {
+	ref := pgRolesUnitRole(e, state, id, name)
+	role := fixtureRole(state, ref)
+	role.Login = login
+	putFixtureRole(state, role)
+	return ref
 }

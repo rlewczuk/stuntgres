@@ -1,4 +1,4 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 func newPGFDWFixture(t *testing.T) wrappersFixture {
 	t.Helper()
@@ -300,3 +301,37 @@ func TestPGForeignDataWrapperOwnership(t *testing.T) {
 		t.Fatal("retained immutable array/type/backing changed")
 	}
 }
+
+
+type wrappersFixture struct {
+	f       defaultUnitFixture
+	state   *catalog.State
+	wrapper *catalog.ForeignObject
+}
+
+func (f wrappersFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
+	t.Helper()
+	view := f.f.e.Catalog.Read(state)
+	auth := dtpUnitAuthority(t, f.f, view)
+	auth.State.CurrentUser = actor
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: infoForeignDataWrappersOID})
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+}
+
+func newWrappersFixture(t *testing.T) wrappersFixture {
+	t.Helper()
+	f := newDefaultUnitFixture(t)
+	state := catalog.CloneState(f.e.Catalog.State)
+	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 22500}, ObjectName: "view_wrapper", ObjectRevision: 1, Owner: f.owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UsagePrivilege, 0)}}, Options: []catalog.ForeignOption{{Name: "password", Value: "private=é🙂"}, {Name: "empty", Value: ""}}}
+	state.SetDescriptor(wrapper.Address(), wrapper)
+	for i, class := range []ids.OID{ids.ForeignServerClassID, ids.ForeignMappingClassID} {
+		decoy := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(22501 + i)}, ObjectName: "decoy", ObjectRevision: 1, Owner: f.owner, Options: []catalog.ForeignOption{{Name: "decoy", Value: "excluded"}}}
+		state.SetDescriptor(decoy.Address(), decoy)
+	}
+	decoy := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22503}, ObjectNamespace: f.schema, ObjectName: "decoy_table", ObjectRevision: 1, Owner: f.owner, Foreign: &catalog.ForeignTableDefinition{Options: []catalog.ForeignOption{{Name: "table-only", Value: "excluded"}}, Columns: map[int32][]catalog.ForeignOption{1: {{Name: "column-only", Value: "excluded"}}}}}
+	state.SetDescriptor(decoy.Address(), decoy)
+	return wrappersFixture{f: f, state: state, wrapper: wrapper}
+}
+
+// Independently specified native relation identity; PostgreSQL allocation is not compared.
+const infoForeignDataWrappersOID ids.OID = 16244

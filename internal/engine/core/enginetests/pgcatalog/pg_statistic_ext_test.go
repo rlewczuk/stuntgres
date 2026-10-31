@@ -1,10 +1,11 @@
-package core_test
+package pgcatalog_test
 
 import (
 	"context"
 	"errors"
 	"maps"
 	"testing"
+
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -13,6 +14,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 func statisticExtUnitSource(e *core.Engine) (*catalog.Relation,ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID:ids.RelationClassID,ObjectID:pgcatalog.StatisticExtOID}
