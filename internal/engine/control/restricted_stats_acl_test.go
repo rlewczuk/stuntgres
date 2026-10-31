@@ -27,18 +27,32 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			{Grantor:owner, Grantee:authorization.ACLGrantee{Role:stats}, Privileges:authorization.SelectPrivilege},
 		}}}})
 	}
+	descriptors = append(descriptors, &catalog.Relation{
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12130},
+		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
+		ObjectName: "pg_config", Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true,
+		Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
+		}}},
+	})
 	for _, descriptor := range descriptors {
 		t.Run(descriptor.Name(), func(t *testing.T) {
 			if !restrictedStatsACLReconstructed(descriptor, owner, stats) { t.Fatal("seeded authority needs no replay") }
 			for _, change := range []func(*authorization.ACLValue){
 				func(a *authorization.ACLValue){a.Explicit=false},
 				func(a *authorization.ACLValue){a.Entries=nil},
-				func(a *authorization.ACLValue){a.Entries[0],a.Entries[1]=a.Entries[1],a.Entries[0]},
+				func(a *authorization.ACLValue) {
+					if len(a.Entries) == 1 {
+						a.Entries[0].Grantee.Public = true
+					} else {
+						a.Entries[0], a.Entries[1] = a.Entries[1], a.Entries[0]
+					}
+				},
 				func(a *authorization.ACLValue){a.Entries=append(a.Entries,a.Entries[0])},
-				func(a *authorization.ACLValue){a.Entries[1].GrantOptions=a.Entries[1].Privileges},
-				func(a *authorization.ACLValue){a.Entries[1].Grantor=stats},
-				func(a *authorization.ACLValue){a.Entries[1].Grantee.Role=new(authorization.Domain).Principal(stats.ID())},
-				func(a *authorization.ACLValue){a.Entries[1].Privileges=0},
+				func(a *authorization.ACLValue){a.Entries[len(a.Entries)-1].GrantOptions=a.Entries[len(a.Entries)-1].Privileges},
+				func(a *authorization.ACLValue){a.Entries[len(a.Entries)-1].Grantor=stats},
+				func(a *authorization.ACLValue){a.Entries[len(a.Entries)-1].Grantee.Role=new(authorization.Domain).Principal(stats.ID())},
+				func(a *authorization.ACLValue){a.Entries[len(a.Entries)-1].Privileges=0},
 			} {
 				var modified catalog.Descriptor
 				switch original := descriptor.(type) {

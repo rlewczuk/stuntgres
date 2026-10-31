@@ -93,6 +93,9 @@ parallel-safe TEXT signature, cost 1 and internal implementation symbol.
 The AIO view's metadata-only backing declaration retains released OID6399,
 strict VOLATILE/parallel-restricted RECORD set metadata, fifteen OUT fields,
 cost 1 and row estimate 100 without acquiring a callable provider.
+The build-configuration view's metadata-only backing declaration retains
+OID3400, strict STABLE/parallel-restricted RECORD set metadata, two OUT TEXT
+fields, cost 1 and row estimate 23, likewise without a callable provider.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 The two session-signaling declarations add released OIDs2096/2171 with strict,
 VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`

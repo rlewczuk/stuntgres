@@ -28,6 +28,12 @@ func (e *Engine) initializeCatalogSources() error {
 		if spec.NoPublic {
 			d.Security.ACL = authorization.ACLValue{}
 		}
+		if spec.OID == pgcatalog.ConfigOID {
+			d.Security.ACL = authorization.MaterializeRelationACL(d.Security.ACL, d.Owner)
+			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {
+				return err
+			}
+		}
 		if spec.OID == pgcatalog.SubscriptionOID {
 			d.Security.ACL = authorization.MaterializeRelationACL(d.Security.ACL, d.Owner)
 			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {

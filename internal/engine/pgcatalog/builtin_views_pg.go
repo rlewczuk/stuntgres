@@ -9,6 +9,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
 	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},
+	{oid: ConfigOID, parts: configViewParts, prettyParts: configViewParts},
 	{oid: WaitEventsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("type"), viewText(",\n"),
 		viewText("    "), viewIdentifier("name"), viewText(",\n"),

@@ -174,9 +174,11 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// WAL-position declarations, and four strict/volatile/parallel-unsafe
 	// large-object descriptor declarations, and two strict/volatile/parallel-safe
 	// session-signal declarations, and two statistics-snapshot lifecycle
-	// declarations, and the metadata-only AIO view backing declaration.
-	if len(facts) != 2161 {
-		t.Fatalf("released represented overloads: got %d, want 2161", len(facts))
+	// declarations, and the metadata-only AIO and build-configuration view
+	// backing declarations. pg_config retains its released two OUT TEXT fields,
+	// strict STABLE/parallel-restricted metadata and row estimate 23.
+	if len(facts) != 2162 {
+		t.Fatalf("released represented overloads: got %d, want 2162", len(facts))
 	}
 	return facts
 }

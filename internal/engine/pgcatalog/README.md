@@ -51,6 +51,18 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_config` (12130) captures the immutable embedded distribution identity as
+  the `VERSION` row, reusing `functions.EmbeddedVersionBanner`. Its two nullable
+  TEXT columns retain captured descriptors, origins and ordinary TEXT collation.
+  Unsupported installation/build keys are absent, never synthesized paths or
+  placeholders. Capture validates registered source/owner/ref/type/attribute
+  authority and cancellation before publishing invocation-owned rows.
+  Normal current view SELECT precedes the backing routine 3400 EXECUTE check in
+  core. Both bootstrap ACLs are explicit owner-only; immutable initial privileges
+  do not follow later grants/revokes. The backing OUT declaration and exact view
+  display metadata confer no callable provider capability. Reset/Restore rebuild
+  the identity through the common catalog bootstrap and symbolic ACL replay.
+
 - `pg_rewrite` (2618) projects all eight nonnullable attributes from actual
   immutable view/materialized-view and ordinary-rule owners. `VisitRewriteCatalog`
   bridges checked definitions without importing `stored`; the producer supplies
@@ -1380,6 +1392,11 @@ table-default ACL fallback. Its display inventory is independent of execution
 through the shared usage-origin projector.
 
 ## Testing
+
+Build-configuration capture/ownership units in `enginetests/` use
+`make check RUN='^TestPGConfig'`. They retain real catalog/type generations,
+reject forged capture authority and verify the noncallable backing declaration
+and immutable owner-only initial privileges.
 
 Rewrite schema, sealed builtin declaration and atomic-capture units use
 `make check RUN='^TestPGRewrite'`.

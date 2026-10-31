@@ -73,3 +73,4 @@
 2230	pg_stat_clear_snapshot	11	12	1	0	0	0	f	false	false	false	false	v	r	0	0	2278		\N	\N	\N	false	\N	pg_stat_clear_snapshot	\N	false	\N
 3788	pg_stat_get_snapshot_timestamp	11	12	1	0	0	0	f	false	false	true	false	s	r	0	0	1184		\N	\N	\N	false	\N	pg_stat_get_snapshot_timestamp	\N	false	\N
 6399	pg_get_aios	11	12	1	100	0	0	f	false	false	true	true	v	r	0	0	2249		{23,23,20,25,25,20,20,25,21,23,25,25,16,16,16}	{o,o,o,o,o,o,o,o,o,o,o,o,o,o,o}	{pid,io_id,io_generation,state,operation,off,length,target,handle_data_len,raw_result,result,target_desc,f_sync,f_localmem,f_buffered}	false	\N	pg_get_aios	\N	false	\N
+3400	pg_config	11	12	1	23	0	0	f	false	false	true	true	s	r	0	0	2249		{25,25}	{o,o}	{name,setting}	false	\N	pg_config	\N	false	\N

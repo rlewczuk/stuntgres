@@ -59,7 +59,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID:
+	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.ConfigOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -70,6 +70,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			procedure = 4100
 		} else if oid == pgcatalog.AIOSOID {
 			procedure = 6399
+		} else if oid == pgcatalog.ConfigOID {
+			procedure = 3400
 		}
 		// The common query manifest has already admitted view SELECT. Its
 		// backing routine has independent current EXECUTE authority; no

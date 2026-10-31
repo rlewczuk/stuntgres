@@ -6,7 +6,7 @@ database-local `pg_subscription_rel` shape, stored owner/PUBLIC ACL and capture 
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, `pg_proc`, catalog foreign keys, and catalog controls migrated
+`pg_wait_events`, `pg_config`, `pg_proc`, catalog foreign keys, and catalog controls migrated
 from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
@@ -33,6 +33,15 @@ catalog packages listed above are the only ones whose oracle loads the legacy
 OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
+
+Build-configuration scenarios use `make check RUN='^TestReferencePGConfig'`
+(add `REFERENCE=1` for pinned PostgreSQL). Independent backend-specific inventories
+cover exact build identity/settings, populated/empty TEXT metadata, analysis
+diagnostics and view/routine declaration ownership. Current SELECT and backing
+EXECUTE grants/revokes are tested independently, including held statements,
+column grants and immutable raw initial ACLs. Native-only phases cover retained
+rows, cancellation, isolated/reopened pools and atomic Dump/Reset/Restore with
+default, granted, column-only and explicit empty authority.
 
 Security-label scenarios use `make check RUN='^TestReferencePgSeclabel'`
 (add `REFERENCE=1` for pinned PostgreSQL). The original seven permanent definitions

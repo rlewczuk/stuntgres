@@ -14,6 +14,7 @@ import (
 func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats authorization.PrincipalRef) bool {
 	var name string
 	ownerMask, statsMask := authorization.ExecutePrivilege, authorization.ExecutePrivilege
+	entries := 2
 	switch object := d.(type) {
 	case *catalog.Procedure:
 		if object.Address().ClassID != ids.ProcedureClassID || object.Builtin == nil || object.Builtin != routine.BuiltinRoutine(object.Address().ObjectID) {
@@ -26,6 +27,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name = "pg_get_shmem_allocations_numa"
 		case 6399:
 			name = "pg_get_aios"
+		case 3400:
+			name, entries = "pg_config", 1
 		default:
 			return false
 		}
@@ -40,6 +43,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name = "pg_shmem_allocations_numa"
 		case pgcatalog.AIOSOID:
 			name = "pg_aios"
+		case pgcatalog.ConfigOID:
+			name, entries = "pg_config", 1
 		default:
 			return false
 		}
@@ -48,9 +53,9 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 		return false
 	}
 	owner, acl, _ := access.DescriptorACL(d)
-	if owner != bootstrap || d.Name() != name || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || !acl.Explicit || len(acl.Entries) != 2 {
+	if owner != bootstrap || d.Name() != name || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || !acl.Explicit || len(acl.Entries) != entries {
 		return false
 	}
 	return acl.Entries[0] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: bootstrap}, Privileges: ownerMask}) &&
-		acl.Entries[1] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: statsMask})
+		(entries == 1 || acl.Entries[1] == (authorization.ACLEntry{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: stats}, Privileges: statsMask}))
 }

@@ -82,6 +82,7 @@ var Specs = [...]Spec{
 		{"size", sqltype.Int8, true, 0, 0, -1},
 	}, true, false, true, true, "stuntgres: missing shared-memory source type"},
 	{AIOSOID, ids.PGCatalogNamespaceOID, "pg_aios", aiosColumns, true, false, true, true, "stuntgres: missing AIO source type"},
+	{ConfigOID, ids.PGCatalogNamespaceOID, "pg_config", configColumns, true, false, true, true, "stuntgres: missing configuration source type"},
 	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"evtname", sqltype.Name, false, 0, 0, -1},

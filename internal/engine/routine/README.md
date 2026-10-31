@@ -11,6 +11,12 @@ ordinary zero-provider builtin descriptors. Catalog rows and definition inquiry
 share those released declarations; no catalog-row supplement or identity-ledger
 lookup manufactures a target descriptor or callable capability.
 
+The metadata-only `pg_config` declaration likewise carries zero provider flags:
+its two OUT TEXT fields, strict stable/restricted set declaration and released
+row estimate describe the backing view routine, not a callable SRF. Its explicit
+owner-only EXECUTE seed is independent of the statistics routines' role grants;
+current authority and symbolic ACL replay use the ordinary descriptor.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`
