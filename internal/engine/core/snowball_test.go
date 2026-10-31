@@ -3,6 +3,8 @@ package core_test
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
@@ -11,7 +13,6 @@ import (
 	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func snowballUnitDictionary(t *testing.T, e interface{ CatalogRead() catalog.Read }) *catalog.TSDictionary {
@@ -144,10 +145,6 @@ func TestSnowballSeedAuthority(t *testing.T) {
 	}
 }
 
-func snowballUnitCreate(name string) *parser.CreateDictionary {
-	return &parser.CreateDictionary{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Options: []parser.DictionaryOption{{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "template"}, Value: "snowball"}, Supplied: true}, {CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "language"}, Value: "english"}, Supplied: true}, {CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "stopwords"}, Value: "english"}, Supplied: true}}}
-}
-
 func TestSnowballPublication(t *testing.T) {
 	t.Run("english", func(t *testing.T) { snowballPublication(t, "english", "RATS", "rat") })
 	t.Run("danish", func(t *testing.T) { snowballPublication(t, "danish", "HUNDENE", "hund") })
@@ -167,7 +164,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 			enginetest.SessionSQL(t, s, "CREATE USER snowball_other")
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			create := snowballUnitCreate("snowball_pending")
+			create := enginetest.SnowballDictionary("snowball_pending")
 			create.Options[1].Value = language
 			create.Options[2].Value = language
 			var stmt parser.Statement = create
@@ -192,7 +189,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				bad := *before.MustNamespace(p.Namespace.Address())
 				bad.ObjectRevision++
@@ -201,7 +198,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "original":
 				bad := *p.Original
 				bad.ObjectRevision++
@@ -210,7 +207,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "role":
 				// Completion must use a newly authenticated actor, not prepared authority.
 				other, closeOther := enginetest.RoleOperation(t, e, "snowball_other")
@@ -231,7 +228,7 @@ func snowballPublication(t *testing.T, language, input, want string) {
 				t.Fatal(err)
 			}
 			if fence == "role" {
-				extensionUnitError(t, err, "42501")
+				enginetest.State(t, err, "42501")
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
@@ -271,15 +268,15 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated dictionary")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{}")
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{}")
+	before := enginetest.SnapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "snowball_fold"})
 	if _, ok := e.CatalogRead().LookupType(1009); !ok {
 		t.Fatal("TEXT[] missing")
 	}
 	old := e.CatalogRead().MustTSDictionary(a)
-	operand := dictionaryFoldDependency(t, d, a)
+	operand := enginetest.DictionaryFoldDependency(t, d, a)
 	analysis := d.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.snowball_fold (stopwords)")
 	current := e.CatalogRead().MustTSDictionary(a)
@@ -297,18 +294,18 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 	if newValue.Lexemes[0].Text != want || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
 		t.Fatal(newValue)
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()
-	refreshed := dictionaryFoldDependency(t, d, a)
-	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{}")) {
+	refreshed := enginetest.DictionaryFoldDependency(t, d, a)
+	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{}")) {
 		t.Fatal("accepted immutable provider fold lost backing/current analysis")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{"+want+"}")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, 1009, "{"+want+"}")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.snowball_fold'::regdictionary,$1::text) AS lexemes")
 	// Existing owner helper supplies YeS: non-stopword remains a genuine stem.
-	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,10 +319,10 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 			t.Fatal("operand retained as executable authority")
 		}
 	}
-	preparedFoldEntry(t, before, 1009, "{}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{}")
 	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
 	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Snowball prefix", err)
 	}
-	snowballRejectedFold(t, e, s, ast, d, "{}")
+	enginetest.SnowballRejectedFold(t, e, s, ast, d, "{}")
 }

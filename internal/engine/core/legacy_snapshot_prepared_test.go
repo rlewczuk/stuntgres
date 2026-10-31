@@ -23,7 +23,7 @@ func TestLegacySnapshotPreparedOwnership(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	query := preparedFoldPoint + ",'12:16:14,14'::txid_snapshot AS s,txid_current_snapshot() AS live"
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("legacy_owned", query, nil)
@@ -88,7 +88,7 @@ func TestLegacySnapshotPreparedOwnership(t *testing.T) {
 			t.Fatal("definition/accepted fold backing changed")
 		}
 		for i, entry := range entries {
-			if !samePublishedFold(entry, current.Entries[i]) {
+			if !enginetest.SamePublishedFold(entry, current.Entries[i]) {
 				t.Fatal("immutable accepted fold changed")
 			}
 		}

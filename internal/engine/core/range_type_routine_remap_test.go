@@ -69,7 +69,7 @@ func TestRangeTypeConstructorOriginalRemap(t *testing.T) {
 func TestRangeTypeGeneratedCastFrozenSlots(t *testing.T) {
 	target, _, _ := rangeTypeUnitRemappedConstructor(t)
 	for _, sql := range []string{`SELECT ('[1,3]'::public.unit_span)::public.unit_spans`, `SELECT (NULL::public.unit_span)::public.unit_spans`} {
-		binder := newTestExpressionBinder(t, context.Background(), target, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), target, sqltype.InputEnvironment{}, nil)
 		binder.Params.NoParameters = true
 		raw := enginetest.Statement(t, sql).(*parser.Select).Targets[0]
 		bound, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

@@ -89,7 +89,7 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 			cells := make([][]expr.Expr, 3)
 			for i := range cells {
 				index := i
-				cells[i] = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+				cells[i] = []expr.Expr{enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls[index]++
 					if index == 1 && mode == "cancel" {
 						cancel()
@@ -146,7 +146,7 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	usage := typ.Usage()
 	calls := 0
-	values := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{queryProbe(usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
+	values := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
 	physical := &plan.SourceNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: usage}}, Occurrence: 0}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), physical.Schema()...), values.Schema()...), Left: physical, Right: values, LeftWidth: 1, RightWidth: 1}
 	integer := func(n int64) sqltype.Value {

@@ -48,13 +48,13 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe evaluated synonym")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
-		entry := preparedFoldEntry(t, d, 1009, "{pgsql}")
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		entry := enginetest.PreparedFoldEntry(t, d, 1009, "{pgsql}")
 		if entry.Value.Type() != entry.Result.Type || entry.Value.ArrayLen() != 1 || entry.Value.ArrayElement(0).Type().ID() != sqltype.Text {
 			t.Fatal("lexeme checked array ownership")
 		}
-		before := snapshotFoldDescription(d)
-		operand := dictionaryFoldDependency(t, d, address)
+		before := enginetest.SnapshotFoldDescription(d)
+		operand := enginetest.DictionaryFoldDependency(t, d, address)
 		analysis := d.Analysis
 		for _, dependency := range before.Accepted.Dependencies {
 			if dependency.Ref.Address == address {
@@ -79,20 +79,20 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		if current.Revision() == operand.Revision {
 			t.Fatal("effective dictionary revision did not advance")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		after := d.Folds.Current()
-		refreshed := dictionaryFoldDependency(t, d, address)
+		refreshed := enginetest.DictionaryFoldDependency(t, d, address)
 		if d.Analysis == analysis || refreshed.Ref != operand.Ref || refreshed.Revision != current.Revision() {
 			t.Fatal("operand analysis not refreshed", refreshed, operand)
 		}
-		if after.Generation != before.Accepted.Generation || len(after.Entries) != len(before.Accepted.Entries) || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{pgsql}")) {
+		if after.Generation != before.Accepted.Generation || len(after.Entries) != len(before.Accepted.Entries) || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{pgsql}")) {
 			t.Fatal("operand ALTER replaced accepted backing/provenance")
 		}
 		checkRuntime(nil)
 		freshAST, fresh := enginetest.PreparedDescription(t, e, s, synonymFoldSQL)
-		preparedFoldExecute(t, e, s, freshAST, &fresh)
-		preparedFoldEntry(t, fresh, 1009, "NULL")
-		preparedFoldEntry(t, before, 1009, "{pgsql}")
+		enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+		enginetest.PreparedFoldEntry(t, fresh, 1009, "NULL")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{pgsql}")
 	})
 
 	t.Run("ProtocolDefinitionAndGraphLifetime", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=synonym,Synonyms=synonym_sample)")
 		enginetest.SessionSQL(t, s, "BEGIN")
 		cycle := s.NewProtocolCycle()
-		command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+		command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol("synonym_definition", synonymFoldSQL, nil)
 			return err
@@ -125,14 +125,14 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 			t.Fatal("actual binding ownership missing")
 		}
 		oldRoot, oldResource, oldAccepted := old.Resource.Root, old.Resource, *old.Folds
-		preparedFoldEntry(t, definition.Description, 1009, "{pgsql}")
+		enginetest.PreparedFoldEntry(t, definition.Description, 1009, "{pgsql}")
 		op, done := enginetest.RoleOperation(t, e, "postgres")
 		stage, err := schemacmds.StageDictionaryDetached(e, op, enginetest.Statement(t, "ALTER TEXT SEARCH DICTIONARY public.synonym_fold (CaseSensitive=true)"))
 		if err != nil {
 			done()
 			t.Fatal(err)
 		}
-		extensionUnitPublish(t, e, op, stage)
+		enginetest.PublishOperationStage(t, e, op, stage)
 		e.DiscardCatalogStage(stage)
 		done()
 		bind("synonym_again")
@@ -143,7 +143,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		if again.Resource == nil || again.Resource == oldResource || again.Resource.Root == nil || again.Resource.Root == oldRoot || old.Resource != oldResource || old.Resource.Root != oldRoot || old.Retired || &old.Folds.Entries[0] != &oldAccepted.Entries[0] {
 			t.Fatal("binding graph/resource lifetime corrupted")
 		}
-		if !samePublishedFold(oldAccepted.Entries[0], again.Folds.Entries[0]) {
+		if !enginetest.SamePublishedFold(oldAccepted.Entries[0], again.Folds.Entries[0]) {
 			t.Fatal("retained fold provenance changed")
 		}
 		command(func(scope *core.StatementScope) error { return scope.CloseProtocolStatement("synonym_definition") })
@@ -183,8 +183,8 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=synonym,Synonyms=synonym_sample)")
 		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL)
-		preparedFoldExecute(t, e, s, ast, &d)
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		before := enginetest.SnapshotFoldDescription(d)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, err := s.Acquire(ctx)
@@ -200,7 +200,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
-		local := cloneFoldDescription(t, d)
+		local := enginetest.CloneFoldDescription(t, d)
 		scope.Expected = &local
 		e.Mu.Lock()
 		auth, err := e.AuthorizationLocked(op)
@@ -234,7 +234,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		if local.Folds.Current().Generation != before.Accepted.Generation || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("canceled candidate changed accepted owner")
 		}
-		preparedFoldEntry(t, before, 1009, "{pgsql}")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{pgsql}")
 	})
 
 	t.Run("CurrentAuthorityRejectsReuse", func(t *testing.T) {
@@ -244,16 +244,16 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 			enginetest.SessionSQL(t, s, q)
 		}
 		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL+" FROM synonym_fold_authority")
-		preparedFoldExecute(t, e, s, ast, &d)
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		before := enginetest.SnapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON synonym_fold_authority FROM synonym_fold_reader", "SET SESSION AUTHORIZATION synonym_fold_reader", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
 		_, err := enginetest.PreparedExecute(e, s, ast, &d)
-		extensionUnitError(t, err, "42501")
+		enginetest.State(t, err, "42501")
 		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || foldRootsReusable(d.Folds) {
 			t.Fatal("authority rejection accepted synonym candidate")
 		}
-		preparedFoldEntry(t, before, 1009, "{pgsql}")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{pgsql}")
 	})
 }

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -25,7 +26,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	literal, err := regobj.ConstantLiteral(ctx, plan.LiteralExpr{Info: b.Info(u, parser.Position{}, expr.Properties{}), Value: value})
 	if err != nil || literal != "INTERVAL '+12 months +0 days +0 microseconds' YEAR" {
 		t.Fatal(literal, err)

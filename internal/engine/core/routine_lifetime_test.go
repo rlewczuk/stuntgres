@@ -88,7 +88,7 @@ func TestRoutineBoundStrictNullAdmission(t *testing.T) {
 		evaluation.Parameters = []sqltype.Value{sqltype.Null(integer)}
 		err = exec.AdmitRoutineCall(&evaluation, node, false, false)
 		if text == "abs(v)" {
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 			continue
 		}
 		if err != nil {
@@ -97,7 +97,7 @@ func TestRoutineBoundStrictNullAdmission(t *testing.T) {
 		// Generic planning and non-NULL custom plans still invoke the routine.
 		evaluation.PreserveParameterDemand = true
 		err = exec.AdmitRoutineCall(&evaluation, node, false, false)
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 		evaluation.PreserveParameterDemand = false
 		one, err := sqltype.Integer(integer, 1)
 		if err != nil {
@@ -105,6 +105,6 @@ func TestRoutineBoundStrictNullAdmission(t *testing.T) {
 		}
 		evaluation.Parameters[0] = one
 		err = exec.AdmitRoutineCall(&evaluation, node, false, false)
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 	}
 }

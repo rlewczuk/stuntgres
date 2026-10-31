@@ -138,7 +138,7 @@ func TestNamespaceIdentityTypedBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	query := domainUnitBindSelect(t, e, op, "SELECT pg_my_temp_schema(),pg_is_other_temp_schema($1)")
+	query := enginetest.BindSelect(t, e, op, "SELECT pg_my_temp_schema(),pg_is_other_temp_schema($1)")
 	expressions := query.Root.(*plan.ProjectNode).Expressions
 	getter, ok := expressions[0].(functions.NamespaceInquiry)
 	if !ok || getter.Kind != functions.MyTempNamespace || getter.Arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != expr.Stable {

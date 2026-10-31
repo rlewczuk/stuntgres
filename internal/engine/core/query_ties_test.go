@@ -82,7 +82,7 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 			original := project.Expressions[0]
 			calls := 0
 			sentinel := errors.New("lookahead projection")
-			probe := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			probe := enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == 2 {
 					if cancelled {

@@ -20,42 +20,42 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 		t.Fatal("Describe evaluated thesaurus")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{1}")
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{1}")
+	before := enginetest.SnapshotFoldDescription(d)
 	analysis := d.Analysis
 	if entry.Value.Type() != entry.Result.Type || entry.Value.ArrayElement(0).Type().ID() != sqltype.Text {
 		t.Fatal("typed immutable thesaurus result")
 	}
 	source := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "thes_unit_sub"})
-	dictionaryFoldDependency(t, d, source)
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.DictionaryFoldDependency(t, d, source)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	if d.Analysis != analysis || d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("unchanged invocation lost accepted owner/backing")
 	}
 	vectorAST, vectorDescription := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
-	preparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
-	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
-	vectorBefore := snapshotFoldDescription(vectorDescription)
-	sourceBefore := dictionaryFoldDependency(t, d, source)
+	enginetest.PreparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
+	enginetest.PreparedFoldEntry(t, vectorDescription, 3614, "'123':1")
+	vectorBefore := enginetest.SnapshotFoldDescription(vectorDescription)
+	sourceBefore := enginetest.DictionaryFoldDependency(t, d, source)
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.thes_unit_sub (Accept=false)")
 	currentSource := e.CatalogRead().Get(source)
 	if currentSource.Revision() == sourceBefore.Revision {
 		t.Fatal("normalizer effective revision did not advance")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	preparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
-	refreshed := dictionaryFoldDependency(t, d, source)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
+	refreshed := enginetest.DictionaryFoldDependency(t, d, source)
 	if d.Analysis == analysis || refreshed.Ref != sourceBefore.Ref || refreshed.Revision != currentSource.Revision() {
 		t.Fatal("current analysis did not observe normalizer revision", refreshed, sourceBefore)
 	}
-	if d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{1}")) {
+	if d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{1}")) {
 		t.Fatal("normalizer edit replaced accepted scalar fold")
 	}
 	if vectorDescription.Folds.Current().Generation != vectorBefore.Accepted.Generation || &vectorDescription.Folds.Current().Entries[0] != &vectorBefore.Accepted.Entries[0] {
 		t.Fatal("normalizer edit replaced accepted vector backing")
 	}
-	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
+	enginetest.PreparedFoldEntry(t, vectorDescription, 3614, "'123':1")
 	for _, freshQuery := range []string{query, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized"} {
 		freshAST, fresh := enginetest.PreparedDescription(t, e, s, freshQuery)
 		_, failure := enginetest.PreparedExecute(e, s, freshAST, &fresh)
@@ -68,23 +68,23 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.thes_unit_sub (Accept=true)")
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.thes_unit (DictFile=stuntgres_thes_ties)")
-	preparedFoldExecute(t, e, s, ast, &d)
-	preparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
 	if d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || vectorDescription.Folds.Current().Generation != vectorBefore.Accepted.Generation || &vectorDescription.Folds.Current().Entries[0] != &vectorBefore.Accepted.Entries[0] {
 		t.Fatal("own options edit replaced accepted fold ownership")
 	}
-	preparedFoldEntry(t, d, 1009, "{1}")
-	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
+	enginetest.PreparedFoldEntry(t, d, 1009, "{1}")
+	enginetest.PreparedFoldEntry(t, vectorDescription, 3614, "'123':1")
 	freshScalarAST, freshScalar := enginetest.PreparedDescription(t, e, s, query)
-	preparedFoldExecute(t, e, s, freshScalarAST, &freshScalar)
-	preparedFoldEntry(t, freshScalar, 1009, "NULL")
+	enginetest.PreparedFoldExecute(t, e, s, freshScalarAST, &freshScalar)
+	enginetest.PreparedFoldEntry(t, freshScalar, 1009, "NULL")
 	freshVectorAST, freshVector := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
-	preparedFoldExecute(t, e, s, freshVectorAST, &freshVector)
-	preparedFoldEntry(t, freshVector, 3614, "'one':1 'three':3 'two':2")
-	preparedFoldEntry(t, before, 1009, "{1}")
-	preparedFoldEntry(t, vectorBefore, 3614, "'123':1")
+	enginetest.PreparedFoldExecute(t, e, s, freshVectorAST, &freshVector)
+	enginetest.PreparedFoldEntry(t, freshVector, 3614, "'one':1 'three':3 'two':2")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{1}")
+	enginetest.PreparedFoldEntry(t, vectorBefore, 3614, "'123':1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := s.Acquire(ctx)
@@ -100,7 +100,7 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	local := cloneFoldDescription(t, d)
+	local := enginetest.CloneFoldDescription(t, d)
 	scope.Expected = &local
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
@@ -134,5 +134,5 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	if local.Folds.Current().Generation != before.Accepted.Generation || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("rejected private fold replaced accepted immutable backing")
 	}
-	preparedFoldEntry(t, before, 1009, "{1}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{1}")
 }

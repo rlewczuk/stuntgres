@@ -113,7 +113,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 			project := b.Query.Root.(*plan.ProjectNode)
 			original := project.Expressions[0]
 			calls := 0
-			project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			project.Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls == 1 {
 					var err error

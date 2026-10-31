@@ -29,7 +29,7 @@ func ownershipParserFixture(t *testing.T) (*core.Engine, *catalog.Extension, *ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	enginetest.RoleExecute(t, e, op, `CREATE TEXT SEARCH CONFIGURATION public.eo_parser_config (PARSER=public.eo_parser)`)
 	enginetest.RoleExecute(t, e, op, `ALTER TEXT SEARCH CONFIGURATION public.eo_parser_config ADD MAPPING FOR asciiword WITH pg_catalog.simple`)
 	view := e.CatalogRead()
@@ -156,7 +156,7 @@ func ownershipParserMembershipAuthority(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, `CREATE TEXT SEARCH PARSER eo_parser_destination.eo_parser (START=pg_catalog.prsd_start, GETTOKEN=pg_catalog.prsd_nexttoken, END=pg_catalog.prsd_end, LEXTYPES=pg_catalog.prsd_lextype)`)
 	atomic := e.CatalogRead()
 	err = extensionUnitExecute(t, e, op, enginetest.Statement(t, `ALTER EXTENSION unaccent SET SCHEMA eo_parser_destination`))
-	extensionUnitError(t, err, "42710")
+	enginetest.State(t, err, "42710")
 	for a, old := range atomic.Descriptors() {
 		if e.CatalogRead().Get(a) != old {
 			t.Fatal("late parser collision published earlier moves", a)
@@ -185,7 +185,7 @@ func ownershipParserMembershipAuthority(t *testing.T) {
 	if sameErr != nil {
 		t.Fatal("same-namespace lower move was not a no-op", sameErr)
 	}
-	extensionUnitError(t, moveErr, "42501")
+	enginetest.State(t, moveErr, "42501")
 	if !strings.Contains(moveErr.Error(), "must be superuser to set schema of text search parser") || stage.DescriptorCount() != 0 || e.CatalogRead().Get(d.Address()) != d {
 		t.Fatal("lower authority/collision precedence or atomicity", moveErr)
 	}
@@ -201,7 +201,7 @@ func ownershipParserMembershipAuthority(t *testing.T) {
 		}
 		snapshot := e.CatalogRead()
 		err := extensionUnitExecute(t, e, actorOp, enginetest.Statement(t, `ALTER EXTENSION "uuid-ossp" `+action+` TEXT SEARCH PARSER eo_parser_actor_schema.owned_schema_parser`))
-		extensionUnitError(t, err, "42501")
+		enginetest.State(t, err, "42501")
 		if err.Error() != "stuntgres: must be superuser" {
 			t.Fatal("membership invented parser owner or ordinary CREATE diagnostic", err)
 		}
@@ -217,7 +217,7 @@ func ownershipParserMembershipAuthority(t *testing.T) {
 	for _, mode := range []parser.DropMode{parser.DropRestrict, parser.DropCascade} {
 		failed, err := parserStage(t, e, op, &parser.DropParser{Names: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "default"}}}}, Mode: mode})
 		e.DiscardCatalogStage(failed)
-		extensionUnitError(t, err, "2BP01")
+		enginetest.State(t, err, "2BP01")
 		if !strings.Contains(err.Error(), "because it is required by the database system") {
 			t.Fatal("e membership masked pinned target rejection", err)
 		}

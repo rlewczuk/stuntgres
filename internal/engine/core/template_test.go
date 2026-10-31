@@ -54,7 +54,7 @@ func TestTemplateCallbackValidation(t *testing.T) {
 			}
 			s.Options[i] = templateUnitOption(tc.method, tc.callback)
 			before := e.CatalogRead()
-			extensionUnitError(t, extensionUnitExecute(t, e, op, s), tc.code)
+			enginetest.State(t, extensionUnitExecute(t, e, op, s), tc.code)
 			if e.CatalogRead().State() != before.State() {
 				t.Fatal("invalid callback published catalog state")
 			}
@@ -85,12 +85,12 @@ func TestTemplateCapabilityValidation(t *testing.T) {
 	if runtime, err := extension.CompileDictionary(t.Context(), view, &zero, nil, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("invented no-INIT state", runtime, err)
 	} else {
-		extensionUnitError(t, err, "0A000")
+		enginetest.State(t, err, "0A000")
 	}
 	if _, err := extension.CompileDictionary(t.Context(), view, &zero, []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}}, e.TextSearchFiles); err == nil {
 		t.Fatal("no-INIT options admitted")
 	} else {
-		extensionUnitError(t, err, "42601")
+		enginetest.State(t, err, "42601")
 	}
 	original := view.MustProcedure(seed.Init)
 	for _, change := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Builtin = nil }, func(p *catalog.Procedure) { p.Result = 16 }, func(p *catalog.Procedure) { p.Signature = catalog.UnaccentLexizeSignature }} {
@@ -129,7 +129,7 @@ func TestTemplateMemberIdentity(t *testing.T) {
 	if runtime, err := extension.CompileDictionary(t.Context(), view, &mixed, nil, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("mixed genuine callbacks acquired execution", runtime, err)
 	} else {
-		extensionUnitError(t, err, "0A000")
+		enginetest.State(t, err, "0A000")
 	}
 	for _, change := range []func(*catalog.TSTemplate){func(d *catalog.TSTemplate) { d.Init = d.Lexize }, func(d *catalog.TSTemplate) { d.Extension.ObjectID++ }, func(d *catalog.TSTemplate) { d.Implementation = new(extension.UnaccentProvider) }} {
 		bad := moved
@@ -227,7 +227,7 @@ func TestTemplateDependencyClosure(t *testing.T) {
 	for _, helper := range installation.Members[2:4] {
 		drop := &core.DropProvider{Base: base, Owner: e, Ctx: context.Background()}
 		_, err := drop.DependencyClosure([]ids.ObjectAddress{helper})
-		extensionUnitError(t, err, "2BP01")
+		enginetest.State(t, err, "2BP01")
 		procedure := *base.MustProcedure(helper)
 		procedure.Extension = ids.ObjectAddress{}
 		state.SetDescriptor(helper, &procedure)
@@ -296,7 +296,7 @@ func TestTemplatePublicationFences(t *testing.T) {
 				if err := other.Replace(&procedure); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			}
 			incumbent := e.CatalogRead()
 			if _, err := e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
@@ -312,7 +312,7 @@ func TestTemplatePublicationFences(t *testing.T) {
 			e := engine.New()
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			stmt := dictionaryUnitCreate("template_fenced_dict")
+			stmt := enginetest.SimpleDictionary("template_fenced_dict")
 			stage, p := dictionaryUnitPrepare(t, e, op, stmt)
 			defer e.DiscardCatalogStage(stage)
 			if method == "cancel" {
@@ -331,7 +331,7 @@ func TestTemplatePublicationFences(t *testing.T) {
 				if err := other.Replace(&proc); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			}
 			before := e.CatalogRead()
 			if p.Current(before) && method != "cancel" {

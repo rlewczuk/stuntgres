@@ -25,7 +25,7 @@ func TestExpressionFloatingArithmeticCancellationBeforePublication(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	evaluated := false
-	project.Expressions[0] = queryProbe(real.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	project.Expressions[0] = enginetest.QueryProbe(real.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		v, err := real.Eval(c)
 		if err != nil {
 			return v, err

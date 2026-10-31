@@ -34,7 +34,7 @@ func TestXMLTableProviderOwnership(t *testing.T) {
  e:=engine.New();s:=enginetest.StartSession(t,e,nil)
  transaction:=enginetest.TransactionBegin(t,s);defer enginetest.TransactionEnd(t,s,transaction,false)
  cycle:=s.NewProtocolCycle()
- command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+ command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
  command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("xt_owned",`SELECT length('owned') AS folded,x.v FROM XMLTABLE('/r' PASSING XML '<r/>' COLUMNS v xml PATH '"scalar"') x`,nil);return err})
  registry:=core.PayloadOf(s).PreparedSQL
  definition:=registry.Lookup("xt_owned")

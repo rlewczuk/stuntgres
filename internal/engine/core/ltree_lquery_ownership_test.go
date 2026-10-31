@@ -34,7 +34,7 @@ func TestLtreeLqueryPreparedOwnership(t *testing.T) {
 			procedure := view.MustProcedure(installation.Installation.Members[tc.member])
 			enginetest.SessionSQL(t, s, "BEGIN")
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+			command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 			command(func(scope *core.StatementScope) error {
 				_, err := scope.ParseProtocol("lq_owned", "SELECT "+tc.expression+" AS v", nil)
 				return err
@@ -117,7 +117,7 @@ func TestLtreeLqueryPreparedOwnership(t *testing.T) {
 			bind("lq_second")
 			second := registry.Binding("lq_second")
 			current := owner.Current()
-			if second == nil || second == first || second.Resource.Root == firstRoot || second.Entry.Description.Folds != owner || second.Folds.Generation != accepted.Generation || current.Generation != accepted.Generation || &second.Folds.Entries[0] != &accepted.Entries[0] || &current.Entries[0] != &accepted.Entries[0] || !samePublishedFold(retained, current.Entries[index]) {
+			if second == nil || second == first || second.Resource.Root == firstRoot || second.Entry.Description.Folds != owner || second.Folds.Generation != accepted.Generation || current.Generation != accepted.Generation || &second.Folds.Entries[0] != &accepted.Entries[0] || &current.Entries[0] != &accepted.Entries[0] || !enginetest.SamePublishedFold(retained, current.Entries[index]) {
 				t.Fatal("Bind replaced immutable backing or provenance")
 			}
 			assertGraph(second)
@@ -149,8 +149,8 @@ func TestLtreeLqueryPreparedOwnership(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					local := cloneFoldDescription(t, definition.Description)
-					before := snapshotFoldDescription(local)
+					local := enginetest.CloneFoldDescription(t, definition.Description)
+					before := enginetest.SnapshotFoldDescription(local)
 					scope.Expected = &local
 					e.Mu.Lock()
 					auth, err := e.AuthorizationLocked(op)
@@ -227,7 +227,7 @@ func TestLtreeLqueryPreparedOwnership(t *testing.T) {
 				}
 			}
 			for _, folds := range []exec.AcceptedFolds{firstFolds, secondFolds} {
-				if folds.Generation != accepted.Generation || &folds.Entries[0] != &accepted.Entries[0] || !samePublishedFold(folds.Entries[index], retained) {
+				if folds.Generation != accepted.Generation || &folds.Entries[0] != &accepted.Entries[0] || !enginetest.SamePublishedFold(folds.Entries[index], retained) {
 					t.Fatal("terminal disposal mutated accepted folds")
 				}
 			}

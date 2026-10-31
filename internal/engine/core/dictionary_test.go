@@ -19,10 +19,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func dictionaryUnitCreate(name string) *parser.CreateDictionary {
-	return &parser.CreateDictionary{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Options: []parser.DictionaryOption{{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "template"}, Value: "simple"}, Supplied: true}, {CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "stopwords"}, Value: "english"}, Supplied: true}}}
-}
-
 func TestDictionaryOptionsMerge(t *testing.T) {
 	old := []catalog.DictionaryOption{{Name: "stopwords", Value: "english", Supplied: true}, {Name: "accept", Value: "false", Supplied: true}}
 	before := append([]catalog.DictionaryOption(nil), old...)
@@ -89,7 +85,7 @@ func TestDictionaryProviderValidation(t *testing.T) {
 		{[]catalog.DictionaryOption{{Name: "Accept", Value: "true", Supplied: true}}, "22023"},
 	} {
 		_, err := extension.CompileDictionary(context.Background(), view, template, tc.options, e.TextSearchFiles)
-		extensionUnitError(t, err, tc.code)
+		enginetest.State(t, err, tc.code)
 	}
 	for _, id := range []ids.OID{3723, 3725, 3726} {
 		d, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id})
@@ -126,7 +122,7 @@ func TestDictionaryPublicationFences(t *testing.T) {
 			e := engine.New()
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			stmt := dictionaryUnitCreate("dictionary_unit")
+			stmt := enginetest.SimpleDictionary("dictionary_unit")
 			stage, p := dictionaryUnitPrepare(t, e, op, stmt)
 			defer e.DiscardCatalogStage(stage)
 			before := e.CatalogRead()
@@ -143,14 +139,14 @@ func TestDictionaryPublicationFences(t *testing.T) {
 				if err := other.Replace(&d); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "name":
 				other, err := schemacmds.StageDictionaryDetached(e, op, stmt)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer e.DiscardCatalogStage(other)
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "owner":
 				// Replacing the actual namespace authority fences a detached initializer.
 				ns := *before.MustNamespace(p.Namespace.Address())
@@ -160,7 +156,7 @@ func TestDictionaryPublicationFences(t *testing.T) {
 				if err := other.Replace(&ns); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			}
 			incumbent := e.CatalogRead()
 			e.Mu.Lock()
@@ -173,7 +169,7 @@ func TestDictionaryPublicationFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "name" {
-				extensionUnitError(t, err, "23505")
+				enginetest.State(t, err, "23505")
 			} else if fence != "cancel" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}

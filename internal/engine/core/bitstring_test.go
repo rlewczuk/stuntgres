@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 func TestBitstringModifierProvenanceResolution(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	one := int32(1)
 	for _, name := range []string{"bit", "varbit", "bit varying"} {
 		raw := parser.TypeName{Name: name, Pos: parser.Position{Offset: 17, Character: 18}, Modifiers: []parser.TypeModifier{{Integer: &one, Pos: parser.Position{Offset: 21, Character: 22}}}}

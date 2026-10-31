@@ -77,7 +77,7 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 			if id != sqltype.Unknown {
 				u = usage(id)
 			}
-			rows[i] = []expr.Expr{queryProbe(u, nil)}
+			rows[i] = []expr.Expr{enginetest.QueryProbe(u, nil)}
 		}
 		return rows
 	}
@@ -158,13 +158,13 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			calls := 0
 			if phase == "rejected scan" {
 				filter := project.Child.(*plan.SortNode).Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				filter.Predicate = enginetest.QueryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					cancel()
 					return sqltype.Boolean(filter.Predicate.ResultUsage().Type, false), nil
 				})
 			} else if phase != "sorting" {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "late source" && calls == 2 {
 						return sqltype.Value{}, sentinel

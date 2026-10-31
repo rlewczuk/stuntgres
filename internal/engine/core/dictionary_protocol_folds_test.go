@@ -18,7 +18,7 @@ func TestDictionaryProtocolFoldOwnership(t *testing.T) {
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "dictionary_fold"})
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	parse := func(name string) {
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol(name, dictionaryFoldSQL, nil)
@@ -40,8 +40,8 @@ func TestDictionaryProtocolFoldOwnership(t *testing.T) {
 	}
 	bind("dictionary_old", "dictionary_definition")
 	accepted := owner.Current()
-	preparedFoldEntry(t, definition.Description, 1009, "{yes}")
-	operand := dictionaryFoldDependency(t, definition.Description, address)
+	enginetest.PreparedFoldEntry(t, definition.Description, 1009, "{yes}")
+	operand := enginetest.DictionaryFoldDependency(t, definition.Description, address)
 	analysis := definition.Description.Analysis
 	old := registry.Binding("dictionary_old")
 	if old == nil || old.Entry.Description.Folds != owner || old.Folds == nil || old.Resource == nil || old.Resource.Root == nil {
@@ -66,7 +66,7 @@ func TestDictionaryProtocolFoldOwnership(t *testing.T) {
 		done()
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	e.DiscardCatalogStage(stage)
 	done()
 	bind("dictionary_again", "dictionary_definition")
@@ -74,7 +74,7 @@ func TestDictionaryProtocolFoldOwnership(t *testing.T) {
 	e.Mu.Lock()
 	current := e.PrivateCatalogLocked(s.Transactions.Catalog).Get(address)
 	e.Mu.Unlock()
-	refreshed := dictionaryFoldDependency(t, again.Entry.Description, address)
+	refreshed := enginetest.DictionaryFoldDependency(t, again.Entry.Description, address)
 	if again.Entry.Description.Analysis == analysis || refreshed.Ref != operand.Ref || refreshed.Revision == operand.Revision || refreshed.Revision != current.Revision() {
 		t.Fatal("repeated Bind skipped dictionary operand reanalysis", operand, refreshed)
 	}
@@ -84,14 +84,14 @@ func TestDictionaryProtocolFoldOwnership(t *testing.T) {
 	if again.Resource == nil || again.Resource == oldResource || again.Resource.Root == nil || again.Resource.Root == oldRoot || old.Resource != oldResource || old.Resource.Root != oldRoot || old.Retired || &old.Folds.Entries[0] != &oldAccepted.Entries[0] {
 		t.Fatal("repeated Bind reused or mutated another binding's private graph/resources")
 	}
-	preparedFoldEntry(t, again.Entry.Description, 1009, "{yes}")
+	enginetest.PreparedFoldEntry(t, again.Entry.Description, 1009, "{yes}")
 	parse("dictionary_fresh")
 	bind("dictionary_new", "dictionary_fresh")
 	fresh := registry.Lookup("dictionary_fresh").Description.Folds
 	if fresh == owner || registry.Binding("dictionary_new").Folds == nil || &fresh.Current().Entries[0] == &accepted.Entries[0] {
 		t.Fatal("fresh definition adopted retained lexeme ownership")
 	}
-	preparedFoldEntry(t, registry.Lookup("dictionary_fresh").Description, 1009, "NULL")
+	enginetest.PreparedFoldEntry(t, registry.Lookup("dictionary_fresh").Description, 1009, "NULL")
 	command(func(scope *core.StatementScope) error { return scope.CloseProtocolStatement("dictionary_definition") })
 	if owner.Live() || old.Retired || again.Retired || old.Resource.Root != oldRoot || &old.Folds.Entries[0] != &accepted.Entries[0] || &again.Folds.Entries[0] != &accepted.Entries[0] {
 		t.Fatal("definition close mutated accepted binding lifetime")

@@ -19,12 +19,12 @@ func TestSnowballPorterPreparedOwnership(t *testing.T) {
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated Porter")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{}")
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{}")
+	before := enginetest.SnapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "snowball_fold"})
 	old := e.CatalogRead().MustTSDictionary(a)
-	operand := dictionaryFoldDependency(t, d, a)
+	operand := enginetest.DictionaryFoldDependency(t, d, a)
 	analysis := d.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.snowball_fold (stopwords)")
 	current := e.CatalogRead().MustTSDictionary(a)
@@ -39,18 +39,18 @@ func TestSnowballPorterPreparedOwnership(t *testing.T) {
 	if err != nil || !newValue.Recognized || len(newValue.Lexemes) != 1 || newValue.Lexemes[0].Text != "onli" || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
 		t.Fatal(newValue, err)
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()
-	refreshed := dictionaryFoldDependency(t, d, a)
-	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{}")) {
+	refreshed := enginetest.DictionaryFoldDependency(t, d, a)
+	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{}")) {
 		t.Fatal("accepted immutable Porter backing/provenance lost or analysis not refreshed")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{onli}")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, 1009, "{onli}")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.snowball_fold'::regdictionary,$1::text) AS lexemes")
 	// The genuine helper supplies YeS: historical Porter must yield ye, not yes.
-	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,10 +64,10 @@ func TestSnowballPorterPreparedOwnership(t *testing.T) {
 			t.Fatal("fold retained operand as executable authority")
 		}
 	}
-	preparedFoldEntry(t, before, 1009, "{}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{}")
 	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
 	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Porter prefix", err)
 	}
-	snowballRejectedFold(t, e, s, ast, d, "{}")
+	enginetest.SnowballRejectedFold(t, e, s, ast, d, "{}")
 }

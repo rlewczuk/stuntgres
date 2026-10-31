@@ -230,7 +230,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 func TestTransactionIdentityBinding(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct {
 		name   string
 		oid    uint32
@@ -243,7 +243,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		var bound expr.Expr
 		var err error
 		if tc.name == "age" {
-			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
+			raw.Args = []parser.Expr{enginetest.TypedLiteral("xid", "0")}
 			bound, err = b.BindFunctionProvider(raw)
 		} else {
 			bound, err = b.BindFunctionProvider(raw)
@@ -308,7 +308,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			}
 		}
 		fresh := engine.New()
-		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
+		fb := enginetest.ExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
 		mapped, _, err := stored.RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d.IsComposite() {
 				return d
@@ -322,12 +322,4 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("source argument reconstruction")
 		}
 	}
-}
-
-func ageFiniteTyped(typ, value string) parser.Expr {
-	return parser.CastExpr{Child: datetimeMakeString(value), TypeName: parser.TypeName{Name: typ}}
-}
-
-func datetimeMakeString(s string) parser.Expr {
-	return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 }

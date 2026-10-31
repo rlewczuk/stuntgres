@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -53,7 +54,7 @@ func cteUnitNext(t *testing.T, stage *exec.Stage) []sqltype.Value {
 func TestQueryCTESharedFrontierAndReaderLifetime(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
+	expression := enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	owner, state, node := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 3)
 	first, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
@@ -115,7 +116,7 @@ func TestQueryCTEZeroWidthAndNullRows(t *testing.T) {
 			var schema plan.QuerySchema
 			if width == 1 {
 				typ := cteUnitType(t)
-				expressions = []expr.Expr{queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Null(typ), nil })}
+				expressions = []expr.Expr{enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Null(typ), nil })}
 				schema = plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}
 			}
 			owner, state, node := cteUnitScan(expressions, schema, 2)
@@ -150,7 +151,7 @@ func TestQueryCTEStickyFailureAndCloseOnce(t *testing.T) {
 			primary := errors.New("original producer failure")
 			cleanup := errors.New("cleanup failure")
 			draws := 0
-			expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
+			expression := enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				draws++
 				if draws == 2 {
 					return sqltype.Value{}, primary
@@ -194,7 +195,7 @@ func TestQueryCTEStickyFailureAndCloseOnce(t *testing.T) {
 func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	probe := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
+	probe := enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	outer, state, outerNode := cteUnitScan([]expr.Expr{probe}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 1)
 	first, err := exec.OpenCTEScan(context.Background(), state, outerNode)
 	if err != nil {
@@ -250,7 +251,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 
 func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 	typ := cteUnitType(t)
-	volatile := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) {
+	volatile := enginetest.QueryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Probe: func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("analysis evaluated target")
 		return sqltype.Value{}, nil
 	}}
@@ -338,7 +339,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	input := &plan.ValuesNode{QuerySchema: inputSchema, Rows: [][]expr.Expr{{literal(false)}, {literal(true)}}}
 	local := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 2, Slot: 0}
 	draws := 0
-	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "keep", Usage: boolean.Usage()}, {Name: "n", Usage: integer.Usage()}}, Child: input, Expressions: []expr.Expr{local, enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 42) })}, Frame: 2}
 	definition := &plan.CTEDefinition{Query: &plan.Query{Root: project}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
 	scan := &plan.DerivedNode{QuerySchema: project.Schema(), Query: definition.Query, CTE: definition, ScanFrame: 1, Demand: []bool{false, true}}
 	parent := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 1, Slot: 0}
@@ -375,7 +376,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 	typ := cteUnitType(t)
 	draws := 0
-	expression := queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	expression := enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		draws++
 		return sqltype.Integer(typ, int64(draws))
 	})
@@ -443,7 +444,7 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			draws := 0
-			expression := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
+			expression := enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
 			owner, state, child := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: integer.Usage()}}, 1)
 			defer owner.Close()
 			state.Parameters = tc.parameters
@@ -486,10 +487,10 @@ func TestQueryCTEFilterDoesNotPreEvaluatePredicate(t *testing.T) {
 	boolean, _ := engine.New().CatalogRead().LookupType(sqltype.Bool)
 	integer := cteUnitType(t)
 	draws, evaluations := 0, 0
-	expression := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
+	expression := enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.Integer(integer, 1) })
 	owner, state, child := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: integer.Usage()}}, 1)
 	defer owner.Close()
-	predicate := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	predicate := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		evaluations++
 		if draws == 0 {
 			return sqltype.Value{}, errors.New("predicate evaluated before child demand")

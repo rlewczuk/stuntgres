@@ -161,7 +161,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			switch mode {
 			case "reject_cancel":
 				want = context.Canceled
-				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+				join.Predicate = enginetest.QueryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						cancel()
@@ -169,7 +169,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return sqltype.Boolean(boolType, false), nil
 				})
 			case "admitted_error", "rejected_error":
-				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+				join.Predicate = enginetest.QueryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -178,7 +178,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 				})
 			case "late_target":
 				original := project.Expressions[0]
-				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -188,7 +188,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "merge_error":
 				usage := project.Expressions[0].ResultUsage()
 				join.QuerySchema = append(join.QuerySchema, catalog.Column{Usage: usage})
-				join.Merges = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+				join.Merges = []expr.Expr{enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel
@@ -200,7 +200,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "bad_width":
 				join.LeftWidth++
 			case "bad_usage":
-				join.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[1], nil })
+				join.Predicate = enginetest.QueryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) { return c.Row[1], nil })
 			}
 			rows, n, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || n != 0 || err == nil {
@@ -232,7 +232,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	calls := 0
 	usage := join.Predicate.ResultUsage()
-	join.Predicate = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+	join.Predicate = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, false), nil
 	})

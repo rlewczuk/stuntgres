@@ -123,7 +123,7 @@ func TestStatisticsObjectPublicationNameLock(t *testing.T) {
 	}
 	defer e.DiscardCatalogStage(winner)
 	winning := statisticsUnitDescriptor(t, winner)
-	extensionUnitPublish(t, e, op, winner)
+	enginetest.PublishOperationStage(t, e, op, winner)
 	incumbent := e.CatalogRead()
 	e.EndLockOwner(holder)
 	err = <-result

@@ -22,7 +22,7 @@ func TestXMLMapRowsPreparedOwnership(t *testing.T){
 	e:=rootengine.New();s:=enginetest.StartSession(t,e,nil)
 	transaction:=enginetest.TransactionBegin(t,s);defer enginetest.TransactionEnd(t,s,transaction,false)
 	cycle:=s.NewProtocolCycle()
-	command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+	command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("xml_map_owner",`SELECT query_to_xml(CASE WHEN n=1 THEN $1::text ELSE 'SELECT 1/0 AS a' END,false,false,'') AS mapped,length('owned') AS folded FROM (VALUES(1),(2)) AS input(n)`,[]uint32{25});return err})
 	inner:="SELECT 1 AS a";packet:=[]byte{0,0,0,1};packet=binary.BigEndian.AppendUint32(packet,uint32(len(inner)));packet=append(packet,inner...);packet=append(packet,0,0)
 	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("xml_map_owner_portal","xml_map_owner",&enginetest.ProtocolReader{Data:packet});return err})

@@ -176,7 +176,7 @@ func TestArrayRandomStrictNullPlanning(t *testing.T) {
 			for _, text := range []string{"array_sample(NULL::integer[],1/0)", "array_sample(ARRAY[1/0],NULL::integer)"} {
 				node, _, evaluation := strictNullUnitBind(t, e, op, scope, text)
 				_, _, err := planner.run(&evaluation, node, true)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			}
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "array_sample(NULL::integer[],abs(-1))")
 			child := randomPlanningUnitDependency(t, e, binder.Dependencies, "abs")
@@ -185,7 +185,7 @@ func TestArrayRandomStrictNullPlanning(t *testing.T) {
 			}
 			evaluation.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, reader)
 			_, _, err := planner.run(&evaluation, node, true)
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 			arrayStrictNullUncalled(t, e)
 			literal, literalBinder, literalContext := strictNullUnitBind(t, e, op, scope, "array_sample(NULL::integer[],nextval('strict_null_steps')::integer)")
 			for _, name := range []string{"array_sample", "nextval"} {
@@ -233,7 +233,7 @@ func TestArrayRandomStrictNullPlanning(t *testing.T) {
 				denied := evaluation
 				denied.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, reader)
 				err = arrayStrictNullAdmitTree(&denied, planned)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
 			}
 			arrayStrictNullUncalled(t, e)
 
@@ -586,7 +586,7 @@ func TestArrayRandomStrictNullConcurrentReuse(t *testing.T) {
 				}
 				arrayStrictNullResult(t, node, result.folded)
 			} else if round == 0 {
-				nullCountUnitDiagnostic(t, result.err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
+				enginetest.Diagnostic(t, result.err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
 			} else if _, ok := result.folded.(functions.ArrayRandom); result.err != nil || !ok {
 				t.Fatal("authorized nonNULL worker inherited erasure", result.folded, result.err)
 			}

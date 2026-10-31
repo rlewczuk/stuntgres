@@ -24,7 +24,7 @@ func queryLimitBound(t *testing.T, e *core.Engine, value int64) expr.Expr {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return v, nil })
+	return enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return v, nil })
 }
 
 func TestQueryLimitDemand(t *testing.T) {
@@ -37,7 +37,7 @@ func TestQueryLimitDemand(t *testing.T) {
 			boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			calls := 0
 			sentinel := errors.New("unneeded predicate")
-			filter.Predicate = queryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			filter.Predicate = enginetest.QueryProbe(boolType.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls > 1 {
 					return sqltype.Value{}, sentinel
@@ -64,7 +64,7 @@ func TestQueryLimitDemand(t *testing.T) {
 		inputs := &exec.Source{Sources: []*exec.Source{source, {Anonymous: [][]sqltype.Value{{}}}}}
 		boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		calls := 0
-		join := &plan.JoinNode{QuerySchema: left.Schema(), Left: left, Right: right, LeftWidth: len(left.Schema()), Predicate: queryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
+		join := &plan.JoinNode{QuerySchema: left.Schema(), Left: left, Right: right, LeftWidth: len(left.Schema()), Predicate: enginetest.QueryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls > 1 {
 				return sqltype.Value{}, errors.New("tail pair evaluated")
@@ -88,7 +88,7 @@ func TestQueryLimitBoundsOnce(t *testing.T) {
 	var calls []string
 	probe := func(name string, n int64) expr.Expr {
 		v, _ := sqltype.Integer(typ, n)
-		return queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { calls = append(calls, name); return v, nil })
+		return enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { calls = append(calls, name); return v, nil })
 	}
 	project.Child = &plan.LimitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Offset: probe("offset", 1), Count: probe("limit", 2)}
 	rows, n, err := exec.Finalize(context.Background(), project, source, nil)
@@ -122,13 +122,13 @@ func TestQueryLimitCancellation(t *testing.T) {
 			project.Child = limit
 			calls := 0
 			if phase == "bound" {
-				limit.Count = queryProbe(limit.Count.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Value{}, context.Canceled })
+				limit.Count = enginetest.QueryProbe(limit.Count.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Value{}, context.Canceled })
 			} else if phase == "rejected filter" {
 				bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
-				filter.Predicate = queryProbe(bt.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
+				filter.Predicate = enginetest.QueryProbe(bt.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
 			} else {
 				original := project.Expressions[0]
-				bound := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				bound := enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase != "prepublication" || calls == 2 {
 						cancel()

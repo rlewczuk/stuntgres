@@ -58,7 +58,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	expressions := make([]expr.Expr, len(schema))
 	for i, column := range schema {
 		usage := column.Usage
-		expressions[i] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Null(usage.Type), nil })
+		expressions[i] = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Null(usage.Type), nil })
 	}
 	query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: expressions}}
 	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
@@ -262,7 +262,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		t.Cleanup(done)
 		usage := enginetest.Usage(e, sqltype.PgNodeTree)
 		calls := 0
-		probe := queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+		probe := enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Null(usage.Type), nil
 		})

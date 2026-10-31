@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -59,7 +60,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 			schema := []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 			var retained sqltype.Value
 			// Column evaluation uses the real Stage's bound source/index path.
-			projection := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			projection := enginetest.QueryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				current := f.Values[in.QueryLoop.Target.Slot]
 				if retained.Type() != nil {
 					if got, _ := retained.CompositeField(0).Integer(); got != 1 {

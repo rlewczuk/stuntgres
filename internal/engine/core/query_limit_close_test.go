@@ -25,7 +25,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				closes := 0
 				inner := exec.Stage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 				if primary {
-					inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+					inner.Expressions = []expr.Expr{enginetest.QueryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
 				bridge := &exec.Source{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
 				var child plan.Node = &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.Ref}

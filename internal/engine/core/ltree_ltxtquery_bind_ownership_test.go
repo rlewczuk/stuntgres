@@ -102,7 +102,7 @@ func ltreeLtxtqueryPreparedBindRecovery(t *testing.T) {
 			t.Fatal("Bind changed accepted graph or generation")
 		}
 		for i, entry := range retained {
-			if !samePublishedFold(entry, folds.Entries[i]) || len(entry.Inputs) != len(folds.Entries[i].Inputs) {
+			if !enginetest.SamePublishedFold(entry, folds.Entries[i]) || len(entry.Inputs) != len(folds.Entries[i].Inputs) {
 				t.Fatal("Bind changed accepted fold")
 			}
 			if len(entry.Inputs) > 0 && &entry.Inputs[0] != &folds.Entries[i].Inputs[0] {

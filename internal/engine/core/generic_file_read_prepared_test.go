@@ -61,7 +61,7 @@ func TestGenericFileReadPreparedOwnership(t *testing.T) {
 			manifest := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 			originalInfo := expr.InfoOf(originalCall)
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t,e,s,cycle,fn) }
+			command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn) }
 			command(func(scope *core.StatementScope) error { _, err := scope.ParseProtocol("file_owned", query, nil); return err })
 			registry := core.PayloadOf(s).PreparedSQL
 			definition := registry.Lookup("file_owned")
@@ -95,7 +95,7 @@ func TestGenericFileReadPreparedOwnership(t *testing.T) {
 				t.Helper()
 				current := owner.Current()
 				for i, entry := range acceptedEntries {
-					if !samePublishedFold(entry,current.Entries[i]) { t.Fatal("accepted immutable fold value/provenance changed") }
+					if !enginetest.SamePublishedFold(entry,current.Entries[i]) { t.Fatal("accepted immutable fold value/provenance changed") }
 				}
 				sourceCall := originalRoot.Expressions[1]
 				if tc.name == "pg_ls_tmpdir" { sourceCall = originalRoot.Child.(*plan.FunctionFromNode).Calls[0] }
@@ -152,7 +152,7 @@ func TestGenericFileReadPreparedFrames(t *testing.T) {
 			s := enginetest.StartSession(t,e,nil)
 			enginetest.SessionSQL(t,s,"BEGIN")
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+			command := func(fn func(*core.StatementScope) error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 			query := preparedFoldPoint+","+name+"($1::text) AS v"
 			nonnullData := []byte{0,0,0,1,0,0,0,10,'P','G','_','V','E','R','S','I','O','N',0,0}
 			mechanism := "physical file reading"
@@ -237,7 +237,7 @@ func TestGenericFileReadPreparedFrames(t *testing.T) {
 				if !reflect.DeepEqual(retained.Dependencies,dependencies) { t.Fatalf("%s fold dependency manifest changed",label) }
 				if len(dependencies) != 0 && &retained.Dependencies[0] != &saved.Dependencies[0] { t.Fatalf("%s fold dependency backing changed",label) }
 				for i, entry := range entries {
-					if !samePublishedFold(entry,retained.Entries[i]) { t.Fatalf("%s fold entry %d immutable value/provenance/inputs changed",label,i) }
+					if !enginetest.SamePublishedFold(entry,retained.Entries[i]) { t.Fatalf("%s fold entry %d immutable value/provenance/inputs changed",label,i) }
 					if !reflect.DeepEqual(entry.Inputs,retained.Entries[i].Inputs) { t.Fatalf("%s fold entry %d exact input state changed",label,i) }
 				}
 			}

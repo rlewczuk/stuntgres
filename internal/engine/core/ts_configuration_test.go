@@ -98,7 +98,7 @@ func TestTSConfigurationMappingActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	before := e.CatalogRead()
 	address := before.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "mapping_actions"})
 	original := before.MustTSConfiguration(address)
@@ -116,7 +116,7 @@ func TestTSConfigurationMappingActions(t *testing.T) {
 	alter.Tokens = append(alter.Tokens, parser.Identifier{Text: "not_a_token"})
 	bad, err := configStage(t, e, op, alter)
 	defer e.DiscardCatalogStage(bad)
-	extensionUnitError(t, err, "22023")
+	enginetest.State(t, err, "22023")
 	if e.CatalogRead().State() != before.State() {
 		t.Fatal("failed mapping stage published")
 	}
@@ -182,7 +182,7 @@ func TestTSConfigurationPublicationFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer e.DiscardCatalogStage(winner)
-		extensionUnitPublish(t, e, op, winner)
+		enginetest.PublishOperationStage(t, e, op, winner)
 		incumbent := e.CatalogRead()
 		if _, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("stale COPY source published")

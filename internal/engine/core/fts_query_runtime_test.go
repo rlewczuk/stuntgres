@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -99,7 +100,7 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 	// decorated as an SPI open error. No SQL or alternate rule executor is used.
 	failure := errors.New("reached projection failure")
 	calls := 0
-	root.Expressions[0] = queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	root.Expressions[0] = enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
 	rows, err = exec.OpenNestedQueryRows(ctx, root, &exec.Source{Anonymous: [][]sqltype.Value{{value}}}, nil)
 	if err != nil || calls != 0 {
 		t.Fatal("open demanded projection", calls, err)

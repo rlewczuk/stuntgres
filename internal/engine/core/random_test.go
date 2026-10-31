@@ -34,7 +34,7 @@ func TestRandomBinder(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
-			x, err := b.Bind(nullCountRaw(tc.name, tc.args...), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			x, err := b.Bind(enginetest.FunctionCall(tc.name, tc.args...), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,10 +47,6 @@ func TestRandomBinder(t *testing.T) {
 
 func TestRandomBinderAmbiguousParameters(t *testing.T) {
 	b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
-	_, err := b.Bind(nullCountRaw("random", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42725", Message: "function random(unknown, unknown) is not unique", Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."})
-}
-
-func nullCountRaw(name string, args ...parser.Expr) parser.FunctionExpr {
-	return parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args, Pos: parser.Position{Character: 8}}
+	_, err := b.Bind(enginetest.FunctionCall("random", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42725", Message: "function random(unknown, unknown) is not unique", Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."})
 }

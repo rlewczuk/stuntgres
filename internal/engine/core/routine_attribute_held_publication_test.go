@@ -61,9 +61,9 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		}
 		optimized, folded := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(NULL::integer)")
 		reached, runtime := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(v) FROM public.attribute_input")
-		preparedFoldExecute(t, e, s, optimized, &folded)
-		preparedFoldExecute(t, e, s, reached, &runtime)
-		old := snapshotFoldDescription(folded)
+		enginetest.PreparedFoldExecute(t, e, s, optimized, &folded)
+		enginetest.PreparedFoldExecute(t, e, s, reached, &runtime)
+		old := enginetest.SnapshotFoldDescription(folded)
 		dependencies := append(folded.Analysis.Dependencies[:0:0], folded.Analysis.Dependencies...)
 		found := false
 		for _, dependency := range dependencies {
@@ -76,7 +76,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
 		enginetest.SessionSQL(t, s, "REVOKE EXECUTE ON FUNCTION attribute_private(integer) FROM PUBLIC")
 		enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION attribute_reader")
-		preparedFoldExecute(t, e, s, optimized, &folded)
+		enginetest.PreparedFoldExecute(t, e, s, optimized, &folded)
 		result, err := enginetest.PreparedExecute(e, s, reached, &runtime)
 		if result.Rows != nil {
 			result.Rows.Close()
@@ -88,7 +88,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		if !reflect.DeepEqual(old.Analysis.Dependencies, dependencies) {
 			t.Fatal("live ACL reanalysis mutated old manifest")
 		}
-		preparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
+		enginetest.PreparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
 		enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
 	})
 
@@ -98,15 +98,15 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE FUNCTION attribute_held(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'")
 		enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 		ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",attribute_held(COALESCE(-(7::integer),0)) AS v")
-		preparedFoldExecute(t, e, s, ast, &d)
-		old := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		old := enginetest.SnapshotFoldDescription(d)
 		owner := d.Folds
 		enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
 		enginetest.SessionSQL(t, s, "ALTER FUNCTION attribute_held(integer) IMMUTABLE STRICT PARALLEL SAFE COST 7 SET application_name='held'")
 		if preparedRebindValid(t, e, s, d.Analysis) {
 			t.Fatal("changed routine declaration reused old analysis")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		if d.Analysis == old.Analysis || d.Folds != owner {
 			t.Fatal("refresh lost analysis/definition ownership")
 		}
@@ -114,8 +114,8 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		if accepted.Generation <= old.Accepted.Generation || &accepted.Entries[0] == &old.Accepted.Entries[0] {
 			t.Fatal("attribute revision retained obsolete fold publication")
 		}
-		preparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
-		preparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
+		enginetest.PreparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
+		enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
 		found := false
 		for _, dependency := range d.Analysis.Dependencies {
 			current, ok := e.CatalogRead().Procedure(dependency.Ref.Address)
@@ -137,7 +137,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE FUNCTION attribute_portal(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'")
 		enginetest.SessionSQL(t, s, "BEGIN")
 		cycle := s.NewProtocolCycle()
-		command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+		command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol("attribute_definition", preparedFoldPoint+",attribute_portal(COALESCE(-(7::integer),0)) AS v", nil)
 			return err

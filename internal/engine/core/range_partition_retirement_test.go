@@ -142,7 +142,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if err := stage.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	if committed.Get(provider.Address()) != provider || provider.OnCommit != originalAction {
 		t.Fatal("provider lifetime replacement mutated the published predecessor")
 	}

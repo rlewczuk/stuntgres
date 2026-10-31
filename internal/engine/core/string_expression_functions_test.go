@@ -57,7 +57,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")
 	}
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ordinary := node
 	ordinary.Syntax = parser.OrdinaryFunctionSyntax
 	if !binder.SameGroupExpression(node, ordinary) {

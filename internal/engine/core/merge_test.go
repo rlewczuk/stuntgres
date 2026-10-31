@@ -144,7 +144,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1),(2)) s(id) ON t.id=s.id WHEN NOT MATCHED AND s.id>0 THEN INSERT(id) VALUES(s.id)")
 			calls := 0
 			wrap := func(original expr.Expr) expr.Expr {
-				return queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				return enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					value, err := original.Eval(c)
 					if calls == 2 {

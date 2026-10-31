@@ -112,10 +112,10 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		original := query.Root.(*plan.ProjectNode)
 		variable := original.Expressions[0]
 		calls := 0
-		probe := queryProbe(variable.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+		probe := enginetest.QueryProbe(variable.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			return variable.Eval(c)
-		}).(queryProbeExpression)
+		}).(enginetest.QueryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		original.Expressions[0] = probe
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}

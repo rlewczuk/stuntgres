@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -41,7 +42,7 @@ func TestDictionaryExtensionProviderValidation(t *testing.T) {
 	if runtime, err := extension.CompileDictionary(context.Background(), view, template, nil, e.TextSearchFiles); runtime != nil || err == nil {
 		t.Fatal("missing Rules compiled a fallback dictionary", runtime, err)
 	} else {
-		extensionUnitError(t, err, "22023")
+		enginetest.State(t, err, "22023")
 	}
 	for _, change := range []func(*catalog.TSDictionary){
 		func(d *catalog.TSDictionary) {

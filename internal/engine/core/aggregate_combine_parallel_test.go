@@ -223,7 +223,7 @@ func TestAggregateCombineEligibility(t *testing.T) {
 	n.Calls[0].Provider = functions.NewStringAggregateProvider(probe.ResultUsage())
 	project := query.Root.(*plan.ProjectNode)
 	old := project.Expressions[0]
-	project.Expressions[0] = queryProbe(old.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, nil })
+	project.Expressions[0] = enginetest.QueryProbe(old.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, nil })
 	if _, ok := exec.ParallelAggregatePlan(query.Root, source); ok {
 		t.Fatal("unknown surrounding evaluator admitted")
 	}

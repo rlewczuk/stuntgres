@@ -35,7 +35,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 	if fresh == value.Type() {
 		t.Fatal("test requires distinct descriptor owners")
 	}
-	replacement := queryProbe(fresh.Usage(), func(*exec.Context) (sqltype.Value, error) { return value, nil })
+	replacement := enginetest.QueryProbe(fresh.Usage(), func(*exec.Context) (sqltype.Value, error) { return value, nil })
 	node := &plan.FunctionFromNode{Calls: []expr.Expr{original}}
 	mapped, err := plan.RewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
@@ -288,7 +288,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	call := seriesUnit(t, d, 1, 2)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	call.Args[0] = queryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	call.Args[0] = enginetest.QueryProbe(d.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		t.Fatal("precanceled open evaluated an argument")
 		return sqltype.Value{}, nil
 	})
@@ -325,7 +325,7 @@ func TestSourceProtocolCleanup(t *testing.T) {
 	first := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	failure := errors.New("later source argument")
 	later := seriesUnit(t, seriesUnitType(t, sqltype.Int4), 1, 2)
-	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })
+	later.Args[0] = enginetest.QueryProbe(later.Args[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	invocation, err := exec.OpenFunctionInvocation(ctx, &plan.FunctionFromNode{Calls: []expr.Expr{first, later}})
 	if !errors.Is(err, failure) || invocation.Cursors != nil {
 		t.Fatal("partial open exposed an invocation", invocation, err)
@@ -406,7 +406,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	}
 }
 
-// This analysis probe participates in the lexical protocol, unlike queryProbe,
+// This analysis probe participates in the lexical protocol, unlike enginetest.QueryProbe,
 // so survivor lowering can traverse it without inventing stored SQL syntax.
 type sourceProtocolRetainedDatum struct {
 	expr.Info
@@ -431,7 +431,7 @@ func jsonRecordUnitCall(t *testing.T, b *analyze.Binder, name string, defined bo
 	t.Helper()
 	b.Clause.AggregateClause = "FROM"
 	b.Query.Namespace = &analyze.QueryNamespace{}
-	raw := nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{"a":2}`}})
+	raw := enginetest.FunctionCall(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{"a":2}`}})
 	node, err := b.BindFunctionSource(raw)
 	if err != nil {
 		t.Fatal(err)

@@ -56,7 +56,7 @@ func TestConcurrentIndexU5TypeChecksWholePrivatePrefixAtExecute(t *testing.T) {
 	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(2),(2)")
 	enginetest.SessionSQL(t, s, "SAVEPOINT before_type")
 	err := concurrentUnitError(t, s, "ALTER TABLE t ALTER n TYPE BIGINT", "23505")
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: "Key (n)=(2) is duplicated.", Schema: "public", Table: "t", Constraint: "ui"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: "Key (n)=(2) is duplicated.", Schema: "public", Table: "t", Constraint: "ui"})
 	concurrentUnitIndex(t, e, "ui", false, false)
 	enginetest.SessionSQL(t, s, "ROLLBACK TO before_type")
 	// Failed TYPE did not retroactively turn the original admission into UNIQUE.
@@ -134,13 +134,13 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				withPublicSchemaUnitOwner(t, e, "index_owner", func() {
 					_, err = e.Execute(owner, enginetest.Statement(t, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)"), 0, nil)
 				})
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
 				initial, _ := concurrentUnitIndex(t, e, "ui", false, false)
 				_, err = e.Execute(owner, enginetest.Statement(t, "REINDEX INDEX ui"), 0, nil)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
 				before := e.CatalogRead().State()
 				_, err = e.Execute(owner, enginetest.Statement(t, "ALTER TABLE t ALTER n TYPE BIGINT USING 0"), 0, nil)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: typeDetail, Schema: "public", Table: "t", Constraint: "ui"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: typeDetail, Schema: "public", Table: "t", Constraint: "ui"})
 				unchanged, _ := concurrentUnitIndex(t, e, "ui", false, false)
 				if e.CatalogRead().State() != before || unchanged != initial {
 					t.Fatal("failed standalone TYPE changed committed authority")
@@ -155,7 +155,7 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 					write = "INSERT INTO t VALUES('A',1,'different')"
 				}
 				_, err = e.Execute(owner, enginetest.Statement(t, write), 0, nil)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui"`, Detail: writeDetail, Schema: "public", Table: "t", Constraint: "ui"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui"`, Detail: writeDetail, Schema: "public", Table: "t", Constraint: "ui"})
 				enginetest.LockEmpty(t, e)
 			})
 		}

@@ -192,7 +192,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 				original = call.DefaultValue
 			}
 			entered := false
-			probe := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			probe := enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				value, err := original.Eval(c)
 				entered = true
 				cancel()
@@ -223,17 +223,17 @@ func TestQueryWindowOffsetEvaluationRoles(t *testing.T) {
 	call := &query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	argument, offset, fallback := call.Argument, call.Ordinal, call.DefaultValue
 	var current, selected, defaults []int64
-	call.Ordinal = queryProbe(offset.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	call.Ordinal = enginetest.QueryProbe(offset.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		current = append(current, id)
 		return offset.Eval(c)
 	})
-	call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	call.Argument = enginetest.QueryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		selected = append(selected, id)
 		return argument.Eval(c)
 	})
-	call.DefaultValue = queryProbe(fallback.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	call.DefaultValue = enginetest.QueryProbe(fallback.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		defaults = append(defaults, id)
 		return fallback.Eval(c)

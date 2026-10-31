@@ -74,7 +74,7 @@ func TestTablefuncProviderIdentity(t *testing.T) {
 	if err := extension.ValidateTablefuncIdentity(read, proc, stale); err == nil {
 		t.Fatal("stale identity")
 	}
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "normal_rand"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 3}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 9}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}}}}
 	node, err := b.BindFunctionProvider(raw)

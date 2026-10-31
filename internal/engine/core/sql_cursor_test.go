@@ -161,7 +161,7 @@ func TestSQLCursorNoLookaheadAndFailedBatch(t *testing.T) {
 	original := core.CursorRoot(cursor).Expressions[0]
 	draws := 0
 	sentinel := errors.New("cursor projected failure")
-	core.CursorRoot(cursor).Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	core.CursorRoot(cursor).Expressions = []expr.Expr{enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		draws++
 		if draws == 3 {
 			return sqltype.Value{}, sentinel
@@ -221,7 +221,7 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			}
 			original := expressions[1]
 			expected, calls := "first", 0
-			expressions[1] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			expressions[1] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				scope := core.ScopeOf(c.LiveHost())
 				if scope == nil || scope.Finished || scope.Op.Released || c.Context.Value(cursorUnitContextKey{}) != expected {
 					t.Fatalf("nested %s borrows old admission: scope=%p context=%v expected=%s", route, scope, c.Context.Value(cursorUnitContextKey{}), expected)
@@ -266,7 +266,7 @@ func TestSQLCursorCancellationClearsAuthority(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	original := core.CursorStage(cursor).Expressions[0]
-	core.CursorStage(cursor).Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
+	core.CursorStage(cursor).Expressions = []expr.Expr{enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
 	result, err := cursorUnitExecute(t, s, ctx, "FETCH 1 FROM c")
 	if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || core.CursorAuthority(cursor).Host != nil || cursor.Source != nil || cursor.Place != exec.CursorFailed {
 		t.Fatal(result, err, cursor)

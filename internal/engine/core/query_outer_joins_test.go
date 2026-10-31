@@ -62,7 +62,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 			join.Kind = kind
 			typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			calls := 0
-			join.Predicate = queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
+			join.Predicate = enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				calls++
 				if calls > 1 {
 					return sqltype.Value{}, errors.New("undemanded pair")
@@ -84,7 +84,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join.Predicate = queryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
+		join.Predicate = enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 3 {
 				cancel()

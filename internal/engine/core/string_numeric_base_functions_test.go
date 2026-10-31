@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -20,7 +21,7 @@ import (
 
 func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 	e := engine.New()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	call := func(name string, arg parser.Expr) parser.FunctionExpr {
 		return parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{arg}, Pos: parser.Position{Character: 8, Offset: 8}}
 	}
@@ -36,7 +37,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Int8} {
-		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Params.Parameters[1] = b.Type(id).Usage()
 		node, err := b.Bind(call("to_hex", parameter), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
@@ -99,7 +100,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 		for _, width := range []string{"integer", "bigint"} {
 			for _, input := range []string{"-1", "NULL"} {
 				t.Run(tc.name+"/"+width+"/"+input, func(t *testing.T) {
-					b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+					b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 					column := catalog.Column{Name: "v", Usage: b.Type(sqltype.Text).Usage()}
 					parseDefault := func(expression string) parser.Expr {
 						t.Helper()

@@ -58,7 +58,7 @@ func TestAlterClusterPreparedOwnership(t *testing.T) {
 		}
 		defer enginetest.SessionSQL(t, s, "ROLLBACK")
 		cycle := s.NewProtocolCycle()
-		command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+		command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 		command(func(scope *core.StatementScope) error {
 			description, err := scope.ParseProtocol("cluster_alter", "ALTER TABLE cluster_owned CLUSTER ON cluster_owned_a", nil)
 			if err != nil {

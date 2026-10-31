@@ -60,7 +60,7 @@ func ownershipSnowballIdentity(t *testing.T) {
 		`DROP TEXT SEARCH CONFIGURATION pg_catalog.english CASCADE`,
 	} {
 		err := extensionUnitExecute(t, e, op, enginetest.Statement(t, sql))
-		extensionUnitError(t, err, "2BP01")
+		enginetest.State(t, err, "2BP01")
 		if strings.Contains(err.Error(), "required by the database system") {
 			t.Fatal("allocated Snowball seed incorrectly pinned", err)
 		}

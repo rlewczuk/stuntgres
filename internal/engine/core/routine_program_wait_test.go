@@ -90,7 +90,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 					}
 					switch outcome {
 					case "revoke":
-						nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function " + name})
+						enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function " + name})
 					case "cancel":
 						if !errors.Is(got.err, context.Canceled) {
 							t.Fatal(got.err)
@@ -207,7 +207,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 				if got.result.Rows != nil || got.result.Count != 0 {
 					t.Fatal("second wait exposed a data/output prefix", got.result)
 				}
-				nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+				enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 			case <-time.After(5 * time.Second):
 				t.Fatal("second real waiter did not join")
 			}

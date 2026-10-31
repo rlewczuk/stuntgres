@@ -81,7 +81,9 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 	// payload. CALL owns a portal close capability, not a query producer/frame.
 	enginetest.SessionSQL(t, session, "BEGIN")
 	cycle := session.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, session, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, session, cycle, fn)
+	}
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("procedure_definition", "CALL procedure_owned(COALESCE(-(7::integer),0),1/0)", nil)
 		return err
@@ -104,7 +106,7 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 	if old == nil || old.Folds == nil || old.Entry.Description.Folds != owner || len(accepted.Entries) == 0 || old.Folds.Generation != accepted.Generation || &old.Folds.Entries[0] != &accepted.Entries[0] || old.Resource == nil || old.Resource.Root != nil || old.Resource.Closer == nil {
 		t.Fatal("CALL binding did not accept actual definition ownership")
 	}
-	preparedFoldEntry(t, definition.Description, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Int4, "-7")
 	for _, fold := range accepted.Entries {
 		if fold.Source.Position == ast.(*parser.Call).Function.Args[1].SourcePosition() {
 			t.Fatal("OUT entered fold demand")
@@ -136,8 +138,8 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	enginetest.SessionSQL(t, session, "ROLLBACK")
-	preparedFoldExecute(t, e, session, ast, &description)
-	before := snapshotFoldDescription(description)
+	enginetest.PreparedFoldExecute(t, e, session, ast, &description)
+	before := enginetest.SnapshotFoldDescription(description)
 	for _, cause := range []string{"cancellation", "retirement", "generation"} {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
@@ -154,7 +156,7 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { scope.Finish(context.Canceled) })
-		local := cloneFoldDescription(t, description)
+		local := enginetest.CloneFoldDescription(t, description)
 		scope.Expected = &local
 		e.Mu.Lock()
 		auth, err := e.AuthorizationLocked(op)

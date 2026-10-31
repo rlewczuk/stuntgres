@@ -29,7 +29,7 @@ func statisticsMCVSnapshotCatalog(t *testing.T) (*core.Engine, *catalog.Statisti
 	}
 	defer e.DiscardCatalogStage(stage)
 	definition := statisticsUnitDescriptor(t, stage)
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	return e, definition
 }
 

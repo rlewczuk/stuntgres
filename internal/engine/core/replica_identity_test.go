@@ -254,7 +254,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	if len(folds.Entries) == 0 || owner.Analysis != accepted {
 		t.Fatal("missing accepted immutable fold backing")
 	}
-	entry := preparedFoldEntry(t, description, sqltype.Int4, "-7")
+	entry := enginetest.PreparedFoldEntry(t, description, sqltype.Int4, "-7")
 	// Seed operators dispatch directly to ArithmeticExpr. Their fold carries
 	// the real int4um routine, not a SelectedOperatorExpr's operator Ref.
 	if entry.Operator != (ids.ObjectRef{}) {
@@ -312,7 +312,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	if description.Analysis != accepted || !valid(accepted) || !reflect.DeepEqual(accepted.Dependencies, dependencies) || description.Folds != owner || owner.Current().Generation != folds.Generation || &owner.Current().Entries[0] != &folds.Entries[0] {
 		t.Fatal("rejected selection changed accepted analysis/generation/backing")
 	}
-	if !samePublishedFold(entry, preparedFoldEntry(t, description, sqltype.Int4, "-7")) {
+	if !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, description, sqltype.Int4, "-7")) {
 		t.Fatal("rejected selection mutated retained unary provenance or inputs")
 	}
 	if e.CatalogRead().MustRelation(old.Address()) != before || replicaUnitIndex(t, e, "ri_a") != a || replicaUnitIndex(t, e, "ri_b") != b || e.Storage.Relations[old.Address()] != heap || e.Storage.IndexRoots[a.Address()] != aRoot || e.Storage.IndexRoots[b.Address()] != bRoot {
@@ -322,7 +322,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	if description.Analysis != accepted || owner.Current().Generation != folds.Generation || &owner.Current().Entries[0] != &folds.Entries[0] {
 		t.Fatal("unchanged definition did not retain actual accepted backing")
 	}
-	if !samePublishedFold(entry, preparedFoldEntry(t, description, sqltype.Int4, "-7")) {
+	if !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, description, sqltype.Int4, "-7")) {
 		t.Fatal("reused unary fold changed its immutable provenance or inputs")
 	}
 	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))

@@ -127,7 +127,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 	if result.Count != 0 || result.Rows != nil {
 		t.Fatal("failed batch returned partial result", result)
 	}
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(9) already exists.", Schema: "public", Table: "t", Constraint: "u"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(9) already exists.", Schema: "public", Table: "t", Constraint: "u"})
 	if !reflect.DeepEqual(pending, pendingCopy) || !reflect.DeepEqual(committed, committedCopy) {
 		t.Fatal("failed batch mutated retained history")
 	}

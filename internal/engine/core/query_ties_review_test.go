@@ -28,8 +28,8 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	}
 	calls := 0
 	failure := errors.New("ignored bounds or ORDER executed")
-	limit.Count = queryProbe(limit.Count.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	probe := queryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	limit.Count = enginetest.QueryProbe(limit.Count.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
+	probe := enginetest.QueryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
 	ordered.Keys = append([]plan.SortKey(nil), ordered.Keys...)
 	ordered.Keys[0].Expression = probe
 	limit.PeerKeys = ordered.Keys
@@ -63,7 +63,7 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 		for _, mode := range []string{"ties hidden", "only hidden", "only visible"} {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
-				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
+				expr := enginetest.QueryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, Probe: func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
 				ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: 0, Expression: expr, Output: mode == "only visible"}, {Cache: 0, Expression: expr, Output: mode == "only visible"}}, CacheWidth: 1}
 				if mode == "ties hidden" {
 					limit := &plan.LimitNode{WithTies: true}
@@ -118,7 +118,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0
-			expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, eval: func(c *exec.Context) (sqltype.Value, error) {
+			expr := enginetest.QueryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Probe: func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				switch phase {
 				case "type":

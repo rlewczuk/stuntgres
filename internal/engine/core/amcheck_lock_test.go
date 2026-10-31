@@ -141,7 +141,7 @@ func TestAmcheckCaptureReadmission(t *testing.T) {
 				if err := stage.Replace(&next); err != nil {
 					t.Fatal(err)
 				}
-				domainUnitPublish(t, e, stage)
+				enginetest.PublishStage(t, e, stage)
 			case "revoke":
 				// Fresh EXECUTE is checked after the genuine wait. A distinct
 				// actor avoids superuser's intentional ACL bypass.

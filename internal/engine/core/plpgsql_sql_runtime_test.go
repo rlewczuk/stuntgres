@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -87,7 +88,7 @@ func TestPLpgSQLSQLExecutionCleanup(t *testing.T) {
 	late := &sqlstate.Error{Code: "22012", Message: "division by zero"}
 	for _, fail := range []bool{false, true} {
 		evaluated := 0
-		projection := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+		projection := enginetest.QueryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 			evaluated++
 			if fail && evaluated == 3 {
 				return sqltype.Value{}, late
@@ -116,7 +117,7 @@ func TestPLpgSQLSQLExecutionCleanup(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	admitted, release, joined := make(chan struct{}), make(chan struct{}), make(chan error, 1)
-	projection := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { close(admitted); <-release; return one, nil })
+	projection := enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { close(admitted); <-release; return one, nil })
 	producer, _ := queryLoopUnitRows(t, schema, [][]sqltype.Value{{one}, {two}}, projection)
 	go func() {
 		_, err := core.DrainPLSQL(ctx, producer)

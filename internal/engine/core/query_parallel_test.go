@@ -172,7 +172,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				return nil
 			}
 			if phase == "target" {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					if err := gate(c); err != nil {
 						return sqltype.Value{}, err
 					}
@@ -180,7 +180,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				})
 			} else {
 				filter := project.Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				filter.Predicate = enginetest.QueryProbe(filter.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					if err := gate(c); err != nil {
 						return sqltype.Value{}, err
 					}
@@ -235,7 +235,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	entered := make(chan *exec.State, 2)
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
-	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
 		if int(id) == c.Query.ScanStart+1 {
 			entered <- c.Query
@@ -366,7 +366,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 		}
 	}
 	column := project.Expressions[0].(plan.ColumnExpr)
-	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, plan.SubqueryExpr{}, queryProbe(column.ResultUsage(), nil)} {
+	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, plan.SubqueryExpr{}, enginetest.QueryProbe(column.ResultUsage(), nil)} {
 		if exec.ParallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}
@@ -395,7 +395,7 @@ func TestQueryParallelErrorIdentity(t *testing.T) {
 	blocked := make(chan struct{})
 	var joined atomic.Bool
 	sentinel := errors.New("primary worker failure")
-	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		if c.Query.ScanStart == 0 {
 			select {
 			case <-blocked:
@@ -430,7 +430,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 			defer cancel()
 			var calls atomic.Int64
 			probe := func(usage sqltype.Usage) expr.Expr {
-				return queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+				return enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls.Add(1)
 					cancel()
 					return sqltype.Value{}, c.Context.Err()

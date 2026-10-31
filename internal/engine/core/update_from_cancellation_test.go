@@ -38,7 +38,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				switch phase {
 				case "source_rejected":
 					join := b.Update.From.(*plan.JoinNode)
-					join.Predicate = queryProbe(join.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+					join.Predicate = enginetest.QueryProbe(join.Predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -47,7 +47,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					})
 				case "candidate_rejected":
 					usage := b.Update.Predicate.ResultUsage()
-					b.Update.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+					b.Update.Predicate = enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -56,7 +56,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					})
 				default:
 					original := b.Returning.Expressions[0]
-					b.Returning.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+					b.Returning.Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if phase == "output" && calls == 2 {
 							cancel()

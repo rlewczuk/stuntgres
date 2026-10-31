@@ -31,7 +31,7 @@ func TestPGCursorsSource(t *testing.T) {
 	cursor := core.PayloadOf(s).Cursors.Entries["own"]
 	original := core.CursorRoot(cursor).Expressions[0]
 	calls := 0
-	core.CursorRoot(cursor).Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+	core.CursorRoot(cursor).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
@@ -91,7 +91,7 @@ func TestPGCursorsSource(t *testing.T) {
 	// The recovered failed entry is still observable without rerunning it.
 	core.CursorRoot(cursor).Expressions[0] = original
 	enginetest.SessionSQL(t, s, "SAVEPOINT recover")
-	core.CursorRoot(cursor).Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+	core.CursorRoot(cursor).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("failed producer")
 	})

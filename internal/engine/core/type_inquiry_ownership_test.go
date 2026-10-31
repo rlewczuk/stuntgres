@@ -101,7 +101,7 @@ func TestTypeDescribePreparedOwnership(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE CAST (xid AS real) WITHOUT FUNCTION")
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("td_owner", typeDescribeOwnedQuery, nil)
 		return err
@@ -264,7 +264,7 @@ func TestTypeDescribePreparedOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			local := cloneFoldDescription(t, definition.Description)
+			local := enginetest.CloneFoldDescription(t, definition.Description)
 			before := local.Folds.Current()
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(op)
@@ -333,7 +333,7 @@ func TestTypeDescribeConcurrentReuse(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE CAST (xid AS real) WITHOUT FUNCTION")
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("td_concurrent", typeDescribeOwnedQuery, nil)
 		return err

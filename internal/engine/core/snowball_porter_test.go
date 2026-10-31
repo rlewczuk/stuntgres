@@ -25,7 +25,7 @@ func TestSnowballPorterPublication(t *testing.T) {
 			enginetest.SessionSQL(t, s, "CREATE USER snowball_other")
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			create := snowballUnitCreate("snowball_pending")
+			create := enginetest.SnowballDictionary("snowball_pending")
 			create.Options[1].Value = "porter" // English is only the explicitly selected stoplist.
 			var stmt parser.Statement = create
 			if fence == "original" {
@@ -50,7 +50,7 @@ func TestSnowballPorterPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				bad := *before.MustNamespace(p.Namespace.Address())
 				bad.ObjectRevision++
@@ -59,7 +59,7 @@ func TestSnowballPorterPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "original":
 				bad := *p.Original
 				bad.ObjectRevision++
@@ -68,7 +68,7 @@ func TestSnowballPorterPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "role":
 				other, closeOther := enginetest.RoleOperation(t, e, "snowball_other")
 				defer closeOther()
@@ -89,7 +89,7 @@ func TestSnowballPorterPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "role" {
-				extensionUnitError(t, err, "42501")
+				enginetest.State(t, err, "42501")
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}

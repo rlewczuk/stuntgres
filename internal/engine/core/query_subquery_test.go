@@ -89,7 +89,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 			project := q.Root.(*plan.ProjectNode)
 			sentinel := errors.New("final target")
 			calls := 0
-			probe := queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel })
+			probe := enginetest.QueryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel })
 			// An ORDER output owns its cache; replace that key instead of assuming
 			// a target ordinal is also an evaluation cache ordinal.
 			ordered := false
@@ -152,7 +152,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		found := false
 		for frame, project := range frames {
 			if frame != root.Frame {
-				subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel }))
+				subqueryTestTarget(t, project, enginetest.QueryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel }))
 				found = true
 			}
 		}
@@ -177,7 +177,7 @@ func TestQuerySubqueryCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sentinelCalls := 0
-	subqueryTestTarget(t, q.Root.(*plan.ProjectNode), queryProbe(q.Root.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
+	subqueryTestTarget(t, q.Root.(*plan.ProjectNode), enginetest.QueryProbe(q.Root.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
 		sentinelCalls++
 		cancel()
 		return sqltype.Value{}, context.Canceled
@@ -396,8 +396,8 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	leftCalls, targetCalls := 0, 0
-	project.Expressions[0] = queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.Comparisons = []plan.ComparisonExpr{{Left: queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
+	project.Expressions[0] = enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
+	bound.Comparisons = []plan.ComparisonExpr{{Left: enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
 	parent := exec.State{Source: source}
 	c := parent.Evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {

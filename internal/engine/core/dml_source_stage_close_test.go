@@ -71,7 +71,7 @@ func TestDMLSourceStageClose(t *testing.T) {
 					return cleanup
 				}
 				original := b.Returning.Expressions[0]
-				b.Returning.Expressions = []expr.Expr{queryProbe(b.Returning.Schema[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				b.Returning.Expressions = []expr.Expr{enginetest.QueryProbe(b.Returning.Schema[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					projections++
 					if primary {
 						return sqltype.Value{}, failure

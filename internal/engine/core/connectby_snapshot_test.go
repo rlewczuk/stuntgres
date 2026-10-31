@@ -38,7 +38,7 @@ func TestConnectbyNestedSourceSnapshotOwnership(t *testing.T) {
 			if err := stage.Create(target); err != nil {
 				t.Fatal(err)
 			}
-			domainUnitPublish(t, e, stage)
+			enginetest.PublishStage(t, e, stage)
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			enginetest.RoleExecute(t, e, op, "CREATE EXTENSION tablefunc")
 			done()

@@ -64,7 +64,7 @@ func TestXMLSQLPreparedOwnership(t *testing.T) {
 		if owner != &e.Catalog.Owner || epoch != e.CatalogRead().Epoch() || analysis == nil || d.Folds == nil || d.Folds.Current().Entries != nil {
 			t.Fatal("analysis and fold acceptance conflated")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		folds := d.Folds.Current()
 		if len(folds.Entries) == 0 {
 			t.Fatal("missing actual fold publication")
@@ -73,7 +73,7 @@ func TestXMLSQLPreparedOwnership(t *testing.T) {
 		first := &folds.Entries[0]
 		for _, mode := range []string{"document", "content", "document"} {
 			xmlPreparedMode(t, e, s, mode)
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			if d.CatalogOwner != owner || d.CatalogEpoch != epoch || d.Folds != cell || !sqltype.SameDatum(literal, xmlPreparedLiteral(t, d)) {
 				t.Fatal("mode transition replaced accepted input backing")
 			}
@@ -130,7 +130,7 @@ func TestXMLSQLPreparedOwnership(t *testing.T) {
 		transaction := enginetest.TransactionBegin(t, s)
 		defer enginetest.TransactionEnd(t, s, transaction, false)
 		cycle := s.NewProtocolCycle()
-		command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+		command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol("xml_owned", `SELECT XML 'text<a/>' AS frozen, 'text<a/>'::text::xml AS live, length('owned') AS folded`, nil)
 			return err

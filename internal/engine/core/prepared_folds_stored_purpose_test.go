@@ -57,7 +57,7 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 			}
 			query += " FROM fold_identifier_nested"
 			ast, d := enginetest.PreparedDescription(t, e, s, query)
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			for _, name := range []string{"fold_identifier", "fold_identifier_nested"} {
 				source := primaryKeyUnitRelation(t, e, name)
 				sourceRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
@@ -74,8 +74,8 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 					t.Fatal("actual nested rewrite source lost analysis dependency", name)
 				}
 			}
-			before := snapshotFoldDescription(d)
-			preparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
+			before := enginetest.SnapshotFoldDescription(d)
+			enginetest.PreparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
 			seen = false
 			for _, dependency := range d.Analysis.Dependencies {
 				if dependency.Ref == ref {
@@ -111,7 +111,7 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 			if preparedRebindValid(t, e, s, d.Analysis) {
 				t.Fatal("semantic operand revision disappeared from ordinary analysis")
 			}
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			if d.Analysis == before.Analysis {
 				t.Fatal("ordinary analysis did not refresh")
 			}
@@ -131,14 +131,14 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 				if d.Folds.Current().Generation == before.Accepted.Generation || &d.Folds.Current().Entries[0] == &before.Accepted.Entries[0] {
 					t.Fatal("actual executable use failed to retire fold generation/backing")
 				}
-				preparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
+				enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
 			} else {
 				if d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 					t.Fatal("identifier-only revision retired unrelated root fold")
 				}
-				preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
+				enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
 			}
-			preparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
+			enginetest.PreparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
 		})
 	}
 }

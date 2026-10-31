@@ -208,7 +208,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			if result.Count != 0 || result.Rows != nil {
 				t.Fatal(result)
 			}
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(7) already exists.", Schema: "portable", Table: "t", Constraint: "u"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(7) already exists.", Schema: "portable", Table: "t", Constraint: "u"})
 			uniqueClaimsEmpty(t, target)
 		})
 	}
@@ -330,7 +330,7 @@ func TestUniqueClaimStatementTimeout(t *testing.T) {
 		if outcome.result.Count != 0 || outcome.result.Rows != nil {
 			t.Fatal(outcome.result)
 		}
-		nullCountUnitDiagnostic(t, outcome.err, sqlstate.Error{Code: "57014", Message: "canceling statement due to statement timeout"})
+		enginetest.Diagnostic(t, outcome.err, sqlstate.Error{Code: "57014", Message: "canceling statement due to statement timeout"})
 	case <-time.After(5 * time.Second):
 		t.Fatal("UNIQUE statement deadline did not terminate")
 	}

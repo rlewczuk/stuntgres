@@ -30,7 +30,7 @@ func heapUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 }
 func heapUnitExpression(t *testing.T, e *core.Engine) plan.InstalledVerifyHeapamExpr {
 	t.Helper()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "verify_heapam"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "typed"}}}}
 	node, err := b.BindFunctionProvider(raw)

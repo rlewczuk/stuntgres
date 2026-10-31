@@ -9,12 +9,13 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func TestBetweenTemporalCaptureContextKey(t *testing.T) {
-	b := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
 	captures := []analyze.TemporalConstant{
 		{Offset: 7, TypeID: sqltype.Date, Typmod: -1, Scalar: 1},
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: -1, Scalar: 86400000000},

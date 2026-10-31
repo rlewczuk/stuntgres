@@ -304,7 +304,7 @@ func TestCommitTimeReplacement(t *testing.T) {
 func TestCommitTimeExpression(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 		if name != "pg_last_committed_xact" {
@@ -369,7 +369,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			}
 		}
 		fresh := engine.New()
-		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
+		fb := enginetest.ExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
 		mapped, _, err := stored.RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d.IsComposite() {
 				return d

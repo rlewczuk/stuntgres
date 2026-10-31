@@ -47,7 +47,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)

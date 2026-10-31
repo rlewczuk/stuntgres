@@ -30,7 +30,7 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
 	command := func(fn func(*core.StatementScope) error) {
-		preparedFoldProtocolCommand(t, e, s, cycle, fn)
+		enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn)
 	}
 	prefix, typ := "EXPLAIN ", sqltype.Text
 	if structured {

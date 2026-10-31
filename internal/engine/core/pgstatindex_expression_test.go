@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ func pgstatindexUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgsta
 }
 func pgstattupleUnitExpression(t *testing.T, e *core.Engine, name string) plan.InstalledPgstattupleStatsExpr {
 	t.Helper()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	value := parser.Value{Kind: parser.StringValue, Text: "i"}
 	if name == "pgstathashindex" { value = parser.Value{Kind: parser.NullValue} }
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: value}}}
@@ -67,7 +68,7 @@ func TestPgstatindexCallableResolution(t *testing.T) {
 				if named {
 					raw.ArgNames = []parser.Identifier{{Text: "relname"}}
 				}
-				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+				b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				node, handled, err := b.BindSQLCallable(raw)
 				if err != nil || !handled {
 					t.Fatalf("installed overload not admitted: handled=%v err=%v", handled, err)

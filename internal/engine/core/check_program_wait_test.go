@@ -102,7 +102,7 @@ func TestCheckProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 							t.Fatal(got.err)
 						}
 					} else {
-						nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+						enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 					}
 				case <-time.After(5 * time.Second):
 					t.Fatal("CHECK unique waiter did not join")

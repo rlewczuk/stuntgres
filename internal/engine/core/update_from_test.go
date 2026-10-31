@@ -163,7 +163,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			calls, outputs := 0, 0
 			sentinel := errors.New("losing UPDATE FROM assignment failure")
 			rhs := b.Update.Assignments[0]
-			b.Update.Assignments[0] = queryProbe(rhs.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			b.Update.Assignments[0] = enginetest.QueryProbe(rhs.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if failLast && calls == 6 {
 					return sqltype.Value{}, sentinel
@@ -171,7 +171,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				return rhs.Eval(c)
 			})
 			out := b.Returning.Expressions[0]
-			b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
+			b.Returning.Expressions[0] = enginetest.QueryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
 			r, err := core.ExecuteUpdate(op.Ctx, scope, b, target, from, nil, "public")
 			if calls != 6 || outputs != 2 {
 				t.Fatal("pair versus successful-target demand", calls, outputs)

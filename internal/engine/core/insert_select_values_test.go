@@ -29,7 +29,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		expressions := make([][]expr.Expr, count)
 		for i := range expressions {
 			index := i
-			expressions[i] = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			expressions[i] = []expr.Expr{enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls[index]++
 				if index == 3 {
 					return sqltype.Null(typ), nil

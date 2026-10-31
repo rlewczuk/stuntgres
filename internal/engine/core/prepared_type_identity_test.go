@@ -61,7 +61,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if array {
 				raw.TypeName.ArrayBounds = []int32{-1}
 			}
-			first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			first := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			if _, err := first.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +105,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			enginetest.RoleExecute(t, e, op, "ALTER TYPE public."+family.name+" RENAME TO renamed")
 			enginetest.RoleExecute(t, e, op, "ALTER TYPE public.renamed SET SCHEMA identity_dst")
 			current := e.CatalogRead().MustType(old.Address())
-			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			next := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || node.ResultUsage().Type.ID() != captured.Base.Type.ID() {
 				t.Fatal("held cast lost current nominal generation", err)
@@ -159,7 +159,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				}
 			}
 			expected.RetireAnalysisTypeCasts()
-			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			next = enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired occurrence rescued old spelling")
 			}

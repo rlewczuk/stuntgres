@@ -72,7 +72,7 @@ func TestAlterStatisticsPublication(t *testing.T) {
 		t.Fatal("rebind mutated retained accepted or analysis dependency backing")
 	}
 	for i, entry := range oldEntries {
-		if !samePublishedFold(accepted.Entries[i], entry) {
+		if !enginetest.SamePublishedFold(accepted.Entries[i], entry) {
 			t.Fatal("rebind mutated a retained accepted datum", i)
 		}
 	}

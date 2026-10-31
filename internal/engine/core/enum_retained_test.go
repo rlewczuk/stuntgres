@@ -29,7 +29,7 @@ type enumCapturedArgument struct {
 }
 
 func (e enumCapturedArgument) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	c := enginetest.EvalContext(ctx)
 	if err := exec.EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

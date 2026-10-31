@@ -62,12 +62,12 @@ func TestPGPreparedStatementsProjection(t *testing.T) {
  enginetest.SessionSQL(t,s,"CREATE TABLE unit_pps_write(i integer)")
  enginetest.SessionSQL(t,s,"PREPARE unit_write AS INSERT INTO unit_pps_write VALUES(1)")
  cycle:=s.NewProtocolCycle()
- preparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {
+ enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {
   scope.Op.CommandStart=clock
   _,err:=scope.ParseProtocol("unit_wire","SELECT $1::integer AS i",[]uint32{23});return err
  })
- preparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.ParseProtocol("","SELECT 8",nil);return err})
- preparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.ParseProtocol("unit_empty","",[]uint32{23,25});return err})
+ enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.ParseProtocol("","SELECT 8",nil);return err})
+ enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.ParseProtocol("unit_empty","",[]uint32{23,25});return err})
  rows:=ppsUnitRows(t,e,r);if len(rows)!=5||rows[""]!=nil {t.Fatal("named membership",rows)}
  row:=rows["unit_pps"];instant,err:=row[2].TimestampTime();if err!=nil||!instant.Equal(clock) {t.Fatal("creation clock",instant,err)}
  for i,oid:=range []uint32{23,25} {p,_:=row[3].ArrayElement(i).TypeOID();v,_:=row[4].ArrayElement(i).TypeOID();if p!=oid||v!=oid {t.Fatal("signature identity",i,p,v)}}
@@ -77,7 +77,7 @@ func TestPGPreparedStatementsProjection(t *testing.T) {
  empty:=rows["unit_empty"];if empty[3].ArrayLen()!=2||!empty[4].IsNull() {t.Fatal("protocol hint fallback")}
  for i,oid:=range []uint32{23,25} {got,_:=empty[3].ArrayElement(i).TypeOID();if got!=oid {t.Fatal("unused hint identity",got)}}
  wire:=r.Lookup("unit_wire");if wire.FromSQL||wire.Created!=clock {t.Fatal("protocol provenance")}
- preparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.DescribeProtocolStatement("unit_wire");return err})
+ enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,func(scope *core.StatementScope)error {_,err:=scope.DescribeProtocolStatement("unit_wire");return err})
  if wire.Created!=clock||r.Lookup("unit_pps")!=definition||&parameters[0]!=&definition.Description.Parameters.Types[0]||&results[0]!=&definition.Description.Results[0]||definition.Description.Folds!=folds {t.Fatal("capture/rebind replaced retained definition backing")}
  current:=engine.New();retagged:=ppsUnitRows(t,current,r)["unit_pps"]
  for i,value:=range retagged {d:=current.CatalogRead().MustRelation(ids.ObjectAddress{ClassID:ids.RelationClassID,ObjectID:16250});if value.Type()!=d.Columns[i].Usage.Type||value.Type()==row[i].Type() {t.Fatal("current catalog ownership",i)}}

@@ -36,7 +36,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	calls := 0
 	out := b.Returning.Expressions[0]
-	b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	b.Returning.Expressions[0] = enginetest.QueryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if root := scope.Stage.Deletes[b.Ref.Address]; root == nil || len(root.Rows) != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
@@ -105,7 +105,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				case "source_rejected":
 					join := b.Delete.Using.(*plan.JoinNode)
 					usage := join.Predicate.ResultUsage()
-					join.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+					join.Predicate = enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -114,7 +114,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					})
 				case "candidate_rejected":
 					usage := b.Predicate.ResultUsage()
-					b.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+					b.Predicate = enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -123,7 +123,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					})
 				default:
 					out := b.Returning.Expressions[0]
-					b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+					b.Returning.Expressions[0] = enginetest.QueryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if len(scope.Stage.Deletes[b.Ref.Address].Rows) != calls {
 							t.Fatal("output before stage")

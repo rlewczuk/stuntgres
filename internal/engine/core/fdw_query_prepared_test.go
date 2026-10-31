@@ -69,7 +69,7 @@ func preparedQueryFixture(t *testing.T) (*core.Engine, *session.Session, *prepar
 func TestFDWQueryPreparedArtifactIsolation(t *testing.T) {
 	e, s, provider := preparedQueryFixture(t)
 	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0),l.k FROM query_left l JOIN query_right r ON l.k=r.k")
-	preparedFoldExecute(t, e, s, ast, &description)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &description)
 	owner := description.Folds
 	accepted := owner.Current()
 	analysis := description.Analysis
@@ -93,7 +93,7 @@ func TestFDWQueryPreparedArtifactIsolation(t *testing.T) {
 		t.Fatal("execution-private failure changed accepted prepared ownership/backing")
 	}
 	provider.failure = nil
-	preparedFoldExecute(t, e, s, ast, &description)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &description)
 	current = owner.Current()
 	if current.Generation != accepted.Generation || &current.Entries[0] != entries || provider.begins != 3 {
 		t.Fatal("successful replacement did not reuse immutable prepared artifacts")
@@ -104,7 +104,7 @@ func TestFDWQueryProtocolArtifactIsolation(t *testing.T) {
 	e, s, provider := preparedQueryFixture(t)
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("query_definition", "SELECT COALESCE(-(7::integer),0),l.k FROM query_left l JOIN query_right r ON l.k=r.k", nil)
 		return err

@@ -183,7 +183,7 @@ func TestPlannerCostsAdmission(t *testing.T) {
 	plannerCostCommand(t,s,"CLOSE costs_cursor"); plannerCostCommand(t,s,"ROLLBACK TO costs"); execute(1.25); plannerCostCommand(t,s,"ROLLBACK")
 	plannerCostCommand(t,s,"BEGIN")
 	cycle:=s.NewProtocolCycle()
-	command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+	command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("cost_definition","SELECT n FROM t",nil);return err})
 	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=5")
 	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("cost_portal","cost_definition",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})

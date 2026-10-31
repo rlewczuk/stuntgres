@@ -113,7 +113,7 @@ func TestRIRoutineAuthorityAfterWait(t *testing.T) {
 					}
 				} else {
 					if outcome == "owner_revoke" {
-						nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length", Context: `SQL statement "UPDATE ONLY "public"."ri_wait_child" SET "pid" = DEFAULT WHERE $1 OPERATOR(pg_catalog.=) "pid""`})
+						enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length", Context: `SQL statement "UPDATE ONLY "public"."ri_wait_child" SET "pid" = DEFAULT WHERE $1 OPERATOR(pg_catalog.=) "pid""`})
 					} else {
 						routineWaitTerminal(t, got.err, outcome)
 					}
@@ -304,7 +304,7 @@ func TestCopyRoutineAuthorityAfterWait(t *testing.T) {
 				// post-unique-wait admission error therefore has no row text.
 				// Fresh input CHECK denial retains its separate row context in
 				// the public pinned-oracle scenario.
-				nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length", Context: "COPY copy_wait_rows, line 1"})
+				enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length", Context: "COPY copy_wait_rows, line 1"})
 			} else {
 				routineWaitTerminal(t, got.err, outcome)
 			}

@@ -196,7 +196,7 @@ func arrayStrictNullStoredView(t *testing.T) {
 		if source != nil {
 			source.Close()
 		}
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function nextval"})
 		if !reflect.DeepEqual(controlOriginal, controlGraph) || !reflect.DeepEqual(controlProject.AnalysisExpressions, controlAnalysis) || !reflect.DeepEqual(control.Dependencies(), controlManifest) {
 			t.Fatal("stored control preflight/admission mutated original", name)
 		}

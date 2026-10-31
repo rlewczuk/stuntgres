@@ -26,7 +26,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		id   sqltype.ID
 	}{{"pg_sleep", sqltype.Float8}, {"pg_sleep_for", sqltype.Interval}, {"pg_sleep_until", sqltype.Timestamptz}} {
 		b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
-		x, err := b.BindFunction(datetimeMakeRaw(tc.name, parser.ParameterExpr{Number: 1}))
+		x, err := b.BindFunction(enginetest.FunctionCall(tc.name, parser.ParameterExpr{Number: 1}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -38,7 +38,7 @@ func TestDatetimeSleepBinding(t *testing.T) {
 			t.Fatal("sleep admitted as immutable")
 		}
 		b = enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
-		x, err = b.BindFunction(datetimeMakeRaw(tc.name, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
+		x, err = b.BindFunction(enginetest.FunctionCall(tc.name, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,7 +80,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 		binder := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		wait, err := binder.BindFunction(datetimeMakeRaw("pg_sleep", ageFiniteTyped("float8", "Infinity")))
+		wait, err := binder.BindFunction(enginetest.FunctionCall("pg_sleep", enginetest.TypedLiteral("float8", "Infinity")))
 		if err != nil {
 			t.Fatal(err)
 		}

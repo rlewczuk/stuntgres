@@ -66,7 +66,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			defer cancel()
 			scope.Op.Ctx = ctx
 			calls := 0
-			b.Predicate = queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			b.Predicate = enginetest.QueryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "late_predicate" && calls == 2 {
 					return sqltype.Value{}, sentinel
@@ -170,7 +170,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	sentinel := errors.New("later row predicate")
 	calls := 0
-	binding.Predicate = queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	binding.Predicate = enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

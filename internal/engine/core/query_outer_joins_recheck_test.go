@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -39,29 +40,29 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				forbidden++
 				return sqltype.Value{}, errors.New("missing subtree evaluated")
 			}
-			inner.Predicate = queryProbe(boolType.Usage(), fail)
+			inner.Predicate = enginetest.QueryProbe(boolType.Usage(), fail)
 			for i := range inner.Merges {
-				inner.Merges[i] = queryProbe(inner.Merges[i].ResultUsage(), fail)
+				inner.Merges[i] = enginetest.QueryProbe(inner.Merges[i].ResultUsage(), fail)
 			}
 			// Projection and order recipes of the missing subtree must also be
 			// bypassed, including slots that do not name a physical input column.
 			project := &plan.ProjectNode{QuerySchema: inner.Schema(), Child: inner}
 			for _, column := range inner.Schema() {
-				project.Expressions = append(project.Expressions, queryProbe(column.Usage, fail))
+				project.Expressions = append(project.Expressions, enginetest.QueryProbe(column.Usage, fail))
 			}
-			wrapped := &plan.EvaluationNode{QuerySchema: project.Schema(), Child: project, Expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
+			wrapped := &plan.EvaluationNode{QuerySchema: project.Schema(), Child: project, Expressions: []expr.Expr{enginetest.QueryProbe(boolType.Usage(), fail)}}
 			if missingLeft {
 				outer.Left = wrapped
 			} else {
 				outer.Right = wrapped
 			}
-			outer.Predicate = queryProbe(boolType.Usage(), fail)
+			outer.Predicate = enginetest.QueryProbe(boolType.Usage(), fail)
 			locks := &exec.LockContext{Leaves: make([]exec.QueryLockLeaf, len(inputs.Sources))}
 			rows := make([][]sqltype.Value, len(inputs.Sources))
 			parentMerges := 0
 			for i := range outer.Merges {
 				usage := outer.Merges[i].ResultUsage()
-				outer.Merges[i] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+				outer.Merges[i] = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 					parentMerges++
 					return sqltype.Null(usage.Type), nil
 				})
@@ -115,7 +116,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			inputs := &exec.Source{Sources: []*exec.Source{{Occurrence: 0}, {Occurrence: 1}}}
 			locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{{Changed: true}, {Changed: true}}}
 			calls := 0
-			join := &plan.JoinNode{QuerySchema: schema, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
+			join := &plan.JoinNode{QuerySchema: schema, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: enginetest.QueryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				calls++
 				return sqltype.Boolean(boolType, false), nil
 			})}
@@ -132,7 +133,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 		e := engine.New()
 		boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		calls := 0
-		recipe := queryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
+		recipe := enginetest.QueryProbe(boolType.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Value{}, errors.New("absent lineage recipe evaluated")
 		})

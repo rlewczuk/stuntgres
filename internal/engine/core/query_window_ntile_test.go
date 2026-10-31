@@ -90,7 +90,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 		call := &node.Calls[0]
 		argument := call.Argument
 		var evaluated []int64
-		call.Argument = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+		call.Argument = enginetest.QueryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			id, _ := c.Row[0].Integer()
 			evaluated = append(evaluated, id)
 			if id <= prefix {
@@ -141,7 +141,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 		var evaluated [2][]int64
 		for i := range node.Calls {
 			original := node.Calls[i].Argument
-			node.Calls[i].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			node.Calls[i].Argument = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				id, _ := c.Row[0].Integer()
 				evaluated[i] = append(evaluated[i], id)
 				return original.Eval(c)
@@ -297,7 +297,7 @@ func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 			ctx := &ntileOutputCancellation{Context: base, cancel: cancel}
 			original := node.Calls[0].Argument
 			entered := 0
-			node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			node.Calls[0].Argument = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				value, err := original.Eval(c)
 				entered++
 				if phase == "argument" {

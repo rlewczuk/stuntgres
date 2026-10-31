@@ -235,7 +235,7 @@ func TestThesaurusDemandCurrentness(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				extensionUnitPublish(t, e, op, stage)
+				enginetest.PublishOperationStage(t, e, op, stage)
 				return nil
 			}
 			input := "one 7"

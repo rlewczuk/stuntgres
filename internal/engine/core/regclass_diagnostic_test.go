@@ -96,7 +96,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				bound := analyze.Binding{Ref: ref, Relation: relation, Targets: []int{1}}
 				for repeat := 0; repeat != 2; repeat++ {
 					err = dml.RowConstraintError(scope.WriteHost(), bound, "public", "", "rr_diag_bound", row)
-					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})
+					enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})
 				}
 				if len(e.Storage.Relations[ref.Address].Versions) != 0 {
 					t.Fatal("formatter changed stored rows")

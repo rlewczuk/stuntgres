@@ -25,7 +25,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	sentinel := errors.New("latest-target recheck failure")
 	predicate := b.Predicate
 	failed := false
-	b.Predicate = queryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	b.Predicate = enginetest.QueryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		if enginetest.Export(c.Row[1]) == int64(21) {
 			root := scope.Stage.Deletes[b.Ref.Address]
 			if root == nil || len(root.Rows) != 1 {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -18,7 +19,7 @@ import (
 
 func amcheckUnitExpression(t *testing.T, e *core.Engine, parent bool, options ...bool) plan.InstalledAmcheckExpr {
 	t.Helper()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	name := "bt_index_check"
 	if parent {
 		name = "bt_index_parent_check"

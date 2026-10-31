@@ -24,7 +24,7 @@ import (
 func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []parser.CurrentDateTimeKind{parser.CurrentDate, parser.CurrentTime, parser.CurrentTimestamp, parser.LocalTime, parser.LocalTimestamp} {
 		raw := parser.CurrentDateTimeExpr{Kind: kind, Pos: parser.Position{Character: 8, Offset: 7}}
 		if kind != parser.CurrentDate {

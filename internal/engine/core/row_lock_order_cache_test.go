@@ -149,7 +149,7 @@ func TestRowLockOrderedCacheRefreshCounts(t *testing.T) {
 	}
 	calls := [3]int{}
 	probe := func(slot int, properties expr.Properties) expr.Expr {
-		return queryProbeExpression{Info: expr.Info{Usage: usage, Property: properties}, eval: func(*exec.Context) (sqltype.Value, error) { calls[slot]++; return value, nil }}
+		return enginetest.QueryProbeExpression{Info: expr.Info{Usage: usage, Property: properties}, Probe: func(*exec.Context) (sqltype.Value, error) { calls[slot]++; return value, nil }}
 	}
 	volatile := probe(0, expr.Properties{Volatility: expr.Volatile})
 	hidden := probe(1, expr.Properties{Volatility: expr.Volatile})

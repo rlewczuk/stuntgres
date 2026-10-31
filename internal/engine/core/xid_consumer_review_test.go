@@ -114,17 +114,10 @@ type conditionalSpy struct {
 }
 
 func (e conditionalSpy) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	c := enginetest.EvalContext(ctx)
 	if err := exec.EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	*e.calls++
 	return e.value, e.failure
-}
-
-// evalContext recovers the engine evaluation context in test probes. A nil or
-// foreign context yields nil.
-func evalContext(ctx expr.Context) *exec.Context {
-	c, _ := ctx.(*exec.Context)
-	return c
 }

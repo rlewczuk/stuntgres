@@ -73,7 +73,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, s, "BEGIN")
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+			command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 			parse := func() {
 				command(func(scope *core.StatementScope) error { _, err := scope.ParseProtocol("command", query, nil); return err })
 			}
@@ -93,7 +93,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			if portal.Resource != nil && portal.Resource.Root != nil || portal.Folds == nil || len(portal.Folds.Entries) == 0 || !portal.Folds.Candidate().Fixed {
 				t.Fatal("command Bind omitted private accepted typed generation")
 			}
-			preparedFoldEntry(t, definition.Description, sqltype.Int4, "23")
+			enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Int4, "23")
 			entries, generation := owner.Current().Entries, owner.Current().Generation
 			if &portal.Folds.Entries[0] != &entries[0] {
 				t.Fatal("Bind copied immutable backing")
@@ -107,7 +107,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, s, "DISCARD PLANS")
 			bind("discarded")
-			preparedFoldEntry(t, definition.Description, sqltype.Int4, "7")
+			enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Int4, "7")
 			if &portal.Folds.Entries[0] != &entries[0] {
 				t.Fatal("DISCARD mutated old portal generation")
 			}
@@ -177,7 +177,7 @@ func TestPreparedFoldProtocolCommandFailure(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, s, "BEGIN")
 			cycle := s.NewProtocolCycle()
-			preparedFoldProtocolCommand(t, e, s, cycle, func(scope *core.StatementScope) error { _, err := scope.ParseProtocol("failed", query, nil); return err })
+			enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, func(scope *core.StatementScope) error { _, err := scope.ParseProtocol("failed", query, nil); return err })
 			owner := core.PayloadOf(s).PreparedSQL.Lookup("failed").Description.Folds
 			if phase == "authority" {
 				enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")

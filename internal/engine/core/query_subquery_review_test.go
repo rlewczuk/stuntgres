@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 				defer cancel()
 				primary := errors.New("second projection")
 				calls := 0
-				project.Expressions[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						switch failure {
@@ -95,8 +96,8 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 			if sorting {
 				root = &plan.SortNode{Child: root}
 			}
-			immutable := queryProbe(usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Integer(usage.Type, 1) })
-			volatile := immutable.(queryProbeExpression)
+			immutable := enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) { return sqltype.Integer(usage.Type, 1) })
+			volatile := immutable.(enginetest.QueryProbeExpression)
 			volatile.Property.Volatility = expr.Volatile
 			projection := []expr.Expr{immutable, volatile}
 			b := analyze.Binder{}
@@ -123,7 +124,7 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 				t.Fatal("unbounded projection acquired an eager evaluation stage", sorting)
 			}
 			if !bounded {
-				if _, ok := projection[1].(queryProbeExpression); !ok {
+				if _, ok := projection[1].(enginetest.QueryProbeExpression); !ok {
 					t.Fatal("unbounded volatile target was scheduled early")
 				}
 			}
@@ -144,13 +145,13 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 			switch n := node.(type) {
 			case *plan.AggregateNode:
 				owner = n
-				n.Keys[0] = queryProbe(n.Keys[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+				n.Keys[0] = enginetest.QueryProbe(n.Keys[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 					calls++
 					return sqltype.Value{}, errors.New("ignored group key")
 				})
 			case *plan.DistinctNode:
 				owner = n
-				n.Expressions[0] = queryProbe(n.Expressions[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+				n.Expressions[0] = enginetest.QueryProbe(n.Expressions[0].ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 					calls++
 					return sqltype.Value{}, errors.New("ignored distinct target")
 				})
@@ -191,10 +192,10 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 	for _, distinct := range []bool{false, true} {
 		_, q, _ := queryJoinsFixture(t, "SELECT k FROM a")
 		project := q.Root.(*plan.ProjectNode)
-		probe := queryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
+		probe := enginetest.QueryProbe(project.Schema()[0].Usage, func(*exec.Context) (sqltype.Value, error) {
 			t.Fatal("property visitor evaluated ignored expression")
 			return sqltype.Value{}, nil
-		}).(queryProbeExpression)
+		}).(enginetest.QueryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		probe.Property.RowDependent = true
 		if distinct {

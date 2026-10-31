@@ -51,7 +51,7 @@ func TestHostMaterializationDetachedType(t *testing.T) {
 		}
 	})
 	t.Run("unrelated-same-name", func(t *testing.T) {
-		runtime, err := host.New(hostOwnerDefinition(nil))
+		runtime, err := host.New(enginetest.HostOwnerDefinition(nil))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -29,7 +30,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			value, _ := sqltype.Integer(integer, 1)
 			schema := []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 			cause := errors.New("reached projection failure")
-			projection := queryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, cause })
+			projection := enginetest.QueryProbe(integer.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, cause })
 			if assignment {
 				// A private named-row destination forces the real ordinal conversion owner
 				// to reject text input before publishing either its target or loop success.

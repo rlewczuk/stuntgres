@@ -39,7 +39,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 		if result.Count != 0 || result.Rows != nil {
 			t.Fatal(result)
 		}
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
 		if e.Storage.IndexRoots[index.Address()] != old {
 			t.Fatal("failed batch published root")
 		}
@@ -221,7 +221,7 @@ func TestUniqueInsertPrivilegeDisclosure(t *testing.T) {
 				if mode == "keys" || mode == "table" {
 					detail = "Key (a, b)=(1, x) already exists."
 				}
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: detail, Schema: "public", Table: "t", Constraint: "u"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: detail, Schema: "public", Table: "t", Constraint: "u"})
 				enginetest.LockEmpty(t, e)
 			})
 		}

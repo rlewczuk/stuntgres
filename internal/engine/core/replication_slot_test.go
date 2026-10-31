@@ -39,7 +39,7 @@ func TestReplicationSlotExpressionOwnership(t *testing.T) {
   for i:=range tc.arity { got,err:=capture.At(n,i); if err!=nil || got!=n.Args[i] { t.Fatal("capture occurrence",err) } }
   bad:=n; bad.Kind=255; if bad.Validate()==nil { t.Fatal("invalid kind accepted") }; bad=n; bad.Slots[0]=5; if bad.Validate()==nil { t.Fatal("invalid formal accepted") }; bad=n; bad.Args[4]=n.Args[0]; if bad.Validate()==nil { t.Fatal("unused operand accepted") }
  }
- binder:=newTestExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil)
+ binder:=enginetest.ExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil)
  raw:=parser.FunctionExpr{
   Name:parser.ObjectName{Parts:[]parser.Identifier{{Text:"pg_create_physical_replication_slot"}}},
   Args:[]parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind:parser.BooleanValue,Boolean:true}},null},

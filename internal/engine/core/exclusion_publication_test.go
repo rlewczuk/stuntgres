@@ -130,7 +130,7 @@ func TestExclusionPublication(t *testing.T) {
 					if e.Storage.RowFrontier() != row || e.Storage.VersionFrontier() != version || !reflect.DeepEqual(*store, storeBefore) {
 						t.Fatal("integrity veto changed immutable publication inputs")
 					}
-					nullCountUnitDiagnostic(t, err, sqlstate.Error{
+					enginetest.Diagnostic(t, err, sqlstate.Error{
 						Code:       "23P01",
 						Message:    `conflicting key value violates exclusion constraint "ex"`,
 						Detail:     "Key (n)=(1) conflicts with existing key (n)=(1).",

@@ -38,7 +38,7 @@ func TestAmcheckRestrictedAuthorityPrecedence(t *testing.T) {
 			if queued && grant != "queued_owner" {
 				enginetest.Run(t, e, "GRANT EXECUTE ON FUNCTION bt_index_parent_check(regclass) TO "+strings.TrimPrefix(grant, "queued_"))
 			}
-			binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "bt_index_parent_check"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "i"}}}})
 			if err != nil {
 				t.Fatal(err)

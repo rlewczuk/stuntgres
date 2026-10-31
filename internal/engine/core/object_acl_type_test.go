@@ -60,7 +60,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	if err := stage.Create(relation); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	view = e.CatalogRead()
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
 	for _, address := range []ids.ObjectAddress{row.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}} {
@@ -114,7 +114,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	if err := role.StageOwnership(ownerStage, d, target); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, ownerStage)
+	enginetest.PublishStage(t, e, ownerStage)
 	view = e.CatalogRead()
 	d = domainUnitType(t, view, "acl_provenance_domain")
 	if d.Owner != target || !d.ACLSyntheticDefault || !typedef.DefaultDomainACL(d) {
@@ -138,7 +138,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	if err := change.Replace(&explicit); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, change)
+	enginetest.PublishStage(t, e, change)
 	acl, err := access.RawObjectACL(e.CatalogRead(), explicit.Address())
 	if err != nil || !reflect.DeepEqual(acl, explicit.ACL) || !acl.Explicit || typedef.DefaultDomainACL(&explicit) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)

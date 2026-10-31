@@ -267,7 +267,7 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 	}
 	t.Run("local_composite_array_admission", func(t *testing.T) {
 		e, s := plUnitScope(t)
-		domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, "CREATE TYPE pa_unit_local AS (n integer)"))
+		enginetest.PublishStage(t, e, plUnitTypeStage(t, e, s.Op, "CREATE TYPE pa_unit_local AS (n integer)"))
 		read := e.CatalogRead()
 		integer, _ := read.LookupType(sqltype.Int4)
 		language, err := catalog.LookupLanguage(read, "plpgsql")
@@ -458,9 +458,9 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		if err != nil {
 			t.Fatal("private routine fixture", err)
 		}
-		domainUnitPublish(t, e, stage)
+		enginetest.PublishStage(t, e, stage)
 	}
-	domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
+	enginetest.PublishStage(t, e, plUnitTypeStage(t, e, s.Op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
 	read := e.CatalogRead()
 	integer, _ := read.LookupType(sqltype.Int4)
 	frame := &proc.PLFrame{Program: &proc.PLProgram{}}
@@ -668,7 +668,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		"CREATE DOMAIN pa_unit_card_root AS integer[] NOT NULL",
 		"CREATE DOMAIN pa_unit_card_element AS integer NOT NULL",
 	} {
-		domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, ddl))
+		enginetest.PublishStage(t, e, plUnitTypeStage(t, e, s.Op, ddl))
 	}
 	read = e.CatalogRead()
 	rootDomain := domainUnitType(t, read, "pa_unit_card_root").SQLType

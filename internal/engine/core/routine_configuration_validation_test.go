@@ -61,7 +61,7 @@ func TestRoutineConfigurationValidatorAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				domainUnitPublish(t, e, stage)
+				enginetest.PublishStage(t, e, stage)
 				before := e.CatalogRead()
 				namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: "rv_existing", Signature: ""}

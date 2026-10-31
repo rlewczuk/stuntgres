@@ -18,7 +18,7 @@ import (
 func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	b := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"gen_random_uuid", "uuidv4", "uuidv7"} {
-		node, err := b.Bind(nullCountRaw(name), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(enginetest.FunctionCall(name), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -26,7 +26,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 			t.Fatal(name, node)
 		}
 	}
-	node, err := b.Bind(nullCountRaw("uuidv7", parser.ParameterExpr{Number: 1}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(enginetest.FunctionCall("uuidv7", parser.ParameterExpr{Number: 1}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	argument := plan.LiteralExpr{Info: expr.Info{Usage: iv.Usage()}, Value: sqltype.Null(iv)}
 	bound := functions.UUIDGeneration{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "uuidv7", Args: []expr.Expr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
-	persisted, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	persisted, err := b.Bind(enginetest.FunctionCall("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

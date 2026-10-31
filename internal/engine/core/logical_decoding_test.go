@@ -82,7 +82,7 @@ func TestLogicalDecodingExpressionValidation(t *testing.T) {
 		bad.Slots = []uint8{0,0,2}
 		if bad.Validate() == nil { t.Fatal("invalid mapping admitted") }
 	}
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.Clause.AggregateClause = "SELECT"
 	null := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: logicalDecodingUnitNames[0]}}}, Args: []parser.Expr{null,null,null,null}, ArgNames: []parser.Identifier{{Text:"upto_nchanges"},{Text:"slot_name"},{Text:"upto_lsn"},{Text:"options"}}, Variadic:true}

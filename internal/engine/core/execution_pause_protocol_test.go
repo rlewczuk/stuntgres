@@ -127,7 +127,9 @@ func TestExecutionPauseProtocolCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	cycle := sess.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, sess, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, sess, cycle, fn)
+	}
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("pause_definition", `SELECT key,value::text AS value FROM jsonb_each('{"a":1,"b":2,"c":3}'::jsonb)`, nil)
 		return err

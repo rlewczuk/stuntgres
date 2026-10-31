@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,7 +23,7 @@ func TestTimestampRangeTemporalCapture(t *testing.T) {
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2000, 2, 29, 12, 34, 56, 123456000, time.UTC)}
 	later := sqltype.InputEnvironment{TransactionStart: time.Date(2001, 1, 1, 12, 0, 0, 0, time.UTC)}
 	position := parser.Position{Offset: 7, Character: 8}
-	b := newTestExpressionBinder(t, ctx, e, first, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, first, nil)
 	v, err := b.InputConstant("(now,tomorrow]", d.Usage(), position)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +33,7 @@ func TestTimestampRangeTemporalCapture(t *testing.T) {
 		t.Fatal("whole capture", out, b.Prepared.Temporals, err)
 	}
 	description := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
-	retained := newTestExpressionBinder(t, ctx, e, later, description)
+	retained := enginetest.ExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.InputConstant("must not reparse", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
 		t.Fatal("frozen compound moved", err)
@@ -49,7 +50,7 @@ func TestTimestampRangeTemporalCapture(t *testing.T) {
 		t.Fatal("builtin not refreshable")
 	}
 	description.RefreshTemporals = true
-	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
+	refreshed := enginetest.ExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.InputConstant("(now,tomorrow]", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 {
 		t.Fatal("refresh", err)
@@ -76,7 +77,7 @@ func TestTimestampRangeTemporalCapture(t *testing.T) {
 		{sqltype.DateDMY, `("2003-02-01 00:00:00","2003-03-01 00:00:00"]`},
 	} {
 		input := sqltype.InputEnvironment{DateStyle: sqltype.DateStyle{Order: tc.order}}
-		binder := newTestExpressionBinder(t, ctx, e, input, nil)
+		binder := enginetest.ExpressionBinder(t, ctx, e, input, nil)
 		value, err := binder.InputConstant("(01/02/2003,01/03/2003]", d.Usage(), position)
 		if err != nil {
 			t.Fatal(err)

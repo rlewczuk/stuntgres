@@ -74,7 +74,7 @@ func TestConstraintEnforcementCheckProgram(t *testing.T) {
 	enabled.Constraints.Check = slices.Clone(d.Constraints.Check)
 	enabled.Constraints.Check[0].NotEnforced = false
 	_, err = table.ValidateCheckRow(&enabled, []sqltype.Value{value}, &evaluation)
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 	if _, ok := evaluation.PreparedChecks[&enabled]; ok {
 		t.Fatal("failed readmission retained a partial program")
 	}

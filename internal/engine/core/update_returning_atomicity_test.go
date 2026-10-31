@@ -38,7 +38,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				want = context.Canceled
 			}
 			usage := b.Relation.Columns[0].Usage
-			b.Returning.Expressions = []expr.Expr{queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			b.Returning.Expressions = []expr.Expr{enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if enginetest.Export(c.Row[0]).(int64) != enginetest.Export(c.OldRow[0]).(int64)+1 {
 					return sqltype.Value{}, fmt.Errorf("incorrect version frames: %v %v", c.Row, c.OldRow)
@@ -86,7 +86,7 @@ func TestUpdateReturningConstraintBeforeProjection(t *testing.T) {
 	for _, q := range []string{"UPDATE t SET v=NULL RETURNING old.v", "UPDATE t SET v=0 RETURNING old.v"} {
 		op, scope, b, source := updateBoundSource(t, e, s, context.Background(), q)
 		calls := 0
-		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.OldRow[0], nil })
+		b.Returning.Expressions[0] = enginetest.QueryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.OldRow[0], nil })
 		r, err := core.ExecuteUpdate(op.Context(), scope, b, source, nil, nil, "public")
 		if err == nil || calls != 0 || r.Rows != nil || r.Count != 0 {
 			t.Fatal(r, err, calls)

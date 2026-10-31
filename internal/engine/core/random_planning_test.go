@@ -161,7 +161,7 @@ func TestRandomStrictNullPlanning(t *testing.T) {
 			t.Run(expression+"/"+planner.name, func(t *testing.T) {
 				node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
 				_, _, err := planner.run(&evaluation, node)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			})
 		}
 	}
@@ -236,7 +236,7 @@ func TestRandomStrictNullPlanning(t *testing.T) {
 	}
 	evaluation.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 	_, _, err = exec.SimplifyConditional(&evaluation, node, true)
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 	reader := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
 	owner := e.CatalogRead().MustProcedure(child.Ref.Address).Owner
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.ExecutePrivilege, 0)}}
@@ -253,7 +253,7 @@ func TestRandomStrictNullPlanning(t *testing.T) {
 	}
 	evaluation.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 	_, _, err = exec.SimplifyConditional(&evaluation, node, true)
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 }
 
 func TestRandomStrictNullOriginalManifest(t *testing.T) {
@@ -394,7 +394,7 @@ func TestRandomPlanningConcurrentReuse(t *testing.T) {
 					t.Fatal("authorized command lost its typed NULL", round, got)
 				}
 			} else {
-				nullCountUnitDiagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+				enginetest.Diagnostic(t, got.err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 			}
 		}
 		if !reflect.DeepEqual(node, before) || !reflect.DeepEqual(binder.Dependencies, original) {
@@ -444,7 +444,7 @@ func TestRandomStrictNullTypedInputs(t *testing.T) {
 			local := evaluation
 			local.Parameters = []sqltype.Value{valid, valid}
 			_, _, err := planner.run(&local, node)
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
 			// The same imported frame with a different current actor succeeds.
 			local.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, op)
 			planned, _, err := planner.run(&local, node)

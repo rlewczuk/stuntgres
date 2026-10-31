@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -88,7 +89,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	}
 	// Target-list record expansion must identify the same selected occurrence
 	// while constructing both the call slots and their execution schedule.
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	requests := []expr.Expr{set}
 	root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
 	if err != nil {

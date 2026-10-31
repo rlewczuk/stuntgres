@@ -31,7 +31,9 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 	syntax := declaration.SQL.PLSyntax
 	instruction := program.Root.Statements[0].Block.Statements[0].Dynamic
 	cycle := owner.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, owner, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, owner, cycle, fn)
+	}
 	command(func(s *core.StatementScope) error {
 		_, err := s.ParseProtocol("dsownership", "SELECT pg_catalog.ds_ownership(COALESCE(-(7::integer),0)) AS v", nil)
 		return err
@@ -72,7 +74,7 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 	if declaration.SQL.PL != program || declaration.SQL.PLSyntax != syntax || program.Root.Statements[0].Block.Statements[0].Dynamic != instruction || !reflect.DeepEqual(formals, declaration.SQL.Formals) || program.ValidateDefinition(declaration.SQL) != nil || registry.Lookup("dsownership") != definition {
 		t.Fatal("execution published computed syntax/value/plan")
 	}
-	before := snapshotFoldDescription(definition.Description)
+	before := enginetest.SnapshotFoldDescription(definition.Description)
 	oldAccepted := *accepted.Folds
 	body, oldAnalysis, root := accepted.Entry.Body, accepted.Entry.Description.Analysis, accepted.Resource.Root
 	sqlExecutionPreparedGenerations(t, e, owner, definition, accepted, "dsownership", "dsportal")
@@ -84,8 +86,8 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 		t.Fatal("replacement mutated prior owner/backing")
 	}
 	ast, description := enginetest.PreparedDescription(t, e, owner, "SELECT pg_catalog.ds_ownership(COALESCE(-(7::integer),0)) AS v")
-	preparedFoldExecute(t, e, owner, ast, &description)
-	beforeRejection := snapshotFoldDescription(description)
+	enginetest.PreparedFoldExecute(t, e, owner, ast, &description)
+	beforeRejection := enginetest.SnapshotFoldDescription(description)
 	saved := description.Results
 	description.Results = nil
 	if result, err := enginetest.PreparedExecute(e, owner, ast, &description); err == nil {
@@ -99,7 +101,7 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 		t.Fatal("rejected publication changed source or accepted backing")
 	}
 	// The changed command returns -6; old accepted fold evidence remains -7.
-	preparedFoldEntry(t, before, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
 	command(func(s *core.StatementScope) error { return s.CloseProtocolPortal("dsportal") })
 	command(func(s *core.StatementScope) error { return s.CloseProtocolStatement("dsownership") })
 	if registry.Binding("dsportal") != nil || registry.Lookup("dsownership") != nil {

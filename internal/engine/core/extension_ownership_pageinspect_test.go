@@ -172,7 +172,7 @@ func TestPageinspectLiveCaptureAuthority(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION pageinspect")
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, "SELECT brin_page_type(NULL::bytea)").(*parser.Select).Targets[0]
 	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {

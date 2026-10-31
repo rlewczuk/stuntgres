@@ -16,7 +16,7 @@ func TestPreparedFoldProtocolCommandParameters(t *testing.T) {
 	enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("parameterized", "INSERT INTO fold_commands VALUES($1,length((point '0.10000000000000002,1')::text))", nil)
 		return err

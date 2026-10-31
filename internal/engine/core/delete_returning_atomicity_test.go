@@ -44,7 +44,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			defer cancel()
 			scope.Op.Ctx = ctx
 			calls := 0
-			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			probe := enginetest.QueryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				root := scope.Stage.Deletes[b.Ref.Address]
 				if root == nil || len(root.Rows) != calls {

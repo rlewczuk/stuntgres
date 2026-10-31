@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -16,7 +17,7 @@ import (
 
 func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	e := engine.New()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	u := b.Type(sqltype.Text).Usage()
 	value := sqltype.String(u.Type, "abc")
 	arg := plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: value}

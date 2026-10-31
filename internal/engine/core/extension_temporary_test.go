@@ -279,7 +279,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	}
 	for _, kind := range []analyze.LookupKind{analyze.InstalledFunctionLookup, analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		_, err := core.EngineLookupNamespaces(e, denied, qualified, kind)
-		extensionUnitError(t, err, "42501")
+		enginetest.State(t, err, "42501")
 	}
 	path, err = core.LookupPath(denied, analyze.InstalledFunctionLookup)
 	if err != nil || slices.Contains(path, namespace.Address()) {

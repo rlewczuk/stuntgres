@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -98,14 +99,14 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if _, err := foreign.FormatRegrole(20000); err == nil {
 		t.Fatal("foreign output authority admitted")
 	}
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	pos := parser.Position{Offset: 7, Character: 8}
 	captured, err := binder.InputConstant("unit_role", d.Usage(), pos)
 	if err != nil {
 		t.Fatal(err)
 	}
 	description := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()}
-	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
+	retained := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
 		t.Fatal("prepared identity retention", err)
@@ -149,7 +150,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), view, literal); !reflect.DeepEqual(err, want) {
 			t.Fatal("renderer boundary", err)
 		}
-		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: strconv.FormatUint(uint64(id), 10)}}
 		if err := binder.CaptureViewLiterals(raw, literal, analyze.ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
 			t.Fatal("view freeze boundary", err)

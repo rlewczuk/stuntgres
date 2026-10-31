@@ -32,7 +32,9 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 	}
 	program := routine.SQL.PL
 	cycle := owner.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, owner, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, owner, cycle, fn)
+	}
 	registry := core.PayloadOf(owner).PreparedSQL
 	command(func(s *core.StatementScope) error {
 		_, err := s.ParseProtocol("insteadparams", "INSERT INTO instead_owner_view VALUES(COALESCE(-(7::integer),0),$1) RETURNING id,v", nil)
@@ -74,7 +76,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 		t.Fatal("mutation companion lost actual resource")
 	}
 	originalFolds := *accepted.Folds
-	originalDescriptionFolds := snapshotFoldDescription(definition.Description)
+	originalDescriptionFolds := enginetest.SnapshotFoldDescription(definition.Description)
 	originalBody, originalResource := accepted.Entry.Body, accepted.Resource
 	sqlExecutionPreparedGenerations(t, e, owner, definition, accepted, "insteadownership", "insteadownership_portal")
 	// This invokes actual FoldPublication operations over the real registry owner:
@@ -137,7 +139,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 		op.Done()
 		t.Fatal("missing publication owner", err)
 	}
-	before := snapshotFoldDescription(definition.Description)
+	before := enginetest.SnapshotFoldDescription(definition.Description)
 	publication.Group.Entries = append([]exec.FoldConstant(nil), originalFolds.Entries...)
 	publication.Group.Dependencies = append([]exec.FoldDependency(nil), originalFolds.Dependencies...)
 	publication.Group.Private, publication.Group.DependenciesPrivate = true, true
@@ -150,7 +152,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || definition.Description.Analysis != before.Analysis || definition.Description.Folds != before.Folds || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || &after.Dependencies[0] != &before.Accepted.Dependencies[0] || registry.Lookup("insteadownership") != definition || registry.Binding("insteadownership_portal") != accepted {
 		t.Fatal("canceled candidate replaced registry publication", err)
 	}
-	preparedFoldEntry(t, originalDescriptionFolds, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, originalDescriptionFolds, sqltype.Int4, "-7")
 	if foldRootsReusable(definition.Description.Folds) {
 		t.Fatal("canceled publication resurrected retired root folds")
 	}

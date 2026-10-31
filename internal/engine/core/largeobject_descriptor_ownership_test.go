@@ -22,7 +22,7 @@ func TestLargeObjectDescriptorRecipeOwnership(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	parse := func() {
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol("lo_recipe", "SELECT loread(0,COALESCE(-(7::integer),0))", nil)
@@ -67,7 +67,7 @@ func TestLargeObjectDescriptorRecipeOwnership(t *testing.T) {
 	// COALESCE then replaces its executable child with a literal carrying the
 	// conditional's provenance, not the unary occurrence. Check those two real
 	// stages separately, linking their immutable datum rather than their stamps.
-	child := preparedFoldEntry(t, definition.Description, sqltype.Int4, "-7")
+	child := enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Int4, "-7")
 	if child.Source == (expr.FoldSourceOccurrence{}) || child.Frame != child.Source.Frame || len(child.Inputs) == 0 {
 		t.Fatal("retained unary child lost source provenance or inputs", child)
 	}
@@ -92,13 +92,13 @@ func TestLargeObjectDescriptorRecipeOwnership(t *testing.T) {
 	}
 	childIndex := -1
 	for i, entry := range accepted.Entries {
-		if samePublishedFold(entry, child) { childIndex = i; break }
+		if enginetest.SamePublishedFold(entry, child) { childIndex = i; break }
 	}
 	if childIndex < 0 { t.Fatal("child absent from accepted generation") }
 	bind("lo_second")
 	second := registry.Binding("lo_second")
 	if second == first || second.Resource == first.Resource || second.Resource.Root == root || second.Folds.Generation != accepted.Generation || &second.Folds.Entries[0] != &accepted.Entries[0] { t.Fatal("independent binding lost shared immutable backing or private graph") }
-	if !samePublishedFold(second.Folds.Entries[childIndex], child) || &second.Folds.Entries[childIndex].Inputs[0] != &accepted.Entries[childIndex].Inputs[0] {
+	if !enginetest.SamePublishedFold(second.Folds.Entries[childIndex], child) || &second.Folds.Entries[childIndex].Inputs[0] != &accepted.Entries[childIndex].Inputs[0] {
 		t.Fatal("second binding changed child provenance or immutable input backing")
 	}
 	secondNode, ok := second.Resource.Root.Expressions[0].(functions.LargeObjectCall)
@@ -113,7 +113,7 @@ func TestLargeObjectDescriptorRecipeOwnership(t *testing.T) {
 	if owner.Live() || first.Resource.Root != root || first.Folds.Generation != accepted.Generation { t.Fatal("definition retirement mutated accepted graph") }
 	retired := owner.Current()
 	if err := publication.Accept(context.Background(), e.CatalogRead(), owner.Environment, e.Catalog.State.Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) { t.Fatal("retired definition accepted publication", err) }
-	if owner.Current().Generation != retired.Generation || len(owner.Current().Entries) != len(retired.Entries) || first.Folds.Generation != accepted.Generation || second.Folds.Generation != accepted.Generation || &first.Folds.Entries[0] != &accepted.Entries[0] || &second.Folds.Entries[0] != &accepted.Entries[0] || !samePublishedFold(first.Folds.Entries[childIndex], child) {
+	if owner.Current().Generation != retired.Generation || len(owner.Current().Entries) != len(retired.Entries) || first.Folds.Generation != accepted.Generation || second.Folds.Generation != accepted.Generation || &first.Folds.Entries[0] != &accepted.Entries[0] || &second.Folds.Entries[0] != &accepted.Entries[0] || !enginetest.SamePublishedFold(first.Folds.Entries[childIndex], child) {
 		t.Fatal("rejected publication changed retired owner or retained portal backing")
 	}
 	parse()

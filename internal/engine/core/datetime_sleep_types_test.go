@@ -34,7 +34,7 @@ func TestDatetimeSleepClockOwner(t *testing.T) {
 func TestDatetimeSleepStored(t *testing.T) {
 	e := engine.New()
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	node, err := b.BindFunction(datetimeMakeRaw("pg_sleep", datetimeMakeInteger(0)))
+	node, err := b.BindFunction(enginetest.FunctionCall("pg_sleep", datetimeMakeInteger(0)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if analyze.ClosedTransactionTimeDefault(bad) {
 		t.Fatal("dependent default accepted")
 	}
-	interval, err := b.BindFunction(datetimeMakeRaw("pg_sleep_for", ageFiniteTyped("interval", "0")))
+	interval, err := b.BindFunction(enginetest.FunctionCall("pg_sleep_for", enginetest.TypedLiteral("interval", "0")))
 	if err != nil {
 		t.Fatal(err)
 	}

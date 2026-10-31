@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -14,9 +15,9 @@ import (
 func TestBitstringFormatLiteralReplay(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct{ input, canonical string }{{"b001", "001"}, {"x0f", "00001111"}, {"b", ""}} {
-		raw := nullCountRaw("format", formatUnitLiteral("%s"), parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: tc.input}})
+		raw := enginetest.FunctionCall("format", formatUnitLiteral("%s"), parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: tc.input}})
 		node, err := b.Bind(raw, analyze.ExpressionPolicy{})
 		if err != nil {
 			t.Fatal(err)

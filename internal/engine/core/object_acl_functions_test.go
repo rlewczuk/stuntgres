@@ -20,7 +20,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, query := range []string{"SELECT pg_get_acl($1,$2,$3)", "SELECT pg_get_acl(objsubid => $1,classid => $2,objid => $3)", "SELECT pg_get_acl(NULL,NULL,NULL)"} {
-		q := domainUnitBindSelect(t, e, op, query)
+		q := enginetest.BindSelect(t, e, op, query)
 		n, ok := q.Root.(*plan.ProjectNode).Expressions[0].(functions.ObjectACL)
 		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != expr.Stable || n.Validate() != nil {
 			t.Fatal("typed STABLE recipe", n)

@@ -26,13 +26,13 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 	if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 		t.Fatal("Describe evaluated conversion")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, sqltype.TSVector, "'fat':2 'rats':3 'the':1")
-	before := snapshotFoldDescription(d)
-	operand := dictionaryFoldDependency(t, d, address)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, sqltype.TSVector, "'fat':2 'rats':3 'the':1")
+	before := enginetest.SnapshotFoldDescription(d)
+	operand := enginetest.DictionaryFoldDependency(t, d, address)
 	analysis := d.Analysis
 	dictionary := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}
-	dictionaryOperand := dictionaryFoldDependency(t, d, dictionary)
+	dictionaryOperand := enginetest.DictionaryFoldDependency(t, d, dictionary)
 	if dictionaryOperand.Revision != e.CatalogRead().Get(dictionary).Revision() {
 		t.Fatal("mapped dictionary operand revision missing")
 	}
@@ -42,21 +42,21 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH CONFIGURATION public.config_fold DROP MAPPING FOR asciiword")
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()
 	current := e.CatalogRead().Get(address)
-	refreshed := dictionaryFoldDependency(t, d, address)
+	refreshed := enginetest.DictionaryFoldDependency(t, d, address)
 	if current.Revision() == operand.Revision || refreshed.Revision != current.Revision() || refreshed.Ref != operand.Ref || d.Analysis == analysis {
 		t.Fatal("retention bypassed current analysis")
 	}
-	if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.TSVector, "'fat':2 'rats':3 'the':1")) {
+	if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, sqltype.TSVector, "'fat':2 'rats':3 'the':1")) {
 		t.Fatal("mapping edit replaced accepted immutable vector backing")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, query)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, sqltype.TSVector, "")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, sqltype.TSVector, "")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_fold'::regconfig,$1::text) AS normalized")
-	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	local := cloneFoldDescription(t, d)
+	local := enginetest.CloneFoldDescription(t, d)
 	scope.Expected = &local
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
@@ -122,7 +122,7 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || publication.Group.Sealed || local.Folds.Current().Generation != before.Accepted.Generation || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("rejected private vector fold changed accepted owner", err)
 	}
-	preparedFoldEntry(t, before, sqltype.TSVector, "'fat':2 'rats':3 'the':1")
+	enginetest.PreparedFoldEntry(t, before, sqltype.TSVector, "'fat':2 'rats':3 'the':1")
 }
 
 func TestTSConfigurationPreparedRenameMove(t *testing.T) {
@@ -132,7 +132,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_capture (COPY=pg_catalog.simple)")
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_capture"})
 	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_capture'::regconfig,$1::text) AS normalized")
-	r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 		t.Fatal("missing original configuration capture")
 	}
 	captures := regoperatorPreparedSnapshot(d.Regtypes.Constants)
-	original := dictionaryFoldDependency(t, d, address)
+	original := enginetest.DictionaryFoldDependency(t, d, address)
 	namespace := e.CatalogRead().State().NamespaceGeneration()
 	accepted := d.Folds.Current()
 	if len(accepted.Entries) != 0 || accepted.Generation != 0 {
@@ -159,7 +159,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 		if e.CatalogRead().State().NamespaceGeneration() != namespace {
 			t.Fatal("configuration rename/move/reuse advanced namespace generation")
 		}
-		r, err = dictionaryFoldRuntimeExecute(e, s, ast, &d)
+		r, err = enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal("renamed/moved capture failed", err)
 		}
@@ -168,7 +168,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 			t.Fatal("object presentation change replaced original typed value/provenance")
 		}
 		current := e.CatalogRead().Get(address)
-		refreshed := dictionaryFoldDependency(t, d, address)
+		refreshed := enginetest.DictionaryFoldDependency(t, d, address)
 		if current == nil || current.Revision() == original.Revision || refreshed.Ref != original.Ref || refreshed.Revision != current.Revision() {
 			t.Fatal("preserved datum bypassed current original-object analysis")
 		}
@@ -221,7 +221,7 @@ func TestTSConfigurationPreparedPublication(t *testing.T) {
 	// DISCARD keeps its existing full reanalysis fence even when the ordinary
 	// configuration resolution environment otherwise remains equal.
 	enginetest.SessionSQL(t, s, "DISCARD PLANS")
-	r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestTSConfigurationPreparedOwnerFences(t *testing.T) {
 			case "missing_analysis":
 				d.Analysis = nil
 			}
-			r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
+			r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}

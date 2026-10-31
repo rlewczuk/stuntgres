@@ -59,7 +59,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	whole := b.Returning.Expressions[4].(plan.ReturningWholeRowExpr)
 	calls := 0
 	member := whole.Members[0]
-	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return member.Eval(c) })
+	whole.Members[0] = enginetest.QueryProbe(member.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return member.Eval(c) })
 	owner.MergeAction = parser.MergeInsertAction
 	owner.OldRow = nil
 	v, err := whole.Eval(&child)
@@ -111,7 +111,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			}
 			calls := 0
 			if b.Returning != nil {
-				b.Returning.Expressions[1] = queryProbe(b.Returning.Schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				b.Returning.Expressions[1] = enginetest.QueryProbe(b.Returning.Schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if cursor.closed != 1 || len(scope.Stage.Rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
 						t.Fatal("projection crossed source/publication boundary", cursor.closed, calls)

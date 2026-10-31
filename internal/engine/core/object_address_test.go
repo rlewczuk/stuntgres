@@ -162,7 +162,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	for _, name := range []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"} {
-		q := domainUnitBindSelect(t, e, op, "SELECT "+name+"(NULL,NULL,NULL)")
+		q := enginetest.BindSelect(t, e, op, "SELECT "+name+"(NULL,NULL,NULL)")
 		n, ok := q.Root.(*plan.ProjectNode).Expressions[0].(functions.ObjectAddress)
 		if !ok || n.Validate() != nil || n.Properties().Volatility != expr.Stable || plan.GenerationImmutable(n) {
 			t.Fatal("typed stable carrier", name, n)

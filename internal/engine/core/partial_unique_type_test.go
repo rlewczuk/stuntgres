@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -50,7 +51,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				if roots != nil {
 					t.Fatal("failed TYPE returned baseline")
 				}
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) is duplicated.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) is duplicated.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else if err != nil {
 				t.Fatal(err)
 			}

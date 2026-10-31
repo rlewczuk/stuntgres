@@ -33,7 +33,9 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	program := declaration.SQL.PL
 	formals := append([]proc.Formal(nil), declaration.SQL.Formals...)
 	cycle := owner.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, owner, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, owner, cycle, fn)
+	}
 	command(func(s *core.StatementScope) error {
 		_, err := s.ParseProtocol("sqlownership", "SELECT pg_catalog.sql_ownership_wrapper(COALESCE(-(7::integer),0)) AS v", nil)
 		return err
@@ -78,7 +80,7 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	if declaration.SQL.PL != program || !reflect.DeepEqual(formals, declaration.SQL.Formals) || program.ValidateDefinition(declaration.SQL) != nil || registry.Lookup("sqlownership") != definition {
 		t.Fatal("execution mutated published backing or replaced definition owner")
 	}
-	originalFolds := snapshotFoldDescription(definition.Description)
+	originalFolds := enginetest.SnapshotFoldDescription(definition.Description)
 	originalAccepted := *accepted.Folds
 	originalBody, originalAnalysis := accepted.Entry.Body, accepted.Entry.Description.Analysis
 	originalRoot := accepted.Resource.Root
@@ -93,8 +95,8 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	// A rejected metadata refresh must preserve the description actually used
 	// for that attempt, as well as the original immutable body/program.
 	ast, description := enginetest.PreparedDescription(t, e, owner, "SELECT pg_catalog.sql_ownership_wrapper(COALESCE(-(7::integer),0)) AS v")
-	preparedFoldExecute(t, e, owner, ast, &description)
-	beforeRejection := snapshotFoldDescription(description)
+	enginetest.PreparedFoldExecute(t, e, owner, ast, &description)
+	beforeRejection := enginetest.SnapshotFoldDescription(description)
 	saved := description.Results
 	description.Results = nil
 	if result, err := enginetest.PreparedExecute(e, owner, ast, &description); err == nil {
@@ -107,7 +109,7 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	if description.Analysis != beforeRejection.Analysis || description.Folds != beforeRejection.Folds || description.Folds.Current().Generation != beforeRejection.Accepted.Generation || &description.Folds.Current().Entries[0] != &beforeRejection.Accepted.Entries[0] {
 		t.Fatal("rejected refresh changed its affected description or accepted backing")
 	}
-	preparedFoldEntry(t, beforeRejection, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, beforeRejection, sqltype.Int4, "-7")
 	if declaration.SQL.PL != program || program.ValidateDefinition(declaration.SQL) != nil {
 		t.Fatal("rejected publication changed original program")
 	}
@@ -123,8 +125,8 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *session.Session, definition *core.PreparedDefinition, accepted *core.PreparedBinding, statementName, portalName string) {
 	t.Helper()
 	description := &definition.Description
-	before := snapshotFoldDescription(*description)
-	preparedFoldEntry(t, before, sqltype.Int4, "-7")
+	before := enginetest.SnapshotFoldDescription(*description)
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
 	if accepted.Folds == nil || len(accepted.Folds.Entries) == 0 || len(accepted.Folds.Dependencies) == 0 || accepted.Entry.Description.Folds != description.Folds {
 		t.Fatal("PL SQL/CALL portal lacks composed accepted fold ownership")
 	}
@@ -205,5 +207,5 @@ func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *sessio
 	if accepted.Folds.Generation != bindingFolds.Generation || &accepted.Folds.Entries[0] != &bindingFolds.Entries[0] || &accepted.Folds.Dependencies[0] != &bindingFolds.Dependencies[0] {
 		t.Fatal("invalidation or rejection mutated prior accepted portal backing")
 	}
-	preparedFoldEntry(t, before, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
 }

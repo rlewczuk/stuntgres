@@ -61,7 +61,7 @@ func TestSnowballIndonesianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "init", "lexize":
 				address := p.Template.Init
 				if fence == "lexize" {
@@ -74,7 +74,7 @@ func TestSnowballIndonesianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				bad := *before.MustNamespace(p.Namespace.Address())
 				bad.ObjectRevision++
@@ -83,7 +83,7 @@ func TestSnowballIndonesianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "original":
 				bad := *p.Original
 				bad.ObjectRevision++
@@ -92,7 +92,7 @@ func TestSnowballIndonesianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "role":
 				// Completion must use a newly authenticated actor, not prepared authority.
 				other, closeOther := enginetest.RoleOperation(t, e, "indonesian_other")
@@ -113,7 +113,7 @@ func TestSnowballIndonesianPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "role" {
-				extensionUnitError(t, err, "42501")
+				enginetest.State(t, err, "42501")
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}

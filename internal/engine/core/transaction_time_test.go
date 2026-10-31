@@ -49,7 +49,7 @@ func transactionTimeUnitAdvance(t *testing.T, stamp time.Time) {
 
 func TestTransactionTimeArgumentLabelInvariant(t *testing.T) {
 	eng := engine.New()
-	binder := newTestExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"now", "transaction_timestamp", "statement_timestamp", "clock_timestamp", "timeofday"} {
 		statements, err := parser.Parse("SELECT " + name + "(1,2)")
 		if err != nil {
@@ -70,7 +70,7 @@ func TestTransactionTimeArgumentLabelInvariant(t *testing.T) {
 func TestTransactionTimeExpressionContracts(t *testing.T) {
 	ctx := context.Background()
 	eng := engine.New()
-	binder := newTestExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, ctx, eng, sqltype.InputEnvironment{}, nil)
 	transaction := time.Date(2000, 1, 1, 12, 0, 0, 123456789, time.UTC)
 	statement := time.Date(2000, 1, 1, 12, 0, 1, 654321987, time.UTC)
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, Host: core.HostOf(core.NewScope(core.ScopeFields{StatementStart: statement}))}}
@@ -194,7 +194,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 func TestTransactionTimeWallDemand(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, Host: core.HostOf(core.NewScope(core.ScopeFields{StatementStart: stamp}))}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {

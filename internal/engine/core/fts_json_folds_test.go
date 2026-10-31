@@ -30,12 +30,12 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 		if len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe performed conversion")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
-		entry := preparedFoldEntry(t, d, sqltype.TSVector, "")
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		entry := enginetest.PreparedFoldEntry(t, d, sqltype.TSVector, "")
+		before := enginetest.SnapshotFoldDescription(d)
 		analysis := d.Analysis
 		for _, a := range []ids.ObjectAddress{address, configuration.Parser, dictionary} {
-			if dep := dictionaryFoldDependency(t, d, a); dep.Revision != e.CatalogRead().Get(a).Revision() {
+			if dep := enginetest.DictionaryFoldDependency(t, d, a); dep.Revision != e.CatalogRead().Get(a).Revision() {
 				t.Fatal(dep)
 			}
 			for _, dep := range before.Accepted.Dependencies {
@@ -45,29 +45,29 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 			}
 		}
 		enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.json_fold_dict (STOPWORDS)")
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		after := d.Folds.Current()
-		if d.Analysis == analysis || dictionaryFoldDependency(t, d, dictionary).Revision != e.CatalogRead().Get(dictionary).Revision() {
+		if d.Analysis == analysis || enginetest.DictionaryFoldDependency(t, d, dictionary).Revision != e.CatalogRead().Get(dictionary).Revision() {
 			t.Fatal("missing operand reanalysis")
 		}
-		if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.TSVector, "")) {
+		if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, sqltype.TSVector, "")) {
 			t.Fatal("accepted vector replaced")
 		}
 		freshAST, fresh := enginetest.PreparedDescription(t, e, s, query)
-		preparedFoldExecute(t, e, s, freshAST, &fresh)
-		preparedFoldEntry(t, fresh, sqltype.TSVector, "'the':1")
+		enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+		enginetest.PreparedFoldEntry(t, fresh, sqltype.TSVector, "'the':1")
 		runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT "+tc.runtime+" AS normalized")
-		convertOwnedExecute(t, e, s, runtimeAST, &runtime, `"The"`, "'the':1")
+		enginetest.ConvertOwnedExecute(t, e, s, runtimeAST, &runtime, `"The"`, "'the':1")
 		enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH CONFIGURATION public.json_fold DROP MAPPING FOR asciiword")
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		if current := d.Folds.Current(); current.Generation != before.Accepted.Generation || &current.Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("mapping edit replaced accepted vector")
 		}
-		convertOwnedExecute(t, e, s, runtimeAST, &runtime, `"The"`, "")
+		enginetest.ConvertOwnedExecute(t, e, s, runtimeAST, &runtime, `"The"`, "")
 		if len(runtime.Folds.Current().Entries) != 0 {
 			t.Fatal("parameter conversion folded")
 		}
-		convertRejectPublication(t, e, s, ast, d, before.Accepted)
+		enginetest.ConvertRejectPublication(t, e, s, ast, d, before.Accepted)
 	}
 	for _, call := range []string{`to_tsvector('"The Rats"'::json)`, `jsonb_to_tsvector('"The Rats"'::jsonb,'"string"'::jsonb)`} {
 		e := engine.New()
@@ -75,7 +75,7 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT "+call)
 		for _, tc := range []struct{ setting, want string }{{"simple", "'rats':2 'the':1"}, {"english", "'rat':2"}, {"simple", "'rats':2 'the':1"}} {
 			enginetest.SessionSQL(t, s, "SET default_text_search_config='"+tc.setting+"'")
-			convertOwnedExecute(t, e, s, ast, &d, "", tc.want)
+			enginetest.ConvertOwnedExecute(t, e, s, ast, &d, "", tc.want)
 			for _, entry := range d.Folds.Current().Entries {
 				if entry.Result.Type.ID() == sqltype.TSVector {
 					t.Fatal("stable conversion folded")
@@ -91,9 +91,9 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 func TestFTSJSONCancellation(t *testing.T) {
 	e, s := thesaurusCoreSetup(t)
 	savedAST, saved := enginetest.PreparedDescription(t, e, s, `SELECT to_tsvector('simple'::regconfig,'["saved"]'::json)`)
-	preparedFoldExecute(t, e, s, savedAST, &saved)
-	savedEntry := preparedFoldEntry(t, saved, sqltype.TSVector, "'saved':1")
-	accepted := snapshotFoldDescription(saved).Accepted
+	enginetest.PreparedFoldExecute(t, e, s, savedAST, &saved)
+	savedEntry := enginetest.PreparedFoldEntry(t, saved, sqltype.TSVector, "'saved':1")
+	accepted := enginetest.SnapshotFoldDescription(saved).Accepted
 	if thesaurusReceipts(s).Len() != 0 {
 		t.Fatal("unrelated fold initialized thesaurus")
 	}
@@ -158,7 +158,7 @@ func TestFTSJSONCancellation(t *testing.T) {
 			t.Fatal("rejected conversion published partial receipts")
 		}
 		current := saved.Folds.Current()
-		if current.Generation != accepted.Generation || &current.Entries[0] != &accepted.Entries[0] || !samePublishedFold(savedEntry, preparedFoldEntry(t, saved, sqltype.TSVector, "'saved':1")) {
+		if current.Generation != accepted.Generation || &current.Entries[0] != &accepted.Entries[0] || !enginetest.SamePublishedFold(savedEntry, enginetest.PreparedFoldEntry(t, saved, sqltype.TSVector, "'saved':1")) {
 			t.Fatal("failed conversion mutated accepted fold")
 		}
 	}

@@ -30,7 +30,7 @@ func checkedDefaultOwnerEngine(t *testing.T, replacement bool) *core.Engine {
 			t.Fatal(err)
 		}
 	}
-	definition := hostOwnerDefinition(nil)
+	definition := enginetest.HostOwnerDefinition(nil)
 	definition.Programs[0].Inputs = []host.Type{host.Hstore, host.Hstore, host.Hstore}
 	maps, err := host.New(definition)
 	if err != nil {

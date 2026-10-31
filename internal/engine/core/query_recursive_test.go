@@ -36,7 +36,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	left := &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
 	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: schema, CTE: d, ScanFrame: 3}}
 	read := column(3)
-	predicate := queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+	predicate := enginetest.QueryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		value, err := read.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -44,7 +44,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		n, err := value.Integer()
 		return sqltype.Boolean(boolean, n < terminal), err
 	})
-	successor := queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+	successor := enginetest.QueryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		value, err := read.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -340,7 +340,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	}
 	project := n.Definition.Query.Root.(*plan.ProjectNode)
 	original := n.LeftExpressions[0]
-	replacement := queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return original.Eval(c) })
+	replacement := enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { return original.Eval(c) })
 	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil

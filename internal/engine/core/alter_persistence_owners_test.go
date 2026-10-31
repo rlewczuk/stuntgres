@@ -16,7 +16,7 @@ func TestAlterPersistencePreparedOwners(t *testing.T) {
 	enginetest.SessionSQL(t,s,"INSERT INTO t VALUES(7,'keep')")
 	enginetest.SessionSQL(t,s,"BEGIN")
 	cycle:=s.NewProtocolCycle()
-	command:=func(fn func(*core.StatementScope) error) {preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+	command:=func(fn func(*core.StatementScope) error) {enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	query:="SELECT COALESCE(-(7::integer),0) AS folded,note FROM t"
 	command(func(scope *core.StatementScope) error {_,err:=scope.ParseProtocol("persistence",query,nil);return err})
 	registry:=core.PayloadOf(s).PreparedSQL

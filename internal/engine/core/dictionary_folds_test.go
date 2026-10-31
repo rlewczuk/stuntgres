@@ -6,51 +6,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 const dictionaryFoldSQL = "SELECT ts_lexize('public.dictionary_fold'::regdictionary,'YeS'::text) AS lexemes"
-
-func dictionaryFoldDependency(t *testing.T, d core.Description, address ids.ObjectAddress) catalog.ExpressionDependency {
-	t.Helper()
-	for _, dependency := range d.Analysis.Dependencies {
-		if dependency.Ref.Address == address {
-			if dependency.Purpose != catalog.OperandDependency {
-				t.Fatal("dictionary operand acquired executable purpose", dependency)
-			}
-			return dependency
-		}
-	}
-	t.Fatal("dictionary identity missing from analysis manifest")
-	return catalog.ExpressionDependency{}
-}
-
-func dictionaryFoldRuntimeExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) (core.Result, error) {
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		return core.Result{}, err
-	}
-	defer op.Done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		return core.Result{}, err
-	}
-	scope.Expected = d
-	r, err := scope.Execute(ast, 1, func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
-		value, err := info.Types[0].Type.InputWithEnvironment(ctx, "YeS", -1, input)
-		frame[0] = value
-		return err
-	})
-	return r, scope.Finish(err)
-}
 
 func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 	t.Run("OperandRevisionAndAcceptedBacking", func(t *testing.T) {
@@ -62,13 +25,13 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe evaluated dictionary constant")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
-		entry := preparedFoldEntry(t, d, 1009, "{yes}")
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		entry := enginetest.PreparedFoldEntry(t, d, 1009, "{yes}")
 		if entry.Value.Type() != entry.Result.Type || entry.Value.ArrayLen() != 1 || entry.Value.ArrayElement(0).Type().ID() != sqltype.Text {
 			t.Fatal("retained lexemes lost checked array ownership")
 		}
-		before := snapshotFoldDescription(d)
-		operand := dictionaryFoldDependency(t, d, address)
+		before := enginetest.SnapshotFoldDescription(d)
+		operand := enginetest.DictionaryFoldDependency(t, d, address)
 		analysis := d.Analysis
 		if operand.Revision != e.CatalogRead().Get(address).Revision() {
 			t.Fatal("original dictionary authority stamp was not captured")
@@ -79,7 +42,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 			}
 		}
 		runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.dictionary_fold'::regdictionary,$1::text) AS lexemes")
-		r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+		r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,16 +56,16 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		if current.Revision() == operand.Revision {
 			t.Fatal("ALTER did not advance effective dictionary revision")
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		after := d.Folds.Current()
-		refreshed := dictionaryFoldDependency(t, d, address)
+		refreshed := enginetest.DictionaryFoldDependency(t, d, address)
 		if d.Analysis == analysis || refreshed.Ref != operand.Ref || refreshed.Revision != current.Revision() {
 			t.Fatal("retention bypassed current dictionary analysis", refreshed, operand)
 		}
-		if after.Generation != before.Accepted.Generation || len(after.Entries) != len(before.Accepted.Entries) || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{yes}")) {
+		if after.Generation != before.Accepted.Generation || len(after.Entries) != len(before.Accepted.Entries) || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{yes}")) {
 			t.Fatal("operand-only ALTER replaced accepted immutable backing")
 		}
-		r, err = dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+		r, err = enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,16 +75,16 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 			t.Fatal("runtime-token call reused constant state", got)
 		}
 		freshAST, fresh := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL)
-		preparedFoldExecute(t, e, s, freshAST, &fresh)
-		preparedFoldEntry(t, fresh, 1009, "NULL")
-		preparedFoldEntry(t, before, 1009, "{yes}")
+		enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+		enginetest.PreparedFoldEntry(t, fresh, 1009, "NULL")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{yes}")
 		enginetest.SessionSQL(t, s, "DISCARD PLANS")
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		if d.Folds.Current().Generation == before.Accepted.Generation || &d.Folds.Current().Entries[0] == &before.Accepted.Entries[0] {
 			t.Fatal("DISCARD retained retired root generation")
 		}
-		preparedFoldEntry(t, d, 1009, "NULL")
-		preparedFoldEntry(t, before, 1009, "{yes}")
+		enginetest.PreparedFoldEntry(t, d, 1009, "NULL")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{yes}")
 	})
 
 	t.Run("FailedDemandPublishesNothing", func(t *testing.T) {
@@ -139,8 +102,8 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.dictionary_fold (TEMPLATE=simple,stopwords=english)")
 		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL)
-		preparedFoldExecute(t, e, s, ast, &d)
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		before := enginetest.SnapshotFoldDescription(d)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, err := s.Acquire(ctx)
@@ -156,7 +119,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
-		local := cloneFoldDescription(t, d)
+		local := enginetest.CloneFoldDescription(t, d)
 		scope.Expected = &local
 		e.Mu.Lock()
 		auth, err := e.AuthorizationLocked(op)
@@ -190,7 +153,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		if local.Folds.Current().Generation != before.Accepted.Generation || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("rejected private dictionary group changed accepted backing")
 		}
-		preparedFoldEntry(t, before, 1009, "{yes}")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{yes}")
 	})
 
 	t.Run("CurrentAuthorityRejectsReuse", func(t *testing.T) {
@@ -200,16 +163,16 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 			enginetest.SessionSQL(t, s, q)
 		}
 		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL+" FROM dictionary_fold_authority")
-		preparedFoldExecute(t, e, s, ast, &d)
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		before := enginetest.SnapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON dictionary_fold_authority FROM dictionary_fold_reader", "SET SESSION AUTHORIZATION dictionary_fold_reader", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
 		_, err := enginetest.PreparedExecute(e, s, ast, &d)
-		extensionUnitError(t, err, "42501")
+		enginetest.State(t, err, "42501")
 		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || foldRootsReusable(d.Folds) {
 			t.Fatal("authority rejection accepted dictionary candidate")
 		}
-		preparedFoldEntry(t, before, 1009, "{yes}")
+		enginetest.PreparedFoldEntry(t, before, 1009, "{yes}")
 	})
 }

@@ -236,7 +236,7 @@ func TestSnowballRomanianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "init", "lexize":
 				address := p.Template.Init
 				if fence == "lexize" {
@@ -249,7 +249,7 @@ func TestSnowballRomanianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				bad := *before.MustNamespace(p.Namespace.Address())
 				bad.ObjectRevision = bad.Revision() + 1
@@ -258,7 +258,7 @@ func TestSnowballRomanianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "original":
 				bad := *p.Original
 				bad.ObjectRevision = bad.Revision() + 1
@@ -267,7 +267,7 @@ func TestSnowballRomanianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "role":
 				// Completion must use a newly authenticated actor, not prepared authority.
 				other, closeOther := enginetest.RoleOperation(t, e, "romanian_other")
@@ -289,7 +289,7 @@ func TestSnowballRomanianPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "role" {
-				extensionUnitError(t, err, "42501")
+				enginetest.State(t, err, "42501")
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
@@ -334,15 +334,15 @@ func TestSnowballRomanianPreparedOwnership(t *testing.T) {
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated dictionary")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{only}")
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{only}")
+	before := enginetest.SnapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "romanian_fold"})
 	if _, ok := e.CatalogRead().LookupType(1009); !ok {
 		t.Fatal("TEXT[] missing")
 	}
 	old := e.CatalogRead().MustTSDictionary(a)
-	operand := dictionaryFoldDependency(t, d, a)
+	operand := enginetest.DictionaryFoldDependency(t, d, a)
 	analysis := d.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.romanian_fold (stopwords=english)")
 	current := e.CatalogRead().MustTSDictionary(a)
@@ -357,15 +357,15 @@ func TestSnowballRomanianPreparedOwnership(t *testing.T) {
 	if err != nil || !newValue.Recognized || len(newValue.Lexemes) != 0 {
 		t.Fatal(newValue, err)
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()
-	refreshed := dictionaryFoldDependency(t, d, a)
-	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{only}")) {
+	refreshed := enginetest.DictionaryFoldDependency(t, d, a)
+	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{only}")) {
 		t.Fatal("accepted immutable provider fold lost backing/current analysis")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{}")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, 1009, "{}")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.romanian_fold'::regdictionary,$1::text) AS lexemes")
 	for _, tc := range []struct{ input, want string }{{"ONLY", "{}"}, {"abruptă", "{abrupt}"}, {"OCOLUL", "{ocol}"}} {
 		func() {
@@ -399,12 +399,12 @@ func TestSnowballRomanianPreparedOwnership(t *testing.T) {
 			t.Fatal("operand retained as executable authority")
 		}
 	}
-	preparedFoldEntry(t, before, 1009, "{only}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{only}")
 	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
 	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Snowball prefix", err)
 	}
-	snowballRejectedFold(t, e, s, ast, d, "{only}")
+	enginetest.SnowballRejectedFold(t, e, s, ast, d, "{only}")
 }
 
 func TestSnowballRomanianSeedDefaults(t *testing.T) {

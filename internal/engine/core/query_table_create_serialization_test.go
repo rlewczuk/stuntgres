@@ -80,7 +80,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			usage := project.Schema()[0].Usage
 			project.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: sourceRef, Scope: 1, Frame: 1, Slot: 0}}
 			predicates := 0
-			project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(enginetest.Usage(e, sqltype.Bool), func(c *exec.Context) (sqltype.Value, error) {
+			project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: enginetest.QueryProbe(enginetest.Usage(e, sqltype.Bool), func(c *exec.Context) (sqltype.Value, error) {
 				predicates++
 				value, _ := c.Row[0].Integer()
 				threshold := int64(2)

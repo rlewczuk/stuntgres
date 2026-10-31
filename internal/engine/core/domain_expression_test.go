@@ -51,7 +51,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 		{"7::public.a=$1", sqltype.Bool, false, sqltype.Int4},
 		{"TRUE::public.flag AND TRUE", sqltype.Bool, false, 0},
 	} {
-		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := enginetest.Statement(t, "SELECT "+tc.expr+" FROM public.one").(*parser.Select).Targets[0]
 		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
@@ -96,7 +96,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 			}
 		}
 	}
-	query := domainUnitBindSelect(t, e, op, "SELECT bool_and(TRUE::public.flag) FROM public.one")
+	query := enginetest.BindSelect(t, e, op, "SELECT bool_and(TRUE::public.flag) FROM public.one")
 	project, ok := query.Root.(*plan.ProjectNode)
 	if !ok {
 		t.Fatal("aggregate query lacks projection", query.Root)
@@ -133,7 +133,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.a AS integer")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ast := enginetest.Statement(t, "SELECT 7::public.a FROM public.one").(*parser.Select)
 	node, err := b.Bind(ast.Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
@@ -173,7 +173,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.short AS varchar(3)")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	target := domainUnitType(t, e.CatalogRead(), "short").SQLType.Usage()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, "SELECT 'abcd' FROM public.one").(*parser.Select).Targets[0]
 	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: target, Mode: sqltype.Assignment})
 	if err != nil {
@@ -210,7 +210,7 @@ func TestDomainQualifiedBuiltinNameModifierIdentity(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.uuid AS integer")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, "SELECT 1::public.uuid(3) FROM public.one").(*parser.Select).Targets[0]
 	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "42601", `type modifier is not allowed for type "public.uuid"`)
@@ -222,7 +222,7 @@ func TestDomainRegclassQueryOutputCapturesFormatter(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.relation_name AS regclass")
 	domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
-	query := domainUnitBindSelect(t, e, op, "SELECT v FROM public.t")
+	query := enginetest.BindSelect(t, e, op, "SELECT v FROM public.t")
 	if !query.RegclassOutput {
 		t.Fatal("domain output lacks captured REGCLASS presentation demand", query)
 	}
@@ -274,7 +274,7 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.a AS name[]")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, "SELECT '[1:0]={}'::public.a FROM public.one").(*parser.Select).Targets[0]
 	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "2202E", "upper bound cannot be less than lower bound")
@@ -282,24 +282,6 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Position != "8" {
 		t.Fatal("array bound input lost literal source position", err)
 	}
-}
-
-func domainUnitBindSelect(t *testing.T, e *core.Engine, op *session.Operation, q string) *plan.Query {
-	t.Helper()
-	raw := enginetest.Statement(t, q).(*parser.Select)
-	e.Mu.Lock()
-	auth, err := e.AuthorizationLocked(op)
-	b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.Query.Auth = &auth
-	var query *plan.Query
-	if err == nil {
-		query, err = b.BindSelect(raw, false)
-	}
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(q, err)
-	}
-	return query
 }
 
 func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
@@ -317,7 +299,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 		enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public."+tc.name+" AS "+tc.base)
 		target := domainUnitType(t, e.CatalogRead(), tc.name).SQLType.Usage()
 		for _, expression := range []string{"'" + tc.input + "'::public." + tc.name, "CAST('" + tc.input + "' AS public." + tc.name + ")"} {
-			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := enginetest.Statement(t, "SELECT "+expression+" FROM public.one").(*parser.Select).Targets[0]
 			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
@@ -352,7 +334,7 @@ func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text})
 	if len(addresses) != 1 {

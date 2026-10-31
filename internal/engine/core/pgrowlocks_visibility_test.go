@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -118,7 +119,7 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			if err := stage.Create(target); err != nil {
 				t.Fatal(err)
 			}
-			domainUnitPublish(t, e, stage)
+			enginetest.PublishStage(t, e, stage)
 			pgrowlocksUnitInstalled(t, e)
 			call := pgrowlocksUnitExpression(t, e)
 			reader, _ := blockingUnitOwner(t, e)

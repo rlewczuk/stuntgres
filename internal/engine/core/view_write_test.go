@@ -203,7 +203,7 @@ func TestViewWriteDefaults(t *testing.T) {
 func TestViewWriteDemand(t *testing.T) {
 	f := viewWriteMechanics(t)
 	calls := 0
-	unsafe := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	unsafe := enginetest.QueryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("hidden user work")
 	})
@@ -326,7 +326,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}
-	predicate := queryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+	predicate := enginetest.QueryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		n, _ := c.Row[1].Integer()
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})

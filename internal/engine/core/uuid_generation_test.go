@@ -26,7 +26,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		parser.CaseExpr{Arms: []parser.CaseArm{{Condition: yes, Result: typedNull}}, Else: zero},
 		parser.ConditionalExpr{Kind: parser.Coalesce, Args: []parser.Expr{typedNull, typedNull}},
 	} {
-		analyzed, err := b.Bind(nullCountRaw("uuidv7", child), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		analyzed, err := b.Bind(enginetest.FunctionCall("uuidv7", child), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +62,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 			t.Fatal("analysis mutated")
 		}
 	}
-	for _, raw := range []parser.FunctionExpr{nullCountRaw("uuidv7"), nullCountRaw("uuidv7", zero)} {
+	for _, raw := range []parser.FunctionExpr{enginetest.FunctionCall("uuidv7"), enginetest.FunctionCall("uuidv7", zero)} {
 		analyzed, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)

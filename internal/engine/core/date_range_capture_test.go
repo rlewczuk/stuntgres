@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -22,7 +23,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2000, 2, 29, 12, 0, 0, 0, time.UTC)}
 	later := sqltype.InputEnvironment{TransactionStart: time.Date(2001, 1, 1, 12, 0, 0, 0, time.UTC)}
 	position := parser.Position{Offset: 7, Character: 8}
-	b := newTestExpressionBinder(t, ctx, e, first, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, first, nil)
 	v, err := b.InputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +33,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 		t.Fatal("initial compound capture", out, b.Prepared.Temporals, err)
 	}
 	description := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
-	retained := newTestExpressionBinder(t, ctx, e, later, description)
+	retained := enginetest.ExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.InputConstant("invalid input must not be reparsed", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
 		t.Fatal("literal capture moved", err)
@@ -49,7 +50,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 		t.Fatal("builtin daterange not refreshable")
 	}
 	description.RefreshTemporals = true
-	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
+	refreshed := enginetest.ExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.InputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 {
 		t.Fatal("valid invalidation did not refresh", err)

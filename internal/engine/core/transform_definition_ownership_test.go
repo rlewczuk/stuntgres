@@ -18,7 +18,7 @@ import (
 
 func transformDefinitionOwner(t *testing.T,check func()error)(*core.Engine,*catalog.Procedure) {
  t.Helper()
- definition:=hostOwnerDefinition(check)
+ definition:=enginetest.HostOwnerDefinition(check)
  extra:=definition.Conversions[0]
  extra.ID,extra.Bootstrap="independent",false
  extra.FromName=host.Name{Schema:"public",Name:"owner_other_from"}
@@ -55,7 +55,7 @@ func TestTransformReplacementOwnership(t *testing.T) {
  enginetest.SessionSQL(t,s,"BEGIN")
  defer enginetest.SessionSQL(t,s,"ROLLBACK")
  cycle:=s.NewProtocolCycle()
- command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+ command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
  command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("transform_owned","SELECT COALESCE(-(7::integer),0) AS folded,owner_transform() AS v",nil);return err})
  bind:=func(name string){command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(name,"transform_owned",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})}
  bind("before")

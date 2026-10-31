@@ -82,7 +82,7 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 				if scope.Finish(err) != err || r.Count != 0 || r.Rows != nil {
 					t.Fatal(r, err)
 				}
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: detail, Schema: "public", Table: "t", Constraint: "c"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: detail, Schema: "public", Table: "t", Constraint: "c"})
 				got := enginetest.RoleExecute(t, e, admin, "SELECT * FROM t")
 				if !reflect.DeepEqual(enginetest.Tuples(got), [][]driver.Value{{int64(1), "private", "visible"}}) {
 					t.Fatal(enginetest.Tuples(got))
@@ -103,7 +103,7 @@ func TestCheckCancellationBeforePublication(t *testing.T) {
 	defer cancel()
 	op, scope, b, source := updateBoundSource(t, e, s, ctx, "UPDATE t SET v=v")
 	calls := 0
-	b.Update.Assignments[0] = queryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	b.Update.Assignments[0] = enginetest.QueryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			cancel()

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -202,7 +203,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 				var heap *storage.Relation
 				var rows []storage.RowVersion
 				sawPhysical := false
-				probe := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+				probe := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 					// This runs in the genuine nested UPDATE's physical CHECK
 					// phase, while its command scratch and row grants are live.
 					target, missing := e.Locks.ReplacementGrants(s.LockTicket, baseRef, []ids.RowID{rows[0].Row})
@@ -211,7 +212,7 @@ func TestTriggerInsteadLogicalAdmission(t *testing.T) {
 					}
 					sawPhysical = true
 					return sqltype.Boolean(boolean, true), nil
-				}).(queryProbeExpression)
+				}).(enginetest.QueryProbeExpression)
 				probe.Property.RowDependent = true
 				physical := *base
 				physical.Constraints.Check = []catalog.CheckConstraint{{OID: 9500200, Name: "physical_authority", Expression: probe}}

@@ -37,7 +37,7 @@ func TestAccessInquiryBinding(t *testing.T) {
 		{"SELECT row_security_active(0::oid)", []sqltype.ID{sqltype.Oid}, true},
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
-			q := domainUnitBindSelect(t, e, op, tc.sql)
+			q := enginetest.BindSelect(t, e, op, tc.sql)
 			n, ok := q.Root.(*plan.ProjectNode).Expressions[0].(functions.AccessInquiry)
 			if !ok || n.Count != len(tc.ids) || (n.Kind == functions.AccessRowSecurity) != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != expr.Stable {
 				t.Fatalf("typed signature %#v", n)

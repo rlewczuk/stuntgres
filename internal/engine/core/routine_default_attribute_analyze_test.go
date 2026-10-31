@@ -291,7 +291,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*core.Engine, *catalog.Relation
 	if err := stage.Create(tbl); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	view := e.CatalogRead()
 	return e, view.MustRelation(source.Address()), view.MustRelation(tbl.Address())
 }

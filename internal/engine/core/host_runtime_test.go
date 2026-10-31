@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strconv"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -20,69 +19,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hostOwnerDefinition(check func() error) host.LanguageDefinition {
-	enter := func() error {
-		if check != nil {
-			return check()
-		}
-		return nil
-	}
-	from := func(_ context.Context, v host.SQLValue) (host.Object, error) {
-		if err := enter(); err != nil {
-			return host.Object{}, err
-		}
-		if v.Null {
-			return host.Object{Null: true}, nil
-		}
-		m := make(host.HstoreMap, len(v.Hstore))
-		for _, p := range v.Hstore {
-			m[p.Key] = host.HstoreValue{Text: p.Value, Null: p.Null}
-		}
-		return host.Object{Value: m}, nil
-	}
-	to := func(_ context.Context, v host.Object) (host.SQLValue, error) {
-		if err := enter(); err != nil {
-			return host.SQLValue{}, err
-		}
-		if v.Null {
-			return host.SQLValue{Type: host.Hstore, Null: true}, nil
-		}
-		m, ok := v.Value.(host.HstoreMap)
-		if !ok || m == nil {
-			return host.SQLValue{}, errors.New("wrong map")
-		}
-		entries := make([]host.HstoreEntry, 0, len(m))
-		for k, v := range m {
-			entries = append(entries, host.HstoreEntry{Key: k, Value: v.Text, Null: v.Null})
-		}
-		return host.SQLValue{Type: host.Hstore, Hstore: entries}, nil
-	}
-	program := func(_ context.Context, args []host.Object) (host.Object, error) {
-		if err := enter(); err != nil {
-			return host.Object{}, err
-		}
-		m, ok := args[0].Value.(host.HstoreMap)
-		if !ok {
-			return host.Object{}, errors.New("wrong input")
-		}
-		n, err := strconv.Atoi(m["a"].Text)
-		if err != nil {
-			return host.Object{}, err
-		}
-		m["a"] = host.HstoreValue{Text: strconv.Itoa(n + 1)}
-		m["c"] = host.HstoreValue{Text: "3"}
-		return host.Object{Value: m}, nil
-	}
-	return host.LanguageDefinition{Provider: "owner-host", ABIVersion: "map-v1", Name: "owner_host", HandlerName: host.Name{Schema: "public", Name: "owner_host_handler"}, Handler: func(ctx context.Context, p host.ProgramFunc, args []host.Object) (host.Object, error) {
-		if err := enter(); err != nil {
-			return host.Object{}, err
-		}
-		return p(ctx, args)
-	}, Conversions: []host.ConversionDefinition{{ID: "map", Type: host.Hstore, Bootstrap: true, FromName: host.Name{Schema: "public", Name: "owner_host_from"}, ToName: host.Name{Schema: "public", Name: "owner_host_to"}, FromSQL: from, ToSQL: to}}, Programs: []host.ProgramDefinition{{ID: "increment", Version: "1", Inputs: []host.Type{host.Hstore}, Result: host.Hstore, Execute: program}}}
-}
 func hostOwnerEngine(t *testing.T, check func() error) (*core.Engine, *catalog.Procedure) {
 	t.Helper()
-	r, err := host.New(hostOwnerDefinition(check))
+	r, err := host.New(enginetest.HostOwnerDefinition(check))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -162,7 +162,7 @@ func TestTSParserNativeRuntime(t *testing.T) {
 				t.Fatal("stock callback output", tokens, err)
 			}
 		} else {
-			extensionUnitError(t, err, "0A000")
+			enginetest.State(t, err, "0A000")
 			if tokens != nil {
 				t.Fatal("unsupported callback returned prefix/default tokens")
 			}
@@ -173,7 +173,7 @@ func TestTSParserNativeRuntime(t *testing.T) {
 				t.Fatal(types, err)
 			}
 		} else {
-			extensionUnitError(t, err, "0A000")
+			enginetest.State(t, err, "0A000")
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -198,7 +198,7 @@ func TestTSParserStaging(t *testing.T) {
 	if d.Headline != 0 || d.Start != 3717 || base.NameAddress(key) != (ids.ObjectAddress{}) {
 		t.Fatal("private creation", d)
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	before := e.CatalogRead()
 	original := before.MustTSParser(d.Address())
 	for _, s := range []*parser.AlterParser{
@@ -213,7 +213,7 @@ func TestTSParserStaging(t *testing.T) {
 		if next == d || next.Address() != d.Address() || next.Revision() <= d.Revision() || next.Start != d.Start || next.Token != d.Token || next.End != d.End || next.Headline != d.Headline || next.LexType != d.LexType {
 			t.Fatal("mutable or replaced identity", next, d)
 		}
-		extensionUnitPublish(t, e, op, stage)
+		enginetest.PublishOperationStage(t, e, op, stage)
 		d = next
 	}
 	if before.NameAddress(key) != original.Address() || before.Get(original.Address()) != original || e.CatalogRead().NameAddress(key) != (ids.ObjectAddress{}) {
@@ -221,7 +221,7 @@ func TestTSParserStaging(t *testing.T) {
 	}
 	bad, err := parserStage(t, e, op, &parser.DropParser{Names: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "parser_new"}}}, configName("parser_missing")}})
 	defer e.DiscardCatalogStage(bad)
-	extensionUnitError(t, err, "42704")
+	enginetest.State(t, err, "42704")
 	if e.CatalogRead().Get(d.Address()) != d {
 		t.Fatal("failed list DROP published")
 	}
@@ -313,7 +313,7 @@ func TestTSParserDependencies(t *testing.T) {
 		provider := core.StageDropProvider(context.Background(), retirement, nil, nil, nil)
 		err := provider.ExpressionDependencies([]ids.ObjectAddress{d.Address()}, mode, ids.ObjectAddress{})
 		if mode == parser.DropRestrict {
-			extensionUnitError(t, err, "2BP01")
+			enginetest.State(t, err, "2BP01")
 			if e.StageRead(retirement).Get(d.Address()) != d || e.StageRead(retirement).Get(config.Address()) != &config {
 				t.Fatal("RESTRICT retired live dependency")
 			}

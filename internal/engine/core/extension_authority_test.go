@@ -16,7 +16,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -42,13 +41,6 @@ func extensionUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, s
 func extensionUnitGrant(name string, role string) *parser.ObjectGrant {
 	return &parser.ObjectGrant{Kind: "database", Privileges: []parser.GrantPrivilege{{Name: "create"}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: name}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: role}}}}
 }
-func extensionUnitError(t *testing.T, err error, code string) {
-	t.Helper()
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != code {
-		t.Fatalf("got %v, want SQLSTATE %s", err, code)
-	}
-}
 
 func TestExtensionSchemaACL(t *testing.T) {
 	e := engine.NewWithSettings(nil, "ext_acl_db", false)
@@ -60,7 +52,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, admin, stage)
+	enginetest.PublishOperationStage(t, e, admin, stage)
 	if err := extensionUnitExecute(t, e, admin, extensionUnitGrant("ext_acl_db", "ext_acl_actor")); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +77,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_acl"}, {Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
 	binder := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	_, err := binder.BindFunctionProvider(raw)
-	extensionUnitError(t, err, "42501")
+	enginetest.State(t, err, "42501")
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
@@ -103,7 +95,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	binder = core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	raw.Name.Parts = raw.Name.Parts[1:]
 	_, err = binder.BindFunctionProvider(raw)
-	extensionUnitError(t, err, "42883")
+	enginetest.State(t, err, "42883")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := enginetest.SetObjectACL(e, context.Background(), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
@@ -127,7 +119,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	op, actorDone := enginetest.RoleOperation(t, e, "ext_db_actor")
 	defer actorDone()
 	install := &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}
-	extensionUnitError(t, extensionUnitExecute(t, e, op, install), "42501")
+	enginetest.State(t, extensionUnitExecute(t, e, op, install), "42501")
 	grant := extensionUnitGrant("ext_authority", "ext_db_actor")
 	grant.GrantOption = true
 	if err := extensionUnitExecute(t, e, admin, grant); err != nil {
@@ -152,7 +144,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if !found {
 		t.Fatal("grantor provenance lost")
 	}
-	extensionUnitError(t, extensionUnitExecute(t, e, admin, &parser.DropRole{Names: []string{actor.Name}}), "2BP01")
+	enginetest.State(t, extensionUnitExecute(t, e, admin, &parser.DropRole{Names: []string{actor.Name}}), "2BP01")
 	references := descriptorReferences(db)
 	found = false
 	for _, ref := range references {
@@ -174,21 +166,10 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	}
 	revoke := extensionUnitGrant("ext_authority", "ext_db_actor")
 	revoke.Revoke = true
-	extensionUnitError(t, extensionUnitExecute(t, e, admin, revoke), "2BP01")
+	enginetest.State(t, extensionUnitExecute(t, e, admin, revoke), "2BP01")
 	revoke.Cascade = true
 	if err := extensionUnitExecute(t, e, admin, revoke); err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitError(t, extensionUnitExecute(t, e, op, install), "42501")
-}
-
-func extensionUnitPublish(t *testing.T, e *core.Engine, op *session.Operation, stage *core.CatalogStage) {
-	t.Helper()
-	p, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.PublishCatalogOperation(op, nil, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
-		t.Fatal(err)
-	}
+	enginetest.State(t, extensionUnitExecute(t, e, op, install), "42501")
 }

@@ -95,7 +95,7 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	}
 	boolean, _ := engine.New().CatalogRead().LookupType(sqltype.Bool)
 	calls := 0
-	dynamic := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	dynamic := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(boolean, false), nil
 	})
@@ -124,11 +124,11 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 				user = plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
 			}
 			var order []string
-			outer := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+			outer := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 				order = append(order, "outer")
 				return sqltype.Boolean(boolean, true), nil
 			})
-			inner := queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			inner := enginetest.QueryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				order = append(order, "inner")
 				// Detect a second parameter read after the qualification. The
 				// admitted physical value must be returned unchanged, not reread.
@@ -151,11 +151,11 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		}
 	}
 	var order []string
-	hidden := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	hidden := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		order = append(order, "hidden")
 		return sqltype.Boolean(boolean, false), nil
 	})
-	user := queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	user := enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		order = append(order, "user")
 		return sqltype.Boolean(boolean, true), nil
 	})

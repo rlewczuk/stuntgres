@@ -22,7 +22,7 @@ func TestXMLSQLPreparedPortalOwnership(t *testing.T) {
 				transaction := enginetest.TransactionBegin(t, s)
 				defer enginetest.TransactionEnd(t, s, transaction, false)
 				cycle := s.NewProtocolCycle()
-				command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+				command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 				command(func(scope *core.StatementScope) error {
 					_, err := scope.ParseProtocol("xml_modes", `SELECT XML 'text<a/>' AS frozen,$1::xml AS live,length('owned') AS folded FROM (VALUES(1),(2)) AS input(n)`, []uint32{oid})
 					return err

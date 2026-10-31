@@ -31,7 +31,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		goodPin, badPin, badCell := good.Source.View, bad.Source.View, core.CursorAuthority(bad)
 		original, calls := core.CursorRoot(bad).Expressions[0], 0
 		sentinel := errors.New("remaining projection failed")
-		core.CursorRoot(bad).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+		core.CursorRoot(bad).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 2 {
 				return sqltype.Value{}, sentinel
@@ -64,7 +64,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		enginetest.SessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
 		c := core.PayloadOf(s).Cursors.Entries["h"]
 		original, calls := core.CursorRoot(c).Expressions[0], 0
-		core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
+		core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 			calls++
 			return original.Eval(eval)
 		})
@@ -171,7 +171,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				defer enginetest.TransactionEnd(t, holder, holderRef, false)
 			} else {
 				original, calls := core.CursorRoot(c).Expressions[0], 0
-				core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
+				core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						close(entered)

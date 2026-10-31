@@ -511,7 +511,7 @@ func arrayComponentTemporary(t *testing.T, e *core.Engine, op *session.Operation
 	if err := stage.Create(&table); err != nil {
 		t.Fatal(err)
 	}
-	domainUnitPublish(t, e, stage)
+	enginetest.PublishStage(t, e, stage)
 	e.Mu.Lock()
 	op.Session.Mu.Lock()
 	op.Session.TemporaryNamespace = ns.Address()
@@ -524,16 +524,5 @@ func arrayComponentTemporary(t *testing.T, e *core.Engine, op *session.Operation
 // declarations. Share an immutable ordinary engine bootstrap, never a provider
 // fallback or a test callback.
 func operatorFamilyTestRead() catalog.Read { return operatorFamilyUnitSeed() }
-
-func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
-	t.Helper()
-	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
-		t.Fatal(err)
-	}
-}
 
 var operatorFamilyUnitSeed = sync.OnceValue(func() catalog.Read { return engine.New().CatalogRead() })

@@ -25,7 +25,7 @@ func crosstabUnitInstalled(t *testing.T, e *core.Engine) {
 }
 func crosstabUnitExpression(t *testing.T, e *core.Engine, name, source string, extra ...parser.Expr) plan.InstalledTablefuncCrosstabExpr {
 	t.Helper()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: source}}}}
 	raw.Args = append(raw.Args, extra...)
@@ -370,7 +370,7 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION tablefunc")
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("ct_definition", "SELECT * FROM crosstab3('SELECT missing_ct')", nil)
 		return err

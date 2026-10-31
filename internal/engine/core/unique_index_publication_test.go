@@ -227,7 +227,7 @@ func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectA
 	if building {
 		message = `could not create unique index "ui_index"`
 	}
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: message, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_index"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: message, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 }
 
 func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*storage.IndexRoot, materialize bool, rows []storage.RowVersion) {

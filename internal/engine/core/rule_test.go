@@ -143,7 +143,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("select_producer_ownership", func(t *testing.T) {
-		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
@@ -201,7 +201,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
-		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		binder.Query.Auth = &auth
 		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 		binder.Query.Frame, binder.Query.NextQueryFrame = 1, 1
@@ -247,7 +247,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("generic_function_properties", func(t *testing.T) {
-		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 		statements, err := parser.Parse("SELECT abs(NEW.v),random(1,2),format('%s',NEW.v)")
 		if err != nil {

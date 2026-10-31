@@ -69,7 +69,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 			c := core.PayloadOf(s).Cursors.Entries["h"]
 			original := core.CursorRoot(c).Expressions[0]
 			calls := 0
-			core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+			core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 				calls++
 				return original.Eval(ctx)
 			})
@@ -140,7 +140,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 			c := core.PayloadOf(s).Cursors.Entries["h"]
 			pin, cell := c.Source.View, core.CursorAuthority(c)
 			original, calls := core.CursorRoot(c).Expressions[0], 0
-			core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+			core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 				calls++
 				return original.Eval(ctx)
 			})
@@ -207,7 +207,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 				enginetest.SessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM (SELECT i FROM unit_rows ORDER BY i OFFSET 0) AS ordered")
 				c := core.PayloadOf(s).Cursors.Entries["h"]
 				original, calls := core.CursorRoot(c).Expressions[0], 0
-				core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+				core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					calls++
 					return original.Eval(ctx)
 				})
@@ -237,7 +237,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 				original := core.CursorRoot(c).Expressions[0]
 				phase, calls := "fetch", 0
 				var first *exec.CursorExpressionData
-				core.CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+				core.CursorRoot(c).Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					scope := core.ScopeOf(ctx.LiveHost())
 					if scope == nil || scope.Finished || scope.TxRef != ref || scope.LockTicket != s.Transactions.Ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.Op.Released {
 						return sqltype.Value{}, errors.New("producer borrows stale commit authority")

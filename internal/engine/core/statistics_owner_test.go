@@ -39,7 +39,7 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 				t.Fatal(err)
 			}
 			old := statisticsUnitDescriptor(t, stage)
-			extensionUnitPublish(t, e, op, stage)
+			enginetest.PublishOperationStage(t, e, op, stage)
 			e.DiscardCatalogStage(stage)
 			captured := e.CatalogRead()
 			key := storage.ExtendedStatisticsKey{Definition: e.Catalog.Domain.Ref(captured.Epoch(), old.Address())}
@@ -143,7 +143,7 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 				if *changed != expected {
 					t.Fatal("metadata alteration changed unrelated fields", action)
 				}
-				extensionUnitPublish(t, e, op, next)
+				enginetest.PublishOperationStage(t, e, op, next)
 				e.DiscardCatalogStage(next)
 				after := e.CatalogRead()
 				if err = (catalog.StatisticsProvider{}).Validate(after, changed); err != nil {
@@ -197,7 +197,7 @@ func TestStatisticsAlterPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			old := statisticsUnitDescriptor(t, initial)
-			extensionUnitPublish(t, e, op, initial)
+			enginetest.PublishOperationStage(t, e, op, initial)
 			e.DiscardCatalogStage(initial)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -282,7 +282,7 @@ func TestStatisticsAlterOwnershipAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			old := statisticsUnitDescriptor(t, initial)
-			extensionUnitPublish(t, e, setup, initial)
+			enginetest.PublishOperationStage(t, e, setup, initial)
 			e.DiscardCatalogStage(initial)
 			setupDone()
 			ctx, cancel := context.WithCancel(context.Background())

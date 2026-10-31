@@ -22,7 +22,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 	key := ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_identity"}
 	address := e.CatalogRead().NameAddress(key)
 	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_identity'::regconfig,$1::text) AS normalized")
-	r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 	if err != nil || ids.OID(oid) != address.ObjectID || captures[0].Operator != sqltype.Regconfig {
 		t.Fatal("literal capture lost its typed configuration identity", oid, err, captures)
 	}
-	operand := dictionaryFoldDependency(t, d, address)
+	operand := enginetest.DictionaryFoldDependency(t, d, address)
 	if operand.Revision != e.CatalogRead().Get(address).Revision() || len(captures[0].Operands) == 0 || captures[0].Operands[0].Ref != operand.Ref {
 		t.Fatal("literal capture and analysis do not share original descriptor authority")
 	}
@@ -50,7 +50,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 	if replacement == address || e.CatalogRead().Get(address) != nil {
 		t.Fatal("DROP/recreate did not replace the actual configuration identity")
 	}
-	r, err = dictionaryFoldRuntimeExecute(e, s, ast, &d)
+	r, err = enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}
@@ -70,7 +70,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 		}
 	}
 	analysis := d.Analysis
-	r, err = dictionaryFoldRuntimeExecute(e, s, ast, &d)
+	r, err = enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}
@@ -98,7 +98,7 @@ func TestTSConfigurationPreparedObservations(t *testing.T) {
 	namespace := e.CatalogRead().State().NamespaceGeneration()
 	execute := func() {
 		t.Helper()
-		r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
+		r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +117,7 @@ func TestTSConfigurationPreparedObservations(t *testing.T) {
 		if d.Regtypes != cell || !reflect.DeepEqual(cell.Constants, captures) {
 			t.Fatal("current observation replaced original capture")
 		}
-		if dependency := dictionaryFoldDependency(t, d, address); dependency.Revision != e.CatalogRead().Get(address).Revision() {
+		if dependency := enginetest.DictionaryFoldDependency(t, d, address); dependency.Revision != e.CatalogRead().Get(address).Revision() {
 			t.Fatal("current analysis did not refresh original OID")
 		}
 		analysis := d.Analysis

@@ -33,7 +33,9 @@ func TestPLpgSQLDiagnosticsPreparedOwnership(t *testing.T) {
 	program, syntax := declaration.SQL.PL, declaration.SQL.PLSyntax
 	variables := append([]proc.PLVariable(nil), program.Variables...)
 	cycle := owner.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, owner, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, owner, cycle, fn)
+	}
 	command(func(s *core.StatementScope) error {
 		_, err := s.ParseProtocol("diagnostics_owner", "SELECT pg_catalog.diagnostics_owner(COALESCE(-(7::integer),0)) AS v", nil)
 		return err
@@ -84,9 +86,9 @@ func TestPLpgSQLDiagnosticsPreparedOwnership(t *testing.T) {
 	if declaration.SQL.PL != program || declaration.SQL.PLSyntax != syntax || !reflect.DeepEqual(variables, program.Variables) || program.ValidateDefinition(declaration.SQL) != nil || registry.Lookup("diagnostics_owner") != definition {
 		t.Fatal("invocation mutated retained program/Usage/registry backing")
 	}
-	before := snapshotFoldDescription(definition.Description)
+	before := enginetest.SnapshotFoldDescription(definition.Description)
 	bindingFolds := *accepted.Folds
-	preparedFoldEntry(t, before, sqltype.Int4, "-7")
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
 	if len(bindingFolds.Entries) == 0 || len(bindingFolds.Dependencies) == 0 || bindingFolds.Generation != before.Accepted.Generation || &bindingFolds.Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("accepted binding lost definition fold generation/backing")
 	}

@@ -75,7 +75,7 @@ func TestCheckInsertPrivilegeDisclosure(t *testing.T) {
 				if result.Count != 0 || result.Rows != nil {
 					t.Fatal(result)
 				}
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: detail, Schema: "public", Table: "t", Constraint: "c"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: detail, Schema: "public", Table: "t", Constraint: "c"})
 				result = enginetest.RoleExecute(t, e, admin, "SELECT * FROM t")
 				if len(enginetest.Tuples(result)) != 0 {
 					t.Fatal("failed INSERT published rows")

@@ -103,7 +103,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 			switch phase {
 			case "key":
 				original := node.Keys[0]
-				node.Keys[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				node.Keys[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					value, err := original.Eval(c)
 					cancel()
 					return value, err
@@ -124,14 +124,14 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 				}}
 			case "having":
 				original := having.Predicate
-				having.Predicate = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				having.Predicate = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					cancel()
 					return sqltype.Boolean(original.ResultUsage().Type, false), nil
 				})
 			case "HAVING-to-sort boundary":
 				original := having.Predicate
 				calls := 0
-				having.Predicate = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				having.Predicate = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					value, err := original.Eval(c)
 					if calls == 3 {
@@ -142,7 +142,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 			case "projection", "prepublication":
 				original := project.Expressions[0]
 				calls := 0
-				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					value, err := original.Eval(c)
 					if phase == "projection" || calls == 3 {
@@ -217,7 +217,7 @@ func TestQueryAggregateLateKeyFailure(t *testing.T) {
 	original := node.Keys[0]
 	sentinel := errors.New("late group key")
 	calls := 0
-	node.Keys[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	node.Keys[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel
@@ -267,7 +267,7 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 	}
 	hashContext := &aggregateCancelContext{Context: context.Background(), at: 4}
 	node.Grouping[0].Grouping, _ = sqltype.BindGrouping(descriptor.Usage())
-	node.Keys[0] = queryProbe(descriptor.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	node.Keys[0] = enginetest.QueryProbe(descriptor.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		hashContext.armed = true
 		return sqltype.String(descriptor, strings.Repeat("x", 2048)), nil
 	})
@@ -371,7 +371,7 @@ func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	usage := node.Calls[0].Arguments[0].ResultUsage()
 	argumentEffects := 0
-	node.Calls[0].Arguments[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+	node.Calls[0].Arguments[0] = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		argumentEffects++
 		return sqltype.Float(usage.Type, math.MaxFloat32)
 	})

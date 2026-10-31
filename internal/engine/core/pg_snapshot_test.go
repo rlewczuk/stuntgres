@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func TestSnapshotBinding(t *testing.T) {
 		{"pg_snapshot_xip", 5064, sqltype.Xid8, 1, expr.Immutable},
 		{"pg_visible_in_snapshot", 5065, sqltype.Bool, 2, expr.Immutable},
 	} {
-		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}}
 		for range tc.argc {

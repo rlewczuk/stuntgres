@@ -18,7 +18,7 @@ import (
 
 func catalogRelationsUnitBind(t *testing.T, e *core.Engine, name string, args ...parser.Expr) expr.Expr {
 	t.Helper()
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
 	node, err := binder.BindFunctionProvider(raw)

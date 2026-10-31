@@ -111,8 +111,8 @@ func TestQuerySetUnionAllDemand(t *testing.T) {
 	defer source.Close()
 	left, right := 0, 0
 	l, r := n.LeftExpressions[0], n.RightExpressions[0]
-	n.LeftExpressions[0] = queryProbe(l.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { left++; return l.Eval(c) })
-	n.RightExpressions[0] = queryProbe(r.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { right++; return r.Eval(c) })
+	n.LeftExpressions[0] = enginetest.QueryProbe(l.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { left++; return l.Eval(c) })
+	n.RightExpressions[0] = enginetest.QueryProbe(r.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { right++; return r.Eval(c) })
 	state := &exec.State{Source: source}
 	stage, err := exec.OpenSetNode(context.Background(), state, n)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 				expressions = n.RightExpressions
 			}
 			original := expressions[0]
-			expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "left" || phase == "right" {
 					cancel()
@@ -157,7 +157,7 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 			})
 			if phase == "publication" {
 				original := project.Expressions[0]
-				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { cancel(); return original.Eval(c) })
+				project.Expressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { cancel(); return original.Eval(c) })
 			}
 			rows, count, err := exec.Finalize(ctx, project, source, nil)
 			want := error(context.Canceled)
@@ -221,7 +221,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
 	defer source.Close()
 	original := n.LeftExpressions[0]
-	replacement := &queryProbeExpression{Info: expr.InfoOf(original), eval: func(c *exec.Context) (sqltype.Value, error) { return original.Eval(c) }}
+	replacement := &enginetest.QueryProbeExpression{Info: expr.InfoOf(original), Probe: func(c *exec.Context) (sqltype.Value, error) { return original.Eval(c) }}
 	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil
@@ -289,7 +289,7 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), at: 4}
-	n.LeftExpressions[0] = queryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
+	n.LeftExpressions[0] = enginetest.QueryProbe(usage, func(*exec.Context) (sqltype.Value, error) {
 		ctx.armed = true
 		return sqltype.String(text, "set cancellation payload"), nil
 	})
@@ -313,7 +313,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	original := n.RightExpressions[0]
 	sentinel := errors.New("late INSERT set arm")
 	calls := 0
-	n.RightExpressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	n.RightExpressions[0] = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 3 {
 			return sqltype.Value{}, sentinel

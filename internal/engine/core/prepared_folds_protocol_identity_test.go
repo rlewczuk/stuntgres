@@ -26,7 +26,7 @@ func TestPreparedFoldProtocolBoundIdentity(t *testing.T) {
 				enginetest.SessionSQL(t, s, "SET search_path TO fold_bound_early,fold_bound_late")
 			}
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+			command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 			command(func(scope *core.StatementScope) error {
 				_, err := scope.ParseProtocol("identity", "INSERT INTO target VALUES((point '0.10000000000000002,1')::text)", nil)
 				return err

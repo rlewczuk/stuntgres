@@ -94,7 +94,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 				t.Fatal("authorized genuine domain truth", err)
 			}
 			err = check(second)
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			sequence := enginetest.CatalogRef(t, e, view, "phase_steps")
 			e.Mu.Lock()
 			last := e.Storage.Sequences[sequence.Address].Last
@@ -114,7 +114,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
+			enginetest.Diagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			e.Mu.Lock()
 			last = e.Storage.Sequences[sequence.Address].Last
 			e.Mu.Unlock()
@@ -204,7 +204,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if err := enter(first); err != nil {
 				t.Fatal("authorized first actual body entry", err)
 			}
-			nullCountUnitDiagnostic(t, enter(second), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
+			enginetest.Diagnostic(t, enter(second), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
 			if scope.RoutineAuth.State.CurrentUser != auth.State.CurrentUser {
 				t.Fatal("lazy local owner changed statement invoker")
 			}
@@ -215,7 +215,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
+			enginetest.Diagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
 			// Both are now denied. The actually consumed outer call must win
 			// with its original caller diagnostic, not the body's SQL Context.
 			enginetest.RoleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.obj_description(oid,name) FROM PUBLIC")
@@ -225,7 +225,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function obj_description"})
+			enginetest.Diagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function obj_description"})
 		})
 	}
 }

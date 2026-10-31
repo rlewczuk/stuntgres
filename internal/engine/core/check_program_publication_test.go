@@ -52,7 +52,7 @@ func TestCheckProgramPublicationCurrentAuthority(t *testing.T) {
 					t.Fatal("Execute did not evaluate genuine truth once", before)
 				}
 				enginetest.RoleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM check_publication_reader")
-				nullCountUnitDiagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+				enginetest.Diagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 				e.Mu.Lock()
 				after := *generator
 				e.Mu.Unlock()

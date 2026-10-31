@@ -66,7 +66,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	query := domainUnitBindSelect(t, e, op, "SELECT pg_blocking_pids($1),pg_safe_snapshot_blocking_pids(NULL)")
+	query := enginetest.BindSelect(t, e, op, "SELECT pg_blocking_pids($1),pg_safe_snapshot_blocking_pids(NULL)")
 	expressions := query.Root.(*plan.ProjectNode).Expressions
 	for i, raw := range expressions {
 		n, ok := raw.(functions.BlockingInquiry)
@@ -121,7 +121,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if err != nil || after.IsNull() || after.ArrayLen() != 0 || len(after.ArrayDimensions()) != 0 || before.ArrayLen() != 1 {
 		t.Fatal("cached or aliased inquiry", before, after, err)
 	}
-	pruned := domainUnitBindSelect(t, e, op, "SELECT CASE WHEN false THEN pg_blocking_pids(1/0) ELSE '{}'::integer[] END").Root.(*plan.ProjectNode).Expressions[0]
+	pruned := enginetest.BindSelect(t, e, op, "SELECT CASE WHEN false THEN pg_blocking_pids(1/0) ELSE '{}'::integer[] END").Root.(*plan.ProjectNode).Expressions[0]
 	planned, _, err := exec.PreflightCoercions(evaluation, pruned)
 	if err != nil {
 		t.Fatal("undemanded branch preflight", err)

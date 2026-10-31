@@ -162,7 +162,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						if result.Count != 0 || result.Rows != nil {
 							t.Fatal("constraint exposed result", result)
 						}
-						nullCountUnitDiagnostic(t, executionErr, sqlstate.Error{Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: detail, Schema: "public", Table: "t", Column: "n"})
+						enginetest.Diagnostic(t, executionErr, sqlstate.Error{Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: detail, Schema: "public", Table: "t", Column: "n"})
 						if explicit {
 							if op.Session.TransactionState() != session.TxAborted || len(op.Session.Transactions.Writes) != 0 {
 								t.Fatal("prior private UPDATE survived failed block")

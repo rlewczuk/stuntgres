@@ -42,7 +42,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	if err := core.PrepareDomainChecks(c, outer); err != nil {
 		t.Fatal(err)
 	}
-	probeBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	probeBinder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	base := target.DomainBase()
 	probeBinder.Clause.DomainValueUsage = &base
 	probeBinder.Consumer.CheckConsumer, probeBinder.Params.NoParameters = true, true
@@ -83,7 +83,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 
 	// The old fixed advisory cast keeps child properties and does not add a
 	// cast routine reference. Compare that behavior at the real Binder port.
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, "SELECT pg_advisory_lock(1::smallint)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	argument, err := b.AnalyzeArgument(raw.Args[0], functions.AnalysisRequest{Intent: functions.DirectDeferredArgument})
 	if err != nil {

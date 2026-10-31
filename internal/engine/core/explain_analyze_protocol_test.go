@@ -20,7 +20,7 @@ func explainAnalyzeProtocolOwnership(t *testing.T) {
 	called:=func()bool{e.Mu.Lock();defer e.Mu.Unlock();return e.Storage.Sequences[sequence.Address].Called}
 	enginetest.SessionSQL(t,s,"BEGIN")
 	cycle:=s.NewProtocolCycle()
-	command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+	command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{
 		_,err:=scope.ParseProtocol("ea_definition","EXPLAIN ANALYZE INSERT INTO ea_protocol VALUES(nextval('ea_protocol_s')),(nextval('ea_protocol_s')) RETURNING v",nil)
 		return err

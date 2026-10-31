@@ -24,16 +24,16 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 			if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 				t.Fatal("Describe evaluated match")
 			}
-			preparedFoldExecute(t, e, s, ast, &d)
-			entry := preparedFoldEntry(t, d, sqltype.Bool, "t")
-			before := snapshotFoldDescription(d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+			entry := enginetest.PreparedFoldEntry(t, d, sqltype.Bool, "t")
+			before := enginetest.SnapshotFoldDescription(d)
 			enginetest.SessionSQL(t, s, "SET default_text_search_config='simple'")
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			after := d.Folds.Current()
-			if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.Bool, "t")) {
+			if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, sqltype.Bool, "t")) {
 				t.Fatal("accepted BOOL generation replaced")
 			}
-			convertRejectPublication(t, e, s, ast, d, before.Accepted)
+			enginetest.ConvertRejectPublication(t, e, s, ast, d, before.Accepted)
 		}
 	})
 	t.Run("text_live_default", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			for _, tc := range []struct{ setting, want string }{{"english", "t"}, {"simple", "f"}, {"english", "t"}} {
 				enginetest.SessionSQL(t, s, "SET default_text_search_config='"+tc.setting+"'")
-				convertOwnedExecute(t, e, s, ast, &d, "Rats", tc.want)
+				enginetest.ConvertOwnedExecute(t, e, s, ast, &d, "Rats", tc.want)
 				for _, entry := range d.Folds.Current().Entries {
 					if entry.Result.Type.ID() == sqltype.Bool {
 						t.Fatal("stable match folded", entry)
@@ -64,7 +64,7 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "BEGIN")
 		cycle := s.NewProtocolCycle()
-		command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+		command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol("match_definition", "SELECT ('cat'::tsvector @@ 'cat'::tsquery) AND ($1::tsvector @@ 'cat'::tsquery)", nil)
 			return err

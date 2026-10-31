@@ -22,7 +22,7 @@ func TestQueryOrderSharedHiddenKeysAndOwnedIndices(t *testing.T) {
 		if i == 2 {
 			counter = 1
 		}
-		sorted.Keys[i].Expression = queryProbe(sorted.Keys[i].Expression.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+		sorted.Keys[i].Expression = enginetest.QueryProbe(sorted.Keys[i].Expression.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 			calls[counter]++
 			return c.Row[0], nil
 		})

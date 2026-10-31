@@ -56,6 +56,14 @@ it imports core and lower packages, and nothing imports it except tests.
 | `ExpressionBinder` | scalar binder over a postgres session |
 | `SetObjectACL(e, ctx, ref, acl)` | publish an object or column ACL directly, outside GRANT and REVOKE |
 | `Comment(e, r, ref)` | comment metadata of a namespace, type, relation or column, without ACL |
+| `SnapshotFoldDescription`, `SavedFoldDescription`, `CloneFoldDescription`, `FoldBackingReusable`, `PreparedFoldEntry`, `SamePublishedFold` | accepted prepared folds: capture, clone, backing reuse, entry lookup and payload comparison |
+| `PreparedFoldExecute`, `PreparedFoldProtocolCommand`, `DictionaryFoldRuntimeExecute`, `ConvertOwnedExecute` | execute a described statement, or run a protocol command scope |
+| `DictionaryFoldDependency`, `SnowballRejectedFold`, `ConvertRejectPublication` | operand dependencies, and canceled private fold publications that keep the accepted backing |
+| `PublishStage`, `PublishOperationStage` | validate and publish a catalog stage, outside or through an operation |
+| `SimpleDictionary`, `SnowballDictionary` | parsed CREATE TEXT SEARCH DICTIONARY statements |
+| `BindSelect`, `QueryProbe`, `QueryProbeExpression`, `EvalContext` | bind a SELECT; probe expressions over the engine evaluation context |
+| `FunctionCall`, `StringLiteral`, `TypedLiteral`, `HostOwnerDefinition` | parser expressions, and an hstore host language |
+| `Diagnostic(t, err, want)` | require an exact `sqlstate.Error` with both severities ERROR |
 
 ## Stages
 
@@ -71,6 +79,9 @@ fills the package in stages:
    `PreparedDescription`, `PreparedExecute` and `ProtocolReader`. Core's
    copies of the session and transaction helpers were replaced by the ones
    above.
+4. **Item 208:** the prepared-fold, catalog-stage, dictionary, probe and
+   expression helpers that its `core/enginetests` destinations share; core's
+   copies were replaced, and its own users call them here.
 
 ## Testing
 

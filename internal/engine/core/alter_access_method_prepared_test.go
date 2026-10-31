@@ -17,7 +17,7 @@ func TestAlterAccessMethodPreparedOwnership(t *testing.T) {
 	for _,q:=range []string{"CREATE TABLE method_owned(id int)","CREATE ACCESS METHOD method_owned_heap TYPE TABLE HANDLER heap_tableam_handler","BEGIN"} {enginetest.SessionSQL(t,s,q)}
 	defer enginetest.SessionSQL(t,s,"ROLLBACK")
 	cycle:=s.NewProtocolCycle()
-	command:=func(fn func(*core.StatementScope) error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+	command:=func(fn func(*core.StatementScope) error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope) error {_,err:=scope.ParseProtocol("method_select","SELECT COALESCE(-(7::integer),0) AS folded,id FROM method_owned",nil);return err})
 	bind:=func(name string){command(func(scope *core.StatementScope) error {_,err:=scope.BindProtocolPortal(name,"method_select",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})}
 	bind("before")

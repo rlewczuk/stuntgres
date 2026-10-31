@@ -13,7 +13,7 @@ import (
 func TestXMLProduceUnknownParameterAdmission(t *testing.T){
  e:=rootengine.New();s:=enginetest.StartSession(t,e,nil)
  ast,accepted:=enginetest.PreparedDescription(t,e,s,`SELECT xmltext('accepted') AS v`)
- preparedFoldExecute(t,e,s,ast,&accepted)
+ enginetest.PreparedFoldExecute(t,e,s,ast,&accepted)
  analysis,cell:=accepted.Analysis,accepted.Folds
  generation:=cell.Current();backing:=&generation.Entries[0]
  owner,epoch:=accepted.CatalogOwner,accepted.CatalogEpoch
@@ -36,6 +36,6 @@ func TestXMLProduceUnknownParameterAdmission(t *testing.T){
   current:=cell.Current()
   if accepted.Analysis!=analysis||accepted.CatalogOwner!=owner||accepted.CatalogEpoch!=epoch||current.Generation!=generation.Generation||&current.Entries[0]!=backing||!sqltype.SameDatum(current.Entries[0].Value,value){t.Fatal("failed Describe mutated accepted owner/fold backing")}
  }
- preparedFoldExecute(t,e,s,ast,&accepted)
+ enginetest.PreparedFoldExecute(t,e,s,ast,&accepted)
  if accepted.Folds.Current().Generation!=generation.Generation||!sqltype.SameDatum(accepted.Folds.Current().Entries[0].Value,value){t.Fatal("healthy reuse replaced accepted fold")}
 }

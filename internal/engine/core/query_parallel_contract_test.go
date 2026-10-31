@@ -117,7 +117,7 @@ func parallelCachedOrderProof(t *testing.T) {
 	ordered := project.Child.(*plan.SortNode)
 	var keyCalls, outputCalls atomic.Int64
 	key := ordered.Keys[0].Expression
-	ordered.Keys[0].Expression = queryProbe(key.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	ordered.Keys[0].Expression = enginetest.QueryProbe(key.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		keyCalls.Add(1)
 		return key.Eval(c)
 	})
@@ -125,7 +125,7 @@ func parallelCachedOrderProof(t *testing.T) {
 		t.Fatal("expected scheduled target")
 	}
 	output := ordered.Outputs[0]
-	ordered.Outputs[0] = queryProbe(output.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	ordered.Outputs[0] = enginetest.QueryProbe(output.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		outputCalls.Add(1)
 		return output.Eval(c)
 	})
@@ -196,7 +196,7 @@ func parallelSerialEntryProof(t *testing.T) {
 	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	calls := 0
-	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		if c.Query.ExecutionContext != nil || c.Query.ScanRange {
 			return sqltype.Value{}, errors.New("generic producer dispatched a worker")
 		}

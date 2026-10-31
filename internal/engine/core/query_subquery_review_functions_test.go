@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ func TestQuerySubquerySortedProjectionCacheOnce(t *testing.T) {
 	_, q, source := queryJoinsFixture(t, "SELECT abs(k) FROM a ORDER BY a.k")
 	project := q.Root.(*plan.ProjectNode)
 	calls := 0
-	subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	subqueryTestTarget(t, project, enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Integer(project.Schema()[0].Usage.Type, int64(calls))
 	}))

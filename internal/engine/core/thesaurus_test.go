@@ -110,7 +110,7 @@ func TestThesaurusPreparationCurrentness(t *testing.T) {
 	if err := replacement.Replace(&sub); err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, replacement)
+	enginetest.PublishOperationStage(t, e, op, replacement)
 	incumbent := e.CatalogRead()
 	if p.Current(incumbent) {
 		t.Fatal("normalizer effective revision change accepted")
@@ -144,7 +144,7 @@ func TestThesaurusPreparationCurrentness(t *testing.T) {
 		if published != nil || failure == nil || engine.CatalogRead().State() != before.State() || preparation.Runtime != acceptedRuntime {
 			t.Fatal("captured authority was reused", published, failure)
 		}
-		extensionUnitError(t, failure, "42501")
+		enginetest.State(t, failure, "42501")
 	})
 }
 

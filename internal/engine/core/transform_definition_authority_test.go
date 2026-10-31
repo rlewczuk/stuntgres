@@ -12,7 +12,7 @@ import (
 )
 
 func TestTransformDefinitionAuthority(t *testing.T) {
- definition:=hostOwnerDefinition(func() error { t.Error("metadata validation invoked a callback"); return nil })
+ definition:=enginetest.HostOwnerDefinition(func() error { t.Error("metadata validation invoked a callback"); return nil })
  extra:=definition.Conversions[0]
  extra.ID,extra.Bootstrap="independent",false
  extra.FromName=host.Name{Schema:"public",Name:"owner_independent_from"}

@@ -192,7 +192,7 @@ func TestArrayRandomStrictNullStoredDefaultClosure(t *testing.T) {
 			for _, planner := range arrayStrictNullPlanners {
 				local := evaluation
 				_, _, err := planner.run(&local, node, true)
-				nullCountUnitDiagnostic(t, err, want)
+				enginetest.Diagnostic(t, err, want)
 			}
 			arrayStrictNullUncalled(t, e)
 		}

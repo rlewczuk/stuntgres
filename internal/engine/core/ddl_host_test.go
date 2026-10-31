@@ -60,7 +60,7 @@ func TestDDLHostParserSchemaNamespace(t *testing.T) {
 	h := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	name := ddlHostName("pg_catalog", "parser_destination")
 	_, err := h.ExistingCreationNamespace(auth, name)
-	extensionUnitError(t, err, "0A000")
+	enginetest.State(t, err, "0A000")
 	ref, err := h.ParserSchemaNamespace(auth, name)
 	if err != nil || ref.Address != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 		t.Fatal("parser system destination resolution", ref, err)

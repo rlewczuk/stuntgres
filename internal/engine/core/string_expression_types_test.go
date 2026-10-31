@@ -20,7 +20,7 @@ import (
 
 func TestStringCoreBinding(t *testing.T) {
 	eng := engine.New()
-	binder := newTestExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
+	binder := enginetest.ExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
 	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := enginetest.Statement(t, query).(*parser.Select).Targets[0]
@@ -125,7 +125,7 @@ func TestStringCoreMissingOperatorOwner(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
 		{"SELECT 1 || 2", "operator does not exist: integer || integer", "10"},
 	} {
-		binder := newTestExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
+		binder := enginetest.ExpressionBinder(t, context.Background(), eng, sqltype.InputEnvironment{}, nil)
 		raw := enginetest.Statement(t, tc.query).(*parser.Select).Targets[0]
 		_, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var got *sqlstate.Error

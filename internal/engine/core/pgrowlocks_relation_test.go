@@ -115,7 +115,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		if err := stage.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
-		domainUnitPublish(t, e, stage)
+		enginetest.PublishStage(t, e, stage)
 		e.Mu.Lock()
 		auth, err = core.ScopeWriteAuthorizationLocked(scope, e)
 		if err == nil {
@@ -138,7 +138,7 @@ func pgrowlocksUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 
 func pgrowlocksUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgrowlocksExpr {
 	t.Helper()
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pgrowlocks"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "typed"}}}}
 	node, err := b.BindFunctionProvider(raw)

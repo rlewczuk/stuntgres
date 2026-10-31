@@ -73,7 +73,9 @@ func beforeStatementPreparedOwner(t *testing.T) {
 	}
 	cycle := owner.NewProtocolCycle()
 	registry := core.PayloadOf(owner).PreparedSQL
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, owner, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, owner, cycle, fn)
+	}
 	command(func(s *core.StatementScope) error {
 		_, err := s.ParseProtocol("bst_definition", "INSERT INTO bst_owner VALUES(COALESCE(-(7::integer),0),2)", nil)
 		return err
@@ -170,7 +172,7 @@ func beforeStatementPreparedOwner(t *testing.T) {
 		op.Done()
 		t.Fatal("missing publication owner", err)
 	}
-	before := snapshotFoldDescription(definition.Description)
+	before := enginetest.SnapshotFoldDescription(definition.Description)
 	publication.Group.Entries = append([]exec.FoldConstant(nil), accepted.Entries...)
 	publication.Group.Dependencies = append([]exec.FoldDependency(nil), accepted.Dependencies...)
 	publication.Group.Private, publication.Group.DependenciesPrivate = true, true

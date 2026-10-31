@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -321,7 +322,7 @@ func TestRegexpSetNested(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage.Expressions = []expr.Expr{queryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.String(text, "draw"), nil })}
+	stage.Expressions = []expr.Expr{enginetest.QueryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.String(text, "draw"), nil })}
 	stage.Evaluation = state.Evaluation(context.Background())
 	regexpSetUnitRows(t, &stage)
 	if calls != 2 {
@@ -400,7 +401,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 	}
 	// An argument error remains the primary failure during stage cleanup.
 	failure := errors.New("selected invocation failed")
-	functionSetUnitArgument(t, n.Calls, 0, 0, queryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure }))
+	functionSetUnitArgument(t, n.Calls, 0, 0, enginetest.QueryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, failure }))
 	stage, err = exec.OpenFunctionFromNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
@@ -611,7 +612,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			probe := queryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.String(text, "draw"), nil })
+			probe := enginetest.QueryProbe(text.Usage(), func(*exec.Context) (sqltype.Value, error) { draws++; return sqltype.String(text, "draw"), nil })
 			if upper {
 				outputs[0] = probe
 			} else {

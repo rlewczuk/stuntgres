@@ -71,7 +71,7 @@ func TestTriggerModeRestoreReplay(t *testing.T) {
 	appended := dump.String()+"INSERT INTO public.mode_child VALUES(9,999);\n"
 	if matched,err := stored.ValidateForeignKeyModeFooter(appended,records); err != nil || matched { t.Fatal("appended SQL retained waiver",matched,err) }
 	err = engine.Restore(context.Background(),e,strings.NewReader(appended))
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{
+	enginetest.Diagnostic(t, err, sqlstate.Error{
 		Code: "23503", Message: `insert or update on table "mode_child" violates foreign key constraint "mode_fk"`,
 		Detail: `Key (pid)=(999) is not present in table "mode_parent".`,
 		Schema: "public", Table: "mode_child", Constraint: "mode_fk",

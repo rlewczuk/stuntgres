@@ -19,7 +19,9 @@ func transactionPreparedOwnership(t *testing.T) {
 	sess := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, sess, "CREATE PROCEDURE tx_owned(IN x integer) LANGUAGE plpgsql AS $$BEGIN COMMIT;END$$")
 	cycle := sess.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, sess, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) {
+		enginetest.PreparedFoldProtocolCommand(t, e, sess, cycle, fn)
+	}
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("tx_definition", "CALL tx_owned(COALESCE(-(7::integer),0))", nil)
 		return err

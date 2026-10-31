@@ -166,13 +166,13 @@ func testInstalledScalarPreparedAuthorityRebind(t *testing.T, e *core.Engine, ex
 	if _, ok := expected.Types[key]; ok || !expected.Analysis.NeedsReanalysis || shared[key].Base.Type != base.SQLType {
 		t.Fatal("candidate mutated shared captures or failed sticky retirement")
 	}
-	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &candidate)
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &candidate)
 	node, err := binder.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || node.ResultUsage().Type != current.SQLType {
 		t.Fatal("candidate lost current nominal descriptor", err)
 	}
 	// A candidate that never publishes cannot rescue the original description.
-	binder = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	binder = enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	if _, err := binder.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 		t.Fatal("unpublished candidate revived the original old spelling")
 	}

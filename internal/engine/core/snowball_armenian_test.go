@@ -205,7 +205,7 @@ func TestSnowballArmenianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				bad := *before.MustNamespace(p.Namespace.Address())
 				bad.ObjectRevision++
@@ -214,7 +214,7 @@ func TestSnowballArmenianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "original":
 				bad := *p.Original
 				bad.ObjectRevision++
@@ -223,7 +223,7 @@ func TestSnowballArmenianPublication(t *testing.T) {
 				if err := other.Replace(&bad); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "role":
 				// Completion must use a newly authenticated actor, not prepared authority.
 				other, closeOther := enginetest.RoleOperation(t, e, "armenian_other")
@@ -244,7 +244,7 @@ func TestSnowballArmenianPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "role" {
-				extensionUnitError(t, err, "42501")
+				enginetest.State(t, err, "42501")
 			} else if fence != "context" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
@@ -273,15 +273,15 @@ func TestSnowballArmenianPreparedOwnership(t *testing.T) {
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated dictionary")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{rats}")
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{rats}")
+	before := enginetest.SnapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "armenian_fold"})
 	if _, ok := e.CatalogRead().LookupType(1009); !ok {
 		t.Fatal("TEXT[] missing")
 	}
 	old := e.CatalogRead().MustTSDictionary(a)
-	operand := dictionaryFoldDependency(t, d, a)
+	operand := enginetest.DictionaryFoldDependency(t, d, a)
 	analysis := d.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.armenian_fold (language=english)")
 	current := e.CatalogRead().MustTSDictionary(a)
@@ -299,18 +299,18 @@ func TestSnowballArmenianPreparedOwnership(t *testing.T) {
 	if newValue.Lexemes[0].Text != "rat" || newValue.Lexemes[0].Prefix || newValue.Lexemes[0].Variant != 0 {
 		t.Fatal(newValue)
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current()
-	refreshed := dictionaryFoldDependency(t, d, a)
-	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{rats}")) {
+	refreshed := enginetest.DictionaryFoldDependency(t, d, a)
+	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{rats}")) {
 		t.Fatal("accepted immutable provider fold lost backing/current analysis")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{rat}")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, 1009, "{rat}")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.armenian_fold'::regdictionary,$1::text) AS lexemes")
 	// Existing owner helper supplies YeS: non-stopword remains a genuine stem.
-	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
+	r, err := enginetest.DictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,10 +324,10 @@ func TestSnowballArmenianPreparedOwnership(t *testing.T) {
 			t.Fatal("operand retained as executable authority")
 		}
 	}
-	preparedFoldEntry(t, before, 1009, "{rats}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{rats}")
 	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
 	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Snowball prefix", err)
 	}
-	snowballRejectedFold(t, e, s, ast, d, "{rats}")
+	enginetest.SnowballRejectedFold(t, e, s, ast, d, "{rats}")
 }

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -18,7 +19,7 @@ import (
 func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
-	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	varying := b.Type(sqltype.VarBit).Usage()
 	varying.Typmod = 5
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "x0f", Pos: parser.Position{Offset: 7, Character: 8}}}

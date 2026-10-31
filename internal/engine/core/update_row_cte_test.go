@@ -51,7 +51,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 		t.Fatal("missing actual outer target recipe")
 	}
 	draws := 0
-	subqueryTestTarget(t, producer, queryProbe(producer.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	subqueryTestTarget(t, producer, enginetest.QueryProbe(producer.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		value, err := target.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err

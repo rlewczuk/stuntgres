@@ -273,7 +273,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.Params.Parameters[1].Type)}
 		_, _, err := exec.PreflightCoercions(&evaluation, node)
 		want := sqlstate.Error{Code: "22012", Message: "division by zero"}
-		nullCountUnitDiagnostic(t, err, want)
+		enginetest.Diagnostic(t, err, want)
 		for _, suffix := range []string{"", " WHERE FALSE"} {
 			raw := enginetest.Statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
 			e.Mu.Lock()
@@ -287,7 +287,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			sourceEvaluation := evaluation
 			sourceEvaluation.RoutineChecks = sourceBinder.Dependencies
 			_, err = view.PreflightQuery(&sourceEvaluation, query.Root)
-			nullCountUnitDiagnostic(t, err, want)
+			enginetest.Diagnostic(t, err, want)
 		}
 	}
 	// Validate a real typed DOMAIN parameter at its input boundary, before

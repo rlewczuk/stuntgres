@@ -24,7 +24,7 @@ import (
 
 func pgstattupleHeapUnitExpression(t *testing.T,e *core.Engine,name,target string) plan.InstalledPgstattupleExpr {
 	t.Helper()
-	binder:=newTestExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil)
+	binder:=enginetest.ExpressionBinder(t,context.Background(),e,sqltype.InputEnvironment{},nil)
 	raw:=parser.FunctionExpr{Name:parser.ObjectName{Parts:[]parser.Identifier{{Text:name}}},Args:[]parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind:parser.StringValue,Text:target}}}}
 	node,err:=binder.BindFunctionProvider(raw)
 	if err!=nil { t.Fatal(err) }

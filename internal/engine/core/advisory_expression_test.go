@@ -113,7 +113,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		} {
 			b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			_, err := b.Bind(enginetest.Statement(t, tc.query).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: "8"})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: "8"})
 		}
 		query := "SELECT pg_advisory_lock(" + strings.Repeat("1,", 100) + "missing_advisory_child)"
 		b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
@@ -147,7 +147,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			}
 		}
 		_, err = b.Bind(enginetest.Statement(t, "SELECT pg_advisory_lock(NULL,'bad'::integer)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\"", Position: "30"})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\"", Position: "30"})
 		// Literal casts cook during binding. Separately supply an actual deferred
 		// coercion plan to exercise demanded simplification in both walkers.
 		bound, err = b.Bind(enginetest.Statement(t, "SELECT pg_advisory_lock(NULL,1)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -170,7 +170,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			} else {
 				_, _, err = exec.SimplifyConditional(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}, bound, false)
 			}
-			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\""})
+			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\""})
 		}
 	})
 	t.Run("lexical group aggregate remap and retained descriptors", func(t *testing.T) {
@@ -386,7 +386,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}}
 	eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 9, Frame: 7}}
 	failed, err := table.ValidateCheckRow(d, nil, eval)
-	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
+	enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 	if failed != nil || eval.PreparedChecks != nil || eval.Scope != 9 || eval.Frame != 7 {
 		t.Fatal("failed preparation cached a partial set or leaked a frame", failed)
 	}
@@ -394,15 +394,6 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	// admitted session instead of reporting the later immutable child error.
 	if !reflect.DeepEqual(d.Constraints.Check[0].Expression, nodes[0]) || !reflect.DeepEqual(d.Constraints.Check[1].Expression, nodes[1]) {
 		t.Fatal("failed CHECK preparation mutated analyzed expressions")
-	}
-}
-
-func nullCountUnitDiagnostic(t *testing.T, err error, want sqlstate.Error) {
-	t.Helper()
-	want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-	var got *sqlstate.Error
-	if !errors.As(err, &got) || *got != want {
-		t.Fatalf("got %#v (%v), want %#v", got, err, want)
 	}
 }
 

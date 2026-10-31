@@ -62,7 +62,7 @@ func TestStatisticsExpressionBindingOwnership(t *testing.T) {
 	if copy.Expressions != d.Expressions {
 		t.Fatal("metadata COW changed recipe identity")
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	view := e.CatalogRead()
 	for _, mode := range []string{"foreign_input", "stale_epoch", "duplicate_input", "missing_input", "bad_layout", "duplicate_layout", "missing_execution", "foreign_dependency", "dangling_dependency"} {
 		attrs := make([]int32, recipe.AttributeLen())

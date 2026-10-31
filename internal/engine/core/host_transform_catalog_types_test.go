@@ -20,7 +20,7 @@ import (
 func TestHostTransformCatalogCarriers(t *testing.T) {
 	for _, mode := range []string{"both", "from-only", "to-only"} {
 		t.Run(mode, func(t *testing.T) {
-			definition := hostOwnerDefinition(nil)
+			definition := enginetest.HostOwnerDefinition(nil)
 			if mode == "from-only" {
 				definition.Conversions[0].ToSQL = nil
 				definition.Conversions[0].ToName = host.Name{}

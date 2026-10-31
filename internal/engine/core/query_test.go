@@ -11,24 +11,10 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-type queryProbeExpression struct {
-	expr.Info
-	eval func(*exec.Context) (sqltype.Value, error)
-}
-
-func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.eval(evalContext(ctx))
-}
-func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, error)) expr.Expr {
-	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
-}
 
 func TestQueryCoreEagerFinalization(t *testing.T) {
 	t.Run("later admitted target failure", func(t *testing.T) {
@@ -37,7 +23,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		usage := project.Schema()[0].Usage
 		sentinel := errors.New("later target")
 		calls := 0
-		project.Expressions[0] = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+		project.Expressions[0] = enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 3 {
 				return sqltype.Value{}, sentinel
@@ -53,7 +39,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f ORDER BY id")
 		project := query.Root.(*plan.ProjectNode)
 		calls := 0
-		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+		project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 			calls++
 			id, _ := c.Row[0].Integer()
 			if id == 2 || id == 3 {
@@ -95,13 +81,13 @@ func TestQueryCoreCancellation(t *testing.T) {
 			if phase == "rejected scan" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 				filter := project.Child.(*plan.FilterNode)
-				filter.Predicate = queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+				filter.Predicate = enginetest.QueryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					cancel()
 					return sqltype.Boolean(typ, false), nil
 				})
 			} else {
-				project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				project.Expressions[0] = enginetest.QueryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if phase == "projection" || calls == 2 {
 						cancel()

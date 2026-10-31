@@ -23,7 +23,7 @@ func TestStatisticsObjectControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition := statisticsUnitDescriptor(t, stage)
-	extensionUnitPublish(t, source, op, stage)
+	enginetest.PublishOperationStage(t, source, op, stage)
 	source.DiscardCatalogStage(stage)
 	done()
 	captured := source.CatalogRead()
@@ -74,7 +74,7 @@ func TestStatisticsObjectControlOrdinaryOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := statisticsUnitDescriptor(t, stage)
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	e.DiscardCatalogStage(stage)
 	owner := e.Roles().LookupRef("statistics_guard_owner")
 	e.Mu.Lock()
@@ -90,7 +90,7 @@ func TestStatisticsObjectControlOrdinaryOwnership(t *testing.T) {
 		done()
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	e.DiscardCatalogStage(stage)
 	done()
 	var text bytes.Buffer

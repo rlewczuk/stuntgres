@@ -136,7 +136,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			engine, source, _ := typedUnitCatalog(t, false)
 			view := engine.CatalogRead()
 			original, _ := view.LookupType(source.RowType)
-			first := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
+			first := enginetest.ExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := enginetest.Statement(t, `SELECT jsonb_populate_record(`+tc.base+`,'{"id":1}'::jsonb)`).(*parser.Select).Targets[0].(parser.FunctionExpr)
 			if _, err := first.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
@@ -173,7 +173,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			}
 			raw.Args[0] = oldSpelling(raw.Args[0])
 			expected := &core.Description{CatalogOwner: view.Owner(), CatalogEpoch: view.Epoch(), Types: first.Prepared.Types}
-			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
+			next := enginetest.ExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
 			node, err := next.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || next.Clause.JSONBRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
@@ -200,7 +200,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 		})
 	}
 	engine, _, _ := typedUnitCatalog(t, false)
-	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := enginetest.Statement(t, `SELECT jsonb_populate_record('(bad,x)'::pair,'{}'::jsonb)`).(*parser.Select).Targets[0]
 	if _, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil || b.Clause.JSONBRecordBase {
 		t.Fatal("failed base analysis leaked its capture scope", err)

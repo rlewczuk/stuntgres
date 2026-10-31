@@ -174,7 +174,7 @@ func TestViewCheckPredicate(t *testing.T) {
 	row := f.e.Storage.Relations[f.base.Address()].Versions[0].Values
 	old := []sqltype.Value{sqltype.Null(f.integer)}
 	calls := 0
-	pass := queryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+	pass := enginetest.QueryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if len(c.Row) != 3 || c.Row[1] != row[1] {
 			t.Fatal("not coherent physical NEW", c.Row)
@@ -203,7 +203,7 @@ func TestViewCheckAdmission(t *testing.T) {
 		scope, _ := f.scope(t)
 		calls := 0
 		failure := errors.New("required close veto")
-		guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+		guard := enginetest.QueryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 			calls++
 			return sqltype.Boolean(f.boolean, closeFailure || calls == 1), nil
 		})
@@ -245,7 +245,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(scope.Op.Context())
 	defer cancel()
-	guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
+	guard := enginetest.QueryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.Output}}
 	err := dml.CheckViewRow(scope.WriteHost(), &b, row, &eval)

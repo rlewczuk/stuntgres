@@ -35,7 +35,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if len(description.Folds.Current().Entries) != 1 || description.Folds.Environment.Discard != s.DiscardPlansGeneration || description.PlanOwner != s.SessionToken {
 		t.Fatal("missing owner-qualified capture")
 	}
-	original := snapshotFoldDescription(description)
+	original := enginetest.SnapshotFoldDescription(description)
 	result, err = enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if &original.Accepted.Entries[0] == &description.Folds.Current().Entries[0] || description.Folds.Environment.Discard != s.DiscardPlansGeneration {
 		t.Fatal("discard did not recollect quotes")
 	}
-	if !samePublishedFold(original.Accepted.Entries[0], description.Folds.Current().Entries[0]) {
+	if !enginetest.SamePublishedFold(original.Accepted.Entries[0], description.Folds.Current().Entries[0]) {
 		t.Fatal("source capture changed during refresh")
 	}
 
@@ -65,7 +65,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if err == nil || failed.Folds.Current().Entries != nil {
 		t.Fatal("failed demanded fold published partial group", err)
 	}
-	before := snapshotFoldDescription(description)
+	before := enginetest.SnapshotFoldDescription(description)
 	discardUnitApply(t, s, parser.DiscardPlans)
 	savedResults := description.Results
 	description.Results = nil
@@ -192,7 +192,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if err != nil || result.Count != 1 {
 			t.Fatal("initial capture execution", result.Count, err)
 		}
-		before := snapshotFoldDescription(description)
+		before := enginetest.SnapshotFoldDescription(description)
 		if len(before.Accepted.Entries) != 3 || len(before.Temporals) == 0 || before.Analysis == nil {
 			t.Fatal("missing initial quote/temporal/analysis publication")
 		}
@@ -223,7 +223,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("failed private quote refresh replaced publication")
 		}
 		for i, capture := range source {
-			if !samePublishedFold(before.Accepted.Entries[i], capture) || !samePublishedFold(description.Folds.Current().Entries[i], capture) {
+			if !enginetest.SamePublishedFold(before.Accepted.Entries[i], capture) || !enginetest.SamePublishedFold(description.Folds.Current().Entries[i], capture) {
 				t.Fatal("failed refresh mutated source capture", i)
 			}
 		}
@@ -278,7 +278,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			seen[want] = true
 		}
 		for i, capture := range source {
-			if !samePublishedFold(before.Accepted.Entries[i], capture) {
+			if !enginetest.SamePublishedFold(before.Accepted.Entries[i], capture) {
 				t.Fatal("successful retry mutated source publication", i)
 			}
 		}

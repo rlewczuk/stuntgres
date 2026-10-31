@@ -20,7 +20,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.d AS integer")
 	old := domainUnitType(t, e.CatalogRead(), "d")
 	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 7, Character: 8}}, TypeName: parser.TypeName{Name: "d", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
-	first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	first := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	if _, err := first.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	expected := &core.Description{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: &core.Analysis{}}
 	enginetest.RoleExecute(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed")
 	current := e.CatalogRead().MustType(old.Address())
-	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	next := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || node.ResultUsage().Type != current.SQLType || next.Prepared.Types[key].Base.Type != current.SQLType {
 		t.Fatal("held cast missed admitted same-ID generation", err)
@@ -44,7 +44,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 		t.Fatal("sibling retargeted", annotation, err)
 	}
 	// Owner/epoch mismatch never turns the old ID into current authority.
-	foreign := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
+	foreign := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
 	annotation, err = foreign.TypeCastAnnotation(raw)
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("foreign catalog reused old ID", annotation, err)
@@ -53,7 +53,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if !expected.Analysis.NeedsReanalysis {
 		t.Fatal("failed reanalysis could revive captures when path restored")
 	}
-	next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	next = enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 		t.Fatal("retired old spelling was rescued")
 	}
@@ -77,7 +77,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if direct {
 				raw.TypeName.Name, raw.TypeName.ArrayBounds = "_d", nil
 			}
-			first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			first := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			if _, err := first.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
@@ -129,7 +129,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`)
 			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`)
 			current := e.CatalogRead().MustType(old.Address())
-			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			next := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			annotation, err := next.TypeCastAnnotation(raw)
 			wantName := current.Name()
 			if direct {
@@ -156,13 +156,13 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if valid() {
 				t.Fatal("stable array identity concealed changed element semantics")
 			}
-			foreign := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
+			foreign := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
 			annotation, err = foreign.TypeCastAnnotation(raw)
 			if err != nil || annotation.Name != raw.TypeName.Name {
 				t.Fatal("foreign owner reused array occurrence", annotation, err)
 			}
 			expected.RetireAnalysisTypeCasts()
-			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			next = enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired array occurrence rescued old spelling")
 			}

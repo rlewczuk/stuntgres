@@ -1,10 +1,11 @@
 package core_test
 
 import (
-	"stuntgres/internal/engine/core"
 	"context"
 	"reflect"
 	"testing"
+
+	"stuntgres/internal/engine/core"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
@@ -89,7 +90,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if err = scope.Gate(enginetest.Statement(t, "SELECT current_schemas(false)")); err != nil {
 		t.Fatal(err)
 	}
-	query := domainUnitBindSelect(t, e, readerOp, "SELECT current_schemas(false)")
+	query := enginetest.BindSelect(t, e, readerOp, "SELECT current_schemas(false)")
 	if len(query.Root.Schema()) != 1 {
 		t.Fatal(query.Root.Schema())
 	}
@@ -158,14 +159,6 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 	if err != nil || path.Count() != 0 {
 		t.Fatal(path, err)
 	}
-}
-
-// Scalar unit binders use real catalog/session authorization like public SQL.
-func newTestExpressionBinder(t *testing.T, ctx context.Context, e *core.Engine, input sqltype.InputEnvironment, expected *core.Description) *analyze.Binder {
-	t.Helper()
-	op, done := enginetest.RoleOperation(t, e, "postgres")
-	t.Cleanup(done)
-	return core.NewExpressionBinder(ctx, e, input, op, expected)
 }
 
 func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {

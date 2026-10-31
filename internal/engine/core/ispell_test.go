@@ -28,7 +28,7 @@ func ispellUnitEngine() *core.Engine {
 	return e
 }
 func ispellUnitCreate(name string) *parser.CreateDictionary {
-	stmt := dictionaryUnitCreate(name)
+	stmt := enginetest.SimpleDictionary(name)
 	stmt.Options = []parser.DictionaryOption{
 		{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "template"}, Value: "ispell"}, Supplied: true},
 		{CollationOption: parser.CollationOption{Name: parser.Identifier{Text: "dictfile"}, Value: "unit"}, Supplied: true},
@@ -62,7 +62,7 @@ func TestIspellPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer e.DiscardCatalogStage(other)
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "template":
 				d := *p.Template
 				d.ObjectRevision++
@@ -71,7 +71,7 @@ func TestIspellPublicationFences(t *testing.T) {
 				if err := other.Replace(&d); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			case "namespace":
 				d := *e.CatalogRead().MustNamespace(p.Namespace.Address())
 				d.ObjectRevision++
@@ -80,7 +80,7 @@ func TestIspellPublicationFences(t *testing.T) {
 				if err := other.Replace(&d); err != nil {
 					t.Fatal(err)
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			}
 			incumbent := e.CatalogRead()
 			e.Mu.Lock()
@@ -93,7 +93,7 @@ func TestIspellPublicationFences(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fence == "name" {
-				extensionUnitError(t, err, "23505")
+				enginetest.State(t, err, "23505")
 			} else if fence != "cancel" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
@@ -140,26 +140,26 @@ func TestIspellPreparedFoldOwnership(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.ispell_fold (TEMPLATE=ispell,DictFile=unit,AffFile=unit)")
 	q := "SELECT ts_lexize('public.ispell_fold'::regdictionary,'rooting'::text) AS lexemes"
 	ast, d := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{rooting,root}")
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{rooting,root}")
 	if entry.Value.ArrayLen() != 2 || entry.Value.ArrayElement(0).Type() != entry.Result.Type.Element() || entry.Value.ArrayElement(1).Type() != entry.Result.Type.Element() {
 		t.Fatal("multi-lexeme owned payload")
 	}
-	before := snapshotFoldDescription(d)
+	before := enginetest.SnapshotFoldDescription(d)
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ispell_fold"})
-	operand := dictionaryFoldDependency(t, d, address)
+	operand := enginetest.DictionaryFoldDependency(t, d, address)
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.ispell_fold (StopWords=unit)")
 	if e.CatalogRead().Get(address).Revision() == operand.Revision {
 		t.Fatal("ALTER failed to advance operand revision")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	accepted := d.Folds.Current()
-	if accepted.Generation != before.Accepted.Generation || &accepted.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{rooting,root}")) {
+	if accepted.Generation != before.Accepted.Generation || &accepted.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{rooting,root}")) {
 		t.Fatal("multi-lexeme accepted owner replaced")
 	}
 	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
-	preparedFoldExecute(t, e, s, freshAST, &fresh)
-	preparedFoldEntry(t, fresh, 1009, "{rooting}")
+	enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh)
+	enginetest.PreparedFoldEntry(t, fresh, 1009, "{rooting}")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := s.Acquire(ctx)
@@ -175,7 +175,7 @@ func TestIspellPreparedFoldOwnership(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	local := cloneFoldDescription(t, d)
+	local := enginetest.CloneFoldDescription(t, d)
 	scope.Expected = &local
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
@@ -206,7 +206,7 @@ func TestIspellPreparedFoldOwnership(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || publication.Group.Sealed || &local.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("canceled multi-lexeme candidate published", err)
 	}
-	preparedFoldEntry(t, before, 1009, "{rooting,root}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{rooting,root}")
 }
 
 func TestIspellProviderValidation(t *testing.T) {
@@ -218,7 +218,7 @@ func TestIspellProviderValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ispell_validation"})
 	original := view.MustTSDictionary(address)

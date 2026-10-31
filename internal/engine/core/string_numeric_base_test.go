@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 	ctx := context.Background()
 	e := engine.New()
 	for _, null := range []bool{false, true} {
-		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "a"}}
 		if null {
 			literal.Value.Kind = parser.NullValue
@@ -65,7 +66,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		}
 	}
 	for _, established := range []bool{false, true} {
-		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		char := b.Type(sqltype.Char).Usage()
 		if established {
 			b.Params.Parameters[1] = char

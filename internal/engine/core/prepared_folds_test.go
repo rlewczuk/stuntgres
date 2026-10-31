@@ -1,42 +1,18 @@
 package core_test
 
 import (
-	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/enginetest"
 	"context"
 	"testing"
 
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-// Save actual immutable accepted payloads, never a shallow copy of a mutable owner.
-type savedFoldDescription struct {
-	core.Description
-	Accepted exec.AcceptedFolds
-	Environment core.PreparedEnvironment
-	Live, ReusableBacking bool
-}
-
-func snapshotFoldDescription(d core.Description) savedFoldDescription {
-	return savedFoldDescription{Description: d, Accepted: d.Folds.Current(), Environment: d.Folds.Environment, Live: d.Folds.Live(), ReusableBacking: foldBackingReusable(d.Folds)}
-}
-
-// Stored origins can remain operationally reusable after root invalidation.
-// Observe the candidate actually lent to planning, including stored-only groups;
-// private eligibility itself is asserted in the owner's state-machine tests.
-func foldBackingReusable(owner *core.PreparedFolds) bool {
-	if owner == nil || !owner.Live() {
-		return false
-	}
-	current := owner.Current()
-	next := owner.Begin()
-	return len(current.Entries) != 0 && len(next.Candidate.Entries) == len(current.Entries) && &next.Candidate.Entries[0] == &current.Entries[0]
-}
 
 // Begin is the real planning operation: an ineligible definition prunes root
 // syntax instead of lending its accepted backing to the next attempt.
@@ -73,75 +49,6 @@ func assertFoldReuseRetirement(t *testing.T, owner *core.PreparedFolds, reusable
 	}
 }
 
-func cloneFoldDescription(t *testing.T, d core.Description) core.Description {
-	t.Helper()
-	owner := core.NewPreparedFolds()
-	owner.Analysis, owner.Environment, owner.RoleSensitive = d.Folds.Analysis, d.Folds.Environment, d.Folds.RoleSensitive
-	attempt := owner.Begin()
-	attempt.Candidate.Entries = d.Folds.Current().Entries
-	attempt.Candidate.Dependencies = d.Folds.Current().Dependencies
-	attempt.Candidate.Private, attempt.Candidate.DependenciesPrivate = true, true
-	if _, err := owner.Accept(&attempt); err != nil { t.Fatal(err) }
-	d.Folds = owner
-	return d
-}
-
-func preparedFoldEntry(t *testing.T, description any, id sqltype.ID, text string) exec.FoldConstant {
-	t.Helper()
-	var entries []exec.FoldConstant
-	switch d := description.(type) {
-	case core.Description:
-		if !foldBackingReusable(d.Folds) {
-			t.Fatal("no accepted live fold group")
-		}
-		entries = d.Folds.Current().Entries
-	case savedFoldDescription:
-		if !d.Live || !d.ReusableBacking {
-			t.Fatal("no saved accepted live fold group")
-		}
-		entries = d.Accepted.Entries
-	default:
-		t.Fatalf("unexpected description %T", description)
-	}
-	for _, entry := range entries {
-		if entry.Result.Type.ID() != id { continue }
-		if entry.Value.IsNull() && text == "NULL" { return entry }
-		got, err := entry.Result.Type.Output(context.Background(), entry.Value)
-		if err == nil && got == text { return entry }
-	}
-	t.Fatalf("missing owned %d datum %q in %+v", id, text, entries)
-	return exec.FoldConstant{}
-}
-
-// Compare the public planning payload, not private input representation. Real
-// second-use backing/hit checks accompany these comparisons; exec's owner-local
-// tests distinguish provider markers from omitted and invalid literal inputs.
-func samePublishedFold(a, b exec.FoldConstant) bool {
-	callable := a.Callable == b.Callable
-	if !callable {
-		left, lok := a.Callable.(*catalog.Procedure)
-		right, rok := b.Callable.(*catalog.Procedure)
-		callable = lok && rok && exec.SameRoutineDeclaration(left, right)
-	}
-	if a.Offset != b.Offset || a.Occurrence != b.Occurrence || a.Source != b.Source || a.Origin != b.Origin || a.Frame != b.Frame || a.Provider != b.Provider || !callable || a.Operator != b.Operator || a.Result != b.Result || !sqltype.SameDatum(a.Value, b.Value) || !a.Coercion.Equal(b.Coercion) || len(a.Inputs) != len(b.Inputs) {
-		return false
-	}
-	for i, input := range a.Inputs {
-		other := b.Inputs[i]
-		if input.Usage != other.Usage || input.UnknownNull != other.UnknownNull {
-			return false
-		}
-		if input.Value.Type() == nil && other.Value.Type() == nil {
-			if input.Value != other.Value {
-				return false
-			}
-		} else if !sqltype.SameDatum(input.Value, other.Value) {
-			return false
-		}
-	}
-	return true
-}
-
 func TestPreparedFoldTypedOwnership(t *testing.T) {
 	e := rootengine.New()
 	s := enginetest.StartSession(t, e, nil)
@@ -171,7 +78,7 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			r.Rows.Close()
-			entry := preparedFoldEntry(t, d, tc.id, tc.value)
+			entry := enginetest.PreparedFoldEntry(t, d, tc.id, tc.value)
 			if entry.Value.Type() != entry.Result.Type || entry.Result != d.Results[0].Usage {
 				t.Fatal("lost exact result usage/provenance")
 			}
@@ -180,13 +87,13 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 					t.Fatal("omitted unary input lost its ordered empty slot")
 				}
 			}
-			before := snapshotFoldDescription(d)
+			before := enginetest.SnapshotFoldDescription(d)
 			r, err = enginetest.PreparedExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
 			r.Rows.Close()
-			if &before.Accepted.Entries[0] != &d.Folds.Current().Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, tc.id, tc.value)) {
+			if &before.Accepted.Entries[0] != &d.Folds.Current().Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, tc.id, tc.value)) {
 				t.Fatal("valid use replaced immutable backing")
 			}
 			if tc.id == 1007 {
@@ -215,7 +122,7 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.Rows.Close()
-	entry := preparedFoldEntry(t, d, d.Results[0].Usage.Type.ID(), "(7,owned)")
+	entry := enginetest.PreparedFoldEntry(t, d, d.Results[0].Usage.Type.ID(), "(7,owned)")
 	compound := entry.Value
 	if entry.Result != d.Results[0].Usage || compound.Type() != entry.Result.Type ||
 		!compound.Type().IsComposite() || compound.CompositeLen() != 2 ||
@@ -224,7 +131,7 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 		len(entry.Inputs) != 2 {
 		t.Fatal("missing typed compound constructor artifact")
 	}
-	before := snapshotFoldDescription(d)
+	before := enginetest.SnapshotFoldDescription(d)
 	r, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
@@ -259,7 +166,7 @@ func TestPreparedFoldOccurrenceProvenance(t *testing.T) {
 		} {
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 			ast, d := enginetest.PreparedDescription(t, e, s, tc.query)
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			origins := make(map[exec.FoldOrigin]bool)
 			for _, entry := range d.Folds.Current().Entries {
 				if entry.Origin.Owner.Address.ClassID != tc.class {
@@ -270,10 +177,10 @@ func TestPreparedFoldOccurrenceProvenance(t *testing.T) {
 			if len(origins) != tc.count {
 				t.Fatal("stored defaults/view/invocation sites aliased", tc.query, origins)
 			}
-			preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
-			before := snapshotFoldDescription(d)
+			enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
+			before := enginetest.SnapshotFoldDescription(d)
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
-			preparedFoldExecute(t, e, s, ast, &d)
+			enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 			if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 				t.Fatal("unchanged stored origin missed its retained backing", tc.query)
 			}
@@ -310,7 +217,7 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 	}
 	// Conditional demand skips an unreached provider, without filling its key.
 	conditional, conditionalDescription := enginetest.PreparedDescription(t, e, s, "SELECT coalesce('safe',(1/0)::text) AS v")
-	preparedFoldExecute(t, e, s, conditional, &conditionalDescription)
+	enginetest.PreparedFoldExecute(t, e, s, conditional, &conditionalDescription)
 	for _, entry := range conditionalDescription.Folds.Current().Entries {
 		if entry.Result.Type.ID() != sqltype.Text {
 			t.Fatal("skipped arithmetic provider was demanded")

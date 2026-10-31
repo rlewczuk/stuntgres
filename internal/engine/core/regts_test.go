@@ -119,15 +119,15 @@ func TestRegTSProviderResolution(t *testing.T) {
 	}
 	for _, tc := range []struct{ input, code string }{{"reg_ts_missing.unaccent", "42704"}, {"a..b", "42602"}, {"a.b.c.d", "42601"}, {"reg_ts_foreign.public.unaccent", "0A000"}} {
 		_, err := input.ResolveRegdictionary(context.Background(), tc.input)
-		extensionUnitError(t, err, tc.code)
+		enginetest.State(t, err, tc.code)
 	}
 	if id, err := input.ResolveRegconfig(context.Background(), "simple"); err != nil || id != 3748 {
 		t.Fatal("genuine builtin configuration", id, err)
 	}
 	_, err = input.ResolveRegconfig(context.Background(), "reg_ts_missing.simple")
-	extensionUnitError(t, err, "42704")
+	enginetest.State(t, err, "42704")
 	_, err = input.ResolveRegconfig(context.Background(), "a..b")
-	extensionUnitError(t, err, "42602")
+	enginetest.State(t, err, "42602")
 	rows := &exec.FinalRows{}
 	for _, alias := range []sqltype.ID{sqltype.Regdictionary, sqltype.Regconfig} {
 		typ, _ := view.LookupType(alias)
@@ -336,7 +336,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, admin, stage)
+	enginetest.PublishOperationStage(t, e, admin, stage)
 	install := &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}, Options: []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: "reg_ts_acl"}}}}
 	if err := extensionUnitExecute(t, e, admin, install); err != nil {
 		t.Fatal(err)
@@ -358,7 +358,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	}
 	denied := capture()
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
-	extensionUnitError(t, err, "42501")
+	enginetest.State(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
 	if err := enginetest.SetObjectACL(e, context.Background(), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
@@ -369,7 +369,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 		t.Fatal("granted coherent authority", id, err)
 	}
 	_, err = denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
-	extensionUnitError(t, err, "42501")
+	enginetest.State(t, err, "42501")
 }
 
 func TestRegTSStoredDependencyProviders(t *testing.T) {

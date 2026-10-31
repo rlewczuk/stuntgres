@@ -22,7 +22,7 @@ import (
 // portal graph and fold owners, including rejected publication and failed Execute.
 func TestReplicationSlotPreparedOwnership(t *testing.T) {
  e:=engine.New(); s:=enginetest.StartSession(t,e,nil); enginetest.SessionSQL(t,s,"BEGIN")
- cycle:=s.NewProtocolCycle(); command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
+ cycle:=s.NewProtocolCycle(); command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
  query:=preparedFoldPoint+",pg_create_physical_replication_slot($1::name,temporary=>true) AS v"
  command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("slot_owned",query,nil);return err})
  registry:=core.PayloadOf(s).PreparedSQL; definition:=registry.Lookup("slot_owned"); owner:=definition.Description.Folds
@@ -62,7 +62,7 @@ func TestReplicationSlotPreparedOwnership(t *testing.T) {
  var diagnostic *sqlstate.Error; if !errors.As(err,&diagnostic) || diagnostic.Code!="0A000" || diagnostic.Message!="pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode" { t.Fatal("demanded boundary",err) }
  if a.Resource.Root!=rootA || a.Folds!=foldsA || b.Resource.Root!=nil || b.Folds!=nil { t.Fatal("live frame cleanup changed accepted artifacts") }
  if !reflect.DeepEqual(rootA.Expressions[1],callA) || !reflect.DeepEqual(rootB.Expressions[1],callB) || definition.Description.Folds!=owner || !reflect.DeepEqual(analysis.Dependencies,manifest) { t.Fatal("accepted graph/definition mutated") }
- assertFolds:=func(retained *exec.AcceptedFolds,saved exec.AcceptedFolds,entries []exec.FoldConstant){ t.Helper(); if retained.Generation!=saved.Generation || &retained.Entries[0]!=&saved.Entries[0] || !reflect.DeepEqual(retained.Dependencies,saved.Dependencies) { t.Fatal("accepted generation/backing changed") }; for i,entry:=range entries { if !samePublishedFold(entry,retained.Entries[i]) { t.Fatal("accepted value/provenance changed") } } }
+ assertFolds:=func(retained *exec.AcceptedFolds,saved exec.AcceptedFolds,entries []exec.FoldConstant){ t.Helper(); if retained.Generation!=saved.Generation || &retained.Entries[0]!=&saved.Entries[0] || !reflect.DeepEqual(retained.Dependencies,saved.Dependencies) { t.Fatal("accepted generation/backing changed") }; for i,entry:=range entries { if !enginetest.SamePublishedFold(entry,retained.Entries[i]) { t.Fatal("accepted value/provenance changed") } } }
  assertFolds(foldsA,savedA,entriesA); assertFolds(foldsB,savedB,entriesB)
  found:=false; for _,dependency:=range manifest { found=found || dependency.Ref.Address.ObjectID==3779 && dependency.Ref.Address.ClassID==ids.ProcedureClassID }; if !found { t.Fatal("missing selected full declaration dependency") }
  op,_,err=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; err=e.SyncProtocolCycle(op,cycle); op.Done(); if err!=nil { t.Fatal(err) }; enginetest.SessionSQL(t,s,"ROLLBACK")

@@ -85,7 +85,7 @@ func TestInsertReturningModes(t *testing.T) {
 	outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
 	inner := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	calls := 0
-	probe := queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return column.Eval(c) })
+	probe := enginetest.QueryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return column.Eval(c) })
 	for _, tc := range []struct {
 		name                 string
 		old, absent, missing bool
@@ -178,7 +178,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 				cursor := &insertConflictInputCursor{schema: b.Relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(3), integer(30)}}}
 				calls := 0
 				injected := errors.New("late private output veto")
-				b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				b.Returning.Expressions[0] = enginetest.QueryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if len(scope.Stage.Rows[b.Ref.Address]) != calls || cursor.position != calls {
 						t.Fatal("projection preceded final stage or next proposal", calls, cursor.position, scope.Stage.Rows)
@@ -250,7 +250,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 			t.Fatal("stale provider admitted output", accepted, retry, err, scope.Stage.Rows)
 		}
 		calls := 0
-		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
+		b.Returning.Expressions[0] = enginetest.QueryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
 		if _, err := dml.AdmitInsertProducer(evaluation.Context, scope.WriteHost(), b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}

@@ -34,7 +34,7 @@ func TestPLpgSQLCaptureCTECommandLifetime(t *testing.T) {
 				failure := errors.New("capture qualification")
 				rowParts := triggerUnitDefinition(t, read, relation, body, "r", stored.TriggerInsert).Parts()
 				rowParts.Timing = stored.TriggerAfter
-				rowParts.When = queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+				rowParts.When = enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 					accepted++
 					child, _ = core.ScopeEffectTestIDs(s)
 					owner = core.ScopeCTEInvocation(s)
@@ -49,7 +49,7 @@ func TestPLpgSQLCaptureCTECommandLifetime(t *testing.T) {
 				statementParts := rowParts
 				statementParts.Name, statementParts.OID = "s", rowParts.OID+1
 				statementParts.Level = stored.TriggerStatement
-				statementParts.When = queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+				statementParts.When = enginetest.QueryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 					qualified++
 					active, _ := core.ScopeEffectTestIDs(s)
 					if active != child || core.ScopeAfterTestFrames(s)[child].Rows != 1 {

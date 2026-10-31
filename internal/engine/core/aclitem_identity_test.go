@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
@@ -53,7 +54,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	aclUnitRoles(e, "acl_unit_a", "acl_unit_b")
 	d := aclUnitType(t, e, sqltype.ACLItem)
 	array := aclUnitType(t, e, sqltype.ACLItemArray)
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	position := parser.Position{Offset: 7, Character: 8}
 	value, err := b.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil {
@@ -89,7 +90,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		t.Fatal("rename mutated old role root")
 	}
 	expected := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()}
-	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	reused := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {
 		t.Fatal("prepared literal re-resolved old spelling", err)
@@ -152,7 +153,7 @@ func TestACLItemEqualityAdmission(t *testing.T) {
 	e := engine.New()
 	d := aclUnitType(t, e, sqltype.ACLItem)
 	array := aclUnitType(t, e, sqltype.ACLItemArray)
-	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	for _, operator := range []string{"<>", "!=", "<", "<=", ">", ">="} {
 		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: operator}}}, Pos: parser.Position{Character: 29}}
 		_, _, err := b.ResolveComparisonTypes(raw, d, nil)

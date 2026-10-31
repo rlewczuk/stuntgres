@@ -118,7 +118,7 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 							t.Error("equal-principal invoker and trusted RI phases were conflated", seen)
 						}
 					} else {
-						nullCountUnitDiagnostic(t, check(second), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+						enginetest.Diagnostic(t, check(second), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 					}
 					sequence := enginetest.CatalogRef(t, e, view, "check_phase_steps")
 					e.Mu.Lock()
@@ -141,7 +141,7 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					nullCountUnitDiagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+					enginetest.Diagnostic(t, core.ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 					e.Mu.Lock()
 					after := *e.Storage.Sequences[sequence.Address]
 					e.Mu.Unlock()
@@ -211,7 +211,7 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 			// constraint's genuine original dependencies.
 			for range 2 {
 				_, err := table.ValidateCheckRow(d, []sqltype.Value{value}, &evaluation)
-				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 				if _, ok := evaluation.PreparedChecks[d]; ok {
 					t.Fatal("failed preflight cached a partial CHECK set")
 				}

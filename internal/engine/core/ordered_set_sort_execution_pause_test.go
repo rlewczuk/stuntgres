@@ -100,7 +100,7 @@ func TestOrderedSetSortExecutionPauseOwnership(t *testing.T) {
 						argument := call.Arguments[0]
 						observed := make(chan context.Context, 1)
 						seen := false
-						call.Arguments[0] = queryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+						call.Arguments[0] = enginetest.QueryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 							if !seen {
 								seen = true
 								observed <- c.Context
@@ -112,13 +112,13 @@ func TestOrderedSetSortExecutionPauseOwnership(t *testing.T) {
 						})
 						if action == "child_sort_error" {
 							child := node.Child
-							node.Child = &plan.SortNode{QuerySchema: child.Schema(), Child: child, CacheWidth: 1, Keys: []plan.SortKey{{Cache: 0, Slot: -1, Comparison: call.Order[0].Comparison, Expression: queryProbe(argument.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+							node.Child = &plan.SortNode{QuerySchema: child.Schema(), Child: child, CacheWidth: 1, Keys: []plan.SortKey{{Cache: 0, Slot: -1, Comparison: call.Order[0].Comparison, Expression: enginetest.QueryProbe(argument.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 								return sqltype.Value{}, primary
 							})}}}
 						}
 						if action == "direct_error" {
 							direct := call.Direct[0]
-							call.Direct[0] = queryProbe(direct.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+							call.Direct[0] = enginetest.QueryProbe(direct.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 								return sqltype.Value{}, primary
 							})
 						}
@@ -155,7 +155,7 @@ func TestOrderedSetSortExecutionPauseOwnership(t *testing.T) {
 							producer = &exec.Stage{
 								Source:  &exec.Source{Anonymous: rows},
 								Columns: schema,
-								Expressions: []expr.Expr{queryProbe(schema[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+								Expressions: []expr.Expr{enginetest.QueryProbe(schema[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 									if action == "input_and_close_error" {
 										return sqltype.Value{}, primary
 									}

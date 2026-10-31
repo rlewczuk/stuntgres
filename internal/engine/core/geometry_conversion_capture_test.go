@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -25,7 +26,7 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 			Syntax:   parser.PostfixCast, Pos: parser.Position{Offset: 17, Character: 18},
 		}},
 	}
-	first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	first := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	bound, err := first.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 		Parameters:   analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{first.Type(sqltype.Text).Usage()}},
 		CatalogOwner: view.Owner(), CatalogEpoch: view.Epoch(), Types: first.Prepared.Types, Analysis: &core.Analysis{},
 	}
-	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	next := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	node, handled, err := next.BindSQLCallable(raw)
 	if err != nil || !handled || node.ResultUsage() != captured.Base {
 		t.Fatal("retained typename assembly", handled, err)
@@ -62,18 +63,18 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 	if node, handled, err := next.BindSQLCallable(sibling); err != nil || !handled || node.ResultUsage() != captured.Base || next.Prepared.Types[analyze.PreparedTypeKey{Offset: 40, Kind: analyze.TypeNameCast}].Base != captured.Base {
 		t.Fatal("sibling did not acquire its own occurrence", handled, err)
 	}
-	foreign := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
+	foreign := enginetest.ExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
 	if node, handled, err := foreign.BindSQLCallable(raw); err != nil || !handled || node.ResultUsage().Type != foreign.Type(sqltype.Polygon) || node.ResultUsage().Type == captured.Base.Type {
 		t.Fatal("foreign owner reused retained target", handled, err)
 	}
 	bad := *expected
 	bad.Types = map[analyze.PreparedTypeKey]analyze.TypeOccurrence{key: {Kind: analyze.TypeNameCast, Base: first.Type(sqltype.Circle).Usage()}}
-	invalid := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &bad)
+	invalid := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &bad)
 	if _, handled, err := invalid.BindSQLCallable(raw); err == nil || !handled {
 		t.Fatal("mismatched target authority admitted")
 	}
 	expected.RetireAnalysisTypeCasts()
-	retired := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	retired := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	if node, handled, err := retired.BindSQLCallable(raw); err != nil || !handled || node.ResultUsage() != retired.Type(sqltype.Polygon).Usage() {
 		t.Fatal("retired occurrence failed fresh selection", handled, err)
 	}

@@ -135,7 +135,7 @@ func TestRIRoutinePublicationCurrentAuthority(t *testing.T) {
 				// The initiator keeps EXECUTE: consulting the restored caller in
 				// place of the recorded child owner would incorrectly permit Finish.
 				enginetest.RoleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM ri_publication_owner")
-				nullCountUnitDiagnostic(t, scope.Finish(nil), sqlstate.Error{
+				enginetest.Diagnostic(t, scope.Finish(nil), sqlstate.Error{
 					Code: "42501", Message: "permission denied for function json_array_length",
 					Context: `SQL statement "UPDATE ONLY "public"."ri_publication_child" SET "pid" = DEFAULT WHERE $1 OPERATOR(pg_catalog.=) "pid""`,
 				})

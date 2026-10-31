@@ -22,7 +22,7 @@ func TestSessionActivityProtocolAuthorityAndFolds(t *testing.T) {
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
 	query := "/* retained λ */ SELECT current_query(), pg_backend_pid() FROM generate_series(1,2)"
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.ParseProtocol("activity", query, nil)
 		if scope.Op.OriginalSQL != query || !scope.Op.SQLAvailable {

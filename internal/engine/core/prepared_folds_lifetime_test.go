@@ -1,12 +1,13 @@
 package core_test
 
 import (
-	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/enginetest"
 	"context"
 	"errors"
 	"testing"
+
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -14,24 +15,12 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 const preparedFoldPoint = "SELECT (point '0.10000000000000002,1')::text AS p"
-
-func preparedFoldExecute(t *testing.T, e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) {
-	t.Helper()
-	r, err := enginetest.PreparedExecute(e, s, ast, d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Rows != nil {
-		r.Rows.Close()
-	}
-}
 
 func TestPreparedFoldInvalidation(t *testing.T) {
 	e := rootengine.New()
@@ -80,9 +69,9 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE TABLE fold_operand(v int)")
 	enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 	ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
-	preparedFoldExecute(t, e, s, ast, &d)
-	original := snapshotFoldDescription(d)
-	preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	original := enginetest.SnapshotFoldDescription(d)
+	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
 	table := primaryKeyUnitRelation(t, e, "fold_operand")
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), table.Address())
 	// One genuine catalog address has two possible purposes. The analysis
@@ -95,11 +84,11 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	if preparedRebindValid(t, e, s, d.Analysis) {
 		t.Fatal("incidental dependency was suppressed from analysis")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	if d.Analysis == &incidental || &d.Folds.Current().Entries[0] != &original.Accepted.Entries[0] || d.Folds.Current().Generation != original.Accepted.Generation {
 		t.Fatal("incidental revision did not reanalyze while preserving the exact fold")
 	}
-	preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
+	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
 	// A planning-only executable dependency at the exact same address retires
 	// folds independently, without making the ordinary analysis invalid.
 	table = primaryKeyUnitRelation(t, e, "fold_operand")
@@ -115,17 +104,17 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	if !preparedRebindValid(t, e, s, d.Analysis) {
 		t.Fatal("planning-only dependency leaked into analysis lifetime")
 	}
-	preparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	if &d.Folds.Current().Entries[0] == &original.Accepted.Entries[0] || d.Folds.Current().Generation == planningGeneration {
 		t.Fatal("same-address executable purpose failed to retire")
 	}
-	preparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
+	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
 	// Root retirement is monotonic through a failed shape refresh and restored
 	// environment. Old immutable groups stay readable, never publication-eligible.
 	enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 	discardUnitApply(t, s, parser.DiscardPlans)
-	preparedFoldExecute(t, e, s, ast, &d)
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	before := enginetest.SnapshotFoldDescription(d)
 	discardUnitApply(t, s, parser.DiscardPlans)
 	saved := d.Results
 	d.Results = nil
@@ -138,9 +127,9 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	}
 	assertFoldReuseRetirement(t, d.Folds, false)
 	enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
-	preparedFoldExecute(t, e, s, ast, &d)
-	preparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
-	preparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
+	enginetest.PreparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
 	t.Run("RealLifetimeCauses", func(t *testing.T) {
 		for _, cause := range []string{"relation", "path", "namespace", "native"} {
 			t.Run(cause, func(t *testing.T) {
@@ -154,8 +143,8 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 					source += " FROM t"
 				}
 				statement, description := enginetest.PreparedDescription(t, engine, owner, source)
-				preparedFoldExecute(t, engine, owner, statement, &description)
-				old := snapshotFoldDescription(description)
+				enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
+				old := enginetest.SnapshotFoldDescription(description)
 				enginetest.SessionSQL(t, owner, "SET extra_float_digits=0")
 				switch cause {
 				case "relation":
@@ -170,12 +159,12 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 					}
 					enginetest.SessionSQL(t, owner, "SET extra_float_digits=0")
 				}
-				preparedFoldExecute(t, engine, owner, statement, &description)
+				enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
 				if &old.Accepted.Entries[0] == &description.Folds.Current().Entries[0] || old.Accepted.Generation == description.Folds.Current().Generation {
 					t.Fatal("real lifetime cause retained root")
 				}
-				preparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
-				preparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
+				enginetest.PreparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
+				enginetest.PreparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
 			})
 		}
 	})
@@ -186,18 +175,18 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 			enginetest.SessionSQL(t, owner, q)
 		}
 		statement, description := enginetest.PreparedDescription(t, engine, owner, preparedFoldPoint+" FROM fold_rls")
-		preparedFoldExecute(t, engine, owner, statement, &description)
+		enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
 		if !description.Folds.RoleSensitive {
 			t.Fatal("represented RLS environment was not collected")
 		}
-		old := snapshotFoldDescription(description)
+		old := enginetest.SnapshotFoldDescription(description)
 		enginetest.SessionSQL(t, owner, "SET extra_float_digits=0")
 		enginetest.SessionSQL(t, owner, "SET row_security=off")
-		preparedFoldExecute(t, engine, owner, statement, &description)
+		enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
 		if &description.Folds.Current().Entries[0] == &old.Accepted.Entries[0] || description.Folds.Environment.RowSecurity {
 			t.Fatal("represented row-security environment did not retire")
 		}
-		preparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
+		enginetest.PreparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
 	})
 	t.Run("SemanticProjection", func(t *testing.T) {
 		engine := rootengine.New()
@@ -369,18 +358,18 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 			enginetest.SessionSQL(t, owner, q)
 		}
 		statement, description := enginetest.PreparedDescription(t, engine, owner, preparedFoldPoint+" FROM pg_temp.fold_private")
-		preparedFoldExecute(t, engine, owner, statement, &description)
-		old := snapshotFoldDescription(description)
+		enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
+		old := enginetest.SnapshotFoldDescription(description)
 		enginetest.SessionSQL(t, owner, "ROLLBACK TO before_source")
 		for _, q := range []string{"CREATE TEMP TABLE fold_private(v int)", "INSERT INTO fold_private VALUES(1)", "SET extra_float_digits=0"} {
 			enginetest.SessionSQL(t, owner, q)
 		}
-		preparedFoldExecute(t, engine, owner, statement, &description)
+		enginetest.PreparedFoldExecute(t, engine, owner, statement, &description)
 		if &old.Accepted.Entries[0] == &description.Folds.Current().Entries[0] || old.Accepted.Generation == description.Folds.Current().Generation {
 			t.Fatal("rolled-back private context certified old folds")
 		}
-		preparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
-		preparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
+		enginetest.PreparedFoldEntry(t, description, sqltype.Text, "(0.1,1)")
+		enginetest.PreparedFoldEntry(t, old, sqltype.Text, "(0.10000000000000002,1)")
 		enginetest.SessionSQL(t, owner, "ROLLBACK")
 	})
 }
@@ -486,11 +475,11 @@ func TestPreparedFoldPublication(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || !foldRootsReusable(d.Folds) {
 			t.Fatal("execution failure undid accepted fold planning", err)
 		}
-		before := snapshotFoldDescription(d)
-		preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
+		before := enginetest.SnapshotFoldDescription(d)
+		enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
 		enginetest.SessionSQL(t, s, "UPDATE fold_runtime SET v=1")
 		enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
-		preparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("retry did not retain accepted pre-execution group")
 		}
@@ -502,8 +491,8 @@ func TestPreparedFoldPublication(t *testing.T) {
 			enginetest.SessionSQL(t, s, q)
 		}
 		ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+" FROM fold_authority")
-		preparedFoldExecute(t, e, s, ast, &d)
-		before := snapshotFoldDescription(d)
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		before := enginetest.SnapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON fold_authority FROM fold_reader", "SET SESSION AUTHORIZATION fold_reader", "SET extra_float_digits=0", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
@@ -513,12 +502,12 @@ func TestPreparedFoldPublication(t *testing.T) {
 			t.Fatal("final authority rejection published a private group", err)
 		}
 		assertFoldReuseRetirement(t, d.Folds, false)
-		preparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
+		enginetest.PreparedFoldEntry(t, before, sqltype.Text, "(0.10000000000000002,1)")
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "GRANT SELECT ON fold_authority TO fold_reader", "SET SESSION AUTHORIZATION fold_reader"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		preparedFoldExecute(t, e, s, ast, &d)
-		preparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
+		enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+		enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.1,1)")
 	})
 	e := rootengine.New()
 	s := enginetest.StartSession(t, e, nil)
@@ -539,8 +528,8 @@ func TestPreparedFoldPublication(t *testing.T) {
 	assertFoldReuseRetirement(t, failed.Folds, false)
 	enginetest.TransactionRows(t, s, "SELECT v FROM fold_effect", 1)
 	ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
-	preparedFoldExecute(t, e, s, ast, &d)
-	before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	before := enginetest.SnapshotFoldDescription(d)
 	// Exercise the real final publisher with a private COW candidate. Retirement
 	// and cancellation veto publication without mutating either generation's data.
 	for _, cause := range []string{"cancellation", "retirement", "generation", "native"} {
@@ -560,7 +549,7 @@ func TestPreparedFoldPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			local := cloneFoldDescription(t, d)
+			local := enginetest.CloneFoldDescription(t, d)
 			scope.Expected = &local
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(op)

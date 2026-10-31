@@ -165,7 +165,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			primary := errors.New("later actual RETURNING failure")
 			closeFailure := errors.New("actual producer Close veto")
 			calls, closes := 0, 0
-			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			probe := enginetest.QueryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if len(scope.Stage.Rows[a.Address]) != 1 {
 					t.Fatal("later output did not follow accepted earlier private write")

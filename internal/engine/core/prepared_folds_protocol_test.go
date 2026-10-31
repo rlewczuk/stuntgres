@@ -1,38 +1,22 @@
 package core_test
 
 import (
-	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/enginetest"
 	"context"
+	"testing"
+
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"stuntgres/internal/engine/core"
 )
-
-func preparedFoldProtocolCommand(t *testing.T, e *core.Engine, s *session.Session, cycle *session.ProtocolCycle, fn func(*core.StatementScope) error) {
-	t.Helper()
-	op, _, err := s.AcquireCommand(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	scope, err := e.StartProtocolCommand(op, cycle)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = fn(scope)
-	if err = scope.Finish(err); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestPreparedFoldProtocolOwnership(t *testing.T) {
 	e := rootengine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "BEGIN")
 	cycle := s.NewProtocolCycle()
-	command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	parse := func(name string) {
 		command(func(scope *core.StatementScope) error {
 			_, err := scope.ParseProtocol(name, preparedFoldPoint, nil)
@@ -57,7 +41,7 @@ func TestPreparedFoldProtocolOwnership(t *testing.T) {
 		t.Fatal("Parse computed or omitted definition ownership")
 	}
 	bind("fold_old", "fold_named")
-	published := snapshotFoldDescription(definition.Description)
+	published := enginetest.SnapshotFoldDescription(definition.Description)
 	portal := registry.Binding("fold_old")
 	if portal.Entry.Description.Folds != cell || portal.Resource == nil || portal.Resource.Root == nil {
 		t.Fatal("Bind did not share cell and own a private graph")
@@ -72,7 +56,7 @@ func TestPreparedFoldProtocolOwnership(t *testing.T) {
 	if registry.Binding("fold_again").Entry.Description.Folds != cell || &cell.Current().Entries[0] != &published.Accepted.Entries[0] {
 		t.Fatal("repeated Bind failed to share definition folds")
 	}
-	preparedFoldEntry(t, definition.Description, sqltype.Text, "(0.10000000000000002,1)")
+	enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Text, "(0.10000000000000002,1)")
 	closeStatement("fold_named")
 	if cell.Live() || portal.Retired || portal.Resource.Root != root {
 		t.Fatal("close changed live portal graph or retained publication rights")
@@ -82,7 +66,7 @@ func TestPreparedFoldProtocolOwnership(t *testing.T) {
 		t.Fatal("replacement name adopted retired owner")
 	}
 	bind("fold_new", "fold_named")
-	preparedFoldEntry(t, registry.Lookup("fold_named").Description, sqltype.Text, "(0.1,1)")
+	enginetest.PreparedFoldEntry(t, registry.Lookup("fold_named").Description, sqltype.Text, "(0.1,1)")
 	if portal.Resource.Root != root {
 		t.Fatal("replacement mutated old portal graph")
 	}

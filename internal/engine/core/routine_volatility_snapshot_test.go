@@ -247,7 +247,7 @@ func TestRoutineConstantPlanningPhase(t *testing.T) {
 		for _, cause := range []error{nil, primary} {
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.CatalogRead(), ConstantPlanning: previous}}
 			planning := true
-			probe := queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+			probe := enginetest.QueryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 				if c.ConstantPlanning != planning {
 					t.Fatal("evaluation lost its actual constant-planning phase")
 				}

@@ -66,7 +66,7 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys, records bool) {
 			query := "SELECT " + tc.expression + " AS v"
 			enginetest.SessionSQL(t, s, "BEGIN")
 			cycle := s.NewProtocolCycle()
-			command := func(fn func(*core.StatementScope) error) { preparedFoldProtocolCommand(t, e, s, cycle, fn) }
+			command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 			command(func(scope *core.StatementScope) error {
 				_, err := scope.ParseProtocol("hs_owned", query, nil)
 				return err
@@ -191,7 +191,7 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys, records bool) {
 			bind("hs_second")
 			second := registry.Binding("hs_second")
 			current := owner.Current()
-			if second == nil || second == first || second.Entry.Description.Folds != owner || second.Folds.Generation != accepted.Generation || current.Generation != accepted.Generation || &second.Folds.Entries[0] != &accepted.Entries[0] || &current.Entries[0] != &accepted.Entries[0] || current.Entries[index].Value != value || !samePublishedFold(retained, current.Entries[index]) {
+			if second == nil || second == first || second.Entry.Description.Folds != owner || second.Folds.Generation != accepted.Generation || current.Generation != accepted.Generation || &second.Folds.Entries[0] != &accepted.Entries[0] || &current.Entries[0] != &accepted.Entries[0] || current.Entries[index].Value != value || !enginetest.SamePublishedFold(retained, current.Entries[index]) {
 				t.Fatal("repeated Bind replaced immutable backing or capture provenance")
 			}
 			assertGraph(second)
@@ -214,8 +214,8 @@ func testHstoreSelectedPreparedOwnership(t *testing.T, keys, records bool) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					local := cloneFoldDescription(t, definition.Description)
-					before := snapshotFoldDescription(local)
+					local := enginetest.CloneFoldDescription(t, definition.Description)
+					before := enginetest.SnapshotFoldDescription(local)
 					scope.Expected = &local
 					e.Mu.Lock()
 					auth, err := e.AuthorizationLocked(op)

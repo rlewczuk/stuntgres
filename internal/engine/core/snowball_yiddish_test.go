@@ -122,13 +122,13 @@ func TestSnowballYiddishPublication(t *testing.T) {
 				case "namespace": bad := *before.MustNamespace(p.Namespace.Address()); bad.ObjectRevision = bad.Revision()+1; if err := other.Replace(&bad); err != nil { t.Fatal(err) }
 				case "original": bad := *p.Original; bad.ObjectRevision = bad.Revision()+1; if err := other.Replace(&bad); err != nil { t.Fatal(err) }
 				}
-				extensionUnitPublish(t, e, op, other)
+				enginetest.PublishOperationStage(t, e, op, other)
 			}
 			incumbent := e.CatalogRead()
 			e.Mu.Lock(); published, err := schemacmds.CompleteDictionaryLocked(e, op, stmt, stage, &p); e.Mu.Unlock()
 			if published != nil || err == nil { if published != nil { e.DiscardCatalogStage(published) }; t.Fatal("stale initializer published", err) }
 			if fence == "context" { if !errors.Is(err, context.Canceled) { t.Fatal(err) }
-			} else if fence == "role" { extensionUnitError(t, err, "42501")
+			} else if fence == "role" { enginetest.State(t, err, "42501")
 			} else if !errors.Is(err, ids.ErrCatalogReplaced) { t.Fatal(err) }
 			if e.CatalogRead().State() != incumbent.State() || p.Runtime == nil || yiddishUnitDictionary(t, e).Runtime != old { t.Fatal("rejected publication changed authority") }
 			if fence != "context" && fence != "role" && p.Current(incumbent) { t.Fatal("stale preparation remained current") }
@@ -148,10 +148,10 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 	const q = "SELECT ts_lexize('public.yiddish_fold'::regdictionary,'ONLY'::text) AS lexemes"
 	ast, d := enginetest.PreparedDescription(t, e, s, q)
 	if len(d.Folds.Current().Entries) != 0 { t.Fatal("description evaluated dictionary") }
-	preparedFoldExecute(t, e, s, ast, &d)
-	entry := preparedFoldEntry(t, d, 1009, "{only}"); before := snapshotFoldDescription(d)
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	entry := enginetest.PreparedFoldEntry(t, d, 1009, "{only}"); before := enginetest.SnapshotFoldDescription(d)
 	a := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "yiddish_fold"})
-	old := e.CatalogRead().MustTSDictionary(a); operand := dictionaryFoldDependency(t, d, a); analysis := d.Analysis
+	old := e.CatalogRead().MustTSDictionary(a); operand := enginetest.DictionaryFoldDependency(t, d, a); analysis := d.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH DICTIONARY public.yiddish_fold (stopwords=english)")
 	current := e.CatalogRead().MustTSDictionary(a)
 	if current.Runtime == old.Runtime || current.Revision() == operand.Revision { t.Fatal("replacement runtime not published") }
@@ -159,10 +159,10 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 	if err != nil || !oldValue.Recognized || len(oldValue.Lexemes) != 1 || oldValue.Lexemes[0].Text != "only" { t.Fatal("old runtime lost ownership", oldValue, err) }
 	newValue, err := current.Runtime.Lexize(t.Context(), "ONLY")
 	if err != nil || !newValue.Recognized || len(newValue.Lexemes) != 0 { t.Fatal(newValue, err) }
-	preparedFoldExecute(t, e, s, ast, &d)
-	after := d.Folds.Current(); refreshed := dictionaryFoldDependency(t, d, a)
-	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{only}")) { t.Fatal("accepted fold lost backing/current analysis") }
-	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q); preparedFoldExecute(t, e, s, freshAST, &fresh); preparedFoldEntry(t, fresh, 1009, "{}")
+	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
+	after := d.Folds.Current(); refreshed := enginetest.DictionaryFoldDependency(t, d, a)
+	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, d, 1009, "{only}")) { t.Fatal("accepted fold lost backing/current analysis") }
+	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q); enginetest.PreparedFoldExecute(t, e, s, freshAST, &fresh); enginetest.PreparedFoldEntry(t, fresh, 1009, "{}")
 	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.yiddish_fold'::regdictionary,$1::text) AS lexemes")
 	for _, tc := range [][2]string{{"ONLY", "{}"}, {"קינדער", "{קינד}"}, {"RATS", "{rats}"}} {
 		func() {
@@ -175,8 +175,8 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 		}()
 	}
 	for _, dep := range before.Accepted.Dependencies { if dep.Ref.Address == a { t.Fatal("fold operand retained executable authority") } }
-	preparedFoldEntry(t, before, 1009, "{only}")
+	enginetest.PreparedFoldEntry(t, before, 1009, "{only}")
 	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
 	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 { t.Fatal("later expression published prefix", err) }
-	snowballRejectedFold(t, e, s, ast, d, "{only}")
+	enginetest.SnowballRejectedFold(t, e, s, ast, d, "{only}")
 }

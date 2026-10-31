@@ -43,7 +43,7 @@ func statisticsUnitEngine(t *testing.T) (*core.Engine, *catalog.Relation) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "statistics_input"})
 	return e, view.MustRelation(address)
@@ -102,7 +102,7 @@ func TestStatisticsObjectImmutableDefinition(t *testing.T) {
 	if frozen.Key(1) != 4 || frozen.Kinds() != "fm" {
 		t.Fatal("caller storage retained")
 	}
-	extensionUnitPublish(t, e, op, stage)
+	enginetest.PublishOperationStage(t, e, op, stage)
 	captured := e.CatalogRead()
 	provider := catalog.StatisticsProvider{}
 	if err := provider.Validate(captured, d); err != nil {
@@ -178,7 +178,7 @@ func TestStatisticsObjectPublicationRevisionFence(t *testing.T) {
 		t.Fatal("effective revision did not advance", err)
 	}
 	defer e.DiscardCatalogStage(winner)
-	extensionUnitPublish(t, e, op, winner)
+	enginetest.PublishOperationStage(t, e, op, winner)
 	incumbent := e.CatalogRead()
 	if _, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("stale input statistics published")
@@ -239,7 +239,7 @@ func TestStatisticsObjectPublicationConcurrentSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extensionUnitPublish(t, e, op, winner)
+	enginetest.PublishOperationStage(t, e, op, winner)
 	incumbent := e.CatalogRead()
 	unblock()
 	result := <-finished

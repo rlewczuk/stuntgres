@@ -55,7 +55,7 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 				t.Fatal("actual CHECK truth did not run exactly once", before.Last)
 			}
 			enginetest.RoleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.int4gt(integer,integer) FROM publication_reader")
-			nullCountUnitDiagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
+			enginetest.Diagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			e.Mu.Lock()
 			after := *generator
 			e.Mu.Unlock()

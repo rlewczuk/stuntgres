@@ -27,7 +27,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 	owner := catalog.MustRelation(ref.Address)
 	for _, name := range []string{"pg_blocking_pids", "pg_safe_snapshot_blocking_pids"} {
 		b := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		raw := datetimeMakeRaw(name, datetimeMakeInteger(0))
+		raw := enginetest.FunctionCall(name, datetimeMakeInteger(0))
 		bound, err := b.BindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
@@ -126,10 +126,6 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("scalar result accepted")
 		}
 	}
-}
-
-func datetimeMakeRaw(name string, values ...parser.Expr) parser.FunctionExpr {
-	return parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: values, Pos: parser.Position{Character: 8}}
 }
 
 func datetimeMakeInteger(n int64) parser.Expr {

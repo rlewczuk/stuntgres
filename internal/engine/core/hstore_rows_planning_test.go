@@ -93,6 +93,6 @@ func TestHstoreRowsLiteralNullAdmission(t *testing.T) {
 		evaluation.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, reader)
 		evaluation.RoutineChecks = binder.Dependencies
 		err := exec.AdmitRoutineCall(&evaluation, node, false, false)
-		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function " + name})
+		enginetest.Diagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function " + name})
 	}
 }
