@@ -1,13 +1,20 @@
-package core_test
+package routines_test
 
 import (
+	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestPLpgSQLSQLExecutionProgramValidation(t *testing.T) {
@@ -157,4 +164,55 @@ func TestPLpgSQLSQLExecutionRemap(t *testing.T) {
 	if _, err := stored.NewRoutineRemap(read, nil, nil, nil, true).Definition(&forged); err == nil {
 		t.Fatal("remapper admitted forged checked program")
 	}
+}
+
+func loopUnitFrame(t *testing.T, source string) (*core.StatementScope, *catalog.Procedure, *proc.PLFrame, catalog.Read) {
+	t.Helper()
+	e, s := plExceptionUnitScope(t)
+	read := e.CatalogRead()
+	integer, _ := read.LookupType(sqltype.Int4)
+	language, err := catalog.LookupLanguage(read, "plpgsql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := parser.ParsePLpgSQL(source, parser.PLReturnPolicy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &catalog.Procedure{ObjectName: "loop_unit", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "loop_unit", Source: source, Result: integer.Usage(), PLSyntax: raw}}
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
+	if err == nil {
+		err = e.CompilePLRoutineLocked(s.Op, auth, d)
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := proc.NewFrame(nil)
+	t.Cleanup(input.Close)
+	frame := proc.NewPLFrame(d.SQL.PL, d.SQL, input, sqltype.CollationRef{})
+	t.Cleanup(frame.Close)
+	return s, d, frame, read
+}
+
+func plExceptionUnitScope(t *testing.T) (*core.Engine, *core.StatementScope) {
+	t.Helper()
+	e := engine.New()
+	sess := enginetest.StartSession(t, e, nil)
+	op := enginetest.TransactionOperation(t, sess)
+	ref, err := e.Begin(op, session.TxOptions{})
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	s, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	s.TxRef = ref
+	core.SetScopeWorked(s, true)
+	t.Cleanup(func() { _ = s.Finish(errors.New("unit cleanup")); op.Done() })
+	return e, s
 }

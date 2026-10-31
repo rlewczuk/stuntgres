@@ -1,4 +1,4 @@
-package core_test
+package routines_test
 
 import (
 	"reflect"

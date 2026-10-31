@@ -1,4 +1,4 @@
-package core_test
+package routines_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/proc"
@@ -143,4 +144,180 @@ func TestPLExceptionCleanupCalledRoutines(t *testing.T) {
 			})
 		}
 	}
+}
+
+type fdwUnitLifecycle struct {
+	fdwUnitSingle
+	tx                   *fdwUnitTransaction
+	beginError, endError error
+	begins, ends         int
+	check                func()
+}
+
+func (p *fdwUnitLifecycle) ForeignTransactionCapabilities(context.Context, catalog.ForeignRequest) (catalog.ForeignTransactionCapabilities, error) {
+	if p.check != nil {
+		p.check()
+	}
+	return catalog.ForeignTransactionCapabilities{StatementRollback: true, TransactionRollback: true, Savepoints: true}, nil
+}
+
+func (p *fdwUnitLifecycle) BeginForeignTransaction(context.Context, catalog.ForeignRequest) (catalog.ForeignTransaction, error) {
+	return p.tx, nil
+}
+
+func (p *fdwUnitLifecycle) BeginForeignModify(context.Context, catalog.ForeignModifyRequest) (any, error) {
+	p.begins++
+	if p.check != nil {
+		p.check()
+	}
+	return "partial", p.beginError
+}
+
+func (p *fdwUnitLifecycle) EndForeignModify(ctx context.Context, _ catalog.ForeignModifyRequest, state any) error {
+	p.ends++
+	if p.check != nil {
+		p.check()
+	}
+	if ctx.Err() != nil || state != "partial" {
+		return errors.New("invalid cleanup context/state")
+	}
+	return p.endError
+}
+
+func (p *fdwUnitLifecycle) BeginForeignInsert(ctx context.Context, request catalog.ForeignInsertRequest) (any, error) {
+	return p.BeginForeignModify(ctx, catalog.ForeignModifyRequest{ForeignRequest: request.ForeignRequest, Operation: catalog.ForeignInsert})
+}
+
+func (p *fdwUnitLifecycle) EndForeignInsert(ctx context.Context, request catalog.ForeignInsertRequest, state any) error {
+	return p.EndForeignModify(ctx, catalog.ForeignModifyRequest{ForeignRequest: request.ForeignRequest, Operation: catalog.ForeignInsert}, state)
+}
+
+type plExceptionFaultTx struct {
+	fdwUnitTransaction
+	saveError, rollbackError error
+	canceledRollback         bool
+}
+
+func (x *plExceptionFaultTx) Savepoint(_ context.Context, name string) error {
+	x.record("save:" + name)
+	return x.saveError
+}
+
+func (x *plExceptionFaultTx) RollbackTo(ctx context.Context, name string) error {
+	x.canceledRollback = ctx.Err() != nil
+	x.record("rollback:" + name)
+	return x.rollbackError
+}
+
+type fdwUnitSingle struct {
+	fdwUnitScanWrapper
+	*fdwUnitInsert
+}
+
+type fdwUnitInsert struct {
+	present bool
+	calls   int
+	err     error
+	echo    bool
+}
+
+func (p *fdwUnitInsert) ExecForeignInsert(_ context.Context, _ catalog.ForeignModifyRequest, _ any, row catalog.ForeignRow) (catalog.ForeignRow, bool, error) {
+	p.calls++
+	if p.echo {
+		return row, p.present, p.err
+	}
+	return catalog.ForeignRow{}, p.present, p.err
+}
+
+func plExceptionUnlocked(t *testing.T, e *core.Engine, s *core.StatementScope) func() {
+	return func() {
+		t.Helper()
+		if !e.Mu.TryLock() {
+			t.Error("provider callback holds engine publication lock")
+		} else {
+			e.Mu.Unlock()
+		}
+		if !s.Owner.Mu.TryLock() {
+			t.Error("provider callback holds owner lock")
+		} else {
+			s.Owner.Mu.Unlock()
+		}
+		if !s.Op.Session.Mu.TryLock() {
+			t.Error("provider callback holds session lock")
+		} else {
+			s.Op.Session.Mu.Unlock()
+		}
+		if !e.ReplacementMu.TryLock() {
+			t.Error("provider callback holds replacement reservation")
+		} else {
+			e.ReplacementMu.Unlock()
+		}
+	}
+}
+
+type fdwUnitTransaction struct {
+	calls       []string
+	commitError error
+	order       *[]string
+	name        string
+	check       func()
+}
+
+func (p *fdwUnitTransaction) record(call string) error {
+	if p.check != nil {
+		p.check()
+	}
+	p.calls = append(p.calls, call)
+	return nil
+}
+
+func (p *fdwUnitTransaction) BeginStatement(context.Context) error {
+	return p.record("begin-statement")
+}
+
+func (p *fdwUnitTransaction) EndStatement(_ context.Context, success bool) error {
+	if success {
+		return p.record("statement-success")
+	}
+	return p.record("statement-failure")
+}
+
+func (p *fdwUnitTransaction) Commit(context.Context) error {
+	p.record("commit")
+	if p.order != nil {
+		*p.order = append(*p.order, p.name)
+	}
+	return p.commitError
+}
+
+func (p *fdwUnitTransaction) Rollback(context.Context) error { return p.record("rollback") }
+
+func (p *fdwUnitTransaction) Savepoint(_ context.Context, name string) error {
+	return p.record("save:" + name)
+}
+
+func (p *fdwUnitTransaction) RollbackTo(_ context.Context, name string) error {
+	return p.record("rollback:" + name)
+}
+
+func (p *fdwUnitTransaction) Release(_ context.Context, name string) error {
+	return p.record("release:" + name)
+}
+
+type fdwUnitScanWrapper struct{}
+
+func (fdwUnitScanWrapper) GetForeignRelSize(context.Context, catalog.ForeignRequest) (catalog.ForeignRelSize, error) {
+	return catalog.ForeignRelSize{}, nil
+}
+
+func (fdwUnitScanWrapper) GetForeignPaths(context.Context, catalog.ForeignRequest, catalog.ForeignRelSize) ([]catalog.ForeignPath, error) {
+	return nil, nil
+}
+
+func (fdwUnitScanWrapper) GetForeignPlan(context.Context, catalog.ForeignRequest, catalog.ForeignPath) (catalog.ForeignPlan, error) {
+	return catalog.ForeignPlan{}, nil
+}
+
+func (fdwUnitScanWrapper) BeginForeignScan(context.Context, catalog.ForeignRequest, catalog.ForeignPlan) (catalog.ForeignScan, error) {
+	return nil, nil
 }
