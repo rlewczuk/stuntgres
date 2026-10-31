@@ -1,57 +1,21 @@
 package core
 
 import (
-	"context"
 	"sync"
-	"time"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/copyfmt"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/proc"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
-
-// DisposeSQLCursors calls disposeSQLCursors.
-func DisposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
-	return disposeSQLCursors(ctx, cursors)
-}
-
-// ProtocolPortal names protocolPortal.
-type ProtocolPortal = protocolPortal
-
-// RetireProtocolPortalsAfter calls retireProtocolPortalsAfter.
-func RetireProtocolPortalsAfter(t *session.TransactionOwner, frontier uint64) {
-	retireProtocolPortalsAfter(t, frontier)
-}
-
-// SQLCursor names sqlCursor.
-type SQLCursor = sqlCursor
 
 // StatementHost names statementHost.
 type StatementHost = statementHost
 
-// ValidateSQLRoutineResult calls validateSQLRoutineResult.
-func ValidateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (proc.ResultPlan, error) {
-	return validateSQLRoutineResult(columns, result)
-}
-
 // EngineExecuteStatement calls x.executeStatement.
 func EngineExecuteStatement(x *Engine, scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
 	return x.executeStatement(scope, stmt, count, importFrame)
-}
-
-// EnginePreparedAnalysisValidLocked calls x.preparedAnalysisValidLocked.
-func EnginePreparedAnalysisValidLocked(x *Engine, auth AuthorizationView, analysis *Analysis, path sequence.Environment) bool {
-	return analysis.Valid(auth.Catalog, x.preparedEnvironmentAtPathLocked(auth, path, false))
 }
 
 // ScopeAcquireRelationTarget calls x.acquireRelationTarget.
@@ -59,188 +23,15 @@ func ScopeAcquireRelationTarget(x *StatementScope, stmt parser.Statement, author
 	return x.acquireRelationTarget(stmt, authorityStmt, execute, source)
 }
 
-// ScopeBeginProtocolSimplePortal calls x.beginProtocolSimplePortal.
-func ScopeBeginProtocolSimplePortal(x *StatementScope) error {
-	return x.beginProtocolSimplePortal()
-}
-
-// ScopeCaptureProtocolOutput calls x.captureProtocolOutput.
-func ScopeCaptureProtocolOutput(x *StatementScope, rows *exec.FinalRows, values []sqltype.Value, catalog catalog.Read) error {
-	return x.captureProtocolOutput(rows, values, catalog)
-}
-
-// ScopeCloseCursor calls x.closeCursor.
-func ScopeCloseCursor(x *StatementScope, close *parser.CloseCursor) (Result, error) {
-	return x.closeCursor(close)
-}
-
-// ScopeExecuteDeallocateSQL calls x.executeDeallocateSQL.
-func ScopeExecuteDeallocateSQL(x *StatementScope, raw *parser.DeallocateSQL, count int) (Result, error) {
-	return x.executeDeallocateSQL(raw, count)
-}
-
 // ScopeExecuteDiscard calls x.executeDiscard.
 func ScopeExecuteDiscard(x *StatementScope, raw *parser.Discard, count int) (Result, error) {
 	return x.executeDiscard(raw, count)
-}
-
-// ScopeExecuteFetchCursor calls x.executeFetchCursor.
-func ScopeExecuteFetchCursor(x *StatementScope, fetch *parser.FetchCursor, count int) (Result, error) {
-	return x.executeFetchCursor(fetch, count)
-}
-
-// ScopeFetchCursor calls x.fetchCursor.
-func ScopeFetchCursor(x *StatementScope, fetch *parser.FetchCursor) (Result, error) {
-	return x.fetchCursor(fetch)
-}
-
-// ScopeFetchCursorPortal calls x.fetchCursorPortal.
-func ScopeFetchCursorPortal(x *StatementScope, c *sqlCursor, fetch *parser.FetchCursor) (Result, error) {
-	return x.fetchCursorPortal(c, fetch)
-}
-
-// ScopeInstallCursor calls x.installCursor.
-func ScopeInstallCursor(x *StatementScope, declaration *parser.DeclareCursor, requestedName *string, root plan.Node, source *exec.Source, parameters []sqltype.Value, scroll bool) (*sqlCursor, string, error) {
-	return x.installCursor(declaration, requestedName, root, source, parameters, scroll)
-}
-
-// ScopeProtocol calls x.protocol.
-func ScopeProtocol(x *StatementScope) *protocolScope {
-	return x.protocol()
-}
-
-// ScopeProtocolOrZero calls x.protocolOrZero.
-func ScopeProtocolOrZero(x *StatementScope) protocolScope {
-	return x.protocolOrZero()
-}
-
-// ScopeProtocolSimpleIO calls x.protocolSimpleIO.
-func ScopeProtocolSimpleIO(x *StatementScope, call func() error) error {
-	return x.protocolSimpleIO(call)
-}
-
-// ScopeResolveCursorPortal calls x.resolveCursorPortal.
-func ScopeResolveCursorPortal(x *StatementScope, name string) (*sqlCursor, error) {
-	return x.resolveCursorPortal(name)
-}
-
-// ScopeSQLExecuteImporter calls x.sqlExecuteImporter.
-func ScopeSQLExecuteImporter(x *StatementScope, raw *parser.ExecuteSQL, utilityInput bool) FrameImporter {
-	return x.sqlExecuteImporter(raw, utilityInput)
 }
 
 // ScopeStageDiscardTemporary calls x.stageDiscardTemporary.
 func ScopeStageDiscardTemporary(x *StatementScope, closeCursors bool) error {
 	return x.stageDiscardTemporary(closeCursors)
 }
-
-// ScopeStartProtocolCopy calls x.startProtocolCopy.
-func ScopeStartProtocolCopy(x *StatementScope, hooks CopyProtocolHooks, from bool, options copyfmt.Options, columns int) error {
-	return x.startProtocolCopy(hooks, from, options, columns)
-}
-
-// CursorsClear calls x.clear.
-func CursorsClear(x *cursorRegistry) []*sqlCursor {
-	return x.clear()
-}
-
-// CursorsEndTransaction calls x.endTransaction.
-func CursorsEndTransaction(x *cursorRegistry, ref ids.TxRef) []*sqlCursor {
-	return x.endTransaction(ref)
-}
-
-// CursorsOrdinal returns x.ordinal.
-func CursorsOrdinal(x *cursorRegistry) uint64 { return x.ordinal }
-
-// CursorsToken returns x.token.
-func CursorsToken(x *cursorRegistry) ids.SessionToken { return x.token }
-
-// SetCursorsOrdinal sets x.ordinal.
-func SetCursorsOrdinal(x *cursorRegistry, v uint64) { x.ordinal = v }
-
-// PortalFields holds the protocolPortal fields tests set.
-type PortalFields struct {
-	Tx       ids.TxRef
-	Born     uint64
-	Entry    PreparedDefinition
-	Context  session.ProtocolContext
-	Columns  []catalog.Column
-	Producer *sqlCursor
-	Rows     exec.RowResult
-	Started  bool
-}
-
-// NewPortal builds a protocolPortal from f.
-func NewPortal(f PortalFields) *protocolPortal {
-	p := newProtocolPortal(f.Entry, f.Tx)
-	p.Birth, p.context, p.columns, p.producer, p.rows, p.started = f.Born, f.Context, f.Columns, f.Producer, f.Rows, f.Started
-	if f.Producer != nil {
-		p.Resource = &f.Producer.PreparedResource
-		p.Resource.Closer = p
-	}
-	return p
-}
-
-// PortalBornRef returns &x.Birth.
-func PortalBornRef(x *protocolPortal) *uint64 { return &x.Birth }
-
-// PortalClose calls x.close.
-func PortalClose(x *protocolPortal, ctx context.Context) error {
-	return x.close(ctx)
-}
-
-// PortalColumns returns x.columns.
-func PortalColumns(x *protocolPortal) []catalog.Column { return x.columns }
-
-// PortalContext returns x.context.
-func PortalContext(x *protocolPortal) session.ProtocolContext { return x.context }
-
-// PortalEntryRef returns &x.Entry.
-func PortalEntryRef(x *protocolPortal) *PreparedDefinition { return &x.Entry }
-
-// PortalNext calls x.next.
-func PortalNext(x *protocolPortal, ctx context.Context, values []sqltype.Value) (bool, error) {
-	return x.next(ctx, values)
-}
-
-// PortalProducer returns x.producer.
-func PortalProducer(x *protocolPortal) *sqlCursor { return x.producer }
-
-// PortalRetired returns x.Retired.
-func PortalRetired(x *protocolPortal) bool { return x.Retired }
-
-// PortalRow returns x.row.
-func PortalRow(x *protocolPortal) []sqltype.Value { return x.row }
-
-// PortalRows returns x.rows.
-func PortalRows(x *protocolPortal) exec.RowResult { return x.rows }
-
-// PortalScratch returns x.scratch.
-func PortalScratch(x *protocolPortal) []byte { return x.scratch }
-
-// PortalTx returns x.tx.
-func PortalTx(x *protocolPortal) ids.TxRef { return x.Transaction }
-
-// PortalTxRef returns &x.tx.
-func PortalTxRef(x *protocolPortal) *ids.TxRef { return &x.Transaction }
-
-// SetPortalRows sets x.rows.
-func SetPortalRows(x *protocolPortal, v exec.RowResult) { x.rows = v }
-
-// SetPortalTx sets x.tx.
-func SetPortalTx(x *protocolPortal, v ids.TxRef) { x.Transaction = v }
-
-// ProtocolScopeBind returns x.bind.
-func ProtocolScopeBind(x protocolScope) *protocolPortal { return x.bind }
-
-// ProtocolScopeCommandRef returns &x.command.
-func ProtocolScopeCommandRef(x *protocolScope) *bool { return &x.command }
-
-// ProtocolScopeSimpleRef returns &x.simple.
-func ProtocolScopeSimpleRef(x *protocolScope) *bool { return &x.simple }
-
-// SetProtocolScopeCommand sets x.command.
-func SetProtocolScopeCommand(x *protocolScope, v bool) { x.command = v }
 
 // ReplacementAdmissionMuRef returns &x.mu.
 func ReplacementAdmissionMuRef(x *replacementAdmission) *sync.Mutex { return &x.mu }
@@ -254,126 +45,6 @@ func ReplacementAdmissionWriters(x *replacementAdmission) int { return x.writers
 // ReplacementAdmissionWriting returns x.writing.
 func ReplacementAdmissionWriting(x *replacementAdmission) bool { return x.writing }
 
-// CursorAuthority returns x.authority.
-func CursorAuthority(x *sqlCursor) *exec.Authority { return x.authority }
-
-// CursorCatalog returns x.catalog.
-func CursorCatalog(x *sqlCursor) catalog.Read { return x.catalog }
-
-// CursorCount returns x.count.
-func CursorCount(x *sqlCursor) int { return x.count }
-
-// CursorCreated returns x.created.
-func CursorCreated(x *sqlCursor) sqltype.Value { return x.created }
-
-// CursorDispose calls x.dispose.
-func CursorDispose(x *sqlCursor, ctx context.Context) error {
-	return x.dispose(ctx)
-}
-
-// CursorEpoch returns x.epoch.
-func CursorEpoch(x *sqlCursor) ids.CatalogEpoch { return x.epoch }
-
-// CursorHold returns x.hold.
-func CursorHold(x *sqlCursor) bool { return x.hold }
-
-// CursorLeaves returns x.leaves.
-func CursorLeaves(x *sqlCursor) []exec.Leaf { return x.leaves }
-
-// CursorLocks returns x.locks.
-func CursorLocks(x *sqlCursor) *exec.LockContext { return x.locks }
-
-// CursorOrdinal returns x.ordinal.
-func CursorOrdinal(x *sqlCursor) uint64 { return x.ordinal }
-
-// CursorPinned returns x.pinned.
-func CursorPinned(x *sqlCursor) bool { return x.pinned }
-
-// CursorPromoted returns x.promoted.
-func CursorPromoted(x *sqlCursor) bool { return x.promoted }
-
-// CursorRecordShape returns x.recordShape.
-func CursorRecordShape(x *sqlCursor) *sqltype.Descriptor { return x.recordShape }
-
-// CursorRoot returns x.root.
-func CursorRoot(x *sqlCursor) *plan.ProjectNode { return x.Root }
-
-// CursorRoutineAuth returns x.routineAuth.
-func CursorRoutineAuth(x *sqlCursor) AuthorizationView { return x.routineAuth }
-
-// CursorRoutineAuthRef returns &x.routineAuth.
-func CursorRoutineAuthRef(x *sqlCursor) *AuthorizationView { return &x.routineAuth }
-
-// CursorRoutineDependencies returns x.routineDependencies.
-func CursorRoutineDependencies(x *sqlCursor) []catalog.ExpressionDependency {
-	return x.routineDependencies
-}
-
-// CursorSchema returns x.schema.
-func CursorSchema(x *sqlCursor) []catalog.Column { return x.schema }
-
-// CursorScroll returns x.scroll.
-func CursorScroll(x *sqlCursor) bool { return x.scroll }
-
-// CursorState returns x.state.
-func CursorState(x *sqlCursor) exec.State { return x.state }
-
-// CursorStatement returns x.statement.
-func CursorStatement(x *sqlCursor) string { return x.statement }
-
-// CursorStoreOffset returns x.storeOffset.
-func CursorStoreOffset(x *sqlCursor) int64 { return x.storeOffset }
-
-// CursorTx returns x.tx.
-func CursorTx(x *sqlCursor) ids.TxRef { return x.tx }
-
-// CursorValues returns x.values.
-func CursorValues(x *sqlCursor) []sqltype.Value { return x.values }
-
-// SetCursorPinned sets x.pinned.
-func SetCursorPinned(x *sqlCursor, v bool) { x.pinned = v }
-
-// SetCursorRoutineDependencies sets x.routineDependencies.
-func SetCursorRoutineDependencies(x *sqlCursor, v []catalog.ExpressionDependency) {
-	x.routineDependencies = v
-}
-
-// SetCursorStage sets x.stage.
-func SetCursorStage(x *sqlCursor, v *exec.Stage) { x.stage = v }
-
-// SetCursorTx sets x.tx.
-func SetCursorTx(x *sqlCursor, v ids.TxRef) { x.tx = v }
-
-// EngineHoldPrecommit calls x.holdPrecommit.
-func EngineHoldPrecommit(x *Engine, op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {
-	return x.holdPrecommit(op, owner, start, settlement)
-}
-
-// EnginePreparedAnalysisDefinitionsValidLocked calls Analysis.DefinitionsValid.
-func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *Analysis, path sequence.Environment, installedScalarAuthorityRebind bool) bool {
-	return analysis.DefinitionsValid(auth.Catalog, x.preparedEnvironmentAtPathLocked(auth, path, false), installedScalarAuthorityRebind)
-}
-
-// EnginePreparedAnalysisLocked calls x.preparedAnalysisLocked.
-func EnginePreparedAnalysisLocked(x *Engine, s *StatementScope, auth AuthorizationView, b analyze.Binding) (*Analysis, error) {
-	return x.preparedAnalysisLocked(s, auth, b)
-}
-
-// EnginePreparedInstalledScalarAuthorityRebindLocked calls x.preparedInstalledScalarAuthorityRebindLocked.
-func EnginePreparedInstalledScalarAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment) bool {
-	return x.preparedInstalledScalarAuthorityRebindLocked(auth, expected, path)
-}
-
-// EnginePreparedInstalledScalarLiteralTemporalsLocked calls x.preparedInstalledScalarLiteralTemporalsLocked.
-func EnginePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment) []analyze.TemporalConstant {
-	return x.preparedInstalledScalarLiteralTemporalsLocked(auth, expected, path)
-}
-
-// EngineRetirePreparedInstalledScalarLiteralTemporalsLocked calls x.retirePreparedInstalledScalarLiteralTemporalsLocked.
-func EngineRetirePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
-	return x.retirePreparedInstalledScalarLiteralTemporalsLocked(auth, expected, path, captures)
-}
-
 // EngineRegisterExtension calls x.registerExtension.
 func EngineRegisterExtension(x *Engine, name string, implementation extension.Installer) error {
 	return x.registerExtension(name, implementation)
@@ -384,24 +55,9 @@ func ScopeForeignWrites(x *StatementScope) fdw.WriteRuntime {
 	return x.foreignWrites()
 }
 
-// ScopeInstallSQLCursor calls x.installSQLCursor.
-func ScopeInstallSQLCursor(x *StatementScope, declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
-	return x.installSQLCursor(declaration, root, source, parameters)
-}
-
 // ScopePresentationOrZero calls x.presentationOrZero.
 func ScopePresentationOrZero(x *StatementScope) presentationCaches {
 	return x.presentationOrZero()
-}
-
-// ScopeSelectPreparedAnalysis calls x.selectPreparedAnalysis.
-func ScopeSelectPreparedAnalysis(x *StatementScope, stmt parser.Statement) error {
-	return x.selectPreparedAnalysis(stmt)
-}
-
-// CursorsRollback calls x.rollback.
-func CursorsRollback(x *cursorRegistry, mark uint64) []*sqlCursor {
-	return x.rollback(mark)
 }
 
 // PreparedCommandExecutionFields holds the preparedCommandExecution fields tests set.
@@ -422,45 +78,6 @@ func PresentationCachesConversionDefaults(x presentationCaches) map[[2]int]conve
 	return x.conversionDefaults
 }
 
-// SetProtocolScopeBind sets x.bind.
-func SetProtocolScopeBind(x *protocolScope, v *protocolPortal) { x.bind = v }
-
-// CursorForeignOwner returns x.foreignOwner.
-func CursorForeignOwner(x *sqlCursor) *exec.ForeignScanOwner { return x.foreignOwner }
-
-// CursorRLSPrograms returns x.rlsPrograms.
-func CursorRLSPrograms(x *sqlCursor) []*rowSecurityProgram { return x.rlsPrograms }
-
-// CursorReleaseProducer calls x.releaseProducer.
-func CursorReleaseProducer(x *sqlCursor, ctx context.Context) error {
-	return x.releaseProducer(ctx)
-}
-
-// CursorFields holds the sqlCursor fields tests set.
-type CursorFields struct {
-	Tx           ids.TxRef
-	Ordinal      uint64
-	Epoch        ids.CatalogEpoch
-	Hold         bool
-	Promoted     bool
-	Pinned       bool
-	Values       []sqltype.Value
-	Count        int
-	Root         *plan.ProjectNode
-	Schema       []catalog.Column
-	Source       *exec.Source
-	State        exec.State
-	Stage        *exec.Stage
-	Authority    *exec.Authority
-	ForeignOwner *exec.ForeignScanOwner
-	Scroll       bool
-}
-
-// NewCursor builds a sqlCursor from f.
-func NewCursor(f CursorFields) *sqlCursor {
-	return &sqlCursor{tx: f.Tx, ordinal: f.Ordinal, epoch: f.Epoch, hold: f.Hold, promoted: f.Promoted, pinned: f.Pinned, values: f.Values, count: f.Count, PreparedResource: PreparedResource{Root: f.Root}, schema: f.Schema, Source: f.Source, state: f.State, stage: f.Stage, authority: f.Authority, foreignOwner: f.ForeignOwner, scroll: f.Scroll}
-}
-
 // StatementHostFields holds the statementHost fields tests set.
 type StatementHostFields struct {
 	Op *session.Operation
@@ -474,31 +91,7 @@ func NewStatementHost(f StatementHostFields) *statementHost {
 // AuthorizationOf calls authorizationOf.
 func AuthorizationOf(a analyze.Authority) *AuthorizationView { return authorizationOf(a) }
 
-// CursorStage returns x.stage.
-func CursorStage(x *sqlCursor) *exec.Stage { return x.stage }
-
 // BindingHostView calls x.view.
 func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
 	return x.view(a)
-}
-
-func NewProtocolPortal(entry PreparedDefinition, tx ids.TxRef) *protocolPortal {
-	return newProtocolPortal(entry, tx)
-}
-
-func ProtocolPortalOf(binding *PreparedBinding) *protocolPortal {
-	return protocolPortalOf(binding)
-}
-
-func PortalProducerRef(p *protocolPortal) **sqlCursor             { return &p.producer }
-func PortalRowsRef(p *protocolPortal) *exec.RowResult             { return &p.rows }
-func PortalColumnsRef(p *protocolPortal) *[]catalog.Column        { return &p.columns }
-func PortalStartedRef(p *protocolPortal) *bool                    { return &p.started }
-func PortalContextRef(p *protocolPortal) *session.ProtocolContext { return &p.context }
-
-// CursorExecutionState borrows the cursor's actual retained executor owner.
-func CursorExecutionState(c *sqlCursor) *exec.State { return &c.state }
-
-func ScopeInstallProtocolProducer(s *StatementScope, root plan.Node, source *exec.Source, values []sqltype.Value) (Result, error) {
-	return s.installProtocolProducer(root, source, values)
 }
