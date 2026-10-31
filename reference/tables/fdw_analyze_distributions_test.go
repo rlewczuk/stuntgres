@@ -108,8 +108,52 @@ func TestReferenceFDWAnalyzeDistributions(t *testing.T) {
 		run(fixture.Exec("CREATE FOREIGN TABLE fdw_empty_analyze(id integer,label text,flag boolean) SERVER fdw_live OPTIONS(schema_name 'fdw_source',table_name 'data')", 0))
 		run(fixture.Exec("ANALYZE fdw_empty_analyze", 0))
 		run(fixture.Select("SELECT reltuples FROM pg_class WHERE relname='fdw_empty_analyze'", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(0)}}))
+		fdwAnalyzeScaledCounts(t, p, b, c, r, run)
 		fdwAnalyzeSubset(t, p, b, c, r, run)
 	})
+}
+
+// A complete genuine source makes the 55% integer boundary deterministic;
+// the bounded random subset below separately exercises sample/population scaling.
+func fdwAnalyzeScaledCounts(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, run func(fixture.Step)) {
+	t.Helper()
+	var values []string
+	var want [][]any
+	for i := 1; i <= 200; i++ {
+		label := "'common'"
+		var text any = "common"
+		if i > 110 {
+			label, text = "'rare'", "rare"
+		}
+		if i > 160 {
+			label, text = "NULL", nil
+		}
+		values = append(values, fmt.Sprintf("(%d,%s,true)", i, label))
+		want = append(want, []any{int64(i), text, true})
+	}
+	fdwSourceExec(t, p, b, r, run, "INSERT INTO fdw_source.data VALUES "+strings.Join(values, ","), 200)
+	run(fixture.Select("SELECT count(*) FROM fdw_data", []string{"count"}, []string{"INT8"}, [][]any{{int64(200)}}))
+	run(fixture.Select("SELECT count(*) FROM fdw_data WHERE label='common'", []string{"count"}, []string{"INT8"}, [][]any{{int64(110)}}))
+	for _, prepared := range []bool{false, true} {
+		step := fixture.Exec("ANALYZE fdw_data", 0)
+		if prepared {
+			step = fixture.Prepared(step)
+		}
+		run(step)
+		fdwPopulation(run, 200)
+		for _, expected := range []struct {
+			predicate string
+			rows      int64
+		}{{"label='common'", 110}, {"label='rare'", 50}, {"label IS NULL", 40}, {"label IS NOT NULL", 160}, {"label<>'common'", 50}} {
+			fdwExplainRoutes(t, p, c, "EXPLAIN SELECT * FROM fdw_data WHERE "+expected.predicate, func(lines []string) {
+				if got := fdwEstimate(t, lines); got != expected.rows {
+					t.Fatalf("%s estimate=%d want=%d: %v", expected.predicate, got, expected.rows, lines)
+				}
+				fdwAssertSource(t, p, b, r, want)
+			})
+		}
+	}
+	fdwSourceExec(t, p, b, r, run, "DELETE FROM fdw_source.data", 200)
 }
 
 func fdwAnalyzeSubset(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fdwSQLReader, run func(fixture.Step)) {

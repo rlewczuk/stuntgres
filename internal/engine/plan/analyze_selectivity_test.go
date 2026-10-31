@@ -98,6 +98,86 @@ func TestAnalyzeEstimateSelectivity(t *testing.T) {
 		}
 	})
 
+	t.Run("measured sample counts scale before division", func(t *testing.T) {
+		defer func() { inputs[0].Statistics = stats }()
+		for count := uint64(0); count <= 20; count++ {
+			sample := &storage.ColumnStatistics{Usage: integer.Usage(), Rows: 20, NullCount: 20 - count, DistinctKnown: true}
+			if count != 0 {
+				sample.DistinctCount = 1
+				sample.MCV = []storage.StatisticMCV{{Value: value(1), Count: count}}
+			}
+			inputs[0].Statistics = sample
+			for _, population := range []float64{20, 200} {
+				for _, test := range []struct {
+					predicate expr.Expr
+					count     uint64
+				}{
+					{common, count},
+					{comparison("<=", sqltype.CompareLessEqual, value(1)), count},
+					{comparison("<>", sqltype.CompareNotEqual, value(1)), 0},
+					{LogicalExpr{Op: parser.LogicalNot, Left: common}, 0},
+					{NullTestExpr{Child: column}, 20 - count},
+					{NullTestExpr{Child: column, Not: true}, count},
+					{comparison("=", sqltype.CompareEqual, value(3)), 0},
+				} {
+					rows, known, err := EstimateSelectivityRows(context.Background(), test.predicate, inputs, population)
+					want := float64(test.count) * population / 20
+					if err != nil || !known || rows != want || (ExplainEstimate{Rows: rows}).RoundedRows() != want {
+						t.Fatalf("count=%d population=%v rows=%.17g want=%v known=%v err=%v", count, population, rows, want, known, err)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("fractional estimates still round upward", func(t *testing.T) {
+		inputs[0].Statistics = &storage.ColumnStatistics{Usage: integer.Usage(), Rows: 1, DistinctKnown: true, DistinctCount: 1, MCV: []storage.StatisticMCV{{Value: value(1), Count: 1}}}
+		defer func() { inputs[0].Statistics = stats }()
+		for _, test := range []struct {
+			population, display float64
+		}{{1.25, 2}, {math.Nextafter(1, math.Inf(1)), 2}, {math.Nextafter(110, math.Inf(1)), 111}} {
+			rows, known, err := EstimateSelectivityRows(context.Background(), common, inputs, test.population)
+			if err != nil || !known || rows != test.population || (ExplainEstimate{Rows: rows}).RoundedRows() != test.display {
+				t.Fatalf("fraction lost: population=%.17g rows=%.17g known=%v err=%v", test.population, rows, known, err)
+			}
+		}
+		inputs[0].Statistics = stats
+		predicates := []expr.Expr{
+			LogicalExpr{Op: parser.LogicalAnd, Left: common, Right: rare},
+			LogicalExpr{Op: parser.LogicalOr, Left: common, Right: rare},
+		}
+		for _, predicate := range predicates {
+			probability, _, err := EstimateSelectivity(context.Background(), predicate, inputs)
+			rows, known, rowErr := EstimateSelectivityRows(context.Background(), predicate, inputs, 37)
+			if err != nil || rowErr != nil || !known || rows != 37*probability {
+				t.Fatalf("independence model changed: rows=%v probability=%v known=%v err=%v/%v", rows, probability, known, err, rowErr)
+			}
+		}
+	})
+
+	t.Run("approximate and imported probability scaling unchanged", func(t *testing.T) {
+		defer func() { inputs[0].Statistics = stats }()
+		residual := &storage.ColumnStatistics{Usage: integer.Usage(), Rows: 20, NullCount: 4, DistinctKnown: true, DistinctCount: 3, MCV: []storage.StatisticMCV{{Value: value(1), Count: 11}}, Histogram: []sqltype.Value{value(2), value(3)}}
+		imported := *stats
+		imported.Imported = &storage.ImportedStatistics{NullFractionSet: true, NullFraction: .25, DistinctSet: true, Distinct: 3}
+		for _, test := range []struct {
+			statistics *storage.ColumnStatistics
+			predicate  expr.Expr
+		}{
+			{residual, rare},
+			{residual, comparison("<=", sqltype.CompareLessEqual, value(2))},
+			{&imported, common},
+			{&imported, NullTestExpr{Child: column}},
+		} {
+			inputs[0].Statistics = test.statistics
+			probability, probabilityKnown, err := EstimateSelectivity(context.Background(), test.predicate, inputs)
+			rows, known, rowErr := EstimateSelectivityRows(context.Background(), test.predicate, inputs, 200)
+			if err != nil || rowErr != nil || !known || !probabilityKnown || rows != 200*probability {
+				t.Fatalf("probability scaling changed: rows=%v probability=%v known=%v/%v err=%v/%v", rows, probability, known, probabilityKnown, err, rowErr)
+			}
+		}
+	})
+
 	t.Run("residual unique and rank endpoints", func(t *testing.T) {
 		unique := &storage.ColumnStatistics{Usage: integer.Usage(), Rows: 10, DistinctKnown: true, DistinctCount: 10}
 		for i := int64(1); i <= 10; i++ {

@@ -45,5 +45,7 @@ func TestReferenceFDWExplainAnalyzeFeatureSmoke(t *testing.T) {
 			fdwInformationControls(t, p, b, c, r, run)
 			fdwAssertSource(t, p, b, r, want)
 		}
+		fdwSourceExec(t, p, b, r, run, "DELETE FROM fdw_source.data", 20)
+		fdwAnalyzeScaledCounts(t, p, b, c, r, run)
 	})
 }

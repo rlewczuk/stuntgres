@@ -52,6 +52,12 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   independence. Unsupported expressions/authority preserve the caller's
   existing fallback. Probabilities are finite and bounded0..1; the ordinary
   logical estimator still caps row/cost estimates at1e12 and rounds only display.
+  `EstimateSelectivityRows` preserves measured MCV/NULL counts and exact
+  complements through population scaling, multiplying before sample division
+  instead of multiplying an already rounded fraction. Approximate residual,
+  histogram and independence models, and imported probability facts, retain
+  probability-based scaling. Neither path snaps or rounds fractional estimates;
+  display alone rounds upward.
   Each column input carries its own admitted source population. Positive
   distinctness overrides replace only the residual distinct estimate; negative
   overrides scale that source population, never unrelated join/filter rows or

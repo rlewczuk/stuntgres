@@ -394,8 +394,10 @@ nontransactional maintenance metadata. EXPLAIN captures immutable compatible
 typed facts by stable attribute and SQL occurrence, compares detached values
 without evaluating expressions, and preserves fallback estimates for unsupported
 predicates. Equality/NULL inputs use actual collected-row fractions; foreign
-samples have a separate population record. Bounded distribution/range and
-independence assumptions are logical approximations, not physical plan costs.
+samples have a separate population record. Measured count estimates scale to
+that population before sample division, without snapping fractional estimates.
+Bounded distribution/range and independence assumptions are logical
+approximations, not physical plan costs.
 Partition parents never own entries in the physical `Storage.Relations` map.
 Their statistics, row estimates and analyze counters live in the same metadata
 root as other relations. New private-object metadata remains on its creation

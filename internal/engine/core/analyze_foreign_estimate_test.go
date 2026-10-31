@@ -55,3 +55,46 @@ func TestAnalyzeForeignZeroDistinctEstimate(t *testing.T) {
 		})
 	}
 }
+
+func TestAnalyzeForeignScaledEstimate(t *testing.T) {
+	e, s, wrapper := foreignAnalyzeOwnerFixture(t)
+	wrapper.sample = catalog.ForeignSample{TotalRows: 200, TotalPages: 2}
+	for i := range 20 {
+		var a any = int64(1)
+		if i >= 11 {
+			a = int64(2)
+		}
+		if i >= 16 {
+			a = nil
+		}
+		wrapper.sample.Rows = append(wrapper.sample.Rows, catalog.ForeignRow{a, int64(i)})
+	}
+	enginetest.SessionSQL(t, s, "ANALYZE foreign_analyze_owner")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "foreign_analyze_owner")
+	relation := e.CatalogRead().MustRelation(ref.Address)
+	metadata := e.Storage.RelationMetadata[ref.Address]
+	fact := metadata.Statistics.Columns[storage.StatisticsKey{Attribute: relation.Attributes[0]}]
+	if metadata.ForeignAnalyze.SampleRows != 20 || metadata.ForeignAnalyze.TotalRows != 200 || fact.Rows != 20 || fact.NullCount != 4 || fact.DistinctCount != 2 || len(fact.MCV) != 2 || fact.MCV[0].Count != 11 || fact.MCV[1].Count != 5 {
+		t.Fatal("publication changed sample counts or conflated population", metadata.ForeignAnalyze, fact)
+	}
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
+	value, err := sqltype.Integer(integer, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 1, Slot: 0, QueryOccurrence: 1}
+	binding, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, integer, integer, boolean, integer.Usage().Collation, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	predicate := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: column, Right: plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: value}, Operator: "=", Predicate: binding}
+	inputs := []plan.ColumnStatisticInput{{Column: column, Statistics: fact, SourceRows: metadata.ForeignAnalyze.TotalRows}}
+	rows, known, err := plan.EstimateSelectivityRows(context.Background(), predicate, inputs, metadata.ForeignAnalyze.TotalRows)
+	if err != nil || !known || rows != 110 || (plan.ExplainEstimate{Rows: rows}).RoundedRows() != 110 {
+		t.Fatal("published sample estimate", rows, known, err)
+	}
+	if metadata.Statistics.Columns[storage.StatisticsKey{Attribute: relation.Attributes[0]}] != fact || fact.Rows != 20 || fact.MCV[0].Count != 11 {
+		t.Fatal("estimation mutated canonical sample backing")
+	}
+}

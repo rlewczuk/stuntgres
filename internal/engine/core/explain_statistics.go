@@ -146,10 +146,10 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 	}
 	e := r.scope.Engine()
 	e.Mu.Unlock()
-	selectivity, known, err := plan.EstimateSelectivity(r.scope.executionContext(), predicate, inputs)
+	rows, known, err := plan.EstimateSelectivityRows(r.scope.executionContext(), predicate, inputs, inputRows)
 	e.Mu.Lock()
 	if err == nil && known {
-		estimate.Rows = min(plan.ExplainEstimateLimit, max(0, inputRows*selectivity))
+		estimate.Rows = min(plan.ExplainEstimateLimit, max(0, rows))
 		// Imported planner facts use PostgreSQL's minimum row estimate for
 		// a nonempty input, including an explicitly supplied zero fraction.
 		// Wholly measured exact-count estimates retain their existing path.

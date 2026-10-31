@@ -22,6 +22,9 @@ type ColumnStatisticInput struct {
 type selectivityTruth struct {
 	yes, no float64
 	known   bool
+	// Nonzero sampleRows retains measured count provenance through scaling.
+	// Approximate and imported probabilities leave these fields zero.
+	yesCount, noCount, sampleRows float64
 }
 
 func selectivityUnit(value float64) float64 {
@@ -38,6 +41,18 @@ func selectivityUnit(value float64) float64 {
 func EstimateSelectivity(ctx context.Context, predicate expr.Expr, statistics []ColumnStatisticInput) (float64, bool, error) {
 	result, err := estimateStatisticsTruth(ctx, predicate, statistics)
 	return selectivityUnit(result.yes), result.known, err
+}
+
+// EstimateSelectivityRows scales measured counts before dividing by sample size.
+// This avoids turning, for example, 11/20 of 200 into 110.00000000000001.
+// Approximate and imported selectivity retain their probability-based model.
+func EstimateSelectivityRows(ctx context.Context, predicate expr.Expr, statistics []ColumnStatisticInput, inputRows float64) (float64, bool, error) {
+	result, err := estimateStatisticsTruth(ctx, predicate, statistics)
+	rows := inputRows * selectivityUnit(result.yes)
+	if result.sampleRows != 0 {
+		rows = result.yesCount * inputRows / result.sampleRows
+	}
+	return rows, result.known, err
 }
 
 func statisticForColumn(expression expr.Expr, inputs []ColumnStatisticInput) (*storage.ColumnStatistics, float64, bool) {
@@ -80,7 +95,14 @@ func estimateStatisticsTruth(ctx context.Context, predicate expr.Expr, inputs []
 		if p.Not {
 			yes = 1 - yes
 		}
-		return selectivityTruth{yes: yes, no: 1 - yes, known: true}, nil
+		result := selectivityTruth{yes: yes, no: 1 - yes, known: true}
+		if s.Imported == nil && s.Rows != 0 {
+			result.yesCount, result.noCount, result.sampleRows = float64(s.NullCount), float64(s.Rows-s.NullCount), float64(s.Rows)
+			if p.Not {
+				result.yesCount, result.noCount = result.noCount, result.yesCount
+			}
+		}
+		return result, nil
 	case LogicalExpr:
 		if p.QueryRight {
 			return selectivityTruth{}, nil
@@ -90,7 +112,9 @@ func estimateStatisticsTruth(ctx context.Context, predicate expr.Expr, inputs []
 			return selectivityTruth{}, err
 		}
 		if p.Op == parser.LogicalNot {
-			return selectivityTruth{yes: a.no, no: a.yes, known: true}, nil
+			a.yes, a.no = a.no, a.yes
+			a.yesCount, a.noCount = a.noCount, a.yesCount
+			return a, nil
 		}
 		b, err := estimateStatisticsTruth(ctx, p.Right, inputs)
 		if err != nil || !b.known {
@@ -171,6 +195,7 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 	// and inflate an exact integer result when EXPLAIN rounds upward.
 	nonNull := s.Rows - s.NullCount
 	var yes float64
+	measured := false
 	if operator == sqltype.CompareEqual || operator == sqltype.CompareNotEqual {
 		if !s.DistinctKnown {
 			return selectivityTruth{}, nil
@@ -195,6 +220,7 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 				yes, hit = float64(mcv.Count), true
 			}
 		}
+		measured = hit || mass == nonNull
 		if !hit {
 			distinct := float64(s.DistinctCount)
 			if s.DistinctOverride > 0 {
@@ -251,6 +277,7 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 			}
 		}
 		residual := nonNull - mass
+		measured = residual == 0
 		if residual > 0 {
 			if len(s.Histogram) == 0 {
 				return selectivityTruth{}, nil
@@ -272,9 +299,13 @@ func estimateStatisticsComparison(ctx context.Context, p ComparisonExpr, inputs 
 		}
 	}
 	yes = min(max(yes, 0), float64(nonNull))
-	return selectivityTruth{
+	result := selectivityTruth{
 		yes:   selectivityUnit(yes / float64(s.Rows)),
 		no:    selectivityUnit((float64(nonNull) - yes) / float64(s.Rows)),
 		known: true,
-	}, ctx.Err()
+	}
+	if measured {
+		result.yesCount, result.noCount, result.sampleRows = yes, float64(nonNull)-yes, float64(s.Rows)
+	}
+	return result, ctx.Err()
 }
