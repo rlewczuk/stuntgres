@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/proc"
@@ -133,7 +134,23 @@ func declarationProducerMember(view catalog.Read, installation *catalog.Installa
 
 func (r declarationRendering) member(p proc.DeclarationPart) (catalog.Descriptor, error) {
 	owner, ok := catalog.OriginInstallation(r.target)
-	if !ok || owner.Provider != "earthdistance" || owner.Version != "1.2" {
+	if !ok {
+		return nil, ids.ErrCatalogReplaced
+	}
+	pageinspect := owner.Provider == "pageinspect" && owner.Version == "1.13"
+	if pageinspect {
+		// Only the two genuine SQL wrappers disclose same-installation helpers.
+		// Their sealed body, rather than mutable membership or spelling, owns
+		// these exact edges. Metadata disclosure does not execute the helpers.
+		slot := r.target.Origin.Declaration
+		allowed := slot == 19 && (p.Slot == 15 || p.Slot == 18) || slot == 20 && p.Slot == 19
+		if !allowed || p.Extension != "" || p.Class != uint32(ids.ProcedureClassID) || r.view.Owner() == nil {
+			return nil, ids.ErrCatalogReplaced
+		}
+		if err := extension.ValidatePageinspectIdentity(r.view, r.target, r.view.Owner().Domain.Ref(r.view.Epoch(), r.target.Address())); err != nil {
+			return nil, ids.ErrCatalogReplaced
+		}
+	} else if owner.Provider != "earthdistance" || owner.Version != "1.2" {
 		return nil, ids.ErrCatalogReplaced
 	}
 	original, ok := owner.Declarations[r.target.Origin.Declaration].(*catalog.Procedure)
@@ -180,6 +197,11 @@ func (r declarationRendering) member(p proc.DeclarationPart) (catalog.Descriptor
 	case *catalog.Procedure:
 		if current.RoutineKind != catalog.FunctionRoutine {
 			return nil, ids.ErrCatalogReplaced
+		}
+		if pageinspect {
+			if err := extension.ValidatePageinspectIdentity(r.view, current, r.view.Owner().Domain.Ref(r.view.Epoch(), current.Address())); err != nil {
+				return nil, ids.ErrCatalogReplaced
+			}
 		}
 		count := 0
 		if current.Signature != "" {

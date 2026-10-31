@@ -1026,8 +1026,8 @@ final descriptor/storage lifetime and cancellation fences precede results.
 ## Installed byte pageinspect runtime
 
 `pageinspect_capture.go` checks genuine immutable released routine identity,
-current reciprocal membership and superuser authority after STRICT argument
-evaluation. It does not require a live original pageinspect extension or infer
+current reciprocal membership and live superuser authority at the function's
+NULL boundary. It does not require a live original pageinspect extension or infer
 capability from a receiving extension. BRIN item decoding opens the exact
 regclass descriptor with a temporary AccessShare contribution, waits outside
 metadata locks, and readmits the same descriptor before capturing per-column
@@ -1036,6 +1036,11 @@ execution context decodes caller-owned bytea outside metadata locks through
 the SQL-independent native readers in `sqltype`. B-tree and FSM byte decoding
 need no relation capture; physical relname page acquisition is not an engine provider
 overload and local table contents are never synthesized into raw index pages.
+Heap schema capture shares the same AccessShare wait/readmission seam. It
+projects immutable length/alignment facts in physical slot order, merging live
+columns with dropped-attribute history without resolving removed types.
+Captures retain no rows, codecs or caller privileges; byte deformation executes
+outside metadata locks. Sequence descriptors use their real physical columns.
 
 ## Installed crosstab runtime
 

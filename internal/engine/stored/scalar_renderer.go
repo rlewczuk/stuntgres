@@ -74,7 +74,9 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && !r.RoutineDefault && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.DomainValue == nil {
+	pageinspectDefault := p.StageDependent && analyze.ClosedPageinspectDefault(node)
+	pageinspectStage := pageinspectDefault || r.Owner != nil && p.StageDependent && analyze.PageinspectStoredStage(node)
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && !r.RoutineDefault && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) && !pageinspectDefault || p.RowDependent) || p.ParameterDependent || p.StageDependent && !pageinspectStage || p.DomainDependent && r.DomainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.Definition, u); err != nil {

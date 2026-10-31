@@ -14,8 +14,8 @@ import (
 type pageinspectValues struct {
 	raw     string
 	columns []sqltype.BrinStoredColumn
-	first   sqltype.Value
-	second  sqltype.Value
+	values  [6]sqltype.Value
+	body    bool
 	null    bool
 }
 
@@ -43,7 +43,7 @@ func (c *Context) pageinspectInput(n plan.InstalledPageinspectExpr) (input pagei
 	if err = extension.ValidatePageinspectCall(view, current, boundary); err != nil {
 		return input, err
 	}
-	var values [2]sqltype.Value
+	values := &input.values
 	for i, child := range n.Args {
 		v, failure := child.Eval(c)
 		if failure != nil {
@@ -52,9 +52,7 @@ func (c *Context) pageinspectInput(n plan.InstalledPageinspectExpr) (input pagei
 		values[n.Slots[i]] = v
 		input.null = input.null || v.IsNull()
 	}
-	input.second = values[1]
-	input.first = values[0]
-	if input.null {
+	if current.Strict && input.null {
 		return input, nil
 	}
 	auth, dependencies, err := RoutineAdmissionAuthority(c)
@@ -70,6 +68,19 @@ func (c *Context) pageinspectInput(n plan.InstalledPageinspectExpr) (input pagei
 	}
 	n.Ref.Epoch = auth.Catalog.Epoch()
 	n.Procedure, n.RoutineReference = current, current
+	if n.Member == "heap_page_item_attrs" {
+		if err = admitHeapAttrsHelpers(auth, current, len(n.Args)); err != nil {
+			return input, err
+		}
+		input.null = values[0].IsNull()
+		if input.null {
+			return input, nil
+		}
+	}
+	if n.Member == "tuple_data_split" {
+		input.null = values[1].IsNull()
+	}
+	input.body = true
 	var oid uint32
 	if n.Member == "brin_page_items" {
 		oid, err = values[1].ClassOID()
@@ -86,6 +97,9 @@ func (c *Context) pageinspectInput(n plan.InstalledPageinspectExpr) (input pagei
 		return input, err
 	}
 	if n.Member == "heap_tuple_infomask_flags" {
+		return input, nil
+	}
+	if n.Member == "tuple_data_split" {
 		return input, nil
 	}
 	input.raw, err = values[0].Binary()
@@ -109,13 +123,16 @@ func (c *Context) pageinspect(n plan.InstalledPageinspectExpr) (sqltype.BrinPage
 	return page, input.columns, false, err
 }
 func (c *Context) EvalPageinspect(n plan.InstalledPageinspectExpr) (sqltype.Value, error) {
+	if n.Member == "tuple_data_split" {
+		return c.evalHeapTupleSplit(n)
+	}
 	if n.Member == "hash_page_type" || n.Member == "hash_page_stats" || n.Member == "hash_metapage_info" {
 		return c.evalHashPageinspect(n)
 	}
 	if n.Member == "heap_tuple_infomask_flags" {
 		return c.evalHeapFlagsPageinspect(n)
 	}
-	if n.Member == "heap_page_items" {
+	if n.Member == "heap_page_items" || n.Member == "heap_page_item_attrs" {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: pageinspect set requires source invocation")
 	}
 	if n.Member == "page_header" || n.Member == "page_checksum" {
@@ -168,6 +185,16 @@ func (c *Context) EvalPageinspect(n plan.InstalledPageinspectExpr) (sqltype.Valu
 	return sqltype.OwnedCompositeValue(d, fields)
 }
 func (c *Context) OpenPageinspect(n plan.InstalledPageinspectExpr) (expr.SourceCursor, error) {
+	if n.Member == "heap_page_item_attrs" {
+		return c.openHeapAttrs(n)
+	}
+	if n.Member == "tuple_data_split" {
+		value, err := c.evalHeapTupleSplit(n)
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		return expr.ScalarSource(value), nil
+	}
 	if n.Member == "hash_page_items" {
 		return c.openHashPageinspect(n)
 	}

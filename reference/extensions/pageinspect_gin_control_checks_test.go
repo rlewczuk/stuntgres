@@ -121,6 +121,12 @@ func ginControlCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 			rows = append(rows, []any{name, "gin_part", principal})
 		}
 		rows = append(rows, []any{"heap_page_items", "gin_part", principal}, []any{"heap_tuple_infomask_flags", "gin_part", principal})
+		rows = append(rows,
+			[]any{"tuple_data_split", "gin_part", principal},
+			[]any{"tuple_data_split", "gin_part", principal},
+			[]any{"heap_page_item_attrs", "gin_part", principal},
+			[]any{"heap_page_item_attrs", "gin_part", principal},
+		)
 		for i, name := range fixture.GINMembers {
 			schema, owner := "gin_part", principal
 			if moved {

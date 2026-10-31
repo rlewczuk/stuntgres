@@ -35,7 +35,7 @@ type DeclarationPart struct {
 	Slot          int
 	Extension     string
 	Class         uint32
-	Arguments     [3]uint32 // Zero is this installation's member-zero type identity.
+	Arguments     [6]uint32 // Zero is this installation's member-zero type identity.
 	ArgumentCount int
 }
 
@@ -70,7 +70,7 @@ func DeclarationAttribute(id uint32, relation string, attr int32, name string) D
 	return DeclarationPart{Kind: DeclarationColumn, OID: id, Text: relation, Name: name, Attribute: attr, Namespace: 11}
 }
 func DeclarationOp(name string, left, right uint32) DeclarationPart {
-	return DeclarationPart{Kind: DeclarationOperator, Name: name, Signature: strconv.FormatUint(uint64(left), 10) + "," + strconv.FormatUint(uint64(right), 10), Namespace: 11, Arguments: [3]uint32{left, right}, ArgumentCount: 2}
+	return DeclarationPart{Kind: DeclarationOperator, Name: name, Signature: strconv.FormatUint(uint64(left), 10) + "," + strconv.FormatUint(uint64(right), 10), Namespace: 11, Arguments: [6]uint32{left, right}, ArgumentCount: 2}
 }
 func DeclarationString(value string) DeclarationPart {
 	return DeclarationPart{Kind: DeclarationLiteral, Text: value}
@@ -82,7 +82,7 @@ func DeclarationCatalogAlias(class, id uint32, name string) DeclarationPart {
 // DeclarationMember names a stable extension-owned member slot. The extension
 // name selects the installation, not a schema spelling captured before a move.
 func DeclarationMember(extension string, slot int, class uint32, spelling string, arguments ...uint32) DeclarationPart {
-	if len(arguments) > 3 {
+	if len(arguments) > 6 {
 		panic("stuntgres: invalid declaration member arguments")
 	}
 	part := DeclarationPart{Kind: DeclarationExtensionMember, Extension: extension, Slot: slot, Class: class, Text: spelling, ArgumentCount: len(arguments)}

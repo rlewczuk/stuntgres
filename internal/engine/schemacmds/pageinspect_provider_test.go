@@ -19,6 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 	"testing"
 )
+
 func TestPageinspectBrinProviderIdentity(t *testing.T) {
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -26,17 +27,17 @@ func TestPageinspectBrinProviderIdentity(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION pageinspect")
 	view := e.CatalogRead()
 	ext := view.MustExtension(view.State().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pageinspect"}))
-	if len(ext.Members) != 17 || extension.StockPageinspect.Control().Version != "1.13" {
+	if len(ext.Members) != 21 || extension.StockPageinspect.Control().Version != "1.13" {
 		t.Fatal(ext)
 	}
 	for i, address := range ext.Members {
 		p := view.MustProcedure(address)
 		m := extension.PageinspectMembers[i]
-		if p.Name() != m.Name || p.Signature != m.Signature || p.Result != m.Result || p.Installed != m.Declaration || p.Volatility != expr.Volatile || !p.Strict || core.ProcedureReturnsSet(p) != m.Declaration.ReturnsSet {
+		if p.Name() != m.Name || p.Signature != m.Signature || p.Result != m.Result || p.Installed != m.Declaration || p.Volatility != expr.Volatile || p.Strict != (i < 17) || core.ProcedureReturnsSet(p) != m.Declaration.ReturnsSet {
 			t.Fatal(p)
 		}
 		for _, mutate := range []func(*catalog.Procedure){
-			func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Result = 16 }, func(p *catalog.Procedure) { p.ObjectRevision = 0 }, func(p *catalog.Procedure) { p.Implementation = new(extension.PageinspectProvider) },
+			func(p *catalog.Procedure) { p.Strict = !p.Strict }, func(p *catalog.Procedure) { p.Result = 16 }, func(p *catalog.Procedure) { p.ObjectRevision = 0 }, func(p *catalog.Procedure) { p.Implementation = new(extension.PageinspectProvider) },
 			func(p *catalog.Procedure) { p.Display.Source = "forged_source" },
 			func(p *catalog.Procedure) {
 				p.Installed.Outputs = catalog.NewRoutineOutputs([]ids.OID{25}, "page", "foreign")
@@ -165,6 +166,10 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 		{"brin_moved", "hash_metapage_info", "pg_catalog.bytea", "postgres"},
 		{"brin_moved", "heap_page_items", "pg_catalog.bytea", "postgres"},
 		{"brin_moved", "heap_tuple_infomask_flags", "integer, integer", "postgres"},
+		{"brin_moved", "tuple_data_split", "pg_catalog.oid, pg_catalog.bytea, integer, integer, pg_catalog.text", "postgres"},
+		{"brin_moved", "tuple_data_split", "pg_catalog.oid, pg_catalog.bytea, integer, integer, pg_catalog.text, boolean", "postgres"},
+		{"brin_moved", "heap_page_item_attrs", "pg_catalog.bytea, pg_catalog.regclass, boolean", "postgres"},
+		{"brin_moved", "heap_page_item_attrs", "pg_catalog.bytea, pg_catalog.regclass", "postgres"},
 	}
 	if len(record.Members) != len(wants) {
 		t.Fatal("incomplete released owner inventory", record)
@@ -274,7 +279,7 @@ func TestPageinspectBrinNamedValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := bound.(plan.InstalledPageinspectExpr)
-	if call.Slots != ([2]uint8{1, 0}) {
+	if call.Slots != ([6]uint8{1, 0}) {
 		t.Fatal("written argument order lost", call.Slots)
 	}
 	if err := call.ValidateArguments(call.Args); err != nil {
@@ -429,7 +434,7 @@ func TestPageinspectFSMProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := bound.(plan.InstalledPageinspectExpr)
-		if n.Member != "fsm_page_contents" || n.Procedure.Display.Source != "fsm_page_contents" || n.Procedure.Signature != "17" || n.ResultUsage() != view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25}).SQLType.Usage() || len(n.Args) != 1 || n.Args[0].ResultUsage().Type.ID() != sqltype.Bytea || n.Slots != ([2]uint8{}) {
+		if n.Member != "fsm_page_contents" || n.Procedure.Display.Source != "fsm_page_contents" || n.Procedure.Signature != "17" || n.ResultUsage() != view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25}).SQLType.Usage() || len(n.Args) != 1 || n.Args[0].ResultUsage().Type.ID() != sqltype.Bytea || n.Slots != ([6]uint8{}) {
 			t.Fatal(n)
 		}
 		if n.Ref.Domain() != view.Owner().Domain || n.Ref.Epoch != view.Epoch() || n.Ref.Address != n.Procedure.Address() || n.RoutineReference != n.Procedure {

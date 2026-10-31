@@ -404,7 +404,14 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		}
 		m := PageinspectMembers[slot]
 		name, signature, result, volatility = m.Name, m.Signature, m.Result, expr.Volatile
-		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pageinspect", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+		strict = slot < 17
+		display := catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pageinspect", HasBinary: true}
+		var body sqltype.StructuralTree
+		if slot >= 19 {
+			display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}
+			body = pageinspectAttrsBodies[slot-19]
+		}
+		if p.Installed != m.Declaration || p.Display != display || p.DeclarationBody != body || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != pageinspectSplitNames(slot) || len(p.Body) != 0 {
 			return invalid()
 		}
 	case StockAmcheck:

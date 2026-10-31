@@ -430,6 +430,12 @@ library, and never the root engine or `session`. The engine, the root driver
   retain only a diagnostic target candidate, never a visible target row.
   Routine defaults also resolve against an empty namespace; table defaults
   retain their distinct prohibition on all column references.
+  `ClosedPageinspectDefault` admits only genuine scalar tuple-split defaults
+  with closed arguments. Their intrinsic VOLATILE/live-schema dependence remains
+  intact; row, parameter and unrelated stage dependence are not admitted.
+  `PageinspectStoredStage` separately proves intrinsic splitter dependence through
+  known transparent scalar wrappers for owning CHECK expressions. Every sibling
+  is validated; owning row references do not make a CHECK a closed default.
   Trigger WHEN namespaces retain timing and orientation: only BEFORE rejects NEW
   generated/system columns; statement predicates reject OLD/NEW at binding before
   whole-row presentation capture. AFTER ROW can bind completed generated values.

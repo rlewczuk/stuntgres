@@ -162,6 +162,21 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   diagnostics and descriptors independently of cursor contents. Stored consumers
   preserve current installed identities through rename, membership changes and
   native controls; no physical relation pages are acquired.
+  `pageinspect_heap_attrs_*_test.go` owns schema-based deformation of those
+  independently supplied bytes, including dropped physical slots, NULL arrays
+  and elements, and physical-versus-payload inline detoasting. Descriptor
+  relations are empty; no fixture acquires pages or invents TOAST content.
+  Declarations, named binding, full diagnostics, retained metadata and real
+  stored consumers share direct/prepared/held routes and native controls.
+  Helper-ACL scenarios revoke real member permissions independently of wrapper
+  grants and retain startup denial across NULL, empty and unavailable-tail inputs.
+  `FunctionDefinitions` compares full independently specified PG18.6
+  `pg_get_functiondef` TEXT for both SQL wrappers, including current formal
+  qualifiers, stable function-RTE aliases and current helper names. Direct,
+  fresh-prepared and held routes cover helper/wrapper rename and move, valid
+  detachment and native control replay. `FeatureSmoke` also discloses both full
+  definitions before and after its native reset/restore phase.
+  The family selector is `RUN='^TestReferencePageinspectHeapAttrs'`, in both modes.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.

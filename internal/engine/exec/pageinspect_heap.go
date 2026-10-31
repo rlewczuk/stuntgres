@@ -15,11 +15,11 @@ func (c *Context) evalHeapFlagsPageinspect(n plan.InstalledPageinspectExpr) (sql
 	if input.null {
 		return sqltype.Null(d), nil
 	}
-	first, err := input.first.Integer()
+	first, err := input.values[0].Integer()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	second, err := input.second.Integer()
+	second, err := input.values[1].Integer()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -61,50 +61,11 @@ func (c *Context) openHeapPageinspect(n plan.InstalledPageinspectExpr) (expr.Sou
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
-		fields := make([]sqltype.Value, 14)
-		for j := range fields {
-			fields[j] = sqltype.Null(d.CompositeMember(j).Usage.Type)
-		}
-		for j, number := range [...]int64{int64(item.LP), int64(item.Offset), int64(item.Flags), int64(item.Length)} {
-			fields[j], err = sqltype.Integer(d.CompositeMember(j).Usage.Type, number)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-		}
-		if item.Header {
-			fields[4], err = sqltype.XIDValue(d.CompositeMember(4).Usage.Type, item.Xmin)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-			fields[5], err = sqltype.XIDValue(d.CompositeMember(5).Usage.Type, item.Xmax)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-			fields[6], err = sqltype.Integer(d.CompositeMember(6).Usage.Type, int64(item.Field3))
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-			fields[7], err = sqltype.TIDValue(d.CompositeMember(7).Usage.Type, item.CTIDBlock, item.CTIDOffset)
-			if err != nil {
-				return expr.SourceCursor{}, err
-			}
-			for j, number := range [...]int64{int64(item.Infomask2), int64(item.Infomask), int64(item.Hoff)} {
-				fields[j+8], err = sqltype.Integer(d.CompositeMember(j+8).Usage.Type, number)
-				if err != nil {
-					return expr.SourceCursor{}, err
-				}
-			}
+		fields, err := heapItemFields(d, item)
+		if err != nil {
+			return expr.SourceCursor{}, err
 		}
 		if item.Tail {
-			if item.HasBits {
-				fields[11] = sqltype.String(d.CompositeMember(11).Usage.Type, item.Bits)
-			}
-			if item.HasOID {
-				fields[12], err = sqltype.OIDValue(d.CompositeMember(12).Usage.Type, item.OID)
-				if err != nil {
-					return expr.SourceCursor{}, err
-				}
-			}
 			fields[13], err = sqltype.Binary(d.CompositeMember(13).Usage.Type, item.Data)
 			if err != nil {
 				return expr.SourceCursor{}, err

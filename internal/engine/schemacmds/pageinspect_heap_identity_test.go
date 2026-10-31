@@ -32,14 +32,14 @@ func TestPageinspectHeapProviderIdentity(t *testing.T) {
 			name, signature, slot := "heap_page_items", "17", 15
 			labels := []parser.Identifier{{Text: "page"}}
 			args := []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x"}}}
-			slots := [2]uint8{}
+			slots := [6]uint8{}
 			names := []string{"lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_data"}
 			types := []ids.OID{21, 21, 21, 21, 28, 28, 23, 27, 23, 23, 21, 25, 26, 17}
 			if flags {
 				name, signature, slot = "heap_tuple_infomask_flags", "23,23", 16
 				args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "80"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "8192"}}}
 				labels = []parser.Identifier{{Text: "t_infomask"}, {Text: "t_infomask2"}}
-				slots = [2]uint8{0, 1}
+				slots = [6]uint8{0, 1}
 				names = []string{"raw_flags", "combined_flags"}
 				types = []ids.OID{1009, 1009}
 			}
@@ -49,7 +49,7 @@ func TestPageinspectHeapProviderIdentity(t *testing.T) {
 				if flags {
 					raw.Args[0], raw.Args[1] = raw.Args[1], raw.Args[0]
 					raw.ArgNames = []parser.Identifier{{Text: "t_infomask2"}, {Text: "t_infomask"}}
-					slots = [2]uint8{1, 0}
+					slots = [6]uint8{1, 0}
 				}
 			}
 			node, err := b.BindFunctionProvider(raw)

@@ -389,7 +389,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   relocatable 1.13 manifest owns four BRIN byte decoders, `bt_page_items(bytea)`,
   `fsm_page_contents(bytea)`, three GIN BYTEA decoders, `page_header(bytea)`
   and `page_checksum(bytea,bigint)`, followed by four hash BYTEA decoders,
-  `heap_page_items(bytea)` and `heap_tuple_infomask_flags(integer,integer)`.
+  `heap_page_items(bytea)`, `heap_tuple_infomask_flags(integer,integer)` and the
+  two overloads each of `tuple_data_split` and `heap_page_item_attrs`.
   Hash type returns TEXT, stats and metadata scalar RECORD, and items SETOF
   RECORD; all four are STRICT, VOLATILE and parallel safe. Physical
   `hash_bitmap_info(regclass,bigint)` acquisition is not registered by this
@@ -409,9 +410,21 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   public names or the live original extension. Explicit C source identities
   preserve `bt_page_items_bytea` through member renames. Detachment, foreign
   membership and original-extension retirement do not change released capability.
-  The v3 owner codec preserves all seventeen declaration slots, symbolic signatures
-  and immutable OUT payload alongside current owners and membership; import
-  still validates each actual destination member identity.
+  The v3 owner codec preserves all twenty-one declaration slots, symbolic
+  signatures and immutable OUT payload alongside current owners and membership;
+  import still validates each actual destination member identity. Split overloads
+  own immutable five/six-input names and non-STRICT C declarations; attrs
+  overloads own genuine parsed SQL-standard declaration recipes with symbolic
+  heap/split/member dependencies, rather than fictitious C identities.
+  The provider's `ProcedureDependencyProvider` visits exactly those genuine
+  SQL-body helper edges for catalog projection, retirement and replay ordering.
+  Analyzed display recipes expand the function-RTE columns under stable released
+  aliases, qualify outer formals through the current wrapper name, and resolve
+  helper calls through sealed member identities. The existing declaration
+  renderer admits only these exact wrapper/helper edges, retaining canonical
+  body, current descriptor and full helper-signature validation. Definition
+  disclosure remains metadata-only through helper rename/move, detachment and
+  native replay; it does not grant or require helper EXECUTE authority.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
   provider installs eight callable members. Slot zero is `verify_heapam`, with
   six canonical inputs and five trailing defaults, a non-STRICT volatile

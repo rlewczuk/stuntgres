@@ -47,11 +47,15 @@ var PageinspectMembers = [...]PageinspectMember{
 	{"page_header", "page_header", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{3220, 21, 21, 23, 23, 23, 23, 21, 28}, "page", "lsn", "checksum", "flags", "lower", "upper", "special", "pagesize", "version", "prune_xid")}},
 	{"page_checksum", "page_checksum_1_9", "17,20", 21, catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"page", "blkno"}}},
 	{"hash_page_type", "hash_page_type", "17", 25, catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"page"}}},
-	{"hash_page_stats", "hash_page_stats", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{23,23,23,23,20,20,20,23,23}, "page", "live_items","dead_items","page_size","free_size","hasho_prevblkno","hasho_nextblkno","hasho_bucket","hasho_flag","hasho_page_id")}},
-	{"hash_page_items", "hash_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{23,27,20}, "page","itemoffset","ctid","data")}},
-	{"hash_metapage_info", "hash_metapage_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20,20,701,23,23,23,23,20,20,20,20,20,20,26,1016,1016}, "page","magic","version","ntuples","ffactor","bsize","bmsize","bmshift","maxbucket","highmask","lowmask","ovflpoint","firstfree","nmaps","procid","spares","mapp")}},
+	{"hash_page_stats", "hash_page_stats", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 23, 23, 23, 20, 20, 20, 23, 23}, "page", "live_items", "dead_items", "page_size", "free_size", "hasho_prevblkno", "hasho_nextblkno", "hasho_bucket", "hasho_flag", "hasho_page_id")}},
+	{"hash_page_items", "hash_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{23, 27, 20}, "page", "itemoffset", "ctid", "data")}},
+	{"hash_metapage_info", "hash_metapage_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20, 20, 701, 23, 23, 23, 23, 20, 20, 20, 20, 20, 20, 26, 1016, 1016}, "page", "magic", "version", "ntuples", "ffactor", "bsize", "bmsize", "bmshift", "maxbucket", "highmask", "lowmask", "ovflpoint", "firstfree", "nmaps", "procid", "spares", "mapp")}},
 	{"heap_page_items", "heap_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{21, 21, 21, 21, 28, 28, 23, 27, 23, 23, 21, 25, 26, 17}, "page", "lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_data")}},
 	{"heap_tuple_infomask_flags", "heap_tuple_infomask_flags", "23,23", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{1009, 1009}, "t_infomask", "t_infomask2", "raw_flags", "combined_flags")}},
+	{"tuple_data_split", "tuple_data_split", "26,17,23,23,25", 1001, catalog.InstalledRoutineDeclaration{Parallel: 'r'}},
+	{"tuple_data_split", "tuple_data_split", "26,17,23,23,25,16", 1001, catalog.InstalledRoutineDeclaration{Parallel: 'r'}},
+	{"heap_page_item_attrs", "", "17,2205,16", 2249, catalog.InstalledRoutineDeclaration{Parallel: 'r', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{21, 21, 21, 21, 28, 28, 23, 27, 23, 23, 21, 25, 26, 1001}, "page", "rel_oid", "do_detoast", "lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_attrs")}},
+	{"heap_page_item_attrs", "", "17,2205", 2249, catalog.InstalledRoutineDeclaration{Parallel: 'r', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{21, 21, 21, 21, 28, 28, 23, 27, 23, 23, 21, 25, 26, 1001}, "page", "rel_oid", "lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_attrs")}},
 }
 
 func (p *PageinspectProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
@@ -96,6 +100,14 @@ func (p *PageinspectProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: m.Name, Signature: m.Signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: m.Result, Volatility: expr.Volatile, Strict: true, Installed: m.Declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source}, Implementation: p}
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/pageinspect", true
+		if i >= 17 {
+			proc.Strict = false
+			proc.InputNames = pageinspectSplitNames(i)
+		}
+		if i >= 19 {
+			proc.Display = catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}
+			proc.DeclarationBody = pageinspectAttrsBodies[i-19]
+		}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
@@ -120,6 +132,15 @@ func ValidatePageinspectCall(v catalog.Read, p *catalog.Procedure, call function
 	}
 	if err := call.ValidateArguments(call.Args); err != nil {
 		return err
+	}
+	arity := 1
+	for _, ch := range p.Signature {
+		if ch == ',' {
+			arity++
+		}
+	}
+	if len(call.Args) != arity {
+		return fmt.Errorf("stuntgres: invalid pageinspect overload arity")
 	}
 	usage := call.ResultUsage()
 	outputs := p.OutputDeclaration()

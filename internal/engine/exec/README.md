@@ -423,10 +423,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   scalar once and expands NULL as one all-NULL row.
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
-  argument evaluation. A fixed two-value frame projects formal slots; its
-  result retains already evaluated checksum/flags integer operands without
-  copying a page or evaluating a child twice. The host supplies current superuser
-  and, for BRIN items, exact index-descriptor authority before raw validation.
+  argument evaluation. A fixed six-value frame projects formal slots without
+  copying a page or evaluating a child twice. The host supplies current
+  superuser and exact relation-descriptor authority at the decoder's admission
+  boundary.
   Immutable BRIN, B-tree, FSM, GIN, hash, heap and raw-header readers decode bytea without
   table-row access. Header/checksum routes in `pageinspect_header.go` produce
   owned PG_LSN/XID composites or INT2; header preserves all-zero records,
@@ -447,6 +447,14 @@ typmods; naming is captured only on failure and is never retained in result tupl
   immutable per-slot views; unavailable tuple headers and tails remain distinct
   NULL groups. Flags construct typed nonnull TEXT arrays, including empty arrays;
   a strict NULL flags source is one NULL record, while a NULL heap source is empty.
+  `pageinspect_heap_attrs.go` reuses those per-slot views and one shared physical
+  splitter. Bitmap admission precedes deferred schema capture; NULL tuple data
+  never opens a relation. Captured physical slots are reused within the call.
+  Wrapper startup resolves genuine sealed helper members and checks current
+  EXECUTE privileges before NULL/zero-row shortcuts; outer grants do not authorize
+  helper calls. Startup failures retain only the SQL frames actually entered.
+  SQL wrappers retain truthful nested statement contexts, and detoasting consumes
+  only actual supplied inline content, never logical table rows or process pointers.
   Caller-supplied bytes are not physical relation acquisition.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST

@@ -7,16 +7,28 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var pageinspectNames = [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info", "heap_page_items", "heap_tuple_infomask_flags"}
+var pageinspectNames = [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info", "heap_page_items", "heap_tuple_infomask_flags", "tuple_data_split", "heap_page_item_attrs"}
 
 type Pageinspect struct {
 	expr.Info
 	Args   []expr.Expr
-	Slots  [2]uint8
+	Slots  [6]uint8
 	Member string
 }
 
-func pageinspectFormals(member string) ([]string, []sqltype.ID) {
+func pageinspectFormals(member string, arity int) ([]string, []sqltype.ID) {
+	if member == "tuple_data_split" {
+		if arity == 6 {
+			return []string{"rel_oid", "t_data", "t_infomask", "t_infomask2", "t_bits", "do_detoast"}, []sqltype.ID{sqltype.Oid, sqltype.Bytea, sqltype.Int4, sqltype.Int4, sqltype.Text, sqltype.Bool}
+		}
+		return []string{"rel_oid", "t_data", "t_infomask", "t_infomask2", "t_bits"}, []sqltype.ID{sqltype.Oid, sqltype.Bytea, sqltype.Int4, sqltype.Int4, sqltype.Text}
+	}
+	if member == "heap_page_item_attrs" {
+		if arity == 3 {
+			return []string{"page", "rel_oid", "do_detoast"}, []sqltype.ID{sqltype.Bytea, sqltype.Regclass, sqltype.Bool}
+		}
+		return []string{"page", "rel_oid"}, []sqltype.ID{sqltype.Bytea, sqltype.Regclass}
+	}
 	if member == "brin_page_items" {
 		return []string{"page", "index_oid"}, []sqltype.ID{sqltype.Bytea, sqltype.Regclass}
 	}
@@ -41,7 +53,7 @@ func bindPageinspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	member := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	labels, types := pageinspectFormals(member)
+	labels, types := pageinspectFormals(member, len(raw.Args))
 	signature := "17"
 	if member == "brin_page_items" {
 		signature = "17,2205"
@@ -51,6 +63,18 @@ func bindPageinspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	}
 	if member == "heap_tuple_infomask_flags" {
 		signature = "23,23"
+	}
+	if member == "tuple_data_split" {
+		signature = "26,17,23,23,25"
+		if len(raw.Args) == 6 {
+			signature = "26,17,23,23,25,16"
+		}
+	}
+	if member == "heap_page_item_attrs" {
+		signature = "17,2205"
+		if len(raw.Args) == 3 {
+			signature = "17,2205,16"
+		}
 	}
 	routine, err := b.InstalledRoutine(raw.Name, PageinspectExtension, signature)
 	if err != nil {
@@ -91,6 +115,11 @@ func bindPageinspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	names := []string(nil)
 	ids := []sqltype.ID(nil)
 	switch member {
+	case "tuple_data_split":
+		usage = b.Type(1001).Usage()
+	case "heap_page_item_attrs":
+		names = []string{"lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_attrs"}
+		ids = []sqltype.ID{sqltype.Int2, sqltype.Int2, sqltype.Int2, sqltype.Int2, sqltype.Xid, sqltype.Xid, sqltype.Int4, sqltype.Tid, sqltype.Int4, sqltype.Int4, sqltype.Int2, sqltype.Text, sqltype.Oid, 1001}
 	case "brin_revmap_data":
 		usage = b.Type(sqltype.Tid).Usage()
 	case "brin_metapage_info":
@@ -147,7 +176,7 @@ func bindPageinspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	return routine.Attach(call)
 }
 func namedPageinspect(b CallTypeContext, raw parser.FunctionExpr, args []Argument, declared []sqltype.Usage) ([]sqltype.Usage, []sqltype.Usage, bool) {
-	labels, types := pageinspectFormals(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	labels, types := pageinspectFormals(raw.Name.Parts[len(raw.Name.Parts)-1].Text, len(args))
 	slots, ok := namedSlots(raw, labels, len(labels))
 	if !ok || raw.Variadic || len(args) != len(types) || !declaredTypes(declared, types) {
 		return nil, nil, false
@@ -163,10 +192,19 @@ func (n Pageinspect) Children() []expr.Expr { return n.Args }
 func (n Pageinspect) ValidateArguments(children []expr.Expr) error {
 	count := 1
 	switch n.Member {
-	case "brin_page_type", "brin_metapage_info", "brin_revmap_data", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "heap_page_items":
-	case "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info":
+	case "brin_page_type", "brin_metapage_info", "brin_revmap_data", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "heap_page_items", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info":
 	case "brin_page_items", "page_checksum", "heap_tuple_infomask_flags":
 		count = 2
+	case "tuple_data_split":
+		count = 5
+		if len(children) == 6 {
+			count = 6
+		}
+	case "heap_page_item_attrs":
+		count = 2
+		if len(children) == 3 {
+			count = 3
+		}
 	default:
 		return fmt.Errorf("stuntgres: invalid pageinspect member")
 	}
@@ -180,14 +218,34 @@ func (n Pageinspect) ValidateArguments(children []expr.Expr) error {
 			return fmt.Errorf("stuntgres: invalid pageinspect argument")
 		}
 		expected := sqltype.Bytea
-		if slot == 1 {
-			expected = sqltype.Regclass
-			if n.Member == "page_checksum" {
-				expected = sqltype.Int8
+		switch n.Member {
+		case "tuple_data_split":
+			switch slot {
+			case 0:
+				expected = sqltype.Oid
+			case 2, 3:
+				expected = sqltype.Int4
+			case 4:
+				expected = sqltype.Text
+			case 5:
+				expected = sqltype.Bool
 			}
-		}
-		if n.Member == "heap_tuple_infomask_flags" {
+		case "heap_page_item_attrs":
+			if slot == 1 {
+				expected = sqltype.Regclass
+			}
+			if slot == 2 {
+				expected = sqltype.Bool
+			}
+		case "heap_tuple_infomask_flags":
 			expected = sqltype.Int4
+		default:
+			if slot == 1 {
+				expected = sqltype.Regclass
+				if n.Member == "page_checksum" {
+					expected = sqltype.Int8
+				}
+			}
 		}
 		if child.ResultUsage().Type.BaseType().ID() != expected {
 			return fmt.Errorf("stuntgres: invalid pageinspect argument")
@@ -215,10 +273,10 @@ func (n Pageinspect) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool,
 	return expr.CaptureOperands{Args: n.Args, Count: len(n.Args)}, kind == expr.CaptureFunction, nil
 }
 func (n Pageinspect) SourceAdmission() (bool, bool) {
-	return true, n.Member == "brin_page_items" || n.Member == "brin_revmap_data" || n.Member == "bt_page_items" || n.Member == "gin_leafpage_items" || n.Member == "hash_page_items" || n.Member == "heap_page_items"
+	return true, n.Member == "brin_page_items" || n.Member == "brin_revmap_data" || n.Member == "bt_page_items" || n.Member == "gin_leafpage_items" || n.Member == "hash_page_items" || n.Member == "heap_page_items" || n.Member == "heap_page_item_attrs"
 }
 func (n Pageinspect) ScalarSourceOutName() string {
-	if n.Member == "fsm_page_contents" {
+	if n.Member == "fsm_page_contents" || n.Member == "tuple_data_split" {
 		return ""
 	}
 	if n.Member == "brin_revmap_data" {

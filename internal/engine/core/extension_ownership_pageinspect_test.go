@@ -31,7 +31,7 @@ func ownershipPageinspectIdentity(t *testing.T) {
 	for i, address := range recipe.Members {
 		originals[i] = before.MustProcedure(address)
 	}
-	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info", "heap_page_items", "heap_tuple_infomask_flags"}
+	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info", "heap_page_items", "heap_tuple_infomask_flags", "tuple_data_split", "tuple_data_split", "heap_page_item_attrs", "heap_page_item_attrs"}
 	if len(originals) != len(symbols) {
 		t.Fatal("incomplete released pageinspect inventory")
 	}
@@ -59,6 +59,10 @@ func ownershipPageinspectIdentity(t *testing.T) {
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_metapage_info(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_page_items(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_tuple_infomask_flags(integer,integer)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.tuple_data_split(oid,bytea,integer,integer,text)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.tuple_data_split(oid,bytea,integer,integer,text,boolean)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_page_item_attrs(bytea,regclass,boolean)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_page_item_attrs(bytea,regclass)`,
 		`DROP EXTENSION pageinspect`,
 		`ALTER EXTENSION "uuid-ossp" DROP FUNCTION public.eo_page_type(bytea)`,
 	} {
@@ -141,7 +145,7 @@ func ownershipPageinspectCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 17 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 21 {
 		t.Fatal("pageinspect remap lost sealed release")
 	}
 	for i, a := range recipe.Members {

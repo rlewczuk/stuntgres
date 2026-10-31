@@ -16,6 +16,16 @@ import (
 // Pageinspect captures only immutable catalog descriptors. No physical state or
 // table rows are consulted. Engine.Mu protects admission, never byte decoding.
 func (h *statementHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
+	return h.capturePageinspect(n, oid, nil)
+}
+
+func (h *statementHost) PageinspectHeap(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.HeapStoredColumn, error) {
+	var columns []sqltype.HeapStoredColumn
+	_, err := h.capturePageinspect(n, oid, &columns)
+	return columns, err
+}
+
+func (h *statementHost) capturePageinspect(n plan.InstalledPageinspectExpr, oid uint32, heap *[]sqltype.HeapStoredColumn) ([]sqltype.BrinStoredColumn, error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return nil, err
@@ -27,7 +37,7 @@ func (h *statementHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32)
 	}
 	var target *catalog.Relation
 	var ref ids.ObjectRef
-	if err == nil && n.Member == "brin_page_items" {
+	if err == nil && (n.Member == "brin_page_items" || heap != nil) {
 		ref = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 		target, _ = auth.Catalog.Relation(ref.Address)
 		if target == nil {
@@ -78,6 +88,10 @@ func (h *statementHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32)
 		return nil, ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref, temporaryTargetAttempt)
+	if heap != nil {
+		*heap, err = pageinspectHeapColumns(target)
+		return nil, err
+	}
 	if target.RelationKind != catalog.IndexRelation || target.SQLIndex == nil {
 		return nil, SQLError("42809", fmt.Sprintf("\"%s\" is not an index", target.Name()))
 	}

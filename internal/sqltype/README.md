@@ -861,6 +861,12 @@ context cancellation, separate header/tail availability and bounded pointer read
 Undefined upstream out-of-allocation layouts receive ordinary native-layout
 errors only; private safety tests never send these images to the PostgreSQL oracle.
 Heap infomask decoding retains static flag names in source order without a registry.
+`HeapTupleLayout` separates bitmap admission from schema-dependent deformation.
+`HeapStoredColumn` retains only physical length/alignment, including dropped
+slots. Splitting borrows immutable bytes for physical output and uses the shared
+PGLZ/LZ4 kernels only for supplied inline detoasting. NULL slots, empty arrays,
+physical headers and detoasted payloads remain distinct typed values; external
+TOAST identifiers grant no payload or process-address authority.
 Regex matcher ownership and independent concurrent scratch:
 `RUN='^TestPGRegexMatcher'`.
 

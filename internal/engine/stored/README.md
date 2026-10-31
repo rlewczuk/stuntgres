@@ -137,6 +137,17 @@ Routine declaration queries retain relation qualification even for a sole source
 and atomic continuation clauses inherit the statement's one-space body indent.
 Ordinary view display and executable replay keep their existing layout policies.
 
+Installed declaration-member display admits the existing Earth/cube recipe path
+and the two genuine pageinspect 1.13 SQL attrs wrappers only. The latter retain
+their canonical body identity and exact same-installation helper slots: attrs2
+to attrs3, and attrs3 to heap15/split6. Target and helper descriptors must still
+be current, genuine sealed declarations with reciprocal current membership
+(including valid detachment). Display checks no EXECUTE privilege and invokes
+no helper. Helper calls use current routine identities; released function-RTE
+aliases remain stable, while outer-formal qualifiers follow the current wrapper
+name. These distinct typed recipe slots survive move, detach and native replay
+without rewriting SQL strings or widening the Earth/cube admission boundary.
+
 
 Type inquiry recipes retain their selected declaration, ordered demanded
 operands and logical type witness through generic rebuild, retag and remap.
@@ -703,6 +714,13 @@ host methods.
   (`constraint_sql.go`) and `DeparseAttribute`. `ScalarRenderer`
   (`scalar_*.go`): stored scalar SQL for defaults, checks and dumps, recording
   the references it prints (`DefaultSQL`, `RenderColumnDefault`).
+  Scalar tuple-split defaults reuse the binder's bounded closed-default predicate,
+  preserving their intrinsic live-schema dependence without accepting unrelated
+  stage-dependent expressions or suppressing runtime admission.
+  Owning CHECK trees use the separate intrinsic-stage validator through known
+  Boolean/null-test/coercion wrappers while keeping ordinary row-origin checks.
+  A genuine split in one branch cannot authorize unrelated stage dependence in
+  another; neither validator changes executable properties.
   Public expression deparse presents adjacent AND/OR nodes with the same
   connective as a flat PostgreSQL boolean chain, retaining operand grouping and
   mixed-connective precedence without changing the binary executable tree.
