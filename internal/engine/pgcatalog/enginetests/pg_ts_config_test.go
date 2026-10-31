@@ -33,7 +33,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 21 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 22 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
 	assertSeedConfigurations(t, view, source, captured.Anonymous)
@@ -146,8 +146,8 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 399 {
-		t.Fatal("actual simple and twenty released Snowball configuration mappings", rows, err)
+	if err != nil || len(rows) != 418 {
+		t.Fatal("actual simple and twenty-one released Snowball configuration mappings", rows, err)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
@@ -329,6 +329,18 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			t.Fatal("missing distinct Romanian dictionary", romanianStem)
 		}
 	}
+	spanish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "spanish"})
+	spanishStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "spanish_stem"})
+	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
+		if spanish.ClassID != ids.TSConfigurationClassID || spanish.ObjectID == 0 || spanish == earlier {
+			t.Fatal("missing distinct Spanish configuration", spanish)
+		}
+	}
+	for _, earlier := range []ids.ObjectAddress{stem, arabicStem, armenianStem, basqueStem, danishStem, dutchStem, estonianStem, germanStem, greekStem, hindiStem, hungarianStem, irishStem, italianStem, lithuanianStem, norwegianStem, portugueseStem, yiddishStem, indonesianStem, nepaliStem, romanianStem, {ClassID: ids.TSDictionaryClassID, ObjectID: 3765}} {
+		if spanishStem.ClassID != ids.TSDictionaryClassID || spanishStem.ObjectID == 0 || spanishStem == earlier {
+			t.Fatal("missing distinct Spanish dictionary", spanishStem)
+		}
+	}
 	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
 		if len(row) != 4 {
@@ -454,6 +466,11 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			case 1, 2, 10, 11, 16, 17:
 				wantDictionary = int64(romanianStem.ObjectID)
 			}
+		} else if values[0] == int64(spanish.ObjectID) {
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(spanishStem.ObjectID)
+			}
 		} else if values[0] != 3748 {
 			t.Fatal("unexpected configuration mapping", values)
 		}
@@ -462,7 +479,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		}
 		tokens[key] = true
 	}
-	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID), int64(yiddish.ObjectID), int64(indonesian.ObjectID), int64(nepali.ObjectID), int64(romanian.ObjectID)} {
+	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID), int64(yiddish.ObjectID), int64(indonesian.ObjectID), int64(nepali.ObjectID), int64(romanian.ObjectID), int64(spanish.ObjectID)} {
 		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
 			if !tokens[[2]int64{config, token}] {
 				t.Fatal("missing stock token", config, token)
@@ -564,6 +581,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	nextRomanian.Mappings = nil
 	nextRomanian.ObjectRevision++
 	state.SetDescriptor(romanian, &nextRomanian)
+	nextSpanish := *view.MustTSConfiguration(spanish)
+	nextSpanish.Mappings = nil
+	nextSpanish.ObjectRevision++
+	state.SetDescriptor(spanish, &nextSpanish)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)

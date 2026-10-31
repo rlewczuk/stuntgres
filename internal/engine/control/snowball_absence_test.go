@@ -51,7 +51,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					if d.Seeded() { configurations[d.SeedName()] = true }
 				}
 			}
-			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian"}
+			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish"}
 			for _, language := range languages {
 				wantDictionary, wantConfiguration := true, true
 				if language == "yiddish" { wantDictionary, wantConfiguration = tc.dictionary, tc.configuration }
@@ -68,7 +68,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					defaultConfigurations[d.SeedName()] = true
 				}
 			}
-			if len(defaultDictionaries) != 20 || len(defaultConfigurations) != 20 { t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations) }
+			if len(defaultDictionaries) != 21 || len(defaultConfigurations) != 21 { t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations) }
 			for _, language := range languages {
 				if !defaultDictionaries[language+"_stem"] || !defaultConfigurations[language] { t.Fatal("missing immutable defaults", language) }
 			}

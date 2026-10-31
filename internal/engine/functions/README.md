@@ -986,7 +986,7 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
-  `english.stop`, `danish.stop`, `dutch.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop` and `portuguese.stop` are verbatim released PostgreSQL resources.
+  `english.stop`, `danish.stop`, `dutch.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop` and `spanish.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
   publish no cache entry. Lists are not reread per evaluation.
@@ -994,7 +994,7 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
@@ -1066,6 +1066,13 @@ publication and lock-manager tickets stay in the engine.
   except verb matching is RV-bounded and its conditional predecessor must also
   lie inside RV. Prefix/tail edits retain input backing without intermediate
   suffix copies. Postlude restores I/U; no NFC, unaccent or English backup is used.
+  Spanish preserves original UTF8 RV/R1/R2 across attached-pronoun edits, its
+  46 standard, 12 y-verb and 96 verb suffixes, then always applies residual
+  removal and lowercase acute-vowel postlude. Standard/residual lookup is global;
+  verb lookup is RV-limited. Verb gu cleanup may inspect outside RV, whereas
+  residual gu cleanup requires the u inside RV. Its 313-entry stoplist retains
+  released spellings, including vosostros/vosostras. Prefix/tail edits avoid
+  intermediate copies; neither Unicode normalization nor English backup is used.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

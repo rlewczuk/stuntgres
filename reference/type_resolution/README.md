@@ -320,6 +320,11 @@ values, complete diagnostics and actual native-emitted seed/carrier replay use
 requires real parameterized Romanian output. Private rules, immutable resources,
 seed authority, publication fences, fold ownership and canonical replay use
 `RUN='^TestSnowballRomanian'`.
+Spanish release morphology, exact stopwords, C-case and byte boundaries, typed
+direct/held execution, stock maps, diagnostics, atomicity and native-emitted
+replay share `RUN='^TestReferenceSpanishSnowball'`. Output-gated cancellation
+requires actual Spanish output on both backends. Private rules, resource
+ownership, seed replay and composed publication use `RUN='^TestSnowballSpanish'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
