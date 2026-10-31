@@ -13,8 +13,8 @@ import (
 // VisitPublicationTables bridges domain resolution to the low catalog producer.
 // The caller holds Engine.Mu and supplies its exact captured authorization root;
 // the callback only serializes borrowed immutable facts, never external I/O.
-func (r EngineCatalogRuntime) VisitPublicationTables(ctx context.Context, view catalog.Read, p *catalog.Publication, visit func(pgcatalog.PublicationTableFact) error) error {
-	if ctx == nil || r.engine == nil || r.Auth.Owner != &r.engine.Catalog.Owner || view.Owner() != r.Auth.Owner || view != r.Auth.Catalog || p == nil || view.Get(p.Address()) != p || visit == nil {
+func (r Runtime) VisitPublicationTables(ctx context.Context, view catalog.Read, p *catalog.Publication, visit func(pgcatalog.PublicationTableFact) error) error {
+	if ctx == nil || r.engineOwner() == nil || r.View.Owner != r.engineOwner() || view.Owner() != r.View.Owner || view != r.View.Catalog || p == nil || view.Get(p.Address()) != p || visit == nil {
 		return fmt.Errorf("stuntgres: invalid publication membership capture")
 	}
 	if err := ctx.Err(); err != nil {
@@ -23,7 +23,7 @@ func (r EngineCatalogRuntime) VisitPublicationTables(ctx context.Context, view c
 	var failure error
 	err := publication.VisitTables(view, p, func(relation *catalog.Relation) bool {
 		var fact pgcatalog.PublicationTableFact
-		fact, failure = publicationTableMetadata(ctx, view, p, relation)
+		fact, failure = PublicationTableMetadata(ctx, view, p, relation)
 		if failure != nil {
 			return false
 		}
@@ -39,9 +39,9 @@ func (r EngineCatalogRuntime) VisitPublicationTables(ctx context.Context, view c
 	return ctx.Err()
 }
 
-// publicationTableMetadata projects the selected relation's direct mapping.
+// PublicationTableMetadata projects the selected relation's direct mapping.
 // DML-effective ancestry coverage must not suppress its inquiry metadata.
-func publicationTableMetadata(ctx context.Context, view catalog.Read, p *catalog.Publication, relation *catalog.Relation) (pgcatalog.PublicationTableFact, error) {
+func PublicationTableMetadata(ctx context.Context, view catalog.Read, p *catalog.Publication, relation *catalog.Relation) (pgcatalog.PublicationTableFact, error) {
 	fact := pgcatalog.PublicationTableFact{Relation: relation}
 	if err := ctx.Err(); err != nil {
 		return fact, err

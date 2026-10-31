@@ -50,7 +50,7 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 	roles := e.Roles()
 	capture := func(ctx context.Context,v catalog.Read,s *catalog.Relation,r ids.ObjectRef,roles authorization.Read) {
 		t.Helper()
-		got,err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context:ctx,Catalog:v,Source:s,Ref:r,Owner:v.Owner(),Roles:roles,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},produce)
+		got,err := core.CaptureRows(pgcatalog.Input{Context:ctx,Catalog:v,Source:s,Ref:r,Owner:v.Owner(),Roles:roles,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != r { t.Fatal("empty capture",got,err) }
 	}
 	descriptors,names := maps.Collect(view.State().Descriptors()),maps.Collect(view.State().Names())
@@ -76,7 +76,7 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 		t.Run(tc.name,func(t *testing.T) {
 			bad := input
 			tc.mutate(&bad)
-			got,err := core.CaptureCatalogSourceRows(bad,produce)
+			got,err := core.CaptureRows(bad,produce)
 			if got != nil || err == nil || err.Error() != "stuntgres: invalid statistics definition source" { t.Fatal("invalid authority",got,err) }
 			var state interface{ SQLState() string }; if errors.As(err,&state) { t.Fatal("invariant SQLSTATE",err) }
 		})
@@ -89,13 +89,13 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 	wrongAttribute := *d; wrongAttribute.Attributes = append([]int32(nil),d.Attributes...); wrongAttribute.Attributes[0]++; bad = append(bad,&wrongAttribute)
 	for _,s := range bad {
 		in := input; in.Source = s
-		got,err := core.CaptureCatalogSourceRows(in,produce)
+		got,err := core.CaptureRows(in,produce)
 		if got != nil || err == nil || err.Error() != "stuntgres: invalid statistics definition source" { t.Fatal("invalid source",got,err) }
 		var state interface{ SQLState() string }; if errors.As(err,&state) { t.Fatal("invariant SQLSTATE",err) }
 	}
 	ctx,cancel := context.WithCancel(context.Background()); cancel()
 	canceled := input; canceled.Context = ctx
-	got,err := core.CaptureCatalogSourceRows(canceled,produce)
+	got,err := core.CaptureRows(canceled,produce)
 	if got != nil || !errors.Is(err,context.Canceled) { t.Fatal("canceled capture",got,err) }
 	var state interface{ SQLState() string }; if errors.As(err,&state) { t.Fatal("cancellation SQLSTATE",err) }
 	if err := engine.Reset(context.Background(),e); err != nil { t.Fatal(err) }
@@ -104,5 +104,5 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 	for _,id := range []sqltype.ID{26,19,22,21,1002,194,10031,10030} { old,_ := view.LookupType(id); now,_ := freshView.LookupType(id); if old == now { t.Fatal("reused carrier",id) } }
 	capture(context.Background(),freshView,fresh,freshRef,e.Roles()); capture(context.Background(),view,d,ref,roles)
 	stale := input; stale.Catalog = freshView; stale.Ref = freshRef; stale.Roles = e.Roles()
-	if got,err := core.CaptureCatalogSourceRows(stale,produce); got != nil || err == nil { t.Fatal("old source accepted",got,err) }
+	if got,err := core.CaptureRows(stale,produce); got != nil || err == nil { t.Fatal("old source accepted",got,err) }
 }

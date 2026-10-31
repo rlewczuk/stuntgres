@@ -99,7 +99,7 @@ func TestPGReplicationOriginCaptureOwnership(t *testing.T) {
 			mutate(&bad)
 			rows, err := produce(bad)
 			subscriptionInvariant(t, rows == nil, err)
-			wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+			wrapped, err := core.CaptureRows(bad, produce)
 			subscriptionInvariant(t, wrapped == nil, err)
 		}
 		// A coherent unpublished capture is legitimate; a source with a foreign

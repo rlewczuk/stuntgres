@@ -63,7 +63,7 @@ func udtUnitRows(t *testing.T, in pgcatalog.Input, names ...string) [][]sqltype.
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	capture, err := core.CaptureCatalogSourceRows(in, produce)
+	capture, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

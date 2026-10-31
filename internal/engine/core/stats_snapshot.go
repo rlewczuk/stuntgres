@@ -35,15 +35,16 @@ func (h *statementHost) StatsSnapshotValue(clear bool, result *sqltype.Descripto
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: invalid statistics snapshot runtime signature")
 }
-func (r EngineCatalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.MaintenanceFact {
-	if r.Auth.Session == nil || PayloadOf(r.Auth.Session) == nil {
+func (r *catalogRuntime) TableStatistics(address ids.ObjectAddress) pgcatalog.MaintenanceFact {
+	if r.auth.Session == nil || PayloadOf(r.auth.Session) == nil {
 		return pgcatalog.MaintenanceFact{}
 	}
-	if r.settings == nil {
-		r.settings = r.Auth.Session.Settings
+	settings := r.settings
+	if settings == nil {
+		settings = r.auth.Session.Settings
 	}
-	reader := statsReader(r.Auth.Session, r.settings)
-	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.Auth.Catalog.Epoch(), address), Category: statistics.Relation}
+	reader := statsReader(r.auth.Session, settings)
+	key := statistics.Key{Object: r.engine.Catalog.Domain.Ref(r.auth.Catalog.Epoch(), address), Category: statistics.Relation}
 	var now time.Time
 	if reader.NeedsSnapshot() {
 		now = time.Now().UTC().Truncate(time.Microsecond)

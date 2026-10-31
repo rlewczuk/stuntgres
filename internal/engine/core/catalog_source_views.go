@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
+func (r Runtime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
 	events, err := view.Capabilities(ctx, read, relation, nil, r.catalogViewLeafEvents)
 	if err != nil {
 		return pgcatalog.ViewCapability{}, err
@@ -41,7 +41,7 @@ func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog
 
 // No provider method is called: interface support is immutable handler metadata.
 // The caller owns the captured catalog; no foreign transaction or scan is begun.
-func (r EngineCatalogRuntime) catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
+func (r Runtime) catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -58,7 +58,7 @@ func (r EngineCatalogRuntime) catalogViewLeafEvents(ctx context.Context, read ca
 	if relation.RelationKind != catalog.ForeignRelation {
 		return 0, nil
 	}
-	handler, err := fdw.RelationHandler(read, relation, r.Auth.RestrictedRelations())
+	handler, err := fdw.RelationHandler(read, relation, r.restricted())
 	if err != nil {
 		return 0, err
 	}
@@ -75,7 +75,9 @@ func (r EngineCatalogRuntime) catalogViewLeafEvents(ctx context.Context, read ca
 	return events, nil
 }
 
-func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
+// BuiltinViewDefinition renders a builtin view's definition with the
+// runtime's presentation.
+func (r Runtime) BuiltinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -83,7 +85,7 @@ func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 		return "", ids.ErrCatalogReplaced
 	}
 	var spellingErr error
-	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, r.presentation.Pretty, func(name pgcatalog.BuiltinViewName) string {
+	definition := pgcatalog.BuiltinViewDefinition(relation.Address().ObjectID, r.Presentation.Pretty, func(name pgcatalog.BuiltinViewName) string {
 		if spellingErr != nil {
 			return ""
 		}
@@ -94,7 +96,7 @@ func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 	if spellingErr != nil {
 		return "", spellingErr
 	}
-	if definition == "" && !r.presentation.Pretty {
+	if definition == "" && !r.Presentation.Pretty {
 		return "", fmt.Errorf("stuntgres: missing builtin view definition")
 	}
 	return strings.TrimSuffix(definition, ";"), nil
@@ -102,9 +104,9 @@ func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 
 // This bounded display lookup applies only to explicitly named references in
 // the builtin-owned fragments. It does not install upstream-only descriptors.
-func (r EngineCatalogRuntime) builtinViewName(read catalog.Read, name pgcatalog.BuiltinViewName) (string, error) {
-	path := r.presentation.Path
-	identifier := (stored.Deparser{Output: r.presentation.Output}).Identifier
+func (r Runtime) builtinViewName(read catalog.Read, name pgcatalog.BuiltinViewName) (string, error) {
+	path := r.Presentation.Path
+	identifier := (stored.Deparser{Output: r.Presentation.Output}).Identifier
 	if name.IdentifierOnly {
 		return identifier(name.Name), nil
 	}
@@ -148,7 +150,7 @@ func (r EngineCatalogRuntime) builtinViewName(read catalog.Read, name pgcatalog.
 				}
 			}
 		}
-	} else if target, ok := read.LookupName(key); ok && !r.presentation.Output.QuoteAllIdentifiers {
+	} else if target, ok := read.LookupName(key); ok && !r.Presentation.Output.QuoteAllIdentifiers {
 		if name.Class == ids.RelationClassID {
 			spelling = regobj.ClassSpelling(read, path, target.ObjectID)
 		} else {

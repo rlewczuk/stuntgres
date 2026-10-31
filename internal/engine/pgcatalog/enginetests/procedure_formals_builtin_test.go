@@ -38,7 +38,7 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("missing procedure producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, produce)
+	captured, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

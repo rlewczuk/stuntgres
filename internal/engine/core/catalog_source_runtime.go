@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -22,140 +21,75 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// Runtime implements pgcatalog.Runtime for one catalog source capture.
 // Retaining handles here is cheap. Only the selected producer demands facts;
-// neither construction nor unrelated OIDs inspect mutable runtime state.
-type EngineCatalogRuntime struct {
-	engine             *Engine
-	Auth               AuthorizationView
-	cursors            *cursorRegistry
-	preparedStatements *PreparedRegistry
-	settings           *session.SettingsStore
-	registry           settings.Registry
-	input              sqltype.InputEnvironment
-	Database           string
-	temporary          ids.SessionToken
-	presentation       stored.Presentation
-	sequenceBase       *catalog.State
-	sequenceOwn        *session.Journal
+// neither construction nor unrelated OIDs inspect mutable runtime state. View
+// is the captured authority; Host supplies its session inputs and the
+// engine-level facts. A Runtime without a Host serves only the presentation
+// methods (deparse and builtin view definitions).
+type Runtime struct {
+	Host
+	View         access.View
+	Input        sqltype.InputEnvironment
+	Database     string
+	Temporary    ids.SessionToken
+	Presentation stored.Presentation
+	SequenceBase *catalog.State
+	SequenceOwn  *session.Journal
 }
 
-var _ pgcatalog.Runtime = EngineCatalogRuntime{}
+// Host is the engine side of a Runtime. Its environment is the captured
+// authority's (View's). The engine-level capture methods are promoted into
+// Runtime's pgcatalog.Runtime method set.
+type Host interface {
+	access.Environment
+	// RestrictedRelations reads the authority's operation-effective
+	// restrict_nonsystem_relation_kind.
+	RestrictedRelations() settings.RestrictedRelationKinds
+	// EngineOwner is the backing engine's catalog owner, or nil without one.
+	EngineOwner() *catalog.Owner
+	CursorCount() int
+	VisitCursors(func(pgcatalog.CursorFact) error) error
+	PreparedStatementCount() int
+	VisitPreparedStatements(context.Context, func(pgcatalog.PreparedStatementFact) error) error
+	SessionSettings(context.Context) ([]pgcatalog.SettingsFact, error)
+	PreparedCount() int
+	VisitPreparedTransactions(context.Context, func(pgcatalog.PreparedFact) error) error
+	ValidateParameter(catalog.Read, *catalog.Parameter) error
+	Maintenance(ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool)
+	TableStatistics(ids.ObjectAddress) pgcatalog.MaintenanceFact
+	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
+	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
+	DatabaseFrozenXID() uint64
+	VisitVacuumProgress(context.Context, func(pgcatalog.VacuumProgressFact) error) error
+	VisitCopyProgress(context.Context, func(pgcatalog.CopyProgressFact) error) error
+	VisitCreateIndexProgress(context.Context, func(pgcatalog.CreateIndexProgressFact) error) error
+}
 
-func (r EngineCatalogRuntime) CursorCount() int { return len(r.cursors.Entries) }
-func (r EngineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) error) error {
-	for name, cursor := range r.cursors.Entries {
-		if err := visit(pgcatalog.CursorFact{name, cursor.statement, cursor.hold, cursor.scroll, cursor.created}); err != nil {
-			return err
-		}
+var _ pgcatalog.Runtime = Runtime{}
+
+// engineOwner is the backing engine's catalog owner, or nil.
+func (r Runtime) engineOwner() *catalog.Owner {
+	if r.Host == nil {
+		return nil
 	}
-	return nil
+	return r.EngineOwner()
 }
-func (r EngineCatalogRuntime) PreparedStatementCount() int {
-	count := len(r.preparedStatements.definitions)
-	if r.preparedStatements.Lookup("") != nil {
-		count--
+
+// restricted is the authority's restricted relation kinds; a Runtime without
+// a Host has none, like a zero authority.
+func (r Runtime) restricted() settings.RestrictedRelationKinds {
+	if r.Host == nil {
+		return 0
 	}
-	return count
+	return r.RestrictedRelations()
 }
-func (r EngineCatalogRuntime) VisitPreparedStatements(ctx context.Context, visit func(pgcatalog.PreparedStatementFact) error) error {
-	for name, entry := range r.preparedStatements.Definitions() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if name == "" {
-			continue
-		}
-		d := entry.Description
-		if err := visit(pgcatalog.PreparedStatementFact{
-			Name: name, Statement: entry.Source, Created: entry.Created, FromSQL: entry.FromSQL,
-			ParameterCount: d.Parameters.Count, ParameterTypes: d.Parameters.Types,
-			ParameterOIDs: entry.ParameterOIDs, Results: d.Results,
-			HasResults: session.ProtocolHasRows(entry.Body, d.Results),
-		}); err != nil {
-			return err
-		}
-	}
-	return ctx.Err()
-}
-func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.SettingsFact, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	readRestricted, err := r.Auth.canReadRestrictedSettings()
-	if err != nil {
-		return nil, err
-	}
-	facts := make([]pgcatalog.SettingsFact, 0, len(r.registry.Order()))
-	s := r.settings
-	s.Mu.Lock()
-	for _, name := range r.registry.Order() {
-		d := r.registry.Definitions()[name]
-		if d.ReadRestricted && !readRestricted {
-			continue
-		}
-		value := s.TypedValue(name)
-		switch name {
-		case "is_superuser":
-			text, err := r.Auth.settingValue(s, name)
-			if err != nil {
-				s.Mu.Unlock()
-				return nil, err
-			}
-			value = settings.Value{Boolean: text == "on"}
-		case "transaction_isolation":
-			if s.CurrentIsolation != "" {
-				value = settings.Value{Text: s.CurrentIsolation}
-			}
-		case "transaction_read_only":
-			value = settings.Value{Boolean: s.CurrentReadOnly}
-		case "transaction_deferrable":
-			value = settings.Value{Boolean: s.CurrentDeferrable}
-		}
-		source := "default"
-		if d.NativeStartup != nil && !d.NativeStartup.ResetNull {
-			source = "override"
-			if d.NativeStartup.Source != "" {
-				source = d.NativeStartup.Source
-			}
-		}
-		if captured, present := s.DefaultSources[name]; present {
-			source = captured.String()
-		}
-		if s.ProviderDefaults[name] {
-			source = "client"
-		}
-		if _, present := s.Values[name]; present {
-			source = "session"
-		}
-		facts = append(facts, pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source, ResetCaptured: s.ProviderDefaults[name] || s.DefaultSources[name] != session.DefaultSourceDefault})
-	}
-	s.Mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return facts, nil
-}
-func (r EngineCatalogRuntime) PreparedCount() int { return r.engine.prepared.Len() }
-func (r EngineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(pgcatalog.PreparedFact) error) error {
-	for _, entry := range r.engine.prepared.All() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		fact := pgcatalog.PreparedFact{XID: r.engine.Visibility.AssignedXIDLocked(entry.Ref), GID: entry.GID, Prepared: entry.Prepared, Database: entry.Database}
-		if role, ok := r.engine.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).Find(entry.Owner); ok {
-			fact.Owner, fact.OwnerPresent = role.Name, true
-		}
-		if err := visit(fact); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-func (r EngineCatalogRuntime) TimezoneInput() sqltype.InputEnvironment { return r.input }
-func (r EngineCatalogRuntime) DatabaseName() string                    { return r.Database }
-func (r EngineCatalogRuntime) TemporaryOwner() ids.SessionToken        { return r.temporary }
-func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
-	return r.Auth.State.CurrentUser
+
+func (r Runtime) TimezoneInput() sqltype.InputEnvironment { return r.Input }
+func (r Runtime) DatabaseName() string                    { return r.Database }
+func (r Runtime) TemporaryOwner() ids.SessionToken        { return r.Temporary }
+func (r Runtime) CurrentPrincipal() authorization.PrincipalRef {
+	return r.View.State.CurrentUser
 }
 
 // sharedCaptureNames names the information_schema sources that share one
@@ -224,11 +158,11 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoCheckConstraintsOID:            "check_constraints",
 }
 
-func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
-	a := r.Auth
+func (r Runtime) ValidateCapture(view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, oid ids.OID) error {
+	a := r.View
 	// These readers require a backing engine with the captured owner, including
 	// legitimate transaction-private catalog roots.
-	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engine == nil || a.Owner != &r.engine.Catalog.Owner) {
+	if (oid == pgcatalog.PublicationRelationOID || oid == pgcatalog.PublicationTablesOID || oid == pgcatalog.ReplicationOriginOID || oid == pgcatalog.PublicationOID || oid == pgcatalog.PublicationNamespaceOID || oid == pgcatalog.StatisticExtDataOID || oid == pgcatalog.SubscriptionOID || oid == pgcatalog.SubscriptionRelOID) && (r.engineOwner() == nil || a.Owner != r.engineOwner()) {
 		return fmt.Errorf("stuntgres: invalid %s capture", sharedCaptureNames[oid])
 	}
 	if name, ok := sharedCaptureNames[oid]; ok {
@@ -249,30 +183,27 @@ func (r EngineCatalogRuntime) ValidateCapture(view catalog.Read, roles authoriza
 	}
 	return a.Roles.ValidatePrincipal(a.State.CurrentUser)
 }
-func (r EngineCatalogRuntime) Effective(ref ids.ObjectRef, owner bool) (authorization.Privileges, error) {
-	return r.Auth.Effective(ref, owner)
+func (r Runtime) Effective(ref ids.ObjectRef, owner bool) (authorization.Privileges, error) {
+	return r.View.Effective(r.Host, ref, owner)
 }
-func (r EngineCatalogRuntime) CanUse(ref ids.ObjectRef) error { return r.Auth.CanUse(ref) }
-func (r EngineCatalogRuntime) SelectColumns(ref ids.ObjectRef, relation *catalog.Relation) error {
-	return r.Auth.CheckColumns(ref, relation, authorization.SelectPrivilege, nil)
+func (r Runtime) CanUse(ref ids.ObjectRef) error { return r.View.CanUse(r.Host, ref) }
+func (r Runtime) SelectColumns(ref ids.ObjectRef, relation *catalog.Relation) error {
+	return r.View.CheckColumns(r.Host, ref, relation, authorization.SelectPrivilege, nil)
 }
-func (r EngineCatalogRuntime) ValidateParameter(view catalog.Read, d *catalog.Parameter) error {
-	return (role.ParameterProvider{Settings: &r.engine.Settings}).Validate(view, d)
-}
-func (r EngineCatalogRuntime) ForeignServerVisible(server *catalog.ForeignObject, mapped authorization.PrincipalRef) (bool, error) {
-	a := r.Auth
+func (r Runtime) ForeignServerVisible(server *catalog.ForeignObject, mapped authorization.PrincipalRef) (bool, error) {
+	a := r.View
 	actor, err := a.Roles.Descriptor(a.State.CurrentUser)
 	if err != nil {
 		return false, err
 	}
-	owner := a.Check(access.Requirement{Object: fdw.ObjectRef(a.View, server), OwnerOnly: true}) == nil
+	owner := a.Check(r.Host, access.Requirement{Object: fdw.ObjectRef(a, server), OwnerOnly: true}) == nil
 	visible := actor.Superuser || mapped == (authorization.PrincipalRef{}) && owner
 	if mapped == a.State.CurrentUser {
-		visible = visible || owner || a.Check(access.Requirement{Object: fdw.ObjectRef(a.View, server), Privileges: authorization.UsagePrivilege}) == nil
+		visible = visible || owner || a.Check(r.Host, access.Requirement{Object: fdw.ObjectRef(a, server), Privileges: authorization.UsagePrivilege}) == nil
 	}
 	return visible, nil
 }
-func (r EngineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *catalog.Relation, expression expr.Expr, visit func(int32) error) error {
+func (r Runtime) VisitCheckAttributes(ctx context.Context, table *catalog.Relation, expression expr.Expr, visit func(int32) error) error {
 	var failure error
 	plan.WalkExpression(expression, func(node expr.Expr) {
 		if failure != nil {
@@ -288,10 +219,10 @@ func (r EngineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 	})
 	return failure
 }
-func (r EngineCatalogRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
+func (r Runtime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
 	return stored.ExpressionDependRefs(ctx, view, value)
 }
-func (r EngineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
+func (r Runtime) ViewReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -338,7 +269,7 @@ func (r EngineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.R
 	}
 	return stored.QueryDependRefs(ctx, view, nil, definition.Query())
 }
-func (r EngineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
+func (r Runtime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
 	if key.Derived == nil {
 		return key.Attribute, true
 	}
@@ -347,22 +278,22 @@ func (r EngineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	}
 	return 0, false
 }
-func (r EngineCatalogRuntime) IndexReferences(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
+func (r Runtime) IndexReferences(ctx context.Context, view catalog.Read, definition *catalog.IndexDefinition) ([]ids.ObjectAddress, error) {
 	return stored.IndexDependRefs(ctx, view, definition)
 }
-func (r EngineCatalogRuntime) PartitionReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
+func (r Runtime) PartitionReferences(ctx context.Context, view catalog.Read, relation *catalog.Relation) ([]ids.ObjectAddress, error) {
 	return stored.PartitionDependRefs(ctx, view, relation)
 }
-func (r EngineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
+func (r Runtime) ViewDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	if relation.View == nil {
-		return r.builtinViewDefinition(ctx, view, relation)
+		return r.BuiltinViewDefinition(ctx, view, relation)
 	}
-	return stored.ViewDefinitionSQL(ctx, view, relation, r.presentation)
+	return stored.ViewDefinitionSQL(ctx, view, relation, r.Presentation)
 }
-func (r EngineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
+func (r Runtime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return index.DefinitionSQL(ctx, view, relation, index.Presentation{})
 }
-func (r EngineCatalogRuntime) IndexMetadata(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [6]*sqltype.Descriptor) (pgcatalog.IndexMetadataFact, error) {
+func (r Runtime) IndexMetadata(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [6]*sqltype.Descriptor) (pgcatalog.IndexMetadataFact, error) {
 	var values pgcatalog.IndexMetadataFact
 	if err := ctx.Err(); err != nil {
 		return values, err
@@ -417,8 +348,8 @@ func (r EngineCatalogRuntime) IndexMetadata(ctx context.Context, view catalog.Re
 	}
 	return values, nil
 }
-func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
-	presentation := r.presentation
+func (r Runtime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
+	presentation := r.Presentation
 	presentation.Pretty = false
 	for _, rule := range stored.RulesOf(relation) {
 		if err := ctx.Err(); err != nil {
@@ -427,7 +358,7 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 		if rule.Name == "_RETURN" {
 			continue
 		}
-		definition, err := stored.RuleDefinitionSQL(ctx, view, relation, rule, presentation, r.temporary)
+		definition, err := stored.RuleDefinitionSQL(ctx, view, relation, rule, presentation, r.Temporary)
 		if err != nil {
 			return err
 		}
@@ -447,33 +378,33 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 	return ctx.Err()
 }
 
-func (r EngineCatalogRuntime) VisitRewriteCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.RewriteCatalogFact) error) error {
+func (r Runtime) VisitRewriteCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.RewriteCatalogFact) error) error {
 	return stored.VisitRewriteCatalog(ctx, view, relation, typ, func(f stored.RewriteCatalogDefinition) error {
 		return visit(pgcatalog.RewriteCatalogFact{OID: f.OID, Name: f.Name, Event: f.Event, Mode: f.Mode, Instead: f.Instead, Qual: f.Qual, Action: f.Action})
 	})
 }
 
-func (r EngineCatalogRuntime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
-	return stored.VisitTriggerDefinitions(ctx, view, relation, r.presentation, disclose, func(f stored.TriggerPresentation) error {
+func (r Runtime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
+	return stored.VisitTriggerDefinitions(ctx, view, relation, r.Presentation, disclose, func(f stored.TriggerPresentation) error {
 		return visit(pgcatalog.TriggerFact{OID: f.OID, Name: f.Name, Insert: f.Insert, Update: f.Update, Delete: f.Delete, Timing: f.Timing, Orientation: f.Orientation, Condition: f.Condition, HasCondition: f.HasCondition, Statement: f.Statement})
 	})
 }
 
-func (r EngineCatalogRuntime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
+func (r Runtime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
 	return stored.VisitTriggerCatalog(ctx, view, relation, typ, func(f stored.TriggerCatalogDefinition) error {
 		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
 	})
 }
-func (r EngineCatalogRuntime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
+func (r Runtime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {
 	return index.CatalogKey(parent, key)
 }
-func (r EngineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visit func(catalog.Descriptor) error) error {
-	return visitSequenceOverlay(r.sequenceBase, r.sequenceOwn, ctx.Err, visit)
+func (r Runtime) VisitSequenceDefinitions(ctx context.Context, visit func(catalog.Descriptor) error) error {
+	return VisitSequenceOverlay(r.SequenceBase, r.SequenceOwn, ctx.Err, visit)
 }
 
-// visitSequenceOverlay visits the base definitions that own does not
+// VisitSequenceOverlay visits the base definitions that own does not
 // override, then own's. A non-nil check runs before each base definition.
-func visitSequenceOverlay(base *catalog.State, own *session.Journal, check func() error, visit func(catalog.Descriptor) error) error {
+func VisitSequenceOverlay(base *catalog.State, own *session.Journal, check func() error, visit func(catalog.Descriptor) error) error {
 	for address, descriptor := range base.Descriptors() {
 		if check != nil {
 			if err := check(); err != nil {
@@ -498,13 +429,13 @@ func visitSequenceOverlay(base *catalog.State, own *session.Journal, check func(
 	}
 	return nil
 }
-func (r EngineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
+func (r Runtime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
 	return plan.CatalogTree(typ, expression)
 }
-func (r EngineCatalogRuntime) PolicyTree(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, payload catalog.PolicyPayload) (sqltype.Value, error) {
+func (r Runtime) PolicyTree(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, payload catalog.PolicyPayload) (sqltype.Value, error) {
 	return stored.PolicyTree(ctx, view, relation, typ, payload)
 }
-func (r EngineCatalogRuntime) PolicyDisplay(ctx context.Context, view catalog.Read, relation *catalog.Relation, payload catalog.PolicyPayload) (string, error) {
+func (r Runtime) PolicyDisplay(ctx context.Context, view catalog.Read, relation *catalog.Relation, payload catalog.PolicyPayload) (string, error) {
 	typ, ok := view.LookupType(sqltype.PgNodeTree)
 	if !ok || payload == nil {
 		return "", fmt.Errorf("stuntgres: missing policy display payload or type")
@@ -521,11 +452,11 @@ func (r EngineCatalogRuntime) PolicyDisplay(ctx context.Context, view catalog.Re
 	if !ok {
 		return "", fmt.Errorf("stuntgres: foreign policy display carrier")
 	}
-	presentation := r.presentation
+	presentation := r.Presentation
 	presentation.Pretty = false
 	return stored.PolicyDisplay(ctx, view, relation, carrier, presentation)
 }
-func (r EngineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
+func (r Runtime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
 	bound, err := table.BindForeignKeyComparison(view, child, parent, index, key)
 	if err != nil {
 		return nil, err
@@ -536,37 +467,31 @@ func (r EngineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, pa
 	}
 	return comparisons, nil
 }
-func (r EngineCatalogRuntime) ValidateType(view catalog.Read, d *catalog.Type) error {
+func (r Runtime) ValidateType(view catalog.Read, d *catalog.Type) error {
 	return (stored.TypeProvider{}).Validate(view, d)
 }
-func (r EngineCatalogRuntime) TypeOutput(owner *catalog.Owner, view catalog.Read, roles authorization.Read) sqltype.OutputEnvironment {
+func (r Runtime) TypeOutput(owner *catalog.Owner, view catalog.Read, roles authorization.Read) sqltype.OutputEnvironment {
 	return sqltype.OutputEnvironment{
 		Regclass: regobj.ClassOutput{View: view},
 		Regrole:  regobj.RoleOutput{Owner: owner, Roles: roles},
 		ACLItem:  regobj.ACLItemOutput{Owner: owner, Roles: roles},
 	}
 }
-func (r EngineCatalogRuntime) ObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
+func (r Runtime) ObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	return access.RawObjectACL(view, address)
 }
-func (r EngineCatalogRuntime) ValidateACL(roles authorization.Read, d catalog.Descriptor) error {
+func (r Runtime) ValidateACL(roles authorization.Read, d catalog.Descriptor) error {
 	return access.ValidateACL(roles, d)
 }
-func (r EngineCatalogRuntime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
+func (r Runtime) Pinned(view catalog.Read, address ids.ObjectAddress) bool {
 	return stored.DependPinned(view, nil, address)
 }
-func (r EngineCatalogRuntime) OperatorSeeded(d *catalog.Operator) bool {
+func (r Runtime) OperatorSeeded(d *catalog.Operator) bool {
 	return routine.OperatorSeeded(d)
 }
-func (r EngineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
+func (r Runtime) OperatorDependencies(view catalog.Read, d *catalog.Operator) []ids.ObjectAddress {
 	return routine.OperatorDependencyAddresses(view, d)
 }
-func (r EngineCatalogRuntime) InstalledProcedure(d *catalog.Procedure) bool {
+func (r Runtime) InstalledProcedure(d *catalog.Procedure) bool {
 	return d.Implementation != nil
-}
-func CatalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
-	if auth.Session != nil {
-		return auth.Session.SessionToken
-	}
-	return ids.SessionToken{}
 }

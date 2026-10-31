@@ -94,7 +94,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			if !ok {
 				t.Fatal("missing usage producer")
 			}
-			usage, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
+			usage, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
 			if err != nil {
 				t.Fatal("retained usage capture", err)
 			}

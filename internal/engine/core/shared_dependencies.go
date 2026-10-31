@@ -10,39 +10,17 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 )
 
-// Roots are retained under the shared mutex, traversed only after unlocking.
-type sharedDependencyDatabase struct {
+// SharedDependencyDatabase is one database's root for pg_shdepend. Roots are
+// retained under the shared mutex, traversed only after unlocking.
+type SharedDependencyDatabase struct {
 	Database ids.OID
 	Catalog  catalog.Read
 	Current  bool
 }
 
-// captureSharedDependencyRootsLocked shares the inquiry's acquisition frontier.
-// The caller holds the common cluster mutex; no source may recapture peers later.
-func (e *Engine) captureSharedDependencyRootsLocked(ctx context.Context, inquiry *inquirySnapshot) error {
-	roots := inquiry.sharedDependencySingle[:]
-	if len(e.Cluster.Targets) > 1 {
-		roots = make([]sharedDependencyDatabase, len(e.Cluster.Targets))
-	}
-	i := 0
-	for _, target := range e.Cluster.Targets {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		view := target.Catalog.Current()
-		if target == e {
-			view = inquiry.CommentCatalog
-		}
-		roots[i] = sharedDependencyDatabase{Database: target.Catalog.DatabaseAddress().ObjectID, Catalog: view, Current: target == e}
-		i++
-	}
-	if len(e.Cluster.Targets) > 1 {
-		inquiry.sharedDependencyDatabases = roots
-	}
-	return nil
-}
-
-func classifySharedDependencies(ctx context.Context, view catalog.Read, roles authorization.Read, databases []sharedDependencyDatabase) ([]pgcatalog.SharedDependency, error) {
+// ClassifySharedDependencies lists the role dependencies of databases for
+// pg_shdepend; exactly one database is the current one, read through view.
+func ClassifySharedDependencies(ctx context.Context, view catalog.Read, roles authorization.Read, databases []SharedDependencyDatabase) ([]pgcatalog.SharedDependency, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

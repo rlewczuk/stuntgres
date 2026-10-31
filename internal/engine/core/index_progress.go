@@ -117,11 +117,11 @@ func (p *indexProgress) ScanFinish(n int, method catalog.IndexMethod) {
 
 // VisitCreateIndexProgress runs under the cluster mutex. Entry snapshots are
 // coherent, detached, and authorized against the observer's fresh current role.
-func (r EngineCatalogRuntime) VisitCreateIndexProgress(ctx context.Context, visit func(pgcatalog.CreateIndexProgressFact) error) error {
+func (r *catalogRuntime) VisitCreateIndexProgress(ctx context.Context, visit func(pgcatalog.CreateIndexProgressFact) error) error {
 	if len(r.engine.Cluster.indexProgress) == 0 {
 		return ctx.Err()
 	}
-	viewer, err := pgcatalog.NewProgressViewer(ctx, r.Auth.Roles, r.Auth.State.CurrentUser)
+	viewer, err := pgcatalog.NewProgressViewer(ctx, r.auth.Roles, r.auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}

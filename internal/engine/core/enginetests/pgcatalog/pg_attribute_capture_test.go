@@ -37,7 +37,7 @@ func pgAttributeUnitCapture(t *testing.T, e *core.Engine, catalog catalog.Read) 
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.Mu.Lock()
-	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute)
+	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute)
 	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
@@ -210,15 +210,15 @@ func TestPGAttributeCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", got, err)
 	}
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: engine.New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
+	if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: engine.New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("foreign roles", got, err)
 	}
 	wrong := ref
 	wrong.Epoch++
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
+	if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
 	privateColumn := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, Columns: []catalog.Column{{Name: "a", Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true}}, Attributes: []int32{1}, Security: catalog.RelationSecurity{ColumnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}}
@@ -231,7 +231,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified.Columns[24].Usage.Typmod = 0
 	privateState := catalog.CloneState(view.State())
 	privateState.SetDescriptor(d.Address(), &modified)
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
+	if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
 	if e.Catalog.State != before || !maps.Equal(descriptors, maps.Collect(e.Catalog.State.Descriptors())) {

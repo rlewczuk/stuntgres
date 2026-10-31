@@ -243,7 +243,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 		}
 	}
 	for range 2 {
-		got, err := core.CaptureCatalogSourceRows(input, produce)
+		got, err := core.CaptureRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed dictionary capture", got, err)
 		}
@@ -458,7 +458,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(serbianAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
-	got, err := core.CaptureCatalogSourceRows(emptyInput, produce)
+	got, err := core.CaptureRows(emptyInput, produce)
 	if err != nil || got == nil || got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 0 {
 		t.Fatal("empty dictionary source must be nonnil", got, err)
 	}
@@ -467,7 +467,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	}
 	ordinaryFailure := func(in pgcatalog.Input, canceled bool) {
 		t.Helper()
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if got != nil || err == nil {
 			t.Fatal("invalid dictionary capture published", got, err)
 		}

@@ -142,7 +142,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())
 	capture := func() *exec.Source {
 		t.Helper()
-		s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+		s, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,27 +170,27 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	other := engine.New()
 	foreign := other.CatalogRead()
-	s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: foreign, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: foreign, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: other.RoleStore.PublishedRead(&other.Catalog.Owner, foreign), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: other.RoleStore.PublishedRead(&other.Catalog.Owner, foreign), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: nil, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: nil, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalog.Read{}, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalog.Read{}, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ids.ObjectRef{}, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ids.ObjectRef{}, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
 	badRef := ref
 	badRef.Epoch++
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
 	badRef = ref
 	badRef = other.Catalog.Domain.Ref(badRef.Epoch, badRef.Address)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
 	badRef = ref
 	badRef.Address.ObjectID = 1259
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: badRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
 	for _, badWidth := range []bool{false, true} {
 		root := catalog.CloneState(catalogView.State())
@@ -203,7 +203,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		}
 		root.SetDescriptor(d.Address(), &bad)
 		view := e.Catalog.Read(root)
-		s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: roles, Ref: ref, Source: &bad, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+		s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: roles, Ref: ref, Source: &bad, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 		ordinary(s, err)
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
@@ -213,7 +213,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	changed.ACL = authorization.ACLValue{Explicit: true}
 	changed.ACLSyntheticDefault = false
 	root.SetDescriptor(changed.Address(), &changed)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: e.Catalog.Read(root), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: e.Catalog.Read(root), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	for _, at := range []int32{1, 10, 100, int32(catalogView.DescriptorCount() + 25)} {
 		during, cancel := context.WithCancel(context.Background())
 		ctx := &cancelAtErrCheck{Context: during, cancel: cancel, at: at}
-		got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+		got, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled partial capture", got, err)
@@ -243,7 +243,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	fresh, freshRef := pgTypeUnitSource(t, e)
 	freshCatalog := e.CatalogRead()
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: freshCatalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, freshCatalog), Ref: freshRef, Source: fresh, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: freshCatalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, freshCatalog), Ref: freshRef, Source: fresh, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,9 +254,9 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if fresh == d || fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("replacement did not reown source")
 	}
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: freshCatalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, freshCatalog), Ref: freshRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: freshCatalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, freshCatalog), Ref: freshRef, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	ordinary(s, err)
-	s, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	s, err = core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal("retained root rejected", err)
 	}
@@ -280,7 +280,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	catalogView := e.CatalogRead()
 	source, ref := pgTypeUnitSource(t, e)
 	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView)
-	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	captured, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	install()
 	fresh := e.CatalogRead()
 	freshSource, freshRef := pgTypeUnitSource(t, e)
-	newCapture, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: fresh, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, fresh), Ref: freshRef, Source: freshSource, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	newCapture, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: fresh, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, fresh), Ref: freshRef, Source: freshSource, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	// Old rows and old catalog-aware inheritance retain their original actual
 	// installation even if the receiving catalog reuses numeric addresses.
 	check(catalogView, oldRows)
-	oldCapture, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
+	oldCapture, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: catalogView, Roles: roles, Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGType)
 	if err != nil {
 		t.Fatal("retained installed catalog rejected", err)
 	}

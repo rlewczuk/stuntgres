@@ -41,7 +41,7 @@ func tablePrivilegesRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing table_privileges producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

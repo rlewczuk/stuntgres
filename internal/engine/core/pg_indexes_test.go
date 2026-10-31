@@ -30,7 +30,7 @@ func pgIndexesUnitSource(t *testing.T, c catalog.Read) (*catalog.Relation, ids.O
 func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth core.AuthorizationView) *exec.Source {
 	t.Helper()
 	d, ref := pgIndexesUnitSource(t, c)
-	s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Ref: ref, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes)
+	s, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Ref: ref, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,26 +240,26 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	d, ref := pgIndexesUnitSource(t, old)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: old, Ref: ref, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes); !errors.Is(err, context.Canceled) {
+	if _, err := core.CaptureRows(pgcatalog.Input{Context: canceled, Catalog: old, Ref: ref, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	foreign := engine.New()
 	bad := ref
 	bad = foreign.Catalog.Domain.Ref(bad.Epoch, bad.Address)
 	for _, invalid := range []ids.ObjectRef{bad, ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, parent.Address)} {
-		if _, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: invalid, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes); err == nil {
+		if _, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: invalid, Source: d, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth)})}, capturePGIndexes); err == nil {
 			t.Fatal("invalid capture accepted", invalid)
 		}
 	}
 	mixed := auth
 	mixed.Catalog = e.CatalogRead()
-	if _, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: d, Roles: (mixed).Roles, Owner: (mixed).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: mixed, Temporary: core.CatalogSourceTemporaryOwner(mixed)})}, capturePGIndexes); err == nil {
+	if _, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: d, Roles: (mixed).Roles, Owner: (mixed).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: mixed, Temporary: core.CatalogSourceTemporaryOwner(mixed)})}, capturePGIndexes); err == nil {
 		t.Fatal("mixed authorization capture accepted")
 	}
 	broken := auth
 	broken.Roles = foreign.Roles()
 	broken.RoleRecord = foreign.RoleStore.Published
-	if _, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: d, Roles: (broken).Roles, Owner: (broken).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: broken, Temporary: core.CatalogSourceTemporaryOwner(broken)})}, capturePGIndexes); err == nil {
+	if _, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: d, Roles: (broken).Roles, Owner: (broken).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: broken, Temporary: core.CatalogSourceTemporaryOwner(broken)})}, capturePGIndexes); err == nil {
 		t.Fatal("unexpected authorization failure swallowed")
 	}
 }

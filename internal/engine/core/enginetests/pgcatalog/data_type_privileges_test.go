@@ -36,7 +36,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) 
 func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth core.AuthorizationView) (*exec.Source, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.DataTypePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	return core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges)
+	return core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges)
 }
 
 // A deterministic cancellation point inside enumeration, without timing races.
@@ -82,11 +82,11 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	ref := f.e.Catalog.Domain.Ref(view.Epoch(), source.Address())
 	stale := ref
 	stale.Epoch++
-	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: stale, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges); rows != nil || err == nil {
+	if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: stale, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("stale ref accepted", rows, err)
 	}
 	copySource := *source
-	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &copySource, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges); rows != nil || err == nil {
+	if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &copySource, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("foreign source accepted", rows, err)
 	}
 	for i, column := range source.Columns {

@@ -42,8 +42,8 @@ func TestPGShdependCapturedRoots(t *testing.T) {
 	state.SetInitialPrivileges(map[ids.ObjectAddress]*catalog.InitialPrivilegeRecord{address: {ACL: acl}})
 	view := catalog.NewRead(authority, state)
 	peer := catalog.NewRead(&catalog.Owner{Principals: domain}, catalog.CloneState(state))
-	databases := []sharedDependencyDatabase{{Database: 555, Catalog: view, Current: true}, {Database: 556, Catalog: peer}}
-	facts, err := classifySharedDependencies(t.Context(), view, roles, databases)
+	databases := []SharedDependencyDatabase{{Database: 555, Catalog: view, Current: true}, {Database: 556, Catalog: peer}}
+	facts, err := ClassifySharedDependencies(t.Context(), view, roles, databases)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestPGShdependCapturedRoots(t *testing.T) {
 	}
 	fresh := catalog.NewRead(authority, next)
 	databases[0].Catalog = fresh
-	newer, err := classifySharedDependencies(t.Context(), fresh, roles, databases)
+	newer, err := ClassifySharedDependencies(t.Context(), fresh, roles, databases)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,16 +87,16 @@ func TestPGShdependCapturedRoots(t *testing.T) {
 	}
 	// Retained immutable roots still derive the original bag after publication.
 	databases[0].Catalog = view
-	retained, err := classifySharedDependencies(t.Context(), view, roles, databases)
+	retained, err := ClassifySharedDependencies(t.Context(), view, roles, databases)
 	if err != nil || len(retained) != len(facts) {
 		t.Fatal(retained, err)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if result, err := classifySharedDependencies(canceled, view, roles, databases); result != nil || !errors.Is(err, context.Canceled) {
+	if result, err := ClassifySharedDependencies(canceled, view, roles, databases); result != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(result, err)
 	}
-	if result, err := classifySharedDependencies(t.Context(), view, roles, databases[1:]); result != nil || err == nil {
+	if result, err := ClassifySharedDependencies(t.Context(), view, roles, databases[1:]); result != nil || err == nil {
 		t.Fatal("missing current", result, err)
 	}
 }
@@ -112,8 +112,8 @@ func TestPGShdependPinnedRoleAuthority(t *testing.T) {
 	predefinedAddress := ids.ObjectAddress{ClassID: 1259, ObjectID: 40002}
 	state.SetDescriptor(predefinedAddress, &catalog.Relation{ObjectAddress: predefinedAddress, Owner: domain.Principal(authorization.DatabaseOwnerRoleID)})
 	view := catalog.NewRead(owner, state)
-	databases := []sharedDependencyDatabase{{Database: 555, Catalog: view, Current: true}}
-	facts, err := classifySharedDependencies(t.Context(), view, root.Read(bootstrap), databases)
+	databases := []SharedDependencyDatabase{{Database: 555, Catalog: view, Current: true}}
+	facts, err := ClassifySharedDependencies(t.Context(), view, root.Read(bootstrap), databases)
 	if err != nil || len(facts) != 0 {
 		t.Fatal(facts, err)
 	}
@@ -137,7 +137,7 @@ func TestPGShdependPinnedRoleAuthority(t *testing.T) {
 	next.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, Owner: reused})
 	view = catalog.NewRead(owner, next)
 	databases[0].Catalog = view
-	facts, err = classifySharedDependencies(t.Context(), view, root.Read(reused), databases)
+	facts, err = ClassifySharedDependencies(t.Context(), view, root.Read(reused), databases)
 	if err != nil || len(facts) != 1 || facts[0].Reference != 100 {
 		t.Fatal(facts, err)
 	}

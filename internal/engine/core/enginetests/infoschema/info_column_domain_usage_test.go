@@ -119,7 +119,7 @@ func cduUnitCheck(t *testing.T, in pgcatalog.Input, want map[[7]string]int) [][]
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -119,7 +119,7 @@ func iccUnitBag(t *testing.T, in pgcatalog.Input, rows [][]sqltype.Value) map[[4
 
 func iccUnitRows(t *testing.T, in pgcatalog.Input, want map[[4]string]int) [][]sqltype.Value {
 	t.Helper()
-	captured, err := core.CaptureCatalogSourceRows(in, iccUnitProducer(t))
+	captured, err := core.CaptureRows(in, iccUnitProducer(t))
 	if err != nil {
 		t.Fatal(err)
 	}

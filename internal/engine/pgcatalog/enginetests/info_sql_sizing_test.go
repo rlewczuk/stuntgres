@@ -33,7 +33,7 @@ func sqlSizingUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sql_sizing producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

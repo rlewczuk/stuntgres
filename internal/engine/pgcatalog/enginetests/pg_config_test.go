@@ -55,7 +55,7 @@ func TestPGConfigCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	pgConfigCheckRows(t, input, later)
-	captured, err := core.CaptureCatalogSourceRows(input, produce)
+	captured, err := core.CaptureRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != input.Ref {
 		t.Fatal("configuration capture identity", captured, err)
 	}
@@ -65,7 +65,7 @@ func TestPGConfigCapture(t *testing.T) {
 		if rows, err := produce(in); rows != nil || err == nil {
 			t.Fatal("invalid producer input admitted", rows, err)
 		}
-		if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || err == nil {
+		if source, err := core.CaptureRows(in, produce); source != nil || err == nil {
 			t.Fatal("invalid source published", source, err)
 		}
 	}
@@ -125,7 +125,7 @@ func TestPGConfigCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation precedes validation", rows, err)
 	}
-	if source, err := core.CaptureCatalogSourceRows(input, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := core.CaptureRows(input, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source published", source, err)
 	}
 }
@@ -215,7 +215,7 @@ func TestPGConfigOwnership(t *testing.T) {
 	for _, source := range []*catalog.Relation{old, pgConfigInput(engine.New()).Source} {
 		in := freshInput
 		in.Source = source
-		if got, err := core.CaptureCatalogSourceRows(in, produce); got != nil || err == nil {
+		if got, err := core.CaptureRows(in, produce); got != nil || err == nil {
 			t.Fatal("foreign/stale source generation published", got, err)
 		}
 	}

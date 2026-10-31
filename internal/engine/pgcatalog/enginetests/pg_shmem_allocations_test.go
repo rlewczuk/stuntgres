@@ -92,13 +92,13 @@ func TestPGShmemCaptureOwnership(t *testing.T) {
 	e:=engine.New()
 	for _,oid:=range []ids.OID{12134,12138} {
 		in:=shmemInput(t,e,oid);produce,_:=pgcatalog.ProducerFor(oid)
-		first,err:=core.CaptureCatalogSourceRows(in,produce);if err!=nil {t.Fatal(err)}
+		first,err:=core.CaptureRows(in,produce);if err!=nil {t.Fatal(err)}
 		second,err:=produce(in);if err!=nil {t.Fatal(err)}
 		if first.Ref!=in.Ref || &first.Anonymous[0][0]==&second[0][0] {t.Fatal("retained backing/ref")}
 		second[0][0]=sqltype.String(in.Source.Columns[0].Usage.Type,"changed")
 		state:=*in.Catalog.State();replacement:=*in.Source;replacement.Columns=slices.Clone(replacement.Columns);replacement.ObjectRevision++;state.SetDescriptor(replacement.Address(),&replacement)
 		wrong:=in;wrong.Catalog=e.Catalog.Read(&state)
-		if out,err:=core.CaptureCatalogSourceRows(wrong,produce);out!=nil || err==nil {t.Fatal("stale source published",out,err)}
+		if out,err:=core.CaptureRows(wrong,produce);out!=nil || err==nil {t.Fatal("stale source published",out,err)}
 		shmemUnitRows(t,in,first.Anonymous)
 		routineOID := ids.OID(5052)
 		if oid == 12138 { routineOID = 4100 }

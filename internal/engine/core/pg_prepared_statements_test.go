@@ -21,7 +21,7 @@ import (
 func ppsUnitCapture(e *core.Engine,r *core.PreparedRegistry,ctx context.Context) (*exec.Source,error) {
  d:=e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID:ids.RelationClassID,ObjectID:pgcatalog.PreparedStatementsOID})
  produce,_:=pgcatalog.ProducerFor(pgcatalog.PreparedStatementsOID)
- return core.CaptureCatalogSourceRows(pgcatalog.Input{Context:ctx,Source:d,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{PreparedStatements:r})},produce)
+ return core.CaptureRows(pgcatalog.Input{Context:ctx,Source:d,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{PreparedStatements:r})},produce)
 }
 func ppsUnitRows(t *testing.T,e *core.Engine,r *core.PreparedRegistry) map[string][]sqltype.Value {
  t.Helper();source,err:=ppsUnitCapture(e,r,context.Background());if err!=nil {t.Fatal(err)}

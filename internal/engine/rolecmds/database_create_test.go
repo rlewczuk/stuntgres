@@ -478,7 +478,7 @@ func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalo
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
 	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
-	return core.CaptureCatalogSourceRows(in, produce)
+	return core.CaptureRows(in, produce)
 }
 
 func primaryKeyUnitCreate(name, constraint string) *parser.CreateTable {

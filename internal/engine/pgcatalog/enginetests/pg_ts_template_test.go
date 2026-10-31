@@ -39,7 +39,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 		t.Fatal("actual Snowball template seed", snowballAddress)
 	}
 	for range 2 {
-		got, err := core.CaptureCatalogSourceRows(input, produce)
+		got, err := core.CaptureRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed template capture", got, err)
 		}
@@ -99,7 +99,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TSTemplateClassID, ObjectID: 3733})
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
-	emptyRows, err := core.CaptureCatalogSourceRows(emptyInput, produce)
+	emptyRows, err := core.CaptureRows(emptyInput, produce)
 	if err != nil || emptyRows == nil || emptyRows.Ref != ref || emptyRows.Anonymous == nil || len(emptyRows.Anonymous) != 0 {
 		t.Fatal("empty template source must be nonnil", emptyRows, err)
 	}
@@ -108,7 +108,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	}
 	ordinaryFailure := func(in pgcatalog.Input, canceled bool) {
 		t.Helper()
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if got != nil || err == nil {
 			t.Fatal("invalid template capture published", got, err)
 		}
@@ -195,7 +195,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 	state.SetDescriptor(projection.Address(), projection)
 	local := input
 	local.Catalog = e.Catalog.Read(state)
-	captured, err := core.CaptureCatalogSourceRows(local, produce)
+	captured, err := core.CaptureRows(local, produce)
 	if err != nil || captured == nil || len(captured.Anonymous) != 1 {
 		t.Fatal("projection-only capture", captured, err)
 	}

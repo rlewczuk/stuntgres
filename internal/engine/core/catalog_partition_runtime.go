@@ -17,7 +17,7 @@ import (
 
 // PartitionMetadata reads only the immutable statement frontier, never the live
 // engine or execution expressions. Failure never publishes even a partial fact.
-func (r EngineCatalogRuntime) PartitionMetadata(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [4]*sqltype.Descriptor) (pgcatalog.PartitionMetadataFact, error) {
+func (r Runtime) PartitionMetadata(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [4]*sqltype.Descriptor) (pgcatalog.PartitionMetadataFact, error) {
 	var zero pgcatalog.PartitionMetadataFact
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid partition metadata capture") }
 	if err := ctx.Err(); err != nil {

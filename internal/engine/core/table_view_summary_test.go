@@ -145,7 +145,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.Mu.Lock()
-	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalogView, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView), Ref: ids.ObjectRef{}, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Presentation: stored.Presentation{}})}, captureTableViewSummary)
+	captured, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: catalogView, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView), Ref: ids.ObjectRef{}, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Presentation: stored.Presentation{}})}, captureTableViewSummary)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -25,7 +25,7 @@ import (
 // participate in declaration presentation.
 type routineInquiry struct {
 	stored.Deparser
-	runtime EngineCatalogRuntime
+	runtime Runtime
 }
 
 func (s *StatementScope) deparseRoutine(c *exec.Context, signature functions.DeparseSignature, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -43,7 +43,7 @@ func (s *StatementScope) deparseRoutine(c *exec.Context, signature functions.Dep
 	}
 	in := s.deparseInputs()
 	r := routineInquiry{Deparser: stored.Deparser{View: view, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner, RoutineDeclaration: true}}
-	r.runtime = EngineCatalogRuntime{Auth: s.Inquiry.deparseAuth, presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
+	r.runtime = Runtime{View: s.Inquiry.deparseAuth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
 	var text string
 	switch signature {
 	case functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments:
@@ -343,13 +343,13 @@ func (r routineInquiry) definition(ctx context.Context, d *catalog.Procedure) (s
 		if err != nil {
 			return "", err
 		}
-		body, err := program.DefinitionSQL(ctx, r.View, d, r.runtime.presentation)
+		body, err := program.DefinitionSQL(ctx, r.View, d, r.runtime.Presentation)
 		if err != nil {
 			return "", err
 		}
 		out.WriteString(body)
 	} else if d.DeclarationBody != nil {
-		body, err := stored.RoutineDeclarationSQL(ctx, r.View, d, r.runtime.presentation)
+		body, err := stored.RoutineDeclarationSQL(ctx, r.View, d, r.runtime.Presentation)
 		if err != nil {
 			return "", err
 		}

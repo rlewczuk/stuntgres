@@ -71,7 +71,7 @@ func ccruUnitProduce(t *testing.T) pgcatalog.Producer {
 
 func ccruUnitRows(t *testing.T, in pgcatalog.Input, produce pgcatalog.Producer, want map[[6]string]int) [][]sqltype.Value {
 	t.Helper()
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

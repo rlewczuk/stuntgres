@@ -55,7 +55,7 @@ func TestPGPolicyMetadata(t *testing.T) {
 		t.Fatal("policy row/array links")
 	}
 	produce := registeredCatalogProducer(3256)
-	rows, err := core.CaptureCatalogSourceRows(in, produce)
+	rows, err := core.CaptureRows(in, produce)
 	if err != nil || rows == nil || rows.Anonymous == nil || len(rows.Anonymous) != 0 || rows.Ref != in.Ref {
 		t.Fatal("typed empty policy capture", rows, err)
 	}
@@ -479,10 +479,10 @@ func TestPGPolicyCaptureCancellation(t *testing.T) {
 	cancel()
 	bad := in
 	bad.Context = ctx
-	if rows, err := core.CaptureCatalogSourceRows(bad, produce); rows != nil || !errors.Is(err, context.Canceled) {
+	if rows, err := core.CaptureRows(bad, produce); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture prefix", rows, err)
 	}
-	if rows, err := core.CaptureCatalogSourceRows(in, produce); err != nil || rows == nil || len(rows.Anonymous) != 2 {
+	if rows, err := core.CaptureRows(in, produce); err != nil || rows == nil || len(rows.Anonymous) != 2 {
 		t.Fatal("healthy capture after cancel", rows, err)
 	}
 	// Cancellation after an admitted first payload must still discard all rows.
@@ -491,7 +491,7 @@ func TestPGPolicyCaptureCancellation(t *testing.T) {
 	bad = in
 	bad.Context = ctx
 	bad.Runtime = cancelPolicyRuntime{Runtime: in.Runtime, cancel: cancel}
-	if rows, err := core.CaptureCatalogSourceRows(bad, produce); rows != nil || !errors.Is(err, context.Canceled) {
+	if rows, err := core.CaptureRows(bad, produce); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("mid-capture cancellation prefix", rows, err)
 	}
 	if rows, err := produce(in); err != nil || len(rows) != 2 {

@@ -55,11 +55,11 @@ func (p *copyProgress) completeRow() { p.tuples.Processed.Add(1) }
 
 // VisitCopyProgress requires the caller's shared engine mutex and emits detached
 // facts. Authorization is fresh for each capture, never cached on the worker.
-func (r EngineCatalogRuntime) VisitCopyProgress(ctx context.Context, visit func(pgcatalog.CopyProgressFact) error) error {
+func (r *catalogRuntime) VisitCopyProgress(ctx context.Context, visit func(pgcatalog.CopyProgressFact) error) error {
 	if len(r.engine.Cluster.copyProgress) == 0 {
 		return ctx.Err()
 	}
-	viewer, err := pgcatalog.NewProgressViewer(ctx, r.Auth.Roles, r.Auth.State.CurrentUser)
+	viewer, err := pgcatalog.NewProgressViewer(ctx, r.auth.Roles, r.auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}

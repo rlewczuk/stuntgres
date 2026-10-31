@@ -57,7 +57,7 @@ func serverOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureCatalogSourceRows(in, produce)
+	source, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +418,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	for remaining := 1; ; remaining++ {
 		in := old
 		in.Context = &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		source, err := core.CaptureCatalogSourceRows(in, produce)
+		source, err := core.CaptureRows(in, produce)
 		if err == nil {
 			source.Close()
 			completed = remaining
@@ -435,7 +435,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	cancel()
 	in := old
 	in.Context = ctx
-	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", source, err)
 	}
 	_, unchanged := serverOptionsRows(t, old)

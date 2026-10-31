@@ -72,7 +72,7 @@ func TestInfoReferentialConstraintsProducer(t *testing.T) {
 		key:=[9]string{"captured_database","default_schema",fk.Name,"captured_database","default_schema",unique,match,labels[j],labels[(j+1)%5]}
 		if j==2{key[3],key[4],key[5]="<NULL>","<NULL>","<NULL>"};want[key]++
 	}
-	check:=func(in pgcatalog.Input,want map[[9]string]int){t.Helper();captured,err:=core.CaptureCatalogSourceRows(in,produce);if err!=nil{t.Fatal(err)};defer captured.Close();if captured.Anonymous==nil||captured.View!=nil||captured.Ref!=in.Ref{t.Fatal("anonymous source identity")};if got:=bag(captured.Anonymous);!reflect.DeepEqual(got,want){t.Fatal("exact bag",got,want)}}
+	check:=func(in pgcatalog.Input,want map[[9]string]int){t.Helper();captured,err:=core.CaptureRows(in,produce);if err!=nil{t.Fatal(err)};defer captured.Close();if captured.Anonymous==nil||captured.View!=nil||captured.Ref!=in.Ref{t.Fatal("anonymous source identity")};if got:=bag(captured.Anonymous);!reflect.DeepEqual(got,want){t.Fatal("exact bag",got,want)}}
 	for _,actor:=range []authorization.PrincipalRef{f.owner,f.member,f.op.Session.Authorization.State.CurrentUser}{check(input(state,actor),want)}
 	check(input(state,f.reader),map[[9]string]int{})
 	for _,privilege:=range []authorization.Privileges{authorization.SelectPrivilege,authorization.MaintainPrivilege,authorization.InsertPrivilege,authorization.UpdatePrivilege,authorization.DeletePrivilege,authorization.TruncatePrivilege,authorization.ReferencesPrivilege,authorization.TriggerPrivilege}{

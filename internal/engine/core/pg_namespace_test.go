@@ -26,7 +26,7 @@ func namespaceUnitCapture(t *testing.T, e *core.Engine, c catalog.Read) *exec.So
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.Mu.Lock()
-	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, c), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGNamespace)
+	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, c), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGNamespace)
 	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)

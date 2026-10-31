@@ -86,7 +86,7 @@ func TestPGStatisticExtDataCaptureOwnership(t *testing.T) {
 	statisticExtDataInput(t, empty, func(in pgcatalog.Input, _ core.AuthorizationView) {
 		descriptors := maps.Collect(in.Catalog.State().Descriptors())
 		names := maps.Collect(in.Catalog.State().Names())
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != in.Ref {
 			t.Fatal("genuine empty anonymous source", got, err)
 		}
@@ -104,7 +104,7 @@ func TestPGStatisticExtDataCaptureOwnership(t *testing.T) {
 		d := in.Source
 		descriptors := maps.Collect(in.Catalog.State().Descriptors())
 		names := maps.Collect(in.Catalog.State().Names())
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if err != nil || got == nil || len(got.Anonymous) != 2 || got.Ref != in.Ref {
 			t.Fatal("genuine populated capture", got, err)
 		}
@@ -156,7 +156,7 @@ func TestPGStatisticExtDataCaptureOwnership(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				bad := in
 				tc.mutate(&bad)
-				rows, err := core.CaptureCatalogSourceRows(bad, produce)
+				rows, err := core.CaptureRows(bad, produce)
 				statisticExtDataInvariant(t, rows == nil, err)
 			})
 		}
@@ -177,7 +177,7 @@ func TestPGStatisticExtDataCaptureOwnership(t *testing.T) {
 		for _, source := range badSources {
 			bad := in
 			bad.Source = source
-			rows, err := core.CaptureCatalogSourceRows(bad, produce)
+			rows, err := core.CaptureRows(bad, produce)
 			statisticExtDataInvariant(t, rows == nil, err)
 			if err.Error() != "stuntgres: invalid statistics data source" {
 				t.Fatal("source invariant primary", err)
@@ -212,7 +212,7 @@ func TestPGStatisticExtDataCaptureCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		in.Context = ctx
-		rows, err := core.CaptureCatalogSourceRows(in, produce)
+		rows, err := core.CaptureRows(in, produce)
 		statisticExtDataInvariant(t, rows == nil, err)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal("capture lost cancellation", err)

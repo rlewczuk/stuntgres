@@ -41,7 +41,7 @@ func roleRoutineGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing routine ACL producer", in.Source.Name())
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

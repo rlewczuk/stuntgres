@@ -30,7 +30,7 @@ func enabledRolesUnitRows(t *testing.T, in pgcatalog.Input, names ...string) [][
 	if !ok {
 		t.Fatal("missing enabled_roles producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

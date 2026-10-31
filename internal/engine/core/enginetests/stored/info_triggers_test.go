@@ -140,7 +140,7 @@ func TestInfoTriggersCaptureOwnership(t *testing.T) {
 	relation = triggerUnitInstall(t, e, relation, definition)
 	in := infoTriggersInput(t, e, scope)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoTriggersOID)
-	retained, err := core.CaptureCatalogSourceRows(in, produce)
+	retained, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

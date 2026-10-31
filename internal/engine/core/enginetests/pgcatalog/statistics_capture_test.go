@@ -56,7 +56,7 @@ func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	retained, err := core.CaptureCatalogSourceRows(input, produce)
+	retained, err := core.CaptureRows(input, produce)
 	if err != nil || retained == nil || len(retained.Anonymous) != 1 {
 		t.Fatal(retained, err)
 	}
@@ -73,7 +73,7 @@ func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
 	if rows, err := produce(wrong); rows != nil || err == nil {
 		t.Fatal("recreated owner authorized old definition", rows, err)
 	}
-	if rows, err := core.CaptureCatalogSourceRows(wrong, produce); rows != nil || err == nil {
+	if rows, err := core.CaptureRows(wrong, produce); rows != nil || err == nil {
 		t.Fatal("mismatched capture published", rows, err)
 	}
 	rows, err := produce(input)

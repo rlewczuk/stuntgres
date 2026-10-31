@@ -31,7 +31,7 @@ func implementationInfoUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Va
 	if !ok {
 		t.Fatal("missing implementation info producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

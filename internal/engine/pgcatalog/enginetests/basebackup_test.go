@@ -34,7 +34,7 @@ func TestBasebackupProgressCapture(t *testing.T) {
 	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("truthful empty progress", rows, err)
 	}
-	if got, err := core.CaptureCatalogSourceRows(input, produce); err != nil || got == nil || got.Ref != input.Ref || got.Anonymous == nil || len(got.Anonymous) != 0 {
+	if got, err := core.CaptureRows(input, produce); err != nil || got == nil || got.Ref != input.Ref || got.Anonymous == nil || len(got.Anonymous) != 0 {
 		t.Fatal("empty capture identity", got, err)
 	}
 	reject := func(in pgcatalog.Input) {
@@ -42,7 +42,7 @@ func TestBasebackupProgressCapture(t *testing.T) {
 		if rows, err := produce(in); rows != nil || err == nil {
 			t.Fatal("invalid input admitted", rows, err)
 		}
-		if got, err := core.CaptureCatalogSourceRows(in, produce); got != nil || err == nil {
+		if got, err := core.CaptureRows(in, produce); got != nil || err == nil {
 			t.Fatal("invalid capture published", got, err)
 		}
 	}
@@ -91,7 +91,7 @@ func TestBasebackupProgressCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation precedence", rows, err)
 	}
-	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := core.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published", got, err)
 	}
 }
@@ -167,7 +167,7 @@ func TestBasebackupProgressOwnership(t *testing.T) {
 	for _, source := range []*catalog.Relation{old, basebackupInput(engine.New()).Source} {
 		in := freshInput
 		in.Source = source
-		if got, err := core.CaptureCatalogSourceRows(in, produce); got != nil || err == nil {
+		if got, err := core.CaptureRows(in, produce); got != nil || err == nil {
 			t.Fatal("foreign/stale generation published", got, err)
 		}
 	}

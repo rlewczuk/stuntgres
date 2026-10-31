@@ -90,7 +90,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	if got, err := produce(input); got != nil || err == nil {
 		t.Fatal("fresh mapping producer admitted old source", got, err)
 	}
-	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || err == nil {
+	if got, err := core.CaptureRows(input, produce); got != nil || err == nil {
 		t.Fatal("wrapper admitted old mapping source", got, err)
 	}
 }

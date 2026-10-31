@@ -81,7 +81,7 @@ func ccuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureCatalogSourceRows(in, produce)
+	source, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

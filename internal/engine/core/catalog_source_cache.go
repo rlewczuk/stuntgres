@@ -28,14 +28,14 @@ type catalogCaptureSlot struct {
 // dependOID is pg_depend's relation OID.
 const dependOID ids.OID = 2608
 
-// catalogCaptureCache keeps the latest pg_type, pg_proc and pg_depend captures.
+// CaptureCache keeps the latest pg_type, pg_proc and pg_depend captures.
 // These producers rebuild every row of a large catalog, and catalog probes
 // repeat them between changes. Engine.Mu owns every slot.
-type catalogCaptureCache struct {
+type CaptureCache struct {
 	types, procedures, depends catalogCaptureSlot
 }
 
-func (c *catalogCaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
+func (c *CaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
 	switch oid {
 	case pgcatalog.TypeOID:
 		return &c.types
@@ -47,19 +47,20 @@ func (c *catalogCaptureCache) slot(oid ids.OID) *catalogCaptureSlot {
 	return nil
 }
 
-// captureCatalogSourceRowsLocked reuses the slot's rows when the input is the
-// published catalog and role record it was built from. Transaction-private
+// CaptureLocked reuses the slot's rows when the input is the published
+// catalog and role record (published, publishedRoles) it was built from.
+// roles is the record in.Roles derives from alone, or nil. Transaction-private
 // catalogs or roles always capture fresh. Errors are never stored, and a hit
 // still reports the caller's cancellation. Both return the slot's key index,
 // so oid equality filters visit only matching rows. A hit serves a capture
 // with Keep too: the shared rows include every row Keep would keep, and the
 // filter still rejects the rest. A miss with Keep builds only the kept rows
 // and is not stored. Caller holds Engine.Mu.
-func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgcatalog.Producer, roles *access.RoleRecord) (*exec.Source, error) {
-	slot := e.catalogCaptures.slot(in.Source.Address().ObjectID)
+func (c *CaptureCache) CaptureLocked(in pgcatalog.Input, produce pgcatalog.Producer, roles *access.RoleRecord, published *catalog.State, publishedRoles *access.RoleRecord) (*exec.Source, error) {
+	slot := c.slot(in.Source.Address().ObjectID)
 	state := in.Catalog.State()
-	if slot == nil || state == nil || state != e.Catalog.State || roles == nil || roles != e.RoleStore.Published {
-		return CaptureCatalogSourceRows(in, produce)
+	if slot == nil || state == nil || state != published || roles == nil || roles != publishedRoles {
+		return CaptureRows(in, produce)
 	}
 	key := catalogCaptureKey{state: state, roles: roles, source: in.Source, ref: in.Ref}
 	if slot.rows != nil && slot.key == key {
@@ -69,12 +70,27 @@ func (e *Engine) captureCatalogSourceRowsLocked(in pgcatalog.Input, produce pgca
 		return &exec.Source{Ref: in.Ref, Anonymous: slot.rows, CatalogKeys: slot.keys}, nil
 	}
 	if in.Keep.Test != nil {
-		return CaptureCatalogSourceRows(in, produce)
+		return CaptureRows(in, produce)
 	}
-	source, err := CaptureCatalogSourceRows(in, produce)
+	source, err := CaptureRows(in, produce)
 	if err == nil {
 		slot.key, slot.rows, slot.keys = key, source.Anonymous, exec.NewCatalogKeyIndex(source.Anonymous)
 		source.CatalogKeys = slot.keys
 	}
 	return source, err
+}
+
+// CaptureRows is the sole constructor of a catalog exec.Source, including
+// error paths.
+func CaptureRows(in pgcatalog.Input, produce pgcatalog.Producer) (*exec.Source, error) {
+	rows, err := produce(in)
+	if err != nil {
+		return nil, err
+	}
+	// Anonymous nil denotes a physical source requiring a visibility view.
+	// A catalog producer's empty result is still an owned anonymous rowset.
+	if rows == nil {
+		rows = [][]sqltype.Value{}
+	}
+	return &exec.Source{Ref: in.Ref, Anonymous: rows}, nil
 }

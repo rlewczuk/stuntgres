@@ -400,7 +400,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 				if scope.ruleAction.Auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 					sourceInvoker = leaf.Principal
 				}
-				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogSourceKeep(leaves, i, mark, locks))
+				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses, scope.catalogKeep.Keep(scope.Op.Context(), scope.Input, scope.Output, leaves, i, mark, locks))
 				e.Mu.Lock()
 			}
 		}
@@ -468,8 +468,8 @@ type inquirySnapshot struct {
 	deparseAuth    AuthorizationView
 	// Retained with the catalog/role pair, never refreshed by source opening.
 	// The common single-database case needs no separate slice allocation.
-	sharedDependencySingle    [1]sharedDependencyDatabase
-	sharedDependencyDatabases []sharedDependencyDatabase
+	sharedDependencySingle    [1]SharedDependencyDatabase
+	sharedDependencyDatabases []SharedDependencyDatabase
 	DeparsePath               []ids.ObjectAddress
 	collationPath             []ids.ObjectAddress
 	visibilityCatalog         catalog.Read
@@ -511,4 +511,29 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 	last, _ := sqltype.Integer(i, g.Last)
 	log, _ := sqltype.Integer(i, 0)
 	return &exec.Source{Ref: ref, Anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
+}
+
+// captureSharedDependencyRootsLocked shares the inquiry's acquisition frontier.
+// The caller holds the common cluster mutex; no source may recapture peers later.
+func (e *Engine) captureSharedDependencyRootsLocked(ctx context.Context, inquiry *inquirySnapshot) error {
+	roots := inquiry.sharedDependencySingle[:]
+	if len(e.Cluster.Targets) > 1 {
+		roots = make([]SharedDependencyDatabase, len(e.Cluster.Targets))
+	}
+	i := 0
+	for _, target := range e.Cluster.Targets {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		view := target.Catalog.Current()
+		if target == e {
+			view = inquiry.CommentCatalog
+		}
+		roots[i] = SharedDependencyDatabase{Database: target.Catalog.DatabaseAddress().ObjectID, Catalog: view, Current: target == e}
+		i++
+	}
+	if len(e.Cluster.Targets) > 1 {
+		inquiry.sharedDependencyDatabases = roots
+	}
+	return nil
 }

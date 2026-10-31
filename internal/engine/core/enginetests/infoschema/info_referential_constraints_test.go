@@ -45,7 +45,7 @@ func ircUnitExpected(target string)map[[9]string]int{
 	bag:=map[[9]string]int{};for _,name:=range []string{"first","second","third"}{bag[[9]string{"captured_database","default_schema",name,"captured_database","default_schema",target,"NONE","NO ACTION","NO ACTION"}]++};return bag
 }
 func ircUnitCapture(t *testing.T,in pgcatalog.Input,want map[[9]string]int)[][]sqltype.Value{
-	t.Helper();produce,ok:=pgcatalog.ProducerFor(pgcatalog.InfoReferentialConstraintsOID);if !ok{t.Fatal("missing producer")};source,err:=core.CaptureCatalogSourceRows(in,produce);if err!=nil{t.Fatal(err)};defer source.Close()
+	t.Helper();produce,ok:=pgcatalog.ProducerFor(pgcatalog.InfoReferentialConstraintsOID);if !ok{t.Fatal("missing producer")};source,err:=core.CaptureRows(in,produce);if err!=nil{t.Fatal(err)};defer source.Close()
 	if source.Anonymous==nil||source.View!=nil||source.Ref!=in.Ref{t.Fatal("detached capture identity")}
 	for _,row:=range source.Anonymous{for i,value:=range row{if value.Type()!=in.Source.Columns[i].Usage.Type||!value.ValidResult(in.Source.Columns[i].Usage){t.Fatal("captured domain generation",i)}}}
 	if got:=ircUnitBag(t,source.Anonymous);!reflect.DeepEqual(got,want){t.Fatal("exact bag",got,want)};return source.Anonymous

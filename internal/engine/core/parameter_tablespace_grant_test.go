@@ -161,7 +161,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 		}
 		ref := e.Catalog.Domain.Ref(catalog.Epoch(), address)
 		e.Mu.Lock()
-		rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGTablespace)
+		rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGTablespace)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

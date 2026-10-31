@@ -12,8 +12,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) initializeCatalogSources() error {
-	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+// InitializeSources installs the catalog source relations into store's state,
+// owned by roles' postgres role (bootstrap for BootstrapOwner specs).
+func InitializeSources(store *catalog.Store, roles authorization.Read, bootstrap authorization.PrincipalRef) error {
 	postgres := roles.LookupRef("postgres")
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for i, template := range catalogSourceTemplates() {
@@ -22,7 +23,7 @@ func (e *Engine) initializeCatalogSources() error {
 		*d = template
 		d.Owner = postgres
 		if spec.BootstrapOwner {
-			d.Owner = e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+			d.Owner = bootstrap
 		}
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 		if spec.NoPublic {
@@ -72,7 +73,7 @@ func (e *Engine) initializeCatalogSources() error {
 		for j, column := range spec.Columns {
 			typ, ok := types[column.Type]
 			if !ok {
-				if typ, ok = e.Catalog.Current().LookupType(column.Type); !ok {
+				if typ, ok = store.Current().LookupType(column.Type); !ok {
 					if spec.Namespace == ids.PGCatalogNamespaceOID && (spec.OID == ids.ForeignWrapperClassID || spec.OID == ids.ForeignServerClassID || spec.OID == ids.ForeignMappingClassID || spec.OID == ids.ForeignTableClassID || spec.OID == pgcatalog.UserMappingsOID) {
 						return fmt.Errorf(spec.MissingType, column.Type)
 					}
@@ -82,7 +83,7 @@ func (e *Engine) initializeCatalogSources() error {
 			}
 			d.Columns[j].Usage.Type = typ
 		}
-		catalog.InstallCatalogSource(e.Catalog.State, d)
+		catalog.InstallCatalogSource(store.State, d)
 	}
 	return nil
 }

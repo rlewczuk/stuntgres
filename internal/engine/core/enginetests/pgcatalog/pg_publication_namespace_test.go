@@ -171,7 +171,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 		if err != nil || rows == nil || len(rows) != 0 {
 			t.Fatal("actual empty producer", rows, err)
 		}
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != in.Ref {
 			t.Fatal("actual empty capture", got, err)
 		}
@@ -213,7 +213,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 				tc.mutate(&bad)
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -263,7 +263,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 				}
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -287,7 +287,7 @@ func TestPGPublicationNamespaceCaptureOwnership(t *testing.T) {
 		if err != nil || privateRows == nil || len(privateRows) != 0 {
 			t.Fatal("paired private capture", privateRows, err)
 		}
-		privateCapture, err := core.CaptureCatalogSourceRows(private, produce)
+		privateCapture, err := core.CaptureRows(private, produce)
 		if err != nil || privateCapture == nil || privateCapture.Anonymous == nil || len(privateCapture.Anonymous) != 0 || privateCapture.Ref != in.Ref {
 			t.Fatal("paired private wrapped capture", privateCapture, err)
 		}
@@ -308,7 +308,7 @@ func TestPGPublicationNamespaceCaptureCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		wrapped, err := core.CaptureCatalogSourceRows(in, produce)
+		wrapped, err := core.CaptureRows(in, produce)
 		subscriptionInvariant(t, wrapped == nil, err)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)

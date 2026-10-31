@@ -27,7 +27,7 @@ func characterSetsUnitRows(t *testing.T, in pgcatalog.Input, schema, name *strin
 	if !ok {
 		t.Fatal("missing character_sets producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

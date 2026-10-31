@@ -8,12 +8,11 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
-	"stuntgres/internal/engine/stored"
 )
 
 // CatalogViewLeafEvents calls catalogViewLeafEvents.
 func CatalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *catalog.Relation, subset []int32) (uint32, error) {
-	return (EngineCatalogRuntime{}).catalogViewLeafEvents(ctx, read, relation, subset)
+	return (Runtime{}).catalogViewLeafEvents(ctx, read, relation, subset)
 }
 
 // EngineCapturePGPredicateLocksLocked calls x.capturePGPredicateLocksLocked.
@@ -24,14 +23,4 @@ func EngineCapturePGPredicateLocksLocked(x *Engine) ([]lock.Record, error) {
 // EngineOpenCatalogSourceLocked calls x.openCatalogSourceLocked.
 func EngineOpenCatalogSourceLocked(x *Engine, scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
 	return x.openCatalogSourceLocked(scope, ref, source, pgcatalog.Keep{})
-}
-
-// CatalogRuntimeBuiltinViewDefinition calls x.builtinViewDefinition.
-func CatalogRuntimeBuiltinViewDefinition(x EngineCatalogRuntime, ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
-	return x.builtinViewDefinition(ctx, read, relation)
-}
-
-// CatalogRuntimePresentationRef returns &x.presentation.
-func CatalogRuntimePresentationRef(x *EngineCatalogRuntime) *stored.Presentation {
-	return &x.presentation
 }

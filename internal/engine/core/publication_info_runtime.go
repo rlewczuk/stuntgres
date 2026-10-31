@@ -163,7 +163,7 @@ func publicationTableAncestor(ctx context.Context, view catalog.Read, relation *
 
 func publicationTableValue(ctx context.Context, view catalog.Read, item publicationTableInfo, result *sqltype.Descriptor) (sqltype.Value, error) {
 	p, r := item.publication, item.relation
-	metadata, err := publicationTableMetadata(ctx, view, p, r)
+	metadata, err := PublicationTableMetadata(ctx, view, p, r)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

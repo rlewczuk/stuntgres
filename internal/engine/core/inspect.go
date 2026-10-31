@@ -18,14 +18,11 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // CatalogDependencyPreflight calls catalogDependencyPreflight.
@@ -94,31 +91,13 @@ func PartitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(
 	return partitionReplayAllowed(op, auth)
 }
 
-// CatalogRuntimeFields holds the EngineCatalogRuntime fields tests set.
-type CatalogRuntimeFields struct {
-	Engine       *Engine
-	Auth         AuthorizationView
-	Cursors      *cursorRegistry
-	PreparedStatements *PreparedRegistry
-	Settings     *session.SettingsStore
-	Registry     settings.Registry
-	Input        sqltype.InputEnvironment
-	Database     string
-	Temporary    ids.SessionToken
-	Presentation stored.Presentation
-	SequenceBase *catalog.State
-	SequenceOwn  *session.Journal
-}
 
-// NewCatalogRuntime builds a EngineCatalogRuntime from f.
-func NewCatalogRuntime(f CatalogRuntimeFields) EngineCatalogRuntime {
-	return EngineCatalogRuntime{engine: f.Engine, Auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry, input: f.Input, Database: f.Database, temporary: f.Temporary, presentation: f.Presentation, sequenceBase: f.SequenceBase, sequenceOwn: f.SequenceOwn}
-}
+// NewCatalogRuntime builds a catalog source runtime from f.
+func NewCatalogRuntime(f CatalogRuntimeFields) *Runtime { return newCatalogRuntime(f) }
 
 // CatalogRuntimeFieldsOf returns the fields NewCatalogRuntime built r from.
 func CatalogRuntimeFieldsOf(r pgcatalog.Runtime) CatalogRuntimeFields {
-	x := r.(EngineCatalogRuntime)
-	return CatalogRuntimeFields{Engine: x.engine, Auth: x.Auth, Cursors: x.cursors, PreparedStatements: x.preparedStatements, Settings: x.settings, Registry: x.registry, Input: x.input, Database: x.Database, Temporary: x.temporary, Presentation: x.presentation, SequenceBase: x.sequenceBase, SequenceOwn: x.sequenceOwn}
+	return r.(*Runtime).Host.(*catalogRuntime).fields()
 }
 
 // AuthorizationMaterializedPopulation returns x.materializedPopulation.

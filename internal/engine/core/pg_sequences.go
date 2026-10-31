@@ -33,7 +33,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		Source: source,
 		Err:    func() error { return scope.Op.Context().Err() },
 		Visit: func(visit func(catalog.Descriptor) error) error {
-			return visitSequenceOverlay(base, own, nil, visit)
+			return VisitSequenceOverlay(base, own, nil, visit)
 		},
 		Namespace: namespace, Temporary: scope.Op.Session.SessionToken, Roles: scope.Inquiry.commentRoles,
 	})

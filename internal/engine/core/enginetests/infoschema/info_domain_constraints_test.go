@@ -103,7 +103,7 @@ func dcUnitCheck(t *testing.T, in pgcatalog.Input, want map[[8]string]int) [][]s
 	if !ok {
 		t.Fatal("missing domain_constraints producer")
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

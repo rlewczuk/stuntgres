@@ -52,7 +52,7 @@ func TestPGIdentFileMappingsCapture(t *testing.T) {
 	if text, err := rows[1][6].Text(); err != nil || text != "missing entry at end of line" {
 		t.Fatal(text, err)
 	}
-	captured, err := core.CaptureCatalogSourceRows(input, produce)
+	captured, err := core.CaptureRows(input, produce)
 	if err != nil || captured.Ref != input.Ref || !reflect.DeepEqual(captured.Anonymous, rows) {
 		t.Fatal(captured, err)
 	}
@@ -66,7 +66,7 @@ func TestPGIdentFileMappingsCapture(t *testing.T) {
 		if rows, err := produce(in); rows != nil || err == nil {
 			t.Fatal("forged source admitted", rows, err)
 		}
-		if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || err == nil {
+		if source, err := core.CaptureRows(in, produce); source != nil || err == nil {
 			t.Fatal("forged source published", source, err)
 		}
 	}

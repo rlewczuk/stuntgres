@@ -62,7 +62,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	}
 	check := func(in pgcatalog.Input, names ...string) [][]sqltype.Value {
 		t.Helper()
-		captured, err := core.CaptureCatalogSourceRows(in, produce)
+		captured, err := core.CaptureRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}

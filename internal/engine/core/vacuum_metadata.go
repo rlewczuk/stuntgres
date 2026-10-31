@@ -28,17 +28,17 @@ func (e *Engine) UpdateDatabaseMaintenanceLocked() {
 	e.DatabaseFrozenXID = next
 	e.publishDatabaseFrozenXIDLocked()
 }
-func (r EngineCatalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool) {
+func (r *catalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.MaintenanceFact, bool) {
 	store := r.engine.Storage.Relations[address]
 	if store == nil {
-		store = r.engine.PrivateStorageLocked(r.Auth.PendingCatalog(), address)
+		store = r.engine.PrivateStorageLocked(r.auth.PendingCatalog(), address)
 	}
 	var fact pgcatalog.MaintenanceFact
 	if store != nil {
 		m := store.Maintenance
 		fact = pgcatalog.MaintenanceFact{FrozenXID: m.FrozenXID, Scanned: m.Scanned, Live: m.Live, Dead: m.Dead, Tuples: m.Tuples, Inserts: m.Inserts, Updates: m.Updates, Deletes: m.Deletes, Modifications: m.Modifications, InsertsSince: m.InsertsSince, VacuumCount: m.VacuumCount, LastVacuum: m.LastVacuum}
 	}
-	metadata := session.ResolveRelationMetadata(r.Auth.PendingCatalog(), r.engine.Storage.RelationMetadata, address)
+	metadata := session.ResolveRelationMetadata(r.auth.PendingCatalog(), r.engine.Storage.RelationMetadata, address)
 	if metadata != nil {
 		fact.AnalyzeCount, fact.LastAnalyze = metadata.AnalyzeCount, metadata.LastAnalyze
 		fact.InheritedScanned, fact.InheritedTuples = metadata.InheritedScanned, metadata.InheritedTuples
@@ -50,16 +50,16 @@ func (r EngineCatalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.
 			fact.Scanned, fact.Tuples = metadata.Scanned, metadata.Tuples
 		}
 	}
-	imported := session.ResolveRelationStatistics(r.Auth.PendingCatalog(), address, metadata)
+	imported := session.ResolveRelationStatistics(r.auth.PendingCatalog(), address, metadata)
 	if imported != nil { fact.Imported = *imported }
 	return fact, store != nil || metadata != nil || imported != nil
 }
-func (r EngineCatalogRuntime) DatabaseFrozenXID() uint64 { return r.engine.DatabaseFrozenXID }
-func (r EngineCatalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgcatalog.VacuumProgressFact) error) error {
+func (r *catalogRuntime) DatabaseFrozenXID() uint64 { return r.engine.DatabaseFrozenXID }
+func (r *catalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgcatalog.VacuumProgressFact) error) error {
 	if len(r.engine.VacuumProgress) == 0 {
 		return nil
 	}
-	viewer, err := pgcatalog.NewProgressViewer(ctx, r.Auth.Roles, r.Auth.State.CurrentUser)
+	viewer, err := pgcatalog.NewProgressViewer(ctx, r.auth.Roles, r.auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}

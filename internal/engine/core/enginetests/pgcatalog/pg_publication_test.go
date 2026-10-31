@@ -174,7 +174,7 @@ func TestPGPublicationCaptureOwnership(t *testing.T) {
 		if err != nil || rows == nil || len(rows) != 0 {
 			t.Fatal("actual empty producer", rows, err)
 		}
-		got, err := core.CaptureCatalogSourceRows(in, produce)
+		got, err := core.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != in.Ref {
 			t.Fatal("actual empty capture", got, err)
 		}
@@ -216,7 +216,7 @@ func TestPGPublicationCaptureOwnership(t *testing.T) {
 				tc.mutate(&bad)
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -265,7 +265,7 @@ func TestPGPublicationCaptureOwnership(t *testing.T) {
 				}
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -295,7 +295,7 @@ func TestPGPublicationCaptureCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		wrapped, err := core.CaptureCatalogSourceRows(in, produce)
+		wrapped, err := core.CaptureRows(in, produce)
 		subscriptionInvariant(t, wrapped == nil, err)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)

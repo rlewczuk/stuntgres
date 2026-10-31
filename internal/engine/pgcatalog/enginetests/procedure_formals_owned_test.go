@@ -66,7 +66,7 @@ func TestRoutineResultFormalOwnedCatalog(t *testing.T) {
 		t.Fatal("missing procedure producer")
 	}
 	in := pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestRoutineResultFormalOwnedCatalog(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	in.Context = ctx
-	if got, err := core.CaptureCatalogSourceRows(in, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := core.CaptureRows(in, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled formal source capture", got, err)
 	}
 }

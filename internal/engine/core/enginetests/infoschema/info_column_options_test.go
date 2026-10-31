@@ -59,7 +59,7 @@ func columnOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureCatalogSourceRows(in, produce)
+	source, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func TestInfoColumnOptionsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	in.Context = ctx
-	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", source, err)
 	}
 	state := catalog.CloneState(f.state)
@@ -315,7 +315,7 @@ func TestInfoColumnOptionsCancellation(t *testing.T) {
 	calls := 0
 	in.Context = ctx
 	in.Runtime = columnOptionsCancelRuntime{Runtime: in.Runtime, cancel: cancel, calls: &calls}
-	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 2 {
+	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 2 {
 		t.Fatal("partial capture publication", source, err, calls)
 	}
 	_, bag := columnOptionsRows(t, f.input(t, f.state, f.f.owner))

@@ -169,7 +169,7 @@ func TestPGPublicationRelCaptureOwnership(t *testing.T) {
 	publicationRelInput(t, engine.New(), func(in pgcatalog.Input, _ core.AuthorizationView) {
 		rows, err := produce(in)
 		if err != nil || rows == nil || len(rows) != 0 { t.Fatal("empty producer", rows, err) }
-		source, err := core.CaptureCatalogSourceRows(in, produce)
+		source, err := core.CaptureRows(in, produce)
 		if err != nil || source == nil || source.Anonymous == nil || len(source.Anonymous) != 0 || source.Ref != in.Ref { t.Fatal("anonymous empty wrapper", source, err) }
 	})
 	e, _, m := publicationRelPopulated(t)
@@ -193,7 +193,7 @@ func TestPGPublicationRelCaptureOwnership(t *testing.T) {
 			want, err := sqltype.OIDValue(in.Source.Columns[i].Usage.Type, uint32(oid))
 			if err != nil || !reflect.DeepEqual(rows[0][i], want) { t.Fatal("actual edge identity", i, rows[0][i], err) }
 		}
-		source, err := core.CaptureCatalogSourceRows(in, produce)
+		source, err := core.CaptureRows(in, produce)
 		if err != nil || source == nil || source.Ref != in.Ref || !reflect.DeepEqual(source.Anonymous, rows) { t.Fatal("populated shared wrapper", source, err) }
 		cases := []struct { name string; mutate func(*pgcatalog.Input) }{
 			{"nil context", func(b *pgcatalog.Input) { b.Context = nil }},
@@ -221,7 +221,7 @@ func TestPGPublicationRelCaptureOwnership(t *testing.T) {
 				tc.mutate(&bad)
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -253,7 +253,7 @@ func TestPGPublicationRelCaptureOwnership(t *testing.T) {
 				if bad.Catalog.Get(next.Address()) != bad.Source { t.Fatal("not current malformed source") }
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				assertRoots(t)
 			})
@@ -319,7 +319,7 @@ func TestPGPublicationRelMalformedMapping(t *testing.T) {
 				if err := (catalog.PublicationRelationProvider{}).Validate(bad.Catalog, m); err != nil { t.Fatal("valid prefix witness invalidated", err) }
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureCatalogSourceRows(bad, produce)
+				wrapped, err := core.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 				if !maps.Equal(descriptors, maps.Collect(e.Catalog.Current().State().Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.Current().State().Names())) || roles != e.RoleStore.Published { t.Fatal("malformed capture changed accepted roots") }
 			})
@@ -428,7 +428,7 @@ func TestPGPublicationRelCaptureCancellation(t *testing.T) {
 		in.Context = ctx
 		raw, err := produce(in)
 		if raw != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled populated producer", raw, err) }
-		wrapped, err := core.CaptureCatalogSourceRows(in, produce)
+		wrapped, err := core.CaptureRows(in, produce)
 		if wrapped != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled populated wrapper", wrapped, err) }
 		if !maps.Equal(descriptors, maps.Collect(e.Catalog.Current().State().Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.Current().State().Names())) || roles != e.RoleStore.Published { t.Fatal("cancellation changed roots") }
 	})

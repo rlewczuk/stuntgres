@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
 	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source, Keep: keep}
-	runtime := EngineCatalogRuntime{engine: e}
+	runtime := CatalogRuntimeFields{Engine: e}
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
@@ -46,11 +47,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		var err error
-		in.SharedDependencies, err = classifySharedDependencies(in.Context, in.Catalog, in.Roles, databases)
+		in.SharedDependencies, err = ClassifySharedDependencies(in.Context, in.Catalog, in.Roles, databases)
 		if err != nil {
 			return nil, err
 		}
-		return CaptureCatalogSourceRows(in, produce)
+		return CaptureRows(in, produce)
 	case pgcatalog.ClassOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
@@ -97,7 +98,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-		runtime.settings = scope.Op.EffectiveSettings()
+		runtime.Settings = scope.Op.EffectiveSettings()
 	case pgcatalog.SettingsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
@@ -106,20 +107,20 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-		runtime.settings = scope.Op.EffectiveSettings()
-		runtime.registry = e.Settings
+		runtime.Settings = scope.Op.EffectiveSettings()
+		runtime.Registry = e.Settings
 		unlockBefore = true
 	case pgcatalog.CursorsOID:
-		runtime.cursors = PayloadOf(scope.Op.Session).Cursors
+		runtime.Cursors = PayloadOf(scope.Op.Session).Cursors
 		unlockBefore = true
 	case pgcatalog.PreparedStatementsOID:
-		runtime.preparedStatements = PayloadOf(scope.Op.Session).PreparedSQL
+		runtime.PreparedStatements = PayloadOf(scope.Op.Session).PreparedSQL
 		unlockBefore = true
 	case 12081, 12085:
 		in.Catalog = scope.Inquiry.CommentCatalog
 		unlockBefore = true
 	case 12004, 12005:
-		runtime.input = scope.Input
+		runtime.Input = scope.Input
 		unlockBefore = true
 	case ids.RoleClassID, pgcatalog.AuthMembersOID, 12014, 12007, 12008, pgcatalog.ShadowOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles
@@ -134,7 +135,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case pgcatalog.PoliciesOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth = scope.Inquiry.deparseAuth
-		runtime.presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
+		runtime.Presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
 		unlockBefore = true
 	case pgcatalog.InfoReferentialConstraintsOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
@@ -143,24 +144,24 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case pgcatalog.InfoTriggersOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
-		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
-		runtime.presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
+		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+		runtime.Presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
 		unlockBefore = true
 	case pgcatalog.InfoTransformsOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
-		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 		unlockBefore = true
 	case pgcatalog.InfoForeignDataWrapperOptionsOID, pgcatalog.InfoForeignDataWrappersOID, pgcatalog.InfoForeignServerOptionsOID, pgcatalog.InfoForeignServersOID, pgcatalog.InfoForeignTableOptionsOID, pgcatalog.InfoForeignTablesOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
-		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID, pgcatalog.InfoUserMappingsOID, pgcatalog.InfoUserMappingOptionsOID, pgcatalog.KeyColumnUsageOID, pgcatalog.InfoRoutineSequenceUsageOID, pgcatalog.InfoRoutineRoutineUsageOID, pgcatalog.InfoCheckConstraintRoutineUsageOID, pgcatalog.InfoCheckConstraintsOID, pgcatalog.InfoCharacterSetsOID, pgcatalog.InfoCollationsOID, pgcatalog.InfoSchemataOID, pgcatalog.InfoColumnOptionsOID, pgcatalog.InfoTableConstraintsOID, pgcatalog.ConstraintColumnUsageOID, pgcatalog.InfoEnabledRolesOID, pgcatalog.InfoViewTableUsageOID, pgcatalog.InfoColumnColumnUsageOID, pgcatalog.InfoColumnDomainUsageOID, pgcatalog.InfoDomainConstraintsOID, pgcatalog.InfoSequencesOID, pgcatalog.InfoRoleColumnGrantsOID, pgcatalog.InfoColumnsOID, pgcatalog.InfoDomainsOID, pgcatalog.InfoUserDefinedTypesOID, pgcatalog.InfoViewsOID, pgcatalog.InfoTablesOID, pgcatalog.InfoRoleTableGrantsOID, pgcatalog.InfoRoutinesOID, pgcatalog.InfoParametersOID, pgcatalog.InfoRoleRoutineGrantsOID, pgcatalog.InfoRoleUdtGrantsOID, pgcatalog.InfoSQLFeaturesOID, pgcatalog.InfoRoleUsageGrantsOID, pgcatalog.InfoSQLSizingOID, pgcatalog.InfoSQLImplementationInfoOID, pgcatalog.InfoSQLPartsOID, pgcatalog.InfoRoutinePrivilegesOID, pgcatalog.InfoUsagePrivilegesOID:
 		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
 		runtime.Auth, runtime.Database = scope.Inquiry.deparseAuth, scope.Op.Session.DatabaseName
-		runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+		runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 		if oid == pgcatalog.InfoColumnsOID || oid == pgcatalog.InfoViewsOID || oid == pgcatalog.InfoParametersOID || oid == pgcatalog.InfoCheckConstraintsOID {
-			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
+			runtime.Presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
 		}
 		if oid == pgcatalog.InfoDomainsOID || oid == pgcatalog.InfoRoutinesOID || oid == pgcatalog.InfoParametersOID {
 			in.TypeNamePath = scope.Inquiry.DeparsePath
@@ -180,11 +181,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 2396:
 		in.Roles = scope.Inquiry.commentRoles
 	case 2224:
-		runtime.sequenceBase = e.Catalog.State
+		runtime.SequenceBase = e.Catalog.State
 		if scope.Owner.SequenceCatalog != nil {
-			runtime.sequenceBase = scope.Owner.SequenceCatalog
+			runtime.SequenceBase = scope.Owner.SequenceCatalog
 		}
-		runtime.sequenceOwn = scope.PendingCatalog()
+		runtime.SequenceOwn = scope.PendingCatalog()
 	default:
 		switch oid {
 		case 2609, 3079, ids.ParameterClassID:
@@ -216,30 +217,27 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.Auth, in.Roles = auth, auth.Roles
 		}
 		if oid == 12006 || oid == 12000 || oid == pgcatalog.RulesOID {
-			runtime.presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
-			runtime.temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
+			runtime.Presentation = stored.Presentation{Deparse: true, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: scope.Op.NonstandardStrings}
+			runtime.Temporary = CatalogSourceTemporaryOwner(scope.Inquiry.deparseAuth)
 		}
 	}
-	in.Runtime = runtime
+	in.Runtime = newCatalogRuntime(runtime)
 	if unlockBefore {
 		e.Mu.Unlock()
-		return CaptureCatalogSourceRows(in, produce)
+		return CaptureRows(in, produce)
 	}
-	result, err := e.captureCatalogSourceRowsLocked(in, produce, sharedRoles)
+	result, err := e.catalogCaptures.CaptureLocked(in, produce, sharedRoles, e.Catalog.State, e.RoleStore.Published)
 	e.Mu.Unlock()
 	return result, err
 }
 
-// Engine is the sole owner of exec.Source construction, including error paths.
-func CaptureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*exec.Source, error) {
-	rows, err := produce(in)
-	if err != nil {
-		return nil, err
-	}
-	// Anonymous nil denotes a physical source requiring a visibility view.
-	// A catalog producer's empty result is still an owned anonymous rowset.
-	if rows == nil {
-		rows = [][]sqltype.Value{}
-	}
-	return &exec.Source{Ref: in.Ref, Anonymous: rows}, nil
+// captureSelectSourcesLocked is CaptureQuerySourcesLocked for a SELECT whose
+// root reads the leaves. While it runs, a pg_settings, pg_attribute, pg_class,
+// pg_proc or information_schema routines/parameters leaf filtered by one of its
+// key columns builds only the rows the filter can accept.
+func (e *Engine) captureSelectSourcesLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf, parameters []sqltype.Value, singleton bool) (*exec.Source, error) {
+	previous := scope.catalogKeep
+	scope.catalogKeep = &KeepQuery{Root: root, Leaves: leaves, Parameters: parameters}
+	defer func() { scope.catalogKeep = previous }()
+	return e.CaptureQuerySourcesLocked(scope, leaves, singleton)
 }

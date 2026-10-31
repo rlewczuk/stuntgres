@@ -46,7 +46,7 @@ func schemataUnitRows(t *testing.T, in pgcatalog.Input, want [][]any) [][]sqltyp
 	if !ok {
 		t.Fatal("missing schemata producer")
 	}
-	capture, err := core.CaptureCatalogSourceRows(in, produce)
+	capture, err := core.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -140,11 +140,11 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 			read := base.WithState(state)
 			runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Presentation: stored.Presentation{Path: []ids.ObjectAddress{pg}}})
 			if tc.visible {
-				core.CatalogRuntimePresentationRef(&runtime).Path = []ids.ObjectAddress{pg, public}
+				runtime.Presentation.Path = []ids.ObjectAddress{pg, public}
 			}
 			for _, quote := range []bool{false, true} {
-				core.CatalogRuntimePresentationRef(&runtime).Output.QuoteAllIdentifiers = quote
-				got, err := core.CatalogRuntimeBuiltinViewDefinition(runtime, context.Background(), read, relation)
+				runtime.Presentation.Output.QuoteAllIdentifiers = quote
+				got, err := runtime.BuiltinViewDefinition(context.Background(), read, relation)
 				if tc.missingNamespace {
 					if got != "" || !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatalf("inconsistent namespace published %q, %v", got, err)
@@ -161,7 +161,7 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 					t.Fatalf("quote=%t definition=%q err=%v; want call %s(%s)", quote, got, err, want, argument)
 				}
 				// A newer descriptor must not leak into a previously captured read.
-				old, err := core.CatalogRuntimeBuiltinViewDefinition(runtime, context.Background(), base, relation)
+				old, err := runtime.BuiltinViewDefinition(context.Background(), base, relation)
 				oldCall := "pg_get_userbyid(c.relowner)"
 				if quote {
 					oldCall = `"pg_get_userbyid"("c"."relowner")`

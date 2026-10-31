@@ -16,11 +16,11 @@ import (
 
 // RoutineDefault presents a demanded declaration expression. The producer owns
 // disclosure; this capability neither authorizes, evaluates, nor serializes replay.
-func (r EngineCatalogRuntime) RoutineDefault(ctx context.Context, capture catalog.Read, d *catalog.Procedure, slot int) (string, error) {
+func (r Runtime) RoutineDefault(ctx context.Context, capture catalog.Read, d *catalog.Procedure, slot int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if capture != r.Auth.Catalog {
+	if capture != r.View.Catalog {
 		return "", ids.ErrCatalogReplaced
 	}
 	if err := validateRoutineDefaultOwner(capture, d); err != nil {
@@ -30,7 +30,7 @@ func (r EngineCatalogRuntime) RoutineDefault(ctx context.Context, capture catalo
 	if err != nil {
 		return "", err
 	}
-	renderer := stored.Deparser{View: capture, Path: r.presentation.Path, Output: r.presentation.Output, NonstandardStrings: r.presentation.NonstandardStrings, RoutineDeclaration: true}
+	renderer := stored.Deparser{View: capture, Path: r.Presentation.Path, Output: r.Presentation.Output, NonstandardStrings: r.Presentation.NonstandardStrings, RoutineDeclaration: true}
 	return renderer.SQL(ctx, node, stored.DeparseParent{})
 }
 
@@ -57,7 +57,7 @@ func validateRoutineDefaultOwner(capture catalog.Read, d *catalog.Procedure) err
 
 // routineDefaultNode reads a validated declaration owner, never evaluating a
 // default or invoking a routine. Literal recipes use only type input/coercion.
-func (r EngineCatalogRuntime) routineDefaultNode(ctx context.Context, capture catalog.Read, d *catalog.Procedure, slot int) (expr.Expr, error) {
+func (r Runtime) routineDefaultNode(ctx context.Context, capture catalog.Read, d *catalog.Procedure, slot int) (expr.Expr, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

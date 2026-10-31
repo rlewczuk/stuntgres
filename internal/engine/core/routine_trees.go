@@ -14,7 +14,7 @@ import (
 
 // RoutineTrees captures immutable declaration owners only. This capability does
 // not authorize disclosure, compile a program, evaluate defaults or open a body.
-func (r EngineCatalogRuntime) RoutineTrees(ctx context.Context, capture catalog.Read, d *catalog.Procedure, typ *sqltype.Descriptor) (defaults, body sqltype.Value, err error) {
+func (r Runtime) RoutineTrees(ctx context.Context, capture catalog.Read, d *catalog.Procedure, typ *sqltype.Descriptor) (defaults, body sqltype.Value, err error) {
 	if err = ctx.Err(); err != nil {
 		return sqltype.Value{}, sqltype.Value{}, err
 	}

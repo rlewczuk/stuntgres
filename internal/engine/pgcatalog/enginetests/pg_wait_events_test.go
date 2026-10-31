@@ -113,7 +113,7 @@ func TestPGWaitEventsProducer(t *testing.T) {
 		t.Fatal("producer registered for array type")
 	}
 	// Static definitions require no Runtime and accept an omitted role frontier.
-	first, err := core.CaptureCatalogSourceRows(in, produce)
+	first, err := core.CaptureRows(in, produce)
 	if err != nil || first == nil || first.Ref != in.Ref {
 		t.Fatal("capture without runtime", first, err)
 	}
@@ -201,7 +201,7 @@ func waitEventsUnitReject(t *testing.T, in pgcatalog.Input, produce pgcatalog.Pr
 	if rows != nil || err == nil || errors.As(err, &sqlError) {
 		t.Fatal("invalid capture must fail with ordinary error and no rows", rows, err)
 	}
-	captured, err := core.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureRows(in, produce)
 	if captured != nil || err == nil || errors.As(err, &sqlError) {
 		t.Fatal("invalid capture published source", captured, err)
 	}

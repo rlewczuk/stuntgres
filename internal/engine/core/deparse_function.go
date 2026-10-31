@@ -51,14 +51,14 @@ func (s *StatementScope) deparseInputs() table.DeparseInputs {
 	if auth.Session != nil {
 		in.Database = auth.Session.DatabaseName
 	}
-	runtime := EngineCatalogRuntime{Auth: auth, presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
+	runtime := Runtime{View: auth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
 	in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, relation *catalog.Relation, pretty bool) (string, error) {
 		if relation.RelationKind != catalog.CatalogRelation || pgcatalog.SummaryViewDefinition(relation.Address().ObjectID) == "" {
 			return "", nil
 		}
 		presentation := runtime
-		presentation.presentation.Pretty = pretty
-		return presentation.builtinViewDefinition(ctx, read, relation)
+		presentation.Presentation.Pretty = pretty
+		return presentation.BuiltinViewDefinition(ctx, read, relation)
 	}
 	return in
 }

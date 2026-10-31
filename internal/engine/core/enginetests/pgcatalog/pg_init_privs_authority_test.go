@@ -28,7 +28,7 @@ func TestPGInitPrivsAuthority(t *testing.T) {
 	capture := func(ctx context.Context, v catalog.Read, r authorization.Read, reference ids.ObjectRef, d *catalog.Relation, reject bool) {
 		t.Helper()
 		f.e.Mu.Lock()
-		rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: v, Roles: r, Ref: reference, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, producer)
+		rows, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: v, Roles: r, Ref: reference, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, producer)
 		f.e.Mu.Unlock()
 		if !reject {
 			if err != nil || rows == nil || rows.Count() != view.State().InitialPrivilegeCount() {
@@ -118,7 +118,7 @@ func TestPGInitPrivsAuthority(t *testing.T) {
 		ctx, cancel := context.WithCancel(background)
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		f.e.Mu.Lock()
-		rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: view, Roles: roles, Ref: ref, Source: source, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, producer)
+		rows, err := core.CaptureRows(pgcatalog.Input{Context: controlled, Catalog: view, Roles: roles, Ref: ref, Source: source, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, producer)
 		f.e.Mu.Unlock()
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) || f.e.Catalog.State != state || f.e.RoleStore.Published != roleRoot || f.e.Catalog.NextOID() != frontier {

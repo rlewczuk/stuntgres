@@ -158,7 +158,7 @@ func TestPGPartitionedTableCatalogCapture(t *testing.T) {
 		}
 		// Real authenticated dispatch, including the zero-row source.
 		e.Mu.Lock()
-		captured, err := core.CaptureCatalogSourceRows(in, produce)
+		captured, err := core.CaptureRows(in, produce)
 		e.Mu.Unlock()
 		if err != nil || captured == nil || captured.Count() != wantCount {
 			t.Fatal("authenticated capture", captured, err)
@@ -191,7 +191,7 @@ func TestPGPartitionedTableCaptureStableAttributes(t *testing.T) {
 	after := partitionCatalogRows(t, captured)[0]
 	produce, _ := pgcatalog.ProducerFor(3350)
 	e.Mu.Lock()
-	dispatched, err := core.CaptureCatalogSourceRows(captured, produce)
+	dispatched, err := core.CaptureRows(captured, produce)
 	e.Mu.Unlock()
 	if err != nil || dispatched == nil || dispatched.Count() != 1 || !reflect.DeepEqual(dispatched.Anonymous[0], after) {
 		t.Fatal("authenticated stable attribute capture", dispatched, err)
@@ -230,7 +230,7 @@ func TestPGPartitionedTableCaptureAuthority(t *testing.T) {
 			bad.Source = &detached
 		}
 		e.Mu.Lock()
-		rows, err := core.CaptureCatalogSourceRows(bad, produce)
+		rows, err := core.CaptureRows(bad, produce)
 		e.Mu.Unlock()
 		var state interface{ SQLState() string }
 		if rows != nil || err == nil || errors.As(err, &state) {
