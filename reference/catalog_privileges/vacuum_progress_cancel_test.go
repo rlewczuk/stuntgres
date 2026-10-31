@@ -15,7 +15,7 @@ import (
 // phase without a valid block emit no context. Match whole source-defined
 // variants, exact fixture relations/indexes, and only variable numeric
 // coordinates; every other portable diagnostic field remains exact.
-func vacuumProgressCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, observer *sql.Conn, pid int64, table string, cancel context.CancelFunc, join func() error) {
+func vacuumProgressCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, observer *sql.Conn, pid int64, table string, cancel context.CancelFunc, join func() error, indexOpen ...bool) {
 	t.Helper()
 	if b.PG {
 		var signaled bool
@@ -28,6 +28,9 @@ func vacuumProgressCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, obse
 	err := join()
 	if b.PG {
 		got := fixture.ExtractDiagnostic(t, err)
+		if len(indexOpen) != 0 && indexOpen[0] && got.Context != "" {
+			t.Fatalf("index-open cancellation Context must be empty: %q", got.Context)
+		}
 		relation := regexp.QuoteMeta("public." + table)
 		index := regexp.QuoteMeta(table) + `_(?:id|payload)`
 		pattern := regexp.MustCompile(`^(?:while (?:scanning|vacuuming) (?:block [0-9]+(?: offset [1-9][0-9]*)? of )?relation "` + relation + `"|while (?:vacuuming|cleaning up) index "` + index + `" of relation "` + relation + `"|while truncating relation "` + relation + `" to [0-9]+ blocks)?$`)

@@ -482,6 +482,11 @@ Supported stable work points are:
   `text_search.vector`.
 - Query/crypto work: `query.aggregate`, `query.aggregate.sort`,
   `query.recursive`, `crypto.bcrypt`, `crypto.sha`.
+- Ordinary VACUUM: `vacuum.inspect`, after a completed 128-version inspection
+  prefix or final nonempty short prefix, after progress publication returns.
+  It holds genuine detached storage inspection with metadata/capture locks
+  released. Empty tables, skipped/denied work and nonexecuting preparation or
+  progress observations do not admit this point.
 
 `query.aggregate.sort` retains a successful real aggregate ordered-input tuple
 comparison before its ordering result returns. Unlike the earlier
@@ -495,6 +500,12 @@ folded or otherwise undemanded work need not reach it. Unknown points never
 admit. A nested WithExecutionPause replaces the inherited request; nil removes
 it. Pauses neither own a connection nor permit concurrent use of its busy
 physical owner; use an independent connection for other work.
+
+Use separate request-scoped pauses to retain independent VACUUM workers.
+Progress and stack snapshots observe admission but do not reserve worker
+lifetime. Canceling one operation does not release another request's hold;
+Resume permits normal completion through unchanged cancellation/publication
+fences. This host control has no PostgreSQL API counterpart.
 
 
 ## Transactions

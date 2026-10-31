@@ -147,20 +147,49 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   resolved-scalar rejection, with direct/prepared failure publication and
   same-connection recovery.
 - VACUUM: `RUN='^TestReferenceVacuum'`
+- VACUUM host execution pause: `RUN='^TestReferenceVacuumExecutionPause$'`.
+  Shared untagged direct/driver-prepared scenarios independently assert small
+  indexed/dead SQL fixtures, quiet Prepare/result metadata, denied/skipped/missing
+  and empty work, exact survivors/index validity, affected count zero and healthy
+  next commands. Native phases exercise the request-scoped `vacuum.inspect`
+  completed nonempty inspection-prefix hold, unlocked effective-child execution,
+  release-to-success, early/idempotent Resume, canceled Wait without releasing
+  work, absent/wrong/nested nil/replacement controls, source cause/deadline,
+  SQL cancellation and disposable physical-owner termination. The active native
+  command reports the full FATAL 57P01 once; a later pre-admission use reports
+  `driver.ErrBadConn`, retiring the borrower rather than fabricating another
+  diagnostic. Three fresh holds on one reusable connection alternate
+  success/cancel/success with exact maintenance counts 1/1/2.
+  PostgreSQL has no host-control equivalent: its common
+  SQL assertions remain real; native control phases are explicitly separate,
+  not emulated by index locks. Run this definition natively, with `REFERENCE=1`,
+  and selected `RACE=1`; the complete dual-mode ActiveWorkers lifecycle below
+  remains the independent simultaneous-worker lifetime proof.
 - VACUUM progress: `RUN='^TestReferenceVacuumProgress'`; Active, Privileges,
   ActiveWorkers and ActiveTargets require real second-session SQL rows from
   executing workers. Their shared setup uses public COPY for 262144 rows with
   one-byte payloads, verifies two valid indexes before committed half deletion,
   and independently checks real survivors and maintenance state.
-  ActiveWorkers admits both complete rows in one SQL bag; native storage frames
-  for both exact workers must occur in one complete live stack capture.
+  ActiveWorkers runs the complete lifecycle for direct and driver-prepared
+  VACUUM. Both complete 15-column typed rows must occur in one SQL bag; native
+  storage frames for both exact workers must occur in one complete live capture.
+  PostgreSQL retains independent per-table transactions holding both actual
+  indexes with same-effective-tablespace ALTER INDEX (no storage move), and
+  checks each exact RowExclusive waiter/AccessExclusive grant/blocker PID.
+  The index-open state is independently expected to be initializing with zero
+  counters and delay; cancellation has empty Context. A is canceled and joined
+  while B remains held through fresh direct and held-prepared observations;
+  then B is independently canceled and joined. Terminal checks include empty
+  progress, no completed maintenance, immutable captured values, unchanged
+  index identities/storage metadata, valid indexes and exact survivor data.
   ActiveTargets observes A then B under one actual multi-target command, validates
   intervening A rows through SQL without repeating native stack captures, and
   requires native storage admission for the desired B row before canceling B.
   Both desired targets retain full live SQL/native admission witnesses.
   Stack admission is observational, not a worker-lifetime hold.
-  PROCESS_TOAST false keeps base-target identity exact. PostgreSQL-only cost
-  pacing is physical workload tuning, not native behavior.
+  PROCESS_TOAST false keeps base-target identity exact. Active and Privileges
+  retain PostgreSQL-only physical cost pacing; ActiveWorkers uses semantic
+  admission holds instead of physical pacing.
   ReadOnly checks complete direct/prepared55000 diagnostics and unchanged state.
   Run the selected family both natively and with `REFERENCE=1`; owner barriers
   supplement, never replace, these public active-work witnesses.

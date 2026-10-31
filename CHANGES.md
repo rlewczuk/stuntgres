@@ -80,6 +80,16 @@
   logical captures, so later CLUSTER selectively performs still-required current
   recipe maintenance without rebuilding during routine replacement.
 
+- Add the existing one-shot host execution-pause contract's `vacuum.inspect`
+  work point at genuine unlocked ordinary-VACUUM completed inspection prefixes,
+  retaining effective-operation cancellation and unchanged publication fences.
+  Empty/nonexecuted work does not admit; absent controls add no pause state or
+  goroutine. Strengthen the two-worker reference witness with complete
+  direct/prepared cancellation lifecycles, typed simultaneous progress bags,
+  independent PostgreSQL same-tablespace index blockers, unchanged metadata
+  and survivor/index/maintenance cleanup assertions. PostgreSQL has no host
+  pause counterpart; progress/stack observations alone do not reserve lifetime.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

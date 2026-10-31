@@ -35,7 +35,16 @@ func TestVacuumProgressCounters(t *testing.T) {
 				fmt.Fprintf(&q, "(%d)", i)
 			}
 			sessionSQL(t, owner, q.String())
-			task := startVacuumBarrierAfter(t, e, worker, "VACUUM progress_prefix", "storage.InspectVacuum", completed)
+			// Each completed 128-version boundary adds a checkpoint Err call.
+			// Stop after the final short-prefix callback for completed129.
+			checks := completed + completed/128
+			if completed == 128 {
+				checks = completed
+			}
+			if completed == 129 {
+				checks++
+			}
+			task := startVacuumBarrierAfter(t, e, worker, "VACUUM progress_prefix", "storage.InspectVacuum", checks)
 			rows := vacuumProgressCapture(t, e, observer)
 			if len(rows) != 1 {
 				t.Fatal("missing actual inspect row", rows)

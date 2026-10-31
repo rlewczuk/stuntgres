@@ -144,32 +144,52 @@ type vacuumProgressRunning struct {
 	pg          bool
 }
 
-func vacuumProgressLaunch(t *testing.T, p *fixture.Pair, b fixture.Backend, worker *sql.Conn, table string) *vacuumProgressRunning {
+type vacuumProgressLaunchControl struct {
+	statement *sql.Stmt
+	pause     *stuntgres.ExecutionPause
+}
+
+func vacuumProgressLaunch(t *testing.T, p *fixture.Pair, b fixture.Backend, worker *sql.Conn, table string, controls ...vacuumProgressLaunchControl) *vacuumProgressRunning {
 	t.Helper()
-	if b.PG {
+	var control vacuumProgressLaunchControl
+	if len(controls) != 0 {
+		control = controls[0]
+	}
+	if b.PG && len(controls) == 0 {
 		copyProgressExec(t, p.Ctx, worker, "SET vacuum_cost_limit=20")
 		copyProgressExec(t, p.Ctx, worker, "SET vacuum_cost_delay='1ms'")
 	}
 	ctx, cancel := context.WithCancel(p.Ctx)
+	if control.pause != nil {
+		ctx = stuntgres.WithExecutionPause(ctx, control.pause)
+	}
 	r := &vacuumProgressRunning{cancel: cancel, done: make(chan error, 1), finished: make(chan struct{})}
 	r.pg = b.PG
 	identity := make(chan string, 1)
-	go func() {
-		var own [256]byte
-		n := runtime.Stack(own[:], false)
-		header := strings.Fields(string(own[:n]))
-		identity <- header[0] + " " + header[1] + " "
-		_, err := worker.ExecContext(ctx, "VACUUM (PROCESS_TOAST false) "+table)
-		r.done <- err
-		close(r.finished)
-	}()
 	t.Cleanup(func() {
 		cancel()
+		if control.pause != nil {
+			control.pause.Resume()
+		}
 		if !r.joined {
 			<-r.done
 			r.joined = true
 		}
 	})
+	go func() {
+		var own [256]byte
+		n := runtime.Stack(own[:], false)
+		header := strings.Fields(string(own[:n]))
+		identity <- header[0] + " " + header[1] + " "
+		var err error
+		if control.statement != nil {
+			_, err = control.statement.ExecContext(ctx)
+		} else {
+			_, err = worker.ExecContext(ctx, "VACUUM (PROCESS_TOAST false) "+table)
+		}
+		r.done <- err
+		close(r.finished)
+	}()
 	r.workerStack = <-identity
 	return r
 }
@@ -256,7 +276,7 @@ func TestReferenceVacuumProgressActive(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer stmt.Close()
+				t.Cleanup(func() { stmt.Close() })
 				vacuumProgressEmpty(t, p, b, observer)
 				r := vacuumProgressLaunch(t, p, b, worker, "vacuum_active")
 				first := vacuumProgressObserve(t, p, stmt, id, r)

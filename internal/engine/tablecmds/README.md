@@ -255,6 +255,23 @@ roots, recapture, independent workers, target turnover and terminal cleanup.
 Context callbacks collect errors/results; assertions run after admission unwinds.
 See [the driver contract](../../../docs/DRIVER.md#vacuum-progress).
 
+Ordinary VACUUM activates only a local effective operation child after capture
+and initial progress publication unlock, once across recapture passes.
+`vacuum.inspect` cooperatively holds genuine `storage.InspectVacuum` work after
+each completed 128-version prefix or final nonempty short prefix and after
+the progress callback returns. Callback absence does not disable checkpoints;
+empty inspection never admits. No engine/session/storage/publication mutex or
+catalog reservation spans a hold. Source context, final cancellation fences,
+retirement, index remapping and maintenance publication remain authoritative.
+Absent or disabled controls allocate no pause state and start no goroutine.
+
+`TestVacuumInspectExecutionPause` covers storage boundaries and attachment;
+`TestVacuumExecutionPause` covers exact no-publication cancellation, owner
+causes/cleanup, successful survivor/index remapping and independent holds.
+The existing generic core/util pause tests retain deadline, release and nested
+transport authority. See
+[cooperative pauses](../../../docs/DRIVER.md#cooperative-execution-pauses).
+
 
 ## ANALYZE
 

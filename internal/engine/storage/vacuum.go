@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/util"
 )
 
 // VacuumCandidate owns only fresh headers/end maps; payloads and old roots stay
@@ -54,8 +55,13 @@ func InspectVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoot, f
 				}
 			}
 		}
-		if progress != nil && ((i+1)%128 == 0 || i+1 == len(rows)) {
-			progress(i+1, c.Removed)
+		if (i+1)%128 == 0 || i+1 == len(rows) {
+			if progress != nil {
+				progress(i+1, c.Removed)
+			}
+			if err := util.ExecutionCheckpoint(ctx, "vacuum.inspect"); err != nil {
+				return VacuumCandidate{}, err
+			}
 		}
 	}
 	return c, ctx.Err()
