@@ -128,6 +128,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   and independently checks real survivors and maintenance state.
   ActiveWorkers admits both complete rows in one SQL bag; native storage frames
   for both exact workers must occur in one complete live stack capture.
+  ActiveTargets observes A then B under one actual multi-target command, validates
+  intervening A rows through SQL without repeating native stack captures, and
+  requires native storage admission for the desired B row before canceling B.
+  Both desired targets retain full live SQL/native admission witnesses.
   Stack admission is observational, not a worker-lifetime hold.
   PROCESS_TOAST false keeps base-target identity exact. PostgreSQL-only cost
   pacing is physical workload tuning, not native behavior.

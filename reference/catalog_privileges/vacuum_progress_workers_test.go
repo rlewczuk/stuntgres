@@ -114,21 +114,48 @@ func TestReferenceVacuumProgressActiveTargets(t *testing.T) {
 		r := vacuumProgressLaunch(t, p, b, worker, "vacuum_targets_a,vacuum_targets_b")
 		first := vacuumProgressObserve(t, p, stmt, a, r)
 		vacuumProgressVisible(t, first, a, b.PG)
-		for {
-			s := vacuumProgressObserve(t, p, stmt, second, r)
-			if s.relid.Valid && s.relid.Int64 == second.relid {
-				vacuumProgressVisible(t, s, second, b.PG)
-				break
-			}
-			if !s.relid.Valid || s.relid.Int64 != a.relid {
-				t.Fatal("not either actual target", s)
-			}
-			vacuumProgressVisible(t, s, a, b.PG)
-		}
+		vacuumProgressObserveTarget(t, p, stmt, a, second, r)
 		vacuumProgressCancel(t, p, b, observer, a.pid, "vacuum_targets_b", r.cancel, func() error { err := <-r.done; r.joined = true; return err })
 		vacuumCount(t, p.Ctx, observer, "vacuum_targets_a", 1)
 		vacuumCount(t, p.Ctx, observer, "vacuum_targets_b", 0)
 		vacuumProgressEmpty(t, p, b, observer)
 		vacuumProgressVisible(t, first, a, b.PG)
 	})
+}
+
+// The first target already has a SQL/storage witness. Validate its intervening
+// rows without repeatedly capturing every goroutine while awaiting the second.
+func vacuumProgressObserveTarget(t *testing.T, p *fixture.Pair, stmt *sql.Stmt, first, second copyProgressIdentity, r *vacuumProgressRunning) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
+	defer cancel()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+	for {
+		vacuumProgressUnfinished(t, r)
+		s, ok := vacuumProgressScan(t, stmt.QueryRowContext(ctx, second.pid))
+		vacuumProgressUnfinished(t, r)
+		if ok {
+			switch {
+			case s.relid.Valid && s.relid.Int64 == first.relid:
+				vacuumProgressVisible(t, s, first, r.pg)
+			case s.relid.Valid && s.relid.Int64 == second.relid:
+				vacuumProgressVisible(t, s, second, r.pg)
+				admitted := r.pg || vacuumProgressNativeStack(r.workerStack)
+				vacuumProgressUnfinished(t, r)
+				if admitted {
+					return
+				}
+			default:
+				t.Fatal("not either actual target", s)
+			}
+		}
+		select {
+		case <-r.finished:
+			t.Fatal("VACUUM completed without an observed second-target progress row")
+		case <-ctx.Done():
+			t.Fatal("no active second-target SQL progress witness", ctx.Err())
+		case <-tick.C:
+		}
+	}
 }
