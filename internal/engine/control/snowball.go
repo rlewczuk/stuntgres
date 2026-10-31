@@ -2,6 +2,8 @@ package control
 
 import (
 	"context"
+	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -62,36 +64,100 @@ func (s *dumpScript) configurationProviderReplays() ([]providerReplay, error) {
 	return out, nil
 }
 
-// The restore destination starts with the finite initialized inventory. Remove
-// absent intrinsic identities before any name collision planner reuses their
-// canonical names. Never infer absence from a public label: a different seed or
-// an ordinary declaration can currently occupy that spelling.
-func (s *dumpScript) snowballDropReplay(ctx context.Context) ([]string, error) {
-	var configurations, mappings, dictionaries []string
-	var englishMissing, hindiPresent bool
-	namespace := s.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}).Name()
-	qualified := func(name string) string { return catalog.QuoteIdentifier(namespace)+"."+catalog.QuoteIdentifier(name) }
-	for seed := range s.CatalogView.SnowballSeeds() {
-		if err := ctx.Err(); err != nil { return nil, err }
-		if !seed.Configuration {
-			configurations = append(configurations, "DROP TEXT SEARCH CONFIGURATION "+qualified(seed.Language)+" RESTRICT;\n")
+// Fresh Restore starts with all bootstrap seeds. Retire missing identities before
+// either configuration or dictionary name moves can reuse their canonical names.
+func (s *dumpScript) snowballSeedRetirements(ctx context.Context, defaults iter.Seq[catalog.Descriptor]) ([]string, error) {
+	presentDictionaries, presentConfigurations := map[string]bool{}, map[string]bool{}
+	for _, descriptor := range s.CatalogView.Descriptors() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-		if seed.Language == "hindi" { hindiPresent = seed.Configuration }
-		if seed.Dictionary { continue }
-		if seed.Language == "english" { englishMissing = true }
-		if seed.Configuration {
-			// Clear only initialized edges, before dictionary retirement.
-			// The ordinary configuration declaration later restores the
-			// complete captured mapping, including renamed/replaced targets.
-			tokens := "asciiword, word, hword_part, hword_asciipart, asciihword, hword"
-			if seed.Language == "hindi" { tokens = "word, hword_part, hword" }
-			mappings = append(mappings, "ALTER TEXT SEARCH CONFIGURATION "+qualified(seed.Language)+" DROP MAPPING IF EXISTS FOR "+tokens+";\n")
+		switch d := descriptor.(type) {
+		case *catalog.TSDictionary:
+			if d.Seeded() {
+				presentDictionaries[d.SeedName()] = true
+			}
+		case *catalog.TSConfiguration:
+			if d.Seeded() {
+				presentConfigurations[d.SeedName()] = true
+			}
 		}
-		dictionaries = append(dictionaries, "DROP TEXT SEARCH DICTIONARY "+qualified(seed.Language+"_stem")+" RESTRICT;\n")
 	}
-	if englishMissing && hindiPresent {
-		mappings = append(mappings, "ALTER TEXT SEARCH CONFIGURATION "+qualified("hindi")+" DROP MAPPING IF EXISTS FOR asciiword, hword_asciipart, asciihword;\n")
+	var dictionaries []*catalog.TSDictionary
+	var configurations []*catalog.TSConfiguration
+	absent := map[ids.ObjectAddress]bool{}
+	missingConfiguration := false
+	for descriptor := range defaults {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		switch d := descriptor.(type) {
+		case *catalog.TSDictionary:
+			if !presentDictionaries[d.SeedName()] {
+				dictionaries = append(dictionaries, d)
+				absent[d.Address()] = true
+			}
+		case *catalog.TSConfiguration:
+			configurations = append(configurations, d)
+			missingConfiguration = missingConfiguration || !presentConfigurations[d.SeedName()]
+		}
 	}
-	configurations = append(configurations, mappings...)
-	return append(configurations, dictionaries...), nil
+	if len(dictionaries) == 0 && !missingConfiguration {
+		return nil, nil
+	}
+	slices.SortFunc(dictionaries, func(a, b *catalog.TSDictionary) int { return strings.Compare(a.SeedName(), b.SeedName()) })
+	slices.SortFunc(configurations, func(a, b *catalog.TSConfiguration) int { return strings.Compare(a.SeedName(), b.SeedName()) })
+	namespace := s.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID})
+	qualified := func(name string) string {
+		return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)
+	}
+	var statements []string
+	for _, configuration := range configurations {
+		if !presentConfigurations[configuration.SeedName()] {
+			statements = append(statements, "DROP TEXT SEARCH CONFIGURATION "+qualified(configuration.SeedName())+";\n")
+		}
+	}
+	for _, configuration := range configurations {
+		if !presentConfigurations[configuration.SeedName()] {
+			continue
+		}
+		var tokenIDs []int32
+		for _, mapping := range configuration.Mappings {
+			for _, dictionary := range mapping.Dictionaries {
+				if absent[dictionary] {
+					tokenIDs = append(tokenIDs, mapping.TokenID)
+					break
+				}
+			}
+		}
+		if len(tokenIDs) == 0 {
+			continue
+		}
+		parser, ok := s.CatalogView.TSParser(configuration.Parser)
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: missing bootstrap text search parser")
+		}
+		runtime, err := catalog.ResolveParserRuntime(s.CatalogView, parser)
+		if err != nil {
+			return nil, err
+		}
+		tokens, err := runtime.TokenTypes(ctx)
+		if err != nil {
+			return nil, err
+		}
+		aliases := make([]string, 0, len(tokenIDs))
+		for _, tokenID := range tokenIDs {
+			if tokenID < 1 || int(tokenID) > len(tokens) {
+				return nil, fmt.Errorf("stuntgres: invalid bootstrap text search token")
+			}
+			aliases = append(aliases, catalog.QuoteIdentifier(tokens[tokenID-1].Alias))
+		}
+		// Only fresh bootstrap edges to a missing dictionary are cleared.
+		// Existing declaration replay restores the survivor's captured bag.
+		statements = append(statements, "ALTER TEXT SEARCH CONFIGURATION "+qualified(configuration.SeedName())+" DROP MAPPING IF EXISTS FOR "+strings.Join(aliases, ", ")+";\n")
+	}
+	for _, dictionary := range dictionaries {
+		statements = append(statements, "DROP TEXT SEARCH DICTIONARY "+qualified(dictionary.SeedName())+";\n")
+	}
+	return statements, ctx.Err()
 }

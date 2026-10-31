@@ -9,9 +9,9 @@ import (
 )
 
 func yiddishAbsentSeedReplay(t *testing.T) {
-	const dropConfig = "DROP TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\" RESTRICT;\n"
-	const dropDictionary = "DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"yiddish_stem\" RESTRICT;\n"
-	const clearMappings = "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\" DROP MAPPING IF EXISTS FOR asciiword, word, hword_part, hword_asciipart, asciihword, hword;\n"
+	const dropConfig = "DROP TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\";\n"
+	const dropDictionary = "DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"yiddish_stem\";\n"
+	const clearMappings = "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n"
 	for _, tc := range []struct { name string; dictionary, configuration, collision bool; want string }{
 		{"unchanged", true, true, false, ""},
 		{"configuration-only", true, false, false, dropConfig},
@@ -42,17 +42,38 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					} else { next := *old.(*catalog.TSConfiguration); next.ObjectName = item.current; source.State.SetDescriptor(a, &next); source.State.BindName(catalog.DescriptorNameKey(&next), a) }
 				}
 			}
-			seen := 0
-			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali"}
-			for seed := range source.CatalogView.SnowballSeeds() {
-				if seen >= len(languages) || seed.Language != languages[seen] { t.Fatal("finite intrinsic inventory order", seen, seed) }
-				if seed.Language != "yiddish" && (!seed.Dictionary || !seed.Configuration) { t.Fatal("unrelated seed disappeared", seed) }
-				seen++
-				if seed.Language == "yiddish" && (seed.Dictionary != tc.dictionary || seed.Configuration != tc.configuration) { t.Fatal("intrinsic presence changed with spelling", seed) }
+			dictionaries, configurations := map[string]bool{}, map[string]bool{}
+			for _, raw := range source.CatalogView.Descriptors() {
+				switch d := raw.(type) {
+				case *catalog.TSDictionary:
+					if d.Seeded() { dictionaries[d.SeedName()] = true }
+				case *catalog.TSConfiguration:
+					if d.Seeded() { configurations[d.SeedName()] = true }
+				}
 			}
-			if seen != 19 { t.Fatal("finite represented inventory", seen) }
+			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian"}
+			for _, language := range languages {
+				wantDictionary, wantConfiguration := true, true
+				if language == "yiddish" { wantDictionary, wantConfiguration = tc.dictionary, tc.configuration }
+				if dictionaries[language+"_stem"] != wantDictionary || configurations[language] != wantConfiguration {
+					t.Fatal("intrinsic presence changed with spelling", language, dictionaries, configurations)
+				}
+			}
+			defaultDictionaries, defaultConfigurations := map[string]bool{}, map[string]bool{}
+			for raw := range source.CatalogView.SnowballSeedDefaults() {
+				switch d := raw.(type) {
+				case *catalog.TSDictionary:
+					defaultDictionaries[d.SeedName()] = true
+				case *catalog.TSConfiguration:
+					defaultConfigurations[d.SeedName()] = true
+				}
+			}
+			if len(defaultDictionaries) != 20 || len(defaultConfigurations) != 20 { t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations) }
+			for _, language := range languages {
+				if !defaultDictionaries[language+"_stem"] || !defaultConfigurations[language] { t.Fatal("missing immutable defaults", language) }
+			}
 			script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
-			lines, err := script.snowballDropReplay(t.Context())
+			lines, err := script.snowballSeedRetirements(t.Context(), source.CatalogView.SnowballSeedDefaults())
 			if err != nil || strings.Join(lines, "") != tc.want { t.Fatal("exact ordered absence prelude", lines, tc.want, err) }
 			if tc.collision {
 				configs, err := script.configurationProviderReplays(); if err != nil { t.Fatal(err) }
@@ -70,10 +91,10 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 			if d, ok := raw.(*catalog.TSDictionary); ok && d.SeedName() == "english_stem" { source.State.UnbindName(catalog.DescriptorNameKey(d)); source.State.RemoveDescriptor(d.Address()) }
 		}
 		script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView}}
-		lines, err := script.snowballDropReplay(t.Context())
-		want := "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" DROP MAPPING IF EXISTS FOR asciiword, word, hword_part, hword_asciipart, asciihword, hword;\n"+
-			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"hindi\" DROP MAPPING IF EXISTS FOR asciiword, hword_asciipart, asciihword;\n"+
-			"DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\" RESTRICT;\n"
+		lines, err := script.snowballSeedRetirements(t.Context(), source.CatalogView.SnowballSeedDefaults())
+		want := "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n"+
+			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"hindi\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"hword_asciipart\", \"asciihword\";\n"+
+			"DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\";\n"
 		if err != nil || strings.Join(lines, "") != want { t.Fatal("represented baseline edges", lines, err) }
 	})
 }

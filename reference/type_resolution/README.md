@@ -313,6 +313,13 @@ stoplists, genuine custom mappings, typed direct/held results, ordered
 diagnostics, immutable prepared behavior, actual emitted replay and native
 control atomicity. Admitted cancellation gates on Porter-specific output;
 no scenario assumes a stock Porter dictionary, configuration or resource.
+Romanian's released cedilla/prelude, fixed UTF8 regions and phase-aware suffix
+boundaries, language-only stock defaults, optional English stoplist, typed held
+values, complete diagnostics and actual native-emitted seed/carrier replay use
+`RUN='^TestReferenceRomanianSnowball'`. Admitted direct/prepared cancellation
+requires real parameterized Romanian output. Private rules, immutable resources,
+seed authority, publication fences, fold ownership and canonical replay use
+`RUN='^TestSnowballRomanian'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

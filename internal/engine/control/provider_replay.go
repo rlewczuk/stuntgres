@@ -9,11 +9,11 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dump"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/settings"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -97,8 +97,10 @@ func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
 		r.original = providerKey{name.Schema, name.Name, p.Signature}
 		r.hostConversion = true
 		switch p.Volatility {
-		case expr.Stable: r.volatility = 's'
-		case expr.Immutable: r.volatility = 'i'
+		case expr.Stable:
+			r.volatility = 's'
+		case expr.Immutable:
+			r.volatility = 'i'
 		}
 	} else if p.Foreign != nil {
 		r.original = providerKey{p.Foreign.Name.Schema, p.Foreign.Name.Name, p.Signature}
@@ -312,7 +314,9 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		}
 		if p.volatility != 0 {
 			promise := "STABLE"
-			if p.volatility == 'i' { promise = "IMMUTABLE" }
+			if p.volatility == 'i' {
+				promise = "IMMUTABLE"
+			}
 			statements = append(statements, alter(p, p.current)+" "+promise+";\n")
 		}
 		if p.securityDefiner {
@@ -320,7 +324,9 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		}
 		for i := range p.configuration.Len() {
 			clause, err := providerConfigurationSQL(p.configuration.At(i))
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			statements = append(statements, alter(p, p.current)+clause+";\n")
 		}
 		if p.parallel != 0 {
@@ -355,24 +361,30 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 
 func providerConfigurationSQL(entry string) (string, error) {
 	name, value, ok := strings.Cut(entry, "=")
-	if !ok { return "", fmt.Errorf("stuntgres: invalid provider configuration") }
-	clause := " SET "+catalog.QuoteIdentifier(name)+" TO "
+	if !ok {
+		return "", fmt.Errorf("stuntgres: invalid provider configuration")
+	}
+	clause := " SET " + catalog.QuoteIdentifier(name) + " TO "
 	if !parser.SettingQuotesIdentifiers(name) {
-		return clause+dump.CommentLiteral(value), nil
+		return clause + dump.CommentLiteral(value), nil
 	}
 	identifiers, err := settings.ParseIdentifierList(name, value)
-	if err != nil { return "", err }
-	if len(identifiers) == 0 { return clause+dump.CommentLiteral(""), nil }
+	if err != nil {
+		return "", err
+	}
+	if len(identifiers) == 0 {
+		return clause + dump.CommentLiteral(""), nil
+	}
 	for i, identifier := range identifiers {
-		if i != 0 { clause += ", " }
+		if i != 0 {
+			clause += ", "
+		}
 		clause += dump.CommentLiteral(identifier)
 	}
 	return clause, nil
 }
 
 func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
-	seedDrops, err := s.snowballDropReplay(ctx)
-	if err != nil { return err }
 	var early []providerReplay
 	var hostProviders []providerReplay
 	byEvent := make(map[ids.OID][]providerReplay)
@@ -411,7 +423,11 @@ func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 		return err
 	}
 	statements = append(statements, configurationStatements...)
-	s.providerStatements = append(seedDrops, statements...)
+	retirements, err := s.snowballSeedRetirements(ctx, s.CatalogView.SnowballSeedDefaults())
+	if err != nil {
+		return err
+	}
+	s.providerStatements = append(retirements, statements...)
 	s.hostProviderStatements, err = planProviderReplay(hostProviders)
 	if err != nil {
 		return err

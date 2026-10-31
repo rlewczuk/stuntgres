@@ -377,19 +377,19 @@ No physical WAL position or flush guarantee is serialized.
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
   StopWords cannot reappear on Restore; English, Danish, Dutch, German, Hungarian, Italian, Nepali, Norwegian and Portuguese own canonical stoplists,
-  while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Yiddish have language-only defaults.
+  while Arabic/Armenian/Basque/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Romanian/Yiddish have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Yiddish dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Yiddish dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
-  Missing intrinsic seeds are retired before collision planning: configurations
-  first, then dictionaries by ordinary RESTRICT drops. Any surviving initialized
-  configuration first loses only its baseline references to a retired dictionary;
-  ordinary mapping replay later restores the complete captured map. Presence comes
-  from catalog-owned finite seed facts, never current labels or allocator OIDs.
-  Thus a renamed seed or an ordinary replacement can reuse a vacated canonical
-  name without resurrecting the dropped bootstrap object.
+  Before either configuration or dictionary collision replay, missing intrinsic
+  Snowball seeds retire from the fresh bootstrap using retained actual defaults.
+  Missing configurations drop first; surviving bootstrap configurations detach
+  only token mappings referencing a missing dictionary, then that dictionary
+  drops without CASCADE. Existing declaration replay restores the captured maps.
+  Retirement uses original seed identity rather than current labels, so ordinary
+  declarations and renamed surviving seeds may reuse the vacated canonical names.
   Current owners/ACLs and each independent e-link follow identity reconstruction;
   intrinsic seeds never acquire installed-origin declaration slots.
   Non-bootstrap owners use the shared `dump.Statement.PrivilegedCreation`
@@ -926,6 +926,9 @@ Dump/Restore behavior is in `reference/` ([docs/TESTING.md](../../../docs/TESTIN
 Partial FDW capture fixtures still install complete builtin dictionary/template
 manifests and their genuine referenced helper declarations. Derive that helper
 closure from installed templates, not a simple-only list.
+Snowball replay fixtures finalize the catalog seed on the replay view's own
+owner before mutation, retaining genuine immutable dictionary/configuration
+defaults and Hindi's cross-provider mapping edges for retirement assertions.
 
 Provider replay proof covers key cycles, move-before-rename, owner-last ordering,
 invalid identities, internal pseudotype signatures, missing argument types and

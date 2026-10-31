@@ -142,17 +142,17 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 	t.Run("released-fts-inventory", func(t *testing.T) {
 		physicalCases(t, nil, func(s *physicalCase) {
 			for _, name := range []string{"simple", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "english", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "indonesian", "irish", "italian", "lithuanian", "nepali", "norwegian", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "tamil", "turkish", "yiddish"} {
-				if !s.pg && name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "indonesian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" && name != "portuguese" && name != "yiddish" && name != "nepali" {
+				if !s.pg && name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "indonesian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" && name != "portuguese" && name != "yiddish" && name != "nepali" && name != "romanian" {
 					s.run(physicalError("SET default_text_search_config="+physicalLiteral(name), clientInvalid("default_text_search_config", name, "", ""), false, false))
 					continue
 				}
 				inputs := []string{name, strings.ToUpper(name), `pg_catalog."` + name + `"`}
-				if name == "norwegian" || name == "portuguese" || name == "yiddish" {
+				if name == "norwegian" || name == "portuguese" || name == "yiddish" || name == "romanian" {
 					inputs = append(inputs, "pg_catalog."+name)
 				}
 				for _, input := range inputs {
 					s.run(clientText("SELECT set_config('default_text_search_config',"+physicalLiteral(input)+",false)", "set_config", "pg_catalog."+name))
-					if name == "hungarian" || name == "indonesian" || name == "irish" || name == "italian" || name == "lithuanian" || name == "norwegian" || name == "portuguese" || name == "yiddish" || name == "nepali" {
+					if name == "hungarian" || name == "indonesian" || name == "irish" || name == "italian" || name == "lithuanian" || name == "norwegian" || name == "portuguese" || name == "yiddish" || name == "nepali" || name == "romanian" {
 						for _, prepared := range []bool{false, true} {
 							step := fixture.Exec("SET default_text_search_config="+physicalLiteral(input), 0)
 							step.Prepared = prepared
@@ -166,13 +166,16 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 						}
 					}
 				}
-				if name == "norwegian" || name == "portuguese" || name == "yiddish" {
+				if name == "norwegian" || name == "portuguese" || name == "yiddish" || name == "romanian" {
 					quotedWrong := `pg_catalog."Norwegian"`
 					if name == "portuguese" {
 						quotedWrong = `pg_catalog."Portuguese"`
 					}
 					if name == "yiddish" {
 						quotedWrong = `pg_catalog."Yiddish"`
+					}
+					if name == "romanian" {
+						quotedWrong = `pg_catalog."Romanian"`
 					}
 					for _, input := range []string{quotedWrong, "missing." + name, "a..b", `"unclosed`, "missing"} {
 						for _, prepared := range []bool{false, true} {

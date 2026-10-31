@@ -16,6 +16,11 @@ func snowballUnitSource(t *testing.T) Source {
 	source, _, _, _ := fdwUnitSource()
 	store := catalog.NewStore(*source.CatalogView.Owner(), 30000, 1)
 	store.State = source.State
+	share := new(catalog.SeedShare)
+	store.BeginSeedLocked(share, 256)
+	database := &catalog.Database{ObjectAddress: store.DatabaseAddress(), ObjectRevision: 1, ObjectName: "snowball_unit", Owner: source.Bootstrap, AllowConnections: true, ConnectionLimit: -1}
+	source.State.SetDescriptor(database.Address(), database)
+	source.State.BindName(catalog.DescriptorNameKey(database), database.Address())
 	runtime, err := functions.DefaultSnowballDictionary()
 	if err != nil {
 		t.Fatal(err)
@@ -92,12 +97,29 @@ func snowballUnitSource(t *testing.T) Source {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime); err != nil {
+	romanianRuntime, err := functions.DefaultRomanianSnowballDictionary()
+	if err != nil {
 		t.Fatal(err)
 	}
-	catalog.InstallBuiltinTypes(source.State, sqltype.Builtins(), source.Bootstrap)
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime); err != nil {
+		t.Fatal(err)
+	}
+	// The FDW fixture already owns ACL and integer types, including their arrays.
+	// Preserve those descriptors and install each remaining builtin only once.
+	var missingTypes []*sqltype.Descriptor
+	for _, typ := range sqltype.Builtins() {
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
+		if source.State.Get(address) == nil {
+			missingTypes = append(missingTypes, typ)
+		}
+	}
+	catalog.InstallBuiltinTypes(source.State, missingTypes, source.Bootstrap)
 	catalog.InstallBuiltinTSParsers(source.State)
 	catalog.InstallBuiltinTSConfigurations(source.State, source.Bootstrap)
+	// Finalize the genuine immutable defaults on the same owner used by replay.
+	store.FinishSeedLocked(share)
+	source.CatalogView = store.Read(source.State)
+	source.OriginalCatalog = source.CatalogView
 	source.CatalogView.Owner().Providers[ids.TSDictionaryClassID] = extension.CatalogProvider{Class: ids.TSDictionaryClassID}
 	return source
 }
@@ -416,7 +438,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 20 {
+	if len(providers) != 21 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
@@ -525,7 +547,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 20 {
+	if err != nil || len(providers) != 21 {
 		t.Fatal("actual Greek dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -535,7 +557,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 		t.Fatal("canonical Greek identity and exact options replay", lines, err)
 	}
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 20 {
+	if err != nil || len(providers) != 21 {
 		t.Fatal("actual Greek configuration replay inventory", providers, err)
 	}
 	if lines, err := planProviderReplay(providers); err != nil || len(lines) != 0 {
