@@ -69,12 +69,16 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
     comparator in the same goroutine-profile record. It uses pprof's debug=1
     profile, not runtime.Stack/debug=2 all-goroutine stack dumps; profiler stack
     truncation cannot substitute an unrelated worker or a launcher-only frame.
+    A fresh request-scoped `query.aggregate.sort` pause is attached before launch
+    and retains the successful real comparison through observation and the live
+    budget check. Pause admission never replaces the exact profile witness.
+    Cancellation joins without Resume; deferred Resume is safety cleanup only.
   - A missed profile waits `min(15s,max(5ms,2*capture wall))`, interruptible by
     the original child context or operation result. The 15-second ceiling is
     the existing admission horizon, not an additional budget.
     Capture wall includes scheduling, collection and symbolization; it is not
     worker CPU time or additive query overhead. Rest does not prove progress,
-    and a missed finite sort still fails. Initial capture and witnessed live
+    and a missed witness still fails. Initial capture and witnessed live
     cancellation have no deliberate delay.
   - Failure diagnostics distinguish worker deadline before **observed** sort,
     observer deadline with the worker pending at the checked boundary, early
@@ -91,8 +95,15 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
     admission, real `pg_cancel_backend` and joined ERROR/57014
     `canceling statement due to user request`; native requires ordinary
     `context.Canceled` without SQLSTATE.
-  - Select the complete definition and local observer/cleanup units with
-    `make check RUN='^(TestReferenceOrderedSetAggregateActiveCancellation|TestOrderedSetWorkerSorting|TestOrderedSetWorkerProfile|TestOrderedSetObservationWait|TestOrderedSetObservationDiagnostic|TestOrderedSetCancellationJoin)$'`,
+  - The shared `TestReferenceOrderedSetAggregateExecutionPause` additionally
+    checks nonexecuting preparation, terminal/noncomparing work, ordinary control
+    semantics, independent physical owners and fresh success/cancel/success holds
+    on the same connection/preheld statement. Its small held cancellation performs
+    exactly three full-label SAME-record comparator profiles before canceling;
+    successful results independently require the same exact median 4.5.
+    PostgreSQL executes the shared SQL checks, not a host-pause/sort-phase claim.
+  - Select the complete definitions and local observer/cleanup units with
+    `make check RUN='^(TestReferenceOrderedSetAggregate(ActiveCancellation|ExecutionPause)|TestOrderedSetWorkerSorting|TestOrderedSetWorkerProfile|TestOrderedSetObservationWait|TestOrderedSetObservationDiagnostic|TestOrderedSetCancellationJoin)$'`,
     adding `REFERENCE=1` for the oracle or `RACE=1` for race coverage.
 - **Other cancellation.** Hypothetical-set cancellation admits on
   `stuntgres.WorkAggregateInput` through `fixture.BinaryConversionActiveCancel`; sort

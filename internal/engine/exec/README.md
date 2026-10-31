@@ -78,6 +78,12 @@ its own child and pause attachment; the incoming source never replaces that
 child's cancellation, deadline, cause or unrelated values. Generic `setContext`
 does not activate pauses or metadata classifiers. Terminal stages clear their
 borrowed evaluator graph.
+`query.aggregate` precedes aggregate input materialization; the distinct
+`query.aggregate.sort` point retains a successful real ordered-input tuple
+comparison before its ordering result returns to the merge. It covers builtin
+ordered-set/hypothetical finalization and ordinary ordered-input replay, not
+aggregate initialization or child sorting. Empty/singleton and terminal inputs
+need not compare or admit; typed comparison errors precede this checkpoint.
 
 
 The shared checked routine call/frame contract also admits PL definitions.
@@ -816,12 +822,18 @@ make check RUN='^TestReferenceObjectGrantStrictNull(Demand|Precedence|Imports|He
 ```
 
 
-**Frame names matched by tests.** `sortOrderedAggregate`
-(`TestReferenceOrderedSetAggregateActiveCancellation`) stays unexported, and the
-recursive union stage keeps the unexported defined type `recursiveUnionStage`
-(aliased as `RecursiveUnionStage`; `TestReferenceQueryCycleLifecycle`). Both
-fixtures wait for these stack frames by name; renaming either makes the test's
-unbounded query run until it exhausts memory.
+**Frame names matched by tests.** The ordered-set public controls require the
+full worker label and live `sortOrderedAggregate.func1` in one complete pprof
+debug=1 record. The original active-cancellation fixture retains a finite 64³
+workload and unchanged 30-second route/15-second admission budgets; its semantic
+sort hold supplements, never replaces, that profile witness. Renaming the
+comparator requires updating these fixtures. The recursive union stage keeps
+the unexported defined type `recursiveUnionStage` (aliased as
+`RecursiveUnionStage`; `TestReferenceQueryCycleLifecycle`).
+
+Real-sort pause, ordering and cancellation units use
+`make check RUN='^TestSortOrderedAggregate'`, adding `RACE=1` for race coverage.
+Public controls belong to `reference/aggregates` and its family selector.
 
 ```sh
 make check RUN='^Test(MissingPreparation|InstallPreparation|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'

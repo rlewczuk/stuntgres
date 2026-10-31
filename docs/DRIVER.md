@@ -414,8 +414,15 @@ Supported stable work points are:
 - Transformations: `array.transform`, `datetime.add_interval`,
   `encoding.convert`, `text.like.match`, `text.like.escape`,
   `text_search.vector`.
-- Query/crypto work: `query.aggregate`, `query.recursive`, `crypto.bcrypt`,
-  `crypto.sha`.
+- Query/crypto work: `query.aggregate`, `query.aggregate.sort`,
+  `query.recursive`, `crypto.bcrypt`, `crypto.sha`.
+
+`query.aggregate.sort` retains a successful real aggregate ordered-input tuple
+comparison before its ordering result returns. Unlike the earlier
+`query.aggregate` initialization point, it does not admit input generation or a
+child query's sort. Empty/singleton inputs, terminal aggregate decisions and
+failed comparisons need not reach it. This is a native host control, not a
+PostgreSQL server pause or a promise about PostgreSQL's current sort phase.
 
 A point names cooperative work, not a SQL admission guarantee: NULL, unused,
 folded or otherwise undemanded work need not reach it. Unknown points never

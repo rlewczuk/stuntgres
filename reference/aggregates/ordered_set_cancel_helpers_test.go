@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres"
 	"stuntgres/reference/fixture"
 )
 
@@ -26,6 +27,11 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		return
 	}
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	pause := stuntgres.NewExecutionPause("query.aggregate.sort")
+	// Keep the real comparison frame live through profile and budget checks.
+	// Cancellation must join without Resume; this is failure-safety cleanup only.
+	defer pause.Resume()
+	ctx = stuntgres.WithExecutionPause(ctx, pause)
 	done := make(chan fixture.RelationOutcome, 1)
 	entered := make(chan time.Time, 1)
 	finished := make(chan time.Time, 1)
@@ -419,4 +425,3 @@ func TestOrderedSetObservationDiagnostic(t *testing.T) {
 		}
 	}
 }
-

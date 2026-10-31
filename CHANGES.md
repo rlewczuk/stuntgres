@@ -1,5 +1,10 @@
 # Changes
 
+- Support the request-scoped `query.aggregate.sort` execution pause after a
+  successful real aggregate ordered-input comparison. The hold retains the live
+  sort until Resume or operation cancellation, without suspending preparation
+  or requiring Resume for cancellation and same-owner recovery.
+
 - Add query-compatible CLUSTER simulation for explicit, remembered and whole-
   database selection, with real atomic catalog preferences, eligibility/MAINTAIN
   diagnostics, heap-lock cancellation and native control replay. Unpopulated

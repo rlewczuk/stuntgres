@@ -474,7 +474,14 @@ func sortOrderedAggregate(ctx context.Context, state *State, call plan.Aggregate
 		indices[i] = i
 	}
 	if err := MergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
-		return CompareOrderedAggregateTuple(ctx, call.Order, tuples[a*width:(a+1)*width], tuples[b*width:(b+1)*width], state.Input)
+		sign, err := CompareOrderedAggregateTuple(ctx, call.Order, tuples[a*width:(a+1)*width], tuples[b*width:(b+1)*width], state.Input)
+		if err != nil {
+			return sign, err
+		}
+		if err := util.ExecutionCheckpoint(ctx, "query.aggregate.sort"); err != nil {
+			return sign, err
+		}
+		return sign, nil
 	}); err != nil {
 		return OrderedAggregateInput{}, err
 	}
