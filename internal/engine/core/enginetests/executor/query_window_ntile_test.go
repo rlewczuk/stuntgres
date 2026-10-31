@@ -1,0 +1,233 @@
+package executor_test
+
+import (
+	"context"
+	"errors"
+	"math"
+	"reflect"
+	"sort"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestQueryWindowNtileState(t *testing.T) {
+	for _, tc := range []struct {
+		total, buckets int64
+		want           []int64
+	}{
+		{6, 3, []int64{1, 1, 2, 2, 3, 3}},
+		{7, 3, []int64{1, 1, 1, 2, 2, 3, 3}},
+		{6, 4, []int64{1, 1, 2, 2, 3, 4}},
+		{3, 5, []int64{1, 2, 3}},
+		{3, math.MaxInt32, []int64{1, 2, 3}},
+		{1, 1, []int64{1}},
+	} {
+		var state exec.WindowNtileState
+		if err := state.Initialize(tc.total, tc.buckets); err != nil {
+			t.Fatal(err)
+		}
+		for i, want := range tc.want {
+			if got := state.Next(); got != want {
+				t.Fatal(tc, i, got, want)
+			}
+		}
+	}
+	for _, buckets := range []int64{0, -1} {
+		var state exec.WindowNtileState
+		err := state.Initialize(3, buckets)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "22014" || diagnostic.Message != "argument of ntile must be greater than zero" || diagnostic.Position != "" || state.Bucket != 0 {
+			t.Fatal(state, err)
+		}
+	}
+	// Conceptual partitions beyond INT4 size, without allocating their rows.
+	var large exec.WindowNtileState
+	if err := large.Initialize(int64(math.MaxInt32)+2, 2); err != nil {
+		t.Fatal(err)
+	}
+	if large.Boundary != 1073741825 || large.Remainder != 1 {
+		t.Fatal(large)
+	}
+	large.Members = 1073741824
+	if large.Next() != 1 || large.Next() != 2 || large.Boundary != 1073741824 || large.Members != 1 {
+		t.Fatal("large first/remainder transition", large)
+	}
+	if err := large.Initialize(int64(math.MaxInt32)*2+1, math.MaxInt32); err != nil {
+		t.Fatal(err)
+	}
+	if large.Boundary != 3 || large.Remainder != 1 {
+		t.Fatal(large)
+	}
+	large.Members = 3
+	if large.Next() != 2 || large.Boundary != 2 {
+		t.Fatal("large bucket count", large)
+	}
+	large.Bucket = math.MaxInt32 - 1
+	large.Members = 2
+	if large.Next() != math.MaxInt32 {
+		t.Fatal("last INT4 bucket", large)
+	}
+	if err := large.Initialize(math.MaxInt64, 1); err != nil || large.Boundary != math.MaxInt64 {
+		t.Fatal("INT8 partition size", large, err)
+	}
+}
+
+func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
+	for _, prefix := range []int64{0, 1, 2} {
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(2) OVER(ORDER BY id) FROM t")
+		node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
+		call := &node.Calls[0]
+		argument := call.Argument
+		var evaluated []int64
+		call.Argument = enginetest.QueryProbe(argument.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			id, _ := c.Row[0].Integer()
+			evaluated = append(evaluated, id)
+			if id <= prefix {
+				return sqltype.Null(argument.ResultUsage().Type), nil
+			}
+			return argument.Eval(c)
+		})
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantEvaluated := []int64{1}
+		if prefix == 1 {
+			wantEvaluated = []int64{1, 2}
+		}
+		if prefix == 2 {
+			wantEvaluated = []int64{1, 2, 3}
+		}
+		if count != 4 || !reflect.DeepEqual(evaluated, wantEvaluated) {
+			rows.Close()
+			t.Fatal("lazy current-row evaluation", prefix, count, evaluated)
+		}
+		want := [][]int64{{1, 1, 2, 2}, {0, 1, 1, 2}, {0, 0, 1, 1}}[prefix]
+		values := make([]sqltype.Value, 1)
+		for i, n := range want {
+			present, err := rows.Next(context.Background(), values)
+			if !present || err != nil || values[0].IsNull() != (n == 0) {
+				rows.Close()
+				t.Fatal(prefix, i, present, values, err)
+			}
+			if n != 0 {
+				got, err := values[0].Integer()
+				if err != nil || got != n {
+					rows.Close()
+					t.Fatal(prefix, i, got, n, err)
+				}
+			}
+		}
+		if present, err := rows.Next(context.Background(), values); present || err != nil {
+			rows.Close()
+			t.Fatal("extra output", present, err)
+		}
+		rows.Close()
+	}
+	t.Run("partition-reset-and-separate-calls", func(t *testing.T) {
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(1) OVER(PARTITION BY f ORDER BY id),ntile(2) OVER(PARTITION BY f ORDER BY id) FROM t")
+		node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
+		var evaluated [2][]int64
+		for i := range node.Calls {
+			original := node.Calls[i].Argument
+			node.Calls[i].Argument = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				id, _ := c.Row[0].Integer()
+				evaluated[i] = append(evaluated[i], id)
+				return original.Eval(c)
+			})
+		}
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for _, ids := range evaluated {
+			sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+			if !reflect.DeepEqual(ids, []int64{1, 2, 3}) {
+				t.Fatal("partition/call state leaked", evaluated)
+			}
+		}
+		if count != 4 {
+			t.Fatal(count)
+		}
+		values := make([]sqltype.Value, 2)
+		for i := range 4 {
+			present, err := rows.Next(context.Background(), values)
+			if !present || err != nil {
+				t.Fatal(present, err)
+			}
+			a, _ := values[0].Integer()
+			b, _ := values[1].Integer()
+			want := int64(1)
+			if i == 3 {
+				want = 2
+			}
+			if a != 1 || b != want {
+				t.Fatal("separate bucket states", i, a, b)
+			}
+		}
+	})
+}
+
+// Cancel on the next output-loop check, after the post-argument check passed.
+// This exercises cancellation after ntile has stopped evaluating its argument.
+type ntileOutputCancellation struct {
+	context.Context
+	cancel context.CancelFunc
+	armed  bool
+	checks int
+}
+
+func (c *ntileOutputCancellation) Err() error {
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	if c.armed {
+		c.checks++
+		if c.checks == 2 {
+			c.cancel()
+		}
+	}
+	return c.Context.Err()
+}
+
+func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
+	for _, phase := range []string{"argument", "initialized-output"} {
+		t.Run(phase, func(t *testing.T) {
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(2) OVER(ORDER BY id) FROM t")
+			node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
+			base, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx := &ntileOutputCancellation{Context: base, cancel: cancel}
+			original := node.Calls[0].Argument
+			entered := 0
+			node.Calls[0].Argument = enginetest.QueryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+				value, err := original.Eval(c)
+				entered++
+				if phase == "argument" {
+					cancel()
+				} else {
+					ctx.armed = true
+				}
+				return value, err
+			})
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
+			if rows != nil {
+				rows.Close()
+			}
+			var diagnostic *sqlstate.Error
+			if entered != 1 || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.View != nil {
+				t.Fatal("canceled ntile published/leaked", phase, entered, count, err, source.View)
+			}
+			if phase == "initialized-output" && ctx.checks != 2 {
+				t.Fatal("did not reach initialized output loop", ctx.checks)
+			}
+		})
+	}
+}
