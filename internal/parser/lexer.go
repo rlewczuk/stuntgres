@@ -30,6 +30,10 @@ type lexer struct {
 	// reserving that spelling in ordinary expression or identifier contexts.
 	operatorDDL  bool
 	extensionDDL bool
+	// SECURITY LABEL accepts type syntax without declaration-time type policy.
+	// This per-statement flag grants no provider or execution authority.
+	securityLabelSyntax bool
+	securityLabelModifiers bool // Pending syntax-only generic modifier entry.
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
 	jsonParenDepth      int
@@ -871,6 +875,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.typeInputEntry = false
 		return TYPE_INPUT
 	}
+	if l.securityLabelModifiers {
+		l.securityLabelModifiers = false
+		return SECURITY_LABEL_MODIFIERS
+	}
 	if l.insertScalarEntry {
 		l.insertScalarEntry = false
 		return INSERT_SCALAR_VALUES
@@ -1608,6 +1616,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = BOTH
 			}
 		}
+	case "nchar", "national":
+		if l.securityLabelSyntax && token.lexeme.keyword != nil {
+			if token.lexeme.text == "nchar" { token.code = NCHAR_TYPE } else { token.code = NATIONAL_TYPE }
+		}
 	case "setof":
 		if token.lexeme.keyword != nil && l.previousToken != int('.') &&
 			(routineResultType || l.typeInputMode && l.previousToken == 0 ||
@@ -1822,6 +1834,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = TX_TIME_FUNC
 		}
 	}
+	// Label modifiers retain call syntax, not the selected executable-call
+	// frontier. Reuse the full argument/decorator grammar only for actual calls;
+	// bare names and every ordinary statement keep their existing tokens.
+	if l.securityLabelSyntax && (token.code == SELECTED_FUNC || token.code == CHECK_FUNC || token.code == STRING_FUNC) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = TX_TIME_FUNC
+		}
+	}
 	// Otherwise-unselected calls inside format arguments reach resolution only.
 	// Outside that actual call context, existing capability guards remain.
 	if l.formatDepth > 0 && token.code == IDENT && token.lexeme.keyword == nil && !ordinaryCastFunction(token.lexeme) {
@@ -1985,6 +2007,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.roleHead = 0
 		l.operatorDDL = false
 		l.extensionDDL = false
+		if l.securityLabelSyntax {
+			l.routineResultType = false
+			l.routineFormalDepth = 0
+			l.routineFormalBrackets = 0
+			l.routineFormalDefault = false
+		}
+		l.securityLabelSyntax = false
+		l.securityLabelModifiers = false
 		l.viewQuery = false
 	}
 	if l.routineFormalDepth > 0 && l.jsonParenDepth == l.routineFormalDepth {

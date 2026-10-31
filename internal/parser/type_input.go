@@ -39,7 +39,7 @@ func invalidTypeName(input string) error {
 }
 
 func inputColumnType(l sqlLexer, tok lexeme) TypeName {
-	if !l.(*lexer).typeInputMode {
+	if !l.(*lexer).typeInputMode && !l.(*lexer).securityLabelSyntax {
 		raw := columnType(tok)
 		if l.(*lexer).operatorDDL {
 			// Name extraction needs original components even where declaration
@@ -56,6 +56,10 @@ func inputColumnType(l sqlLexer, tok lexeme) TypeName {
 		return raw
 	}
 	raw := TypeName{Name: tok.text, Pos: tok.pos, Quoted: columnType(tok).Quoted}
+	if l.(*lexer).securityLabelSyntax && tok.keyword != nil && !raw.Quoted && tok.text == "nchar" {
+		one := int32(1)
+		return TypeName{Name: "bpchar", System: true, Pos: tok.pos, Modifiers: []TypeModifier{{Integer: &one, Pos: tok.pos}}}
+	}
 	// Generic type names use PostgreSQL's type/function-name category, not
 	// the broader ordinary column-name grammar. Real builtin type syntax is
 	// recognized by the existing standalone normalizer; quoted and qualified

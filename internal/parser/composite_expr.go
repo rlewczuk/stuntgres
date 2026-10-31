@@ -75,12 +75,19 @@ func selectedWithinFunctionName(name string) bool {
 func withinCall(l sqlLexer, expr Expr, token lexeme, order []OrderKey) (Expr, bool) {
 	var distinct, variadic bool
 	var prior []OrderKey
+	var decorated bool
 	switch call := expr.(type) {
 	case AggregateExpr:
 		distinct, variadic, prior = call.Distinct, call.Variadic, call.Order
+		decorated = call.Filter != nil || call.Window != nil
 	case FunctionExpr:
 		distinct, variadic, prior = call.Distinct, call.Variadic, call.Order
+		decorated = call.Filter != nil || call.Window != nil
 	default:
+		l.(*lexer).syntax(token)
+		return nil, false
+	}
+	if l.(*lexer).securityLabelSyntax && decorated {
 		l.(*lexer).syntax(token)
 		return nil, false
 	}

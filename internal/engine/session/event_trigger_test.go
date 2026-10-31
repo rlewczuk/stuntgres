@@ -111,6 +111,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		{"DROP OWNED", []parser.Statement{&parser.DropOwned{}}},
 		{"ALTER TABLE", []parser.Statement{&parser.AlterOwner{Kind: "table"}}},
 		{"COMMENT", []parser.Statement{&parser.Comment{Kind: parser.CommentTable}}},
+		{"SECURITY LABEL", []parser.Statement{&parser.SecurityLabel{Kind: "table"}}},
 		{"GRANT", []parser.Statement{&parser.ObjectGrant{}}},
 		{"CREATE FOREIGN TABLE", []parser.Statement{&parser.ForeignDDL{Action: "create", Kind: "table"}}},
 	} {
@@ -137,7 +138,7 @@ func TestEventTriggerClassification(t *testing.T) {
 		"table", "column", "sequence", "view", "materialized view", "index", "foreign table",
 		"collation", "conversion", "statistics", "text search parser", "text search dictionary",
 		"text search template", "text search configuration", "access method", "extension",
-		"foreign data wrapper", "language", "publication", "schema", "server", "subscription",
+		"foreign-data wrapper", "language", "publication", "schema", "server", "subscription",
 		"type", "domain", "aggregate", "function", "procedure", "routine", "large object",
 	} {
 		check(&parser.SecurityLabel{Kind: kind}, "SECURITY LABEL", true)
@@ -145,7 +146,7 @@ func TestEventTriggerClassification(t *testing.T) {
 	for _, kind := range []string{"database", "tablespace", "role", "event trigger", "", "unknown"} {
 		check(&parser.SecurityLabel{Kind: kind}, "SECURITY LABEL", false)
 	}
-	// Subscriptions are shared objects, excluded from event triggers for every action.
+	// Subscription definition commands remain excluded from event triggers.
 	for _, action := range []string{"create", "connection", "options", "set", "add", "remove", "refresh", "enable", "disable", "skip", "owner", "rename", "drop"} {
 		check(&parser.Subscription{Action: action}, "", false)
 	}
@@ -163,6 +164,9 @@ func TestEventTriggerClassification(t *testing.T) {
 		check(&parser.Comment{Kind: kind}, "COMMENT", true)
 	}
 	check(&parser.Comment{Kind: parser.CommentRole}, "", false)
+	for _, kind := range []string{"database", "role", "tablespace", "event trigger"} {
+		check(&parser.SecurityLabel{Kind: kind}, "", false)
+	}
 	for _, kind := range []string{"database", "tablespace", "parameter"} {
 		check(&parser.ObjectGrant{Kind: kind}, "", false)
 		check(&parser.ObjectGrant{Kind: kind, Revoke: true}, "", false)

@@ -11,6 +11,6 @@ import (
 func SecurityLabel(ctx context.Context, view access.View, s *parser.SecurityLabel) error {
  if err := ctx.Err(); err != nil { return err }
  if _, err := view.Roles.Descriptor(view.State.CurrentUser); err != nil { return err }
- if s.Provider == nil { return sqlError("22023", "no security label providers have been loaded") }
+ if !s.ProviderSpecified { return sqlError("22023", "no security label providers have been loaded") }
  return sqlError("22023", "security label provider \""+s.Provider.Text+"\" is not loaded")
 }

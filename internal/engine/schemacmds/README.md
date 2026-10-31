@@ -38,6 +38,13 @@ journal publication are the same path as other catalog objects. The host's
 cluster-wide OID reservation is separate from connection/option validation;
 Describe never stages metadata or attempts an external mechanism.
 
+SECURITY LABEL uses `ExecuteSecurityLabel`, a failure-only boundary before
+object lookup or permissions. No native module can register a label provider,
+so omitted providers and explicitly named providers return PostgreSQL 22023,
+including NULL removal. It stages no catalog data, publishes no utility
+completion and does not reuse COMMENT storage. Ordinary transaction,
+read-only and DDL-start admission still precede this executor.
+
 ## Layering
 
 It imports [`core`](../core/README.md),
@@ -110,8 +117,9 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
 - `ExecuteComment` stages the comment (the locked-relation check, the
   private role record installation or object stage) and publishes it.
 - `ExecuteSecurityLabel` owns zero-argument validation, the mutex and fresh
-  operation authority capture around `ddl.SecurityLabel`. Shared-target commands
-  always fail provider selection without publication; Describe is effect-free.
+  operation authority capture around `ddl.SecurityLabel`. All supported target
+  kinds fail provider selection before target lookup or ownership, without
+  publication; Describe is effect-free. The shared-label catalog remains empty.
 - `ExecuteCreateTablespace`, `ExecuteLoad` and `ExecuteCheckpoint` keep the
   argument count, mutex and fresh authority capture around `ddl.CreateTablespace`,
   `ddl.Load` and `ddl.Checkpoint`; none publishes or marks a utility complete.

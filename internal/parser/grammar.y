@@ -276,6 +276,7 @@ package parser
 /* Private bounded replay entry for destination-context INSERT cells. */
 %token <tok> INSERT_SCALAR_VALUES
 %token <tok> TYPE_INPUT
+%token SECURITY_LABEL_MODIFIERS
 %token <tok> PL_ENTRY PL_RETURN PL_CONSTANT PL_ALIAS PL_TYPE_COPY PL_ROW_COPY PL_LABEL_OPEN PL_LABEL_CLOSE PL_ASSIGN PL_EXCEPTION PL_RAISE PL_SQLSTATE PL_ELSIF
 %token <tok> PL_GET PL_CURRENT PL_STACKED PL_DIAGNOSTICS
 %token <tok> PL_TARGETS_ENTRY
@@ -331,6 +332,7 @@ package parser
 %token <tok> BETWEEN SYMMETRIC ASYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> DOUBLE_TYPE PRECISION_TYPE CHARACTER_TYPE BIT_TYPE VARYING_TYPE
+%token <tok> NCHAR_TYPE NATIONAL_TYPE
 %token <tok> GROUPING SETS ROLLUP CUBE
 %token <tok> MERGE_ACTION
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -816,6 +818,7 @@ package parser
 %type <tok> operator_symbol
 %type <dropMode> drop_mode
 %type <typ> type temporal_type generic_precision generic_modifier_atom generic_modifiers type_modifier_head date_literal_precision
+%type <typ> generic_precision_modifiers
 %type <typ> declared_type declared_type_base declaration_type_base declaration_invalid_type declared_array_bounds
 %type <typ> routine_argument_type
 %type <tok> bit_modifier_operator bit_modifier_symbol
@@ -826,6 +829,7 @@ package parser
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
+%type <tok> national_character_head
 %type <tok> generic_statement_word generic_word_base_without_vacuum
 %type <tok> generic_create_word
 %type <tok> predicate_suffix where_predicate_suffix
@@ -927,7 +931,7 @@ package parser
 %type <tok> conditional_word
 %type <tok> comparison_operator
 %type <call> function_args function_argument_list ordinary_named_arguments ordinary_mixed_arguments
-%type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_filtered transaction_time_call
+%type <call> transaction_time_head transaction_time_args transaction_time_base transaction_time_within transaction_time_filtered transaction_time_call
 %type <predicate> truth_kind
 %type <selectStmt> projection projection_item
 %type <tok> insert_head on_keyword
@@ -964,6 +968,17 @@ package parser
 %type <tok> schema_owner
 %type <desc> drop_behavior
 %type <stmt> comment
+%type <stmt> security_label
+%type <securityLabel> security_label_target
+%type <tok> security_label_word security_label_provider security_label_single_kind security_label_relation_kind security_label_search_kind
+%type <tok> security_label_opt_provider
+%type <objectName> security_label_name
+%type <grantRoutine> security_label_routine security_label_aggregate
+%type <tok> security_label_head
+%type <grantRoutineArgument> security_label_argument
+%type <grantRoutineArguments> security_label_arguments security_label_argument_list security_label_aggregate_args
+%type <tok> security_label_type_head
+%type <typ> security_label_type security_label_routine_type
 %type <objectName> comment_column_name
 %type <value> comment_text
 %type <tok> comment_excluded_kind comment_excluded_word
@@ -1038,14 +1053,9 @@ package parser
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <stmt> notify listen unlisten load checkpoint
-%type <stmt> security_label
-%type <securityLabel> security_label_target
-%type <identifier> security_label_provider
-%type <tok> security_label_head security_label_qualified_kind security_label_single_kind security_label_search_kind
-%type <objectName> security_label_name security_label_signature_head
+%type <objectName> security_label_signature_head
 %type <securityLabelName> security_label_function_name
 %type <tok> security_label_routine_keyword
-%type <grantRoutine> security_label_routine security_label_aggregate
 %type <stmt> alter_system
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
@@ -1057,11 +1067,11 @@ script: separators optional_statements
  | PL_TARGETS_ENTRY pl_cursor_targets { sqllex.(*lexer).plTargetsResult = $2 } ;
 standalone_type: type { $$=$1 }
  | standalone_type '.' col_label { $$=appendStandalonePart($1,$3) }
- | standalone_type '(' { if len($1.Parts)<3 {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).characterGeneric=true;sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).multipleModifiers=true;sqllex.(*lexer).bitModifier=true } generic_modifiers ')' { $$=$1;$$.Modifiers=$4.Modifiers }
+ | standalone_type '(' { if len($1.Parts)<3 {sqllex.(*lexer).syntax($2);return 1};if sqllex.(*lexer).securityLabelSyntax {sqllex.(*lexer).securityLabelModifiers=true} else {sqllex.(*lexer).characterGeneric=true;sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).multipleModifiers=true;sqllex.(*lexer).bitModifier=true} } generic_modifiers ')' { $$=$1;$$.Modifiers=$4.Modifiers }
  | standalone_type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
- | standalone_type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
+ | standalone_type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,securityLabelArrayBound(sqllex,int32(n))) }
  | standalone_type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
- | standalone_type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) } ;
+ | standalone_type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,securityLabelArrayBound(sqllex,int32(n))) } ;
 separators: /* empty */ | separators ';' ;
 /* Left recursion (PostgreSQL's stmtmulti) bounds the parse stack by one statement
    instead of growing three cells per statement until the end of the script. */
@@ -1075,6 +1085,7 @@ nontransaction_statement: embedded_sql_statement | select | declare_cursor | fet
  | DROP %prec NAME_LIST { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
 embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | merge | update | delete | set | show | reset | create_role | alter_role | drop_role | session_authorization | role_selection | role_membership | lock_table | create_schema | alter_schema | drop_schema | comment
+ | security_label
  | with_mutation
  | do_statement
  | CALL relation_name '(' function_args ')' {call:=$4;call.Name=$2;call.Pos=$2.Parts[0].Pos;call.ProcedureCall=true;$$=&Call{Function:call,Pos:$1.pos}}
@@ -1116,7 +1127,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | publication
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
- | notify | listen | unlisten | load | checkpoint | security_label
+ | notify | listen | unlisten | load | checkpoint
  | alter_system
  ;
 explain: EXPLAIN explainable { $$=&Explain{Statement:$2,Pos:$1.pos} }
@@ -1145,44 +1156,6 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
  | TRUE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$1.pos}} }
  | FALSE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Pos:$1.pos}} } ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
-security_label_head: ROUTINE_SECURITY KW_U {if $2.text!="label" {sqllex.(*lexer).syntax($2);return 1};$$=$1} ;
-security_label: security_label_head security_label_provider ON security_label_target IS comment_text {
- node:=$4;node.Provider=$2;node.Label=$6;node.Pos=$1.pos;$$=node
-} ;
-security_label_provider: /* empty */ {$$=nil}
- | FOR col_label {if $2.keyword!=nil && $2.keyword.category==Reserved {sqllex.(*lexer).syntax($2);return 1};$$=&Identifier{Text:$2.text,Pos:$2.pos}}
- | FOR STRING {$$=&Identifier{Text:$2.text,Pos:$2.pos}} ;
-/* Unlike relation_name, any_name does not impose lookup-time qualification
- * restrictions. Provider resolution must precede every target lookup. */
-security_label_name: name {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
- | security_label_name '.' col_label {$$=$1;$$.Parts=append($$.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
-security_label_target: security_label_qualified_kind security_label_name {$$=&SecurityLabel{Kind:$1.text,Name:$2}}
- | security_label_single_kind name {$$=&SecurityLabel{Kind:$1.text,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
- | TYPE routine_argument_type {$$=&SecurityLabel{Kind:"type",Type:$2}}
- | DOMAIN routine_argument_type {$$=&SecurityLabel{Kind:"domain",Type:$2}}
- | grant_routine_kind security_label_routine {$$=&SecurityLabel{Kind:$1.text,Routine:$2}}
- | AGGREGATE security_label_aggregate {$$=&SecurityLabel{Kind:"aggregate",Routine:$2}}
- | LARGE OBJECT grant_object_number {$$=&SecurityLabel{Kind:"large object",Number:numberValue($3,"")}} ;
-security_label_function_name: name {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
- | security_label_routine_keyword {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
- | security_label_function_name '.' col_label {if !$1.first.keyword.columnName() {sqllex.(*lexer).syntax($<tok>2);return 1};$$=$1;$$.name.Parts=append($$.name.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
-security_label_routine_keyword: ordinary_call_keyword | CURRENT_SCHEMA | COLLATION | LEFT | RIGHT | FREEZE | VERBOSE | SIMILAR | OVERLAPS ;
-/* Admit the callable opener before reading argument syntax, so an invalid
- * unqualified keyword cannot defer its error until a later token or EOF. */
-security_label_signature_head: security_label_function_name '(' {name,ok:=sqllex.(*lexer).securityLabelSignatureName($1,$<tok>2);if !ok{return 1};$$=name} ;
-security_label_routine: security_label_function_name {$$=GrantRoutineTarget{Name:$1.name}}
- | security_label_signature_head grant_routine_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$2,SignatureSpecified:true}} ;
-security_label_aggregate: security_label_signature_head aggregate_utility_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$2,SignatureSpecified:true}} ;
-security_label_qualified_kind: TABLE | SEQUENCE | VIEW | INDEX | COLUMN | COLLATION | CONVERSION | STATISTICS
- | MATERIALIZED VIEW {$$=lexeme{text:"materialized view",pos:$1.pos}}
- | FOREIGN TABLE {$$=lexeme{text:"foreign table",pos:$1.pos}}
- | TEXT SEARCH security_label_search_kind {$$=lexeme{text:"text search "+$3.text,pos:$1.pos}} ;
-security_label_search_kind: dictionary_word | TS_PARSER | TS_TEMPLATE | TS_CONFIGURATION ;
-security_label_single_kind: SCHEMA | LANGUAGE | EXTENSION | FDW_SERVER | DATABASE | ROLE | SUBSCRIPTION | PUBLICATION | TABLESPACE
- | LANGUAGE_PROCEDURAL LANGUAGE {$$=lexeme{text:"language",pos:$1.pos}}
- | ACCESS method_word {$$=lexeme{text:"access method",pos:$1.pos}}
- | EVENT TRIGGER {$$=lexeme{text:"event trigger",pos:$1.pos}}
- | FOREIGN data_word wrapper_word {$$=lexeme{text:"foreign data wrapper",pos:$1.pos}} ;
 checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
@@ -1554,6 +1527,60 @@ comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
 comment_excluded_word: IDENT | KW_U | XML | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
+security_label: security_label_head security_label_opt_provider ON security_label_target IS comment_text {
+ node:=$4;node.Pos=$1.pos;node.Provider=Identifier{Text:$2.text,Pos:$2.pos};node.ProviderSpecified=$2.pos.Character!=0;node.Text=$6.Text;node.Null=$6.Kind==NullValue;node.LabelPos=$6.Pos;$$=node
+} ;
+security_label_head: ROUTINE_SECURITY security_label_word {sqllex.(*lexer).securityLabelSyntax=true;$$=$1} ;
+security_label_word: KW_U {if $1.keyword==nil || $1.text!="label" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+security_label_opt_provider: /* empty */ {$$=lexeme{}}
+ | FOR security_label_provider {$$=$2} ;
+security_label_provider: col_label {if $1.keyword!=nil && $1.keyword.category==Reserved {sqllex.(*lexer).syntax($1);return 1};$$=$1}
+ | STRING {$$=$1} ;
+security_label_target: security_label_relation_kind security_label_name {$$=&SecurityLabel{Kind:$1.text,Name:$2}}
+ | security_label_single_kind name {$$=&SecurityLabel{Kind:$1.text,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
+ | COLUMN security_label_name {$$=&SecurityLabel{Kind:"column",Name:$2}}
+ | FOREIGN TABLE security_label_name {$$=&SecurityLabel{Kind:"foreign table",Name:$3}}
+ | MATERIALIZED VIEW security_label_name {$$=&SecurityLabel{Kind:"materialized view",Name:$3}}
+ | EVENT TRIGGER name {$$=&SecurityLabel{Kind:"event trigger",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | LANGUAGE_PROCEDURAL LANGUAGE name {$$=&SecurityLabel{Kind:"language",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | FOREIGN data_word wrapper_word name {$$=&SecurityLabel{Kind:"foreign-data wrapper",Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}}}}
+ | ACCESS method_word name {$$=&SecurityLabel{Kind:"access method",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}}}}
+ | TEXT SEARCH security_label_search_kind security_label_name {$$=&SecurityLabel{Kind:"text search "+$3.text,Name:$4}}
+ | security_label_type_head security_label_type {$$=&SecurityLabel{Kind:$1.text,Type:standaloneType($2)}}
+ | grant_routine_kind security_label_routine {$$=&SecurityLabel{Kind:$1.text,Routine:$2}}
+ | AGGREGATE security_label_aggregate {$$=&SecurityLabel{Kind:"aggregate",Routine:$2}}
+ | LARGE OBJECT grant_object_number {$$=&SecurityLabel{Kind:"large object",Number:Identifier{Text:$3.text,Pos:$3.pos}}} ;
+security_label_relation_kind: TABLE | SEQUENCE | VIEW | INDEX | COLLATION | CONVERSION | STATISTICS ;
+security_label_single_kind: DATABASE | LANGUAGE | PUBLICATION | ROLE | SCHEMA | SUBSCRIPTION | TABLESPACE | EXTENSION | FDW_SERVER ;
+security_label_search_kind: dictionary_word | TS_CONFIGURATION | TS_PARSER | TS_TEMPLATE ;
+security_label_name: name {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
+ | security_label_name '.' col_label {$$=$1;$$.Parts=append($$.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
+security_label_function_name: name {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
+ | security_label_routine_keyword {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
+ | security_label_function_name '.' col_label {if !$1.first.keyword.columnName() {sqllex.(*lexer).syntax($<tok>2);return 1};$$=$1;$$.name.Parts=append($$.name.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
+security_label_routine_keyword: ordinary_call_keyword | CURRENT_SCHEMA | COLLATION | LEFT | RIGHT | FREEZE | VERBOSE | SIMILAR | OVERLAPS ;
+security_label_signature_head: security_label_function_name '(' {name,ok:=sqllex.(*lexer).securityLabelSignatureName($1,$<tok>2);if !ok{return 1};$$=name} ;
+security_label_routine: security_label_function_name {$$=GrantRoutineTarget{Name:$1.name}}
+ | security_label_signature_head routine_arguments_start security_label_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$3,SignatureSpecified:true}} ;
+security_label_aggregate: security_label_signature_head routine_arguments_start security_label_aggregate_args ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$3,SignatureSpecified:true}} ;
+security_label_arguments: /* empty */ {$$=nil} | security_label_argument_list {$$=$1} ;
+security_label_argument_list: security_label_argument {$$=[]GrantRoutineArgument{*$1}}
+ | security_label_argument_list ',' security_label_argument {$$=append($1,*$3)} ;
+security_label_type_head: TYPE {sqllex.(*lexer).routineResultType=true;$$=$1}
+ | DOMAIN {sqllex.(*lexer).routineResultType=true;$$=$1} ;
+security_label_type: standalone_type {$$=$1}
+ | SETOF_TYPE standalone_type {$$=$2;$$.Setof=true} ;
+security_label_routine_type: security_label_type {$$=$1}
+ | security_label_type '%' TYPE {if len($1.Parts)<2 || len($1.Modifiers)!=0 || len($1.ArrayBounds)!=0 {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.PctType=true} ;
+security_label_argument: security_label_routine_type {$$=&GrantRoutineArgument{Type:$1,Pos:$1.Pos}}
+ | grant_parameter_name security_label_routine_type {$$=&GrantRoutineArgument{Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$2,Pos:$1.pos}}
+ | grant_routine_mode security_label_routine_type {$$=&GrantRoutineArgument{Mode:$1.text,Type:$2,Pos:$1.pos}}
+ | grant_routine_mode grant_parameter_name security_label_routine_type {$$=&GrantRoutineArgument{Mode:$1.text,Name:Identifier{Text:$2.text,Pos:$2.pos},Type:$3,Pos:$1.pos}}
+ | grant_parameter_name grant_routine_mode security_label_routine_type {$$=&GrantRoutineArgument{Mode:$2.text,Name:Identifier{Text:$1.text,Pos:$1.pos},Type:$3,Pos:$1.pos}} ;
+security_label_aggregate_args: '*' {$$=nil}
+ | security_label_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,nil);if !ok{return 1}}
+ | ORDER BY security_label_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments(nil,$3);if !ok{return 1}}
+ | security_label_argument_list ORDER BY security_label_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,$4);if !ok{return 1}} ;
 transaction_control: transaction_common | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} } ;
 transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -2866,44 +2893,53 @@ declared_type_base: INTEGER { $$=TypeName{Name:"integer",Pos:$1.pos} }
  | TEXT %prec TYPE_NAME { $$=TypeName{Name:"text",Pos:$1.pos} }
  | BOOLEAN { $$=TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=inputColumnType(sqllex,$1) }
- | temporal_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode||sqllex.(*lexer).operatorDDL }
- | interval_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode||sqllex.(*lexer).operatorDDL }
+ | temporal_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode||sqllex.(*lexer).operatorDDL||sqllex.(*lexer).securityLabelSyntax }
+ | interval_type { $$=$1;$$.System=sqllex.(*lexer).typeInputMode||sqllex.(*lexer).operatorDDL||sqllex.(*lexer).securityLabelSyntax }
  | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false;sqllex.(*lexer).bitModifier=false }
  | DOUBLE_TYPE PRECISION_TYPE {$$=TypeName{Name:"double precision",Pos:$1.pos}}
  | CHARACTER_TYPE VARYING_TYPE {$$=TypeName{Name:"character varying",Pos:$1.pos}}
+ | NCHAR_TYPE VARYING_TYPE {$$=TypeName{Name:"varchar",System:true,Pos:$1.pos}}
+ | national_character_head {$$=inputColumnType(sqllex,$1)}
+ | national_character_head VARYING_TYPE {$$=TypeName{Name:"varchar",System:true,Pos:$1.pos}}
  | BIT_TYPE VARYING_TYPE {$$=TypeName{Name:"bit varying",Pos:$1.pos}}
- | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} } ;
+ | type_name '.' col_label { if sqllex.(*lexer).securityLabelSyntax && !$1.keyword.typeFunctionName(){sqllex.(*lexer).syntax($2);return 1};$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos,Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}} } ;
+national_character_head: NATIONAL_TYPE CHARACTER_TYPE {$$=$1;$$.text="nchar"} ;
 declaration_invalid_type: type_name type_name %prec TYPE_NAME { if excludedTypeTail($1,$2) {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset)} else {sqllex.(*lexer).syntax($2)};return 1 }
  | type_name WITH { if excludedTypeTail($1,$2) {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset)} else {sqllex.(*lexer).syntax($2)};return 1 }
  | type_name type_name '(' {sqllex.(*lexer).syntax($2);return 1} ;
 declared_array_bounds: /* empty */ {$$=TypeName{}}
  | declared_array_bounds '[' ']' {$$=$1;$$.ArrayBounds=append($$.ArrayBounds,0)}
- | declared_array_bounds '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n))}
+ | declared_array_bounds '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,securityLabelArrayBound(sqllex,int32(n)))}
  | declared_array_bounds ARRAY {$$=$1;$$.ArrayBounds=append($$.ArrayBounds,0)}
- | declared_array_bounds ARRAY '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$4.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n))} ;
+ | declared_array_bounds ARRAY '[' NUMBER ']' {n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$4.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,securityLabelArrayBound(sqllex,int32(n)))} ;
 /* Descriptor modifiers share raw constant syntax; FLOAT and temporal types retain
  * their distinct unsigned/single precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
  | TEXT '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
  | CHARACTER_TYPE VARYING_TYPE '(' {tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
+ | NCHAR_TYPE VARYING_TYPE '(' {tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
+ | national_character_head '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
+ | national_character_head VARYING_TYPE '(' {tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
  | BIT_TYPE VARYING_TYPE '(' {tok:=$1;tok.text="bit varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3,false);if !ok{return 1}}
- | type_name '.' col_label '(' {tok:=$3;tok.raw="\""+$3.text+"\"";tok.keyword=nil;var ok bool;$$,ok=typeModifierHead(sqllex,tok,$4,true);if !ok{return 1};$$.Name=$3.text;$$.Quoted=columnType($3).Quoted;$$.Schema=&Identifier{Text:$1.text,Pos:$1.pos};$$.Pos=$1.pos;if sqllex.(*lexer).operatorDDL {$$.Parts=[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}}} ;
-generic_modifiers: generic_precision { $$=$1 }
- | generic_modifiers ',' {if !sqllex.(*lexer).multipleModifiers {sqllex.(*lexer).syntax($2);return 1}} generic_precision {$$=$1;$$.Modifiers=append($$.Modifiers,$4.Modifiers...) } ;
+ | type_name '.' col_label '(' {if sqllex.(*lexer).securityLabelSyntax && !$1.keyword.typeFunctionName(){sqllex.(*lexer).syntax($2);return 1};tok:=$3;tok.raw="\""+$3.text+"\"";tok.keyword=nil;var ok bool;$$,ok=typeModifierHead(sqllex,tok,$4,true);if !ok{return 1};$$.Name=$3.text;$$.Quoted=columnType($3).Quoted;$$.Schema=&Identifier{Text:$1.text,Pos:$1.pos};$$.Pos=$1.pos;if sqllex.(*lexer).operatorDDL {$$.Parts=[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}}} ;
+generic_modifiers: generic_precision_modifiers {$$=$1}
+ | SECURITY_LABEL_MODIFIERS execute_argument_list {$$=securityLabelTypeModifiers($2)} ;
+generic_precision_modifiers: generic_precision {$$=$1}
+ | generic_precision_modifiers ',' {if !sqllex.(*lexer).multipleModifiers {sqllex.(*lexer).syntax($2);return 1}} generic_precision {$$=$1;$$.Modifiers=append($$.Modifiers,$4.Modifiers...) } ;
 /* Keep keyword tokens in these productions: a temporal_keyword reduction would
  * compete with setting_word on modifier and zone continuations. */
 temporal_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} }
  | TIMESTAMP '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
  | TIMESTAMP WITHOUT TIME ZONE {$$=TypeName{Name:$1.text,Pos:$1.pos}}
  | TIMESTAMP '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
- | TIMESTAMP WITH TIME ZONE {$$=TypeName{Name:"timestamptz",Pos:$1.pos}}
- | TIMESTAMP '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamptz";$$.Pos=$1.pos}
+ | TIMESTAMP WITH TIME ZONE {$$=TypeName{Name:"timestamptz",Pos:$1.pos,System:sqllex.(*lexer).securityLabelSyntax}}
+ | TIMESTAMP '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamptz";$$.Pos=$1.pos;$$.System=sqllex.(*lexer).securityLabelSyntax}
  | TIME %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} }
  | TIME '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
  | TIME WITHOUT TIME ZONE {$$=TypeName{Name:$1.text,Pos:$1.pos}}
  | TIME '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
- | TIME WITH TIME ZONE {$$=TypeName{Name:"timetz",Pos:$1.pos}}
- | TIME '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timetz";$$.Pos=$1.pos} ;
+ | TIME WITH TIME ZONE {$$=TypeName{Name:"timetz",Pos:$1.pos,System:sqllex.(*lexer).securityLabelSyntax}}
+ | TIME '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timetz";$$.Pos=$1.pos;$$.System=sqllex.(*lexer).securityLabelSyntax} ;
 interval_type: INTERVAL %prec TYPE_NAME { $$=TypeName{Name:"interval",Pos:$1.pos} }
  | INTERVAL interval_type_qualifier { $$=$2;$$.Name="interval";$$.Pos=$1.pos }
  | INTERVAL '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};$$.Name="interval";$$.Pos=$1.pos} ;
@@ -3102,7 +3138,7 @@ scalar: scalar_atom { $$=$1 }
  | GROUPING '(' function_values ')' { $$=GroupingExpr{Args:$3,Pos:$1.pos} }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
- | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
+ | cast_function date_literal_precision ')' STRING {raw:=securityLabelLiteralType(sqllex,$1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | qualified_call_head date_literal_precision ')' STRING {raw:=$1;raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | '+' scalar %prec UNARY { $$=arithmeticExpr(sqllex,$1,$2,nil) }
  | '-' scalar %prec UNARY { $$=negateExpr(sqllex,$1,$2) }
@@ -3179,8 +3215,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | INTERVAL '(' NUMBER ')' STRING {raw,ok:=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};raw.Name="interval";raw.Pos=$1.pos;$$=TypedLiteralExpr{TypeName:raw,Text:$5.text,Pos:$5.pos}}
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
- | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="box" && $1.text!="point" && $1.text!="circle" && $1.text!="line" && $1.text!="lseg" && $1.text!="path" && $1.text!="polygon" && $1.text!="tsvector" && $1.text!="tsquery" && $1.text!="tid" && $1.text!="macaddr" && $1.text!="macaddr8" && $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" && $1.text!="pg_lsn";$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
- | KW_U STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:$1.text!="path"} }
+ | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="box" && $1.text!="point" && $1.text!="circle" && $1.text!="line" && $1.text!="lseg" && $1.text!="path" && $1.text!="polygon" && $1.text!="tsvector" && $1.text!="tsquery" && $1.text!="tid" && $1.text!="macaddr" && $1.text!="macaddr8" && $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" && $1.text!="pg_lsn";$$=TypedLiteralExpr{TypeName:securityLabelLiteralType(sqllex,$1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
+ | KW_U STRING { $$=TypedLiteralExpr{TypeName:securityLabelLiteralType(sqllex,$1),Text:$2.text,Pos:$2.pos,RequiresDomain:$1.text!="path"} }
  | XML STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
  | TEXT STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | EXPLAIN STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
@@ -3225,9 +3261,12 @@ transaction_time_args: function_args { $$=$1 }
  | ALL function_argument_list aggregate_order { $$=$2;$$.All=true;$$.Order=$3 }
  | function_argument_list ORDER BY order_keys { $$=$1;$$.Order=$4 } ;
 transaction_time_base: transaction_time_head transaction_time_args ')' { $$=$2;$$.Name=$1.Name;$$.Pos=$1.Pos } ;
-transaction_time_filtered: transaction_time_base %prec ')' { $$=$1 }
- | transaction_time_base WITHIN GROUP '(' ORDER BY order_keys ')' {if !selectedWithinFunctionName($1.Name.Parts[len($1.Name.Parts)-1].Text) {sqllex.(*lexer).syntax($2);return 1};call,ok:=withinCall(sqllex,$1,$2,$7);if !ok{return 1};$$=call.(FunctionExpr)}
- | transaction_time_base FILTER '(' WHERE target_or ')' { $$=$1;$$.Filter=$5 } ;
+transaction_time_within: transaction_time_base %prec ')' { $$=$1 }
+ | transaction_time_base WITHIN GROUP '(' ORDER BY order_keys ')' {if !sqllex.(*lexer).securityLabelSyntax && !selectedWithinFunctionName($1.Name.Parts[len($1.Name.Parts)-1].Text) {sqllex.(*lexer).syntax($2);return 1};call,ok:=withinCall(sqllex,$1,$2,$7);if !ok{return 1};$$=call.(FunctionExpr)} ;
+/* Label modifiers admit PostgreSQL's ordered WITHIN/FILTER/OVER composition.
+ * Ordinary selected calls retain their existing WITHIN-without-FILTER frontier. */
+transaction_time_filtered: transaction_time_within %prec ')' { $$=$1 }
+ | transaction_time_within FILTER '(' WHERE target_or ')' {if $1.Within && !sqllex.(*lexer).securityLabelSyntax {sqllex.(*lexer).syntax($2);return 1};$$=$1;$$.Filter=$5} ;
 /* Keep selected decorations ordered and nonrepeating. Invalid continuations
  * fail at their token rather than falling through to generic bare-label guards. */
 transaction_time_call: transaction_time_filtered %prec ')' { $$=$1 }
@@ -3923,7 +3962,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | routine_name_word
  | grant_external_name_word
- | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
+ | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | NCHAR_TYPE | NATIONAL_TYPE | BIT_TYPE | VARYING_TYPE
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE | FILTER | WITHIN
  | membership_keyword
@@ -3979,7 +4018,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | VACUUM
  | routine_name_word
  | grant_external_name_word
- | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
+ | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | NCHAR_TYPE | BIT_TYPE | VARYING_TYPE
  | string_word
  | TRUNCATE | CONTINUE
  | COPY
@@ -4027,7 +4066,7 @@ generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | 
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | routine_name_word
  | grant_external_name_word
- | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | BIT_TYPE | VARYING_TYPE
+ | OUT_ARG | INOUT_ARG | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | NCHAR_TYPE | NATIONAL_TYPE | BIT_TYPE | VARYING_TYPE
  | COPY
  | ORDINALITY | LATERAL
  | EXCLUDE

@@ -92,6 +92,9 @@ func parseWithOptions(query string, options Options, readonlyRecipe bool) ([]Sta
 		if explanation != nil {
 			statement = explanation.Statement
 		}
+		if label, ok := statement.(*SecurityLabel); ok {
+			label.discardModifierSyntax()
+		}
 		if query, ok := statement.(*Select); ok {
 			first := LeftmostSelect(query)
 			if first != nil && first.Into != nil {
@@ -257,7 +260,7 @@ func directSelectedCall(expr Expr) bool {
 }
 
 func selectedScalarChild(l sqlLexer, expr Expr, token lexeme) bool {
-	if l.(*lexer).readonlyRecipe {
+	if l.(*lexer).readonlyRecipe || l.(*lexer).securityLabelSyntax {
 		return true
 	}
 	if directSelectedCall(expr) {
@@ -271,7 +274,7 @@ func selectedScalarChild(l sqlLexer, expr Expr, token lexeme) bool {
 // child of a custom operator, not a new standalone selected-call arithmetic
 // route. Grouped targets and call arguments retain their own grammar frontier.
 func selectedScalarOperators(l sqlLexer, expr Expr) bool {
-	if l.(*lexer).readonlyRecipe {
+	if l.(*lexer).readonlyRecipe || l.(*lexer).securityLabelSyntax {
 		return true
 	}
 	switch e := expr.(type) {
@@ -834,7 +837,7 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 	if n <= 24 {
 		raw.Name = "float4"
 	}
-	if l.(*lexer).typeInputMode {
+	if l.(*lexer).typeInputMode || l.(*lexer).securityLabelSyntax {
 		raw.System = true
 	}
 	return raw, true
@@ -892,10 +895,22 @@ func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool
 	return field, true
 }
 func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, bool) {
+	if l.(*lexer).securityLabelSyntax && !qualified && tok.keyword != nil && tok.text == "nchar" {
+		// Use the existing unsigned, single-length character production.
+		tok.text = "character"
+	}
 	raw := columnType(tok)
-	if l.(*lexer).typeInputMode || l.(*lexer).operatorDDL {
+	if !qualified && !raw.Quoted && tok.keyword != nil && tok.text == "json" {
+		l.(*lexer).syntax(open)
+		return TypeName{}, false
+	}
+	if l.(*lexer).typeInputMode || l.(*lexer).operatorDDL || l.(*lexer).securityLabelSyntax {
 		raw = inputColumnType(l, tok)
-		if qualified || raw.Quoted || tok.keyword == nil || raw.Name != "float" && raw.Name != "char" && raw.Name != "character" && raw.Name != "varchar" && raw.Name != "character varying" && raw.Name != "bit" && raw.Name != "bit varying" {
+		if qualified || raw.Quoted || tok.keyword == nil || l.(*lexer).securityLabelSyntax && (raw.Name == "bit" || raw.Name == "bit varying") || raw.Name != "float" && raw.Name != "char" && raw.Name != "character" && raw.Name != "varchar" && raw.Name != "character varying" && raw.Name != "bit" && raw.Name != "bit varying" {
+			if l.(*lexer).securityLabelSyntax {
+				l.(*lexer).securityLabelModifiers = true
+				return raw, true
+			}
 			l.(*lexer).characterGeneric = true
 			l.(*lexer).genericModifier = true
 			l.(*lexer).multipleModifiers = true
@@ -915,10 +930,6 @@ func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, b
 		l.(*lexer).genericModifier = true
 		l.(*lexer).multipleModifiers = true
 		return raw, true
-	}
-	if tok.keyword != nil && tok.text == "json" {
-		l.(*lexer).syntax(open)
-		return TypeName{}, false
 	}
 	if tok.keyword != nil && tok.text == "float" {
 		l.(*lexer).floatPrecision = true

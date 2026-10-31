@@ -20,7 +20,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		case "table", "column", "sequence", "view", "materialized view", "index", "foreign table",
 			"collation", "conversion", "statistics", "text search parser", "text search dictionary",
 			"text search template", "text search configuration", "access method", "extension",
-			"foreign data wrapper", "language", "publication", "schema", "server", "subscription",
+			"foreign-data wrapper", "language", "publication", "schema", "server", "subscription",
 			"type", "domain", "aggregate", "function", "procedure", "routine", "large object":
 			return "SECURITY LABEL", true
 		default:

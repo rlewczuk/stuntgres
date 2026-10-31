@@ -76,20 +76,6 @@ type Load struct {
 
 func (*Load) statement() {}
 
-// SecurityLabel preserves syntax without resolving the target. Providers are
-// execution-time external capabilities; a nil Provider differs from FOR ''.
-type SecurityLabel struct {
-	Provider *Identifier
-	Kind     string
-	Name     ObjectName
-	Type     TypeName
-	Routine  GrantRoutineTarget
-	Number   Value
-	Label    Value
-	Pos      Position
-}
-
-func (*SecurityLabel) statement() {}
 
 // Checkpoint requests a physical checkpoint without operands.
 type Checkpoint struct {
@@ -390,6 +376,7 @@ type TypeName struct {
 	Parts  []Identifier
 	System bool
 	Setof  bool
+	PctType bool // Syntax-only column %TYPE reference in utility signatures.
 }
 
 type EnumLabel struct {
@@ -530,6 +517,8 @@ type TypeModifier struct {
 	UnaryPlus bool
 	NonSimple bool // Actual modifier expression; no arithmetic evaluation.
 	Pos       Position
+	// syntax is temporary SECURITY LABEL modifier identity, cleared before Parse returns.
+	syntax Expr
 }
 
 type Position struct{ Offset, Character int }

@@ -26,6 +26,58 @@ type removal. Schema authorization scenarios share direct/prepared creation and
 lookup diagnostics across backends, including character positions. Schema notice
 scenarios assert complete notice records through the shared notice-enabled pool.
 
+`TestReferenceSecurityLabel(ProviderBoundary|ObjectSyntax|ObjectPermissionPrecedence|AtomicityControls|SyntaxDiagnostics|OrderedSetModifiers|CallDecorations|FeatureSmoke)`
+checks the zero-provider execution boundary with independent direct/prepared
+diagnostics, full target syntax, inaccessible/non-owned objects, transaction
+failure and native Dump/Reset/Restore. Reset verifies relation absence through
+`pg_class`, without requiring unrelated `to_regclass` execution support. Session
+authorization reset expects the configured native `postgres` or PostgreSQL
+fixture `stuntgres` identity, independently of query output. Pre-canceled
+admission checks ordinary context cancellation only on native, following the
+adapter boundary in [docs/TESTING.md](../../docs/TESTING.md); shared provider,
+transaction, data and comment diagnostics remain exact. NULL requires a provider
+and never succeeds as a metadata no-op. Run `make check RUN='^TestReferenceSecurityLabel'`
+and the same command with `REFERENCE=1`; the fixture remains pinned to 18.6
+despite older catalog policy provenance. The quiet feature smoke selector is
+`make check RUN='^TestReferenceSecurityLabelFeatureSmoke$'` in both modes.
+Ordered-set VARIADIC signatures preserve PostgreSQL parsed modifier identity:
+equal literal and compound syntax (including formatting, `CAST`/`::`, redundant
+call/query parentheses, explicit/default ALL and decoded qualified type names)
+reaches the provider error in both operand directions and direct/prepared modes.
+Distinct literal/compound operands and function-call versus type-cast syntax
+fail with positioned `0A000` during preparation, not provider lookup.
+Nested CAST targets independently cover DECIMAL/NUMERIC and SQL keyword/
+explicit pg_catalog aliases in both directions, including casts inside type
+modifiers. Generic int4 versus INTEGER, quoted-case names, raw modifiers,
+array ranks/bounds and signature SETOF/%TYPE retain genuine distinctions.
+NCHAR/NATIONAL CHAR/NATIONAL CHARACTER cover fixed/default-length and VARYING
+constructors, explicit lengths and arrays, with both-direction raw identities
+against pg_catalog.bpchar/varchar and genuine quoted/generic mismatches.
+Object syntax and complete diagnostic definitions distinguish forbidden JSON
+keyword modifiers from valid quoted/qualified generic names, and character
+integer lengths from rejected expression/multiple-length syntax. These utility
+constructors do not expand ordinary declaration or execution capability.
+The initial type/function-name category is distinct from terminal ColLabel:
+national.ty(1) fails at dot32; nchar.ty and nchar.ty(1) both require full
+42601/ERROR diagnostics at dot29, with only Position additionally populated.
+Direct commands fail at execution and prepared commands at preparation.
+Quoted heads "national".ty(1) and "nchar".ty(1), and terminals s.nchar(1) and
+s."nchar"(1), reach provider22023 after successful preparation; modifier-free
+NCHAR quoted-head/terminal controls do too. NCHAR character constructors and
+national/nchar object/provider names retain their separate legal categories.
+The terminal s.national(1) and s."national"(1) have identical raw names.
+`CallDecorations` independently expects provider `22023` for every ordered subset
+of WITHIN GROUP, FILTER and OVER across selected and ordinary call routes, in
+direct and prepared modes. Equal WITHIN-plus-FILTER modifiers, with and without
+OVER, retain parsed identity. Different FILTER predicates, WITHIN ordering,
+window partition/order and in-call versus WITHIN ordering require positioned
+preparation-time `0A000`, rather than being discarded as parser provenance.
+`SyntaxDiagnostics` also fixes complete primary messages and character positions
+for repeated/out-of-order WITHIN/FILTER/OVER and incompatible WITHIN clauses:
+direct execution fails, while prepared commands fail during preparation.
+Public event execution ordering
+is covered by `TestReferenceSecurityLabelEventBoundary` in `reference/triggers`.
+
 - Expected data comes from released inventories, never from native output:
   `docs/design/pg-operator-pg18-supported.tsv` (shared by
   every `TestReferencePGOperator` test, `TestReferenceLsegOperatorCatalog` and

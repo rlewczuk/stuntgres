@@ -33,6 +33,13 @@ Standalone-only procedure/language creation retains its existing admission.
 Inherited and typed-table ALTERs expose all new declared shapes before any
 per-relation rewrite callback. Callback-created objects and unrelated ALTERs
 share the same private outcome; failure preserves old metadata and data.
+`TestReferenceSecurityLabelEventBoundary` independently checks direct/prepared
+SECURITY LABEL execution: a filtered start callback raises before provider
+lookup for TABLE and SUBSCRIPTION; DATABASE, ROLE, TABLESPACE and EVENT TRIGGER
+bypass it. Captured NOTICE diagnostics survive provider failure and prove start
+firing without end firing; preparation fires neither. Run
+`make check RUN='^TestReferenceSecurityLabelEventBoundary$'` and the same command
+with `REFERENCE=1` for the pinned real PostgreSQL witness.
 Direct USING-column references and no-op casts do not notify table_rewrite;
 an arithmetic USING expression does, even when its values happen to be equal.
 Typmod and domain conversions assert exact callback multiplicity, converted

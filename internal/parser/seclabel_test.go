@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func TestSecurityLabelGrammar(t *testing.T) {
+func TestSecurityLabelCatalogGrammar(t *testing.T) {
 	for _, target := range []string{
 		"TABLE a.b.c.d", "COLUMN x", "COLUMN a.b.c.d", "SEQUENCE s", "VIEW v", "MATERIALIZED VIEW v", "INDEX i", "FOREIGN TABLE t",
 		"COLLATION c", "CONVERSION c", "STATISTICS s", "TEXT SEARCH PARSER p", "TEXT SEARCH DICTIONARY d", "TEXT SEARCH TEMPLATE t", "TEXT SEARCH CONFIGURATION c",
@@ -24,8 +24,8 @@ func TestSecurityLabelGrammar(t *testing.T) {
 				statements, err := Parse("SECURITY LABEL ON " + target + " IS " + label)
 				if err != nil || len(statements) != 1 { t.Fatal(statements, err) }
 				s, ok := statements[0].(*SecurityLabel)
-				if !ok || s.Kind == "" || s.Provider != nil || s.Pos.Character != 1 { t.Fatalf("target AST %#v", statements[0]) }
-				if label == "NULL" && s.Label.Kind != NullValue || label != "NULL" && (s.Label.Kind != StringValue || s.Label.Text != "secret") { t.Fatal("label", s.Label) }
+				if !ok || s.Kind == "" || s.ProviderSpecified || s.Pos.Character != 1 { t.Fatalf("target AST %#v", statements[0]) }
+				if s.Null != (label == "NULL") || !s.Null && s.Text != "secret" { t.Fatal("label", s) }
 			}
 		})
 	}
@@ -36,7 +36,7 @@ func TestSecurityLabelGrammar(t *testing.T) {
 		statements, err := Parse("/*é*/ SECURITY LABEL FOR " + tc.provider + " ON TABLE \"Case\".t IS NULL")
 		if err != nil || len(statements) != 1 { t.Fatal(statements, err) }
 		s := statements[0].(*SecurityLabel)
-		if s.Provider == nil || s.Provider.Text != tc.decoded || s.Pos.Character != 7 || s.Pos.Offset != 7 || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != "Case" { t.Fatalf("decoded AST %#v", s) }
+		if !s.ProviderSpecified || s.Provider.Text != tc.decoded || s.Pos.Character != 7 || s.Pos.Offset != 7 || len(s.Name.Parts) != 2 || s.Name.Parts[0].Text != "Case" { t.Fatalf("decoded AST %#v", s) }
 	}
 	statements, err := Parse("SECURITY LABEL ON FUNCTION s.f(IN x integer, OUT y text) IS NULL")
 	if err != nil || len(statements) != 1 { t.Fatal(statements, err) }

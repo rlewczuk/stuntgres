@@ -28,7 +28,10 @@ func TestSecurityLabelNoPublication(t *testing.T) {
 			if e.Catalog.State != state || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.RoleStore.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision { t.Fatal("SECURITY LABEL published catalog/role/allocator/identity changes") }
 		}
 		for _, provider := range []*parser.Identifier{nil, {Text: ""}, {Text: "missing"}, {Text: "dummy"}, {Text: "selinux"}, {Text: "a\"b"}} {
-			stmt := &parser.SecurityLabel{Provider: provider, Kind: "index", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent"}}}, Label: parser.Value{Kind: parser.NullValue}}
+			stmt := &parser.SecurityLabel{ProviderSpecified: provider != nil, Kind: "index", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent"}}}, Null: true}
+			if provider != nil {
+				stmt.Provider = *provider
+			}
 			if _, err := e.Describe(op, stmt); err != nil { t.Fatal("Describe executed provider resolution", err) }
 			unchanged()
 			result, err := e.Execute(op, stmt, 0, nil)

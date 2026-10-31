@@ -4,10 +4,10 @@ The SQL lexer, goyacc grammar and AST. It imports only the standard library and
 `sqlstate`; binding, name resolution and execution policy (including the
 single-statement limit of driver calls) belong to callers.
 
-`SecurityLabel` retains SECURITY LABEL target syntax, including shared targets
-(ROLE, DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command, optional
-decoded identifier or string provider, and string versus NULL label. Provider presence
-is independent of its spelling, so FOR '' is not omission. LABEL remains the
+`SecurityLabel` retains complete SECURITY LABEL target syntax, including shared
+objects (ROLE, DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command,
+optional decoded identifier or string provider, and string versus NULL label.
+Provider presence is independent of its spelling, so FOR '' is not omission. LABEL remains the
 existing unreserved word; routine SECURITY and row-security syntax are unchanged.
 Preparation is syntax-only; current execution owns absent-provider diagnostics.
 Embedded procedural utility capture recognizes SECURITY LABEL while retaining
@@ -54,6 +54,52 @@ ordinary assignments to an unreserved `security` variable.
   never a partial parse.
   Ordinary UNLOGGED table declarations remain distinct from query-derived
   creation; recognizing persistence does not grant query-table capability.
+- SECURITY LABEL retains positioned provider presence/text, complete target
+  syntax and string/NULL distinction in an expression-free leaf. Provider
+  lookup, object resolution and permissions are execution policy; protocol
+  preparation grants none of them. `security` and `label` remain identifiers.
+  Generic type modifiers reuse the normal scalar-expression grammar through a
+  scoped synthetic entry. Temporary expression structure preserves PostgreSQL
+  parsed ordered-set VARIADIC type identity, not native parser provenance:
+  `CAST`/`::`, redundant call/query parentheses and explicit/default ALL compare
+  alike. Typed exclusions omit locations, lexer replay/capability/binder metadata
+  and decoded-name quote markers, not operands, names, literals or list structure.
+  TypeName dispatch is recursive: SQL keyword DECIMAL/NUMERIC and INTEGER/
+  explicit pg_catalog.int4 share raw decoded names even inside nested casts and
+  modifiers. Generic int4 remains distinct from INTEGER; qualified or quoted
+  names are never catalog-resolved. Raw typmods, ordered array bounds, SETOF
+  and %TYPE remain significant. BIT/CHAR Typename defaults do not apply to
+  typed literals; private explicit-zero array provenance is stripped with trees.
+  Function-style casts remain distinct from type casts; SQL special-form, row,
+  window and join syntax distinctions remain meaningful. Trees are discarded
+  after validation, before returning the expression-free utility AST.
+  Modifiers are never bound, evaluated or discovered as utility parameters.
+  JSON keyword modifiers are rejected before generic modifier admission, even
+  inside casts; quoted/qualified json names remain generic. Label-only NCHAR,
+  NATIONAL CHAR and NATIONAL CHARACTER reuse the unsigned single-length
+  character path, including VARYING, arrays and nested casts. Fixed forms have
+  raw bpchar default length 1; VARYING maps to varchar without a default length.
+  Quoted names and qualified terminals such as s.national and s.nchar remain
+  generic. Both qualified type entries require an initial type/function-name
+  category: unquoted national.ty and nchar.ty are invalid at the dot, with or
+  without modifiers. Quoted schema heads "national".ty and "nchar".ty remain
+  valid, as do NCHAR character constructors and national/nchar object/provider
+  identifiers. Contextual tokens do not extend ordinary declarations or binding.
+  Syntax-only modifiers bypass selected-call execution capability guards and
+  reuse the existing full call-argument/decorator grammar, including ALL,
+  DISTINCT and in-call ORDER BY. The selected-call route stages optional
+  WITHIN GROUP, FILTER and OVER in that order; label modifiers admit every
+  subset, without admitting duplicate or out-of-order decorations. WITHIN
+  ordering, FILTER expressions and window structure remain part of modifier
+  identity. Compound calls and casts keep their full syntax for validation.
+  Ordinary SQL retains its selected-call grammar and guards after the
+  utility's statement boundary: ordinary calls such as `abs` already parse
+  WITHIN/FILTER/OVER for binder diagnostics, whereas the transaction-time/
+  array-transform route still rejects FILTER following WITHIN outside labels.
+  Both syntax flags reset at semicolons and every parse. Special type keyword
+  grammar and ordinary declaration policy are unchanged.
+  SETOF uses the existing result/formal type lexer contexts; utility signature
+  `%TYPE` retains only `TypeName.PctType` and name parts, never a resolved column.
 - Subscription utilities retain every release-18 action in one positioned node,
   including ordered duplicate options and remote publication declarations.
   Option interpretation, connection validation, ownership and external effects
