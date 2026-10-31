@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"context"
@@ -142,3 +142,42 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 		t.Fatal("owner replacement lost history or dependent owner")
 	}
 }
+
+// Unit tests name producers by their former engine identifiers. Each one is
+// resolved through the real pgcatalog registry, so a missing registration
+// fails at package initialization instead of silently testing another path.
+var (
+	captureAvailableExtensions = enginetest.RegisteredCatalogProducer(12081)
+	captureDataTypePrivileges  = enginetest.RegisteredCatalogProducer(16201)
+	captureExtensionCatalog    = enginetest.RegisteredCatalogProducer(1255)
+	capturePGAM                = enginetest.RegisteredCatalogProducer(2601)
+	capturePGAggregate         = enginetest.RegisteredCatalogProducer(2600)
+	capturePGAttribute         = enginetest.RegisteredCatalogProducer(1249)
+	capturePGCast              = enginetest.RegisteredCatalogProducer(2605)
+	capturePGCollation         = enginetest.RegisteredCatalogProducer(3456)
+	capturePGConstraint        = enginetest.RegisteredCatalogProducer(2606)
+	capturePGCursors           = enginetest.RegisteredCatalogProducer(12077)
+	capturePGDatabase          = enginetest.RegisteredCatalogProducer(1262)
+	capturePGDefaultACL        = enginetest.RegisteredCatalogProducer(826)
+	capturePGDepend            = enginetest.RegisteredCatalogProducer(2608)
+	capturePGDescription       = enginetest.RegisteredCatalogProducer(2609)
+	capturePGEnum              = enginetest.RegisteredCatalogProducer(3501)
+	capturePGGroup             = enginetest.RegisteredCatalogProducer(12008)
+	capturePGIndexes           = enginetest.RegisteredCatalogProducer(12002)
+	capturePGNamespace         = enginetest.RegisteredCatalogProducer(2615)
+	capturePGOpclass           = enginetest.RegisteredCatalogProducer(2616)
+	capturePGOperator          = enginetest.RegisteredCatalogProducer(2617)
+	capturePGParameterACL      = enginetest.RegisteredCatalogProducer(6243)
+	capturePGRange             = enginetest.RegisteredCatalogProducer(3541)
+	capturePGRoles             = enginetest.RegisteredCatalogProducer(12007)
+	capturePGSequence          = enginetest.RegisteredCatalogProducer(2224)
+	capturePGSettings          = enginetest.RegisteredCatalogProducer(16202)
+	capturePGShDescription     = enginetest.RegisteredCatalogProducer(2396)
+	capturePGTablespace        = enginetest.RegisteredCatalogProducer(1213)
+	capturePGType              = enginetest.RegisteredCatalogProducer(1247)
+	capturePGUser              = enginetest.RegisteredCatalogProducer(12014)
+	capturePreparedSource      = enginetest.RegisteredCatalogProducer(12001)
+	captureTablePrivileges     = enginetest.RegisteredCatalogProducer(16200)
+	captureTableViewSummary    = enginetest.RegisteredCatalogProducer(12000)
+	captureTimezoneSource      = enginetest.RegisteredCatalogProducer(12004)
+)

@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"context"
@@ -15,8 +15,10 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/util"
 )
+
 
 // These fixtures enter the complete replacement owner, including real TEMP
 // collision allocation, captured index roots and the admitted repair statement.
@@ -437,4 +439,27 @@ func TestCatalogReplacementOperationOwner(t *testing.T) {
 			f.healthy(t)
 		})
 	}
+}
+
+
+func analyzeTemporaryRelation(t *testing.T, e *core.Engine, s *session.Session, name string) *catalog.Relation {
+	t.Helper()
+	view := e.CatalogRead()
+	for _, descriptor := range view.Descriptors() {
+		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == name && view.MustNamespace(relation.Namespace()).Temporary == s.SessionToken {
+			return relation
+		}
+	}
+	t.Fatal("missing actual session TEMP relation", name)
+	return nil
+}
+
+func cloneGeneratedRepairStorage(source map[ids.ObjectAddress]*storage.Relation) map[ids.ObjectAddress]*storage.Relation {
+	out := make(map[ids.ObjectAddress]*storage.Relation, len(source))
+	for address, rows := range source {
+		copy := *rows
+		copy.Versions = append([]storage.RowVersion(nil), rows.Versions...)
+		out[address] = &copy
+	}
+	return out
 }

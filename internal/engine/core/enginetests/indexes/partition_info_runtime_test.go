@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -125,4 +126,22 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 			t.Fatal("invalid captured source authority")
 		}
 	}
+}
+
+func tablespaceInfoUnitScope(t *testing.T, e *core.Engine) *core.StatementScope {
+	t.Helper()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { scope.Finish(context.Canceled) })
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(scope)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scope
 }

@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "CREATE TABLE t("+declaration+")")
 			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
-			ref := roleTableRef(t, e, "t")
+			ref := enginetest.RoleTableRef(t, e, "t")
 			parent := e.Catalog.State.MustRelation(ref.Address)
 			var indexAddress ids.ObjectAddress
 			if len(parent.Constraints.Unique) > 0 {
@@ -98,7 +98,7 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
 	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(1)")
-	ref := roleTableRef(t, e, "t")
+	ref := enginetest.RoleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
 	index := old.Constraints.Unique[0].Index
 	store, root := e.Storage.Relations[ref.Address], e.Storage.IndexRoots[index]

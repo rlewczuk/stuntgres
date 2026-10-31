@@ -1,4 +1,4 @@
-package core_test
+package indexes_test
 
 import (
 	"context"
@@ -24,12 +24,12 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					for _, query := range []string{"CREATE SEQUENCE steps", "CREATE DOMAIN checked AS integer CHECK (nextval('steps') > 0)", definition.table, definition.index, "INSERT INTO subject VALUES (1),(2)", "DELETE FROM subject WHERE id=1"} {
 						enginetest.Run(t, source, query)
 					}
-					sequence := roleTableRef(t, source, "steps").Address
+					sequence := enginetest.RoleTableRef(t, source, "steps").Address
 					if source.Storage.Sequences[sequence].Last != 2 {
 						t.Fatal("index event replayed before snapshot", source.Storage.Sequences[sequence].Last)
 					}
-					indexAddress := roleTableRef(t, source, "checked_idx").Address
-					parentAddress := roleTableRef(t, source, "subject").Address
+					indexAddress := enginetest.RoleTableRef(t, source, "checked_idx").Address
+					parentAddress := enginetest.RoleTableRef(t, source, "subject").Address
 					oldRoot, oldStore := source.Storage.IndexRoots[indexAddress], source.Storage.Relations[parentAddress]
 					oldRows := slices.Clone(oldStore.Versions)
 					target := engine.New()
@@ -39,16 +39,16 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 						t.Fatal(err)
 					}
-					importedSequence := roleTableRef(t, target, "steps").Address
+					importedSequence := enginetest.RoleTableRef(t, target, "steps").Address
 					if target.Storage.Sequences[importedSequence].Last != 2 || source.Storage.Sequences[sequence].Last != 2 {
 						t.Fatal("snapshot replayed CHECK SQL")
 					}
-					newStore := target.Storage.Relations[roleTableRef(t, target, "subject").Address]
-					newRoot := target.Storage.IndexRoots[roleTableRef(t, target, "checked_idx").Address]
+					newStore := target.Storage.Relations[enginetest.RoleTableRef(t, target, "subject").Address]
+					newRoot := target.Storage.IndexRoots[enginetest.RoleTableRef(t, target, "checked_idx").Address]
 					if len(newStore.Versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
-					parent := target.Catalog.State.MustRelation(roleTableRef(t, target, "subject").Address)
+					parent := target.Catalog.State.MustRelation(enginetest.RoleTableRef(t, target, "subject").Address)
 					if newRoot.Hash != nil {
 						count := 0
 						for _, bucket := range newRoot.Hash.Buckets {

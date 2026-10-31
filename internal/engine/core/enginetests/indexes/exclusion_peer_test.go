@@ -1,13 +1,16 @@
-package core_test
+package indexes_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -91,7 +94,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					enginetest.SessionSQL(t, a, "DELETE FROM t")
 					at := a.Transactions.Ticket
 					projection := e.Exclusions.OwnLocked(at)
-					parent := roleTableRef(t, e, "public.t")
+					parent := enginetest.RoleTableRef(t, e, "public.t")
 					index := e.Catalog.State.MustRelation(parent.Address).Constraints.Exclusion[0].Index
 					if projection == nil || len(projection.Ended[parent.Address]) != 1 {
 						t.Fatal("provisional deletion lacks its actual ended version")
@@ -129,4 +132,37 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 			}
 		}
 	}
+}
+
+type deleteOutcome struct {
+	result core.Result
+	err    error
+}
+
+func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan deleteOutcome, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ast := enginetest.Statement(t, query)
+	done := make(chan deleteOutcome, 1)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		op, _, err := s.AcquireCommand(ctx)
+		var result core.Result
+		if err == nil {
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
+			err = op.CommandError(err)
+			op.Done()
+		}
+		done <- deleteOutcome{result, err}
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-finished:
+		case <-time.After(5 * time.Second):
+			t.Error("UNIQUE worker did not join")
+		}
+	})
+	return done, cancel
 }
