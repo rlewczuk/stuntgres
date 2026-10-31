@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `dc247f79c` (item 216 rebased on it).
+Last verified against `master` at `fa757dc36` (item 218 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 217, 218.
+- 217, 219.
 
 ## Linear plan
 
@@ -186,9 +186,24 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 217. [ ] Native triggers —
      [core](ENGINE-SPLIT-core.md#item-217--native-triggers) · needs 215 · P,
      bench · core after 7.5
-218. [ ] Catalog runtime —
+218. [x] Catalog runtime —
      [core](ENGINE-SPLIT-core.md#item-218--catalog-runtime) · needs 210, 212 ·
-     P, bench · core after 7.4
+     P, bench · core after 7.4 (`add68f97e`, `3e955c780`, `f4a8ebd53`, docs
+     commit) · the catalog source runtime (`EngineCatalogRuntime` →
+     `catalogrt.Runtime` over an embedded `catalogrt.Host` and the captured
+     `access.View`), the capture cache, keep filters, `CaptureRows`,
+     `InitializeSources`, the partition, publication, column, parameter and
+     routine-tree runtimes and the pg_shdepend classification move to the leaf
+     `core/catalogrt` (L14.5, 80 KiB); core keeps the capture policy
+     `openCatalogSourceLocked`, the Host (`catalogRuntime`, one allocation per
+     capture as before) and `catalog_inquiry_runtime.go` (deviations). Tests
+     build runtimes through `core.NewCatalogRuntime` and read them back with the
+     new `core.CatalogRuntimeFieldsOf` (user decision; ~150 test files). Core
+     7.77 → 7.70 MiB. Bench: startup, catalog captures and the cache unchanged
+     or fewer allocations. Passed: quickcheck (core 231.7 s, catalogrt 0.2 s
+     wall, load ~160), REFERENCE=1 `^TestReference(Pg|PG|Info|Catalog)`,
+     `layers.py` 0 violations, `revcheck.py`, `frames.py`, deps. Racecheck and
+     finalcheck skipped at user request.
 219. [ ] Inquiry runtime —
      [core](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) · needs 213, 218 ·
      P, bench · core after 7.35

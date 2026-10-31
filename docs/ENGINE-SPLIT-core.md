@@ -1285,7 +1285,90 @@ Needs 228. Mode S. Gated.
   `AcquireObjectLock`, `PublishedRelationLocked` and `StatementCatalogLocked`
   are now on `statementHost`'s shared method set.
 - 217: not started.
-- 218: not started.
+- 218: done (`add68f97e`, `3e955c780`, `f4a8ebd53`), at `fa757dc36`. - **Moved**
+  to `internal/engine/core/catalogrt` (80 KiB with README and tests):
+  `catalog_source_runtime` (→ `runtime.go`), `catalog_source_views`
+  (`views.go`), `catalog_source_cache` (`cache.go`), `catalog_source_keep`
+  (`keep.go`), `catalog_sources` (`sources.go`), `catalog_partition_runtime`,
+  `catalog_publication_runtime`, `info_columns_runtime`,
+  `info_parameters_runtime` (`partition.go`, `publication.go`, `columns.go`,
+  `parameters.go`), `routine_trees`, `shared_dependencies`. The move commit is
+  cmdmv output (replay `move.sh`); revcheck: test names and literals unchanged,
+  the nine renamed files token-equal modulo qualifiers. - **Runtime and Host.**
+  `catalogrt.Runtime` (was `EngineCatalogRuntime`) implements
+  `pgcatalog.Runtime` with value methods. Fields: embedded `Host`, `View
+  access.View` (the captured authority), `Input`, `Database`, `Temporary`,
+  `Presentation`, `SequenceBase`, `SequenceOwn`. `catalogrt.Host` (22 methods)
+  is the authority's `access.Environment` plus `RestrictedRelations`,
+  `EngineOwner` and the engine-level `pgcatalog.Runtime` methods (cursors,
+  prepared statements and transactions, `SessionSettings`, `ValidateParameter`,
+  `Maintenance`, `TableStatistics`, extended and attribute statistics, frozen
+  XID, vacuum/COPY/CREATE INDEX progress), promoted through the embedding, so
+  there are no forwarders. Core implements it on `catalogRuntime`
+  (`catalog_runtime_host.go`), which holds the `Runtime`, the engine, the
+  `AuthorizationView`, the registries and settings in one allocation
+  (`newCatalogRuntime(CatalogRuntimeFields)`); the engine-level methods stay in
+  their files (`vacuum_metadata`, `copy_progress`, `index_progress`,
+  `stats_snapshot`, `statistics_hosts` (item 216's stats visitors)) with a
+  `*catalogRuntime` receiver. `TableStatistics` now defaults its settings store
+  in a local instead of the receiver copy (same values). Deparse uses a
+  host-less `Runtime{View, Presentation}`; `engineOwner`/`restricted` treat a
+  missing Host like the old zero engine and authority. - **Exported:**
+  `Runtime`, `Host`, `CaptureCache` (`CaptureLocked`; the field stays on
+  `Engine` under `Engine.mu`), `CaptureRows` (was
+  `core.CaptureCatalogSourceRows`), `KeepQuery` (`Root`, `Leaves`, `Parameters`,
+  `Keep`), `InitializeSources`, `SharedDependencyDatabase`,
+  `ClassifySharedDependencies`, `PublicationTableMetadata`,
+  `VisitSequenceOverlay`, `BuiltinViewDefinition`. - **Deviations (user
+  decision).** Core keeps the per-OID capture policy `openCatalogSourceLocked`
+  (10.5 KiB: it releases `Engine.mu` on ~20 exits and picks core-typed
+  authorities, rule 9), `captureSelectSourcesLocked`,
+  `captureSharedDependencyRootsLocked` (cluster targets),
+  `CatalogSourceTemporaryOwner`, and `catalog_inquiry_runtime.go`
+  (`exec.CatalogInquiry` methods on core host types: item 219's catalog-object
+  inquiry group). Tests: the spec counted only the 124 `NewCatalogRuntime`
+  calls; 258 `core.EngineCatalogRuntime{…}` literals, 97 assertions and ~15
+  wrapper types in ~150 test files of 8 packages now use
+  `core.NewCatalogRuntime(core.CatalogRuntimeFields{…})`, the new inspection
+  accessor `core.CatalogRuntimeFieldsOf` (its inverse; the one test-only export,
+  user decision) and `pgcatalog.Runtime` embedding (replay `c1.sh`). - **Tests
+  (T3–T7).** Census from item 210 (at `9af072317`; these files unchanged since):
+  only four tests are catalogrt-owned. `shared_dependencies_test.go` moves as an
+  internal test. `TestViewCapabilitiesForeignEvents` (needs the moved
+  `CatalogViewLeafEvents` accessor, now `catalogrt/export_test.go`) and
+  `TestBuiltinViewRoutineIdentity` (rule 1) are split out of
+  `catalog_source_views_test.go` into `catalogrt/views_test.go` with copies of
+  the three `fdwUnit*` wrapper helpers; by T7 the package's engine tests sit
+  beside its `export_test.go`. `TestPGSettingsCoherentCapture` stays
+  (`SessionSettings` is a core Host method). Accessors
+  `CatalogRuntimeBuiltinViewDefinition`, `CatalogRuntimePresentationRef` and
+  `SetCatalogRuntimeTemporary` are gone (users call `BuiltinViewDefinition` and
+  set `Runtime`/`CatalogRuntimeFields` fields); `EngineOpenCatalogSourceLocked`
+  stays. No test deleted; no frame string changed (`frames.py list` identical).
+  - **Measured.** Core 7.77 → 7.70 MiB; `core/catalogrt` 80 KiB. Interleaved
+  binaries (`bench.txt`, 3 rounds × 2, load ~100): `BenchmarkOpenDatabase`
+  3,376–3,495 vs 3,385–3,503 allocs/op; catalog probe
+  (`zz_catalog_probe_test.go`, temporary) identical allocs/op for `pg_class`
+  238, `pg_type` (cache) 169/183, `pg_proc` keep 247, `pg_settings` 219,
+  `pg_cursors` 170, `pg_views` 4,040, `information_schema.columns` 4,287, and
+  `pg_indexes` 209 → 207 (checks no longer box the authority as
+  `access.Environment`). `escdiff`: the runtime boxing is replaced by the
+  `catalogRuntime` allocation; no other new heap objects. Quickcheck at load
+  average ~160: core 231.7 s, `core/catalogrt` 0.2 s elapsed; the one new test
+  binary is small (two engine tests), its T7 cascade is the +34 s CPU item 212
+  measured. - **Notes for later items.** 219: `catalog_inquiry_runtime.go`
+  (`CatalogUserName`, `TablespaceLocation`, `TablespaceDatabase`,
+  `catalogInquiryCatalog`) is still core; `core/inquiry` may import
+  `core/catalogrt` (rule 6). Finding: `layers.py` reports one unknown package,
+  `identfile` (feature commit `d57b7b53e`), missing from §3. 229:
+  `TestPGSettingsCoherentCapture`,
+  `TestSelectExactRoutineCurrentBuiltinIdentity` and the other census-split
+  catalog tests stay in core. - **Verified:** quickcheck (no failures);
+  `REFERENCE=1 RUN='^TestReference(Pg|PG|Info|Catalog)'` (19 packages; the 900 s
+  deadline split it into runs, and `reference/tables` was rerun after a
+  testcontainers reaper deadline); `layers.py` 0 violations; `revcheck.py` (test
+  names and literals unchanged); `frames.py list` unchanged; deps (only the new
+  package). Racecheck and finalcheck skipped (user decision).
 - 219: not started.
 - 221: not started.
 - 222: not started.
