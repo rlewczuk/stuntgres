@@ -119,6 +119,7 @@ func pgDependUnitBootstrap(t *testing.T, view catalog.Read) []pgcatalog.DependEd
 		{"hungarian_stem", "hungarian"},
 		{"irish_stem", "irish"},
 		{"italian_stem", "italian"},
+		{"lithuanian_stem", "lithuanian"},
 	} {
 		dictionary := seed(3600, declaration.dictionary, "")
 		configuration := seed(3602, declaration.configuration, "")

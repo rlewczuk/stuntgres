@@ -122,13 +122,23 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 			t.Fatal("Italian dictionary identity reused", italianAddress)
 		}
 	}
+	lithuanianAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: source.Namespace(), Name: "lithuanian_stem"})
+	lithuanian, ok := view.TSDictionary(lithuanianAddress)
+	if !ok || lithuanianAddress.ObjectID == 0 || lithuanian.Template != stem.Template {
+		t.Fatal("actual Lithuanian dictionary seed", lithuanianAddress)
+	}
+	for _, earlier := range []ids.ObjectAddress{stemAddress, arabicAddress, armenianAddress, basqueAddress, danishAddress, dutchAddress, estonianAddress, germanAddress, greekAddress, hindiAddress, hungarianAddress, irishAddress, italianAddress, {ClassID: ids.TSDictionaryClassID, ObjectID: 3765}} {
+		if lithuanianAddress == earlier {
+			t.Fatal("Lithuanian dictionary identity reused", lithuanianAddress)
+		}
+	}
 	for range 2 {
 		got, err := core.CaptureCatalogSourceRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed dictionary capture", got, err)
 		}
-		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 14 {
-			t.Fatal("exact simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian dictionary source inventory", got)
+		if got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 15 {
+			t.Fatal("exact simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian dictionary source inventory", got)
 		}
 		seen := map[string]bool{}
 		for _, row := range got.Anonymous {
@@ -141,7 +151,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 				}
 			}
 			name, err := row[1].Text()
-			if err != nil || seen[name] || name != "simple" && name != "english_stem" && name != "arabic_stem" && name != "armenian_stem" && name != "basque_stem" && name != "danish_stem" && name != "dutch_stem" && name != "estonian_stem" && name != "german_stem" && name != "greek_stem" && name != "hindi_stem" && name != "hungarian_stem" && name != "irish_stem" && name != "italian_stem" {
+			if err != nil || seen[name] || name != "simple" && name != "english_stem" && name != "arabic_stem" && name != "armenian_stem" && name != "basque_stem" && name != "danish_stem" && name != "dutch_stem" && name != "estonian_stem" && name != "german_stem" && name != "greek_stem" && name != "hindi_stem" && name != "hungarian_stem" && name != "irish_stem" && name != "italian_stem" && name != "lithuanian_stem" {
 				t.Fatal("dictionary seed name", name, err)
 			}
 			seen[name] = true
@@ -222,6 +232,12 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 				if err != nil || row[5].IsNull() || options != "language = 'italian', stopwords = 'italian'" {
 					t.Fatal("Italian seed ordered options", options, err)
 				}
+			} else if name == "lithuanian_stem" {
+				oid, template = uint32(lithuanianAddress.ObjectID), uint32(lithuanian.Template.ObjectID)
+				options, err := row[5].Text()
+				if err != nil || row[5].IsNull() || options != "language = 'lithuanian'" {
+					t.Fatal("Lithuanian seed language-only options", options, err)
+				}
 			} else {
 				oid, template = uint32(basqueAddress.ObjectID), uint32(basque.Template.ObjectID)
 				options, err := row[5].Text()
@@ -252,6 +268,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(hungarianAddress)
 	empty.RemoveDescriptor(irishAddress)
 	empty.RemoveDescriptor(italianAddress)
+	empty.RemoveDescriptor(lithuanianAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
 	got, err := core.CaptureCatalogSourceRows(emptyInput, produce)

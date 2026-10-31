@@ -954,11 +954,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Irish and Italian kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian and Lithuanian kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi and Irish have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Irish and Lithuanian have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian and Italian stock lists contain 127, 94, 101, 231, 199 and 279 entries (Hungarian retains the released duplicate);
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
@@ -980,6 +980,13 @@ publication and lock-manager tickets stay in the engine.
   stage without retrying a shorter standard suffix. Prefix/tail edits avoid
   intermediate word copies. It has no elision, Unicode case folding, canonical
   normalization or English ASCII backup.
+  Lithuanian marks original UTF8 p1 once, including its initial-a rune-length
+  condition, then applies conflicts, inflections, č/dž, repeated derivations,
+  č/dž and final gd in release order. Suffix candidates must lie inside p1
+  before longest-match selection: a crossing longer suffix never hides a
+  shorter eligible one. Conflict and consonant rewrites are unrestricted;
+  p1 remains fixed across all edits. Released -er- rules and terminal
+  apostrophes remain intact; no stock stoplist or English ASCII backup exists.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.
