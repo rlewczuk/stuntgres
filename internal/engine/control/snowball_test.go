@@ -85,6 +85,10 @@ func snowballUnitSource(t *testing.T) Source {
 	if err != nil {
 		t.Fatal(err)
 	}
+	serbianRuntime, err := functions.DefaultSerbianSnowballDictionary()
+	if err != nil {
+		t.Fatal(err)
+	}
 	turkishRuntime, err := functions.DefaultTurkishSnowballDictionary()
 	if err != nil {
 		t.Fatal(err)
@@ -117,7 +121,7 @@ func snowballUnitSource(t *testing.T) Source {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime, tamilRuntime, turkishRuntime); err != nil {
+	if err := store.InstallSnowballLocked(source.Bootstrap, runtime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime, tamilRuntime, turkishRuntime, serbianRuntime); err != nil {
 		t.Fatal(err)
 	}
 	// The FDW fixture already owns ACL and integer types, including their arrays.
@@ -431,7 +435,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 		})
 	}
 	// All bootstrap dictionaries participate in the same collision graph, including
-	// allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian and fixed simple, independent of descriptor iteration.
+	// all twenty-five allocated Snowball languages and fixed simple, independent of descriptor iteration.
 	changed := *seed
 	changed.ObjectName = "simple"
 	changed.Options = []catalog.DictionaryOption{{Name: "language", Value: "english", Supplied: true}}
@@ -454,7 +458,7 @@ func TestSnowballSeedReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(providers) != 25 {
+	if len(providers) != 26 {
 		t.Fatal("actual initialized dictionary inventory", providers)
 	}
 	lines, err := planProviderReplay(providers)
@@ -563,7 +567,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 25 {
+	if err != nil || len(providers) != 26 {
 		t.Fatal("actual Greek dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -573,7 +577,7 @@ func TestSnowballGreekSeedReplay(t *testing.T) {
 		t.Fatal("canonical Greek identity and exact options replay", lines, err)
 	}
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 25 {
+	if err != nil || len(providers) != 26 {
 		t.Fatal("actual Greek configuration replay inventory", providers, err)
 	}
 	if lines, err := planProviderReplay(providers); err != nil || len(lines) != 0 {

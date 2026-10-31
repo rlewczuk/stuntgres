@@ -378,7 +378,7 @@ neither owns catalog authority.
   extension, its global language and three allocated C handlers with creation-owned
   display sources, canonical strictness and genuine language-to-handler dependencies),
   `Store.InstallSnowballLocked` (one allocated C helper pair/template and distinct
-  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionary/configuration seeds, twenty-four core-supplied
+  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Serbian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionary/configuration seeds, twenty-five core-supplied
   compiled runtimes and real nineteen-token mappings),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`

@@ -994,11 +994,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Tamil and Yiddish have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Serbian, Tamil and Yiddish have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian, Italian, Nepali and Norwegian stock lists contain 127, 94, 101, 231, 199, 279, 304 and 176 entries (Hungarian and Norwegian retain released duplicates);
   any resource can be explicitly configured with any supported provider.
   Swedish's stock list contains all 114 released entries, including `sitta`;
@@ -1095,6 +1095,14 @@ publication and lock-manager tickets stay in the engine.
   then rewrites terminal consonants. Its exact 53-entry stock stoplist shares the
   common resource loader. No locale Turkish casing, normalization or English
   backup is applied.
+  Serbian transliterates all thirty lowercase Cyrillic letters, runs separate
+  consonant-surrounded ije/je and dj prelude passes, then fixes byte-based p1
+  (including the special r rule) and no_diacritics. Its complete 130/2035/26
+  among tables apply Step_1 once, then Step_2 or, only on failure, Step_3.
+  Global longest selection precedes region and accentless-guard rejection.
+  Immutable source-sorted tables and retained prefix/replacement tails avoid
+  per-token table construction and intermediate copies. Serbian has no stock
+  stoplist, Unicode case folding, accent normalization or English ASCII backup.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

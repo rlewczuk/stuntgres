@@ -93,7 +93,7 @@ func TestSnowballRomanianSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 25 {
+	if err != nil || len(providers) != 26 {
 		t.Fatal("actual dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -108,7 +108,7 @@ func TestSnowballRomanianSeedReplay(t *testing.T) {
 	source.State.SetDescriptor(moved.Address(), &moved)
 	source.State.BindName(catalog.DescriptorNameKey(&moved), moved.Address())
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 25 {
+	if err != nil || len(providers) != 26 {
 		t.Fatal("actual configuration replay inventory", providers, err)
 	}
 	lines, err = planProviderReplay(providers)

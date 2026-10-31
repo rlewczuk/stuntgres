@@ -339,6 +339,15 @@ admitted output-gated cancellation share `RUN='^TestReferenceTamilSnowball'`.
 Native seed/carrier replay consumes actual emitted SQL on PostgreSQL, including
 absent versus explicit-empty options. Private stage literals, resource backing,
 seed authority, publication fences and accepted folds use `RUN='^TestSnowballTamil'`.
+Serbian lowercase-Cyrillic transliteration, overlapping prelude passes, fixed
+byte-based p1 and complete released 130/2035/26 rule stages, historical literal
+corpus, absent stock stoplist and explicit English127, typed direct/held values,
+all nineteen stock mappings, exact diagnostics and atomic changes share
+`RUN='^TestReferenceSerbianSnowball'`. Admitted cancellation gates on actual
+Serbian lexization. Controls replay actual native-emitted SQL in PostgreSQL and
+cover relocation, stock seed cycles and nested reference carriers. Private
+independent exhaustive stage witnesses, resource and prepared ownership,
+rejected publication and seed replay use `RUN='^TestSnowballSerbian'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
