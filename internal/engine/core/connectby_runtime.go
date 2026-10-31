@@ -68,7 +68,7 @@ func validateConnectbySource(result *sqltype.Descriptor, schema []catalog.Column
 	for i, label := range []string{"key", "parent key"} {
 		source, target := schema[i].Usage, result.CompositeMember(i).Usage
 		if source.Type.ID() != target.Type.ID() || target.Typmod >= 0 && source.Typmod != target.Typmod {
-			return connectbyReturnError("Source " + label + " type " + resultUsageName(source, nil) + " does not match return " + label + " type " + resultUsageName(target, nil) + ".")
+			return connectbyReturnError("Source " + label + " type " + exec.ResultUsageName(source, nil) + " does not match return " + label + " type " + exec.ResultUsageName(target, nil) + ".")
 		}
 	}
 	return nil

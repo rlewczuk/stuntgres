@@ -304,7 +304,7 @@ func (h *plHost) checkDynamicSetShape(d *proc.Definition, columns []catalog.Colu
 			usage, name = member.Usage, member.Name
 		}
 		if column.Usage.Type.ID() != usage.Type.ID() || usage.Typmod >= 0 && column.Usage.Typmod != usage.Typmod {
-			return mismatch(fmt.Sprintf("Returned type %s does not match expected type %s in column %q (position %d).", resultUsageName(column.Usage, h.TypeName), resultUsageName(usage, h.TypeName), name, i+1))
+			return mismatch(fmt.Sprintf("Returned type %s does not match expected type %s in column %q (position %d).", exec.ResultUsageName(column.Usage, h.TypeName), exec.ResultUsageName(usage, h.TypeName), name, i+1))
 		}
 	}
 	return nil

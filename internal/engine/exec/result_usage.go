@@ -1,16 +1,17 @@
-package core
+package exec
 
 import (
 	"strings"
 	"stuntgres/internal/sqltype"
 )
 
-// Result descriptor errors preserve typmods while borrowing the caller's type
-// visibility. A nil resolver retains the descriptor's builtin diagnostic name.
-func resultUsageName(u sqltype.Usage, resolve func(*sqltype.Descriptor) string) string {
+// ResultUsageName names u in result-descriptor errors, preserving typmods
+// while borrowing the caller's type visibility. A nil resolver retains the
+// descriptor's builtin diagnostic name.
+func ResultUsageName(u sqltype.Usage, resolve func(*sqltype.Descriptor) string) string {
 	if u.Type.IsArray() && !u.Type.IsCatalogVector() {
 		u.Type = u.Type.Element()
-		return resultUsageName(u, resolve) + "[]"
+		return ResultUsageName(u, resolve) + "[]"
 	}
 	name := u.Type.DiagnosticName()
 	if resolve != nil {
