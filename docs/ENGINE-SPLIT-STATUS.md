@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `8850a34d2` (item 213 rebased on it).
+Last verified against `master` at `7731d0abf` (item 212 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 208, 209, 210, 211, 212.
+- 208, 209, 210, 211, 214, 215, 216.
 
 ## Linear plan
 
@@ -62,8 +62,20 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 211. [ ] Query and DML feature tests —
      [core](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) · needs
      207 · P · core after 7.8
-212. [ ] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
-     needs 206 · P, bench · core after 7.7
+212. [x] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
+     needs 206 · P, bench · core after 7.7 (`11b535b5d`, `e87134e1a`,
+     `9fa0e76ca`, `f60d36322`, `27aff0554`, docs commit) · the EXPLAIN renderer
+     (11 files plus the new `explain_host.go`, 114 KiB) and its internal JSON
+     presentation test move to the leaf `core/explain` (L14.5) over
+     `explain.Host` (16 methods on `statementHost`) and `explain.Authority`
+     (implemented by `AuthorizationView`); one recorded T6 exception,
+     `Renderer.PresentedNodes` (user decision). Core 11.67 → 11.57 MiB. T7: an
+     engine test inside `core/explain` costs about +34 s CPU and +5–16 s wall
+     per build, so engine tests of leaves go to `core/<x>/enginetests`. Bench:
+     startup and EXPLAIN allocations unchanged. Passed: quickcheck (two deadline
+     load flakes passed alone), REFERENCE=1
+     `^TestReference(Explain|PlannerCosts)`, `layers.py` 0, `revcheck.py`, deps.
+     Racecheck and finalcheck skipped at user request.
 213. [x] Host capability seam —
      [core](ENGINE-SPLIT-core.md#item-213--host-capability-seam) · needs — · P,
      bench · core after 7.7 (`66e8f81a5`, `b861d4501`, docs commit) ·

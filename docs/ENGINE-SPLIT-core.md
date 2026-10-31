@@ -761,7 +761,81 @@ Needs 228. Mode S. Gated.
 - 209: not started.
 - 210: not started.
 - 211: not started.
-- 212: not started.
+- 212: done (`11b535b5d`, `e87134e1a`, `9fa0e76ca`, `f60d36322`, `27aff0554`),
+  at `7731d0abf`. - **Moved** to `internal/engine/core/explain`:
+  `explain_command`, `explain_expression`, `explain_foreign`,
+  `explain_foreign_query`, `explain_json`, `explain_options`, `explain_pruning`,
+  `explain_render`, `explain_sources`, `explain_statistics`, `planner_costs`,
+  plus the seam file `explain_host.go`, and the internal test
+  `explain_json_presentation_test.go` (census rule 1). `explain.go`,
+  `explain_analyze.go`, `parallel_presentation.go` and `scope.explain` stay. The
+  move commit is cmdmv output (replay `move.sh`), token-equal modulo qualifiers.
+  - **Host.** `explain.Host` has 16 methods. `statementHost` implements it and
+  reuses five exec.Host methods (`Context`, `Operation`, `Environments`,
+  `AdmittedPlannerMethods`, `ReleaseReplacementRead`); new ones are in
+  `core/explain_statement_host.go`: `PendingCatalog`, `CatalogDomain`,
+  `PartitionCatalog` (inheritance read, partition topology and detach snapshot
+  in one call), `EngineStorageLocked`, `PrivateStorageLocked`,
+  `ImplicitStatement`, `CheckRestoreEffect`, `CurrentAccessLocked`,
+  `AuthorizeViewSourceLocked`, and `ReleaseEngineLocked`/`ReacquireEngine`. The
+  last two bracket the five provider-callback and detached-comparison windows
+  (pairs, not closures, so nothing escapes). Names must not collide with
+  `StatementScope` fields (`PartitionRelations`, `Input`, `Output`):
+  `statementHost` shares them. - **Deviation: Authority, not access.View.** The
+  renderer also passes its authorization to `analyze.CheckBinding`, uses it as
+  the `view.CheckPolicyAuthority` environment (as the policy user), reads
+  `ReferencePath` and recovers rewritten rule authorities. A bare `access.View`
+  would change behaviour, so `explain.Authority` = `analyze.Privileges` +
+  `access.Environment` + `view.RuleAuthority`, implemented by
+  `AuthorizationView`. The renderer caches the `access.View` next to it; rule
+  authorities are recovered by one checked assertion (new panic text "rule
+  authority %T is not an EXPLAIN authority"). - **Exported:** `Host`,
+  `Authority`, `Renderer` (`Observation`, `Command`, `ForeignFence`, `Render`,
+  `SetForeignParameters`, `CommandTree`, `MarkRuleRewrite`, `PresentedNodes`),
+  `NewRenderer`, `Options` (six fields), `ValidateOptions`, `DescribeFormat`,
+  `Error`, `Tree` (`Actual`), `Summaries`, `Output` (takes a context), `Bound`
+  (from `explain.go`), `PlannerSourceRows`. Core keeps `newExplainRenderer` as
+  the wrapper over `NewRenderer`. - **Tests (T5, T6).** `explain_cancel_test.go`
+  matches `.(*Renderer).node` (renamed in the export commit). No test moved
+  besides the internal one and none was deleted; the other explain and planner
+  tests stay for phase A and C owners (`explain_foreign_context_test.go` is
+  accessor-blocked). `ExplainBoundForTest` stays in core over the exported API.
+  `ExplainObservationForTest` stays in core and calls `Renderer.PresentedNodes`,
+  the one test-only export (user decision, T6 exception), because
+  `TestExplainAnalyzeForeignExecutionIdentity` also needs the core-only
+  `ExplainActiveForTest`. `ExplainActiveForTest` stays. - **T7 measurement**
+  (`t7.sh`, 4 interleaved rounds, load 100–130 on 32 cores): an external engine
+  test in `core/explain` next to its internal test makes go test rebuild 15
+  packages (core, the seven `*cmds` families, the root, enginetest, …) as
+  `explain.test` variants. Per edit of explain or below, the build of
+  `core/explain` with `exec/enginetests` took 37–41 s CPU and 16–26 s wall,
+  against 5.5–6.7 s CPU and 3–12 s wall with the same test in
+  `core/explain/enginetests`. That is about +34 s CPU, under 1% of quickcheck
+  CPU, so no user decision. T7 stands: leaves without an `export_test.go` keep
+  pure units in `core/<x>` and engine tests in `core/<x>/enginetests`. -
+  **Measured.** Core 11.67 → 11.57 MiB; `core/explain` 114 KiB with the README.
+  Interleaved binaries (`bench.txt`): `BenchmarkOpenDatabase` 3,322–3,330 vs
+  3,321–3,329 allocs/op. A temporary EXPLAIN probe (`probe.txt`) shows identical
+  allocs/op for SELECT 197, EXPLAIN 289, VERBOSE JSON over a view 722–723,
+  forced RLS 211 and ANALYZE 291. `escdiff`: staying core files are unchanged;
+  the renderer's authority boxing replaces the per-`CheckBinding` boxing. -
+  **Docs.** `core/explain/README.md` is the leaf README template (Layering,
+  Contract, Host and authority, Locks, Behaviour, Testing). The core README's
+  ordinary-EXPLAIN, TEXT/JSON and ANALYZE presentation paragraphs moved there;
+  core keeps the ANALYZE execution paragraph and a pointer. - **Notes for later
+  items.** 214–219: implement leaf Hosts on `statementHost`, check new method
+  names against `StatementScope` fields and existing methods, and prefer
+  release/reacquire pairs over callbacks. cmdmv `-force` is needed when only T6
+  reports remain; T6 counts exported moved names too. revcheck's base must be
+  the rebased master, not the start tip. - **Verified:** quickcheck (core 520 s
+  wall, `core/explain` 0.08 s, load 100–270 on 32 cores;
+  `TestReferenceTypedTableAttachmentSourceAdmission` and
+  `TestReferenceTransactionalPrivilegesRoutineKinds` hit their step deadlines
+  under that load and passed 3/3 alone); `REFERENCE=1
+  RUN='^TestReference(Explain|PlannerCosts)'`; `layers.py` 0; `frames.py check`;
+  `revcheck.py` (tests unchanged; literals: the frame rename and the new
+  rule-authority panic text); deps unchanged. Racecheck and finalcheck skipped
+  (user decision).
 - 213: - 213: done (`66e8f81a5`, `b861d4501`), in place at `8850a34d2`. -
   **Capability accessors.** `exec.Host` (109 methods) gains `Contrib()`,
   `TextSearch()`, `CatalogInquiry()`, `SessionInquiry()` and
