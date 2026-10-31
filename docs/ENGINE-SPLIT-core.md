@@ -1284,7 +1284,66 @@ Needs 228. Mode S. Gated.
   serves them. 217: `ResolveRelationLocked`, `VacuumAllowedLocked`,
   `AcquireObjectLock`, `PublishedRelationLocked` and `StatementCatalogLocked`
   are now on `statementHost`'s shared method set.
-- 217: not started.
+- 217: done (`c1712c579`, `8d1945229`, `dc5c94c2f`), at `e8933d2fb`. - **Moved**
+  to `internal/engine/core/nativetrig` (replay `move.sh`, cmdmv 0
+  VIOLATION/SEAM/T6; token-equal to the cut modulo qualifiers):
+  `trigger_autoinc`, `trigger_builtin`, `trigger_builtin_datum`,
+  `trigger_insert_username`, `trigger_lo`, `trigger_moddatetime`,
+  `trigger_refint`, `trigger_tcn`, `refint_sql`, plus the seam file `host.go`,
+  and the internal tests `tcn_payload_test.go` and `trigger_lo_test.go`. -
+  **Entry.** `nativetrig.Invoke[A]` dispatches the provider bodies (tcn, refint,
+  autoinc, insert_username, moddatetime, lo_manage) and the builtin suppression
+  and tsvector bodies. - **Deviation: the envelope stays.**
+  `invokeNativeTrigger` (`core/native_trigger.go`) keeps the context check, SQL
+  routine and trigger depth, `enterRoutineEnvironment`,
+  `activateRoutineCommandPolicy` and the function statistics frame, then calls
+  `nativetrig.Invoke`; its two callers are unchanged. It is core lifecycle (rule
+  4) shared with SQL, PL and event triggers, and it uses core closures and the
+  core stats frame, which a host pair would need an opaque frame or extra
+  closures for. - **Deviation: `refint_sql.go` moves without its bodies.** The
+  `ActivateSQLRoutine` command scratch, admission, analysis and execution are
+  `PrepareTriggerSQL`/`ExecuteTriggerSQL` on `statementHost`: refint needs typed
+  closed parameters, all-row demand and `BeginRoutineCommand`, which
+  `exec.NestedSQL` (no parameters) does not give. Parsing, the private catalog
+  read and the SPI diagnostics moved. - **Host.** `nativetrig.Host[A]` on
+  `statementHost` (`core/nativetrig_statement_host.go`) embeds `tsearch.Host[A]`
+  (the tsvector capture's `Walk`/`Accept` take it, and it gives `Operation`,
+  `Environments`, `ActivateRuntime`, the Engine.Mu pair, `PendingCatalog`,
+  `PrivateCatalogLocked`). Reused: `Context`, `LargeObject`. New (8):
+  `NamespaceAuthorizationLocked`, `TextSearchInput(auth)`, `NextvalText`
+  (autoinc's legacy `nextval(text)`, which stays a core body),
+  `CurrentUserValue` (insert_username's current_user over a stack
+  `exec.Context`: through an interface call the Context would be heap-allocated
+  per row), `QueueNotification`, `SetRoutineAtomic`, `PrepareTriggerSQL`,
+  `ExecuteTriggerSQL`. The authority is `tsearch.Authority[A]` (no new authority
+  interface); the package is generic over it as `core/tsearch` is. -
+  **Exported:** `Host`, `Invoke`. - **Tests (T5–T7).** Census: item 209's re-run
+  at `e6e052a5f` (no trigger inflow since). Rule 1 `TestTcnPayload`,
+  `TestLoManageOutputOID`, `TestLoManageUnmentionedAttribute`; the rule-3
+  `TestLoManageReferenceDecision` is in the same internal file over moved
+  unexported code. `trigger_lo_test.go`'s two zero-scope
+  `manageLargeObjectReference` calls became `[testAuthority](nil, …)` with a
+  five-method stub authority (T5; the decisions return before the host). All
+  other trigger tests are rule 3 or "owners stay" and stay in core; no accessor
+  reaches moved names (T6: none); no test deleted. - **Measured.** Core
+  8,073,552 → 8,043,172 bytes (7.70 → 7.67 MiB); `core/nativetrig` 37.3 KiB
+  (46.2 KiB with the README). Interleaved binaries (`bench.txt`, 3 rounds):
+  `BenchmarkOpenDatabase` 3,406–3,532 vs 3,415–3,532 allocs/op; the 12-case
+  trigger probe (plain, autoinc ×1/×64, insert_username, moddatetime, refint,
+  tcn ×64, lo_manage, suppression, tsvector ×1/×64, tsvector_column) has
+  identical allocs/op in every case; ns/op ranges overlap (load 100–250).
+  `escdiff` over the trigger files: no new heap object (refint's key slices now
+  leak into `ExecuteTriggerSQL`; refint's allocations are unchanged).
+  `TestTriggerCorePartitionPath` (`trigger_review_test.go`) passes. - **Docs.**
+  New `core/nativetrig/README.md`. The core README's suppression, tsvector, tcn,
+  autoinc, refint, moddatetime, lo_manage and insert_username body paragraphs
+  and the `TestLoManage` selector moved there; core keeps the dispatch and
+  balanced-entry sentences and a pointer. - **Notes for later items.** 219:
+  `CurrentUserValue` calls `sessionInquiryHost.IdentityValue`; keep it a static
+  call when session inquiry moves. 225: `QueueNotification` appends to
+  `notificationEvents`, like `NOTIFY`. 220: `layers.py` reports
+  `internal/engine/identfile` (feature inflow at `d57b7b53e`) as unknown; it
+  needs a §3 row.
 - 218: done (`add68f97e`, `3e955c780`, `f4a8ebd53`), at `fa757dc36`. - **Moved**
   to `internal/engine/core/catalogrt` (80 KiB with README and tests):
   `catalog_source_runtime` (→ `runtime.go`), `catalog_source_views`

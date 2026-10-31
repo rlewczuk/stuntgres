@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `fa757dc36` (item 218 rebased on it).
+Last verified against `master` at `e8933d2fb` (item 217 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 217, 219.
+- 219.
 
 ## Linear plan
 
@@ -183,9 +183,23 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      `^TestReference(Statistics|AttributeStatistics|AlterStatistics|Analyze)`,
      `layers.py` 0, `frames.py`, `revcheck.py`, deps. Racecheck and finalcheck
      skipped at user request.
-217. [ ] Native triggers —
+217. [x] Native triggers —
      [core](ENGINE-SPLIT-core.md#item-217--native-triggers) · needs 215 · P,
-     bench · core after 7.5
+     bench · core after 7.5 (`c1712c579`, `8d1945229`, `dc5c94c2f`, docs commit)
+     · the native trigger bodies (9 files plus the new `host.go`, 37 KiB) move
+     to the leaf `core/nativetrig` (L14.5) behind `nativetrig.Invoke` over
+     `nativetrig.Host[A]` (embeds `tsearch.Host[A]`; shared method set on
+     `statementHost`, 8 new methods), generic over `tsearch.Authority[A]`; core
+     keeps the routine envelope in `invokeNativeTrigger` and, as a deviation,
+     refint's parameterized nested SQL
+     (`PrepareTriggerSQL`/`ExecuteTriggerSQL`). `tcn_payload_test.go` and
+     `trigger_lo_test.go` move as internal tests (the lo units over a stub
+     authority). Core 7.70 → 7.67 MiB. Bench: startup and 12 trigger probe
+     allocations unchanged; `escdiff` shows no new heap object. Passed:
+     quickcheck, REFERENCE=1
+     `^TestReference(Autoinc|InsertUsername|Moddatetime|Refint|Tcn|LoManage)`,
+     `layers.py` 0, `frames.py list` unchanged, `revcheck.py`, deps. Racecheck
+     and finalcheck skipped at user request.
 218. [x] Catalog runtime —
      [core](ENGINE-SPLIT-core.md#item-218--catalog-runtime) · needs 210, 212 ·
      P, bench · core after 7.4 (`add68f97e`, `3e955c780`, `f4a8ebd53`, docs
