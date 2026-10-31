@@ -805,13 +805,14 @@ reviewed decision:
   Its anonymous ten-field RecordShape supports scalar, field and one-row FROM
   usage (including an all-NULL row for STRICT NULL). It is VOLATILE, stage
   dependent and never folded; only the installed plan wrapper can execute it.
-  `Pageinspect` binds the installed BRIN, B-tree, FSM, GIN and raw header/checksum
-  byte decoders through the same handle. Children remain in native written
-  order with checked formal slots; checksum's second formal is INT8, distinct
-  from BRIN items' REGCLASS. Its installed wrapper supports scalar,
-  anonymous-record and set-source results. Header fields retain PG_LSN/XID
-  descriptor authority. STRICT body suppression precedes current-superuser
-  and index-descriptor admission; ordinary invocation ACLs remain shared.
+  `Pageinspect` binds the installed BRIN, B-tree, FSM, GIN, hash, heap and raw
+  header/checksum byte decoders through the same handle. Children remain in
+  native written order with checked formal slots; flags use two INT4 formals,
+  checksum uses BYTEA/INT8, and BRIN items use BYTEA/REGCLASS. Its installed
+  wrapper supports scalar, anonymous-record and set-source results. Heap and
+  header fields retain XID/TID/PG_LSN descriptor authority. STRICT body suppression
+  precedes current-superuser and index-descriptor admission; ordinary invocation
+  ACLs remain shared.
   No elevated role or relation/page state is retained in the expression.
   `ValidateArguments` checks the immutable argument types and formal-slot map
   without copying or rebuilding. Actual `Rebuild`/`Substitute` operations share

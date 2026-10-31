@@ -849,13 +849,18 @@ Cooperative provider admission, class precision and failure ownership use
 add `RACE=1` for cancellation and cursor-lifetime proof.
 JSON text-search filter/traversal ownership uses `RUN='^TestJSONTextSearch'`.
 
-Native physical datum and BRIN/B-tree/FSM/header/checksum byte-reader units use `RUN='^TestPageinspect'`;
+Native physical datum and BRIN/B-tree/FSM/heap/header/checksum byte-reader units use `RUN='^TestPageinspect'`;
 GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.
 Hash decoder, safety and cancellation units use `RUN='^TestHashPage'`.
 The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
 lists separately from page-context dead flags. Posting results use executable
 generic `tid[]` (OID 1010, element 27), with ordinary array ownership and codecs;
 this does not admit TID binary COPY.
+`HeapPage` borrows immutable caller bytes and decodes one slot at a time with
+context cancellation, separate header/tail availability and bounded pointer reads.
+Undefined upstream out-of-allocation layouts receive ordinary native-layout
+errors only; private safety tests never send these images to the PostgreSQL oracle.
+Heap infomask decoding retains static flag names in source order without a registry.
 Regex matcher ownership and independent concurrent scratch:
 `RUN='^TestPGRegexMatcher'`.
 

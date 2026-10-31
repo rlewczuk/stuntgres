@@ -50,6 +50,8 @@ var PageinspectMembers = [...]PageinspectMember{
 	{"hash_page_stats", "hash_page_stats", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{23,23,23,23,20,20,20,23,23}, "page", "live_items","dead_items","page_size","free_size","hasho_prevblkno","hasho_nextblkno","hasho_bucket","hasho_flag","hasho_page_id")}},
 	{"hash_page_items", "hash_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{23,27,20}, "page","itemoffset","ctid","data")}},
 	{"hash_metapage_info", "hash_metapage_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20,20,701,23,23,23,23,20,20,20,20,20,20,26,1016,1016}, "page","magic","version","ntuples","ffactor","bsize","bmsize","bmshift","maxbucket","highmask","lowmask","ovflpoint","firstfree","nmaps","procid","spares","mapp")}},
+	{"heap_page_items", "heap_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{21, 21, 21, 21, 28, 28, 23, 27, 23, 23, 21, 25, 26, 17}, "page", "lp", "lp_off", "lp_flags", "lp_len", "t_xmin", "t_xmax", "t_field3", "t_ctid", "t_infomask2", "t_infomask", "t_hoff", "t_bits", "t_oid", "t_data")}},
+	{"heap_tuple_infomask_flags", "heap_tuple_infomask_flags", "23,23", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{1009, 1009}, "t_infomask", "t_infomask2", "raw_flags", "combined_flags")}},
 }
 
 func (p *PageinspectProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {

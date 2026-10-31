@@ -142,6 +142,12 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   low header versions remain positive fixtures; undefined C reads are covered
   only by native safety units. Physical bitmap acquisition is a separate
   non-engine mechanism, not a bytea overload or synthesized logical index page.
+- Heap pageinspect fixtures in `pageinspect_heap_fixture_test.go` independently
+  assemble released tuple headers, line pointers and caller-owned payload bytes.
+  Shared scenarios retain exact row/array expectations, raw transports, complete
+  diagnostics and descriptors independently of cursor contents. Stored consumers
+  preserve current installed identities through rename, membership changes and
+  native controls; no physical relation pages are acquired.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.
@@ -177,6 +183,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - GIN pageinspect: `RUN='^TestReferencePageinspectGIN'`
 - Header/checksum pageinspect: `RUN='^TestReferencePageinspect(Header|Checksum)'`
 - Hash pageinspect: `RUN='^TestReferencePageinspectHash'`
+- Heap pageinspect: `RUN='^TestReferencePageinspectHeap'`
 - tablefunc hierarchy sources: `RUN='^TestReferenceConnectby'`. Shared helpers
   own caller-record metadata, full SQL diagnostics, retained statements and
   explicit native-control phases. Renamed members use current names or stored

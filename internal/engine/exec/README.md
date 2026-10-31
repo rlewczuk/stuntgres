@@ -424,10 +424,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
 - **Byte pageinspect** (`pageinspect.go`): scalar/record/source invocation
   shares installed identity admission and once-only native written-order
   argument evaluation. A fixed two-value frame projects formal slots; its
-  result retains the already evaluated checksum INT8 operand without copying
-  a page or evaluating a child twice. The host supplies current superuser and,
-  for BRIN items, exact index-descriptor authority before raw validation.
-  Immutable BRIN, B-tree, FSM, GIN, hash and raw-header readers decode bytea without
+  result retains already evaluated checksum/flags integer operands without
+  copying a page or evaluating a child twice. The host supplies current superuser
+  and, for BRIN items, exact index-descriptor authority before raw validation.
+  Immutable BRIN, B-tree, FSM, GIN, hash, heap and raw-header readers decode bytea without
   table-row access. Header/checksum routes in `pageinspect_header.go` produce
   owned PG_LSN/XID composites or INT2; header preserves all-zero records,
   while checksum alone returns NULL for `pd_upper==0`. Their non-set FROM
@@ -443,6 +443,11 @@ typmods; naming is captured only on failure and is never retained in result tupl
   required-type errors for stats/items/meta, without inheriting another family's
   new-page NULL shortcut. Stats/meta are scalar composites; only items is a set.
   Outputs own unsigned INT8/OID, native FLOAT8, TID and full INT8-array values.
+  Heap routes in `pageinspect_heap.go` construct typed rows directly from checked
+  immutable per-slot views; unavailable tuple headers and tails remain distinct
+  NULL groups. Flags construct typed nonnull TEXT arrays, including empty arrays;
+  a strict NULL flags source is one NULL record, while a NULL heap source is empty.
+  Caller-supplied bytes are not physical relation acquisition.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST
   requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,

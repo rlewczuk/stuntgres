@@ -1,8 +1,8 @@
 package core_test
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -31,7 +31,7 @@ func ownershipPageinspectIdentity(t *testing.T) {
 	for i, address := range recipe.Members {
 		originals[i] = before.MustProcedure(address)
 	}
-	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info"}
+	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info", "heap_page_items", "heap_tuple_infomask_flags"}
 	if len(originals) != len(symbols) {
 		t.Fatal("incomplete released pageinspect inventory")
 	}
@@ -57,6 +57,8 @@ func ownershipPageinspectIdentity(t *testing.T) {
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_page_stats(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_page_items(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_metapage_info(bytea)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_page_items(bytea)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.heap_tuple_infomask_flags(integer,integer)`,
 		`DROP EXTENSION pageinspect`,
 		`ALTER EXTENSION "uuid-ossp" DROP FUNCTION public.eo_page_type(bytea)`,
 	} {
@@ -139,7 +141,7 @@ func ownershipPageinspectCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 15 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 17 {
 		t.Fatal("pageinspect remap lost sealed release")
 	}
 	for i, a := range recipe.Members {
@@ -206,10 +208,10 @@ func TestPageinspectLiveCaptureAuthority(t *testing.T) {
 	// not merely compare equal after recomputing an old expression.
 	rawHeader := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "page_header"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x"}}}}
 	e.Mu.Lock()
-	auth, err := core.ScopeWriteAuthorizationLocked(scope,e)
+	auth, err := core.ScopeWriteAuthorizationLocked(scope, e)
 	var bound expr.Expr
 	if err == nil {
-		headerBinder := core.NewExpressionBinder(scope.Op.Context(),e,scope.Input,scope.Op,nil)
+		headerBinder := core.NewExpressionBinder(scope.Op.Context(), e, scope.Input, scope.Op, nil)
 		headerBinder.Query.Auth = &auth
 		headerBinder.Clause.AggregateClause = "SELECT"
 		bound, err = headerBinder.BindFunctionProvider(rawHeader)
@@ -218,35 +220,55 @@ func TestPageinspectLiveCaptureAuthority(t *testing.T) {
 		}
 	}
 	e.Mu.Unlock()
-	if err != nil {t.Fatal(err)}
+	if err != nil {
+		t.Fatal(err)
+	}
 	header := bound.(plan.InstalledPageinspectExpr)
-	page := make([]byte,8192)
-	binary.LittleEndian.PutUint32(page,0x01234567)
-	binary.LittleEndian.PutUint32(page[4:],0x89abcdef)
-	binary.LittleEndian.PutUint32(page[20:],0xffffffff)
+	page := make([]byte, 8192)
+	binary.LittleEndian.PutUint32(page, 0x01234567)
+	binary.LittleEndian.PutUint32(page[4:], 0x89abcdef)
+	binary.LittleEndian.PutUint32(page[20:], 0xffffffff)
 	bytea := header.Args[0].ResultUsage()
-	evaluation := &exec.Context{EvalStatement:exec.EvalStatement{Context:scope.Op.Context(),Catalog:auth.Catalog,Host:core.HostOf(scope),Input:scope.Input,Output:scope.Output}}
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Catalog: auth.Catalog, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
 	evaluate := func(raw []byte) sqltype.Value {
 		t.Helper()
-		valueInput, err := sqltype.Binary(bytea.Type,string(raw))
-		if err != nil {t.Fatal(err)}
-		argument := plan.LiteralExpr{Info:expr.Info{Usage:bytea},Value:valueInput}
-		next, err := header.Rebuild(header.Info,[]expr.Expr{argument})
-		if err != nil {t.Fatal(err)}
+		valueInput, err := sqltype.Binary(bytea.Type, string(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		argument := plan.LiteralExpr{Info: expr.Info{Usage: bytea}, Value: valueInput}
+		next, err := header.Rebuild(header.Info, []expr.Expr{argument})
+		if err != nil {
+			t.Fatal(err)
+		}
 		value, err := next.Eval(evaluation)
-		if err != nil {t.Fatal(err)}
+		if err != nil {
+			t.Fatal(err)
+		}
 		return value
 	}
 	first := evaluate(page)
-	lsnType, xidType := header.Usage.Type.CompositeMember(0).Usage.Type,header.Usage.Type.CompositeMember(8).Usage.Type
+	lsnType, xidType := header.Usage.Type.CompositeMember(0).Usage.Type, header.Usage.Type.CompositeMember(8).Usage.Type
 	clear(page)
-	second := evaluate(bytes.Repeat([]byte{255},8192))
-	if first.Type()!=header.Usage.Type || first.CompositeField(0).Type()!=lsnType || first.CompositeField(8).Type()!=xidType {t.Fatal("decoded result lost exact descriptor authority")}
+	second := evaluate(bytes.Repeat([]byte{255}, 8192))
+	if first.Type() != header.Usage.Type || first.CompositeField(0).Type() != lsnType || first.CompositeField(8).Type() != xidType {
+		t.Fatal("decoded result lost exact descriptor authority")
+	}
 	firstLSN, err := first.CompositeField(0).PGLSN()
-	if err!=nil || firstLSN!=0x0123456789abcdef {t.Fatal("retained LSN changed",firstLSN,err)}
+	if err != nil || firstLSN != 0x0123456789abcdef {
+		t.Fatal("retained LSN changed", firstLSN, err)
+	}
 	firstXID, err := first.CompositeField(8).XID()
-	if err!=nil || firstXID!=0xffffffff {t.Fatal("retained XID changed",firstXID,err)}
+	if err != nil || firstXID != 0xffffffff {
+		t.Fatal("retained XID changed", firstXID, err)
+	}
 	secondLSN, err := second.CompositeField(0).PGLSN()
-	if err!=nil || secondLSN!=0xffffffffffffffff {t.Fatal("fresh LSN did not read changed bytes",secondLSN,err)}
-	if value,err:=header.Args[0].Eval(evaluation);err!=nil {t.Fatal(err)} else if raw,err:=value.Binary();err!=nil||raw!="" {t.Fatal("rebuild changed captured predecessor input",raw,err)}
+	if err != nil || secondLSN != 0xffffffffffffffff {
+		t.Fatal("fresh LSN did not read changed bytes", secondLSN, err)
+	}
+	if value, err := header.Args[0].Eval(evaluation); err != nil {
+		t.Fatal(err)
+	} else if raw, err := value.Binary(); err != nil || raw != "" {
+		t.Fatal("rebuild changed captured predecessor input", raw, err)
+	}
 }
