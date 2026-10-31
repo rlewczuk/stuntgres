@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 // its authority. Operation, Environments, PendingCatalog, the nested-SQL
 // capability and the Engine.Mu pair are shared with exec.Host and the EXPLAIN
 // renderer.
-var _ Host[AuthorizationView] = (*statementHost)(nil)
+var _ tsearch.Host[AuthorizationView] = (*statementHost)(nil)
 
 func (h *statementHost) ActivateRuntime(ctx context.Context) context.Context {
 	return h.scope().ActivateRuntime(ctx)
@@ -45,7 +46,7 @@ func (h *statementHost) DictionaryHost() extension.DictionaryHost {
 	return DDLHost{E: s.Engine(), Op: s.Op}
 }
 
-func (h *statementHost) ThesaurusMemos() *ThesaurusMemos {
+func (h *statementHost) ThesaurusMemos() *tsearch.ThesaurusMemos {
 	if payload := PayloadOf(h.Op.Session); payload != nil {
 		return &payload.thesaurusMemos
 	}
@@ -63,33 +64,33 @@ func (v AuthorizationView) Recaptured(view catalog.Read) AuthorizationView {
 // the host.
 
 func (h *textSearchHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return Convert[AuthorizationView](h.host(), ctx, kind, explicit, value, text, result)
+	return tsearch.Convert[AuthorizationView](h.host(), ctx, kind, explicit, value, text, result)
 }
 
 func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return ConvertJSON[AuthorizationView](h.host(), ctx, explicit, config, document, filter, filtered, result)
+	return tsearch.ConvertJSON[AuthorizationView](h.host(), ctx, explicit, config, document, filter, filtered, result)
 }
 
 func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return Debug[AuthorizationView](h.host(), ctx, explicit, value, text, result)
+	return tsearch.Debug[AuthorizationView](h.host(), ctx, explicit, value, text, result)
 }
 
 func (h *textSearchHost) StatTextSearch(ctx context.Context, text, weights string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return Stat[AuthorizationView](h.host(), ctx, text, weights, result)
+	return tsearch.Stat[AuthorizationView](h.host(), ctx, text, weights, result)
 }
 
 func (h *textSearchHost) RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return Rewrite[AuthorizationView](h.host(), query, text, result)
+	return tsearch.Rewrite[AuthorizationView](h.host(), query, text, result)
 }
 
 func (h *textSearchHost) LexizeDictionary(value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return Lexize[AuthorizationView](h.host(), value, text, result)
+	return tsearch.Lexize[AuthorizationView](h.host(), value, text, result)
 }
 
 func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return Unaccent[AuthorizationView](h.host(), procedure, input, result)
+	return tsearch.Unaccent[AuthorizationView](h.host(), procedure, input, result)
 }
 
 func (h *textSearchHost) ResolveFTSParser(value sqltype.Value) (fts.ParserRuntime, error) {
-	return ResolveParser[AuthorizationView](h.host(), value)
+	return tsearch.ResolveParser[AuthorizationView](h.host(), value)
 }

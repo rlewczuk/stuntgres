@@ -1,4 +1,4 @@
-package core
+package tsearch
 
 import (
 	"stuntgres/internal/engine/ids"

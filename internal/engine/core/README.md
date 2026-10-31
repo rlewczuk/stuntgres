@@ -788,76 +788,18 @@ Fresh eligible transactions may move retained output; old live transaction
 execution and commit still fail at the ordinary replacement fence.
 
 
-Text-search conversion captures an immutable catalog generation and configuration
-identity under `Engine.Mu`, then releases it before runtime acquisition,
-tokenization, resource compilation, lexization or notice callbacks. Capture does
-not initialize mapped dictionaries. Omitted configuration resolves the current
-`default_text_search_config` name from operation-effective settings at execution,
-with Engine-before-settings lock order and semantic missing-schema/configuration
-errors. Mapping changes publish through ordinary schema stages and definition locks.
-JSON conversion validates its filter first, then resolves an omitted default
-identity before traversal, even if no item is selected. Explicit configurations
-retain lazy identity demand. Both forms acquire parser/dictionary runtime only
-at the first selected item, including an empty string. All selected items share
-one immutable catalog generation and acquisition, but reset parser/phrase state
-per item. One cumulative position counter includes stopwords; only an item
-emitting lexemes adds an artificial gap. No selected item yields a typed empty
-vector without dictionary receipts. Traversal, lexical work and final acceptance
-remain detached and cancellation-fenced; no partial vector or acquisition escapes
-a failure.
-Debug borrows the same coherent capture/default resolver and acquisition fence,
-but independently lexizes every mapped dictionary against each original token.
-Its complete ordered mapping arrays and recognized-empty/unknown distinctions
-never inherit conversion's filtering, phrase or token-suppression walk.
-Debug rows and acquired dictionary runtimes belong to one invocation; nothing
-is published before currentness and cancellation are checked.
-Provider failures inside debug acquire the actual SQL-standard function's
-statement context through the shared immutable SQL routine diagnostic helper;
-caller argument-input failures remain outside that body frame.
+Text-search runtime (conversion, `ts_debug`, the `ts_rewrite`/`ts_stat` nested
+SQL, dictionary and thesaurus acquisition, `unaccent` and parser resolution) is
+the leaf [`core/tsearch`](tsearch/README.md). Core owns `tsearch.Host` on
+`statementHost` (`tsearch_statement_host.go`), the `tsearch.Authority` that
+`AuthorizationView` implements, `textSearchHost`'s `exec.TextSearchRuntime`
+adapters, the tsvector trigger's use of `tsearch.Capture`, and the session's
+`tsearch.ThesaurusMemos` in `sessionPayload`.
 
-`textSearchSQL` owns the shared rewrite/statistics nested cursor scope over the
-`exec.NestedSQL` capability: ordinary settings-aware parse, complete
-preparation, ACL/planning and read-only cursor admission use the caller's
-private catalog/data with no outer parameters.
-Stat enables canonical executable-binding `readOnlySPI` classification before
-description: derived/stored row marks are rejected, while unused analysis-only
-locking CTEs are not executable marks. Non-cursor command-kind precedence remains
-separate. Rewrite keeps its existing syntax-gate admission rather than inheriting
-stat's stronger SPI demand; lexical restoration includes both demand flags.
-The consumer closes rows before lexical restoration; only prepare/open failures
-gain SPI diagnostic enrichment. `nestedCursor` is all-row demand, not cached SQL.
 Generic folds retain immutable explicit vector/query results and their first
 execution notices are not replayed. Stable omitted forms and runtime arguments
 consume current defaults/mappings without local result caches. Rich lexical metadata
 stays internal; only `ts_lexize` projects TEXT[] at its checked SQL boundary.
-Runtime acquisition occurs only when the actual ordered token chain consults a
-dictionary; invocation-local reuse avoids repeated acquisition. Empty input,
-unused categories and dictionaries after recognizing nonfilters (including
-stopwords) create no initialization receipts. Phrase continuation tests mapping
-membership without acquiring that category's other dictionaries. Detached demand
-and final result acceptance fence the captured configuration, parser and consulted
-executable inputs; mismatch returns ordinary `ErrCatalogReplaced`, without retrying
-callbacks or notices. Newly initialized receipts remain invocation-private until
-the complete result passes currentness and cancellation checks, so rejected
-conversions publish neither a vector/query prefix nor a prefix of new receipts.
-Thesaurus initialization belongs to the physical session's `sessionPayload`, with
-at most one successful immutable runtime per current dictionary definition.
-Namespace USAGE authorizes initialization/reinitialization, not each unchanged
-invocation: ACL-only revocation leaves that session's runtime usable, while new
-sessions independently authorize initialization. Receipts check exact executable
-inputs, catalog domain/epoch, effective role/path and logical source identity.
-Changed executable inputs require new resolution/authorization and detached
-compilation followed by a current-input recheck; failed refresh cannot return
-stale state. Errors are never installed or transferred between sessions.
-The conversion chain owns head/continuation cursors and private phrase matchers,
-saved longest completion, dictionary resume positions and suffix replay. Unmapped
-categories are skipped; a mapped incompatible category discards saved completion.
-Continuation searches the whole next mapping and bypasses its earlier filters.
-Oversized parser tokens emit their notice on first encounter, including phrase
-lookahead. A per-walk token-index high-water mark prevents duplicate notices
-when a saved completion replays a suffix; skipped tokens demand no dictionary.
-Unsuccessful multiword continuation resumes the remaining head chain with the
-original token; immediate nonrecognition retains preceding filter transformations.
 Accepted all-literal thesaurus lexemes/vectors preserve their original typed
 folds across normalizer and own-option revisions; fresh calls and runtime-token
 invocations acquire current compiler inputs. Operand reanalysis and accepted
@@ -1536,7 +1478,7 @@ with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
 | `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
@@ -1869,11 +1811,7 @@ with row effects; standalone utilities retain their ordinary publication boundar
   recompute. Utility portals instead import inputs at Bind and use ordinary
   admission/planning at Execute.
 
-Dictionary execution captures and validates the current private descriptor under
-`Engine.Mu`, then runs immutable lexization after releasing it. Installed
-`unaccent(text)` resolves the dictionary named `unaccent` in the function's current
-schema; mutable member names are not a replacement for that lookup. Dictionary
-DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
+Dictionary DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
 Core supplies the shared compiled Snowball language runtimes to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
@@ -2343,17 +2281,6 @@ the inquiry presentation, preserving the admitted outer query's LO frontier
 even when its first callable uses restricted-owner rather than write authority.
 It does not recapture an already active SQL-body frontier or restore an older
 frontier when the restricted frame returns.
-
-`fts_query_runtime.go` executes SQL rewrite rules inside the caller's admitted
-operation, transaction and statement snapshot. Lexical scratch and zero inner
-parameters are scoped stackwise; private staged writes remain visible. The
-ordinary parser, analyzer, admission and query producers supply exact typed rule
-rows, never a driver connection or a second SQL executor. The consumer fetches
-100 rows before checking result shape and retains one bounded typed rule batch.
-Deletion stops rule application, but the next batch is still fetched before
-testing emptiness again. Original fetch errors remain distinct from prepare/open
-errors. The cursor closes before restoring caller scratch; outer publication
-remains eager.
 
 PL cursor execution uses the physical-session cursor registry and the ordinary
 query binder/capture/motion owners. Lower install/fetch/close primitives, including

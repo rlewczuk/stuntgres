@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fts"
@@ -136,7 +137,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		return err
 	}
 	var oid uint32
-	var captured Capture[AuthorizationView]
+	var captured tsearch.Capture[AuthorizationView]
 	if byColumn {
 		slot, err := column(args[1], "configuration column %q does not exist", "column %q is not of regconfig type", sqltype.Regconfig)
 		if err != nil {
@@ -163,7 +164,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 		e.Mu.Lock()
-		captured, err = CaptureConfiguration[AuthorizationView](ctx, read, oid)
+		captured, err = tsearch.CaptureConfiguration[AuthorizationView](ctx, read, oid)
 		e.Mu.Unlock()
 		if err != nil {
 			return err
@@ -206,7 +207,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 		if !captured.Captured() {
 			e.Mu.Lock()
-			captured, err = CaptureConfiguration[AuthorizationView](ctx, read, oid)
+			captured, err = tsearch.CaptureConfiguration[AuthorizationView](ctx, read, oid)
 			e.Mu.Unlock()
 			if err != nil {
 				return err

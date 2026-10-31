@@ -1,6 +1,7 @@
 package core
 
 import (
+	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
@@ -21,10 +22,10 @@ type sessionPayload struct {
 	sqlRoutines    map[ids.ObjectAddress]sqlRoutineAnalysis
 	Sequences      sequence.SessionMemory
 	notifications  session.NotificationListener
-	thesaurusMemos ThesaurusMemos    // Engine.Mu; this session's successful initializations.
-	statsWriter    statistics.Writer // Transaction admission serializes collection and drains.
-	statsReader    statistics.Reader // Cleared at every transaction terminal boundary.
-	statsFlush     statsFlushSlot    // Session.Mu; callbacks use nonblocking transaction admission.
+	thesaurusMemos tsearch.ThesaurusMemos // Engine.Mu; this session's successful initializations.
+	statsWriter    statistics.Writer      // Transaction admission serializes collection and drains.
+	statsReader    statistics.Reader      // Cleared at every transaction terminal boundary.
+	statsFlush     statsFlushSlot         // Session.Mu; callbacks use nonblocking transaction admission.
 }
 
 func (*sessionPayload) PayloadSlot() {}
