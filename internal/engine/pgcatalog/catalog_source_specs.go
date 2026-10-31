@@ -725,6 +725,12 @@ var Specs = [...]Spec{
 		{"classoid", sqltype.Oid, false, 0, 0, -1},
 		{"description", sqltype.Text, false, 950, 0, -1},
 	}, false, CatalogHasIndexes(2396), false, false, "stuntgres: missing catalog source type"},
+	{ShseclabelOID, ids.PGCatalogNamespaceOID, "pg_shseclabel", []ColumnSpec{
+		{"objoid", sqltype.Oid, false, 0, 0, -1},
+		{"classoid", sqltype.Oid, false, 0, 0, -1},
+		{"provider", sqltype.Text, false, 950, 0, -1},
+		{"label", sqltype.Text, false, 950, 0, -1},
+	}, false, CatalogHasIndexes(ShseclabelOID), true, false, "stuntgres: missing shared security label source type"},
 	{2606, ids.PGCatalogNamespaceOID, "pg_constraint", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"conname", sqltype.Name, false, 0, 0, -1},

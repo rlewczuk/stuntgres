@@ -153,6 +153,11 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`, `settings
   `pg_tablespace_databases` row over the statement's retained `catalog.Read`.
   `TablespaceDatabase` returns its 01000 WARNING beside a NULL value; the caller
   emits it.
+- **SECURITY LABEL**: `SecurityLabel(ctx, view, s)` checks cancellation/current
+  authority and returns exact absent-provider 22023 diagnostics before target
+  lookup or ownership. Omitted and empty-string providers differ; decoded names
+  are not Go-escaped in diagnostics. PostgreSQL's native C provider ABI/loading
+  and SELinux/MAC integration are unavailable. No provider/store is fabricated.
 - **LOAD**: `Load(ctx, view, s)` checks the current actor's SUPERUSER
   attribute, then PostgreSQL's plugin prefix/suffix restriction and
   slash-containing filename macro validation; once valid it returns 0A000

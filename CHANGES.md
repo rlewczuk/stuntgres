@@ -1,5 +1,14 @@
 # Changes
 
+- Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
+  exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
+  with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,
+  TABLESPACE and SUBSCRIPTION reports PostgreSQL's absent-provider 22023 errors,
+  including string provider names. PostgreSQL's native C provider ABI/loading
+  and SELinux/MAC integration are unavailable; no labels or providers are faked,
+  and database-local `pg_seclabel` is not implemented by this change.
+  The explicit initial ACL retains all eight bootstrap-owner privileges beside
+  PUBLIC SELECT; native unbounded TEXT length metadata remains known.
 - Add derived `pg_shdepend` inventory with typed shared/local identities across
   registered databases, owner/current/column/default/initial ACL dependencies,
   policy multiplicity, membership grantors and authentic referenced-role pins.

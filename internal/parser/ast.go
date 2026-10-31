@@ -76,6 +76,17 @@ type Load struct {
 
 func (*Load) statement() {}
 
+// SecurityLabel retains shared-target syntax without implying a loaded provider.
+type SecurityLabel struct {
+	Provider *string // nil means FOR was omitted; an empty provider is distinct.
+	Kind string
+	Name Identifier
+	Label *string // nil means IS NULL (removal).
+	Pos Position
+}
+
+func (*SecurityLabel) statement() {}
+
 // Checkpoint requests a physical checkpoint without operands.
 type Checkpoint struct {
 	Pos Position

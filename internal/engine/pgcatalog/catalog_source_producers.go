@@ -63,6 +63,7 @@ var producers = [...]Registration{
 	{3501, capturePGEnum},
 	{3541, capturePGRange},
 	{TransformOID, capturePGTransform},
+	{ShseclabelOID, capturePGShseclabel},
 	{3600, capturePGTSDict},
 	{TSParserOID, capturePGTSParser},
 	{TSConfigOID, capturePGTSConfig},

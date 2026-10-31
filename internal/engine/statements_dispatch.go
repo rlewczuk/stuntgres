@@ -52,6 +52,8 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(schemacmds.ExecuteCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
 		return dispatched(schemacmds.ExecuteLoad(e, op, stmt.(*parser.Load), count))
+	case *parser.SecurityLabel:
+		return dispatched(schemacmds.ExecuteSecurityLabel(e, op, stmt.(*parser.SecurityLabel), count))
 	case *parser.Checkpoint:
 		return dispatched(schemacmds.ExecuteCheckpoint(e, op, stmt.(*parser.Checkpoint), count))
 	case *parser.Vacuum:

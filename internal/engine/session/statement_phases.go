@@ -54,6 +54,8 @@ func DescribeBeforeSnapshot(stmt parser.Statement) DescribeClass {
 		return DescribeEmpty
 	case *parser.TransactionCharacteristics, *parser.SetConstraints, *parser.AlterTableRenameConstraint, *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return DescribeEmpty
+	case *parser.SecurityLabel:
+		return DescribeOperation
 	case *parser.Analyze, *parser.Do, *parser.AlterTableAllInTablespace, *parser.ForeignDDL, *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Checkpoint, *parser.Vacuum, *parser.Truncate, *parser.RefreshMaterializedView:
 		return DescribeOperation
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:

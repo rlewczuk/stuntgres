@@ -101,7 +101,7 @@ func EventCommand(stmt parser.Statement) (tag string, eligible bool) {
 		*parser.RenameRole, *parser.AlterRoleSettings, *parser.AlterDatabaseSettings,
 		*parser.RoleMembership, *parser.ReassignOwned,
 		*parser.Call, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Select, *parser.Copy,
-		*parser.Do, *parser.Load, *parser.Vacuum, *parser.Analyze, *parser.Truncate, *parser.LockTable,
+		*parser.Do, *parser.Load, *parser.SecurityLabel, *parser.Vacuum, *parser.Analyze, *parser.Truncate, *parser.LockTable,
 		*parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor,
 		*parser.Listen, *parser.Unlisten, *parser.Notify, *parser.Discard,
 		*parser.Set, *parser.Reset, *parser.Show, *parser.RoleSelection, *parser.SessionAuthorization,

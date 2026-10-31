@@ -95,6 +95,19 @@ type Producer func(Input) ([][]sqltype.Value, error)
   arrays and captured type generation across later definition replacement.
   Metadata neither invokes registered providers nor attempts foreign connections;
   valid no-handler definitions remain catalog-visible.
+- `pg_shseclabel` (3592, rowtype4066) validates owned source authority and exact
+  nonnullable OID/OID/TEXT/TEXT metadata (C collation on text), then emits the
+  genuine empty provider inventory without storage or per-call row allocation.
+  Ordinary PUBLIC SELECT/current ACL admission applies; shared classification
+  supplies global tablespace1664 and logical index presence. The key is
+  `(objoid,classoid,provider)`; no local `objsubid` exists. PostgreSQL native
+  provider ABI/loading and SELinux/MAC integration are not available; bounded
+  shared-target SECURITY LABEL commands fail before object lookup, never populate
+  rows. `pg_seclabel` and `pg_seclabels` are not implemented here.
+  Its explicit bootstrap ACL retains all eight owner table privileges plus
+  PUBLIC SELECT, seeded through the common materialized-relation ACL path.
+  Native unbounded TEXT length metadata is known `math.MaxInt64`; OID length and
+  precision/scale are unavailable.
 - `pg_shdepend` (1214) encodes core-classified immutable shared-dependency facts
   into seven nonnullable OID/OID/OID/INT4/OID/OID/internal-CHAR columns. It validates
   source/type/fact authority and cancellation without importing access or live

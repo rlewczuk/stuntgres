@@ -11,6 +11,8 @@ func ForeignGrantKind(kind string) bool {
 // is empty when stmt does not modify anything.
 func ModifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.SecurityLabel:
+		return "SECURITY LABEL"
 	case *parser.Publication:
 		switch stmt.(*parser.Publication).Action {
 		case "create":

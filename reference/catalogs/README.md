@@ -75,6 +75,17 @@ retained/imported capacity admission including allocated zero. Held statements
 recapture current state. Select the family with
 `make check RUN='^TestReferenceReplicationOrigin'` (add `REFERENCE=1`).
 
+Shared-label scenarios independently specify the exact empty `pg_shseclabel`
+shape, fixed relation/rowtype identities, reciprocal allocated array, ordinary
+PUBLIC/current held-statement ACLs, full missing-column/provider diagnostics and
+failed-transaction recovery. Shared-target commands include string/empty/escaped
+providers and NULL removal attempts; ordinary DDL/comments never populate labels.
+Native controls preserve real sentinel data and captured metadata across
+Dump/Reset/Restore. No PostgreSQL native provider ABI/loading or SELinux/MAC
+integration is available. Select `make check RUN='^TestReferencePGShseclabel'`
+and the same command with `REFERENCE=1`; feature smoke uses the exact
+`TestReferencePGShseclabelFeatureSmoke` name.
+
 Subscription scenarios cover the exact eighteen-column empty schema, shared
 relation and reciprocal row/array identities, explicit owner-only table ACL,
 PUBLIC column grants, current delegated/inherited authority and complete

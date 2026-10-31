@@ -103,6 +103,18 @@ replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
 Registration follows the subscription's transactional lifetime; it does not
 start workers, contact a publisher or track replay progress.
 
+`pg_catalog.pg_shseclabel` is the shared security-label inventory: relation3592,
+rowtype4066, nonnullable `(objoid oid, classoid oid, provider text, label text)`.
+It is exactly empty because PostgreSQL's native C security-label provider
+ABI/loading and SELinux/MAC integration are unavailable. Ordinary PUBLIC SELECT
+and current prepared-statement ACL checks apply even to empty scans.
+`SECURITY LABEL [FOR provider] ON ROLE|DATABASE|TABLESPACE|SUBSCRIPTION name
+IS 'label'|NULL` accepts identifier or string providers and fails with PostgreSQL
+22023 absent-provider diagnostics before target lookup; it never stores labels.
+Object identity is `(classoid,objoid)`, extended by provider for uniqueness.
+Unlike database-local `pg_seclabel`, this shared relation has no `objsubid`.
+Neither that adjacent catalog nor the `pg_seclabels` view is added.
+
 `pg_catalog.pg_shdepend` exposes shared-object dependencies across this Driver's
 registered databases: owners, current object and column ACLs, default and initial
 ACLs, policy targets and membership grantors. Queries retain their captured rows;

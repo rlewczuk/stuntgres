@@ -4,6 +4,15 @@ The SQL lexer, goyacc grammar and AST. It imports only the standard library and
 `sqlstate`; binding, name resolution and execution policy (including the
 single-statement limit of driver calls) belong to callers.
 
+`SecurityLabel` retains bounded SECURITY LABEL shared-target syntax (ROLE,
+DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command, optional decoded
+identifier or string provider, and string versus NULL label. Provider presence
+is independent of its spelling, so FOR '' is not omission. LABEL remains the
+existing unreserved word; routine SECURITY and row-security syntax are unchanged.
+Preparation is syntax-only; current execution owns absent-provider diagnostics.
+Embedded procedural utility capture recognizes SECURITY LABEL while retaining
+ordinary assignments to an unreserved `security` variable.
+
 ## Layout and entry points
 
 - `parser.go`: `Parse` and `ParseWithOptions` consume one complete SQL script;

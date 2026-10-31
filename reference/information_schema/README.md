@@ -30,6 +30,9 @@ The inventory also includes PUBLIC-readable `pg_auth_members` as a real catalog
 table with its exact seven ordered membership columns.
 The shared, PUBLIC-readable `pg_shdepend` catalog contributes its seven ordered
 real-table columns, with no synthetic row OID.
+The shared, PUBLIC-readable `pg_shseclabel` catalog contributes exactly its four
+ordered columns `objoid`, `classoid`, `provider`, `label`; it has no local-label
+`objsubid` or synthetic row OID. Its empty inventory does not hide column metadata.
 The PUBLIC-readable `pg_policy` entry retains all eight ordered physical columns
 and real-table classification; its definitions are not filtered by RLS applicability.
 The PUBLIC-readable `pg_trigger` entry contributes nineteen ordered real-table

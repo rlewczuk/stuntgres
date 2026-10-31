@@ -109,6 +109,9 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   records actual procedure inputs in the publication fences.
 - `ExecuteComment` stages the comment (the locked-relation check, the
   private role record installation or object stage) and publishes it.
+- `ExecuteSecurityLabel` owns zero-argument validation, the mutex and fresh
+  operation authority capture around `ddl.SecurityLabel`. Shared-target commands
+  always fail provider selection without publication; Describe is effect-free.
 - `ExecuteCreateTablespace`, `ExecuteLoad` and `ExecuteCheckpoint` keep the
   argument count, mutex and fresh authority capture around `ddl.CreateTablespace`,
   `ddl.Load` and `ddl.Checkpoint`; none publishes or marks a utility complete.

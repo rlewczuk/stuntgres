@@ -926,7 +926,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		case token.code == SELECT || token.code == VALUES || token.code == TABLE || token.code == '(' || token.code == INSERT || token.code == UPDATE || token.code == DELETE || token.code == WITH || token.code == MERGE:
 			l.plBeginCapture(token)
-		case plSQLHead(token.code):
+		case plSQLHead(token.code) || token.code == ROUTINE_SECURITY && !l.plHeadAssignment(token):
 			l.plBeginCommand(token)
 		}
 	}

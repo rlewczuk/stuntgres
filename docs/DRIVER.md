@@ -247,6 +247,21 @@ historical role references and deleted bootstrap records, remapping both object
 and role identities into the destination. Reset restores the fresh bootstrap
 inventory. Existing exported rows retain their captured values.
 
+`pg_catalog.pg_shseclabel` (3592, rowtype4066) exposes exactly four nonnullable
+columns `(objoid oid, classoid oid, provider text, label text)`. It is a shared,
+PUBLIC-readable ordinary catalog, subject to current SELECT ACLs on every
+prepared execution. Its rows are truthfully empty: PostgreSQL's native C provider
+ABI/loading and SELinux/MAC integration are unavailable. SECURITY LABEL for
+ROLE, DATABASE, TABLESPACE or SUBSCRIPTION accepts omitted/identifier/string
+providers but returns 22023 (no providers loaded, or named provider not loaded)
+before object/owner lookup, including IS NULL removal attempts. No label storage,
+provider validation or successful relabeling is implied. `classoid` is the target
+catalog (role1260/database1262/tablespace1213/subscription6100); `(objoid,classoid,
+provider)` is the logical unique key (released primary index3593). The native
+catalog reports index presence without inventing physical index descriptors.
+Database-local `pg_seclabel` has an additional `objsubid`; it and `pg_seclabels`
+remain separate, unimplemented surfaces.
+
 `pg_catalog.pg_shdepend` is the cluster-wide seven-column inventory
 `(dbid, classid, objid, objsubid, refclassid, refobjid, deptype)`.
 OID columns use the ordinary unsigned OID carrier, `objsubid` is INT4 and

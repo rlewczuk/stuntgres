@@ -1036,6 +1036,9 @@ package parser
 %type <typ> standalone_type
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <stmt> notify listen unlisten load checkpoint
+%type <stmt> security_label
+%type <foreignText> label_provider label_value
+%type <tok> shared_label_kind
 %type <stmt> alter_system
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
@@ -1106,7 +1109,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | publication
  | alter_composite | drop_type | alter_table_of
  | foreign_statement
- | notify | listen | unlisten | load | checkpoint
+ | notify | listen | unlisten | load | checkpoint | security_label
  | alter_system
  ;
 explain: EXPLAIN explainable { $$=&Explain{Statement:$2,Pos:$1.pos} }
@@ -1136,6 +1139,15 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
  | FALSE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Pos:$1.pos}} } ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
+security_label: ROUTINE_SECURITY KW_U label_provider ON shared_label_kind name IS label_value {
+ if $2.text!="label" {sqllex.(*lexer).syntax($2);return 1}
+ $$=&SecurityLabel{Provider:$3,Kind:$5.text,Name:Identifier{Text:$6.text,Pos:$6.pos},Label:$8,Pos:$1.pos}
+} ;
+label_provider: /* empty */ {$$=nil}
+ | FOR name {v:=$2.text;$$=&v}
+ | FOR STRING {v:=$2.text;$$=&v} ;
+shared_label_kind: ROLE | DATABASE | TABLESPACE | SUBSCRIPTION ;
+label_value: STRING {v:=$1.text;$$=&v} | NULL {$$=nil} ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
 } ;
