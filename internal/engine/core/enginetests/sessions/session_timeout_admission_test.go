@@ -1,4 +1,4 @@
-package core_test
+package sessions_test
 
 import (
 	"context"
@@ -6,7 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -138,4 +143,45 @@ func TestSessionTimeoutCanceledAdmissionMechanics(t *testing.T) {
 			s.Mu.Unlock()
 		})
 	}
+}
+
+func timeoutMechanicsSettings(s *session.Session, transaction, idleTransaction, idleSession time.Duration, assignment bool, now time.Time) {
+	s.Settings.Mu.Lock()
+	defer s.Settings.Mu.Unlock()
+	if s.Settings.Typed == nil {
+		s.Settings.Typed = make(map[string]settings.Value)
+	}
+	for name, duration := range map[string]time.Duration{
+		"transaction_timeout":                 transaction,
+		"idle_in_transaction_session_timeout": idleTransaction,
+		"idle_session_timeout":                idleSession,
+	} {
+		s.Settings.Typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
+	}
+	s.Mu.Lock()
+	s.PublishTimeoutSettingsLocked(s.Settings, assignment, now)
+	s.Mu.Unlock()
+}
+
+func timeoutMechanicsRef(s *session.Session, id ids.TxID) ids.TxRef {
+	return core.EngineOf(s).Catalog.Domain.Tx(s.Token(), id, 0, s.Transactions, 0)
+}
+
+// Exercise the actual callback decision with an explicit observed instant, not
+// sleeps or a fake scheduler. Long real timers are stopped by bounded cleanup.
+func timeoutMechanicsSession(t *testing.T) *session.Session {
+	t.Helper()
+	s, err := enginetest.OpenSession(context.Background(), engine.New(), session.SessionStart{ID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		s.RequestEnd(session.CleanClose)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.WaitEnd(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	return s
 }

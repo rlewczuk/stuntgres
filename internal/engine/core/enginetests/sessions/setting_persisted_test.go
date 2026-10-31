@@ -1,6 +1,7 @@
-package core_test
+package sessions_test
 
 import (
+	"context"
 	"maps"
 	"reflect"
 	"testing"
@@ -8,6 +9,8 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 )
 
@@ -167,4 +170,29 @@ func TestRoleSettingsCapturedInvocationImage(t *testing.T) {
 	if s.Settings.DefaultSources != nil || s.Settings.DefaultTyped != nil || s.Settings.Defaults != nil {
 		t.Fatal("ended physical owner retains reset metadata")
 	}
+}
+
+func roleDefaultsInstall(e *core.Engine, key access.RoleSettingKey, row []access.RoleSetting) *access.RoleRecord {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	next := e.RoleStore.Published.WithSettings(e.RoleStore.Published.Settings.WithRow(key, row))
+	e.RoleStore.PublishLocked(next)
+	e.RoleStore.AdvanceRevisionFrontierLocked(next.Revision)
+	return next
+}
+
+func roleDefaultsStart(t *testing.T, e *core.Engine, start session.SessionStart, principals ...authorization.PrincipalRef) *session.Session {
+	t.Helper()
+	start.ID = enginetest.NextSessionID()
+	s, err := enginetest.OpenSession(t.Context(), e, start, principals...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		s.RequestEnd(session.CleanClose)
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return s
 }
