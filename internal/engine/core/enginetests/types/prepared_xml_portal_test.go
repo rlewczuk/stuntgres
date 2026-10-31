@@ -9,10 +9,7 @@ import (
 	rootengine "stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -95,45 +92,5 @@ func TestXMLSQLPreparedPortalOwnership(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func xmlPreparedLiteral(t *testing.T, d core.Description) sqltype.Value {
-	t.Helper()
-	for _, capture := range d.Temporals {
-		if capture.TypeID == sqltype.XML {
-			return capture.Value
-		}
-	}
-	t.Fatal("missing accepted XML input artifact")
-	return sqltype.Value{}
-}
-
-func xmlGraphLiteral(t *testing.T, root *plan.ProjectNode) sqltype.Value {
-	t.Helper()
-	var result sqltype.Value
-	plan.QueryExpressions(root, func(node expr.Expr) {
-		plan.WalkExpression(node, func(node expr.Expr) {
-			if literal, ok := node.(plan.LiteralExpr); ok && literal.Value.Type() != nil && literal.Value.Type().ID() == sqltype.XML {
-				result = literal.Value
-			}
-		})
-	})
-	if result.Type() == nil {
-		t.Fatal("accepted graph lost XML literal")
-	}
-	return result
-}
-
-func xmlPreparedMode(t *testing.T, e *core.Engine, s *session.Session, mode string) {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	_, err = e.Execute(op, &parser.Set{Name: parser.Identifier{Text: "xmloption"}, Values: []string{mode}}, 0, nil)
-	if err != nil {
-		t.Fatal(err)
 	}
 }

@@ -1,8 +1,10 @@
-package core_test
+package types_test
 
 import (
 	"context"
 	"errors"
+	"testing"
+
 	rootengine "stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -13,7 +15,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func xmlPreparedMode(t *testing.T, e *core.Engine, s *session.Session, mode string) {
