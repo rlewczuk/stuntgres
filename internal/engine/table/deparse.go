@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
@@ -184,6 +185,17 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 				return sqltype.Value{}, err
 			}
 		}
+		switch tree := carrier.(type) {
+		case stored.RewriteActionCarrier:
+			return sqltype.Value{}, sqlError("22023", "input is a query, not an expression")
+		case stored.RewriteQualCarrier:
+			if err := tree.Preflight(c.Context, ids.OID(id)); err != nil {
+				return sqltype.Value{}, err
+			}
+		}
+		if pgcatalog.IsBuiltinRewriteAction(carrier) {
+			return sqltype.Value{}, sqlError("22023", "input is a query, not an expression")
+		}
 		var relation *catalog.Relation
 		if id != 0 {
 			var ok bool
@@ -215,8 +227,12 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 			text, err = stored.PolicyDisplay(c.Context, view, relation, tree, stored.Presentation{Pretty: pretty, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings})
 		case stored.TriggerCarrier:
 			text, err = stored.TriggerDisplay(c.Context, tree, renderer)
+		case stored.RewriteQualCarrier:
+			text, _, err = stored.RewriteQualDisplay(c.Context, tree, renderer)
 		default:
-			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
+			if !pgcatalog.IsBuiltinRewriteQual(carrier) {
+				return sqltype.Value{}, fmt.Errorf("stuntgres: foreign structural tree")
+			}
 		}
 		if err != nil {
 			return sqltype.Value{}, err

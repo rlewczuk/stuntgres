@@ -11,6 +11,21 @@ import (
 )
 
 func (v *QueryRenderer) wholeRowSQL(captured analyze.TypeOccurrence) (string, error) {
+	if captured.RuleSide != 0 {
+		if captured.RuleSide > 2 || captured.Kind != analyze.CompositeWholeRow {
+			return "", fmt.Errorf("stuntgres: invalid rendered pseudo whole row")
+		}
+		if v.RewriteInquiry {
+			if captured.RuleSide != 1 || v.RewriteRelation == nil {
+				return "", fmt.Errorf("stuntgres: invalid rewrite whole-row context")
+			}
+			return v.Presentation.identifier(v.RewriteRelation.Name()) + ".*", nil
+		}
+		if !v.Presentation.Rule || v.ruleRootNames == nil {
+			return "", fmt.Errorf("stuntgres: missing pseudo whole-row namespace")
+		}
+		return v.Presentation.identifier(v.ruleRootNames.pseudoName(captured.RuleSide == 1)) + ".*", nil
+	}
 	rendered, ok := v.wholeRows[captured.Source]
 	if !ok || rendered.sql == "" {
 		return "", fmt.Errorf("stuntgres: missing rendered whole-row occurrence")

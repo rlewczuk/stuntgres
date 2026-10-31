@@ -11,6 +11,12 @@ import (
 
 func (v *View) ValidateCompositeSource(captured analyze.TypeOccurrence) error {
 	source := captured.Source
+	if captured.RuleSide != 0 {
+		if captured.RuleSide > 2 || captured.Kind != analyze.CompositeWholeRow || source.Namespace != 0 || source.Qualifier != 0 || source.Frame != 0 {
+			return fmt.Errorf("stuntgres: invalid frozen pseudo whole-row source")
+		}
+		return nil
+	}
 	if source.Namespace == 0 {
 		if source.Qualifier != 0 || source.Frame != 0 || captured.Kind == analyze.CompositeWholeRow {
 			return fmt.Errorf("stuntgres: missing frozen whole-row source")
@@ -46,6 +52,12 @@ func (v *View) ValidateCompositeSource(captured analyze.TypeOccurrence) error {
 }
 
 func ValidateCompositeOccurrence(captured analyze.TypeOccurrence, catalog catalog.Read) error {
+	if captured.RuleSide != 0 {
+		if captured.RuleSide > 2 || captured.Kind != analyze.CompositeWholeRow || len(captured.Attributes) != 0 || captured.Source.Namespace != 0 || captured.Source.Qualifier != 0 || captured.Source.Frame != 0 || len(captured.Names) != 0 || captured.Function != 0 || !ValidExpressionUsage(catalog, captured.Base) || !captured.Base.Type.BaseType().IsComposite() {
+			return fmt.Errorf("stuntgres: invalid frozen pseudo whole-row authority")
+		}
+		return nil
+	}
 	if captured.Kind != analyze.CompositeSelection && captured.Kind != analyze.CompositeExpansion && captured.Kind != analyze.CompositeDotBuiltin && captured.Kind != analyze.CompositeWholeRow && captured.Kind != analyze.CompositeSourceExpansion && captured.Kind != analyze.CompositeRecordArgument || captured.Kind == analyze.CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == analyze.CompositeRecordArgument && len(captured.Attributes) != 0 || captured.Kind == analyze.CompositeWholeRow && (len(captured.Attributes) != 0 || captured.Source.Namespace == 0) || captured.Kind == analyze.CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function != functions.CountNulls && captured.Function != functions.CountNonnulls) || captured.Kind != analyze.CompositeDotBuiltin && captured.Function != 0 || !ValidExpressionUsage(catalog, captured.Base) || captured.Kind != analyze.CompositeDotBuiltin && !captured.Base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}

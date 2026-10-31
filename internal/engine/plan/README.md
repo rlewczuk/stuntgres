@@ -202,6 +202,31 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   existing stored deparser with comma-space separators, preserving semantic
   `pg_get_expr(proargdefaults,0)` output rather than exposing raw carrier text.
   Program trees deliberately do not acquire expression-list deparse semantics.
+  `AppendQueryTree` (`query_tree.go`) is the single typed query projection shared
+  by rewrite actions and `AppendBoundTree` sublinks. `QueryExpressions` remains
+  an operand walker, not a complete metadata serializer. In particular, all
+  retained window calls/specs are visited even when execution demand excludes them.
+  Typed-nil query owners fail with an ordinary invariant error before field or
+  schema access; required typed child edges cannot silently become absent nodes.
+  Stable selected addresses are ClassID/ObjectID/SubID, never epoch, revision,
+  descriptor/provider pointers or later catalog names. The projection audit is:
+
+  | Owner | Additional analyzed facts | Excluded authority/state |
+  |---|---|---|
+  | Source, project, values, schema | relation/occurrence, frame, ordered output Usage/name, typed operands and analysis expressions, Var frame/slot/origin | source positions, pins, runtime demand |
+  | Aggregate | call/result-slot, selected Routine and installed Ref, operation, support declarations, order/distinct selection and ordered argument/direct roots | provider and aggregate state; syntax retains written clauses |
+  | Window | frame/slot/call, selected Routine/Procedure pairing, spec/sort association, all call operands, partition/equality/order/RANGE support and bound frame | overlay/cache values, provider pointers |
+  | Sort, grouping, distinct, set | resolved key/output/target/cache-read occurrence and direction/null policy; equality declaration; captured class/family/member/routine; logical grouping/coercion usages and collation; canonical set operation | runtime comparisons/hashes |
+  | Join, derived, function FROM | correlation frame/slot/occurrence, source/scan frame, resolved join kind, local CTE owner | ScanOwner and storage, written aliases |
+  | Recursive/CTE | finite definition/worktable backedge, typed SEARCH/CYCLE keys/mark/equality and original query children | producer/frontier/visited state; mutation remains opaque |
+  | Limit, locks, evaluation, target sets | bound operands/peer selections, lock mode/wait/order, evaluation base, frame/group/marker/scalar slot association | scratch widths, scheduled runtime bindings |
+
+  `CachedOrderExpr` retains its slot; its containing Sort/Evaluation and
+  projection retain the owner association, not an evaluated cache value.
+  A bound sublink also retains its genuine project syntax when present, because
+  its expression carrier has no enclosing rule/view syntax owner. Only the
+  selected query projection is shared; syntax is never synthesized from a plan.
+
 - **Generation admission** (`generation.go`): `GenerationImmutable` (a
   generation expression admits only immutable surviving providers) and
   `GenerationHasTableOID` (it reads the owner's `tableoid`), used by generated
@@ -296,6 +321,9 @@ whole `Eval` to the runtime.
 - **Opaque CTE mutation.** `CTEDefinition.Mutation` is a `CTEMutation` payload
   that plan code only tests for presence; the engine recovers the analyzed
   statement through `analyze.MutationBinding`.
+  Stored rewrite metadata recovers checked modifier owners using its existing
+  upper-layer visitors; it does not expand this interface or import analyze
+  bindings into plan. Their selected bound query roots use `AppendQueryTree`.
 
 ## What stays outside
 

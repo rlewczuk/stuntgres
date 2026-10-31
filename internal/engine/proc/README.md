@@ -37,7 +37,7 @@ Installation-member slots resolve through sealed producer `Installation` and
 Current reciprocal membership is checked separately; legal detachment does not
 erase declaration identity. Earth's cube references follow the actual domain
 base-type producer, never a schema/name lookup for a replacement installation.
-`AppendRoutineSyntax` records genuine concrete parser node/field names and
+`parser.AppendStructuralSyntax` records genuine concrete parser node/field names and
 ordered children/literals; source positions are not structural identity.
 Acquisition uses `parser.ParseRoutineDeclarationBody`, the ordinary lexer/grammar
 with readonly syntax capture separate from selected-call execution admission.

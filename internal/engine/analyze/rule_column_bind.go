@@ -18,6 +18,28 @@ func (b *Binder) RuleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
 	if side != "new" && side != "old" {
 		return nil, false, nil
 	}
+	// A real nearer range-table qualifier shadows the outer rule namespace.
+	// Let the ordinary binder own member lookup and diagnostics, including a
+	// missing column or a forbidden lateral reference; never fall back to OLD/
+	// NEW merely because the local source lacks the requested member.
+	if b.Query.Namespace != nil {
+		for _, qualifier := range b.Query.Namespace.Qualifiers {
+			if qualifier.Name == side {
+				return nil, false, nil
+			}
+		}
+	}
+	for i := len(b.Query.Scopes) - 1; i >= 0; i-- {
+		scope := &b.Query.Scopes[i]
+		if !scope.allowed || scope.namespace == nil {
+			continue
+		}
+		for _, qualifier := range scope.namespace.Qualifiers {
+			if qualifier.Name == side {
+				return nil, false, nil
+			}
+		}
+	}
 	ns := b.Target.RuleNamespace
 	if ns.Trigger {
 		if ns.TriggerStatement {

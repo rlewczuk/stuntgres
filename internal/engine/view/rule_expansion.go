@@ -40,6 +40,20 @@ func (rw RuleRewriter) ExpandLocked(auth RuleAuthority, stmt parser.Statement, b
 	if insert, ok := stmt.(*parser.Insert); ok && b.Rule.Template {
 		b.Insert.Defaults = nil
 		analyze.BindInsertDefaults(rw.Owner, &b, auth.Access().Catalog, insert.Override)
+		if b.CommandQuery && b.Query != nil && len(b.Insert.Defaults) != 0 {
+			// VALUES composition now supplies the query projection's outputs.
+			// Rebinding current defaults must not overwrite those consumed
+			// values (including partial targets) before conflict EXCLUDED is
+			// formed. Nil/default outputs, omitted columns and discarded
+			// identity inputs retain their existing default demand.
+			project := b.Query.Root.(*plan.ProjectNode)
+			for ordinal, target := range b.Targets {
+				if ordinal < len(project.Expressions) && project.Expressions[ordinal] != nil &&
+					(len(b.Insert.IdentityDiscard) == 0 || !b.Insert.IdentityDiscard[target]) {
+					b.Insert.Defaults[target] = nil
+				}
+			}
+		}
 	}
 	if current.RelationKind != catalog.ViewRelation {
 		b.Storage = auth.StorageLocked(b.Ref.Address)

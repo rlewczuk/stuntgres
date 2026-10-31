@@ -83,6 +83,8 @@ type QueryRenderer struct {
 	// Summary names follow current attributes independently of literal presentation.
 	CurrentNames        bool
 	PolicyRelation      *catalog.Relation // Request-private pg_get_expr owner, never a stored recipe.
+	RewriteInquiry      bool              // Request-private rule qualification namespace.
+	RewriteRelation     *catalog.Relation // nil means pg_get_expr's OID-zero parent namespace.
 	policyReplaySources bool              // Logical source names only; expressions retain replay semantics.
 	rowTargets          map[string]string
 	wholeRows           map[plan.WholeRowSource]viewRenderWholeRow
@@ -701,7 +703,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
-		if v.logicalSourceNames() {
+		if v.logicalSourceNames() && !(v.RewriteInquiry && v.simple) {
 			// The underlying occurrence already has its final name/columns.
 			// Alias wrappers never allocate a phantom default or a second RTE.
 			if v.rowTargets != nil && from.rowSource && n.Name.Text != "" {

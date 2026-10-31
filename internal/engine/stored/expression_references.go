@@ -281,6 +281,15 @@ func (r *DependRefs) Query(node plan.Node) {
 			}
 		}
 	case *plan.WindowNode:
+		for _, call := range n.Calls {
+			if call.Procedure != nil {
+				if call.Procedure.Address() != call.Routine.Address {
+					r.Err = fmt.Errorf("stuntgres: mismatched selected window declaration")
+					return
+				}
+				r.Add(call.Routine.Address)
+			}
+		}
 		for _, spec := range n.Specs {
 			for _, key := range spec.Order {
 				if key.Ordering != nil {

@@ -101,13 +101,13 @@ func (renderer *QueryRenderer) selectQueryBodyColumnsSQL(ctx context.Context, ca
 	presentation := renderer.Presentation
 	presentation.Columns = columns
 	simpleFrom := s.From
-	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand && !presentation.Rule {
+	if alias, ok := simpleFrom.(*parser.AliasReference); ok && presentation.Deparse && !setOperand && (!presentation.Rule || renderer.RewriteInquiry && renderer.RewriteRelation == nil && renderer.depth == 1) {
 		// A sole table still needs no column qualification when it has an
 		// explicit alias. Portable replay keeps its positional bridge.
 		simpleFrom = alias.Input
 	}
 	_, renderer.simple = simpleFrom.(*parser.TableReference)
-	renderer.simple = renderer.simple && !presentation.Rule && !presentation.RoutineDeclaration && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
+	renderer.simple = renderer.simple && (!presentation.Rule || renderer.RewriteInquiry && renderer.RewriteRelation == nil && renderer.depth == 1) && !presentation.RoutineDeclaration && (presentation.Deparse || renderer.CurrentNames) && !renderer.renderFrames[project.Frame].correlated
 	if table, ok := simpleFrom.(*parser.TableReference); ok && ViewCTETable(analyze.ViewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
@@ -666,6 +666,19 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 		return v.tableOIDSQL(catalog, column)
 	}
 	if column.RuleSide != 0 {
+		if v.RewriteInquiry {
+			if v.RewriteRelation == nil || column.RuleSide != 1 {
+				return "", fmt.Errorf("stuntgres: invalid rewrite inquiry pseudo namespace")
+			}
+			name, err := (Deparser{Output: v.Presentation.Output}).Attribute(v.RewriteRelation, column.RuleRef.Address.SubID)
+			if err != nil {
+				return "", err
+			}
+			if path.Query == v.View.query.Root.(*plan.ProjectNode).Frame {
+				return name, nil
+			}
+			return v.Presentation.identifier(v.RewriteRelation.Name()) + "." + name, nil
+		}
 		d, ok := catalog.Relation(ids.ObjectAddress{ClassID: column.RuleRef.Address.ClassID, ObjectID: column.RuleRef.Address.ObjectID})
 		if !ok {
 			return "", ids.ErrCatalogReplaced
@@ -699,7 +712,7 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 		return "", fmt.Errorf("stuntgres: missing view column frame")
 	}
 	root := analyze.ViewFromRoot(owner)
-	if v.Presentation.Policy && column.Frame == 1 && path.Query == 1 {
+	if v.Presentation.Policy && !v.RewriteInquiry && column.Frame == 1 && path.Query == 1 {
 		leaf := v.sources[0]
 		return (Deparser{Output: v.Presentation.Output}).Attribute(v.PolicyRelation, leaf.Attributes[column.Slot])
 	}
@@ -1316,16 +1329,31 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		}
 		return text, nil
 	case parser.PredicateExpr:
-		left, err := operand(e.Left, DeparseParent{Precedence: 5})
-		if err != nil {
-			return "", err
+		// DISTINCT from a bare NULL lowers to NullTestExpr. Capture retains
+		// only its non-NULL operand, so the syntax-owned NULL consumes no
+		// bound occurrence ordinal (including the NULL-on-left spelling).
+		nullOperand := func(raw parser.Expr) bool {
+			literal, ok := raw.(parser.LiteralExpr)
+			return ok && literal.Value.Kind == parser.NullValue
+		}
+		distinctNull := (e.Kind == parser.IsDistinct || e.Kind == parser.IsNotDistinct) && (nullOperand(e.Left) || nullOperand(e.Right))
+		left := "NULL"
+		var err error
+		if !distinctNull || !nullOperand(e.Left) {
+			left, err = operand(e.Left, DeparseParent{Precedence: 5})
+			if err != nil {
+				return "", err
+			}
 		}
 		operators := []string{"IS NULL", "IS NOT NULL", "IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN", "IS DISTINCT FROM", "IS NOT DISTINCT FROM"}
 		text := left + " " + operators[e.Kind]
 		if e.Right != nil {
-			right, err := operand(e.Right, DeparseParent{Precedence: 5})
-			if err != nil {
-				return "", err
+			right := "NULL"
+			if !distinctNull || !nullOperand(e.Right) {
+				right, err = operand(e.Right, DeparseParent{Precedence: 5})
+				if err != nil {
+					return "", err
+				}
 			}
 			text += " " + right
 		}

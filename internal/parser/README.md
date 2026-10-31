@@ -448,6 +448,11 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 
 ## Testing
 
+Concrete structural serialization (ordered nodes, fields/literals, omitted source
+positions and cancellation) uses `make check RUN='^TestParserStructuralOutput$'`.
+`AppendStructuralSyntax` is shared by routine and rewrite definition owners; it
+does not bind, evaluate or render SQL.
+
 CHECKPOINT complete syntax, identifiers and positions use `RUN='^TestCheckpointSyntax$'`.
 
 Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSParser'`.

@@ -48,6 +48,25 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_rewrite` (2618) projects all eight nonnullable attributes from actual
+  immutable view/materialized-view and ordinary-rule owners. `VisitRewriteCatalog`
+  bridges checked definitions without importing `stored`; the producer supplies
+  the captured owning relation identity. Tree columns use PG_NODE_TREE (194),
+  typmod -1 and C collation (950). Qualification absence is the non-NULL `<>`
+  node. Actions retain ordered concrete commands and analyzed expressions.
+  Explicit builtin return-rule identities instead retain private parsed sealed
+  SELECT declarations and their inventory reference facts, tagged
+  `BuiltinRewriteDeclaration`; they are not checked executable views and grant
+  neither execution, provider, write nor dependency authority. Failed capture
+  publishes no prefix. Tree output is native structure, not PostgreSQL
+  `nodeToString` bytes or SQL text.
+  Checked query trees also retain actual selected aggregate/window and
+  equality/ordering declarations with occurrence associations. The existing
+  dependency collector, not serialized bytes, supplies their real edges.
+  Qualification inquiry renders retained subqueries: OID-zero versus existing
+  relation context controls child prefixing independently of pretty mode, and
+  child-local columns do not trigger outer OLD/NEW diagnostics.
+
 - `pg_foreign_data_wrapper` (2328) projects only actual SQL wrapper definitions,
   including valid definitions without handlers. Its public inventory, raw ACL and
   complete ordered options are independent of wrapper USAGE; normal catalog
@@ -1287,6 +1306,9 @@ table-default ACL fallback. Its display inventory is independent of execution
 through the shared usage-origin projector.
 
 ## Testing
+
+Rewrite schema, sealed builtin declaration and atomic-capture units use
+`make check RUN='^TestPGRewrite'`.
 
 Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`

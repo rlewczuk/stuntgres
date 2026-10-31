@@ -290,7 +290,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			b.Capture.Columns[path] = captured
 			return nil
 		}
-		if row, ok := bound.(plan.RowExpr); ok && row.WholeNames != nil {
+		if row, ok := bound.(plan.RowExpr); ok && (row.WholeNames != nil || row.RuleSide != 0) {
 			b.Capture.CaptureViewComposite(path, CompositeWholeRow, row, nil)
 			return nil
 		}

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -86,54 +87,28 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case GroupExpr:
 		fmt.Fprintf(out, "Group frame %d slot %d", n.Frame, n.Slot)
 	case *WindowExpr:
-		fmt.Fprintf(out, "Window frame %d slot %d", n.Frame, n.Slot)
+		fmt.Fprintf(out, "Window frame %d slot %d call %d", n.Frame, n.Slot, n.Call)
 	case SubqueryExpr:
 		if n.QueryPlan == nil || n.QueryPlan.Root == nil {
 			return fmt.Errorf("stuntgres: missing structural subquery")
 		}
 		fmt.Fprintf(out, "SubLink kind %d operator %q negate %t", n.Kind, n.Operator, n.Negate)
 		for _, comparison := range n.Comparisons {
-			if err = pair(comparison.Left, comparison.Right); err != nil {
+			if err = child(comparison); err != nil {
 				return err
 			}
 		}
-		var query func(Node) error
-		query = func(root Node) error {
-			if root == nil {
-				return nil
-			}
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			fmt.Fprintf(out, " {query %T", root)
-			switch node := root.(type) {
-			case *SourceNode:
-				fmt.Fprintf(out, " relation %d occurrence %d", node.Ref.Address.ObjectID, node.Occurrence)
-			case *AggregateNode:
-				for _, call := range node.Calls {
-					fmt.Fprintf(out, " aggregate %d", call.Routine.Address.ObjectID)
-				}
-			}
-			var failure error
-			QueryExpressions(root, func(expression expr.Expr) {
-				if expression != nil && failure == nil {
-					failure = child(expression)
-				}
-			})
-			if failure != nil {
-				return failure
-			}
-			left, right := QueryInputs(root)
-			if err := query(left); err != nil {
-				return err
-			}
-			if err := query(right); err != nil {
-				return err
-			}
-			out.WriteByte('}')
-			return nil
+		for _, ordering := range n.Ordering {
+			out.WriteString(" sublink_ordering")
+			appendTreeComparison(out, ordering)
 		}
-		err = query(n.QueryPlan.Root)
+		appendTreeScalarGrouping(out, n.Membership)
+		if project, ok := n.QueryPlan.Root.(*ProjectNode); ok && project.Syntax != nil {
+			if err := parser.AppendStructuralSyntax(ctx, out, project.Syntax); err != nil {
+				return err
+			}
+		}
+		err = AppendQueryTree(ctx, out, n.QueryPlan.Root)
 	case TableOIDExpr:
 		fmt.Fprintf(out, "TableOID owner %d", n.Owner.Address.ObjectID)
 	case LiteralExpr:
@@ -155,6 +130,18 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		fmt.Fprintf(out, "EarthCheck %d", n.Kind)
 	case DomainValueExpr:
 		fmt.Fprint(out, "DomainValue")
+	case ReturningColumnExpr:
+		fmt.Fprintf(out, "ReturningColumn old %t absent %t merge %t side %d origin %d/%d/%d scope %d frame %d", n.Old, n.Absent, n.Merge, n.Side, n.Origin.Address.ClassID, n.Origin.Address.ObjectID, n.Origin.Address.SubID, n.Scope, n.Frame)
+		if err = child(n.ColumnExpr); err == nil {
+			err = child(n.Value)
+		}
+	case ReturningWholeRowExpr:
+		fmt.Fprintf(out, "ReturningWholeRow scope %d frame %d old %t merge %t side %d", n.Scope, n.Frame, n.Old, n.Merge, n.Side)
+		err = args(n.Members)
+	case UpdateOutputExpr:
+		fmt.Fprintf(out, "UpdateOutput index %d group %d", n.Index, n.Group)
+	case CachedOrderExpr:
+		fmt.Fprintf(out, "CachedOrder slot %d", n.Slot)
 	case ColumnExpr:
 		fmt.Fprintf(out, "Var attnum %d", n.Origin.Address.SubID)
 		// Analysis reserves the all-ones scope for rule/trigger OLD and NEW.

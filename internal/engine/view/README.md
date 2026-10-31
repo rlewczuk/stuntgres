@@ -95,6 +95,14 @@ imports `view`.
   retain the original routine invoker. A NEW graft loans only the containing
   DEFAULT's certified original callable references and effective revisions;
   source recipes, stored actions and their dependency slices remain immutable.
+  Stored INSERT-action DEFAULT cells resolve separately from event NEW inputs:
+  `rule_insert_defaults.go` retains current default recipes and their
+  `BindingDefaultOrigin` in a private transient carrier, with no lexical query
+  children for caller-origin folding. `PreflightRuleInsertDefaults` joins core's
+  consumed-default boundary after ordinary query preflight/demand, reusing the
+  existing binding mapper and origin-aware coercion/join checks. Runtime uses
+  `analyze.EvalDefault`; owned snapshot demand is forwarded, changed rows are
+  private, and identity-discard generation stays with INSERT.
   Event producers union the caller's column demand with typed OLD/NEW references
   introduced by rule qualifications and actions before opening view sources.
   Assigned NEW fields retain RHS demand rather than demanding their old value.

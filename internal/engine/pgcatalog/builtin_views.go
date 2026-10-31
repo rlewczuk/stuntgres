@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // BuiltinViewName describes one released display reference, not an executable
@@ -23,14 +24,16 @@ type builtinViewPart struct {
 	name BuiltinViewName
 }
 type builtinView struct {
-	oid         ids.OID
-	returnRule  ids.OID // Explicit native metadata identity; not an executable rule.
-	parts       []builtinViewPart
-	prettyParts []builtinViewPart
-	canonical   string
-	rules       uint32
-	delete      bool
-	writable    []int32
+	oid            ids.OID
+	returnRule     ids.OID // Explicit native metadata identity; not an executable rule.
+	parts          []builtinViewPart
+	prettyParts    []builtinViewPart
+	canonical      string
+	rules          uint32
+	delete         bool
+	writable       []int32
+	declaration    *builtinRewriteDeclaration
+	declarationErr error
 }
 
 func viewText(text string) builtinViewPart { return builtinViewPart{text: text} }
@@ -78,6 +81,13 @@ func indexBuiltinViews() map[ids.OID]builtinView {
 			text.WriteString(part.text)
 		}
 		record.canonical = text.String()
+		if record.returnRule != 0 {
+			statements, err := parser.ParseRoutineDeclarationBody(record.canonical)
+			record.declarationErr = err
+			if err == nil {
+				record.declaration, record.declarationErr = newBuiltinRewriteDeclaration(record, statements)
+			}
+		}
 		result[record.oid] = record
 	}
 	for _, record := range pgBuiltinViews {

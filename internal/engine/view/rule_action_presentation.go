@@ -28,6 +28,22 @@ func freezeRuleActionPresentation(catalogView catalog.Read, owner ids.SessionTok
 			producer.Root = &project
 			b.Query = &producer
 		}
+		// The SELECT owns its executable projection; mutation destinations
+		// still own scalar-query frames needed by assignment presentation.
+		var project *plan.ProjectNode
+		stored.VisitRuleActionExpressions(b, func(node expr.Expr) {
+			if project == nil {
+				copy := *b.Query.Root.(*plan.ProjectNode)
+				copy.AnalysisExpressions = append([]expr.Expr(nil), copy.AnalysisExpressions...)
+				project = &copy
+			}
+			project.AnalysisExpressions = append(project.AnalysisExpressions, node)
+		})
+		if project != nil {
+			producer := *b.Query
+			producer.Root = project
+			b.Query = &producer
+		}
 		return stored.FreezeQueryPresentation(catalogView, owner, query, b, false, false, 0, "", false)
 	}
 	metadata := b

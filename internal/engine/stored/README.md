@@ -395,6 +395,38 @@ host methods.
   recipes. Zero/unknown modes fail validation. Rule dump groups emit a
   nondefault mode ALTER immediately after CREATE in the same post-data owner
   group, using current quoted names; data replay precedes rule installation.
+- **Rewrite trees.** `RewriteTrees` validates exact captured owner/type identity
+  and installed list/view membership. `VisitRewriteCatalog` validates each
+  immutable payload once, then retains actual definitions without name/OID
+  re-resolution. Qualification carriers preserve bound OLD/NEW scope and
+  whole-row identity; absent conditions output `<>`, not SQL NULL. Actions own
+  ordered parser structure, target identities and bound query/expression facts;
+  an installed empty action list emits an explicit owned Nothing command.
+  Mode and rule-name edits do not change definition output. Output caches only
+  success and remains usable after replacement, drop or native Reset.
+  `pg_get_expr` rejects action queries before context relation lookup, checks
+  qualification range slots before lookup, and renders absent nodes as empty TEXT.
+  Shared concrete syntax output belongs to `parser.AppendStructuralSyntax`;
+  routines, views/rules and builtin declarations use the same serializer.
+  Present qualifications use their retained `ConditionPresentation` query
+  renderer, including nested sublinks, never SQL rebinding. Preflight walks
+  actual nested query expressions and distinguishes child-local Vars from outer
+  OLD/NEW. The caller's relation maps outer OLD; root scalar attributes stay
+  unqualified. Child qualification follows parent namespace presence, not pretty
+  mode: OID zero permits a bare single-source child, while an existing context
+  qualifies it. Deeper child namespaces and multiple sources qualify normally.
+  Whole-row presentation captures the genuine bound RuleSide independently of
+  ordinary FROM namespaces; no scalar fixture/presentation substitution is valid.
+  `plan.AppendQueryTree` is shared with bound subqueries and preserves selected
+  aggregate/window/equality/ordering declarations and frame/slot/spec ownership.
+  Frozen aggregate syntax already records the selected namespace; changing the
+  search path does not reselect an installed definition or an already-bound CREATE.
+  `VisitRuleModifiers` and `checkedMutationDefinition` expose actual mutation
+  owners above the opaque plan seam. Their ordered scalar/query roots, target
+  attributes, RETURNING and selected conflict authorities use the same writers,
+  without an execution-binding introspection interface. Window dependencies add
+  the original selected declaration through the existing pin/dedupe collector,
+  including analysis-only calls; output bytes never manufacture dependency edges.
 - **Routine recipes.** `RoutineProgram` owns checked SQL-standard actions.
   Their `StructuralOutput` retains ordered concrete parser nodes and fields,
   including command/expression kinds and literal values; it does not prepare,
@@ -763,6 +795,34 @@ host methods.
   TEMP event schema is `pg_temp`. Display never changes the payload or executes
   an action. Replay retains its explicit ALSO, positional source bridges,
   fully quoted identities, trailing newlines and separate TEMP export rules.
+  Assignment-target scalar subqueries are captured through the same retained
+  frame/query owners, including INSERT SELECT and modifier presentations.
+  `VisitRuleActionExpressions` includes actual lower/upper destination bounds;
+  the structural writer associates them with their private target-path output
+  instead of duplicating them as unassociated scalar roots. The private
+  `appendRewriteAssignmentTargets` preserves sparse target ordinal, logical
+  root/member attributes, container/destination usages, chain order and each
+  dimension's absent/lower/upper distinction. Ordinary INSERT/UPDATE, conflict
+  UPDATE and actual MERGE-arm owners share it through the existing binding and
+  checked modifier traversal. It never evaluates, reparses or refreshes a callee,
+  nor serializes execution coercion state. Unsupported MERGE partial INSERT
+  stays unsupported; supported MERGE UPDATE uses its genuine retained chain.
+  Rule NEW producers distinguish absent supplied DEFAULT cells from explicit
+  SQL NULL expressions. Existing bound defaults (or typed NULL when absent)
+  remain the single-row recipe; multirow VALUES producers substitute the same
+  destination recipes copy-on-change before executable projection. Identity-
+  discard inputs retain default demand, while produced outputs read the already
+  materialized value rather than evaluating that default a second time.
+  Stored INSERT actions have a separate normalization boundary. Their nil
+  DEFAULT cells resolve against current destination defaults before becoming
+  executable project/VALUES outputs, using private changed rows only. A
+  transient view-owned carrier retains each default's independent recipe and
+  origin rather than exposing it as a lexical query child. The existing consumed
+  default preparation boundary plans it under that origin; runtime uses
+  `analyze.EvalDefault`, restoring caller provenance. Snapshot demand still walks
+  the real owned recipe. Identity-discard outputs are ignored typed NULLs;
+  INSERT retains the single generation demand. Installed bindings/trees retain
+  their original immutable cells and presentations.
 - **Retag and remap.** `MapExpression`, `RetagTypes`, `RetagTypesWithQuery`
   (`expression_retag.go`, the canonical mapper); `RemapExpression`,
   `RemapScalar` (`expression_remap.go`), `RemapViewQuery` and `ViewQueryRemapper`
@@ -782,6 +842,10 @@ host methods.
   rule tree mapper (`NewRuleTreeMapper`, `MapRuleBindingRecipes`,
   `RefreshRuleBinding`) is shared with rule rewriting. `ReownScalarTypes`
   points relation column types and stored datums at current type generations.
+  Query-frame transplants move ordinary whole-row `PresenceFrame` and
+  `WholeSource.Frame` with their field expressions, preserving presence slots,
+  pseudo `RuleSide`, source properties and immutable predecessor backing.
+  Whole rows must never search an original frame after their child query moves.
   `ReownVersions` uses only its copy-on-change row transport against an immutable
   catalog snapshot; it does not normalize shared descriptors. Deferred typed
   projections transport produced nested values before CHECK/index consumers,
@@ -1110,6 +1174,9 @@ dynamic-source dependencies, remapping and retagging carry its procedure, OUT
 shape and regclass object dependency into the destination identity universe.
 
 ## Testing
+
+Rewrite definition ownership, range-slot identity and cancellation use
+`make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.
 
 XML frozen target/operand occurrence authority, selected conversion association
 and hidden conversion generations use

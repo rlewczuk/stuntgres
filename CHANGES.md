@@ -12,6 +12,34 @@
   strict NULLs, the restore-name byte limit and ACL/history native persistence.
   Authorized physical access rejects with `0A000`, never invented WAL or LSNs.
 
+- Complete `pg_rewrite`'s eight-column metadata with nonnullable owned
+  qualification/action trees, immutable capture, exact rule/view linkage and
+  carrier-aware `pg_get_expr` diagnostics. Builtin return rules retain parsed
+  sealed declarations without gaining stored-view execution authority.
+  Retain query-aware qualification sublinks and genuine whole-row captures,
+  context-driven child qualification, selected aggregate/window/ordering identities
+  and modifying-CTE bound owners. Window selection now reaches the existing
+  dependency collector, preserving actual RESTRICT/CASCADE behavior.
+  Resolve child OLD/NEW-spelled aliases through their genuine nearer namespace
+  for scalar and whole-row rules, preserving ordinary member/lateral diagnostics.
+  Rule query transplants keep local whole-row presence/source frames connected
+  to their mapped field/query owners without changing captured predecessors.
+  Include actual partial-assignment destination chains, logical attributes,
+  container/destination usages and ordered lower/upper bound expressions across
+  ordinary, conflict and modifying-CTE owners, including supported MERGE UPDATE.
+  Retain target-only scalar-query presentation frames.
+  Plain partial INSERT producer columns use their retained destination usage;
+  template default rebinding preserves supplied query outputs before EXCLUDED
+  consumption while retaining omitted/default/identity-discard demand.
+  Rule NEW producers retain actual defaults for explicit DEFAULT inputs instead
+  of publishing nil executable expressions; multirow producers copy only rows
+  whose default/identity-discard cells need their existing destination recipes.
+  Normalize stored INSERT-action DEFAULT cells independently of event NEW
+  recipes: retain current destination-default origin, origin-aware preparation
+  and per-row evaluation in a private transient recipe carrier. Preserve typed
+  NULL absence, supplied NULL, mixed rows and INSERT-owned identity generation.
+  MERGE partial INSERT remains unsupported; no new rewrite capability is added.
+
 - Add typed `pg_reload_conf()`, `pg_rotate_logfile()` and
   `pg_log_backend_memory_contexts(integer)` with released metadata, live mutable
   EXECUTE ACLs and ACL-only native persistence. Unknown cluster session IDs return

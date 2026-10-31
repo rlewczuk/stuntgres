@@ -46,6 +46,20 @@ Type inquiries use the same direct, prepared and stored expression paths:
 nested domains without replacing nominal `pg_typeof` identity. Native fixture
 controls preserve the underlying type graph and stored expressions.
 
+`pg_rewrite` exposes rule identities, enable modes, qualifications and ordered
+action trees for installed views, materialized views and ordinary rules.
+These metadata reads retain their captured definitions across replacement,
+drop and native fixture controls. Tree values are opaque native structural
+metadata; use the `pg_get_*def` functions for SQL presentation.
+Qualification inquiries render retained subqueries and distinguish their local
+columns from outer OLD/NEW. Query metadata preserves selected aggregate/window
+declarations and their real dependencies, including checked modifying-CTE owners;
+changing the search path alone never rebinds an installed definition.
+Partial-assignment metadata includes the actual destination chain and selected
+lower/upper bound expressions, including target-only subqueries, conflict UPDATE
+and supported modifying-CTE MERGE UPDATE. This does not add a rule engine or
+enable the existing unsupported MERGE partial-INSERT form.
+
 Input diagnostics use `pg_input_is_valid(text, text) → boolean`
 and `pg_input_error_info(value text, type_name text) → record(message text,
 detail text, hint text, sql_error_code text)`. Only error-info supports the named

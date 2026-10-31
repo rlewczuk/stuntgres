@@ -128,6 +128,69 @@ Filters retain genuine opaque `pg_node_tree` carriers with independently
 specified `pg_get_expr` semantics. Native BoundTree encoding is not claimed to
 equal PostgreSQL nodeToString bytes; raw bytes are checked only within a backend.
 
+Rewrite scenarios (`pg_rewrite*_test.go`) independently assert all eight
+attributes, C-collated nonnullable tree declarations, actual owning identities,
+ordered commands, conditional namespaces, builtin declaration ownership,
+replacement/mode/rename stability, executable effects, dependency rewiring and
+drop/rollback. Retained raw trees are compared only within each backend.
+Native builtin trees are parsed declaration metadata, never counterfeit checked
+views. Controls replay actual native dumps and assert failed/canceled restore
+atomicity. Scalar `pg_get_expr` diagnostics are asserted before missing-relation
+lookup, including action-query rejection and OLD/NEW range-slot distinctions.
+Absent qualification nodes render as empty TEXT, independently of strict
+SQL-NULL inputs. View aliases are asserted through relation result descriptors.
+Native actions retain their genuine defining-query output names; PostgreSQL's
+ordinary-view target entries carry declared aliases while its materialized-view
+query retains defining-query names. Raw structural expectations distinguish these
+owners instead of equating backend bytes. Replay refreshes materialized views
+before asserting their data and proves refresh leaves rewrite trees unchanged.
+The qualification subquery matrix labels zero/existing/missing relation contexts
+and both pretty overloads separately: parent namespace presence, not pretty,
+determines child qualification. It includes child-local `old` aliases, outer
+OLD/NEW, nested correlation, rename/current names and real nonmatch→match effects.
+Additional lexical-owner witnesses deliberately separate a NULL child value from
+a positive event value, require local OLD on INSERT/local NEW on DELETE to bind
+their real source, and cover scalar, whole-row and outer-child alias scopes.
+Their zero-context inquiries and nonmatch→match effects complement the exact
+context/pretty SQL matrix rather than masking binding with display substitutions.
+Actual whole-row CREATE RULE owners distinguish OLD/NEW and non-NULL records
+with NULL members; no unrelated scalar presentation is swapped into a fixture.
+Selected declaration witnesses use identical caller-written SQL under two
+schemas with independently expected sum3 versus max2, fresh Prepare after the
+path change, original bound declaration addresses, window dependencies, real
+rule effects and predecessor retention. Mutation-CTE variants retain actual
+aggregate/window/subquery roots, target/RETURNING fields, conflict and MERGE
+owners through the existing checked modifier visitor. No raw-byte equality
+between PostgreSQL and native is claimed.
+Assignment-target witnesses select a volatile callable only in the destination
+bound: independent first-versus-second array writes, stable rule identity,
+dependency rewiring/drop, retained predecessor and current renamed rule display.
+They cover ordinary/CTE partial INSERT, UPDATE, conflict UPDATE, slices, scalar
+subqueries, nested composite members and supported CTE MERGE matched UPDATE.
+The adjacent assignment-default matrix independently checks supplied, reordered,
+explicit SQL NULL and partial values against a conflicting sink default, omitted
+columns, identity-discard inputs and single/multirow explicit event DEFAULT
+through direct/prepared routes. Genuine captured-rule producer units require
+executable default recipes rather than nil sentinels and preserve original rows.
+Separate stored-action cases execute reordered `(v,id) VALUES(DEFAULT,7)`,
+mixed DEFAULT/supplied rows, no-column-default typed NULL and supplied NULL.
+They assert event counts/rows and held predecessor identity rather than only
+calling a private producer. Additional witnesses cover volatile sequence
+defaults exactly once per requested row, identity discard without double
+generation, real default failure atomicity, and current default replacement
+through a held prepared event. Native units inspect actual composed output
+usages, copied/default versus shared/supplied rows, and the genuine default
+manifest's isolation from unrelated caller provenance.
+MERGE partial INSERT remains the native `0A000` boundary (`MERGE partial insertion
+targets are unsupported`), not a successful dual-mode fixture or new capability.
+Genuine-owner units also distinguish usages, logical associations, nested steps,
+dimension/bound order and cancellation without mutating installed predecessors.
+The smoke selector includes successful qualification sublinks, the selected
+aggregate and LHS-only callable/index-effect transitions, plus a real stored
+INSERT-action DEFAULT producing `(id=7,v=101)`; it is not a schema-only check.
+Select the rewrite family with `make check RUN='^TestReferencePGRewrite'`;
+add `REFERENCE=1` for the pinned oracle.
+
 Raw rows represent explicit edges, not synthesized schema/all-table or partition
 child coverage. Broader ordinary-inheritance command expansion remains covered by
 `TestReferencePublicationInheritancePartitions`. Lifecycle coverage exercises

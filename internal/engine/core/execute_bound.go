@@ -265,6 +265,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if privateDefaults != nil {
 			b.Insert.Defaults = privateDefaults
 		}
+		b, queryRoot, err = view.PreflightRuleInsertDefaults(&evaluation, b, queryRoot)
+		if err != nil {
+			return Result{}, err
+		}
 		// Never carry runtime activation into locked recapture/publication or a
 		// retained prepared execution. Runtime owners activate their own copies.
 		evaluation.Context = ctx

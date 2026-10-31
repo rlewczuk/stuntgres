@@ -119,6 +119,7 @@ type TypeOccurrence struct {
 	Names      []string // Original exposed labels for a selected source star.
 	Function   functions.NullCountKind
 	Source     plan.WholeRowSource
+	RuleSide   uint32 // Actual OLD/NEW whole-row owner, separate from ordinary FROM namespaces.
 }
 
 type PreparedTypeKey struct {
@@ -139,10 +140,14 @@ func (c *ViewCapture) CaptureViewComposite(path ViewLiteralPath, kind TypeOccurr
 		c.Composites = make(map[ViewLiteralPath]TypeOccurrence)
 	}
 	source := plan.WholeRowSource{}
+	var ruleSide uint32
 	if row, ok := base.(plan.RowExpr); ok {
 		source = row.WholeSource
+		if kind == CompositeWholeRow {
+			ruleSide = row.RuleSide
+		}
 	}
-	c.Composites[path] = TypeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source}
+	c.Composites[path] = TypeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source, RuleSide: ruleSide}
 }
 
 type ViewLiteralClause uint8

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/parser"
 )
 
 // StructuralOutput retains the ordered actual command syntax of checked actions.
@@ -21,7 +21,7 @@ func (p *RoutineProgram) StructuralOutput(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("stuntgres: missing routine command syntax")
 		}
 		out.WriteByte(' ')
-		if err := proc.AppendRoutineSyntax(ctx, &out, action.syntax); err != nil {
+		if err := parser.AppendStructuralSyntax(ctx, &out, action.syntax); err != nil {
 			return "", err
 		}
 	}

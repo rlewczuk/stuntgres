@@ -196,8 +196,8 @@ var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoUserMappingOptionsOID:          "user_mapping_options",
 	pgcatalog.InfoForeignDataWrapperOptionsOID:   "foreign_data_wrapper_options",
 	pgcatalog.InfoForeignDataWrappersOID:         "foreign_data_wrappers",
-	ids.ForeignWrapperClassID:                   "pg_foreign_data_wrapper",
-	ids.ForeignServerClassID:                    "pg_foreign_server",
+	ids.ForeignWrapperClassID:                    "pg_foreign_data_wrapper",
+	ids.ForeignServerClassID:                     "pg_foreign_server",
 	pgcatalog.InfoForeignServerOptionsOID:        "foreign_server_options",
 	pgcatalog.InfoForeignServersOID:              "foreign_servers",
 	pgcatalog.InfoForeignTableOptionsOID:         "foreign_table_options",
@@ -445,6 +445,12 @@ func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view cat
 		}
 	}
 	return ctx.Err()
+}
+
+func (r EngineCatalogRuntime) VisitRewriteCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.RewriteCatalogFact) error) error {
+	return stored.VisitRewriteCatalog(ctx, view, relation, typ, func(f stored.RewriteCatalogDefinition) error {
+		return visit(pgcatalog.RewriteCatalogFact{OID: f.OID, Name: f.Name, Event: f.Event, Mode: f.Mode, Instead: f.Instead, Qual: f.Qual, Action: f.Action})
+	})
 }
 
 func (r EngineCatalogRuntime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {

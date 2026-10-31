@@ -200,13 +200,20 @@ func capturePGRewrite(in Input) ([][]sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if rule := relation.ReturnRuleOID(); rule != 0 {
-			rows = append(rows, []sqltype.Value{oid(0, uint32(rule)), text(1, "_RETURN"), oid(2, uint32(relation.Address().ObjectID)), text(3, "1"), text(4, "O"), boolean(5, true)})
+		appendFact := func(rule RewriteCatalogFact) error {
+			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, rule.Mode.String()), boolean(5, rule.Instead), rule.Qual, rule.Action})
+			return ctx.Err()
 		}
-		if err := relation.VisitRules(func(rule catalog.RuleFact) error {
-			rows = append(rows, []sqltype.Value{oid(0, uint32(rule.OID)), text(1, rule.Name), oid(2, uint32(relation.Address().ObjectID)), text(3, rule.Event), text(4, rule.Mode.String()), boolean(5, rule.Instead)})
-			return nil
-		}); err != nil {
+		if relation.View == nil && relation.ReturnRuleOID() != 0 {
+			fact, err := builtinRewriteFact(ctx, view, relation, source.Columns[6].Usage.Type)
+			if err != nil {
+				return nil, err
+			}
+			if err := appendFact(fact); err != nil {
+				return nil, err
+			}
+		}
+		if err := in.Runtime.VisitRewriteCatalog(ctx, view, relation, source.Columns[6].Usage.Type, appendFact); err != nil {
 			return nil, err
 		}
 		if captureErr != nil {

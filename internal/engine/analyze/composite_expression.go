@@ -360,8 +360,9 @@ func (b *Binder) ExpandComposite(raw parser.FieldExpr) (plan.CompositeExpansionB
 // exposed-column expansion used by a top-level qualified star or ROW(alias.*).
 func (b *Binder) wholeRow(name parser.ObjectName, pos parser.Position, asValue bool) (expr.Expr, error) {
 	if b.Target.RuleNamespace != nil && len(name.Parts) == 1 && (name.Parts[0].Text == "old" || name.Parts[0].Text == "new") {
-		row, _, err := b.RuleColumn(parser.ColumnExpr{Name: name, Pos: pos})
-		return row, err
+		if row, matched, err := b.RuleColumn(parser.ColumnExpr{Name: name, Pos: pos}); matched {
+			return row, err
+		}
 	}
 	if b.Target.returningAliases != nil && len(name.Parts) == 1 {
 		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.Target.Relation, b.FrameID(), b.Target.returningAliases, pos); found {

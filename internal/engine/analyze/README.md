@@ -339,6 +339,15 @@ library, and never the root engine or `session`. The engine, the root driver
   `DefaultOrigin`. Exact anonymous constructor shapes are reused only after fresh
   member binding proves identical usages. `domain_casts.go` swaps refreshable type
   groups without mutating a shared map.
+  Rule whole-row occurrences capture the actual bound `RowExpr.RuleSide` in
+  `TypeOccurrence`, separately from ordinary whole-row FROM namespaces. This
+  retains OLD/NEW identity even with no fields and lets checked rule inquiries
+  render their coherent frozen condition without adding a fabricated source.
+  Rule pseudo-column and whole-row resolution first honors real nearer query
+  qualifiers, including allowed outer query scopes. A child alias named `old` or
+  `new` therefore retains its ordinary source/frame even when that pseudo row
+  would be forbidden for the rule event. Missing members and lateral errors
+  stay with the ordinary binder; they never fall back to the rule relation.
   Held logical-literal input checks the catalog-lifetime public signature before
   matching captured OIDs, so displaced restore identities retain the exact
   cached-plan result/parameter diagnostic. Only full owner-proven reanalysis of

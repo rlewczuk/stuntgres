@@ -72,8 +72,15 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 				p.New[i] = b.Insert.Defaults[i]
 			}
 		}
-		assign := func(output int, value expr.Expr) {
+		assign := func(output int, value expr.Expr, supplied bool) {
 			slot := b.Targets[output]
+			// DEFAULT is an absent supplied expression, not an executable nil
+			// or SQL NULL. Keep the initialized default/null recipe. Identity
+			// override inputs likewise do not replace their default demand;
+			// materialized VALUES outputs have already consumed that default.
+			if value == nil || supplied && len(b.Insert.IdentityDiscard) > slot && b.Insert.IdentityDiscard[slot] {
+				return
+			}
 			if len(b.ArrayTargets) > output && b.ArrayTargets[output] != nil {
 				value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.New[slot].Properties(), value.Properties())}, Base: p.New[slot], Value: value, Target: b.ArrayTargets[output]}
 			}
@@ -91,12 +98,12 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 				}
 				p.Root = &plan.DerivedNode{QuerySchema: plan.QuerySchema(project.Schema()), Query: &plan.Query{Root: project}}
 				for i := range b.Targets {
-					assign(i, plan.ColumnExpr{Info: RuleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
+					assign(i, plan.ColumnExpr{Info: RuleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i}, true)
 				}
 			} else {
 				p.Root = project.Child
 				for i := range b.Targets {
-					assign(i, project.Expressions[i])
+					assign(i, project.Expressions[i], true)
 				}
 			}
 		} else if len(b.Expressions) == 1 {
@@ -104,21 +111,47 @@ func MakeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, out
 			// recipes directly, without a VALUES RTE or supplied-datum sharing.
 			p.Root = &plan.SingletonNode{}
 			for i := range b.Targets {
-				assign(i, b.Expressions[0][i])
+				assign(i, b.Expressions[0][i], true)
 			}
 		} else {
+			// VALUES rows execute independently of NEW's output Vars. Replace
+			// default sentinels with their real destination recipes before
+			// exposing this producer, without changing retained binding rows.
+			var rows [][]expr.Expr
+			for rowIndex, row := range b.Expressions {
+				var values []expr.Expr
+				for ordinal, value := range row {
+					slot := b.Targets[ordinal]
+					if value != nil && (len(b.Insert.IdentityDiscard) <= slot || !b.Insert.IdentityDiscard[slot]) {
+						continue
+					}
+					if values == nil {
+						values = slices.Clone(row)
+					}
+					values[ordinal] = p.New[slot]
+				}
+				if values != nil {
+					if rows == nil {
+						rows = slices.Clone(b.Expressions)
+					}
+					rows[rowIndex] = values
+				}
+			}
+			if rows == nil {
+				rows = b.Expressions
+			}
 			schema := make(plan.QuerySchema, len(b.Targets))
 			for i, slot := range b.Targets {
 				schema[i] = d.Columns[slot]
-				if len(b.Expressions) != 0 {
-					schema[i].Usage = b.Expressions[0][i].ResultUsage()
+				if len(rows) != 0 {
+					schema[i].Usage = rows[0][i].ResultUsage()
 				}
-				assign(i, plan.ColumnExpr{Info: RuleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i})
+				assign(i, plan.ColumnExpr{Info: RuleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i}, false)
 			}
 			if len(b.Expressions) == 0 {
 				p.Root = &plan.SingletonNode{}
 			} else {
-				p.Root = &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}
+				p.Root = &plan.ValuesNode{QuerySchema: schema, Rows: rows}
 			}
 		}
 	} else {
@@ -323,15 +356,19 @@ func normalizeRuleInsert(b analyze.Binding) analyze.Binding {
 	schema := make(plan.QuerySchema, len(b.Targets))
 	for i, slot := range b.Targets {
 		schema[i] = b.Relation.Columns[slot]
+		if i < len(b.ArrayTargets) && b.ArrayTargets[i] != nil {
+			schema[i] = b.ArrayTargets[i].Column(schema[i])
+		}
 	}
-	if len(b.Expressions) == 1 {
-		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: b.Expressions[0], Frame: 1}}
+	rows := ruleInsertDefaultRows(b, schema)
+	if len(rows) == 1 {
+		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: rows[0], Frame: 1}}
 	} else {
 		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
 			projection[i] = plan.ColumnExpr{Info: RuleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
 		}
-		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}, Expressions: projection, Frame: 1}}
+		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: rows}, Expressions: projection, Frame: 1}}
 	}
 	b.CommandQuery = true
 	b.Expressions = nil
@@ -387,7 +424,11 @@ func ComposeRuleAction(auth RuleAuthority, original analyze.Binding, event strin
 	if err != nil {
 		return b, err
 	}
-	if _, ok := action.Syntax().(*parser.Insert); ok {
+	if insert, ok := action.Syntax().(*parser.Insert); ok {
+		// Current destination defaults must be selected before DEFAULT cells
+		// become query outputs, not from the stored action's older schedule.
+		b.Insert.Defaults, b.Insert.DefaultOrigins = nil, nil
+		analyze.BindInsertDefaults(auth.Access().Owner, &b, catalog, insert.Override)
 		b = normalizeRuleInsert(b)
 	}
 	b, err = IsolateRuleCTEFrames(catalog, original, b, action.Syntax())

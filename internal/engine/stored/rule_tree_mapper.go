@@ -87,14 +87,14 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		return &copy, nil
 	}
 	mapper.Expression = func(bound expr.Expr) (expr.Expr, bool, error) {
-		return RewriteViewExpression(view, bound, mapping.Recipe, func(expr expr.Expr) (expr.Expr, bool, error) {
+		return RewriteViewExpression(view, bound, mapping.Recipe, func(value expr.Expr) (expr.Expr, bool, error) {
 			if mapping.Leaf != nil {
-				next, changed, err := mapping.Leaf(expr)
+				next, changed, err := mapping.Leaf(value)
 				if changed || err != nil {
 					return next, changed, err
 				}
 			}
-			switch node := expr.(type) {
+			switch node := value.(type) {
 			case plan.TableOIDExpr:
 				if node.Scope == 0 {
 					return node, false, nil
@@ -109,7 +109,7 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				return node, changed, nil
 			case plan.ColumnExpr:
 				if node.Scope == analyze.RulePseudoScope {
-					return expr, false, nil
+					return value, false, nil
 				}
 				changed := false
 				if node.Frame != 0 {
@@ -122,6 +122,37 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 					changed = true
 				}
 				return node, changed, nil
+			case plan.RowExpr:
+				presence, source := node.PresenceFrame, node.WholeSource.Frame
+				if presence != 0 {
+					presence = frame(presence)
+				}
+				if source != 0 {
+					source = frame(source)
+				}
+				if presence != node.PresenceFrame || source != node.WholeSource.Frame {
+					// Whole-row presence and its fields belong to the same
+					// transplanted query frame. A leaf replacement is complete,
+					// so map the original children here before returning it.
+					properties := RewrittenIntrinsicProperties(node)
+					mapped, _, err := plan.MapRowAnalysis(node, func(old expr.Expr) (expr.Expr, bool, error) {
+						next, changed, err := mapper.Expression(old)
+						if next != nil {
+							properties = expr.MergeProperties(properties, next.Properties())
+						}
+						return next, changed, err
+					})
+					if err != nil {
+						return nil, false, err
+					}
+					mapped, _, err = mapped.RetagFieldProjection(node.Usage.Type.BaseType())
+					if err != nil {
+						return nil, false, err
+					}
+					mapped.Property = properties
+					mapped.PresenceFrame, mapped.WholeSource.Frame = presence, source
+					return mapped, true, nil
+				}
 			case plan.AggregateExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
@@ -154,7 +185,7 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 					return &copy, true, nil
 				}
 			}
-			return expr, false, nil
+			return value, false, nil
 		}, func(root plan.Node, _ func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 			return mapper.Query(root)
 		})
