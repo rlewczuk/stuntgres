@@ -386,7 +386,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **pageinspect** (`pageinspect_provider.go`): the superuser, untrusted,
   relocatable 1.13 manifest owns four BRIN byte decoders, `bt_page_items(bytea)`,
   `fsm_page_contents(bytea)`, three GIN BYTEA decoders, `page_header(bytea)`
-  and `page_checksum(bytea,bigint)`. Header inspection owns nine typed OUT
+  and `page_checksum(bytea,bigint)`, followed by four hash BYTEA decoders.
+  Hash type returns TEXT, stats and metadata scalar RECORD, and items SETOF
+  RECORD; all four are STRICT, VOLATILE and parallel safe. Physical
+  `hash_bitmap_info(regclass,bigint)` acquisition is not registered by this
+  byte-decoder provider. Header inspection owns nine typed OUT
   fields; checksum uses the released `page_checksum_1_9` C identity and INT2
   result. Both are scalar, STRICT, VOLATILE and parallel safe. GIN metadata and
   opaque inspection return scalar records; compressed leaf inspection returns
@@ -400,7 +404,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   public names or the live original extension. Explicit C source identities
   preserve `bt_page_items_bytea` through member renames. Detachment, foreign
   membership and original-extension retirement do not change released capability.
-  The v3 owner codec preserves all eleven declaration slots, symbolic signatures
+  The v3 owner codec preserves all fifteen declaration slots, symbolic signatures
   and immutable OUT payload alongside current owners and membership; import
   still validates each actual destination member identity.
 - **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5

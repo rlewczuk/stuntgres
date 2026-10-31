@@ -45,6 +45,7 @@ func(c *Context)pageinspect(n plan.InstalledPageinspectExpr)(sqltype.BrinPage,[]
  page,err:=sqltype.ReadBrinPage(input.raw,required);return page,input.columns,false,err
 }
 func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,error){
+ if n.Member=="hash_page_type" || n.Member=="hash_page_stats" || n.Member=="hash_metapage_info"{return c.evalHashPageinspect(n)}
  if n.Member=="page_header" || n.Member=="page_checksum"{return c.evalHeaderPageinspect(n)}
  if n.Member=="gin_metapage_info" || n.Member=="gin_page_opaque_info"{return c.evalGinPageinspect(n)}
  if n.Member=="fsm_page_contents"{
@@ -63,6 +64,8 @@ func(c *Context)EvalPageinspect(n plan.InstalledPageinspectExpr)(sqltype.Value,e
  return sqltype.OwnedCompositeValue(d,fields)
 }
 func(c *Context)OpenPageinspect(n plan.InstalledPageinspectExpr)(expr.SourceCursor,error){
+ if n.Member=="hash_page_items"{return c.openHashPageinspect(n)}
+ if n.Member=="hash_page_type" || n.Member=="hash_page_stats" || n.Member=="hash_metapage_info"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}
  if n.Member=="bt_page_items"{return c.openBtreePageinspect(n)}
  if n.Member=="gin_leafpage_items"{return c.openGinPageinspect(n)}
  if n.Member=="brin_page_type" || n.Member=="brin_metapage_info" || n.Member=="fsm_page_contents" || n.Member=="gin_metapage_info" || n.Member=="gin_page_opaque_info" || n.Member=="page_header" || n.Member=="page_checksum"{v,err:=c.EvalPageinspect(n);if err!=nil{return expr.SourceCursor{},err};return expr.ScalarSource(v),nil}

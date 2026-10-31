@@ -176,6 +176,15 @@ admission and removes it before nested binding.
   released checksum algorithm, masking stored-checksum bytes while retaining
   flags, then mixing the block and narrowing to signed INT2. Both readers use
   immutable little-endian access: no 8 KiB copy, mutation or physical acquisition.
+- `ReadHashPage` borrows immutable bytea and selects released hash type,
+  bucket/overflow or metadata validation. New pages report unused only for
+  type inspection. Opaque unsigned fields, native float bits, fixed full
+  metadata arrays and tuple hash keys are decoded without textual reinput.
+  Stats count every non-dead line pointer as live; items include all pointers
+  regardless of declared tuple length. Actual pointer/tuple reads are bounded,
+  with ordinary native-layout errors only where upstream reads are undefined.
+  Owned item collections poll cancellation and never publish a partial result.
+  No reader consults logical rows, synthesizes pages or acquires relation files.
 - `PgNDistinct`, `PgDependencies` and `PgMCVList` are concrete internal base
   descriptors. Non-NULL text and binary input reject with 0A000; typed NULL
   remains valid for storage, parameters and results. Checked internal producer
@@ -842,6 +851,7 @@ JSON text-search filter/traversal ownership uses `RUN='^TestJSONTextSearch'`.
 
 Native physical datum and BRIN/B-tree/FSM/header/checksum byte-reader units use `RUN='^TestPageinspect'`;
 GIN decoder, safety and cancellation units use `RUN='^TestGINPage'`.
+Hash decoder, safety and cancellation units use `RUN='^TestHashPage'`.
 The immutable B-tree reader preserves encoded TIDs, pivot trailers and posting
 lists separately from page-context dead flags. Posting results use executable
 generic `tid[]` (OID 1010, element 27), with ordinary array ownership and codecs;

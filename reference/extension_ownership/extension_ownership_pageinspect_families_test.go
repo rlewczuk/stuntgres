@@ -26,6 +26,10 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 		{fixture.GINMembers[2], fixture.GINNames[2], fixture.GINTypes[2], [][]byte{fixture.GINPosting()}, [][][]any{fixture.GINLeafRows}, nil, " ORDER BY first_tid"},
 		{"page_header", fixture.HeaderNames, fixture.HeaderTypes, [][]byte{fixture.HeaderAsymmetric()}, [][][]any{{fixture.HeaderAsymmetricRow}}, fixture.HeaderNullRows(), ""},
 		{"page_checksum", []string{"checksum"}, []string{"INT2"}, [][]byte{fixture.HeaderPattern(1), fixture.HeaderPattern(0xab,0xcd)}, [][][]any{{{int64(1175)}}, {{int64(-30781)}}}, [][]any{{nil}}, ""},
+		{fixture.HashMembers[0],fixture.HashNames[0],fixture.HashTypes[0],[][]byte{fixture.HashBucket()},[][][]any{fixture.HashRows(0)},fixture.HashNullRows(0),""},
+		{fixture.HashMembers[1],fixture.HashNames[1],fixture.HashTypes[1],[][]byte{fixture.HashBucket()},[][][]any{fixture.HashRows(1)},fixture.HashNullRows(1),""},
+		{fixture.HashMembers[2],fixture.HashNames[2],fixture.HashTypes[2],[][]byte{fixture.HashBucket()},[][][]any{fixture.HashRows(2)},nil," ORDER BY itemoffset"},
+		{fixture.HashMembers[3],fixture.HashNames[3],fixture.HashTypes[3],[][]byte{fixture.HashMeta()},[][][]any{fixture.HashRows(3)},fixture.HashNullRows(3),""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,6 +55,8 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 							run(fixture.FSMDeclaration(tc.name, "eo_old", "eo_survivor_owner"))
 						case "page_header", "page_checksum":
 							run(fixture.HeaderDeclaration(tc.name == "page_checksum",tc.name,"eo_old","eo_survivor_owner"))
+						case "hash_page_type","hash_page_stats","hash_page_items","hash_metapage_info":
+							for i,name:=range fixture.HashMembers{if name==tc.name{run(fixture.HashDeclaration(i,tc.name,"eo_old","eo_survivor_owner"))}}
 						default:
 							for i, name := range fixture.GINMembers {
 								if name == tc.name {
@@ -78,6 +84,7 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 								return `SELECT eo_new.eo_inspect(` + argument + `) AS contents`
 							}
 							if tc.name == "page_checksum" {return `SELECT eo_new.eo_inspect(`+argument+`,0::bigint) AS checksum`}
+							if tc.name=="hash_page_type"{return `SELECT eo_new.eo_inspect(`+argument+`) AS hash_page_type`}
 							return `SELECT * FROM eo_new.eo_inspect(` + argument + `)` + tc.order
 						}
 						metadata := func(s fixture.Step, view bool) fixture.Step {
@@ -88,6 +95,8 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 								return fixture.FSMMetadata(s, b.PG, view)
 							case "page_header", "page_checksum":
 								return fixture.HeaderMetadata(s,b.PG,view)
+							case "hash_page_type","hash_page_stats","hash_page_items","hash_metapage_info":
+								return fixture.HashMetadata(s,b.PG,view)
 							default:
 								return fixture.GINMetadata(s, b.PG, view)
 							}
@@ -109,6 +118,11 @@ func ownershipPageinspectFamiliesSurvivors(t *testing.T) {
 							if tc.name == "page_header" {zeroRows=[][]any{fixture.HeaderZero}}
 							if tc.name == "gin_leafpage_items" {
 								zeroRows = fixture.GINNullRows(2)
+							}
+							if tc.name=="hash_page_type"{zeroRows=[][]any{{"unused"}}}
+							if tc.name=="hash_page_stats"||tc.name=="hash_page_items"||tc.name=="hash_metapage_info"{
+								message:="page is not a hash bucket or overflow page";if tc.name=="hash_metapage_info"{message="page is not a hash meta page"}
+								bad:=fixture.ImplicitError(query(`$1::bytea`),fixture.Diagnostic{Code:"22023",Message:message},make([]byte,8192));bad.SelectRows=true;bad.ErrorStage="execute";r(bad);r(fixture.Prepared(bad));return
 							}
 							zero := metadata(fixture.Select(query(`$1::bytea`), tc.names, tc.types, zeroRows, make([]byte, 8192)), false)
 							r(zero)

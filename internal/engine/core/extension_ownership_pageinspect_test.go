@@ -31,7 +31,7 @@ func ownershipPageinspectIdentity(t *testing.T) {
 	for i, address := range recipe.Members {
 		originals[i] = before.MustProcedure(address)
 	}
-	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum"}
+	symbols := [...]string{"brin_page_type", "brin_metapage_info", "brin_revmap_data", "brin_page_items", "bt_page_items", "fsm_page_contents", "gin_metapage_info", "gin_page_opaque_info", "gin_leafpage_items", "page_header", "page_checksum", "hash_page_type", "hash_page_stats", "hash_page_items", "hash_metapage_info"}
 	if len(originals) != len(symbols) {
 		t.Fatal("incomplete released pageinspect inventory")
 	}
@@ -53,6 +53,10 @@ func ownershipPageinspectIdentity(t *testing.T) {
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.gin_leafpage_items(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.page_header(bytea)`,
 		`ALTER EXTENSION pageinspect DROP FUNCTION public.page_checksum(bytea,bigint)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_page_type(bytea)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_page_stats(bytea)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_page_items(bytea)`,
+		`ALTER EXTENSION pageinspect DROP FUNCTION public.hash_metapage_info(bytea)`,
 		`DROP EXTENSION pageinspect`,
 		`ALTER EXTENSION "uuid-ossp" DROP FUNCTION public.eo_page_type(bytea)`,
 	} {
@@ -74,7 +78,7 @@ func ownershipPageinspectIdentity(t *testing.T) {
 		for index, captured := range originals {
 			current := view.MustProcedure(captured.Address())
 			if current.Origin.Installation != recipe || current.Display != captured.Display || current.Installed != captured.Installed {
-				t.Fatal("pageinspect mutation changed one of the eleven released declarations", q)
+				t.Fatal("pageinspect mutation changed a released declaration", q)
 			}
 			if symbol, err := extension.ProcedureSymbol(view, current); err != nil || symbol != symbols[index] {
 				t.Fatal("pageinspect release symbol changed", q, symbol, err)
@@ -135,7 +139,7 @@ func ownershipPageinspectCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 11 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.13" || len(next.Declarations) != 15 {
 		t.Fatal("pageinspect remap lost sealed release")
 	}
 	for i, a := range recipe.Members {

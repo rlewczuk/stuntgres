@@ -46,6 +46,10 @@ var PageinspectMembers = [...]PageinspectMember{
 	{"gin_leafpage_items", "gin_leafpage_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{27, 21, 1010}, "page", "first_tid", "nbytes", "tids")}},
 	{"page_header", "page_header", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{3220, 21, 21, 23, 23, 23, 23, 21, 28}, "page", "lsn", "checksum", "flags", "lower", "upper", "special", "pagesize", "version", "prune_xid")}},
 	{"page_checksum", "page_checksum_1_9", "17,20", 21, catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"page", "blkno"}}},
+	{"hash_page_type", "hash_page_type", "17", 25, catalog.InstalledRoutineDeclaration{Parallel: 's', ArgumentNames: [4]string{"page"}}},
+	{"hash_page_stats", "hash_page_stats", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{23,23,23,23,20,20,20,23,23}, "page", "live_items","dead_items","page_size","free_size","hasho_prevblkno","hasho_nextblkno","hasho_bucket","hasho_flag","hasho_page_id")}},
+	{"hash_page_items", "hash_page_items", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', ReturnsSet: true, Rows: 1000, Outputs: catalog.NewRoutineOutputs([]ids.OID{23,27,20}, "page","itemoffset","ctid","data")}},
+	{"hash_metapage_info", "hash_metapage_info", "17", 2249, catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: catalog.NewRoutineOutputs([]ids.OID{20,20,701,23,23,23,23,20,20,20,20,20,20,26,1016,1016}, "page","magic","version","ntuples","ffactor","bsize","bmsize","bmshift","maxbucket","highmask","lowmask","ovflpoint","firstfree","nmaps","procid","spares","mapp")}},
 }
 
 func (p *PageinspectProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {

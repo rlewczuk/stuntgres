@@ -22,7 +22,7 @@ import (
 func TestPageinspectBrinProviderIdentity(t *testing.T){
  e:=engine.New();op,done:=enginetest.RoleOperation(t,e,"postgres");defer done();enginetest.RoleExecute(t,e,op,"CREATE EXTENSION pageinspect")
  view:=e.CatalogRead();ext:=view.MustExtension(view.State().NameAddress(ids.NameKey{ClassID:ids.ExtensionClassID,Name:"pageinspect"}))
- if len(ext.Members)!=11 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
+ if len(ext.Members)!=15 || extension.StockPageinspect.Control().Version!="1.13"{t.Fatal(ext)}
  for i,address:=range ext.Members{
   p:=view.MustProcedure(address);m:=extension.PageinspectMembers[i]
   if p.Name()!=m.Name || p.Signature!=m.Signature || p.Result!=m.Result || p.Installed!=m.Declaration || p.Volatility!=expr.Volatile || !p.Strict || core.ProcedureReturnsSet(p)!=m.Declaration.ReturnsSet{t.Fatal(p)}
@@ -106,6 +106,10 @@ func TestPageinspectBrinOwnerCodec(t *testing.T) {
 		{"gin_moved", "leaf_items", "pg_catalog.bytea", "gin_owner"},
 		{"gin_moved", "header_info", "pg_catalog.bytea", "pi_owner"},
 		{"gin_moved", "page_sum", "pg_catalog.bytea, bigint", "gin_owner"},
+		{"brin_moved", "hash_page_type", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "hash_page_stats", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "hash_page_items", "pg_catalog.bytea", "postgres"},
+		{"brin_moved", "hash_metapage_info", "pg_catalog.bytea", "postgres"},
 	}
 	if len(record.Members) != len(wants) {
 		t.Fatal("incomplete released owner inventory", record)

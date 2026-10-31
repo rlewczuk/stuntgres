@@ -7,7 +7,7 @@ import (
  "stuntgres/internal/sqltype"
 )
 
-var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items","page_header","page_checksum"}
+var pageinspectNames=[...]string{"brin_page_type","brin_metapage_info","brin_revmap_data","brin_page_items","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items","page_header","page_checksum","hash_page_type","hash_page_stats","hash_page_items","hash_metapage_info"}
 type Pageinspect struct { expr.Info; Args []expr.Expr; Slots [2]uint8; Member string }
 func pageinspectFormals(member string)([]string,[]sqltype.ID){
  if member=="brin_page_items" {return []string{"page","index_oid"},[]sqltype.ID{sqltype.Bytea,sqltype.Regclass}}
@@ -45,6 +45,9 @@ func bindPageinspect(b Binder,raw parser.FunctionExpr)(expr.Expr,error){
  case "gin_leafpage_items":names=[]string{"first_tid","nbytes","tids"};ids=[]sqltype.ID{sqltype.Tid,sqltype.Int2,1010}
  case "page_header":names=[]string{"lsn","checksum","flags","lower","upper","special","pagesize","version","prune_xid"};ids=[]sqltype.ID{sqltype.PgLSN,sqltype.Int2,sqltype.Int2,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int2,sqltype.Xid}
  case "page_checksum":usage=b.Type(sqltype.Int2).Usage()
+ case "hash_page_stats":names=[]string{"live_items","dead_items","page_size","free_size","hasho_prevblkno","hasho_nextblkno","hasho_bucket","hasho_flag","hasho_page_id"};ids=[]sqltype.ID{sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int4,sqltype.Int4}
+ case "hash_page_items":names=[]string{"itemoffset","ctid","data"};ids=[]sqltype.ID{sqltype.Int4,sqltype.Tid,sqltype.Int8}
+ case "hash_metapage_info":names=[]string{"magic","version","ntuples","ffactor","bsize","bmsize","bmshift","maxbucket","highmask","lowmask","ovflpoint","firstfree","nmaps","procid","spares","mapp"};ids=[]sqltype.ID{sqltype.Int8,sqltype.Int8,sqltype.Float8,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int4,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Int8,sqltype.Oid,1016,1016}
  }
  if names!=nil {
   members:=make([]sqltype.CompositeMember,len(names));for i,name:=range names{members[i]=sqltype.CompositeMember{Attribute:int32(i+1),Name:name,Usage:b.Type(ids[i]).Usage()}}
@@ -64,6 +67,7 @@ func(n Pageinspect)ValidateArguments(children []expr.Expr)error{
  count:=1
  switch n.Member{
  case "brin_page_type","brin_metapage_info","brin_revmap_data","bt_page_items","fsm_page_contents","gin_metapage_info","gin_page_opaque_info","gin_leafpage_items","page_header":
+ case "hash_page_type","hash_page_stats","hash_page_items","hash_metapage_info":
  case "brin_page_items","page_checksum":count=2
  default:return fmt.Errorf("stuntgres: invalid pageinspect member")
  }
@@ -89,5 +93,5 @@ func(Pageinspect)PlanningFold()expr.Fold{return expr.FoldNever}
 func(Pageinspect)PreflightFold()expr.Preflight{return expr.PreflightChildren}
 func(Pageinspect)LooksLikeFunction()bool{return true}
 func(n Pageinspect)Capture(kind expr.CaptureKind)(expr.CaptureOperands,bool,error){return expr.CaptureOperands{Args:n.Args,Count:len(n.Args)},kind==expr.CaptureFunction,nil}
-func(n Pageinspect)SourceAdmission()(bool,bool){return true,n.Member=="brin_page_items" || n.Member=="brin_revmap_data" || n.Member=="bt_page_items" || n.Member=="gin_leafpage_items"}
+func(n Pageinspect)SourceAdmission()(bool,bool){return true,n.Member=="brin_page_items" || n.Member=="brin_revmap_data" || n.Member=="bt_page_items" || n.Member=="gin_leafpage_items" || n.Member=="hash_page_items"}
 func(n Pageinspect)ScalarSourceOutName()string{if n.Member=="fsm_page_contents"{return ""};if n.Member=="brin_revmap_data"{return "pages"};return n.Member}

@@ -427,7 +427,7 @@ typmods; naming is captured only on failure and is never retained in result tupl
   result retains the already evaluated checksum INT8 operand without copying
   a page or evaluating a child twice. The host supplies current superuser and,
   for BRIN items, exact index-descriptor authority before raw validation.
-  Immutable BRIN, B-tree, FSM, GIN and raw-header readers decode bytea without
+  Immutable BRIN, B-tree, FSM, GIN, hash and raw-header readers decode bytea without
   table-row access. Header/checksum routes in `pageinspect_header.go` produce
   owned PG_LSN/XID composites or INT2; header preserves all-zero records,
   while checksum alone returns NULL for `pd_upper==0`. Their non-set FROM
@@ -439,6 +439,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   compressed leaf (no rows) remain distinct. FSM returns one typed NULL TEXT
   row for SQL NULL or new pages. Declared result shapes own cursor metadata;
   deleted B-tree notices use the current statement operation.
+  Hash routes in `pageinspect_hash.go` preserve unused new-page type versus
+  required-type errors for stats/items/meta, without inheriting another family's
+  new-page NULL shortcut. Stats/meta are scalar composites; only items is a set.
+  Outputs own unsigned INT8/OID, native FLOAT8, TID and full INT8-array values.
 - **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
   before target-kind admission; explicit physical heap/visibility-map/TOAST
   requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,

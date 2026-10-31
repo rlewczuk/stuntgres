@@ -135,6 +135,13 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
   permissions. Constant-NULL scalar checksum elision is distinguished from
   RECORD and stored-NULL invocation ACLs. Stored consumers and native controls
   preserve symbolic identities and caller bytes without acquiring physical pages.
+- Hash pageinspect images in `reference/fixture/pageinspect_hash.go` independently
+  encode released bucket/overflow, line-pointer, tuple and full metadata arrays.
+  Four bytea decoders share direct/prepared/held, diagnostic, privilege,
+  descriptor-lifetime and symbolic-control scenarios. Safe unusual offsets and
+  low header versions remain positive fixtures; undefined C reads are covered
+  only by native safety units. Physical bitmap acquisition is a separate
+  non-engine mechanism, not a bytea overload or synthesized logical index page.
 - LOAD (`load_fixture_test.go`) checks missing-file candidates inside the oracle
   container only and requires `dynamic_library_path=$libdir` and an installed
   `plpgsql.so`; unexpected files are failed preconditions, never skips.
@@ -169,6 +176,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
 - GIN pageinspect: `RUN='^TestReferencePageinspectGIN'`
 - Header/checksum pageinspect: `RUN='^TestReferencePageinspect(Header|Checksum)'`
+- Hash pageinspect: `RUN='^TestReferencePageinspectHash'`
 - tablefunc hierarchy sources: `RUN='^TestReferenceConnectby'`. Shared helpers
   own caller-record metadata, full SQL diagnostics, retained statements and
   explicit native-control phases. Renamed members use current names or stored
