@@ -1,4 +1,4 @@
-package core
+package contrib
 
 import (
 	"stuntgres/internal/engine/catalog"

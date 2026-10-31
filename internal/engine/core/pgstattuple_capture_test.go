@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/contrib"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -121,7 +122,7 @@ func TestPgstattupleHeapCapture(t *testing.T) {
 	target.ObjectName="native_gin"
 	view:=e.Catalog.Read(state)
 	for _,kind:=range []functions.HeapStatisticsKind{functions.HeapStatisticsExact,functions.HeapStatisticsApprox,functions.HeapStatisticsPages} {
-		err:=core.PgstattupleTargetCheckable(view,&target,peer.SessionToken,kind)
+		err:=contrib.PgstattupleTargetCheckable(view,&target,peer.SessionToken,kind)
 		if kind==functions.HeapStatisticsPages { if err!=nil {t.Fatal(err)}; continue }
 		diagnostic,ok:=err.(*sqlstate.Error)
 		message:="index \"native_gin\" (gin index) is not supported"
@@ -258,7 +259,7 @@ func TestPgstattupleHeapTargetDispatch(t *testing.T) {
 						want = sqlstate.Error{Code:"0A000",Message:`relation "dispatch_index" is of wrong relation kind`,Detail:"This operation is not supported for indexes."}
 					}
 				}
-				err := core.PgstattupleTargetCheckable(view,&target,ids.SessionToken{},tc.kind)
+				err := contrib.PgstattupleTargetCheckable(view,&target,ids.SessionToken{},tc.kind)
 				if tc.kind == functions.HeapStatisticsPages {
 					if err != nil { t.Fatal("page descriptor admission",err) }
 				} else {

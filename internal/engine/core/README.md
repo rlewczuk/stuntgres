@@ -857,163 +857,28 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
-## Installed pgstattuple runtimes
+## Contrib runtimes
 
-`pgstatindex_capture.go` authenticates the two pgstatindex declarations and
-the pgstathashindex declaration, and
-checks ordinary EXECUTE before child evaluation/STRICT NULL and again after
-index AccessShare admission. Table ownership or SELECT is not authority. Text
-resolves a relation name at invocation; regclass carries supplied OID identity.
-Admission releases replacement reads around waits, rejoins them, and fences
-catalog domain/epoch, descriptors, parent storage and candidate roots. Capture
-borrows the effective root under Owner.Mu then Engine.Mu. B-tree captures also
-borrow immutable versions/ends and exact private outputs; hash statistics only
-sample bucket lengths, without private projection traversal. Model computation
-runs outside mutexes, without callbacks, parent ownership switching or parent
-Share locking. Exact selected AM (403 or 405) and ordinary index kind precede
-foreign TEMP and validity checks. Every exit releases its supplied-index lock;
-final descriptor/storage lifetime and cancellation fences precede results.
-
-`pgstattuple_capture.go` owns exact/approximate tuple and page inquiries. It
-uses the same sealed provider, routine/schema ACLs and scoped AccessShare
-fences. Record STRICT NULLs still require runtime EXECUTE; scalar constant
-NULLs use the shared strict-fold policy. Kind/AM errors use the authorized
-descriptor, never a peer's private catalog.
-
-Heap capture borrows actual heads, deletion ends and immutable retained
-predecessors, plus each matching owner's statement-published private roots
-and detached prepared roots. The caller may additionally include its own
-current stage. Peer statements linearize at the existing atomic owner merge:
-capture sees a complete pre-merge or post-merge state without peer Admission.
-TxRef and VersionID deduplication prevent double counting during PREPARE.
-Dirty and Vacuum classification use actual creator/end provenance, including
-Vacuum's different own/peer handling of inserted-and-ended versions.
-
-Detached allocation models run after releasing every metadata mutex. Heap
-pages pack actual aligned row allocations and item pointers into 8192-byte
-blocks; full-scan approximate statistics report 100 percent for nonempty heaps.
-No scan prunes roots or consults maintenance counters. VACUUM retires eligible
-predecessors through its existing horizon/fence; rewrite and logical import
-start new physical incarnations.
-Index tuple/page capture uses current logical roots and already-produced private
-outputs; no index archive is prepared, stamped, published or transported.
-Physical estimates can shrink immediately after logical DELETE, unlike
-PostgreSQL's retained on-page items. Heap logical history is unchanged.
-
-
-## Installed byte pageinspect runtime
-
-`pageinspect_capture.go` checks genuine immutable released routine identity,
-current reciprocal membership and live superuser authority at the function's
-NULL boundary. It does not require a live original pageinspect extension or infer
-capability from a receiving extension. BRIN item decoding opens the exact
-regclass descriptor with a temporary AccessShare contribution, waits outside
-metadata locks, and readmits the same descriptor before capturing per-column
-stored types. It never reads table rows or fabricates physical pages. The
-execution context decodes caller-owned bytea outside metadata locks through
-the SQL-independent native readers in `sqltype`. B-tree and FSM byte decoding
-need no relation capture; physical relname page acquisition is not an engine provider
-overload and local table contents are never synthesized into raw index pages.
-Heap schema capture shares the same AccessShare wait/readmission seam. It
-projects immutable length/alignment facts in physical slot order, merging live
-columns with dropped-attribute history without resolving removed types.
-Captures retain no rows, codecs or caller privileges; byte deformation executes
-outside metadata locks. Sequence descriptors use their real physical columns.
-
-## Installed crosstab runtime
-
-The crosstab statement host validates the captured procedure against current
-authority before argument evaluation, including strict-NULL calls. Nested source
-SQL borrows the existing SQL-routine activation, caller catalog/visibility and
-effective settings, with an isolated parameter frame. The whole SQL string is
-prepared; only admitted non-volatile commands execute, and the last result owns
-the pivot input. Each executed command has its own SQL-routine activation, so
-expected analysis, relation admission and source authority from an earlier
-command cannot authorize a later command. Commands share caller visibility,
-catalog frontier and effective settings, not query scratch. Every exit closes
-cursors and restores activation scratch. Parsing, typed codecs and source
-execution run outside `Engine.Mu`.
-
-## Installed amcheck B-tree runtime
-
-The sole `StockAmcheck` installation retains `verify_heapam` at slot zero and
-seven scalar B-tree overloads at slots one through seven. Heap verification's
-record-set source and B-tree VOID expressions retain distinct binding,
-transport, admission and runtime paths.
-
-`connectby_runtime.go` executes raw hierarchy SQL through ordinary nested
-parse/bind/execute activation under the caller's current catalog, retained
-snapshot frontier, settings and authority. Runtime-named sources borrow the
-outer snapshot's retained roots, not its fixed source-membership set. The first
-recursive source/RLS capture installs an invocation-local view; later reads
-validate and reuse it. Restoration releases that local view without changing
-the outer view, including when the caller is DML. Each sibling query is fully
-materialized and closed before restoring outer scratch. An explicit frame stack owns depth-first
-traversal; only a completely successful traversal publishes rows. SQL-boundary
-errors receive internal-query diagnostics; later descriptor, conversion and
-cycle errors remain outside that boundary.
-Routine capability comes from the sealed tablefunc installation's released
-declaration, never the current extension member count or receiving extension.
-Detached, renamed and foreign-member connectby routines remain genuine after
-the original extension is retired. Retained typed carriers resolve current
-owner/ACL through the ordinary routine validator, preserving domain/epoch,
-EXECUTE admission and caller-owned record-shape fences.
-Read-only SPI classification rejects utilities before their execution checks;
-optimizable statements retain ordinary analysis before the nonvolatile-function
-gate. Transaction commands and frontend COPY instead terminate the statement
-list with no children, matching SPI's negative return status. Successful
-read-only SELECT lists retain last-result semantics.
-Setting function calls are ordinary SELECT expressions here too: their canonical
-function identities retain live EXECUTE checks and setting effects, while SPI
-readonly classification continues to inspect the analyzed SQL command and row
-marks rather than prohibiting every volatile expression.
-Connectby enables an invocation-private read-only SPI demand. The ordinary
-description seam classifies the still-live canonical binding after analysis and
-authority checks, omitting analysis-only occurrences. It consumes marks at every
-derived/scalar/CTE query level and recursively follows stored-source occurrence
-marks. Nested row locking is rejected before tuple-lock execution; unused locking
-CTEs remain read-only, and ts_rewrite's separate gate is unchanged.
-Stored expansion propagates and merges inherited tuple marks through
-`stored.ViewLeafRowMark`, with a path-local recursion guard. Diagnostic marker
-presence is distinct from locking strength: a retained stored-query boundary
-marked by its caller contributes a preceding reference/COPY marker with no
-locking strength, yielding the plain `SELECT` tag while still rejecting SPI
-execution. Explicit locking, ordering, bounds, WITH and security-barrier metadata
-retain these represented boundaries; inherited locking alone on a plain view
-does not. Unrelated later strengths do not replace the first marker's tag.
-The canonical bound query walk establishes parent-before-child scope order.
-Within each level, `RowMark.Order` preserves the first written locking-clause
-target order independently of FROM order and later strength upgrades. Orders
-restart at query boundaries and are never globally sorted. Frozen-source
-ownership comes from the retained local FROM graph, stopping at derived and
-projection boundaries; source metadata is neither reordered nor mutated.
-
-`amcheck_*.go` captures exact target/parent and current routine authority, then
-acquires heap followed by index outside metadata locks. A non-index target has
-no heap identity and is rejected only after locking the target itself. Method,
-foreign-TEMP and validity checks follow both locks. Only queued acquisition
-drops the replacement reservation; every readmission retains original identities
-and checks current EXECUTE without advancing checkability ahead of lock admission.
-Each admitted heap/target open records the existing sticky transaction TEMP
-footprint before checkability, including numeric identities and rejected foreign
-TEMP attempts. Savepoint rollback does not erase it; EXECUTE denial, strict NULL,
-and cancellation before that open do not create it. This PREPARE TRANSACTION
-accounting is distinct from physical-session `temp_buffers` initialization.
-Immutable baseline and private-output captures feed `index.CheckBtree` without
-callbacks under metadata locks. Basic checks use AccessShare and parent checks
-Share, released at invocation exit while retaining preexisting transaction grants.
-A serial operation-local table-owner frame supplies restricted initial lookup and
-detached effective settings across nested SQL/PL activation; every exit restores
-caller authority and presentation. Sequence, large-object and pgrowlocks callable
-admission/readmission honors this restricted owner ahead of enclosing RI/rule
-actors, while ordinary writes retain their existing RI/rule authority.
-
-Native logical checks cover order, parent association, demanded heap membership,
-root search and visible uniqueness. They do not claim physical page/downlink,
-WAL/LSN or private-overlay ordered-tree verification; see
-[`index`](../index/README.md). Installed member identity and arbitrary current ACL
-provenance use the shared controls codec. A retained persistent regclass literal
-still fails ordinary replacement fencing rather than adopting a restored index.
+The amcheck, `verify_heapam`, pageinspect, pgrowlocks, pgstattuple,
+tablefunc (crosstab, connectby, normal_rand) and generic file runtimes are the
+leaf [`core/contrib`](contrib/README.md). Core owns `contrib.Host` on
+`statementHost` (`contrib_statement_host.go`), the `contrib.Authority` that
+`AuthorizationView` implements, `contribHost`'s `exec.ContribRuntime`
+adapters and `PageinspectNotice`, and these host pieces:
+- `AcquireRelationContribution`: the temporary relation contribution wait,
+  dropping the replacement read around a queued wait;
+- the pgrowlocks and `verify_heapam` readmission fences
+  (`contrib_readmission.go`);
+- pgstattuple's heap-statistics owner cohort (`heap_statistics_cohort.go`):
+  live owners locked in session-token order, then `Engine.Mu`, with the
+  prepared transactions' roots;
+- `WithMaintenanceOwner` (`maintenance_environment.go`), the serial
+  operation-local table-owner frame that amcheck (`CheckBtreeAsOwner`) and
+  CLUSTER share, and `refreshRestrictedPresentation`
+  (`amcheck_presentation.go`);
+- `GenericFileAuthority`: the routine principal's `pg_read_server_files`
+  membership and the path settings, borrowed in Engine -> Settings ->
+  Session order.
 
 ## Event-trigger command ownership
 
@@ -1478,8 +1343,8 @@ with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
-| `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `contrib.Host` (`contrib_statement_host.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
+| `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them; `contribHost` and `textSearchHost` enter `core/contrib` and `core/tsearch` |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
 | `EngineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
@@ -1522,13 +1387,6 @@ code. A statement or stage slot that one family owns is opaque:
 PL/pgSQL exception checkpoints; `dropScopeOf` recovers the `DropScope`), and
 `CatalogStage.ExtensionSlot` holds the `schemacmds` extension host that began
 the stage (`extensionNamespaceOf`).
-
-`contribHost.VerifyHeapam` supplies the distinct heap-verification runtime.
-It resolves exact regclass authority, borrows and releases only its added
-AccessShare contribution, readmits the same descriptor/storage after waiting,
-and scans immutable unfiltered captures outside metadata locks. Sequence
-targets use sequence state. A final incarnation fence precedes returning the
-owned records; no user constraints, codecs or physical block mapping run.
 
 `DropProvider.ColumnDependencies` and `ExpressionDependencies` share one canonical
 closure discovery, full RESTRICT preflight, retirement admissions and
@@ -2225,13 +2083,6 @@ and configuration-load stamps, captured at cluster construction and actual initi
 settings-registry load. Logical database adoption shares them; native catalog
 replacement never imports staging clocks or changes destination runtime identity.
 These runtime reads allocate no per-cell strings, snapshots or catalog captures.
-
-Generic file runtimes borrow live expression-principal roles and logical path
-settings in Engine -> Settings -> Session lock order. Shared lexical validation
-performs no host I/O. Read length checks surround path authorization in released
-order; stat/read then reject their physical mechanism. Tmpdir uses the retained,
-owner-validated catalog inquiry snapshot for typed tablespace existence before
-rejecting physical listing. Nodes retain neither authority nor physical state.
 
 `acl_runtime.go` resolves special inquiry actors under `Engine.Mu` from current
 execution authority. Parameter tokens precede named-role lookup and arbitrary
