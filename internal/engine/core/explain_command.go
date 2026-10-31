@@ -126,6 +126,26 @@ func (r *Renderer) MarkRuleRewrite() {
 	r.property(r.trees[0], "Rule Rewrite Command", true)
 }
 
+// PresentedNodes lists the plan nodes of the presentation trees in
+// presentation order. It is read-only; core's ExplainObservationForTest
+// accessor is its only caller (a recorded T6 exception, item 212).
+func (r *Renderer) PresentedNodes() []plan.Node {
+	var nodes []plan.Node
+	var visit func(*Tree)
+	visit = func(tree *Tree) {
+		if tree.node != nil {
+			nodes = append(nodes, tree.node)
+		}
+		for _, child := range tree.children {
+			visit(child)
+		}
+	}
+	for _, tree := range r.trees {
+		visit(tree)
+	}
+	return nodes
+}
+
 // Render returns the TEXT lines of the presentation.
 func (r *Renderer) Render() []string {
 	var lines []string
