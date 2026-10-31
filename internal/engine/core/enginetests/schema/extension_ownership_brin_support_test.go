@@ -1,4 +1,4 @@
-package core_test
+package schema_test
 
 import (
 	"slices"

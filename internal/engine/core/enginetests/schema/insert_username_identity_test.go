@@ -1,4 +1,4 @@
-package core_test
+package schema_test
 
 import (
 	"testing"
@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
+
 
 func TestInsertUsernameProviderIdentity(t *testing.T) {
 	e, installed := ownershipUnitInstall(t, "insert_username")

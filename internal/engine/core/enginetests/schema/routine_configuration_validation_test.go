@@ -1,11 +1,13 @@
-package core_test
+package schema_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -230,4 +232,20 @@ func TestRoutineConfigurationDeclarationCheckHooks(t *testing.T) {
 			}
 		})
 	}
+}
+
+func plUnitScope(t *testing.T) (*core.Engine, *core.StatementScope) {
+	t.Helper()
+	e := engine.New()
+	op, done, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { scope.Finish(nil) })
+	return e, scope
 }

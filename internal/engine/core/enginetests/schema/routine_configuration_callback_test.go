@@ -1,4 +1,4 @@
-package core_test
+package schema_test
 
 import (
 	"context"
@@ -353,5 +353,17 @@ func routineCallbackUnchanged(t *testing.T, scope *core.StatementScope) func() {
 		if scope.Op.RoleState() != roles || scope.Op.EffectiveUser != effective || scope.Owner != owner || owner.Isolation != isolation || owner.ReadOnly != readOnly || owner.Deferrable != deferrable {
 			t.Fatal("declaration normalization changed identity or transaction modes")
 		}
+	}
+}
+
+func localOwnerValue(t *testing.T, s *session.Session, name, want string) {
+	t.Helper()
+	s.Settings.Mu.Lock()
+	defer s.Settings.Mu.Unlock()
+	if got := s.Settings.Value(name); got != want {
+		t.Fatalf("%s got=%q want=%q", name, got, want)
+	}
+	if len(s.Settings.Actions) != 0 {
+		t.Fatal("retained transactional actions", s.Settings.Actions)
 	}
 }
