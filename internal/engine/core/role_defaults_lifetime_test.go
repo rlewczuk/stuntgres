@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 )
@@ -52,7 +51,7 @@ func TestRoleSettingsStartupUnwind(t *testing.T) {
 				}
 				return "", false, nil
 			})
-			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: provider})
 			if s != nil || err == nil {
 				t.Fatal("failed startup published a session", s, err)
 			}

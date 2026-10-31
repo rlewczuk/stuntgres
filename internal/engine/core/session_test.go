@@ -38,7 +38,7 @@ func (p *defaultProvider) SessionDefault(_ context.Context, d settings.Definitio
 }
 func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		t.Fatal("snapshot lost")
 	}
 	failure := errors.New("provider failed")
-	if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
+	if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
 		t.Fatalf("init %v %v", s, err)
 	}
 	core.EngineSessionMuRef(e).Lock()

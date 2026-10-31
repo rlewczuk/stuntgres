@@ -264,7 +264,7 @@ func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, ref)
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

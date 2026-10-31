@@ -5,7 +5,6 @@ import (
 	"errors"
 	"reflect"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -222,7 +221,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body 
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
+	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,10 +256,3 @@ func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body 
 	enginetest.RoleExecute(t, e, admin, "ALTER SCHEMA public OWNER TO "+quote(owner))
 	body()
 }
-
-// testSessionID numbers the sessions this package's tests start directly. It
-// starts above the IDs the enginetest helpers mint, so a test that uses both
-// never registers a duplicate advisory session.
-var testSessionID atomic.Uint64
-
-func init() { testSessionID.Store(1 << 20) }

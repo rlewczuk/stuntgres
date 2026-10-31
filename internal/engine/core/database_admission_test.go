@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -69,7 +68,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 					cancel()
 				}
 			}}
-			id := ids.SessionID(testSessionID.Add(1))
+			id := enginetest.NextSessionID()
 			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: id, Defaults: provider}, login)
 			if phase == "cancel" {
 				if s != nil || !errors.Is(err, context.Canceled) {
@@ -115,7 +114,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 
 func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	e, login := databaseAdmissionFixture()
-	live, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
+	live, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +135,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	if !live.IsLive() || live.CountedAuthenticated != login || core.EngineRoleSessionCountLocked(e, login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
-	fresh, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
+	fresh, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login)
 	if fresh != nil {
 		fresh.RequestEnd(session.CleanClose)
 		_ = fresh.WaitEnd(context.Background())
@@ -166,7 +165,7 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 			grantee = login
 		}
 		databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ConnectPrivilege}}})
-		start := session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
+		start := session.SessionStart{ID: enginetest.NextSessionID(), Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
 		s, err := enginetest.OpenSession(context.Background(), e, start, login)
 		if !allowLogin {
 			if s != nil {

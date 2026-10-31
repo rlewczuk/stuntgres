@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -221,7 +220,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	for _, tc := range []struct{ name, value string }{{"server_encoding", "LATIN1"}, {"shared_buffers", "32768"}, {"fsync", "off"}} {
 		name, value := tc.name, tc.value
 		bad := &settingsDefaultProviderForTest{values: map[string]string{name: value}, calls: map[string]int{}}
-		if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
+		if s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: bad}); err == nil || s != nil {
 			t.Fatal("intrinsic default changed", s, err)
 		}
 	}

@@ -71,7 +71,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 		a.Release()
 		databaseAdmissionCount(t, e, 0)
 		a = databaseAdmissionReserve(t, e, login)
-		s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+		s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
 		if err != nil || s.CountedAuthenticated != login || core.EngineOf(s) != e {
 			t.Fatal("admission did not retain identity/target", s, err)
 		}
@@ -91,7 +91,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 		unblock := func() { once.Do(func() { close(gate.release) }) }
 		result := make(chan roleLimitStartResult, 1)
 		go func() {
-			s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: gate})
+			s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: gate})
 			result <- roleLimitStartResult{s, err}
 		}()
 		joined := false
@@ -130,7 +130,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 			var incumbent *session.Session
 			if mode == "role limit" {
 				var err error
-				incumbent, err = enginetest.OpenSession(t.Context(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login)
+				incumbent, err = enginetest.OpenSession(t.Context(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -139,7 +139,7 @@ func TestDatabaseAdmissionReservation(t *testing.T) {
 			a := databaseAdmissionReserve(t, e, login)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			start := session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}
+			start := session.SessionStart{ID: enginetest.NextSessionID()}
 			sentinel := errors.New("defaults failure")
 			switch mode {
 			case "canceled":
@@ -191,7 +191,7 @@ func TestDatabaseAdmissionProvenance(t *testing.T) {
 	}{
 		{e, nil}, {e, &copy}, {other, a}, {peer, a},
 	} {
-		s, err := candidate.target.StartSession(t.Context(), candidate.token, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &databaseAdmissionDefaults{apply: func() { t.Error("invalid token invoked startup defaults") }}})
+		s, err := candidate.target.StartSession(t.Context(), candidate.token, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: &databaseAdmissionDefaults{apply: func() { t.Error("invalid token invoked startup defaults") }}})
 		if s != nil || err == nil || len(core.EngineSessions(e)) != before {
 			t.Fatal("foreign/copied admission accepted or mutated resources", s, err)
 		}
@@ -222,12 +222,12 @@ func TestDatabaseAdmissionProvenance(t *testing.T) {
 	roleLimitClose(t, admin)
 	databaseAdmissionCount(t, e, 0)
 	a = databaseAdmissionReserve(t, e, login)
-	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer roleLimitClose(t, s)
-	if second, err := e.StartSession(t.Context(), a, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}); second != nil || err == nil {
+	if second, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()}); second != nil || err == nil {
 		t.Fatal("consumed token reused", second, err)
 	}
 	databaseAdmissionCount(t, e, 1)
@@ -279,7 +279,7 @@ func TestDatabaseAdmissionEnding(t *testing.T) {
 	e, login := databaseAdmissionFixture()
 	databaseAdmissionLimit(e, 1)
 	a := databaseAdmissionReserve(t, e, login)
-	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	s, err := e.StartSession(t.Context(), a, session.SessionStart{ID: enginetest.NextSessionID()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestDatabaseAdmissionEnding(t *testing.T) {
 	next := databaseAdmissionReserve(t, e, login)
 	next.Release()
 	next = databaseAdmissionReserve(t, e, login)
-	failed, err := e.StartSession(t.Context(), next, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	failed, err := e.StartSession(t.Context(), next, session.SessionStart{ID: enginetest.NextSessionID()})
 	if err != nil {
 		t.Fatal(err)
 	}

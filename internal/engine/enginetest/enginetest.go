@@ -22,10 +22,15 @@ import (
 // sessionID numbers the sessions the helpers start, unique per test binary.
 var sessionID atomic.Uint64
 
+// NextSessionID returns a session identifier from the counter the helpers use,
+// so a test that starts sessions itself never registers a duplicate advisory
+// session next to the helpers' ones.
+func NextSessionID() ids.SessionID { return ids.SessionID(sessionID.Add(1)) }
+
 // Operation starts a session and acquires its operation. The cleanup releases
 // the operation and ends the session.
 func Operation(e *core.Engine, ctx context.Context) (*session.Operation, func(), error) {
-	s, err := OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))})
+	s, err := OpenSession(ctx, e, session.SessionStart{ID: NextSessionID()})
 	if err != nil {
 		return nil, nil, err
 	}

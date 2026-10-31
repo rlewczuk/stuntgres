@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -119,7 +118,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 			b.Run(name, func(b *testing.B) {
 				e := engine.New()
 				ctx := context.Background()
-				s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+				s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: enginetest.NextSessionID()})
 				if err != nil {
 					b.Fatal(err)
 				}

@@ -130,7 +130,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 
 func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e := engine.New()
-	owner, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	owner, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()})
 	if err != nil {
 		t.Fatal(err)
 	}

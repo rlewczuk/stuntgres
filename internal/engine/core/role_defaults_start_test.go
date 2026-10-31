@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -35,7 +34,7 @@ func roleDefaultsInstall(e *core.Engine, key access.RoleSettingKey, row []access
 
 func roleDefaultsStart(t *testing.T, e *core.Engine, start session.SessionStart, principals ...authorization.PrincipalRef) *session.Session {
 	t.Helper()
-	start.ID = ids.SessionID(testSessionID.Add(1))
+	start.ID = enginetest.NextSessionID()
 	s, err := enginetest.OpenSession(t.Context(), e, start, principals...)
 	if err != nil {
 		t.Fatal(err)

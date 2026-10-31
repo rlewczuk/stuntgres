@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 )
@@ -36,7 +35,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 					cancel()
 				}
 			}}
-			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider}, login.Ref)
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: provider}, login.Ref)
 			if s != nil || err == nil || len(core.EngineSessions(e)) != before {
 				t.Fatal("failed startup published", s, err)
 			}
@@ -54,7 +53,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 	for _, value := range []string{"none"} {
 		e, _ := roleSwitchUnitSession(t)
 		login, _ := e.Roles().Lookup("switch_login")
-		s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: roleSwitchDefaultProvider{value: value}}, login.Ref)
+		s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: roleSwitchDefaultProvider{value: value}}, login.Ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +74,7 @@ func roleSwitchUnitSession(t *testing.T) (*core.Engine, *session.Session) {
 		enginetest.Run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
-	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, login.Ref)
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

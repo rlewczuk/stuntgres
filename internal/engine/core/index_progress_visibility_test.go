@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 )
@@ -15,7 +14,7 @@ import (
 func indexProgressLogin(t *testing.T, e *core.Engine, name string) *session.Session {
 	t.Helper()
 	roles := e.RoleStore.Published.Root.Read(e.RoleStore.Domain.Principal(10))
-	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, roles.LookupRef(name))
+	s, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, roles.LookupRef(name))
 	if err != nil {
 		t.Fatal(err)
 	}

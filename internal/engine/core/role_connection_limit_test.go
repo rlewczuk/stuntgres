@@ -42,7 +42,7 @@ func roleLimitClose(t *testing.T, s *session.Session) {
 }
 func roleLimitDenied(t *testing.T, e *core.Engine, ref authorization.PrincipalRef, name string) {
 	t.Helper()
-	s, err := roleLimitStart(e, ref, ids.SessionID(testSessionID.Add(1)), nil)
+	s, err := roleLimitStart(e, ref, enginetest.NextSessionID(), nil)
 	var d *sqlstate.Error
 	want := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "53300", Message: "too many connections for role \"" + name + "\""}
 	if s != nil || !errors.As(err, &d) || !reflect.DeepEqual(d, want) {
@@ -54,7 +54,7 @@ func roleLimitDenied(t *testing.T, e *core.Engine, ref authorization.PrincipalRe
 }
 func roleLimitOpen(t *testing.T, e *core.Engine, ref authorization.PrincipalRef) *session.Session {
 	t.Helper()
-	s, err := roleLimitStart(e, ref, ids.SessionID(testSessionID.Add(1)), nil)
+	s, err := roleLimitStart(e, ref, enginetest.NextSessionID(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 			return nil, err
 		},
 		func() (*session.Session, error) {
-			return roleLimitStart(e, super.Ref, ids.SessionID(testSessionID.Add(1)), nil)
+			return roleLimitStart(e, super.Ref, enginetest.NextSessionID(), nil)
 		},
 	} {
 		s, err := admission()
@@ -226,7 +226,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		fence := &roleLimitFenceContext{Context: ctx, e: e, cancel: cancel}
-		s, err := enginetest.OpenSession(fence, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, d.Ref)
+		s, err := enginetest.OpenSession(fence, e, session.SessionStart{ID: enginetest.NextSessionID()}, d.Ref)
 		if s != nil || !errors.Is(err, context.Canceled) || !fence.observed {
 			t.Fatal("registry cancellation consumed slot", s, err)
 		}
@@ -242,7 +242,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		for range 2 {
 			go func() {
 				<-ready
-				s, err := roleLimitStart(e, d.Ref, ids.SessionID(testSessionID.Add(1)), nil)
+				s, err := roleLimitStart(e, d.Ref, enginetest.NextSessionID(), nil)
 				results <- roleLimitStartResult{s, err}
 			}()
 		}
@@ -273,7 +273,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			gate := &roleLimitGate{entered: make(chan struct{}), release: make(chan struct{})}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			id := ids.SessionID(testSessionID.Add(1))
+			id := enginetest.NextSessionID()
 			results := make(chan roleLimitStartResult, 1)
 			go func() {
 				s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: id, Defaults: gate}, d.Ref)
@@ -346,7 +346,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		first.Mu.Lock()
 		results := make(chan roleLimitStartResult, 1)
 		go func() {
-			s, err := roleLimitStart(e, d.Ref, ids.SessionID(testSessionID.Add(1)), nil)
+			s, err := roleLimitStart(e, d.Ref, enginetest.NextSessionID(), nil)
 			results <- roleLimitStartResult{s, err}
 		}()
 		select {

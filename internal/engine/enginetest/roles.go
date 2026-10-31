@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
@@ -21,7 +20,7 @@ func RoleOperation(t testing.TB, e *core.Engine, name string) (*session.Operatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))}, ref)
+	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: NextSessionID()}, ref)
 	if err != nil {
 		t.Fatal(err)
 	}

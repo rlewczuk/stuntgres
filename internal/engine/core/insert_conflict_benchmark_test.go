@@ -37,7 +37,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				f.e.Mu.Lock()
 				f.e.Storage.InstallIndexRootLocked(f.index.Address(), root)
 				f.e.Mu.Unlock()
-				sess, err := enginetest.OpenSession(context.Background(), f.e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, f.parent.Owner)
+				sess, err := enginetest.OpenSession(context.Background(), f.e, session.SessionStart{ID: enginetest.NextSessionID()}, f.parent.Owner)
 				if err != nil {
 					b.Fatal(err)
 				}

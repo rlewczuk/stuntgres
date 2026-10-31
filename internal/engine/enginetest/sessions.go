@@ -39,7 +39,7 @@ func OpenSession(ctx context.Context, e *core.Engine, start session.SessionStart
 // and ends it at test cleanup.
 func StartSession(t testing.TB, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(sessionID.Add(1)), Defaults: p})
+	s, err := OpenSession(context.Background(), e, session.SessionStart{ID: NextSessionID(), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}

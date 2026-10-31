@@ -46,7 +46,7 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *core.Engine, role, sql stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, principal)
+	sess, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: enginetest.NextSessionID()}, principal)
 	if err != nil {
 		t.Fatal(err)
 	}

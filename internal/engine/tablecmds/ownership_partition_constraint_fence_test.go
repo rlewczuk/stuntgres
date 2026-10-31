@@ -59,7 +59,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*core.Engi
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
-	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, actor)
+	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, actor)
 	if err != nil {
 		t.Fatal(err)
 	}

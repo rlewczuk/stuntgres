@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -94,7 +93,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("reservation is not the actual unique provider", resource)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	sess, err := enginetest.OpenSession(ctx, f.e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))}, reader.Ref)
+	sess, err := enginetest.OpenSession(ctx, f.e, session.SessionStart{ID: enginetest.NextSessionID()}, reader.Ref)
 	if err != nil {
 		cancel()
 		t.Fatal(err)

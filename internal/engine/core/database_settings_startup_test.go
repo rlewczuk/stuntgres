@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 )
@@ -115,7 +114,7 @@ func TestDatabaseSettingsStartup(t *testing.T) {
 				}
 				return "", false, nil
 			})
-			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: provider})
+			s, err := enginetest.OpenSession(ctx, e, session.SessionStart{ID: enginetest.NextSessionID(), Defaults: provider})
 			want := failure
 			if mode == "cancel" {
 				want = context.Canceled
