@@ -1,104 +1,141 @@
-# Splitting `internal/engine`
+# Splitting `internal/engine/core`
 
-Status: six rounds and four closing reviews (linear items 1–180) are done.
-Item 180 measured the root at `26f8fea15` and planned the seventh round (§4,
-items 181–205): a runtime core. The god structs move down into `engine/core`,
-and statement executors move into family packages above it. Earlier analysis,
-specs and session records are in git history
-(`git show 26f8fea15:docs/ENGINE-SPLIT.md`, and the same for the status page and
-the round-6 prompt files). `docs/design/*` is background only; where it
+Status: the earlier rounds are done. They are linear items 1–204: the root split
+into layered packages, then the runtime core and the `*cmds` families (round 7).
+Their plan, specs and session records are in git history:
+`git show 7b262861a:docs/ENGINE-SPLIT.md`, and the same for the status page and
+the `ENGINE-SPLIT-{core,cmds,enginetest}.md` prompt files. Item 205 (closing
+review 5) is superseded by this plan.
+
+This round (round 8, items 206–230) splits `internal/engine/core` into packages
+under `internal/engine/core/`. `docs/design/*` is background only; where it
 disagrees with this document, this document wins.
 
-## 1. Where the split stands
+## 1. Where core stands
 
-Measured at `26f8fea15` with the tools in §2.3. Lines are declaration lines
-unless a column says otherwise.
+Measured at `b7e30241f` with `.cswd/tmp/SPLIT-ENGINE-CORE/measure.py` and
+`layout.py` (§2.3). Sizes are Go source bytes per package directory, tests
+included.
 
-- **Size.** The root has 395 production files: 48.5k lines (1.74 MB), 15.8% of
-  the engine's 307k production lines. The 36 subpackages hold 258.7k. The root
-  also holds 1,346 test files: 259.8k lines (10.65 MB). That is 86% of the
-  root's bytes and 85% of the engine's test bytes.
-- **Why nothing more moves under the old rules.** 312 of 1,836 root
-  declarations (2.9k lines) are clean; everything else reaches a god struct:
-  - god structs: `Engine` (454 methods in 215 files, 20.4k lines),
-    `StatementScope` (356 in 133, 11.4k) and `CatalogStage` (38, 0.3k);
-  - adapters: `statementHost` 145 methods, `ddlHost` 89, `dropProvider` 58,
-    `bindingHost` 52, `engineCatalogRuntime` 44, `AuthorizationView` 30.
+- **Size.** Core is 11.26 MiB in 1,599 files:
+  - production: 435 files, 1.96 MiB;
+  - internal tests: 13 files, 0.06 MiB;
+  - accessor files (`export_<area>_test.go`): 33 files, 0.10 MiB, 500 names;
+  - external tests (`package core_test`): 1,118 files, 9.14 MiB.
 
-  No package can import the root.
-- **Runtime-core boundary** (`closure`):
-  - core 28.5k;
-  - families 9.1k, plus 1.6k shared;
-  - root composition (Restore) 1.2k;
-  - unassigned 0.1k.
-
-  The `ddlHost` split (item 190) shrinks core to about 27k by moving 1.2k to
-  the families. Item 189 measured that a validator table would free none of the
-  1.1k validator lines, which TEMP cleanup and other core paths also reach.
+  The next largest engine packages are `functions` (2.75 MiB), `schemacmds`
+  (2.06) and `tablecmds` (1.63).
 - **Tests.**
-  - 63 files (0.26 MB) reach no root internals, even through helpers.
-  - Exporting the 345 names the families need anyway, plus 25 inspection names
-    (item 182), frees 4.8 MB.
-  - 2.7 MB reach family or Restore code and move with their family; 2.9 MB need
-    528 test-only core internals. Of the family tests, 1.5 MB need 175 of those
-    internals as well, so they must be fixed before the core move (item 194).
-  - Few tests are pure duplicates of `reference/`. 0.9 MB of files have at least
-    80% of their SQL literals in `reference/`, but the samples also assert
-    internal state; expect 5–15% deletions.
-- **Churn.** About 100 commits a day touch root files, and feature sessions
-  change 400–800 root test files a day.
+  - 694 external files (5.27 MiB) use no accessor.
+  - 269 files (2.57 MiB) use the hub accessor files. These are
+    `export_statement`, `export_txsession`, `export_engine` and
+    `export_catalogorch`, which alias scope, transaction, engine and
+    catalog-stage internals.
+  - 178 files (1.80 MiB) use two or more accessor files.
+  - 910 files build the composed engine through the root, and 882 use
+    `enginetest`.
+  - No core test calls `t.Parallel`, so the core test binary runs serially for
+    about 103 s, the longest non-reference package in quickcheck.
+- **Production.** Most code is methods on god types: `StatementScope` 419,
+  `Engine` 329, `statementHost` 220, `DropProvider` 73, `EngineCatalogRuntime`
+  63, `BindingHost` 51, `DDLHost` 49.
+  - The leaves are cohesive subsystems with few inbound references. Each has
+    its own types or a narrow seam: EXPLAIN rendering, contrib function
+    runtimes, the text-search runtime, statistics, native triggers, the
+    catalog runtime and inquiry functions.
+  - The hubs stay in core: engine state, scope and admission, catalog stage and
+    publication, the hosts, the bound query path, transactions, sessions,
+    authorization, DML assembly, the SQL routine runtime, protocol, cursors and
+    the trigger core.
+- **Churn.** About 40 commits a day touch core, and 145–172 core test files
+  change a day.
 
-| Area (root files) | File lines | Tests MB | Destination |
-|---|---:|---:|---|
-| Statement dispatch, protocol, portals, cursors, hosts (29) | 6.3k | 0.24 | core |
-| Transactions, sessions, TEMP, notifications (28) | 5.0k | 0.57 | core |
-| Tables, FK runtime (40) | 4.0k | 0.75 | `tablecmds` 1.7k, core 1.3k |
-| Types, domains (29) | 3.3k | 0.48 | `typecmds` 1.1k, core 1.5k |
-| DML, COPY, TRUNCATE, command effects (19) | 3.1k | 0.77 | core |
-| Views, rules, policies, RLS, matviews (25) | 3.0k | 0.48 | `viewcmds` 1.0k, core 1.5k |
-| Roles, ACL, databases (27) | 2.6k | 0.55 | `rolecmds` 1.1k, core 0.9k |
-| Schema DDL, DROP, renames, definitions (17) | 2.5k | 0.28 | `schemacmds` 0.8k, core 1.1k |
-| Catalog stage, publication, replacement (9) | 2.4k | 0.06 | core |
-| PL/pgSQL (13) | 2.0k | 0.18 | core |
-| Indexes (27) | 1.8k | 0.34 | `indexcmds` 0.45k, core 0.9k |
-| Dump/Restore (15) | 1.5k | 0.02 | root 1.0k |
-| Inheritance, partitions (31) | 2.9k | 0.50 | `partitioncmds` 0.75k, `tablecmds` 0.76k, core 0.65k |
-| Sequences, identity, VACUUM (13) | 1.6k | 0.30 | `tablecmds` 1.0k, core 0.33k |
-| Function glue, query admission, catalog runtime (28) | 2.9k | 1.60 | core |
-| SQL routines, FDW, extensions, reg*, triggers, others (45) | 3.4k | 0.73 | `schemacmds` 0.7k, core 1.9k, root 0.1k |
-| Test-only prefixes (384 test files) | — | 2.79 | `functions`/`sqltype` 1.65, extensions 0.32, others by owner 0.83 |
+**Targets.**
+- Core is under 4 MiB.
+- Every package that receives extracted tests is under 2 MiB.
+- Every new package lives under `internal/engine/core/`.
+- Tests stay with their code: they follow production that moves; the rest go
+  to `core/enginetests/<area>` packages, grouped by the code they exercise
+  (T3, T8).
+
+**Prefix estimate.** The groups below are by file prefix. Item 206's census
+replaces them per test.
+- B: leaf cuts below core.
+- A: test moves whose owner is a lower or family package.
+- C: gated hub cuts.
+
+| Group | Prod KiB | Test files | Tests KiB | Accessor-free KiB | Hub-accessor KiB |
+|---|---:|---:|---:|---:|---:|
+| B explain | 117 | 19 | 127 | 50 | 36 |
+| B catalog runtime | 74 | 91 | 1058 | 737 | 109 |
+| B statistics | 54 | 25 | 206 | 206 | 0 |
+| B contrib | 74 | 42 | 309 | 161 | 109 |
+| B native triggers | 33 | 9 | 53 | 20 | 33 |
+| B text search | 36 | 38 | 401 | 389 | 12 |
+| B inquiry | 16 | 12 | 75 | 50 | 25 |
+| A functions and types | 11 | 71 | 705 | 499 | 121 |
+| A extensions | 1 | 22 | 188 | 109 | 58 |
+| A DDL families | 221 | 103 | 852 | 300 | 257 |
+| C routines and PL/pgSQL | 222 | 101 | 894 | 443 | 420 |
+| C protocol, cursors, prepared, COPY | 171 | 60 | 459 | 215 | 216 |
+| C DML | 110 | 157 | 1191 | 596 | 281 |
+| C triggers, rules, event triggers | 38 | 48 | 373 | 212 | 113 |
+| C transactions and locking | 125 | 91 | 691 | 436 | 233 |
+| C sessions, settings, TEMP, notify | 91 | 44 | 411 | 122 | 257 |
+| C FDW and replication | 69 | 30 | 230 | 120 | 89 |
+| C security | 56 | 31 | 265 | 96 | 123 |
+| core rest | 493 | 124 | 870 | 641 | 135 |
+
+**Projection.** Core is about 8.9 MiB after phase A (items 208–211), 7.7 after
+phase B (212–219), 5.15 after the C cuts (221–227), 4.7 after accessor
+retirement (228), and ≈ 3.8 MiB (3.3–4.6) after the core engine test packages
+(229). Phases A and B alone cannot reach 4 MiB, because the hub tests stay with
+the hub code. Phase C is gated by item 220.
 
 ## 2. Method
 
 ### 2.1 Phases and cuts
 
 Every commit keeps the build green.
-1. **Seam:** add the type, interface or hook first.
-2. **Cut in place:** refactor the root to use only that seam.
+1. **Seam:** add the type, interface, hook or capability first.
+2. **Cut in place:** refactor core to use only that seam.
 3. **Move:** move the code and its tests, and qualify every reference in the
-   same commit, including the driver and `cmd/stuntgres`. No aliases.
+   same commit, including the root, the driver and `cmd/stuntgres`. No aliases.
 
 Cuts:
-- **Export in place** (item 182): export the members that code outside the
-  future core needs, under their final names, before anything moves.
-- **Method to function** (items 191–192): Go keeps methods with their type, so a
-  family method on a god struct first becomes a receiver-first root function
-  (`meth2fn`).
-- **Hook** (item 188): a core→family edge that is not dispatch becomes a fixed
-  interface field on `Engine`, set by the composition: a `core.Statements`
-  method or `Engine.Factory`. Nothing is allocated per statement or row. Item
-  189 found no other edge that frees 150 lines for one family.
-- **Host split** (item 190): an adapter serving several families (`ddlHost`
-  implements nine host interfaces) becomes a core base plus small family hosts.
-- **Small cuts** as before: state ownership, capability, reader interface,
-  value input or callback, narrow host method.
+- **Leaf host** (below core). The leaf declares a `Host` interface, and core
+  implements it on a defined type over `StatementScope` or `Engine`, as
+  `statementHost` (`type statementHost StatementScope`) already does. The
+  conversion is a free pointer conversion.
+  - Every leaf Host that `statementHost` serves shares one method set, so
+    method names must not clash.
+  - Needs shared by several leaves are embedded capability interfaces, not
+    copies.
+- **Capability split** (item 213). `exec.Host` (107 methods, consumed only by
+  the `exec.Context` forwarders in `context_runtimes.go`) gains accessors that
+  return a capability, such as `Contrib() ContribRuntime`. Before the move the
+  accessor returns `(*contribHost)(h)`; after it, a pointer to the leaf's state
+  embedded in `StatementScope`, re-bound after `StatementScope.Copy`. This
+  replaces forwarding methods (rule 2).
+  - Never return a struct by value that holds a two-word interface: it
+    allocates.
+- **Hook** (above core). A fixed interface field on `Engine` set by the
+  composition, like `core.Statements` and `Engine.Factory`. Nothing is
+  allocated per statement or row.
+- **Method to function** (`meth2fn`) and **export in place**: only what moving
+  production needs. Never for tests (T6).
+- **Small cuts** as before: state ownership, reader interface, value input or
+  callback, narrow host method.
 
 ### 2.2 Tests
 
 `reference/` is the golden suite: read-only, and it needs no new tests.
-- **T1, inventory.** Per test function: the unexported root names it reaches
-  through helpers, whether it builds an engine, and any concurrency,
-  allocation, frame-name or Dump/Restore hooks.
+- **T1, inventory.** Record per test function:
+  - the accessor names it reaches, directly and through helpers;
+  - whether it builds an engine;
+  - any concurrency, cancellation, allocation, frame-name, synctest,
+    Dump/Restore or session-ID hooks;
+  - its census owner (T8).
 - **T2, duplicates.** Delete a test only if all of these hold:
   - it asserts only consumer-visible outcomes;
   - named reference tests assert the same statement shapes and values or
@@ -108,80 +145,109 @@ Cuts:
 
   Record each deletion in the commit body as
   `x_test.go TestFoo → reference/<pkg>: TestReferenceBar`.
-- **T3, destination.** A test goes to the owner of the code it exercises: the
-  area of its file prefix, overridden by the owners of the unexported names it
-  reaches.
-  - Pure units move with their code as internal tests.
-  - Tests that build an engine become external tests (`package x_test`) in the
-    owner's directory, which holds only a `doc.go` until the owner exists.
-  - They use root names until item 195, and core names after it.
-  - Before the core move, test-only internals go through accessor files
-    (`inspect_*_test.go`, items 193–194). These become core's
-    `export_test.go`, and their users move to `core/` as `core_test` in the move
-    commit.
-  - A test that needs both family code and a test-only core internal is
-    rewritten to the exported API, or deleted under T2. As a last resort it
-    uses a listed exported inspection accessor in `core/inspect.go`, which item
-    204 removes once unused.
-  - **Fallback (item 181).** A lower package with internal tests takes its
-    engine tests in a test-only `<owner>/enginetests/` subdirectory
-    (`package enginetests_test` beside a `doc.go`); `core/` and the `*cmds/`
-    families take them in their own directory. Measured on `functions` after
-    a change to its export data: an external test in its own directory
-    rebuilt 24 packages, the root among them, as test variants (+7.4 s wall,
-    +48 s CPU), while a subdirectory or `core/` adds one link (+0.2 s, +6 s
-    CPU). Subdirectories keep ownership and spread tests over parallel test
-    packages.
-- **T4, helpers.** Helpers used by two or more destinations go into
-  `internal/engine/enginetest` (stage 1 in item 181, stage 2 in item 182); other
-  helpers move with their users. Only `_test.go` files import `enginetest`, and
-  internal tests cannot (import cycle): pure units that share a helper go to the
-  lowest package that hosts them all, or each takes a copy.
+- **T3, destination.** A test goes where its code is, and never outside
+  `internal/engine/core/`.
+  - A test owned by a moving subsystem moves with it to `core/<x>`. Pure units
+    move as internal tests.
+  - Any other SQL-driven test goes to `core/enginetests/<area>`. The area is
+    named after the code it exercises: a lower package (`functions`,
+    `pgcatalog`, `exec`, …), a `*cmds` family, or a core area.
+  - Tests that need core-only accessors stay in core.
+- **T4, helpers.** Helpers used by two or more destination packages go into
+  `internal/engine/enginetest`; other helpers move with their users or are
+  copied. Only `_test.go` files import `enginetest`, and internal tests cannot
+  (import cycle).
 - **T5, removed internals.** A test that pins a removed internal is rewritten to
   the new seam or deleted ("pins removed X" in the commit body). Frame-name
-  strings change in the renaming commit. Allocation and benchmark tests are
-  never deleted.
+  strings change in the renaming commit: `runtime.Callers` tests match by
+  function-name suffix, so a package move is safe but a type or method rename is
+  not. Allocation and benchmark tests are never deleted.
+- **T6, accessors.**
+  - An accessor entry moves with the production it aliases, into that
+    package's `export_test.go`.
+  - An entry whose target becomes a production export is deleted, and its users
+    switch to the exported name.
+  - A test needing accessors from two destinations stays with the higher-layer
+    one, or is split by test function.
+  - No production name is exported for a test; TESTING.md forbids inspection
+    exports.
+  - Every case is recorded in the item's Status.
+- **T7, placement and build cost.** An `export_test.go` makes Go rebuild every
+  package between the package and the root as test variants. Measured on
+  `functions`: +7.4 s wall and +48 s CPU, against +0.2 s and +6 s for one more
+  test-only package.
+  - If `core/<x>` needs an `export_test.go`, all its engine tests sit in
+    `core/<x>`.
+  - Otherwise `core/<x>` keeps only pure units, and its engine tests go to
+    `core/<x>/enginetests/`.
+  - `core/enginetests/<area>` packages hold only external tests, with a
+    one-sentence `doc.go`.
+  - Each item reports quickcheck CPU. More than +2% for one new package stops
+    the item for a user decision. Item 212 measures the cascade once.
+- **T8, census.** Item 206 assigns every core test an owner from its coverage
+  (rule and thresholds in [item 206](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census)).
+  - Every move item re-runs it on its candidates; names are never enough.
+  - Private-state assertions that `AGENTS.md` requires (prepared-value
+    retention) are never rewritten away.
+- **T9, test package size.** Every package receiving tests stays under 2 MiB,
+  and never reaches 4 MiB.
+  - A destination that would pass 2 MiB splits by census area into sibling
+    packages, such as `core/enginetests/<area>/<sub>` or a second area.
+  - Shared helpers follow T4.
 
 ### 2.3 Measuring
 
-Tools live in `.cswd/tmp/` (outside git) and run from a worktree root.
-- `PG18-ENGINE-SPLIT-CLOSING-REVIEW-4/closure` (go/types) assigns every root
-  production declaration to core, a family or the root, and buckets every root
-  test file. Run it as `closure -dir . -areas areas.json -out DIR`; add
-  `-nodyn ddlHost` to preview a host split.
-  - Outputs: `assign.tsv` (each core declaration with its referrer path),
-    `summary.txt` (totals, family code pulled into core and its referrer, family
-    edges), `exportset.tsv`, `tests.tsv` and `testrefs.tsv`.
-  - Helpers next to it: `testarea.py` and `waves.py` (test areas and wave sizes),
-    `refcover.py` (duplicate share), `measure.py`, `areas.json`,
-    `check_links.py` and `check_linear.py`. `r2/` holds the outputs at
-    `26f8fea15`.
-- `PG18-ENGINE-SPLIT-EXEC-REFINE/reach` prints the first path from a declaration
-  to a god struct.
-- `PG18-ENGINE-SPLIT-181-TEST-FIXTURE-PILOT/mvtest` moves root test files,
-  type-checked: `mvtest -spec SPEC [-map MAP] [-w]` from `internal/engine`, with
-  spec lines `FILE DESTDIR internal|external`. It qualifies root names, maps
-  fixture helpers to `enginetest`, copies other helpers and reduces root files
-  to the helpers staying tests use. `inv` lists what each file uses.
-- Rewrite tools (build each with `go build` in its directory):
+The tools live in `.cswd/tmp/` (outside git) and run from a worktree root. All
+of them except this round's scripts hard-code the root engine package as the
+source; item 206 retargets them to core and nested destinations.
+- **This round's scripts**, in `SPLIT-ENGINE-CORE/`:
+  - `measure.py OUT`: package sizes, core totals, the accessor census per test
+    file, and the frame, allocation and synctest lists;
+  - `layout.py OUT/tests.json`: the §1 prefix table;
+  - `probe.sh`: the census feasibility probe. The coverage build took 130 s wall
+    under load and produced a 130 MB binary. There are 2,810 top-level tests,
+    each running in 0.1–0.7 s alone and leaving about 2 MB of coverage data.
+- **Round 7 tools:**
+  - `PG18-ENGINE-SPLIT-204-COMPOSITION-CLEANUP/`: `cmdmv` (type-checked mover of
+    production and tests; writes `export_test.go`, requalifies every package),
+    `inv`, `testonly`, `unexp` and `layers.py` (§3 rules 1 and 6 against
+    `go list`);
+  - `PG18-ENGINE-SPLIT-190-HOST-SLOT-SPLITS/bin/closure` (source in
+    `closure-src`): assigns declarations to areas;
+  - `PG18-ENGINE-SPLIT-CLOSING-REVIEW-4/`: `check_links.py` and
+    `check_linear.py`;
+  - `PG18-ENGINE-SPLIT-EXEC-REFINE/reach`: the first path from a declaration to
+    a god type.
+- **Checks:**
+  - `PG18-ENGINE-SPLIT-182-EXPORT-PASS-IN-PLACE/frames.py` (frame-matched
+    functions);
+  - `PG18-ENGINE-SPLIT-195-CORE-MOVE/lits.py` (string-literal multiset);
+  - `PG18-ENGINE-SPLIT-198-INDEXCMDS/escdiff.py` (`-gcflags=-m` heap diff);
+  - `SPLIT-REFERENCE-CATALOGS/revcheck.py` and `snap.py` (test names, literal
+    multiset, reverse-rename diff).
+- **Rewrite tools** (build each with `go build` in its directory):
   - `PG18-ENGINE-SPLIT-PLAN-ALIASES/`: `meth2fn`, `fieldrn`, `unalias`,
     `shadowrn`, `keylit`;
   - `PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/`: `frontier`, `expspec`, `movespec`;
   - `PG18-ENGINE-SPLIT-ANALYZE-EXPRESSION-CORE/`: `movex`.
 
-Re-run `closure` before planning a move set; the sizes in §4 are approximate.
+Re-run the census and `closure` before planning a move set; the sizes in §1 and
+§4 are approximate.
 
 ## 3. Target architecture
 
 | Layer | Package | Owns |
 |---|---|---|
 | L-1 | `engine/fts` | immutable full-text-search codecs; below `sqltype`, imports only `sqlstate` |
+| L-1 | `workadmission` | cooperative request workload-credit admission; standard library only |
 | L0 | `parser`, `sqltype`, `sqlstate`, `util` | grammar and AST, SQL types and codecs, shared errors, SQL-independent data structures |
 | L1 | `engine/ids` | identity values and the provenance `Domain` |
 | L1 | `engine/authorization` | roles, membership and ACL algorithms over immutable values |
 | L1 | `engine/largeobject` | immutable large-object bytes and replay shapes |
 | L1 | `engine/settings` | setting definitions, parsing, formatting and validation |
 | L1 | `engine/proc` | SQL routine definitions, PL/pgSQL programs, the statement walk and invocation frames |
+| L1 | `engine/host` | immutable application-provisioned scalar routine contracts and executable tokens |
+| L1 | `engine/replication` | pure replication slot and plugin argument validation |
 | L2 | `engine/expr` | the expression contract and node protocol |
 | L2 | `engine/lock` | the heavyweight lock manager, with its own innermost mutex |
 | L3 | `engine/functions` | builtin functions: signatures, nodes, evaluation, aggregates, windows |
@@ -199,6 +265,7 @@ Re-run `closure` before planning a move set; the sizes in §4 are approximate.
 | L9 | `engine/typedef` | domains, enums, composites, typed tables, collations, conversions |
 | L9 | `engine/extension` | bundled extension providers, control data, install and update decisions |
 | L9 | `engine/routine` | routine and operator inventories; routine, operator, cast and aggregate DDL |
+| L9 | `engine/subscription` | subscription option and connection validation, immutable metadata staging |
 | L9.5 | `engine/exec` | the executor runtime and the concrete evaluation context; above `extension` only for the cube spatial call check |
 | L10 | `engine/analyze` | the binder, `Describe`, `Binding` and `analyze.Host` |
 | L11 | `engine/regobj` | reg* types, type declarations, typed literals, `aclitem` I/O, object identity |
@@ -209,39 +276,42 @@ Re-run `closure` before planning a move set; the sizes in §4 are approximate.
 | L12 | `engine/fdw` | wrappers, registry, validators, foreign writes and transaction participants |
 | L12 | `engine/view` | view, rule, policy and trigger decisions, rewriting, updatable views, matview refresh, RLS selection |
 | L12 | `engine/role` | GRANT/REVOKE, SET ROLE, DROP and REASSIGN OWNED, default privileges, COMMENT plans |
+| L12.5 | `engine/publication` | logical publication validation, command staging and effective membership |
 | L13 | `engine/dml` | write executors, unique and exclusion probing, FK enforcement and actions, trigger firing contract |
 | L14 | `engine/control` | native Dump and Restore drivers over registered hooks, the Restore comparison context |
-| L15 | `engine/core` (item 195) | `Engine` state and `Engine.mu`, `StatementScope`, `CatalogStage`, admission and lock waits, publication and replacement, the transaction lifecycle, sessions, TEMP, the hosts and binder construction, protocol, prepared SQL, cursors, the bound DML and query path, the procedural runtime, the dispatch and factory hooks |
-| L16 | `engine/tablecmds`, `indexcmds`, `partitioncmds`, `typecmds`, `viewcmds`, `rolecmds`, `schemacmds` (items 196–203) | statement executors per family, named after PostgreSQL's `commands/` |
+| L14.5 | `engine/core/explain` (item 212), `contrib` (214), `tsearch` (215), `stats` (216), `nativetrig` (217), `catalogrt` (218), `inquiry` (219); gated: `advisory`, `notify` (225) | leaves below core: EXPLAIN rendering, contrib function runtimes, the text-search runtime, statistics, native triggers, the `pgcatalog.Runtime` implementation, inquiry functions, advisory-lock and notification state; each over its own `Host` |
+| L15 | `engine/core` | `Engine` state and `Engine.mu`, `StatementScope`, `CatalogStage`, admission and lock waits, publication and replacement, the transaction lifecycle, sessions, TEMP, the hosts and binder construction, protocol, prepared SQL, cursors, the bound DML and query path, the procedural runtime, the dispatch and factory hooks |
+| L15.5 | gated: `engine/core/plpgsql` (221), `portalcmds`, `preparecmds`, `copycmds` (222), `eventcmds` (224), `variablecmds` (226), `foreigncmds`, `publicationcmds`, `subscriptioncmds` (227) | handlers above core: the PL/pgSQL language runtime behind a hook; statement executors reached through `Statements` dispatch |
+| L16 | `engine/tablecmds`, `indexcmds`, `partitioncmds`, `typecmds`, `viewcmds`, `rolecmds`, `schemacmds` | statement executors per family, named after PostgreSQL's `commands/` |
 | L17 | `engine` (root) | the composition: `New*`, both dispatch type switches behind `core.Statements`, the engine factory, `Reset`, `Dump` and `Restore` with the Restore hooks |
-| test | `engine/enginetest` (item 181), `*/enginetests` | test helpers over the exported API, imported only by `_test.go` files; test-only packages holding the engine tests of lower packages |
+| test | `engine/enginetest`, `*/enginetests`, `engine/core/enginetests/<area>` (items 208–211, 229), `engine/core/<x>/enginetests` | test helpers over the exported API, imported only by `_test.go` files; test-only packages holding engine tests |
 
-Until item 195 the root plays the core role, and until each family item it keeps
-that family's executors. Each package README states its imports, ownership,
-invariants and what stays in the root.
+Each package README states its imports, ownership, invariants and what stays in
+core.
 
 ### Dependency rules
 
 1. **Imports point downward only.** Production packages never import the root;
    only `enginetest` and `_test.go` files may. Same-layer packages import each
    other only under rule 6. Check with
-   `go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./internal/engine/...`.
-2. **The root is the composition layer.** After item 195 the driver imports
-   `core` for types and runtime methods, and the root for `New*`, `Reset`,
-   `Dump` and `Restore`. No aliases and no forwarding facade.
+   `go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./internal/engine/...`
+   (`layers.py`, by full import path).
+2. **The root is the composition layer.** The driver imports `core` for types
+   and runtime methods, and the root for `New*`, `Reset`, `Dump` and `Restore`.
+   No aliases and no forwarding facade.
 3. **One lock authority.** `Engine.mu`, in core, is the single mutex for
    catalog, storage and visibility state, so that publication stays atomic.
    - Subsystem structs have no mutex. Code under it is a `…Locked` function that
      takes no lock.
    - Registered `…Locked` handlers and validators are lock-domain
      continuations: they are entered with `Engine.mu` held and release it on
-     every return, as today. Every other hook runs with nothing held.
+     every return. Every other hook runs with nothing held.
    - The lock manager's mutex is innermost (lock README); the session mutex
      order is in the session README.
 4. **Decision packages own data and decisions; core owns the lifecycle; families
    own statement orchestration.** Admission, lock waits, publication,
-   cancellation fences, binder construction and dispatch re-entry are core
-   functions that families call.
+   cancellation fences, binder construction and dispatch re-entry (nested SQL)
+   are core functions that leaves and families call.
 5. **`functions` stays a leaf library** over `expr`, `ids`, `sqltype`, `parser`
    and `sqlstate`. Engine state reaches it through capabilities the evaluation
    context implements.
@@ -259,6 +329,8 @@ invariants and what stays in the root.
    - `analyze`, `exec`, `session`, `pgcatalog` and the lower features never
      import an upper feature, `regobj` or `stored`. `session` never imports
      `exec`, `analyze` or a feature package.
+   - Core leaves: `tsearch` → `nativetrig`; `catalogrt` → `inquiry`; the others
+     stand alone.
    - Families: `tablecmds` → every other family except `rolecmds`; `indexcmds` →
      `partitioncmds`; `typecmds` → `viewcmds`; `rolecmds` stands alone.
      - Code shared by families with no arrow between them goes to core.
@@ -269,83 +341,107 @@ invariants and what stays in the root.
 8. **Registration replaces central switches.** Code that lists every feature
    becomes an ordered table the root composes in today's order, so error
    precedence and output order stay byte-identical.
+9. **Leaves below core** (L14.5):
+   - They import only packages below core and other leaves along rule-6
+     arrows. They never import core, an L15.5 package, a family or the root.
+   - They hold no lock. Releasing and re-acquiring `Engine.mu` around callbacks
+     is a core host method.
+   - Code entered with `Engine.mu` held is a `…Locked` function.
+10. **Packages above core** (L15.5):
+    - They import core, and are reached only through a fixed hook or
+      `Statements` dispatch that the root sets. Core and the leaves never
+      import them.
+    - Families may import them along new rule-6 arrows that their items list.
 
-## 4. Seventh round
+## 4. Eighth round
 
 Rules:
 - One session per item. New packages only as listed in §3.
-- Cuts follow §2.1 and tests follow §2.2. Each item names the hooks, host
-  methods and exported names it adds. No aliases.
+- Cuts follow §2.1 and tests follow §2.2. Each item names the hosts, hooks,
+  capabilities and exported names it adds. No aliases.
 - Behaviour, error text, error order, notice order, lock order and Dump output
   stay identical.
 - Items on startup or on a per-statement or per-row path run `make bench` before
-  and after, and add no allocations. The 25 allocation-budget test files and the
-  `insert_conflict*`, `plpgsql_walk`, `transaction_remedy` and
-  `update_allocation` benchmarks keep passing.
-- **Modes.** P items run in parallel with each other and with feature sessions.
-  S items rewrite hundreds of files: they are generated by a replay script and
-  merged in a freeze window (§5.2).
+  and after, and add no allocations.
+  - The 21 allocation-budget test files and the core benchmarks must keep
+    passing: `insert_conflict*`, `plpgsql_walk`, `transaction_remedy` and
+    `update_allocation`.
+- **Modes.**
+  - P items run in parallel with each other and with feature sessions; their
+    generated moves are still replay scripts.
+  - S items rewrite hundreds of files: they are generated by a replay script
+    and merged in a freeze window (§5.2).
+- Every item reports the sizes of core and of each package it creates or grows,
+  and quickcheck CPU (§5.3).
 
-Specs are in the linked prompt files; items 180 and 205 are below. "Out" is MB of
-files leaving the root, moved or deleted.
+Specs are in [ENGINE-SPLIT-core.md](ENGINE-SPLIT-core.md); items 220 and 230 are
+below. "Core after" is the §1 projection in MiB; the census replaces it.
 
-| Item | Mode | Moves | Out ≈ | Needs |
+| Item | Mode | Moves | Core after ≈ | Needs |
 |---|---|---|---:|---|
-| 181 | P | [test fixture and pilot](ENGINE-SPLIT-enginetest.md#item-181--test-fixture-and-pilot) | 0.3 | 180 |
-| 182 | S | [export pass in place](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) | 0 | 181 |
-| 183 | P | [builtin function, operator and type tests](ENGINE-SPLIT-enginetest.md#item-183--builtin-function-operator-and-type-tests) | 1.25 | 182 |
-| 184 | P | [query, DML, COPY, cursor and protocol tests](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests) | 1.05 | 182 |
-| 185 | P | [transaction, session, catalog and procedural tests](ENGINE-SPLIT-enginetest.md#item-185--transaction-session-catalog-and-procedural-tests) | 0.8 | 182 |
-| 186 | P | [table, index, partition and sequence DDL tests](ENGINE-SPLIT-enginetest.md#item-186--table-index-partition-and-sequence-ddl-tests) | 0.95 | 182 |
-| 187 | P | [type, view, role and schema-object DDL tests](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests) | 0.8 | 182 |
-| 188 | P | [composition seams](ENGINE-SPLIT-core.md#item-188--composition-seams) | 0 | 182 |
-| 189 | P | [core hooks](ENGINE-SPLIT-core.md#item-189--core-hooks) | 0 | 188 |
-| 190 | P | [host and slot splits](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) | 0 | 189 |
-| 191 | P | [family methods to functions I](ENGINE-SPLIT-core.md#item-191--family-methods-to-functions-i) | 0 | 183–187, 190 |
-| 192 | P | [family methods to functions II](ENGINE-SPLIT-core.md#item-192--family-methods-to-functions-ii) | 0 | 191 |
-| 193 | P | [test accessors I: runtime areas](ENGINE-SPLIT-enginetest.md#item-193--test-accessors-i-runtime-areas) | 0.1 | 192 |
-| 194 | P | [test accessors II: DDL areas and family tests](ENGINE-SPLIT-enginetest.md#item-194--test-accessors-ii-ddl-areas-and-family-tests) | 0.1 | 193 |
-| 195 | S | [core move](ENGINE-SPLIT-core.md#item-195--core-move) | 3.7 | 194 |
-| 196 | S | [`tablecmds`: tables](ENGINE-SPLIT-cmds.md#item-196--tablecmds-tables) | 0.35 | 195 |
-| 197 | S | [`tablecmds`: sequences, identity, VACUUM](ENGINE-SPLIT-cmds.md#item-197--tablecmds-sequences-identity-vacuum) | 0.1 | 196 |
-| 198 | S | [`indexcmds`](ENGINE-SPLIT-cmds.md#item-198--indexcmds) | 0.05 | 197 |
-| 199 | S | [`partitioncmds`](ENGINE-SPLIT-cmds.md#item-199--partitioncmds) | 0.15 | 198 |
-| 200 | S | [`typecmds`](ENGINE-SPLIT-cmds.md#item-200--typecmds) | 0.1 | 199 |
-| 201 | S | [`viewcmds`](ENGINE-SPLIT-cmds.md#item-201--viewcmds) | 0.15 | 200 |
-| 202 | S | [`rolecmds`](ENGINE-SPLIT-cmds.md#item-202--rolecmds) | 0.2 | 201 |
-| 203 | S | [`schemacmds`](ENGINE-SPLIT-cmds.md#item-203--schemacmds) | 1.65 | 202 |
-| 204 | S | [composition cleanup](ENGINE-SPLIT-core.md#item-204--composition-cleanup) | 0.2 | 203 |
-| 205 | — | [closing review 5](#item-205--closing-review-5) | — | 204 |
+| 206 | P | [tooling and owner census](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census) | 11.2 | — |
+| 207 | P | [test seams in place](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) | 11.2 | 206 |
+| 208 | P | [builtin function, type and extension tests](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests) | 10.4 | 207 |
+| 209 | P | [DDL family tests](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) | 9.9 | 207 |
+| 210 | P | [catalog producer tests](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) | 9.4 | 207 |
+| 211 | P | [query and DML feature tests](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) | 8.9 | 207 |
+| 212 | P, bench | [explain pilot](ENGINE-SPLIT-core.md#item-212--explain-pilot) | 8.75 | 206 |
+| 213 | P, bench | [host capability seam](ENGINE-SPLIT-core.md#item-213--host-capability-seam) | 8.75 | — |
+| 214 | P, bench | [contrib runtimes](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) | 8.55 | 207, 212, 213 |
+| 215 | P, bench | [text-search runtime](ENGINE-SPLIT-core.md#item-215--text-search-runtime) | 8.4 | 207, 212, 213 |
+| 216 | P, bench | [statistics runtime](ENGINE-SPLIT-core.md#item-216--statistics-runtime) | 8.2 | 207, 212 |
+| 217 | P, bench | [native triggers](ENGINE-SPLIT-core.md#item-217--native-triggers) | 8.15 | 215 |
+| 218 | P, bench | [catalog runtime](ENGINE-SPLIT-core.md#item-218--catalog-runtime) | 7.8 | 210, 212 |
+| 219 | P, bench | [inquiry runtime](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) | 7.7 | 213, 218 |
+| 220 | — | [closing review 6](#item-220--closing-review-6) | — | 207–219 |
+| 221 | S, bench | [PL/pgSQL above core](ENGINE-SPLIT-core.md#item-221--plpgsql-above-core) | 7.1 | 220 |
+| 222 | S, bench | [cursor, prepare and COPY commands](ENGINE-SPLIT-core.md#item-222--cursor-prepare-and-copy-commands) | 6.6 | 220 |
+| 223 | S, bench | [DML statement assembly](ENGINE-SPLIT-core.md#item-223--dml-statement-assembly) | 5.9 | 220 |
+| 224 | P, bench | [event triggers](ENGINE-SPLIT-core.md#item-224--event-triggers) | 5.75 | 220 |
+| 225 | P, bench | [advisory locks and notifications](ENGINE-SPLIT-core.md#item-225--advisory-locks-and-notifications) | 5.5 | 220 |
+| 226 | P, bench | [settings commands](ENGINE-SPLIT-core.md#item-226--settings-commands) | 5.35 | 220 |
+| 227 | P | [foreign-data and replication commands](ENGINE-SPLIT-core.md#item-227--foreign-data-and-replication-commands) | 5.15 | 220 |
+| 228 | P | [hub accessor retirement](ENGINE-SPLIT-core.md#item-228--hub-accessor-retirement) | 4.7 | 221–227 |
+| 229 | S | [core engine test packages](ENGINE-SPLIT-core.md#item-229--core-engine-test-packages) | ≈ 3.8 | 228 |
+| 230 | — | [closing review 7](#item-230--closing-review-7) | — | 229 |
 
-**Where 4 MB is crossed.**
-- The pilot moves 0.26 MB, and the five test waves (183–187) move or delete
-  4.8 MB. The total passes 4 MB with the fourth or fifth wave to merge.
-- The core move (item 195) adds about 3.7 MB with its tests, and the families
-  about 2.8 MB. Most of the families' share is extension-provider tests, which
-  stage extensions directly and so move with `schemacmds`.
-- The root keeps the composition (about 1.2k lines) and its own tests.
+**Gating.** Phase C (items 221–229) starts only after item 220 and with the
+user's approval. Item 220 may confirm, trim or replace those items, and leftovers
+become new items at the end.
 
-### Item 180 — closing review 4
+### Item 220 — closing review 6
 
-Done: re-measured the root, built `closure`, planned this round and reset these
-docs.
+Docs only, after phases A and B.
+1. Re-run the census and `closure`, measure every package, and record
+   quickcheck CPU and wall time against item 206's baseline.
+2. Rewrite §1.
+3. For each item 221–229, confirm the host or hook sketch against `closure`.
+   Re-estimate what leaves core, and drop items that free less than 0.1 MiB.
+4. Ask the user before phase C starts.
 
-### Item 205 — closing review 5
+### Item 230 — closing review 7
 
-Docs only, after item 204. Re-measure with `closure` and rewrite §1. Then decide
-whether an eighth round is worth planning, for example splitting core along its
-protocol, cursor or procedural-runtime seams; if not, close the split. Keep these
-docs at this size.
+Docs only, after item 229.
+- Core must be under 4 MiB, and every package that received tests must be under
+  2 MiB. Re-measure both.
+- Anything over a limit becomes a new item, and so does any split of an
+  existing test package that grew past 2 MiB.
+- If both limits hold, close the split and reset these docs to the layering
+  contract (§3).
 
 ### Not planned
 
-- **Splitting core in this round.** The method-set rule applies inside core too.
-- **`AuthorizationView` to `access`.** Blocked by layering: it names `session`,
-  `analyze`, `view`, `dml`, `plan` and `stored` types. It moves with core.
-- **A forwarding facade for the driver.** It would take about 60 forwarding
-  methods and risk a per-statement allocation; the driver names core types.
-- **Migrating engine-fixture tests to `reference/`.** That is TESTING.md work.
-  This round only moves, adapts or deletes them.
+- **A `prepared` value package.** It would mean 202 requalified sites for about
+  0.03 MiB of test relief.
+- **`xml_map_rows` below core.** It reaches 12 portal and 7 cursor internals;
+  item 222 revisits it.
+- **`AuthorizationView` to `access`.** It names `session`, `analyze`, `view`,
+  `dml`, `plan` and `stored` types; leaves take `access.View` instead.
+- **A forwarding facade for the driver.** The driver names core types.
+- **Moving the SQL routine runtime, scope and admission, or publication out of
+  core** (rule 4).
+- **Migrating engine-fixture tests to `reference/`.** That is TESTING.md work;
+  this round only moves, adapts or deletes them.
 
 ## 5. Sessions
 
@@ -358,29 +454,34 @@ Start a session with "Implement Item N from Linear Plan in
    READMEs of the packages it touches.
 2. **Check needs** against `git log` and the status page; if one is missing,
    stop and report.
-3. **Re-measure** the move set with `closure`, and present a file-level plan:
-   moved declarations, new names, hooks and host methods, call sites, tests
-   moved or deleted, the commit sequence, risks and docs.
+3. **Re-measure** the move set with the census and `closure`. Present a
+   file-level plan:
+   - moved declarations and tests, and new names;
+   - hosts, hooks and capabilities;
+   - call sites;
+   - accessor handling (T6);
+   - destination sizes (T9);
+   - the commit sequence, risks and docs.
 4. **Implement** in small commits; each builds and passes its targeted tests.
-5. **Verify** (§5.3), **document** (§5.4) and **report** (§5.5).
+5. **Verify** (§5.3), then document and report (§5.4).
 
 ### 5.2 Constraints
 
 - **Pure refactor:** no behaviour, SQL-surface or dependency change.
 - **Read-only suites:** `reference/` and `smoke/`; never run `make refcheck`.
 - **Scope.** Record findings for later items in the prompt file's Status
-  section. New root code or tests from feature sessions are findings for the
+  section. New core code or tests from feature sessions are findings for the
   item that owns their area.
-- **Feature inflow.** Feature work puts decisions in the owning package. After
-  item 181 it puts engine-fixture tests beside their owner through
-  `enginetest`, never in the root (TESTING.md).
-- **Mode S.**
-  - Generate the commits with a replay script in `.cswd/tmp/<NAME>/`. On a
-    conflict, reset to the new master and replay; do not hand-resolve tool
+- **Feature inflow.** Feature sessions keep adding tests to core. Each move item
+  re-runs the census on files added since the census commit.
+- **Generated moves (all modes).**
+  - Generate the move commits with a replay script in `.cswd/tmp/<NAME>/`.
+  - On a conflict, reset to the new master and replay; do not hand-resolve tool
     output.
-  - Ask the user for a merge freeze before the final quickcheck, then chain
-    `make quickcheck && <checks> && git merge --ff-only`.
-  - Rewrites cover `./internal/engine/...`, the driver and `cmd`.
+  - Rewrites cover `./internal/engine/...`, the root package, the driver and
+    `cmd`.
+- **Mode S.** Ask the user for a merge freeze before the final quickcheck, then
+  chain `make quickcheck && <checks> && git merge --ff-only`.
 - **Git.** Work in `.cswd/work/<NAME>` on `implement-part/<NAME>`, with
   temporary files in `.cswd/tmp/<NAME>/`. Record the master commit at the start
   and at every rebase. Rebase before verifying; merge `--ff-only` only after
@@ -389,13 +490,27 @@ Start a session with "Implement Item N from Linear Plan in
 ### 5.3 Verification
 
 Commands and deadlines are in `AGENTS.md`.
-- **While working:** `make build` and `go test -run '^$' ./internal/engine/...`
-  after every commit; targeted `make check RUN='...'`, with `RACE=1` for locks,
-  sessions, cancellation and publication.
+- **While working:**
+  - after every commit, `make build` and
+    `go test -count=1 -run '^$' ./internal/engine/... .`;
+  - targeted `make check RUN='...'` for every package that gained tests, with
+    `RACE=1` for locks, sessions, cancellation and publication.
+- **Moves:**
+  - `revcheck.py`: the test-name multiset is unchanged against the base, and so
+    is the string-literal multiset, except frame strings (T5);
+  - `layers.py` against §3, rules 1, 6, 9 and 10;
+  - every destination under 2 MiB (T9).
 - **Before merging:** `make quickcheck`, then `make check REFERENCE=1 RUN='...'`
-  once for the item's few selections. Without Docker, report it as blocked.
+  once for the item's selections (production items only). Without Docker,
+  report it as blocked.
+- **Quickcheck CPU:** report total test CPU and the elapsed time of core and
+  every new package (`go test -json`) before and after.
+  - Load swings timings 2–3x, so compare interleaved runs or use an idle host
+    (`remote-run` skill).
+  - More than +2% CPU for one new package stops the item (T7).
 - **Bench:** on startup, per-statement or per-row paths, run `make bench`
-  before and after and report ns/op and allocations.
+  before and after, report ns/op and allocations, and diff heap escapes with
+  `escdiff.py`.
 - **Deps:** `make deps` lists only this module's paths.
 - **Skipped:** `make racecheck` and `make finalcheck` until the race suite is
   fixed (user decision); report them as skipped. Report unrelated failures; do
@@ -404,20 +519,21 @@ Commands and deadlines are in `AGENTS.md`.
 ### 5.4 Documentation and report
 
 **Documentation:**
-- **Package README:** contract and `## Testing` selectors. Move the matching
-  root README paragraphs with the code; the root README (50 KB) mostly becomes
-  the core README at item 195.
+- **Package README.** Each new package gets one: contract, layering, `Host` or
+  hook, lock rules, and `## Testing` with one selector per test family. Move
+  the matching core README paragraphs with the code (`readme-map.tsv`, item
+  207); the core README is 201 KB.
 - **Prompt file:** replace the item's "not started" Status line with its
-  commits, deviations and notes for later items.
+  commits, measurements, deviations and notes for later items.
 - **Status page:** follow its rules.
 - **This file:** change it only when the plan changes. `AGENTS.md` must not grow.
 
 **Report:**
-- what moved, and the seams, hooks and exported names added;
+- what moved, and the hosts, hooks, capabilities and exported names added;
 - the commits;
 - verification, including skipped or blocked checks;
 - tests moved, adapted or deleted, with the covering reference tests;
-- the root bytes before and after;
+- core and destination sizes before and after, and quickcheck CPU;
 - doc changes;
 - deviations and follow-ups;
 - the next ready items.

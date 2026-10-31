@@ -1,401 +1,103 @@
 # Engine split — status
 
-This page tracks the `internal/engine` split. The plan is
+This page tracks round 8 of the engine split, which splits
+`internal/engine/core` into packages under `internal/engine/core/`. The plan is
 [ENGINE-SPLIT.md](ENGINE-SPLIT.md); each item's scope is in the prompt file
 linked from its line.
 
-Items 1–180 are done: steps 1–30, the `access` steps, rounds 2–6 and four
-closing reviews. Their record is in `git log` and in this file at `26f8fea15`
-(`git show 26f8fea15:docs/ENGINE-SPLIT-STATUS.md`). Item 180, closing review 4,
-measured the root, built the `closure` tool, planned the seventh round (items
-181–205) and reset these docs.
+Items 1–204 are done: the earlier rounds and their closing reviews. Their record
+is in `git log` and in this file at `7b262861a`
+(`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
+is superseded by this plan.
 
-Last verified against `master` at `7b262861a` (item 204 rebased on it).
+Last verified against `master` at `b7e30241f` (planning).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 205.
+- 206, 213.
 
 ## Linear plan
 
 One item per session. Start one with "Implement Item N from Linear Plan in
-`docs/ENGINE-SPLIT-STATUS.md`". Mode and size (MB leaving the root) are from
-ENGINE-SPLIT.md §4.
+`docs/ENGINE-SPLIT-STATUS.md`". Mode is from ENGINE-SPLIT.md §4; "core after"
+is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 
-180. [x] Closing review 4 (docs only): re-measure, plan the seventh round —
-     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-180--closing-review-4) · needs
-     the whole sixth round · (docs commit) · root 395 files and 48.5k lines
-     (15.8% of the engine) plus 10.65 MB of tests; runtime core planned with
-     `closure`; link and linear-plan checks and quickcheck passed;
-     `REFERENCE=1`, bench, racecheck and finalcheck skipped (docs only, and
-     racecheck/finalcheck at user request)
-181. [x] Test fixture and pilot —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-181--test-fixture-and-pilot) ·
-     needs 180 · P · 0.3 MB (`89d097235`, `32fd10461`, `e54dc0604`, `8fa49b723`,
-     `8067af598`, docs commit) · `enginetest` stage 1 (13 helpers over the
-     exported API) added; of the 64 transitively free root test files, 16 pure
-     units moved to `analyze`, `exec`, `view`, `plan` and `functions`, 39
-     engine-fixture tests to 13 `<owner>/enginetests/` packages and `core/`, 2
-     deleted as `reference/` duplicates and 7 helper files kept; T3 fallback
-     fixed by measurement; root tests 1,343 files and 10.74 MB (−0.24 MB);
-     quickcheck and deps passed; `REFERENCE=1` and bench skipped (no production
-     change), racecheck and finalcheck skipped at user request
-182. [x] Export pass in place —
-     [core](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) · needs 181 · S
-     (`d8fd275b0`, `1d44144ab`, `c97bb4911`, docs commit) · 370 root names
-     exported in place (176 fields, 194 declarations: the `closure` export set
-     and 23 test-inspection names; two frame-matched methods kept unexported)
-     and `enginetest` stage 2 (18 helpers) added; root production 1.75 MB (+1.9
-     KB), tests 10.76 MB; quickcheck and the string-literal check passed; bench
-     and `REFERENCE=1` skipped (renames only), racecheck and finalcheck skipped
-     at user request
-183. [x] Builtin function, operator and type tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-183--builtin-function-operator-and-type-tests)
-     · needs 182 · P · 1.25 MB (`fa8fdc8e7`, `6ad4ba40b`, `8b5c5a3c1`, docs
-     commit) · 157 of the 174 transitively free root test files with
-     builtin-function, operator and type prefixes (419 tests) moved to
-     `functions/enginetests` (102), the new `internal/sqltype/enginetests` (51)
-     and `typedef/enginetests` (4), no `reference/` duplicates deleted,
-     `enginetest.SetObjectACL` added; root tests 1,211 files and 9.66 MB (−1.11
-     MB); quickcheck passed; `REFERENCE=1` and bench skipped (no production
-     change), racecheck and finalcheck skipped at user request
-184. [x] Query, DML, COPY, cursor and protocol tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests)
-     · needs 182 · P · 1.05 MB (`d42ce4707`, `d780b2628`, `7294fc404`,
-     `2896c3a92`, docs commit) · of the 154 transitively free root test files of
-     the query, dml, statement and exprutil areas, 137 engine-fixture files
-     moved to `core/` and 15 binder and executor units (split out of six mixed
-     files) to `analyze` and `exec`; 17 kept unchanged (frame-name,
-     allocation-budget and benchmark files), none deleted; root tests 993 files
-     and 8.00 MB (−0.88 MB); quickcheck passed; `REFERENCE=1` and bench skipped
-     (no production change), racecheck and finalcheck skipped at user request
-185. [x] Transaction, session, catalog and procedural tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-185--transaction-session-catalog-and-procedural-tests)
-     · needs 182 · P · 0.8 MB (`daec25f89`, `3134ef51b`, `1f7b7027d`, docs
-     commit) · 111 transitively free transaction, session, catalog, procedural
-     and runtime-prefix root test files moved as external tests (44 producer
-     tests to `pgcatalog/enginetests`, 67 to `core`), none deleted under T2;
-     root tests 1,114 files and 8.87 MB (−0.79 MB); quickcheck passed;
-     `REFERENCE=1` and bench skipped (no production change), racecheck and
-     finalcheck skipped at user request
-186. [x] Table, index, partition and sequence DDL tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-186--table-index-partition-and-sequence-ddl-tests)
-     · needs 182 · P · 0.95 MB (`cf462a24b`, `c261ae301`, `664831a86`, docs
-     commit) · 157 transitively free table, index, inheritance, partition,
-     sequence, vacuum and DDL-prefix root test files (with the range and list
-     partition files item 183 left) moved as external tests by statement under
-     test (79 to `tablecmds`, 21 to `indexcmds`, 27 to `partitioncmds`, 30
-     runtime files to `core`), none deleted under T2, plus `enginetest.Comment`;
-     root tests 866 files and 6.99 MB (−1.01 MB); quickcheck passed;
-     `REFERENCE=1` and bench skipped (no production change), racecheck and
-     finalcheck skipped at user request
-187. [x] Type, view, role and schema-object DDL tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests)
-     · needs 182 · P · 0.8 MB (`9c2d30c27`, `e01a0f1a9`, docs commit) · 116 of
-     the 129 transitively free root test files of the typedef, view, trigger,
-     roles, ddlcommon, routine (DDL), extension and fdw areas moved as external
-     tests by statement under test (30 to `schemacmds`, 18 to `rolecmds`, 16 to
-     `viewcmds`, 1 to `typecmds`, 10 to `tablecmds`, 41 runtime files to
-     `core`), none deleted under T2; root tests 763 files and 6.17 MB (−0.82
-     MB); quickcheck passed; `REFERENCE=1` and bench skipped (no production
-     change), racecheck and finalcheck skipped at user request
-188. [x] Composition seams —
-     [core](ENGINE-SPLIT-core.md#item-188--composition-seams) · needs 182 · P,
-     bench (`368580d20`, `cbb5001f8`, `6110e58bf`, `212dce0b8`, docs commit) ·
-     `Statements` dispatch interface (`Execute`, and `ExecuteLocked` as a
-     lock-domain continuation) with the root `familyStatements` holding the
-     family cases in today's order, the `Engine.Factory` hook (`EngineFactory`,
-     used by the `template1` seed and `RestoreStage`), `Reset`/`Dump`/`Restore`
-     as root functions (driver, `cmd` and 478 test call sites rewritten) and
-     `NewEngine` split from the composition `newEngine`; root production 1.76 MB
-     (+4.1 KB), core by `closure` 29.0k lines (+0.27k: seeding and the bound
-     path's rule-program edges); quickcheck passed; bench
-     (`BenchmarkOpenDatabase`, `BenchmarkUpdateCoreSparse/512`) showed no new
-     allocation; `REFERENCE=1` `^TestReferenceControl` and
-     `^TestReferenceDatabaseCreateControls$` passed; racecheck and finalcheck
-     skipped at user request
-189. [x] Core hooks — [core](ENGINE-SPLIT-core.md#item-189--core-hooks) · needs
-     188 · P, bench (`5103aae7e`, docs commit) · No hook added (user decision):
-     by R4 on exclusive reach (`closure` with the edge cut) no candidate frees
-     150 lines for one family outside the keep list;
-     `Engine.ValidateCatalogStage` would free 3 lines, because TEMP cleanup,
-     `CatalogStage.RemoveObjectLocked` and the CREATE TABLE AS bound path reach
-     the same validators; ENGINE-SPLIT.md §1, §2.1, §3, the cmds prompt and the
-     item 192 gate drop the validator table; the reference scenario deadline was
-     raised from 30 s to 60 s (user decision, machine load at 110–130); root
-     bytes unchanged, core by `closure` 29.0k lines (28.9k in the model without
-     family export seeds); quickcheck passed; bench and `REFERENCE=1` skipped
-     (no engine code change); racecheck and finalcheck skipped at user request
-190. [x] Host and slot splits —
-     [core](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) · needs 189 · P
-     (`65b0d3679`, `f5300085c`, `248f347c6`, docs commit) · `DDLHost` split into
-     a core base (`ddl.Host`, the core-called `LookupCollation`, `NamedType` and
-     `OtherDatabaseDependencies`, and five small methods unrelated family hosts
-     share) and six family hosts that embed it with the same `{E, Op,
-     CatalogStage}` layout (`TableHost`, `TypeHost` and `ViewHost` over
-     `TableHost`, `RoutineHost`, `RoleHost`, `SchemaHost`);
-     `typedef.BindDomainNotNull` narrowed to `ddl.Host`;
-     `StatementScope.DropsSlot` and `CatalogStage.ExtensionSlot` (was
-     `ExtensionNamespace`) made opaque family slots; the other listed slots stay
-     core (core-only or shared users); root production 1.77 MB (+4.3 KB), core
-     by `closure` 28.0k lines (-0.92k; 28,932 → 28,009 in the item 189 model);
-     quickcheck passed; bench skipped (no per-statement slot; escape diff showed
-     no new heap move); `REFERENCE=1` not in the Verify list; racecheck and
-     finalcheck skipped at user request
-191. [x] Family methods to functions I —
-     [core](ENGINE-SPLIT-core.md#item-191--family-methods-to-functions-i) ·
-     needs 183, 184, 185, 186, 187, 190 · P (`d95343602`, `8972334e1`,
-     `ad0dbb757`, `991fe6a68`, docs commit) · 135 family methods of `Engine`,
-     `StatementScope` and `CatalogStage` (tables, indexes, partitions,
-     inheritance, sequences, identity, VACUUM and the code tables share with
-     other families except roles) turned into receiver-first root functions by
-     `meth2fn`, with the family-only methods of `DropProvider`,
-     `AuthorizationView` and `InheritanceAlterState` and a test-only scope
-     wrapper; `Engine.admitInheritanceAlter` stays a method (frame matched by a
-     read-only reference fixture); 28 mixed root files split by `movedecl` into
-     26 new files, so every file holding these families is wholly one
-     destination (only `ddl_host.go` keeps the item-190 core base method
-     `RelationDiagnostic`); root production 1.77 MB (+3.5 KB), core by stock
-     `closure` 28.6k → 28.3k lines (the item 189 model, 28,070, is unchanged);
-     quickcheck passed; bench skipped (no per-row change; escape diff shows no
-     new heap move); `REFERENCE=1` not in the Verify list; racecheck and
-     finalcheck skipped at user request
-192. [x] Family methods to functions II —
-     [core](ENGINE-SPLIT-core.md#item-192--family-methods-to-functions-ii) ·
-     needs 191 · P (`9ca4beb4a`, `c55e99e74`, `a22094bf6`, `d096d01d2`, docs
-     commit) · 98 family methods of `Engine`, `StatementScope` and
-     `CatalogStage` (types, views, rules, policies, triggers, roles, schema
-     objects, routines, extensions, FDW and their shared sets) turned into
-     receiver-first root functions by `meth2fn`; 19 mixed root files split by
-     `movedecl` into 17 new files, so every root file is wholly core, root or
-     one family destination; `closure` gate met (no family god-struct method
-     except the kept `Engine.admitInheritanceAlter`; the method model pulls only
-     core methods); root production 1.78 MB (+2.7 KB), core by `closure` (method
-     model) 28.37k → 28.30k lines; quickcheck passed; bench skipped (no per-row
-     change; escape diff shows no new heap move); `REFERENCE=1` not in the
-     Verify list; racecheck and finalcheck skipped at user request
-193. [x] Test accessors I: runtime areas —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-193--test-accessors-i-runtime-areas)
-     · needs 192 · P (`4d534b352`, `83aca4617`, `71c7556ae`, `3b9051c1b`, docs
-     commit) · the 195 engine-building root test files of the runtime areas that
-     reach only core internals (and the helpers they reach) now name no
-     unexported core member: 318 generated accessors plus one by hand (getters,
-     setters, `Ref`, method and function wrappers, constants, 12 type aliases
-     and 10 `New<Prefix>` field constructors) in 19 `inspect_<area>_test.go`
-     files, by the `acc` tool; 4 pure unit files keep direct access; T2 deleted
-     16 root test helpers without users (7 files) and no test; root tests 775
-     files and 6.25 MB (+69 KB: 63 KB accessors); quickcheck passed;
-     `REFERENCE=1` and bench skipped (no production change), racecheck and
-     finalcheck skipped at user request
-194. [x] Test accessors II: DDL areas and family tests —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-194--test-accessors-ii-ddl-areas-and-family-tests)
-     · needs 193 · P (`6ce917539`, `1a9fec6ef`, `e41fd307d`, `61639bb51`, docs
-     commit) · every root test outside the accessor files, the `engine_test.go`
-     fixture and the four core unit files now names no unexported core member
-     (the DDL-area files of items 186–187, the item 183 and control-area
-     leftovers and the family tests; `acc`: 319 accessors, 121 reused, 198 new
-     in 22 `inspect_<area>_test.go` files); no test function reaches both a
-     test-only core member and unexported family code: 71 of the 131 that did
-     now set up through SQL or the exported API, the other 60 use 52 exported
-     inspection accessors in the new production `inspect.go` (47 functions, two
-     constants, three constructor Fields types); T2 deleted one dead helper and
-     no test; root tests 778 files and 6.28 MB (+40 KB), production +12 KB
-     (`inspect.go`); quickcheck passed; `REFERENCE=1` and bench skipped (no
-     behavior change), racecheck and finalcheck skipped at user request
-195. [x] Core move — [core](ENGINE-SPLIT-core.md#item-195--core-move) · needs
-     194 · S, bench · 3.7 MB (`03ed14c16`, `81d1b498f`, `1d21c79fb`,
-     `ee8877a2b`, `21c38045c`, `e815e2687`, docs commit) · the runtime core (283
-     root production files, 28.3k declaration lines by `closure`) moved to
-     `internal/engine/core` with the `Statements` and `EngineFactory` hooks and
-     `inspect.go`, by the type-checked `coremv` tool; before it, 23 core names
-     that family code uses were exported (and
-     `AcquireRelationTarget`/`AcquireBoundViewRelationModes` entry points that
-     keep the reference-matched frames), the Restore and test-file `Engine`
-     methods became functions and 14 mixed test files were split by function;
-     308 core-only root test files moved as `core_test`, the 22 accessor files
-     became `export_<area>_test.go` and 4 pure units core internal tests, none
-     deleted; the README split into core and composition; root production 167
-     files and 0.57 MB (−1.22 MB), root tests 495 files and 3.48 MB (−2.81 MB);
-     bench (`BenchmarkOpenDatabase`, `BenchmarkUpdateCoreSparse/512`,
-     `BenchmarkInsertConflictCommittedOmissions`) showed no new allocation;
-     quickcheck, the §3 `go list` import check and the library `make deps` check
-     passed; `REFERENCE=1` `sessions`, `dml` and `tables` selections passed in
-     the merge chain; racecheck and finalcheck skipped at user request
-196. [x] `tablecmds`: tables —
-     [cmds](ENGINE-SPLIT-cmds.md#item-196--tablecmds-tables) · needs 195 · S ·
-     0.35 MB (`e558079d5`, `1510781fa`, `eda4d8a54`, `86f373ca2`, docs commit) ·
-     the table statement executors (65 root production files, 4.99k file lines:
-     ALTER TABLE with INHERIT and its admission, ALTER COLUMN DEFAULT, CREATE
-     and DROP TABLE, renames, SET SCHEMA, constraint, default, generated-column
-     and FK DDL, the table Restore repairs, the R3 shared sets with
-     `PrepareAlterTypeLocked`, the `TableHost`/`AlterHost` hosts and the
-     frame-keeping `Engine` type) moved to `tablecmds` by the type-checked
-     `cmdmv` tool after 44 names were exported in place; 42 root test files
-     moved as `tablecmds_test` external tests (27 `export_test.go` aliases and
-     one constructor), none deleted; root production 102 files and 0.38 MB
-     (−0.19 MB), root tests 459 files and 3.03 MB (−0.44 MB); quickcheck, the §3
-     `go list` check and the library deps check passed; `REFERENCE=1`
-     `^TestReferenceAlter(AddConstraint|Nullability|Default)` and
-     `^TestReferenceTableCore` passed in the merge chain; bench skipped (moved
-     code unchanged; the escape diff shows only the renames), racecheck and
-     finalcheck skipped at user request
-197. [x] `tablecmds`: sequences, identity, VACUUM —
-     [cmds](ENGINE-SPLIT-cmds.md#item-197--tablecmds-sequences-identity-vacuum)
-     · needs 196 · S (`d3a613464`, `75f2d2cff`, `3fd44d15c`, docs commit) · the
-     sequence, identity and VACUUM executors (7 root production files, 954 file
-     lines: CREATE, ALTER and DROP SEQUENCE with OWNED BY and the catalog
-     binding wait, COMMENT ON SEQUENCE, the Restore identity configuration
-     check, and VACUUM with its selection, lock loop, progress phases and
-     publication) moved to `tablecmds` by `cmdmv` after 4 entries were exported
-     in place; 9 root test files moved as `tablecmds_test` external tests (every
-     helper reuses a copy already there), none deleted; root production 95 files
-     and 0.35 MB (−0.03 MB), root tests 451 files and 2.97 MB (−0.06 MB); the
-     family selectors, the `RACE=1` VACUUM race tests, quickcheck, the §3 `go
-     list` check and the library deps check passed; `REFERENCE=1`
-     `^TestReference(Sequence|Identity)` and
-     `^TestReference(Vacuum|CommentInquiryComposition|PGDescriptionLifecycle|TransactionalComment)`
-     passed in the merge chain; bench skipped (moved code unchanged), racecheck
-     and finalcheck skipped at user request
-198. [x] `indexcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-198--indexcmds) · needs
-     197 · S (`9ef4a85bd`, `82ba9ff17`, `7d9d9a388`, docs commit) · the index
-     statement executors (6 root production files, 555 file lines: CREATE INDEX
-     with its publication-conflict retry and CONCURRENTLY phases, writer and
-     older-snapshot waits with the build wait registration, and ALTER INDEX,
-     DROP INDEX and REINDEX with the partition index validity pass) moved to
-     `indexcmds`, which imports `tablecmds` for `TableHost` and ALTER INDEX
-     RENAME, by `cmdmv` after 2 entries were exported in place; 3 root test
-     files moved as `indexcmds_test` external tests (one `export_test.go`
-     alias), none deleted; root production 89 files and 0.33 MB (−0.02 MB), root
-     tests 448 files and 2.93 MB (−0.05 MB); the family selectors, the `RACE=1`
-     CONCURRENTLY and index lock tests, quickcheck, the §3 `go list` check and
-     the library deps check passed; `REFERENCE=1`
-     `^TestReference(ConcurrentIndex|IndexMaintenance)` and
-     `^TestReference(BtreeIndex|IndexClauses|TransactionalIndex)` passed in the
-     merge chain; bench skipped (moved code unchanged; the escape diff is
-     empty), racecheck and finalcheck skipped at user request
-199. [x] `partitioncmds` — [cmds](ENGINE-SPLIT-cmds.md#item-199--partitioncmds)
-     · needs 198 · S (`54f05eb71`, `8a3c0d899`, `f67ce379a`, docs commit) · the
-     partition and inheritance executors (11 root production files, 929 file
-     lines: ATTACH and DETACH PARTITION with their name rechecks, DEFAULT
-     frontier lock callback and storage-read fences, the partition Restore
-     replays and DETACH/DROP teardown, and the inheritance Restore repairs for
-     CHECK recipes, generation pairing, retired origins, inherited foreign keys
-     and owners) moved to `partitioncmds`, which imports `tablecmds`, by `cmdmv`
-     after 15 entries were exported in place; 11 root test files moved as
-     `partitioncmds_test` external tests (one `export_test.go` alias), none
-     deleted; root production 78 files and 0.30 MB (−0.03 MB), root tests 437
-     files and 2.82 MB (−0.11 MB); the family selectors, the `RACE=1` attach and
-     detach overlay and fence tests, quickcheck, the §3 `go list` check and the
-     library deps check passed; `REFERENCE=1`
-     `^TestReferencePartition(Attach|Detach)` and
-     `^TestReferenceInheritanceAlter(Recipe|Retired|GeneratedReplay|PhysicalNotNull)`
-     passed in the merge chain; bench skipped (moved code unchanged; the escape
-     diff is empty), racecheck and finalcheck skipped at user request
-200. [x] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
-     199 · S (`c9eb2629e`, `d6bc0e809`, `88390718a`, `a6d5b288e`, docs commit) ·
-     the type executors (10 root production files, 1,285 file lines: ALTER
-     DOMAIN, ALTER TYPE on composites with the typed-table and inheriting-child
-     row staging, CREATE TYPE AS ENUM and AS RANGE with ALTER TYPE on enums,
-     ALTER TABLE OF and NOT OF, the type owner Restore pairing, the native
-     domain replay shared with views, and Dump's temporary collation check)
-     moved to `typecmds`, which imports `tablecmds`, and `TypeHost` (2 files)
-     moved to `tablecmds`, by `cmdmv` after 19 names were exported in place; 6
-     root test files moved as `typecmds_test` external tests (one
-     `export_test.go` alias), none deleted; root production 66 files and 0.25 MB
-     (−0.05 MB), root tests 432 files and 2.77 MB (−0.04 MB); the family
-     selectors, the `RACE=1` typed publication and ALTER DOMAIN publication
-     tests, quickcheck, the §3 `go list` check and the library deps check
-     passed; `REFERENCE=1`
-     `^TestReference(DomainAlter|CompositeAlter|EnumAlter|DomainDefault)` and
-     `^TestReference(TypedTable|RangeType)` passed in the merge chain; bench
-     skipped (moved code unchanged; the escape diff is empty), racecheck and
-     finalcheck skipped at user request
-201. [x] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
-     200 · S (`b6a1f136b`, `7a415d0bf`, `38ff8a53c`, docs commit) · the view
-     executors (10 root production files, 1,255 file lines: CREATE [OR REPLACE]
-     VIEW, ALTER and DROP [MATERIALIZED] VIEW, REFRESH MATERIALIZED VIEW with
-     its row production and replacement staging, RULE, POLICY and TRIGGER DDL
-     with their shared relation-change publication, the materialized snapshot
-     import of a native Restore, and `ViewHost`) moved to `viewcmds`, which
-     imports `tablecmds` and `typecmds`, by `cmdmv` after 9 names were exported
-     in place; 22 root test files moved as `viewcmds_test` external tests (three
-     `export_test.go` aliases), none deleted; root production 56 files and 0.20
-     MB (−0.05 MB), root tests 413 files and 2.59 MB (−0.18 MB); the family
-     selectors, each moved test alone, the `RACE=1` concurrent refresh tests,
-     the quick frame-matched refresh cancellation reference tests, quickcheck,
-     the §3 `go list` check and the library deps check passed; `REFERENCE=1`
-     `^TestReference(MaterializedRefresh|MaterializedAlter|MaterializedView|DriverBatchRefresh)`,
-     `^TestReference(ViewReplace|ViewLocks|DropView|RuleDependencies|RuleRestrictions)`
-     and `^TestReference(RLSPolicy|TriggerDDL)` passed in the merge chain; bench
-     skipped (moved code unchanged; the escape diff is empty), racecheck and
-     finalcheck skipped at user request
-202. [x] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
-     201 · S (`e9e537b7a`, `c4890f698`, `c240f4bcf`, docs commit) · the role
-     executors (14 root production files, 1,398 file lines: CREATE and ALTER
-     ROLE, role membership GRANT and REVOKE, SET ROLE and SESSION AUTHORIZATION,
-     DROP ROLE with its retirement locks, object and database GRANT and REVOKE,
-     ALTER DEFAULT PRIVILEGES, ALTER ... OWNER TO for types, domains and
-     databases, REASSIGN and DROP OWNED, CREATE DATABASE, and `RoleHost`) moved
-     to `rolecmds`, which imports no other family, by `cmdmv` after 9 names were
-     exported in place; the code shared with the schema statements was already
-     core's (item 195); 16 root test files moved as `rolecmds_test` external
-     tests (six `export_test.go` aliases), none deleted; root production 42
-     files and 0.15 MB (−0.05 MB), root tests 399 files and 2.40 MB (−0.18 MB);
-     the family selectors, each `rolecmds` test alone, the `RACE=1` ownership,
-     role transaction, role switch and CREATE DATABASE tests, quickcheck, the §3
-     `go list` check and the library deps check passed; `REFERENCE=1`
-     `^TestReference(RoleOwnership|RoleMembership|RoleGrant|RoleDefault|RoleRevoke|RoleSwitch|RoleAttributes|RoleTransactional|RoleRetained|PredefinedMaintain)`,
-     `^TestReference(ObjectGrant|ObjectRevoke)` and
-     `^TestReferenceDatabaseCreate` passed in the merge chain; bench skipped
-     (moved code unchanged; the escape diff is empty), racecheck and finalcheck
-     skipped at user request
-203. [x] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
-     needs 202 · S · 1.65 MB (`c23a576d8`, `9a52da016`, `c4bc8a1a5`, docs
-     commit) · the schema-object executors (25 root production files, 2,198 file
-     lines: CREATE, ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION and
-     CONVERSION, CREATE LANGUAGE, routine, cast, operator, operator family and
-     class and access method DDL, COMMENT, CREATE TABLESPACE and ALTER TABLE ALL
-     IN TABLESPACE, LOAD, CREATE, ALTER and DROP EXTENSION with the extension
-     owner import, the foreign-data DDL and GRANT, and `RoutineHost`,
-     `SchemaHost` and `extensionHost`) moved to `schemacmds`, which imports
-     `tablecmds`, by `cmdmv` after 18 names were exported in place; the root now
-     holds only the composition; 144 root test files moved as `schemacmds_test`
-     external tests (nine `export_test.go` aliases), none deleted; root
-     production 17 files and 0.07 MB (−0.08 MB), root tests 264 files and 1.15
-     MB (−1.25 MB); the family selectors, each `schemacmds` test alone, a
-     `RACE=1` publication and cancellation selection, quickcheck, the §3 `go
-     list` check and the library deps check passed; `REFERENCE=1`
-     `^TestReference(Extension|AvailableExtensions|Conversion|Load)`,
-     `^TestReference(Schema|Comment)`,
-     `^TestReference(OperatorClass|OperatorFamily|AccessMethod)` and
-     `^TestReferenceFDW` passed in the merge chain; bench skipped (moved code
-     unchanged; the escape diff shows only Dump's `captureDumpLocked`, see the
-     prompt Status), racecheck and finalcheck skipped at user request
-204. [x] Composition cleanup —
-     [core](ENGINE-SPLIT-core.md#item-204--composition-cleanup) · needs 203 · S
-     (`8f05b2dce`, `cb4b3802a`, `687bec9d6`, `7aba831ca`, `d4c49c11a`,
-     `a4770c3b1`, `c5ffc8d9b`, `87b4def91`, `e0eb6765d`, docs commit) · the root
-     now holds only the composition and its tests: 173 dead root test helper
-     files deleted (no test function among them), the root runtime tests (93
-     files, 321 tests and benchmarks) moved to `core` as `core_test` external
-     tests by `cmdmv` (none deleted under T2), the ISN Restore owner tests set
-     up through SQL, 9 core names and `schemacmds`' `StageSchemaLocked` and
-     `StageExtensionLocked` unexported behind accessor files, 2 inspection
-     accessors moved from `core/inspect.go` to an accessor file, and Dump's
-     foreign namespace check made allocation-free again; root production 17
-     files and 0.08 MB (+0.4 KB), root tests 8 files and 0.02 MB (−1.13 MB); the
-     moved tests (all and each alone), the root, `core`, `tablecmds` and
-     `schemacmds` packages, quickcheck, the §3 `go list` check and the library
-     deps check passed; `REFERENCE=1`
-     `^TestReference(Control|DumpRoundTrip|Ean13Controls)` passed in the merge
-     chain; startup bench unchanged (interleaved before/after binaries),
-     racecheck and finalcheck skipped at user request
-205. [ ] Closing review 5 (docs only) —
-     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-205--closing-review-5) · needs
-     204
+206. [ ] Tooling and owner census —
+     [core](ENGINE-SPLIT-core.md#item-206--tooling-and-owner-census) · needs — ·
+     P · core after 11.2
+207. [ ] Test seams in place —
+     [core](ENGINE-SPLIT-core.md#item-207--test-seams-in-place) · needs 206 · P
+     · core after 11.2
+208. [ ] Builtin function, type and extension tests —
+     [core](ENGINE-SPLIT-core.md#item-208--builtin-function-type-and-extension-tests)
+     · needs 207 · P · core after 10.4
+209. [ ] DDL family tests —
+     [core](ENGINE-SPLIT-core.md#item-209--ddl-family-tests) · needs 207 · P ·
+     core after 9.9
+210. [ ] Catalog producer tests —
+     [core](ENGINE-SPLIT-core.md#item-210--catalog-producer-tests) · needs 207 ·
+     P · core after 9.4
+211. [ ] Query and DML feature tests —
+     [core](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) · needs
+     207 · P · core after 8.9
+212. [ ] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
+     needs 206 · P, bench · core after 8.75
+213. [ ] Host capability seam —
+     [core](ENGINE-SPLIT-core.md#item-213--host-capability-seam) · needs — · P,
+     bench · core after 8.75
+214. [ ] Contrib runtimes —
+     [core](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) · needs 207, 212,
+     213 · P, bench · core after 8.55
+215. [ ] Text-search runtime —
+     [core](ENGINE-SPLIT-core.md#item-215--text-search-runtime) · needs 207,
+     212, 213 · P, bench · core after 8.4
+216. [ ] Statistics runtime —
+     [core](ENGINE-SPLIT-core.md#item-216--statistics-runtime) · needs 207, 212
+     · P, bench · core after 8.2
+217. [ ] Native triggers —
+     [core](ENGINE-SPLIT-core.md#item-217--native-triggers) · needs 215 · P,
+     bench · core after 8.15
+218. [ ] Catalog runtime —
+     [core](ENGINE-SPLIT-core.md#item-218--catalog-runtime) · needs 210, 212 ·
+     P, bench · core after 7.8
+219. [ ] Inquiry runtime —
+     [core](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) · needs 213, 218 ·
+     P, bench · core after 7.7
+220. [ ] Closing review 6 (checkpoint, docs only) —
+     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-220--closing-review-6) · needs
+     207–219
+221. [ ] PL/pgSQL above core —
+     [core](ENGINE-SPLIT-core.md#item-221--plpgsql-above-core) · needs 220 · S,
+     bench · core after 7.1
+222. [ ] Cursor, prepare and COPY commands —
+     [core](ENGINE-SPLIT-core.md#item-222--cursor-prepare-and-copy-commands) ·
+     needs 220 · S, bench · core after 6.6
+223. [ ] DML statement assembly —
+     [core](ENGINE-SPLIT-core.md#item-223--dml-statement-assembly) · needs 220 ·
+     S, bench · core after 5.9
+224. [ ] Event triggers — [core](ENGINE-SPLIT-core.md#item-224--event-triggers)
+     · needs 220 · P, bench · core after 5.75
+225. [ ] Advisory locks and notifications —
+     [core](ENGINE-SPLIT-core.md#item-225--advisory-locks-and-notifications) ·
+     needs 220 · P, bench · core after 5.5
+226. [ ] Settings commands —
+     [core](ENGINE-SPLIT-core.md#item-226--settings-commands) · needs 220 · P,
+     bench · core after 5.35
+227. [ ] Foreign-data and replication commands —
+     [core](ENGINE-SPLIT-core.md#item-227--foreign-data-and-replication-commands)
+     · needs 220 · P · core after 5.15
+228. [ ] Hub accessor retirement —
+     [core](ENGINE-SPLIT-core.md#item-228--hub-accessor-retirement) · needs
+     221–227 · P · core after 4.7
+229. [ ] Core engine test packages —
+     [core](ENGINE-SPLIT-core.md#item-229--core-engine-test-packages) · needs
+     228 · S · core after ≈ 3.8
+230. [ ] Closing review 7 —
+     [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-230--closing-review-7) · needs
+     229
 
 ## Updating this file
 
@@ -405,8 +107,8 @@ item.
    trust `git log`, fix the page and say so in the report.
 2. **When an item is done** (ENGINE-SPLIT.md §5.3), tick it. Add its commit
    hashes in parentheses, with the docs commit marked `docs`, and one line:
-   what moved, the root bytes after it, and which checks passed or were
-   skipped.
+   what moved, core's size and the sizes of the packages it created or grew,
+   and which checks passed or were skipped.
 3. **Leave an item unticked** if a check failed or was blocked, with a short
    note such as `*(blocked: REFERENCE=1 needs Docker)*`.
 4. **Keep the plan strictly linear.** New items go at the end with the next free
