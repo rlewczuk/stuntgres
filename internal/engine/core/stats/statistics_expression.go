@@ -1,4 +1,4 @@
-package core
+package stats
 
 import (
 	"stuntgres/internal/engine/analyze"

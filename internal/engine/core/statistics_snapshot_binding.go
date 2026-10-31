@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/stats"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
@@ -23,21 +24,21 @@ func StatisticsSnapshotCodec(ctx context.Context, e *Engine, read catalog.Read) 
 	acl := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: roles, Lossless: true}
 	ctx = regobj.ACLItemOutputContext(regobj.Float4DumpContext(ctx), acl)
 	host := &statisticsSnapshotHost{engine: e, auth: auth}
-	host.SnapshotCodec = NewSnapshotCodec(ctx, read, host)
+	host.SnapshotCodec = stats.NewSnapshotCodec(ctx, read, host)
 	return host
 }
 
 // statisticsSnapshotHost is a snapshot codec's captured bootstrap authority.
 // It embeds the codec it serves, so a codec is one allocation.
 type statisticsSnapshotHost struct {
-	SnapshotCodec
+	stats.SnapshotCodec
 	engine *Engine
 	auth   AuthorizationView
 }
 
-var _ SnapshotHost = (*statisticsSnapshotHost)(nil)
+var _ stats.SnapshotHost = (*statisticsSnapshotHost)(nil)
 
-func (h *statisticsSnapshotHost) Authority() SnapshotAuthority {
+func (h *statisticsSnapshotHost) Authority() stats.SnapshotAuthority {
 	auth := h.auth
 	return &auth
 }

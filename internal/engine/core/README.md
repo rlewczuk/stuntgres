@@ -241,34 +241,26 @@ isolated source engine and validates that ownership before touching either
 catalog. Ordinary self/foreign replacement uses `ReplaceCatalog` without an
 operation; it admits its own private repair session when demanded.
 
-Statistics expressions share the single-relation binder setup with indexes but
-use a distinct `StatisticsConsumer`: no parameters, subqueries, aggregates,
-grouping, windows or SRFs, and no index-specific IMMUTABLE restriction.
-The DDL host preflights coercions and retains normal conditional execution
-recipes, stable input identities and external dependencies. CREATE does not
-evaluate volatile runtime values. Definition-object locks include these real
-dependencies; publication rejects retired inputs/providers.
+Statistics runtime (the `pg_restore_*_stats`/`pg_clear_*_stats` imports, the
+`pg_stats` and `pg_statistic_ext_data` visitors, statistics expression recipes
+and the statistics snapshot codec) is the leaf [`core/stats`](stats/README.md).
+Core owns `stats.Host` on `statementHost` and the adapters of the `exec.Host`,
+`pgcatalog.Runtime` and `ddl.Host` methods (`statistics_hosts.go`), the
+`stats.Authority` that `AuthorizationView` implements, the imported-statistics
+reset of storage replacement and TRUNCATE (`imported_statistics_reset.go`), and
+the codec constructor `StatisticsSnapshotCodec` with its bootstrap
+`stats.SnapshotHost` (`statistics_snapshot_binding.go`).
+
 Statistics namespace movement uses the shared staged namespace resolver with
 system destinations enabled, retaining CREATE and temporary/TOAST transition
 checks. Its constructor enables that policy only for a genuine isolated import,
 so restoring a moved definition does not relax ordinary CREATE admission.
-The authenticated catalog runtime projects ndistinct, dependencies, joint MCV
-and expression summaries from one immutable extended fact. Missing payloads use
-the current descriptor's typed NULL. Catalog SELECT admission precedes capture;
-the runtime never collects populations or rebuilds retained statistics on read.
-`statistics_snapshot.go` bridges semantic captured statistics to the existing
-control-literal renderer and checked typed replay traversal. Destination value
-construction uses the ordinary binder/executor under captured catalog authority.
-Only this adapter supplies the retained structural-tree capability; ordinary
-row replay and SQL input remain unchanged. Joint MCV native images are rebuilt
-from typed dictionaries/counts, never copied with source OIDs.
-The snapshot binding adapter supplies that captured authority and cancellation
+
+The snapshot binding adapter supplies the codec's authority and cancellation
 context to type-annotation, namespace and object-name hooks. Constructor casts
 use the existing immutable snapshot resolvers, not live-publication admission:
 the destination generation is deliberately private until final installation.
 Live operation resolution and final publication retain their original fences.
-It is not an expression-statistics evaluator or a re-ANALYZE path. Stable
-deparsing matches retained recipes independently of source object addresses.
 
 EXPLAIN presentation (trees, estimates, statistics, pruning, foreign
 provider details and TEXT/JSON output) is the leaf
@@ -1343,7 +1335,7 @@ with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `contrib.Host` (`contrib_statement_host.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `contrib.Host` (`contrib_statement_host.go`), `stats.Host` (`statistics_hosts.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
 | `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them; `contribHost` and `textSearchHost` enter `core/contrib` and `core/tsearch` |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
