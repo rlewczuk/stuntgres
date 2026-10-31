@@ -8,30 +8,28 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *textSearchHost) RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	ctx := h.scope().Op.Context()
+// Rewrite is ts_rewrite with its rules from text's query.
+func Rewrite[A Authority[A]](h Host[A], query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	ctx := h.Operation().Context()
 	accumulator, err := sqltype.NewFTSRewriteRules(ctx, query, result)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	rewrite := &textSearchRewrite{textSearchQuery: textSearchQuery{host: h, spi: h.nestedSQL(), text: text}, accumulator: accumulator}
-	if err := h.textSearchSQL(text, false, rewrite); err != nil {
+	rewrite := &textSearchRewrite[A]{textSearchQuery: textSearchQuery[A]{host: h, text: text}, accumulator: accumulator}
+	if err := textSearchSQL(h, text, false, rewrite); err != nil {
 		return sqltype.Value{}, err
 	}
 	return rewrite.value, nil
 }
 
-func (h *textSearchHost) nestedSQL() exec.NestedSQL { return (*statementHost)(h) }
-
 // One lexical nested-SQL owner is shared by rewrite and statistics consumers.
 // Consumers close the cursor before scratch restoration; FETCH errors pass through.
-func (h *textSearchHost) textSearchSQL(text string, readOnlySPI bool, consumer exec.NestedConsumer) error {
-	spi := h.nestedSQL()
+func textSearchSQL[A Authority[A]](spi Host[A], text string, readOnlySPI bool, consumer exec.NestedConsumer) error {
 	if err := spi.EnterNestedSQL(); err != nil {
 		return err
 	}
 	defer spi.LeaveNestedSQL()
-	read, statements, err := spi.ParseNestedSQL(h.scope().Op.Context(), text)
+	read, statements, err := spi.ParseNestedSQL(spi.Operation().Context(), text)
 	if err != nil {
 		return exec.RewriteSQLDiagnostic(err, text)
 	}
@@ -42,7 +40,7 @@ func (h *textSearchHost) textSearchSQL(text string, readOnlySPI bool, consumer e
 				return exec.RewriteSQLDiagnostic(err, text)
 			}
 		}
-		return SQLError("42P11", "cannot open multi-query plan as cursor")
+		return sqlError("42P11", "cannot open multi-query plan as cursor")
 	}
 	statement := statements[0]
 	// SPI rejects non-cursor command kinds before its read-only plan check.
@@ -53,20 +51,19 @@ func (h *textSearchHost) textSearchSQL(text string, readOnlySPI bool, consumer e
 }
 
 // textSearchQuery is the cursor admission shared by ts_rewrite and ts_stat.
-type textSearchQuery struct {
-	host *textSearchHost
-	spi  exec.NestedSQL
+type textSearchQuery[A Authority[A]] struct {
+	host Host[A]
 	text string
 }
 
-func (q *textSearchQuery) NestedCommand(parser.Statement) (bool, error) { return false, nil }
+func (q *textSearchQuery[A]) NestedCommand(parser.Statement) (bool, error) { return false, nil }
 
-func (q *textSearchQuery) NestedAnalyzed(statement parser.Statement) error {
-	if !q.spi.NestedCursorStatement(statement) {
-		return SQLError("42P11", "cannot open "+q.spi.NestedCommandTag(statement)+" query as cursor")
+func (q *textSearchQuery[A]) NestedAnalyzed(statement parser.Statement) error {
+	if !q.host.NestedCursorStatement(statement) {
+		return sqlError("42P11", "cannot open "+q.host.NestedCommandTag(statement)+" query as cursor")
 	}
-	if tag := q.spi.NestedReadOnlyViolation(statement); tag != "" {
-		return exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), q.text)
+	if tag := q.host.NestedReadOnlyViolation(statement); tag != "" {
+		return exec.RewriteSQLDiagnostic(sqlError("0A000", tag+" is not allowed in a non-volatile function"), q.text)
 	}
 	return nil
 }
@@ -79,16 +76,16 @@ func textSearchRows(rows exec.RowResult) error {
 }
 
 // textSearchRewrite consumes ts_rewrite's rule rows.
-type textSearchRewrite struct {
-	textSearchQuery
+type textSearchRewrite[A Authority[A]] struct {
+	textSearchQuery[A]
 	accumulator *sqltype.FTSRewriteRules
 	value       sqltype.Value
 }
 
-func (r *textSearchRewrite) NestedRows(_ parser.Statement, rows exec.RowResult) (err error) {
+func (r *textSearchRewrite[A]) NestedRows(_ parser.Statement, rows exec.RowResult) (err error) {
 	if err := textSearchRows(rows); err != nil {
 		return err
 	}
-	r.value, err = exec.ConsumeRewriteRules(r.host.scope().Op.Context(), rows, r.accumulator)
+	r.value, err = exec.ConsumeRewriteRules(r.host.Operation().Context(), rows, r.accumulator)
 	return err
 }

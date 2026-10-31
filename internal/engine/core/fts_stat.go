@@ -8,24 +8,25 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *textSearchHost) StatTextSearch(ctx context.Context, text, weights string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	stat := &textSearchStat{textSearchQuery: textSearchQuery{host: h, spi: h.nestedSQL(), text: text}, ctx: ctx, weights: weights, result: result}
-	if err := h.textSearchSQL(text, true, stat); err != nil {
+// Stat is ts_stat over the documents text's query returns.
+func Stat[A Authority[A]](h Host[A], ctx context.Context, text, weights string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	stat := &textSearchStat[A]{textSearchQuery: textSearchQuery[A]{host: h, text: text}, ctx: ctx, weights: weights, result: result}
+	if err := textSearchSQL(h, text, true, stat); err != nil {
 		return nil, err
 	}
 	return stat.values, nil
 }
 
 // textSearchStat consumes ts_stat's document rows.
-type textSearchStat struct {
-	textSearchQuery
+type textSearchStat[A Authority[A]] struct {
+	textSearchQuery[A]
 	ctx     context.Context
 	weights string
 	result  *sqltype.Descriptor
 	values  []sqltype.Value
 }
 
-func (t *textSearchStat) NestedRows(_ parser.Statement, rows exec.RowResult) (err error) {
+func (t *textSearchStat[A]) NestedRows(_ parser.Statement, rows exec.RowResult) (err error) {
 	if err := textSearchRows(rows); err != nil {
 		return err
 	}

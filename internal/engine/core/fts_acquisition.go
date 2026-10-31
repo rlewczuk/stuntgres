@@ -10,7 +10,7 @@ import (
 // tsAcquisition retains immutable metadata, not initialized dictionaries. Only
 // actual ordered-chain consultation acquires a runtime. New receipts remain
 // invocation-private until the complete conversion passes its final fence.
-type tsAcquisition struct {
+type tsAcquisition[A Authority[A]] struct {
 	ctx      context.Context
 	view     catalog.Read
 	config   *catalog.TSConfiguration
@@ -18,13 +18,13 @@ type tsAcquisition struct {
 	memos    map[ids.ObjectAddress]thesaurusMemo
 }
 
-func newTSAcquisition(ctx context.Context, view catalog.Read, config *catalog.TSConfiguration) *tsAcquisition {
-	return &tsAcquisition{ctx: ctx, view: view, config: config}
+func newTSAcquisition[A Authority[A]](ctx context.Context, view catalog.Read, config *catalog.TSConfiguration) *tsAcquisition[A] {
+	return &tsAcquisition[A]{ctx: ctx, view: view, config: config}
 }
 
 // currentLocked checks metadata and already consulted executable inputs only.
 // It never resolves a logical normalizer or initializes an unreached dictionary.
-func (a *tsAcquisition) currentLocked(view catalog.Read, auth AuthorizationView) bool {
+func (a *tsAcquisition[A]) currentLocked(view catalog.Read, auth A) bool {
 	if view.Domain() != a.view.Domain() || view.Epoch() != a.view.Epoch() || view.Get(a.config.Address()) != a.config || view.Get(a.config.Parser) != a.view.Get(a.config.Parser) {
 		return false
 	}
@@ -55,8 +55,9 @@ func (a *tsAcquisition) currentLocked(view catalog.Read, auth AuthorizationView)
 		if err != nil {
 			return false
 		}
+		role := auth.Access().State.CurrentUser
 		for address, memo := range a.memos {
-			if !memo.current(view, a.view.MustTSDictionary(address), auth, path) {
+			if !memo.current(view, a.view.MustTSDictionary(address), role, path) {
 				return false
 			}
 		}
@@ -64,11 +65,11 @@ func (a *tsAcquisition) currentLocked(view catalog.Read, auth AuthorizationView)
 	return true
 }
 
-func (a *tsAcquisition) dictionary(h *statementHost, address ids.ObjectAddress) (catalog.DictionaryRuntime, error) {
+func (a *tsAcquisition[A]) dictionary(h Host[A], address ids.ObjectAddress) (catalog.DictionaryRuntime, error) {
 	if runtime := a.runtimes[address]; runtime != nil {
 		return runtime, nil
 	}
-	runtime, err := h.acquireDictionaryFor(address, a)
+	runtime, err := acquireDictionaryFor(h, address, a)
 	if err != nil {
 		return nil, err
 	}
@@ -81,36 +82,30 @@ func (a *tsAcquisition) dictionary(h *statementHost, address ids.ObjectAddress) 
 
 // accept publishes no partial receipt set. The result has already been built,
 // but is not returned to the caller until this currentness/cancellation fence.
-func (a *tsAcquisition) accept(ctx context.Context, h *statementHost) error {
-	s := h.scope()
-	e := s.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
+func (a *tsAcquisition[A]) accept(ctx context.Context, h Host[A]) error {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	view := e.PrivateCatalogLocked(changes)
-	auth, err := e.AuthorizationLocked(s.Op)
+	view := h.PrivateCatalogLocked(h.PendingCatalog())
+	auth, err := h.AuthorizationLocked()
 	if err != nil {
 		return err
 	}
-	auth.Recapture(view)
+	auth = auth.Recaptured(view)
 	if !a.currentLocked(view, auth) {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	payload := PayloadOf(s.Op.Session)
+	payload := h.ThesaurusMemos()
 	for address, memo := range a.memos {
-		if payload.thesaurusMemos == nil {
-			payload.thesaurusMemos = make(map[ids.ObjectAddress]thesaurusMemo)
+		if *payload == nil {
+			*payload = make(ThesaurusMemos)
 		}
-		payload.thesaurusMemos[address] = memo
+		(*payload)[address] = memo
 	}
 	return nil
 }

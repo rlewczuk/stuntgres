@@ -31,9 +31,10 @@ type Host[A Authority[A]] interface {
 	ActivateRuntime(ctx context.Context) context.Context
 	ReacquireEngine()
 	ReleaseEngineLocked()
-	// PrivateCatalogLocked is the catalog the statement reads, its private
-	// journal included.
-	PrivateCatalogLocked() catalog.Read
+	// PendingCatalog is the statement's private catalog journal.
+	PendingCatalog() *session.Journal
+	// PrivateCatalogLocked is the current catalog with changes applied.
+	PrivateCatalogLocked(changes *session.Journal) catalog.Read
 	// AuthorizationLocked is the operation's current authorization.
 	AuthorizationLocked() (A, error)
 	// TextSearchInputLocked is the statement's namespace authorization: its

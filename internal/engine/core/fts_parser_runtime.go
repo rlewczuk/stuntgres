@@ -10,38 +10,34 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *textSearchHost) ResolveFTSParser(value sqltype.Value) (fts.ParserRuntime, error) {
-	s := h.scope()
+// ResolveParser is the parser a ts_parse or ts_token_type argument names.
+func ResolveParser[A Authority[A]](h Host[A], value sqltype.Value) (fts.ParserRuntime, error) {
 	if value.Type().ID() != sqltype.Oid {
 		text, err := value.Text()
 		if err != nil {
 			return fts.ParserRuntime{}, err
 		}
-		input, ok := s.Input.RegTS.(regobj.TextSearchInput)
+		in, _ := h.Environments()
+		input, ok := in.RegTS.(regobj.TextSearchInput)
 		if !ok {
 			return fts.ParserRuntime{}, fmt.Errorf("stuntgres: missing captured text parser input")
 		}
-		return input.ResolveParserRuntime(s.Op.Context(), text)
+		return input.ResolveParserRuntime(h.Operation().Context(), text)
 	}
 	oid, err := value.OID()
 	if err != nil {
 		return fts.ParserRuntime{}, err
 	}
-	e := s.Engine()
-	e.Mu.Lock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
+	h.ReacquireEngine()
+	read := h.PrivateCatalogLocked(h.PendingCatalog())
 	d, ok := read.TSParser(ids.ObjectAddress{ClassID: ids.TSParserClassID, ObjectID: ids.OID(oid)})
 	var runtime fts.ParserRuntime
 	if ok {
 		runtime, err = catalog.ResolveParserRuntime(read, d)
 	}
-	e.Mu.Unlock()
+	h.ReleaseEngineLocked()
 	if !ok {
-		return fts.ParserRuntime{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search parser %d", oid))
+		return fts.ParserRuntime{}, sqlError("XX000", fmt.Sprintf("cache lookup failed for text search parser %d", oid))
 	}
 	return runtime, err
 }

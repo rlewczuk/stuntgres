@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,11 +18,10 @@ type textSearchInput struct {
 
 // Engine.Mu precedes effective settings capture. The returned input retains no
 // mutable session state; runtime acquisition and callbacks use its generation.
-func (h *textSearchHost) resolveTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value) (textSearchInput, error) {
+func resolveTextSearchInput[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value sqltype.Value) (textSearchInput, error) {
 	if err := ctx.Err(); err != nil {
 		return textSearchInput{}, err
 	}
-	s := h.scope()
 	var oid uint32
 	var err error
 	if explicit {
@@ -32,20 +30,15 @@ func (h *textSearchHost) resolveTextSearchInput(ctx context.Context, explicit bo
 			return textSearchInput{}, err
 		}
 	}
-	e := s.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	read := h.PrivateCatalogLocked(h.PendingCatalog())
 	if !explicit {
-		auth, failure := s.namespaceAuthorizationLocked(e)
+		_, input, failure := h.TextSearchInputLocked()
 		err = failure
 		if err == nil {
-			name, _ := s.Op.Setting("default_text_search_config")
-			oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveDefaultConfig(ctx, name)
+			name, _ := h.Operation().Setting("default_text_search_config")
+			oid, err = input.ResolveDefaultConfig(ctx, name)
 		}
 	}
 	if err != nil {
@@ -54,23 +47,25 @@ func (h *textSearchHost) resolveTextSearchInput(ctx context.Context, explicit bo
 	return textSearchInput{read: read, oid: oid}, nil
 }
 
-func (h *textSearchHost) captureTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (textSearchCapture, error) {
-	input, err := h.resolveTextSearchInput(ctx, explicit, value)
+func captureTextSearchInput[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (Capture[A], error) {
+	input, err := resolveTextSearchInput(h, ctx, explicit, value)
 	if err != nil {
-		return textSearchCapture{}, err
+		return Capture[A]{}, err
 	}
 	if missingEmpty {
 		if _, ok := input.read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(input.oid)}); !ok {
-			return textSearchCapture{}, nil
+			return Capture[A]{}, nil
 		}
 	}
-	return captureTextSearch(ctx, input.read, input.oid)
+	return CaptureConfiguration[A](ctx, input.read, input.oid)
 }
-func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (rows []sqltype.Value, err error) {
+
+// Debug is ts_debug's rows for text.
+func Debug[A Authority[A]](h Host[A], ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (rows []sqltype.Value, err error) {
 	// Provider failures arise inside the actual SQL-standard debug statement,
 	// after caller argument evaluation. Preserve its frame without mutating errors.
 	defer func() { err = exec.SQLRoutineStatementContext(err, "ts_debug", 1) }()
-	captured, err := h.captureTextSearchInput(ctx, explicit, value, true)
+	captured, err := captureTextSearchInput(h, ctx, explicit, value, true)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +114,7 @@ func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, val
 		lexemes := sqltype.Null(result.CompositeMember(5).Usage.Type)
 		recognized := false
 		for i, address := range mapping {
-			runtime, err := captured.acquisition.dictionary(h.host(), address)
+			runtime, err := captured.acquisition.dictionary(h, address)
 			if err != nil {
 				return nil, err
 			}
@@ -146,7 +141,7 @@ func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, val
 		}
 		rows = append(rows, row)
 	}
-	if err := captured.acquisition.accept(ctx, h.host()); err != nil {
+	if err := captured.acquisition.accept(ctx, h); err != nil {
 		return nil, err
 	}
 	return rows, nil

@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ConvertJSONTextSearch resolves an omitted default after flag validation and
+// ConvertJSON resolves an omitted default after flag validation and
 // before traversal. Parser/dictionary acquisition remains lazy for both forms.
-func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func ConvertJSON[A Authority[A]](h Host[A], ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	flags := sqltype.JSONTextSearchString
 	if filtered {
 		var err error
@@ -20,28 +20,28 @@ func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit boo
 	var input textSearchInput
 	if !explicit {
 		var err error
-		input, err = h.resolveTextSearchInput(ctx, false, config)
+		input, err = resolveTextSearchInput(h, ctx, false, config)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	var captured textSearchCapture
+	var captured Capture[A]
 	var builder fts.VectorBuilder
 	position := 0
 	err := sqltype.WalkJSONTextSearch(ctx, document, flags, func(text string) error {
 		if captured.acquisition == nil {
 			var err error
 			if explicit {
-				captured, err = h.captureTextSearchInput(ctx, true, config, false)
+				captured, err = captureTextSearchInput(h, ctx, true, config, false)
 			} else {
-				captured, err = captureTextSearch(ctx, input.read, input.oid)
+				captured, err = CaptureConfiguration[A](ctx, input.read, input.oid)
 			}
 			if err != nil {
 				return err
 			}
 		}
 		emitted := false
-		err := captured.walk(ctx, h.scope(), text, &position, func(item fts.LexicalPosition) {
+		err := captured.Walk(ctx, h, text, &position, func(item fts.LexicalPosition) {
 			for _, word := range item.Lexemes {
 				builder.Add(word.Text, item.Position)
 				emitted = true
@@ -67,7 +67,7 @@ func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit boo
 		return sqltype.Value{}, err
 	}
 	if captured.acquisition != nil {
-		if err := captured.acquisition.accept(ctx, h.host()); err != nil {
+		if err := captured.acquisition.accept(ctx, h); err != nil {
 			return sqltype.Value{}, err
 		}
 	} else if err := ctx.Err(); err != nil {

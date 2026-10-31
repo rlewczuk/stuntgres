@@ -31,8 +31,8 @@ type thesaurusMemo struct {
 // current checks initialized execution inputs, not namespace ACL revisions. A
 // miss is never permission to reuse old state: acquisition must resolve and
 // authorize the logical normalizer again before installing a replacement.
-func (m thesaurusMemo) current(view catalog.Read, d *catalog.TSDictionary, auth AuthorizationView, path []ids.ObjectAddress) bool {
-	if m.runtime == nil || m.dictionary != d || m.domain != view.Domain() || m.epoch != view.Epoch() || m.role != auth.State.CurrentUser || !slices.Equal(m.path, path) {
+func (m thesaurusMemo) current(view catalog.Read, d *catalog.TSDictionary, role authorization.PrincipalRef, path []ids.ObjectAddress) bool {
+	if m.runtime == nil || m.dictionary != d || m.domain != view.Domain() || m.epoch != view.Epoch() || m.role != role || !slices.Equal(m.path, path) {
 		return false
 	}
 	if view.Get(d.Template) != m.thesTemplate || view.Get(m.thesTemplate.Init) != m.thesInit || view.Get(m.thesTemplate.Lexize) != m.thesLexize || view.Get(m.normalizer.Address()) != m.normalizer || view.Get(m.normalizer.Template) != m.template || view.Get(m.template.Init) != m.init || view.Get(m.template.Lexize) != m.lexize {
@@ -45,15 +45,13 @@ func (m thesaurusMemo) current(view catalog.Read, d *catalog.TSDictionary, auth 
 // acquireDictionary runs resource parsing and callbacks outside Engine.Mu.
 // Only successful session initialization is retained; errors never install state
 // or permit a stale initialized runtime after executable inputs have changed.
-func (h *statementHost) acquireDictionary(address ids.ObjectAddress) (catalog.DictionaryRuntime, error) {
-	return h.acquireDictionaryFor(address, nil)
+func acquireDictionary[A Authority[A]](h Host[A], address ids.ObjectAddress) (catalog.DictionaryRuntime, error) {
+	return acquireDictionaryFor(h, address, nil)
 }
 
-func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture *tsAcquisition) (catalog.DictionaryRuntime, error) {
-	s := h.scope()
-	e := s.Engine()
-	payload := PayloadOf(s.Op.Session)
-	ctx := s.Op.Context()
+func acquireDictionaryFor[A Authority[A]](h Host[A], address ids.ObjectAddress, capture *tsAcquisition[A]) (catalog.DictionaryRuntime, error) {
+	payload := h.ThesaurusMemos()
+	ctx := h.Operation().Context()
 	if capture != nil {
 		ctx = capture.ctx
 	}
@@ -61,49 +59,46 @@ func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture 
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		e.Mu.Lock()
-		auth, err := e.AuthorizationLocked(s.Op)
+		h.ReacquireEngine()
+		auth, err := h.AuthorizationLocked()
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
-		changes := s.Catalog
-		if changes == nil {
-			changes = s.Owner.Catalog
-		}
-		view := e.PrivateCatalogLocked(changes)
-		auth.Recapture(view)
+		changes := h.PendingCatalog()
+		view := h.PrivateCatalogLocked(changes)
+		auth = auth.Recaptured(view)
 		if capture != nil && (!capture.currentLocked(view, auth) || view.Get(address) != capture.view.Get(address)) {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, ids.ErrCatalogReplaced
 		}
 		d, ok := view.TSDictionary(address)
 		if !ok {
-			e.Mu.Unlock()
-			return nil, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search dictionary %d", address.ObjectID))
+			h.ReleaseEngineLocked()
+			return nil, sqlError("XX000", fmt.Sprintf("cache lookup failed for text search dictionary %d", address.ObjectID))
 		}
 		if err = (extension.CatalogProvider{Class: ids.TSDictionaryClassID}).Validate(view, d); err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
 		if !extension.IsThesaurus(view, d) {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return d.Runtime, nil
 		}
 		path, err := auth.ReferencePath()
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
-		for a, memo := range payload.thesaurusMemos {
+		for a, memo := range *payload {
 			if view.Get(a) != memo.dictionary || memo.domain != view.Domain() || memo.epoch != view.Epoch() {
-				delete(payload.thesaurusMemos, a)
+				delete(*payload, a)
 			}
 		}
-		if memo := payload.thesaurusMemos[address]; memo.current(view, d, auth, path) {
+		if memo := (*payload)[address]; memo.current(view, d, auth.Access().State.CurrentUser, path) {
 			if capture != nil {
-				if !memo.current(capture.view, d, auth, path) {
-					e.Mu.Unlock()
+				if !memo.current(capture.view, d, auth.Access().State.CurrentUser, path) {
+					h.ReleaseEngineLocked()
 					return nil, ids.ErrCatalogReplaced
 				}
 				if capture.memos == nil {
@@ -111,16 +106,16 @@ func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture 
 				}
 				capture.memos[address] = memo
 			}
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return memo.runtime, ctx.Err()
 		}
 		template, _ := view.TSTemplate(d.Template)
-		input, err := extension.CaptureThesaurusInput(DDLHost{E: e, Op: s.Op}, auth, template, d.Options)
+		input, err := extension.CaptureThesaurusInput(h.DictionaryHost(), auth, template, d.Options)
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
-		key := thesaurusMemo{dictionary: d, normalizer: input.Normalizer, template: input.Template, thesTemplate: template, thesInit: view.Get(template.Init), thesLexize: view.Get(template.Lexize), role: auth.State.CurrentUser, path: slices.Clone(path), domain: view.Domain(), epoch: view.Epoch()}
+		key := thesaurusMemo{dictionary: d, normalizer: input.Normalizer, template: input.Template, thesTemplate: template, thesInit: view.Get(template.Init), thesLexize: view.Get(template.Lexize), role: auth.Access().State.CurrentUser, path: slices.Clone(path), domain: view.Domain(), epoch: view.Epoch()}
 		if input.Template != nil {
 			key.init, key.lexize = view.Get(input.Template.Init), view.Get(input.Template.Lexize)
 		}
@@ -131,32 +126,31 @@ func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture 
 			// Demand resolves both snapshots, never during metadata capture.
 			// This also fences a missing/replaced logical source before exposing
 			// a compiler error from a different generation.
-			capturedAuth := auth
-			capturedAuth.Recapture(capture.view)
-			capturedInput, captureErr := extension.CaptureThesaurusInput(DDLHost{E: e, Op: s.Op}, capturedAuth, template, d.Options)
+			capturedAuth := auth.Recaptured(capture.view)
+			capturedInput, captureErr := extension.CaptureThesaurusInput(h.DictionaryHost(), capturedAuth, template, d.Options)
 			key.runtime = d.Runtime
 			valid := captureErr == nil && capturedInput != nil && capturedInput.Normalizer == input.Normalizer && (capturedInput.SourceError == nil) == (input.SourceError == nil)
 			if input.SourceError == nil && input.OptionError == nil {
-				valid = valid && key.current(capture.view, d, capturedAuth, path)
+				valid = valid && key.current(capture.view, d, capturedAuth.Access().State.CurrentUser, path)
 			}
 			key.runtime = nil
 			if !valid {
-				e.Mu.Unlock()
+				h.ReleaseEngineLocked()
 				return nil, ids.ErrCatalogReplaced
 			}
 		}
-		e.Mu.Unlock()
+		h.ReleaseEngineLocked()
 		runtime, err := input.Compile(ctx)
 		if err != nil {
 			if capture != nil && ctx.Err() == nil {
-				e.Mu.Lock()
-				currentView := e.PrivateCatalogLocked(changes)
-				currentAuth, authErr := e.AuthorizationLocked(s.Op)
+				h.ReacquireEngine()
+				currentView := h.PrivateCatalogLocked(changes)
+				currentAuth, authErr := h.AuthorizationLocked()
 				if authErr != nil {
-					e.Mu.Unlock()
+					h.ReleaseEngineLocked()
 					return nil, authErr
 				}
-				currentAuth.Recapture(currentView)
+				currentAuth = currentAuth.Recaptured(currentView)
 				valid := capture.currentLocked(currentView, currentAuth) && currentView.Get(address) == d
 				if input.Normalizer != nil {
 					valid = valid && currentView.Get(input.Normalizer.Address()) == input.Normalizer
@@ -164,50 +158,50 @@ func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture 
 				if input.Template != nil {
 					valid = valid && currentView.Get(input.Template.Address()) == input.Template && currentView.Get(input.Template.Init) == key.init && currentView.Get(input.Template.Lexize) == key.lexize
 				}
-				e.Mu.Unlock()
+				h.ReleaseEngineLocked()
 				if !valid {
 					return nil, ids.ErrCatalogReplaced
 				}
 			}
 			return nil, err
 		}
-		e.Mu.Lock()
-		currentAuth, err := e.AuthorizationLocked(s.Op)
+		h.ReacquireEngine()
+		currentAuth, err := h.AuthorizationLocked()
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
-		currentView := e.PrivateCatalogLocked(changes)
-		currentAuth.Recapture(currentView)
+		currentView := h.PrivateCatalogLocked(changes)
+		currentAuth = currentAuth.Recaptured(currentView)
 		key.runtime = runtime
-		if capture != nil && (!capture.currentLocked(currentView, currentAuth) || currentView.Get(address) != d || !key.current(currentView, d, currentAuth, path)) {
-			e.Mu.Unlock()
+		if capture != nil && (!capture.currentLocked(currentView, currentAuth) || currentView.Get(address) != d || !key.current(currentView, d, currentAuth.Access().State.CurrentUser, path)) {
+			h.ReleaseEngineLocked()
 			return nil, ids.ErrCatalogReplaced
 		}
-		current, err := extension.CaptureThesaurusInput(DDLHost{E: e, Op: s.Op}, currentAuth, template, d.Options)
+		current, err := extension.CaptureThesaurusInput(h.DictionaryHost(), currentAuth, template, d.Options)
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
 		if current == nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			continue
 		}
 		if current.SourceError != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, current.SourceError
 		}
 		currentPath, err := currentAuth.ReferencePath()
 		if err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
 		if err = ctx.Err(); err != nil {
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return nil, err
 		}
-		if current.Normalizer != input.Normalizer || !input.Current(currentView) || !key.current(currentView, d, currentAuth, currentPath) || currentView.Get(address) != d {
-			e.Mu.Unlock()
+		if current.Normalizer != input.Normalizer || !input.Current(currentView) || !key.current(currentView, d, currentAuth.Access().State.CurrentUser, currentPath) || currentView.Get(address) != d {
+			h.ReleaseEngineLocked()
 			if capture != nil {
 				return nil, ids.ErrCatalogReplaced
 			}
@@ -218,14 +212,14 @@ func (h *statementHost) acquireDictionaryFor(address ids.ObjectAddress, capture 
 				capture.memos = make(map[ids.ObjectAddress]thesaurusMemo)
 			}
 			capture.memos[address] = key
-			e.Mu.Unlock()
+			h.ReleaseEngineLocked()
 			return runtime, nil
 		}
-		if payload.thesaurusMemos == nil {
-			payload.thesaurusMemos = make(map[ids.ObjectAddress]thesaurusMemo)
+		if *payload == nil {
+			*payload = make(ThesaurusMemos)
 		}
-		payload.thesaurusMemos[address] = key
-		e.Mu.Unlock()
+		(*payload)[address] = key
+		h.ReleaseEngineLocked()
 		return runtime, nil
 	}
 }

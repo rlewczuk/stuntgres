@@ -14,21 +14,20 @@ import (
 	"stuntgres/internal/workadmission"
 )
 
-// ConvertTextSearch captures immutable metadata, including the live default
+// Convert captures immutable metadata, including the live default
 // when omitted. Engine.Mu precedes the effective settings mutex. Parser,
 // dictionary and notice callbacks run detached; runtime demand follows the
 // actual ordered chain, never every mapping or a category prewarm.
-func (h *textSearchHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	s := h.scope()
-	captured, err := h.captureTextSearchInput(ctx, explicit, value, false)
+func Convert[A Authority[A]](h Host[A], ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	captured, err := captureTextSearchInput(h, ctx, explicit, value, false)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	ctx = s.ActivateRuntime(ctx)
+	ctx = h.ActivateRuntime(ctx)
 	capture := captured.acquisition
 	walk := func(input string, emit func(fts.LexicalPosition)) error {
 		position := 0
-		return captured.walk(ctx, s, input, &position, emit)
+		return captured.Walk(ctx, h, input, &position, emit)
 	}
 	normalize := func(input string) ([]fts.LexicalPosition, error) {
 		var positions []fts.LexicalPosition
@@ -53,7 +52,7 @@ func (h *textSearchHost) ConvertTextSearch(ctx context.Context, kind fts.Convers
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := capture.accept(ctx, h.host()); err != nil {
+		if err := capture.accept(ctx, h); err != nil {
 			return sqltype.Value{}, err
 		}
 		return value, nil
@@ -67,45 +66,61 @@ func (h *textSearchHost) ConvertTextSearch(ctx context.Context, kind fts.Convers
 		if parsed {
 			message = "text-search query contains only stop words or doesn't contain lexemes, ignored"
 		}
-		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
+		h.Operation().EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 	}
 	value, err = sqltype.TSQueryValue(result, query)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if err := capture.accept(ctx, h.host()); err != nil {
+	if err := capture.accept(ctx, h); err != nil {
 		return sqltype.Value{}, err
 	}
 	return value, nil
 }
 
-// textSearchCapture owns one immutable configuration generation. Acquisition
+// Capture owns one immutable configuration generation. Acquisition
 // uses a captured catalog read; parser/dictionary callbacks run detached.
-type textSearchCapture struct {
+type Capture[A Authority[A]] struct {
 	config      *catalog.TSConfiguration
 	parser      fts.ParserRuntime
-	acquisition *tsAcquisition
+	acquisition *tsAcquisition[A]
 }
 
-func captureTextSearch(ctx context.Context, read catalog.Read, oid uint32) (textSearchCapture, error) {
+// CaptureConfiguration captures configuration oid in read and its parser. It
+// takes no lock: read is immutable.
+func CaptureConfiguration[A Authority[A]](ctx context.Context, read catalog.Read, oid uint32) (Capture[A], error) {
 	config, ok := read.TSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)})
 	if !ok {
-		return textSearchCapture{}, SQLError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
+		return Capture[A]{}, sqlError("XX000", fmt.Sprintf("cache lookup failed for text search configuration %d", oid))
 	}
 	if err := (catalog.TSConfigurationProvider{}).Validate(read, config); err != nil {
-		return textSearchCapture{}, err
+		return Capture[A]{}, err
 	}
 	parser, err := catalog.ResolveParserRuntime(read, read.MustTSParser(config.Parser))
 	if err != nil {
-		return textSearchCapture{}, err
+		return Capture[A]{}, err
 	}
-	return textSearchCapture{config: config, parser: parser, acquisition: newTSAcquisition(ctx, read, config)}, nil
+	return Capture[A]{config: config, parser: parser, acquisition: newTSAcquisition[A](ctx, read, config)}, nil
 }
 
-func (c textSearchCapture) walk(ctx context.Context, s *StatementScope, input string, position *int, emit func(fts.LexicalPosition)) error {
-	parser, config, capture, h := c.parser, c.config, c.acquisition, s.WriteHost()
+// Captured reports whether c holds a configuration.
+func (c Capture[A]) Captured() bool { return c.config != nil }
+
+// Accept fences c's dictionary acquisition, if any, against the current
+// catalog and authorization, and publishes its thesaurus receipts.
+func (c Capture[A]) Accept(ctx context.Context, h Host[A]) error {
+	if c.acquisition == nil {
+		return nil
+	}
+	return c.acquisition.accept(ctx, h)
+}
+
+// Walk tokenizes input and emits its lexical positions, numbering from
+// *position. It runs with no engine lock held.
+func (c Capture[A]) Walk(ctx context.Context, h Host[A], input string, position *int, emit func(fts.LexicalPosition)) error {
+	parser, config, capture := c.parser, c.config, c.acquisition
 	noticeLong := func() {
-		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
+		h.Operation().EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "54000", Message: "word is too long to be indexed", Detail: "Words longer than 2047 characters are ignored."})
 	}
 	tokens, err := parser.Parse(ctx, input)
 	if err != nil {

@@ -6,20 +6,19 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-// UnaccentText follows the installed function's current schema, not the original
+// Unaccent follows the installed function's current schema, not the original
 // member dictionary address. PostgreSQL's wrapper returns the first recognized
 // lexeme, or the original token when the selected dictionary returns none.
-func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	ctx := h.scope().Op.Context()
+func Unaccent[A Authority[A]](h Host[A], procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	ctx := h.Operation().Context()
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	runtime, err := h.defaultUnaccentDictionary(procedure)
+	runtime, err := defaultUnaccentDictionary(h, procedure)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -35,16 +34,13 @@ func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, input string, res
 
 // Capture immutable runtime authority under the ordinary current statement view;
 // normalization/resource execution happens only after releasing Engine.mu.
-func (h *textSearchHost) defaultUnaccentDictionary(reference ids.ObjectRef) (catalog.DictionaryRuntime, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	auth, err := scope.namespaceAuthorizationLocked(e)
+func defaultUnaccentDictionary[A Authority[A]](h Host[A], reference ids.ObjectRef) (catalog.DictionaryRuntime, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	view, resolver, err := h.TextSearchInputLocked()
 	if err != nil {
 		return nil, err
 	}
-	view := auth.Catalog
 	procedure, ok := view.Procedure(reference.Address)
 	if !ok || extension.UnaccentProviderOf(procedure) != extension.StockUnaccent {
 		return nil, fmt.Errorf("stuntgres: missing installed unaccent routine")
@@ -56,8 +52,7 @@ func (h *textSearchHost) defaultUnaccentDictionary(reference ids.ObjectRef) (cat
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing installed function namespace")
 	}
-	resolver := regobj.NewTextSearchInput(inputCapture(auth, nil))
-	oid, err := resolver.ResolveRegdictionary(scope.Op.Context(), catalog.QuoteIdentifier(namespace.Name())+".unaccent")
+	oid, err := resolver.ResolveRegdictionary(h.Operation().Context(), catalog.QuoteIdentifier(namespace.Name())+".unaccent")
 	if err != nil {
 		return nil, err
 	}

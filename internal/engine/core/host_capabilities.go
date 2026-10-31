@@ -35,7 +35,6 @@ func (h *statementHost) TransactionInquiry() exec.TransactionInquiryRuntime {
 }
 
 func (h *contribHost) scope() *StatementScope            { return (*StatementScope)(h) }
-func (h *textSearchHost) scope() *StatementScope         { return (*StatementScope)(h) }
 func (h *catalogInquiryHost) scope() *StatementScope     { return (*StatementScope)(h) }
 func (h *sessionInquiryHost) scope() *StatementScope     { return (*StatementScope)(h) }
 func (h *transactionInquiryHost) scope() *StatementScope { return (*StatementScope)(h) }

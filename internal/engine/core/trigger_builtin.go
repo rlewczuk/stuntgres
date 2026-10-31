@@ -136,7 +136,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		return err
 	}
 	var oid uint32
-	var captured textSearchCapture
+	var captured Capture[AuthorizationView]
 	if byColumn {
 		slot, err := column(args[1], "configuration column %q does not exist", "column %q is not of regconfig type", sqltype.Regconfig)
 		if err != nil {
@@ -163,7 +163,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 		e.Mu.Lock()
-		captured, err = captureTextSearch(ctx, read, oid)
+		captured, err = CaptureConfiguration[AuthorizationView](ctx, read, oid)
 		e.Mu.Unlock()
 		if err != nil {
 			return err
@@ -204,9 +204,9 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		if err != nil {
 			return err
 		}
-		if captured.config == nil {
+		if !captured.Captured() {
 			e.Mu.Lock()
-			captured, err = captureTextSearch(ctx, read, oid)
+			captured, err = CaptureConfiguration[AuthorizationView](ctx, read, oid)
 			e.Mu.Unlock()
 			if err != nil {
 				return err
@@ -214,7 +214,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 		// Parsing remains observable on non-rebuilding UPDATEs too, but the
 		// final-vector builder need not retain any lexical output in that case.
-		if err := captured.walk(ctx, s, text, &position, func(p fts.LexicalPosition) {
+		if err := captured.Walk(ctx, s.WriteHost(), text, &position, func(p fts.LexicalPosition) {
 			if !rebuild {
 				return
 			}
@@ -226,10 +226,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 	}
 	if !rebuild {
-		if captured.acquisition != nil {
-			return captured.acquisition.accept(ctx, s.WriteHost())
-		}
-		return nil
+		return captured.Accept(ctx, s.WriteHost())
 	}
 	vector, err := builder.Finish(ctx)
 	if err != nil {
@@ -246,10 +243,8 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 	if err != nil {
 		return err
 	}
-	if captured.acquisition != nil {
-		if err := captured.acquisition.accept(ctx, s.WriteHost()); err != nil {
-			return err
-		}
+	if err := captured.Accept(ctx, s.WriteHost()); err != nil {
+		return err
 	}
 	next[destination] = value
 	return nil
