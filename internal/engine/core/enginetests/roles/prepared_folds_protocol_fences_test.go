@@ -1,13 +1,12 @@
-package core_test
+package roles_test
 
 import (
 	"errors"
 	"testing"
 
 	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/enginetest"
-
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"

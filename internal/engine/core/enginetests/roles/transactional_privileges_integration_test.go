@@ -1,9 +1,10 @@
-package core_test
+package roles_test
 
 import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -13,6 +14,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Use the incoming actual-role fixtures and canonical selected execution, not a
@@ -221,4 +223,109 @@ func roleTransactionalCandidate(t *testing.T, e *core.Engine, base *access.RoleR
 		t.Fatal(err)
 	}
 	return &access.RoleRecord{Root: root}, d
+}
+
+func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
+	t.Helper()
+	e := engine.New()
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	refs := make([]authorization.PrincipalRef, 3)
+	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
+		ref := e.RoleStore.Domain.Principal(uint64(20001 + i))
+		refs[i] = ref
+		enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
+
+	}
+	enginetest.SetFixtureEdges(roles, append(append([]authorization.Membership(nil), enginetest.FixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
+	// Install a fully identified graph before transactions branch from this
+	// fixture. Candidate-only helpers intentionally leave new edge IDs at zero.
+	root, frontier, err := roles.Root.AssignMembershipOIDs(authorization.FirstMembershipOID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles.Root = root
+	e.RoleStore.InstallMembershipFrontierLocked(frontier)
+	e.RoleStore.PublishLocked(roles)
+	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
+	next := catalog.CloneState(e.Catalog.State)
+	namespace := &catalog.Namespace{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
+	next.SetDescriptor(schema, namespace)
+	next.BindName(catalog.DescriptorNameKey(namespace), schema)
+	e.Catalog.PublishLocked(next)
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	return defaultUnitFixture{e: e, op: op, owner: refs[0], reader: refs[1], member: refs[2], schema: schema}
+}
+
+// These fixtures exercise the private catalog planner directly, not public SQL.
+func objectGrantUnitFixture(t *testing.T) (*core.Engine, *session.Operation, authorization.PrincipalRef, ids.ObjectAddress) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
+	namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	typ, ok := e.CatalogRead().LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("missing int4 fixture type")
+	}
+	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
+	relation.TableMethod = 2
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+	e.Catalog.State.SetDescriptor(address, relation)
+	e.Catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
+	return e, op, reader, address
+}
+
+func objectGrantUnitRequest() *parser.ObjectGrant {
+	return &parser.ObjectGrant{Privileges: []parser.GrantPrivilege{{Name: "select", Columns: []parser.Identifier{{Text: "b"}}}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "grant_unit"}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}}
+}
+
+type defaultUnitFixture struct {
+	e                     *core.Engine
+	op                    *session.Operation
+	owner, reader, member authorization.PrincipalRef
+	schema                ids.ObjectAddress
+}
+
+func (f defaultUnitFixture) apply(s *parser.AlterDefaultPrivileges) error {
+	_, err := f.e.Execute(f.op, s, 0, nil)
+	return err
+}
+
+func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas []string) *parser.AlterDefaultPrivileges {
+	t.Helper()
+	s := enginetest.DefaultUnitStatement(class, privilege, []string{"default_owner"}, schemas, []string{"default_reader"})
+	if err := f.apply(s); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func (f defaultUnitFixture) actor(ref authorization.PrincipalRef) {
+	f.e.Mu.Lock()
+	f.op.Session.Mu.Lock()
+	f.op.Session.Authorization.State.CurrentUser = ref
+	f.op.Session.Authorization.Revision++
+	f.op.Session.Mu.Unlock()
+	f.e.Mu.Unlock()
+}
+
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+	t.Helper()
+	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
+	d, ok := e.Roles().Lookup(name)
+	if !ok {
+		t.Fatal("missing role", name)
+	}
+	return d
+}
+
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
+	t.Helper()
+	r, err := e.Execute(op, s, 0, nil)
+	if err != nil || r.Count != 0 || r.Rows != nil {
+		t.Fatalf("attribute utility: result=%#v error=%v", r, err)
+	}
 }

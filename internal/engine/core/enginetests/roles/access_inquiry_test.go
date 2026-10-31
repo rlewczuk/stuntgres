@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"context"
@@ -7,8 +7,15 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestAccessInquiryRoleOIDs(t *testing.T) {
@@ -107,4 +114,16 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 			}
 		}
 	}
+}
+
+func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
+	t.Helper()
+	raw := enginetest.Statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return viewcmds.ViewHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }

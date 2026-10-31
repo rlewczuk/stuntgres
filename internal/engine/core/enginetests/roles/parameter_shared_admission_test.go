@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"context"
@@ -11,8 +11,10 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
+
 
 func TestParameterACLSharedAllocationAdmission(t *testing.T) {
 	t.Run("retained-address", parameterSharedRetainedAddress)
@@ -188,4 +190,13 @@ func parameterSharedRetainedAddress(t *testing.T) {
 	entry := state.Resources[shared]
 	if state.Resources[local] != nil || entry == nil || entry.Holders[scope.LockTicket].Mode != lock.AccessExclusive { t.Fatal("retained parameter address was not normalized to shared authority") }
 	if err := scope.Finish(nil); err != nil { t.Fatal(err) }
+}
+
+
+func parameterSpaceRequest(kind string, names ...string) *parser.ObjectGrant {
+	r := &parser.ObjectGrant{Kind: kind, Privileges: []parser.GrantPrivilege{{All: true}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "grant_reader"}}}, GrantOption: true}
+	for _, name := range names {
+		r.Relations = append(r.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: name}}})
+	}
+	return r
 }

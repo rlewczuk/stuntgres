@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"context"
@@ -122,4 +122,8 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal("sequence raw ACL", got, want, err)
 		}
 	})
+}
+
+func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options authorization.Privileges) authorization.ACLEntry {
+	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
 }

@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"testing"

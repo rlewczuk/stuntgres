@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func TestPGSubscriptionColumnAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	super := catalogAuthorization(e, v)
+	super := enginetest.CatalogAuthorization(e, v)
 	if err := super.CheckColumns(ref, d, authorization.SelectPrivilege, all); err != nil {
 		t.Fatal(err)
 	}

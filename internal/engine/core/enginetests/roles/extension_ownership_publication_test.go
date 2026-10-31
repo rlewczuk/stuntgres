@@ -1,4 +1,4 @@
-package core_test
+package roles_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 func TestExtensionOwnershipPublication(t *testing.T) {
@@ -85,4 +86,21 @@ func TestExtensionOwnershipPublication(t *testing.T) {
 			}
 		})
 	}
+}
+
+func extensionUnitGrant(name string, role string) *parser.ObjectGrant {
+	return &parser.ObjectGrant{Kind: "database", Privileges: []parser.GrantPrivilege{{Name: "create"}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: name}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: role}}}}
+}
+
+type alterDropProvider struct {
+	catalog.Provider
+	callback func()
+}
+
+func (p alterDropProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	if err := p.Provider.Validate(v, d); err != nil {
+		return err
+	}
+	p.callback()
+	return nil
 }

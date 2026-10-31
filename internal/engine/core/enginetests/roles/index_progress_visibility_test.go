@@ -1,14 +1,19 @@
-package core_test
+package roles_test
 
 import (
 	"context"
-	"stuntgres/internal/engine/enginetest"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/parser"
 )
 
 func indexProgressLogin(t *testing.T, e *core.Engine, name string) *session.Session {
@@ -157,4 +162,159 @@ func TestCreateIndexProgressVisibility(t *testing.T) {
 	if facts := indexProgressFacts(t, e, b.observer); len(facts) != 0 {
 		t.Fatal(facts)
 	}
+}
+
+func indexProgressStage(t *testing.T, e *core.Engine, worker *session.Session, createSQL string) *indexProgressBuild {
+	t.Helper()
+	op := enginetest.TransactionOperation(t, worker)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	var stage *core.CatalogStage
+	setupComplete := false
+	defer func() {
+		if !setupComplete {
+			_ = scope.Finish(context.Canceled)
+			op.Done()
+			if stage != nil {
+				e.DiscardCatalogStage(stage)
+			}
+		}
+	}()
+	syntax := enginetest.Statement(t, createSQL).(*parser.CreateIndex)
+	if err := scope.Gate(syntax); err != nil {
+		t.Fatal(err)
+	}
+	// Gate establishes transaction ownership, not the relation target. Match
+	// Execute's real relation admission before reading LockedRef or staging DDL.
+	if err := scope.AcquireRelation(syntax, true); err != nil {
+		t.Fatal(err)
+	}
+	var parentAddress, targetAddress ids.ObjectAddress
+	var gate *indexProgressGate
+	func() {
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.StatementAuthorizationLocked(op, syntax)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := scope.CaptureIdentityLocked(auth); err != nil {
+			t.Fatal(err)
+		}
+		parent := auth.Catalog.MustRelation(scope.LockedRef.Address)
+		stage = e.BeginCatalogStage(auth.Catalog)
+		stage.AuthorizeLocked(auth, op.Session)
+		stage.Indexes().Output = scope.Output
+		host := tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+		created, err := index.PrepareCreate(host, auth, parent, syntax, scope.Input, nil)
+		if err == nil {
+			err = index.StageCreate(host, auth, parent, created.Relation, syntax.Only)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		parentAddress, targetAddress = parent.Address(), created.Relation.Address()
+		binding := scope.BeginCreateIndexProgressLocked(parentAddress, targetAddress)
+		if parent.Partition != nil {
+			binding.PartitionTree(host.StageRead(), host.StageBase(), targetAddress)
+		}
+		gate = &indexProgressGate{BuildProgress: binding.Observer, steps: make(chan indexProgressStep), release: make(chan struct{})}
+		binding.Observer = gate
+		stage.Indexes().Progress = binding
+	}()
+	observer := enginetest.TransactionOperation(t, enginetest.StartSession(t, e, nil))
+	build := &indexProgressBuild{e: e, worker: worker, op: op, observer: observer, scope: scope, stage: stage, gate: gate, parent: parentAddress, target: targetAddress}
+	t.Cleanup(func() {
+		if !scope.Finished {
+			_ = scope.Finish(context.Canceled)
+			op.Done()
+		}
+		observer.Done()
+		e.DiscardCatalogStage(stage)
+	})
+	setupComplete = true
+	return build
+}
+
+type indexProgressStep struct {
+	kind string
+	n    int
+	ack  chan struct{}
+}
+
+func indexProgressFacts(t *testing.T, e *core.Engine, op *session.Operation) []pgcatalog.CreateIndexProgressFact {
+	t.Helper()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var facts []pgcatalog.CreateIndexProgressFact
+	runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})
+	if err := runtime.VisitCreateIndexProgress(op.Context(), func(f pgcatalog.CreateIndexProgressFact) error { facts = append(facts, f); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	return facts
+}
+
+type indexProgressBuild struct {
+	e              *core.Engine
+	worker         *session.Session
+	op, observer   *session.Operation
+	scope          *core.StatementScope
+	stage          *core.CatalogStage
+	gate           *indexProgressGate
+	parent, target ids.ObjectAddress
+}
+
+func (b *indexProgressBuild) run() <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		prepared, err := b.e.ValidateCatalogStage(b.op.Context(), b.stage)
+		if err == nil {
+			_, err = b.e.PublishCatalogOperation(b.op, b.scope, prepared, core.PublicationToken{Epoch: b.e.CatalogRead().Epoch()})
+		}
+		if err == nil {
+			b.scope.CompleteUtility()
+		}
+		err = b.scope.Finish(err)
+		b.op.Done()
+		done <- err
+	}()
+	return done
+}
+
+type indexProgressGate struct {
+	index.BuildProgress
+	steps   chan indexProgressStep
+	release chan struct{}
+}
+
+func (g *indexProgressGate) step(kind string, n int) {
+	step := indexProgressStep{kind: kind, n: n, ack: make(chan struct{})}
+	select {
+	case g.steps <- step:
+	case <-g.release:
+		return
+	}
+	select {
+	case <-step.ack:
+	case <-g.release:
+	}
+}
+
+func (g *indexProgressGate) ScanStart(n int, m catalog.IndexMethod) {
+	g.BuildProgress.ScanStart(n, m)
+	g.step("scan", n)
+}
+
+func (g *indexProgressGate) ScanDone(n int) { g.BuildProgress.ScanDone(n); g.step("visited", n) }
+
+func (g *indexProgressGate) ScanFinish(n int, m catalog.IndexMethod) {
+	g.BuildProgress.ScanFinish(n, m)
+	g.step("sort", n)
 }
