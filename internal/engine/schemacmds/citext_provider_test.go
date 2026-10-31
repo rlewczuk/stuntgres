@@ -106,7 +106,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 			t.Fatal("released citext conversion display declaration", procedure.Display)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

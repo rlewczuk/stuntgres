@@ -21,7 +21,7 @@ import (
 func pgConfigInput(e *core.Engine) pgcatalog.Input {
 	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ConfigOID}
-	return pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	return pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 }
 
 func pgConfigCheckRows(t *testing.T, in pgcatalog.Input, rows [][]sqltype.Value) {

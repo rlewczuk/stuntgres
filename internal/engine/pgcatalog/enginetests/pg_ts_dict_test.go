@@ -30,7 +30,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 			t.Fatal("dictionary source-owned column contract", i, column)
 		}
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	stemAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: source.Namespace(), Name: "english_stem"})
 	stem, ok := view.TSDictionary(stemAddress)

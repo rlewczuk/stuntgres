@@ -115,6 +115,12 @@ func NewCatalogRuntime(f CatalogRuntimeFields) EngineCatalogRuntime {
 	return EngineCatalogRuntime{engine: f.Engine, Auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry, input: f.Input, Database: f.Database, temporary: f.Temporary, presentation: f.Presentation, sequenceBase: f.SequenceBase, sequenceOwn: f.SequenceOwn}
 }
 
+// CatalogRuntimeFieldsOf returns the fields NewCatalogRuntime built r from.
+func CatalogRuntimeFieldsOf(r pgcatalog.Runtime) CatalogRuntimeFields {
+	x := r.(EngineCatalogRuntime)
+	return CatalogRuntimeFields{Engine: x.engine, Auth: x.Auth, Cursors: x.cursors, PreparedStatements: x.preparedStatements, Settings: x.settings, Registry: x.registry, Input: x.input, Database: x.Database, Temporary: x.temporary, Presentation: x.presentation, SequenceBase: x.sequenceBase, SequenceOwn: x.sequenceOwn}
+}
+
 // AuthorizationMaterializedPopulation returns x.materializedPopulation.
 func AuthorizationMaterializedPopulation(x *AuthorizationView) bool { return x.materializedPopulation }
 

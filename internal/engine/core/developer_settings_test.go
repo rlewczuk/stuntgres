@@ -32,7 +32,7 @@ func TestDeveloperSettingsProviderLifecycle(t *testing.T) {
 	s := enginetest.StartSession(t, e, provider)
 	check := func(s *session.Session, changed bool) {
 		t.Helper()
-		facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
+		facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, s)).SessionSettings(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}

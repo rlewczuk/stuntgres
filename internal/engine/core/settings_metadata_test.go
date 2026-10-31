@@ -14,7 +14,7 @@ import (
 
 // settingsRuntimeForTest captures the same validated operation authority as the
 // production pg_settings source. The returned view retains immutable roots only.
-func settingsRuntimeForTest(t *testing.T, e *core.Engine, s *session.Session) core.EngineCatalogRuntime {
+func settingsRuntimeForTest(t *testing.T, e *core.Engine, s *session.Session) core.CatalogRuntimeFields {
 	t.Helper()
 	op, err := s.Acquire(t.Context())
 	if err != nil {
@@ -27,7 +27,7 @@ func settingsRuntimeForTest(t *testing.T, e *core.Engine, s *session.Session) co
 	if err != nil {
 		t.Fatal(err)
 	}
-	return core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Settings: s.Settings, Registry: e.Settings})
+	return core.CatalogRuntimeFields{Auth: auth, Settings: s.Settings, Registry: e.Settings}
 }
 
 func TestPGSettingsProviderCapture(t *testing.T) {
@@ -54,7 +54,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	a := enginetest.StartSession(t, e, provider)
 	capture := func(s *session.Session) map[string]string {
 		t.Helper()
-		facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
+		facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, s)).SessionSettings(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +79,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	// would hide lost precision, and provider-equals-boot still has client source.
 	checkTyped := func(s *session.Session, want map[string]settings.Value) {
 		t.Helper()
-		facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
+		facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, s)).SessionSettings(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -188,7 +188,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if facts, err := settingsRuntimeForTest(t, e, a).SessionSettings(ctx); facts != nil || err != context.Canceled {
+	if facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, a)).SessionSettings(ctx); facts != nil || err != context.Canceled {
 		t.Fatal(facts, err)
 	}
 	store := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
@@ -222,7 +222,7 @@ func TestPGSettingsCoherentCapture(t *testing.T) {
 	}()
 	defer func() { <-done }()
 	for range 1000 {
-		facts, err := runtime.SessionSettings(ctx)
+		facts, err := core.NewCatalogRuntime(runtime).SessionSettings(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}

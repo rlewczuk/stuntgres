@@ -160,8 +160,8 @@ func TestPGForeignDataWrapperAuthority(t *testing.T) {
 			func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 			func(in *pgcatalog.Input) { in.Ref.Address.ObjectID++ },
 			func(in *pgcatalog.Input) { in.Ref = foreign.Catalog.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.RoleRecord = nil; in.Runtime = r },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.State.CurrentUser = foreign.RoleStore.Domain.Principal(10); in.Runtime = r },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.RoleRecord = nil; in.Runtime = core.NewCatalogRuntime(r) },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.State.CurrentUser = foreign.RoleStore.Domain.Principal(10); in.Runtime = core.NewCatalogRuntime(r) },
 		} {
 			bad := in
 			mutate(&bad)
@@ -273,7 +273,7 @@ func TestPGForeignDataWrapperOwnership(t *testing.T) {
 	rowBacking := &retained[0]
 	optionsBacking := reflect.ValueOf(retained[6]).FieldByName("array").Pointer()
 	aclBacking := reflect.ValueOf(retained[5]).FieldByName("array").Pointer()
-	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
+	oldRecord := core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord
 	oldType := retained[6].Type()
 	state := catalog.CloneState(f.state)
 	wrapper := *f.wrapper
@@ -293,7 +293,7 @@ func TestPGForeignDataWrapperOwnership(t *testing.T) {
 	// A fresh engine is an actual replacement generation, not equal OID authority.
 	other := engine.New()
 	otherType, _ := other.CatalogRead().LookupType(1009)
-	if oldType == otherType || old.Catalog.Get(f.wrapper.Address()) != f.wrapper || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || fresh.Catalog.Get(wrapper.Address()) != &wrapper {
+	if oldType == otherType || old.Catalog.Get(f.wrapper.Address()) != f.wrapper || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || fresh.Catalog.Get(wrapper.Address()) != &wrapper {
 		t.Fatal("captured owner/generation changed")
 	}
 	pgfdwOptions(t, retained[6], []string{"password=private=é🙂", "empty="})
@@ -315,7 +315,7 @@ func (f wrappersFixture) input(t *testing.T, state *catalog.State, actor authori
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: infoForeignDataWrappersOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func newWrappersFixture(t *testing.T) wrappersFixture {

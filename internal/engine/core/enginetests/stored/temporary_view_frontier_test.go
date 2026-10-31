@@ -89,7 +89,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			// System view edges survive, but pinned system tables do not gain
 			// usage rows or pg_depend SELECT-rule edges.
 			usageSource := current.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
-			runtime := core.EngineCatalogRuntime{Auth: auth, Database: "retained_database"}
+			runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "retained_database"})
 			produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoViewTableUsageOID)
 			if !ok {
 				t.Fatal("missing usage producer")

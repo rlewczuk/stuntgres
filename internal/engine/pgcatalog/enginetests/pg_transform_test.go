@@ -24,7 +24,7 @@ func TestPGTransformCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("truthful empty transform inventory", rows, err)
 	}
@@ -134,7 +134,7 @@ func TestPGTransformOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	if rows, err := produce(input); rows == nil || len(rows) != 0 || err != nil {
 		t.Fatal("replacement transform capture", rows, err)
 	}

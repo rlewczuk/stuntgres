@@ -171,9 +171,9 @@ func TestPGForeignServerAuthority(t *testing.T) {
 		for _, mutate := range []func(*pgcatalog.Input){
 			func(in *pgcatalog.Input) { in.Runtime = nil },
 			func(in *pgcatalog.Input) { in.Runtime = foreignRuntime },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.Catalog = foreign.CatalogRead(); in.Runtime = r },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.Roles = foreign.Roles(); in.Runtime = r },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.Owner = &foreign.Catalog.Owner; in.Runtime = r },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.Catalog = foreign.CatalogRead(); in.Runtime = core.NewCatalogRuntime(r) },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.Roles = foreign.Roles(); in.Runtime = core.NewCatalogRuntime(r) },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.Owner = &foreign.Catalog.Owner; in.Runtime = core.NewCatalogRuntime(r) },
 			func(in *pgcatalog.Input) { in.Owner = nil },
 			func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 			func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
@@ -184,8 +184,8 @@ func TestPGForeignServerAuthority(t *testing.T) {
 			func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 			func(in *pgcatalog.Input) { in.Ref.Address.ObjectID++ },
 			func(in *pgcatalog.Input) { in.Ref = foreign.Catalog.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.RoleRecord = nil; in.Runtime = r },
-			func(in *pgcatalog.Input) { r := in.Runtime.(core.EngineCatalogRuntime); r.Auth.State.CurrentUser = foreign.RoleStore.Domain.Principal(10); in.Runtime = r },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.RoleRecord = nil; in.Runtime = core.NewCatalogRuntime(r) },
+			func(in *pgcatalog.Input) { r := core.CatalogRuntimeFieldsOf(in.Runtime); r.Auth.State.CurrentUser = foreign.RoleStore.Domain.Principal(10); in.Runtime = core.NewCatalogRuntime(r) },
 		} {
 			bad := in
 			mutate(&bad)
@@ -300,7 +300,7 @@ func TestPGForeignServerOwnership(t *testing.T) {
 	rowBacking := &retained[0]
 	optionsBacking := reflect.ValueOf(retained[7]).FieldByName("array").Pointer()
 	aclBacking := reflect.ValueOf(retained[6]).FieldByName("array").Pointer()
-	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
+	oldRecord := core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord
 	oldType := retained[7].Type()
 	state := catalog.CloneState(f.state)
 	server := *f.server
@@ -343,7 +343,7 @@ func TestPGForeignServerOwnership(t *testing.T) {
 	// A fresh engine is an actual replacement generation, not equal OID authority.
 	other := engine.New()
 	otherType, _ := other.CatalogRead().LookupType(1009)
-	if oldType == otherType || old.Catalog.Get(f.server.Address()) != f.server || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || fresh.Catalog.Get(server.Address()) != &server {
+	if oldType == otherType || old.Catalog.Get(f.server.Address()) != f.server || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || fresh.Catalog.Get(server.Address()) != &server {
 		t.Fatal("captured owner/generation changed")
 	}
 	pgfsOptions(t, retained[7], []string{"password=server-secret", "empty="})
@@ -365,7 +365,7 @@ func (f serversFixture) input(t *testing.T, state *catalog.State, actor authoriz
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: infoForeignServersOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func newServersFixture(t *testing.T) serversFixture {

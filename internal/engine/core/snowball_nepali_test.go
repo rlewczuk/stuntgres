@@ -212,7 +212,7 @@ func TestSnowballNepaliSeedAuthority(t *testing.T) {
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	dictAddress := current.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: public, Name: "nepali_edges"})
 	configAddress := current.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: public, Name: "nepali_edges_config"})
-	edges, err := pgcatalog.CollectDepend(t.Context(), current, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(t.Context(), current, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

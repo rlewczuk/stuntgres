@@ -75,7 +75,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

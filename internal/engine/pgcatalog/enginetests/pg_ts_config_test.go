@@ -23,7 +23,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("missing configuration producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := produce(input)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestPGTSConfigOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("missing configuration producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := produce(input)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("missing mapping producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := produce(input)
 	if err != nil || len(rows) != 494 {
 		t.Fatal("actual simple and twenty-five released Snowball configuration mappings", rows, err)
@@ -741,7 +741,7 @@ func TestPGTSConfigSeedDependencies(t *testing.T) {
 		if err := (catalog.TSConfigurationProvider{}).Validate(view, current); err != nil {
 			t.Fatal("configuration authority", err)
 		}
-		edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+		edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -75,7 +75,7 @@ func TestFTSParserCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("missing parser producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := producer(input)
 	if err != nil || len(rows) != 1 || len(rows[0]) != 8 {
 		t.Fatal("parser row", rows, err)

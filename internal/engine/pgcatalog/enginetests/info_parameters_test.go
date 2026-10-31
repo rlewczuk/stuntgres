@@ -36,7 +36,7 @@ func parametersUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.Stat
 	if source == nil {
 		t.Fatal("missing information_schema.parameters")
 	}
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}, TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"}), TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 }
 
 func TestInfoParametersProducer(t *testing.T) {
@@ -118,14 +118,14 @@ func TestInfoParametersCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.State.CurrentUser = in.Owner.Principals.Principal(99999)
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		in := old
@@ -134,7 +134,7 @@ func TestInfoParametersCapture(t *testing.T) {
 			t.Fatal("foreign capture accepted", rows, err)
 		}
 	}
-	auth := old.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(old.Runtime).Auth
 	role, ok := auth.Roles.Find(f.owner)
 	if !ok {
 		t.Fatal("missing owner role")
@@ -152,7 +152,7 @@ func TestInfoParametersCapture(t *testing.T) {
 	if rows, err := produce(mixed); rows != nil || err == nil {
 		t.Fatal("mixed role frontier accepted")
 	}
-	mixed.Runtime = core.EngineCatalogRuntime{Auth: next, Database: "captured_database"}
+	mixed.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: next, Database: "captured_database"})
 	if rows, err := produce(mixed); rows == nil || err != nil {
 		t.Fatal("paired role frontier rejected", err)
 	}

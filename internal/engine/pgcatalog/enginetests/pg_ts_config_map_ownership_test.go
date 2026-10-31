@@ -50,7 +50,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("missing mapping producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := produce(input)
 	if err != nil || len(rows) != 494 {
 		t.Fatal("old generation mapping rows", rows, err)

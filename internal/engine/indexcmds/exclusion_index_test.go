@@ -110,7 +110,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	if !renamed.Deferrable || !renamed.InitiallyDeferred {
 		t.Fatal("rename dropped definition properties")
 	}
-	if _, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{}); err != nil {
+	if _, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.NewCatalogRuntime(core.CatalogRuntimeFields{})); err != nil {
 		t.Fatal(err)
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE t DROP CONSTRAINT renamed")

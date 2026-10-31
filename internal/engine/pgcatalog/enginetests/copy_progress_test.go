@@ -7,13 +7,12 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
 
 type copyProgressRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	facts []pgcatalog.CopyProgressFact
 }
 

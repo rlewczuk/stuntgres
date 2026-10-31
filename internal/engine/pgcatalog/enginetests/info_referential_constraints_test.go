@@ -43,7 +43,7 @@ func TestInfoReferentialConstraintsProducer(t *testing.T) {
 	input:=func(s *catalog.State,actor authorization.PrincipalRef)pgcatalog.Input{
 		view:=f.e.Catalog.Read(s);auth:=dtpUnitAuthority(t,f,view);auth.State.CurrentUser=actor
 		source:=view.MustRelation(address(pgcatalog.InfoReferentialConstraintsOID))
-		return pgcatalog.Input{Context:t.Context(),Owner:view.Owner(),Catalog:view,Roles:auth.Roles,Ref:view.Owner().Domain.Ref(view.Epoch(),source.Address()),Source:source,Runtime:core.EngineCatalogRuntime{Auth:auth,Database:"captured_database"}}
+		return pgcatalog.Input{Context:t.Context(),Owner:view.Owner(),Catalog:view,Roles:auth.Roles,Ref:view.Owner().Domain.Ref(view.Epoch(),source.Address()),Source:source,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth:auth,Database:"captured_database"})}
 	}
 	produce,ok:=pgcatalog.ProducerFor(pgcatalog.InfoReferentialConstraintsOID);if !ok{t.Fatal("missing producer")}
 	in:=input(state,f.owner)
@@ -52,8 +52,8 @@ func TestInfoReferentialConstraintsProducer(t *testing.T) {
 	if source.Name()!="referential_constraints"||source.Namespace().ObjectID!=13229||!source.VirtualView||source.RowType!=13362{t.Fatal("source identity",source)}
 	row:=in.Catalog.MustType(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:13362});array:=in.Catalog.MustType(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:13361})
 	if row.OwningRelation!=source.Address()||row.Array!=13361||array.SQLType.Element()!=row.SQLType||array.OwningRelation!=source.Address(){t.Fatal("row/array ownership")}
-	readerAuth:=input(state,f.reader).Runtime.(core.EngineCatalogRuntime)
-	rights,err:=readerAuth.Effective(in.Ref,false);if err!=nil||rights&authorization.SelectPrivilege==0{t.Fatal("PUBLIC SELECT",rights,err)}
+	readerAuth:=core.CatalogRuntimeFieldsOf(input(state,f.reader).Runtime)
+	rights,err:=core.NewCatalogRuntime(readerAuth).Effective(in.Ref,false);if err!=nil||rights&authorization.SelectPrivilege==0{t.Fatal("PUBLIC SELECT",rights,err)}
 	for i,column:=range source.Columns{
 		id,base:=sqltype.ID(13248),sqltype.Name;if i>=6{id,base=13246,sqltype.VarChar}
 		domain,_:=in.Catalog.LookupType(id);physical,_:=in.Catalog.LookupType(base)

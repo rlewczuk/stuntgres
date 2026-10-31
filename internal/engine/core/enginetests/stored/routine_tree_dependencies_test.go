@@ -34,7 +34,7 @@ func TestRoutineTreeDependencyMutation(t *testing.T) {
 			before := e.CatalogRead()
 			original := routineTreeProcedure(t, before, "tree_dependency_consumer")
 			typ := routineTreeType(t, before)
-			runtime := core.EngineCatalogRuntime{}
+			runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{})
 			defaults, body, err := runtime.RoutineTrees(context.Background(), before, original, typ)
 			if err != nil {
 				t.Fatal("initial metadata", err)

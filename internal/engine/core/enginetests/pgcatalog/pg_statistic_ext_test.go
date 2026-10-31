@@ -50,7 +50,7 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 	roles := e.Roles()
 	capture := func(ctx context.Context,v catalog.Read,s *catalog.Relation,r ids.ObjectRef,roles authorization.Read) {
 		t.Helper()
-		got,err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context:ctx,Catalog:v,Source:s,Ref:r,Owner:v.Owner(),Roles:roles,Runtime:core.EngineCatalogRuntime{}},produce)
+		got,err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context:ctx,Catalog:v,Source:s,Ref:r,Owner:v.Owner(),Roles:roles,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != r { t.Fatal("empty capture",got,err) }
 	}
 	descriptors,names := maps.Collect(view.State().Descriptors()),maps.Collect(view.State().Names())
@@ -58,7 +58,7 @@ func TestPGStatisticExtCaptureOwnership(t *testing.T) {
 	if !maps.Equal(descriptors,maps.Collect(view.State().Descriptors())) || !maps.Equal(names,maps.Collect(view.State().Names())) { t.Fatal("capture mutated catalog") }
 	foreignEngine := engine.New()
 	foreign := foreignEngine.CatalogRead()
-	input := pgcatalog.Input{Context:context.Background(),Catalog:view,Source:d,Ref:ref,Owner:view.Owner(),Roles:roles,Runtime:core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context:context.Background(),Catalog:view,Source:d,Ref:ref,Owner:view.Owner(),Roles:roles,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	for _,tc := range []struct {
 		name string
 		mutate func(*pgcatalog.Input)

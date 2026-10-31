@@ -77,7 +77,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestIntaggAggregateHelperDependencies(t *testing.T) {
 		}
 		want[address] = 0
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

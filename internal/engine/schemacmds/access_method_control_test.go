@@ -182,7 +182,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	// Materialized pg_depend suppresses the stock pinned handler, while retaining
 	// the actual automatic family link to the remapped method.
-	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

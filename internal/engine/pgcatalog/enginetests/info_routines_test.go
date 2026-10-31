@@ -23,7 +23,7 @@ func routinesUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.State,
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoutinesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}, TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"}), TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 }
 
 func TestInfoRoutinesProducer(t *testing.T) {
@@ -138,14 +138,14 @@ func TestInfoRoutinesCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) {
-			a := in.Runtime.(core.EngineCatalogRuntime)
+			a := core.CatalogRuntimeFieldsOf(in.Runtime)
 			a.Auth.RoleRecord = nil
-			in.Runtime = a
+			in.Runtime = core.NewCatalogRuntime(a)
 		},
 		func(in *pgcatalog.Input) {
-			a := in.Runtime.(core.EngineCatalogRuntime)
+			a := core.CatalogRuntimeFieldsOf(in.Runtime)
 			a.Auth.State.CurrentUser = old.Owner.Principals.Principal(99999)
-			in.Runtime = a
+			in.Runtime = core.NewCatalogRuntime(a)
 		},
 	} {
 		in := old
@@ -156,7 +156,7 @@ func TestInfoRoutinesCapture(t *testing.T) {
 	}
 	// Same principal domain, separately published role frontier: valid when
 	// paired with its authority, invalid when mixed into the old capture.
-	auth := old.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(old.Runtime).Auth
 	role, ok := auth.Roles.Find(f.owner)
 	if !ok {
 		t.Fatal("missing owner role")
@@ -174,7 +174,7 @@ func TestInfoRoutinesCapture(t *testing.T) {
 	if rows, err := produce(mixed); rows != nil || err == nil {
 		t.Fatal("mixed role frontier accepted", rows, err)
 	}
-	mixed.Runtime = core.EngineCatalogRuntime{Auth: next, Database: "captured_database"}
+	mixed.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: next, Database: "captured_database"})
 	if rows, err := produce(mixed); rows == nil || err != nil {
 		t.Fatal("paired advanced frontier rejected", rows, err)
 	}

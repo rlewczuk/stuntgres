@@ -252,7 +252,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := engine.New(), engine.New()
 	view := e.CatalogRead()
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TypeOID})
-	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{}}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := capturePGType(in)
 	if err != nil || len(rows) == 0 {
 		t.Fatal(err)
@@ -276,7 +276,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.DataTypePrivilegesOID})
-	mixed := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	mixed := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 	if got, err := captureDataTypePrivileges(mixed); got != nil || err == nil {
 		done()
 		t.Fatal("mixed input/runtime roles admitted", err)

@@ -44,7 +44,7 @@ func (f wrapperOptionsFixture) input(t *testing.T, state *catalog.State, actor a
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoForeignDataWrapperOptionsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func wrapperOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[4]any]int) {
@@ -118,7 +118,7 @@ func TestInfoForeignDataWrapperOptionsProducer(t *testing.T) {
 			t.Fatal("source metadata", i, column)
 		}
 	}
-	admin := in.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	admin := core.CatalogRuntimeFieldsOf(in.Runtime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	want := map[[4]any]int{{"captured_database", "options_wrapper", "password", "private=é🙂"}: 1, {"captured_database", "options_wrapper", "empty", ""}: 1}
 	for _, actor := range []authorization.PrincipalRef{admin, f.f.owner, f.f.member, f.f.reader} {
 		_, got := wrapperOptionsRows(t, f.input(t, f.state, actor))
@@ -178,7 +178,7 @@ func TestInfoForeignDataWrapperOptionsProducer(t *testing.T) {
 	}
 	// SET-only membership must not become immediately inherited ownership.
 	setOnly := f.input(t, f.state, f.f.member)
-	auth := setOnly.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(setOnly.Runtime).Auth
 	roles := cloneRoleFixture(auth.RoleRecord)
 	edges := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	for i := range edges { edges[i].Inherit = false; edges[i].Set = true }
@@ -186,7 +186,7 @@ func TestInfoForeignDataWrapperOptionsProducer(t *testing.T) {
 	auth.RoleRecord = roles
 	auth.Recapture(setOnly.Catalog)
 	setOnly.Roles = auth.Roles
-	setOnly.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}
+	setOnly.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})
 	_, setRows := wrapperOptionsRows(t, setOnly)
 	if len(setRows) != 0 { t.Fatal("SET-only ownership", setRows) }
 	rights, err := in.Runtime.Effective(in.Ref, false)
@@ -206,7 +206,7 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 	old := f.input(t, f.state, f.f.reader)
 	oldOptions := f.wrapper.Options
 	oldOptionBacking := &oldOptions[0]
-	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
+	oldRecord := core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord
 	oldDomain := old.Source.Columns[0].Usage.Type
 	retained, original := wrapperOptionsRows(t, old)
 	saved := make([][]sqltype.Value, len(retained))
@@ -223,7 +223,7 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 	wrapper.ACL.Entries = []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}
 	state.SetDescriptor(wrapper.Address(), &wrapper)
 	fresh := f.input(t, state, f.f.reader)
-	auth := fresh.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth
 	role, _ := auth.Roles.Find(f.f.reader)
 	renamed := role
 	renamed.Name = "Renamed Reader"
@@ -232,12 +232,12 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 	auth.RoleRecord = &access.RoleRecord{Root: root, Revision: auth.RoleRecord.Revision+1}
 	auth.Recapture(fresh.Catalog)
 	fresh.Roles = auth.Roles
-	fresh.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "fresh_database"}
+	fresh.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "fresh_database"})
 	_, got = wrapperOptionsRows(t, fresh)
 	if !reflect.DeepEqual(got, map[[4]any]int{{"fresh_database", "renamed_wrapper", "secret", "replacement"}: 1}) { t.Fatal("fresh capture", got) }
 	if old.Catalog.Get(f.wrapper.Address()) != f.wrapper || f.wrapper.Options[0].Value != "private=é🙂" || old.Source.Columns[0].Usage.Type != retained[0][0].Type() { t.Fatal("old descriptor/domain backing changed") }
 	if oldRole, _ := old.Roles.Find(f.f.reader); oldRole != role { t.Fatal("old role root changed") }
-	if &f.wrapper.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.wrapper.Options) || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || fresh.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord == oldRecord || retained[0][0].Type() != oldDomain {
+	if &f.wrapper.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.wrapper.Options) || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth.RoleRecord == oldRecord || retained[0][0].Type() != oldDomain {
 		t.Fatal("retained option/role/domain authority changed")
 	}
 	if !reflect.DeepEqual(retained, saved) { t.Fatal("retained values changed") }
@@ -255,9 +255,9 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := old

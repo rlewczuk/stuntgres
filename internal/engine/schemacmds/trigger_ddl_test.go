@@ -250,7 +250,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := bad.Triggers.Validate(read, &bad); err == nil {
 		t.Fatal("missing extension accepted")
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), read, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), read, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

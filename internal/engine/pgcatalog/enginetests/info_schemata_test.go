@@ -20,7 +20,7 @@ func schemataUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read, ac
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSchemataOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: database}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: database})}
 }
 func schemataUnitState(f defaultUnitFixture) *catalog.State {
 	view := f.e.CatalogRead()
@@ -203,14 +203,14 @@ func TestInfoSchemataCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		bad := in

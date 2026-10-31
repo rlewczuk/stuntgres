@@ -78,7 +78,7 @@ func (f colcuUnitFixture) input(t *testing.T, state *catalog.State, actor author
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 }
 func colcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -250,14 +250,14 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.State.CurrentUser = authorization.PrincipalRef{}
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		bad := in
@@ -297,12 +297,12 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 }
 
 type colcuCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	ctx *ccuCancelContext
 }
 
 func (r colcuCancelRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	refs, err := r.EngineCatalogRuntime.ExpressionReferences(ctx, view, value)
+	refs, err := r.Runtime.ExpressionReferences(ctx, view, value)
 	if err == nil && len(refs) == 2 {
 		r.ctx.armed = true
 	}
@@ -310,13 +310,13 @@ func (r colcuCancelRuntime) ExpressionReferences(ctx context.Context, view catal
 }
 
 type colcuWalkCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	ctx *ccuCancelContext
 }
 
 func (r colcuWalkCancelRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
 	r.ctx.armed = true
-	return r.EngineCatalogRuntime.ExpressionReferences(ctx, view, value)
+	return r.Runtime.ExpressionReferences(ctx, view, value)
 }
 func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 	f := newColcuUnitFixture(t)
@@ -333,7 +333,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 	in = base
 	walking := &ccuCancelContext{Context: t.Context(), remaining: 2}
 	in.Context = walking
-	in.Runtime = colcuWalkCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: walking}
+	in.Runtime = colcuWalkCancelRuntime{Runtime: in.Runtime, ctx: walking}
 	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("traversal cancellation", rows, err)
 	}
@@ -341,7 +341,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 		in = base
 		ctx := &ccuCancelContext{Context: t.Context(), remaining: remaining}
 		in.Context = ctx
-		in.Runtime = colcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: ctx}
+		in.Runtime = colcuCancelRuntime{Runtime: in.Runtime, ctx: ctx}
 		// The second post-walker check follows one fully emitted row, regardless
 		// of dependency order; failure must discard that accumulated prefix.
 		if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) || ctx.calls != remaining {

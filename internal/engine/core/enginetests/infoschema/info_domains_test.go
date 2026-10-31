@@ -37,7 +37,7 @@ func domainsUnitInput(t *testing.T, f dcUnitFixture, state *catalog.State, actor
 	in.Source = in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainsOID})
 	in.Ref = in.Owner.Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
 	var err error
-	in.TypeNamePath, err = core.ReferencePath(in.Runtime.(core.EngineCatalogRuntime).Auth)
+	in.TypeNamePath, err = core.ReferencePath(core.CatalogRuntimeFieldsOf(in.Runtime).Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,14 +222,14 @@ func TestInfoDomainsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		in := old

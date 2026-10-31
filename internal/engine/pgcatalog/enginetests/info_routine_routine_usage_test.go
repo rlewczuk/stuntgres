@@ -64,7 +64,7 @@ func TestInfoRoutineRoutineUsageProducer(t *testing.T) {
 	auth.State.CurrentUser = f.owner
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: sourceOID})
 	input := func(v catalog.Read, a core.AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a, Database: "captured_database"})}
 	}
 	check := func(in pgcatalog.Input, want [][]string) [][]sqltype.Value {
 		t.Helper()
@@ -217,12 +217,12 @@ func TestInfoRoutineRoutineUsageProducer(t *testing.T) {
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.RoleRecord = nil
-			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a})
 		},
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
-			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a})
 		},
 	} {
 		in := input(view, auth)

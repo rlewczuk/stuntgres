@@ -68,7 +68,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
 	input := func(read catalog.Read, authority core.AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: authority, Database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: authority, Database: "captured_database"})}
 	}
 	check := func(in pgcatalog.Input, want map[[2]string]int) [][]sqltype.Value {
 		t.Helper()
@@ -179,7 +179,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	// dependency walk independently of descriptor enumeration order.
 	for _, remaining := range []int{1, 3, 10, 15} {
 		ctx := &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		if refs, err := (core.EngineCatalogRuntime{Auth: auth}).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
+		if refs, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth})).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("view-reference cancellation exposed prefix", remaining, refs, err)
 		}
 	}
@@ -204,12 +204,12 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.RoleRecord = nil
-			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a})
 		},
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
-			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a})
 		},
 	} {
 		in := input(view, auth)

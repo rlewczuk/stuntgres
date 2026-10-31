@@ -66,29 +66,29 @@ func TestInfoRoleUdtGrantsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = foreign.RoleStore.Published
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.PairedCatalog = foreign.CatalogRead()
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.State.CurrentUser = f.f.e.RoleStore.Domain.Principal(999999)
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		bad := in

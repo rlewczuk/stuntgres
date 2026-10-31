@@ -38,7 +38,7 @@ func TestPGProcProjection(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	rows, err := produce(pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}})
+	rows, err := produce(pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.RoleStore.PublishedRead(view.Owner(), view), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})})
 	if err != nil {
 		t.Fatal(err)
 	}

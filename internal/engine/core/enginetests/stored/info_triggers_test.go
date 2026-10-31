@@ -40,7 +40,7 @@ func infoTriggersInput(t *testing.T, e *core.Engine, scope *core.StatementScope)
 	}
 	read := auth.Catalog
 	source := read.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoTriggersOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Source: source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Source: source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func TestInfoTriggersProducer(t *testing.T) {
@@ -119,9 +119,9 @@ func TestInfoTriggersProducer(t *testing.T) {
 			t.Fatal("presentation", row)
 		}
 	}
-	runtime := in.Runtime.(core.EngineCatalogRuntime)
+	runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 	runtime.Database = ""
-	in.Runtime = runtime
+	in.Runtime = core.NewCatalogRuntime(runtime)
 	emptyDatabase, err := produce(in)
 	if err != nil || len(emptyDatabase) != 3 {
 		t.Fatal(emptyDatabase, err)
@@ -283,7 +283,7 @@ func infoTriggersCaptureFailures(t *testing.T) {
 	defer cancel()
 	interrupted := in
 	interrupted.Context = ctx
-	interrupted.Runtime = triggerCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), cancel: cancel}
+	interrupted.Runtime = triggerCancelRuntime{Runtime: in.Runtime, cancel: cancel}
 	if rows, err := produce(interrupted); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("candidate cancellation exposed prefix", rows, err)
 	}
@@ -314,10 +314,10 @@ func infoTriggersCaptureFailures(t *testing.T) {
 	state.SetDescriptor(broken.Address(), &broken)
 	bad := in
 	bad.Catalog = e.Catalog.Read(state)
-	runtime := in.Runtime.(core.EngineCatalogRuntime)
+	runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 	runtime.Auth.Recapture(bad.Catalog)
 	bad.Roles = runtime.Auth.Roles
-	bad.Runtime = runtime
+	bad.Runtime = core.NewCatalogRuntime(runtime)
 	if rows, err := produce(bad); rows != nil || err == nil {
 		t.Fatal("malformed current routine", rows, err)
 	}
@@ -333,10 +333,10 @@ func infoTriggersCaptureFailures(t *testing.T) {
 	state.SetDescriptor(copy.Address(), &copy)
 	bad = in
 	bad.Catalog = e.Catalog.Read(state)
-	runtime = in.Runtime.(core.EngineCatalogRuntime)
+	runtime = core.CatalogRuntimeFieldsOf(in.Runtime)
 	runtime.Auth.Recapture(bad.Catalog)
 	bad.Roles = runtime.Auth.Roles
-	bad.Runtime = runtime
+	bad.Runtime = core.NewCatalogRuntime(runtime)
 	if rows, err := produce(bad); rows != nil || err == nil {
 		t.Fatal("malformed current attribute", rows, err)
 	}
@@ -367,10 +367,10 @@ func infoTriggersACLVisibility(t *testing.T) {
 		state.SetDescriptor(table.Address(), table)
 		in := infoTriggersInput(t, e, scope)
 		view := e.Catalog.Read(state)
-		runtime := in.Runtime.(core.EngineCatalogRuntime)
+		runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 		runtime.Auth.State.CurrentUser = actor
 		runtime.Auth.Recapture(view)
-		in.Catalog, in.Roles, in.Runtime = view, runtime.Auth.Roles, runtime
+		in.Catalog, in.Roles, in.Runtime = view, runtime.Auth.Roles, core.NewCatalogRuntime(runtime)
 		rows, err := produce(in)
 		if err != nil || len(rows) != want {
 			t.Fatal("ACL visibility", actor, table.Security, rows, err)
@@ -408,9 +408,9 @@ func infoTriggersACLVisibility(t *testing.T) {
 		check(&copy, reader, 0, false)
 	}
 	old := infoTriggersInput(t, e, scope)
-	oldRuntime := old.Runtime.(core.EngineCatalogRuntime)
+	oldRuntime := core.CatalogRuntimeFieldsOf(old.Runtime)
 	oldRuntime.Auth.State.CurrentUser = member
-	old.Runtime = oldRuntime
+	old.Runtime = core.NewCatalogRuntime(oldRuntime)
 	retained, err := produce(old)
 	if err != nil || len(retained) != 1 {
 		t.Fatal("old role capture", retained, err)
@@ -437,12 +437,12 @@ func infoTriggersACLVisibility(t *testing.T) {
 // Only the deterministic cancellation boundary is controlled; all definitions,
 // authority validation, rendering and produced rows use the genuine runtime.
 type triggerCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	cancel context.CancelFunc
 }
 
 func (r triggerCancelRuntime) VisitTriggerDefinitions(ctx context.Context, read catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
-	return r.EngineCatalogRuntime.VisitTriggerDefinitions(ctx, read, relation, disclose, func(f pgcatalog.TriggerFact) error {
+	return r.Runtime.VisitTriggerDefinitions(ctx, read, relation, disclose, func(f pgcatalog.TriggerFact) error {
 		if err := visit(f); err != nil {
 			return err
 		}

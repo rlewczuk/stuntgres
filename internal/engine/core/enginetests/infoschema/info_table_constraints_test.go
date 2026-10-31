@@ -170,7 +170,7 @@ func TestInfoTableConstraintsVisibility(t *testing.T) {
  ns:=*f.f.e.Catalog.Read(state).MustNamespace(f.f.schema)
  ns.Temporary=f.f.e.Catalog.Domain.Session(99);state=catalog.CloneState(state);state.SetDescriptor(ns.Address(),&ns)
  in:=f.input(t,state,f.f.owner);tcUnitCheck(t,in,empty)
- runtime:=in.Runtime.(core.EngineCatalogRuntime)
+ runtime:=core.CatalogRuntimeFieldsOf(in.Runtime)
  in.Runtime=core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth:runtime.Auth,Database:"captured_database",Temporary:ns.Temporary})
  tcUnitCheck(t,in,all)
 }
@@ -212,8 +212,8 @@ func TestInfoTableConstraintsCapture(t *testing.T) {
   func(in *pgcatalog.Input) { in.Ref=new(ids.Domain).Ref(in.Ref.Epoch,in.Ref.Address) },
   func(in *pgcatalog.Input) { copy:=*in.Source;in.Source=&copy },
   func(in *pgcatalog.Input) { in.Source=nil },
-  func(in *pgcatalog.Input) { r:=in.Runtime.(core.EngineCatalogRuntime);r.Auth.RoleRecord=nil;in.Runtime=r },
-  func(in *pgcatalog.Input) { r:=in.Runtime.(core.EngineCatalogRuntime);r.Auth.State.CurrentUser=authorization.PrincipalRef{};in.Runtime=r },
+  func(in *pgcatalog.Input) { r:=core.CatalogRuntimeFieldsOf(in.Runtime);r.Auth.RoleRecord=nil;in.Runtime=core.NewCatalogRuntime(r) },
+  func(in *pgcatalog.Input) { r:=core.CatalogRuntimeFieldsOf(in.Runtime);r.Auth.State.CurrentUser=authorization.PrincipalRef{};in.Runtime=core.NewCatalogRuntime(r) },
  } { in:=old;mutate(&in);if rows,err:=produce(in);rows!=nil||err==nil { t.Fatal("invalid capture accepted",rows,err) } }
  for _,kind:=range []string{"width","domain","generation","base-generation","typmod","collation","namespace","owner","definition"} {
   t.Run(kind,func(t *testing.T) {

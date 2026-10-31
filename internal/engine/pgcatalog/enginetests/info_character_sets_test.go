@@ -18,7 +18,7 @@ func characterSetsUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Rea
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoCharacterSetsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: database}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: database})}
 }
 
 func characterSetsUnitRows(t *testing.T, in pgcatalog.Input, schema, name *string) [][]sqltype.Value {
@@ -103,14 +103,14 @@ func TestInfoCharacterSetsProducer(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		bad := in

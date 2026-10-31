@@ -49,7 +49,7 @@ func TestTypeProcedureDependenciesInstalledGraph(t *testing.T) {
 				if err := pgcatalog.VisitTypeProcedureDependencies(t.Context(), read, current, func(a ids.ObjectAddress) bool { got = append(got, a); return true }); err != nil || !reflect.DeepEqual(got, want) {
 					t.Fatal("actual scalar codec graph", got, want, err)
 				}
-				edges, err := pgcatalog.CollectDepend(t.Context(), read, core.EngineCatalogRuntime{})
+				edges, err := pgcatalog.CollectDepend(t.Context(), read, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -212,7 +212,7 @@ func TestTypeProcedureDependenciesDomainFacts(t *testing.T) {
 	if err := pgcatalog.VisitTypeProcedureDependencies(t.Context(), read, domain, func(a ids.ObjectAddress) bool { got = append(got, a); return true }); err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatal("genuine domain facts, not base input inheritance", got, want, err)
 	}
-	edges, err := pgcatalog.CollectDepend(t.Context(), read, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(t.Context(), read, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

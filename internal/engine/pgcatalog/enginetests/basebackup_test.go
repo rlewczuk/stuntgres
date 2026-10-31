@@ -20,7 +20,7 @@ func basebackupInput(e *core.Engine) pgcatalog.Input {
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ProgressBasebackupOID}
 	return pgcatalog.Input{
 		Context: context.Background(), Catalog: view, Source: view.MustRelation(address),
-		Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{},
+		Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{}),
 	}
 }
 

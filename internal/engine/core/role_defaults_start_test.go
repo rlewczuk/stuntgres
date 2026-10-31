@@ -102,7 +102,7 @@ func TestRoleSettingsStartupCapture(t *testing.T) {
 	if _, err = core.EngineApplySetting(e, op, old.Settings, d, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	facts, err := settingsRuntimeForTest(t, e, old).SessionSettings(t.Context())
+	facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, old)).SessionSettings(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestRoleSettingsStartupCapture(t *testing.T) {
 
 func mustRoleSettingsFacts(t *testing.T, e *core.Engine, s *session.Session) []pgcatalog.SettingsFact {
 	t.Helper()
-	facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
+	facts, err := core.NewCatalogRuntime(settingsRuntimeForTest(t, e, s)).SessionSettings(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

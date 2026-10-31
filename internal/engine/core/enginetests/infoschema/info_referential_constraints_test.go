@@ -35,7 +35,7 @@ func newIRCUnitFixture(t *testing.T)ircUnitFixture {
 func (f ircUnitFixture)input(t *testing.T,state *catalog.State,actor authorization.PrincipalRef)pgcatalog.Input{
 	t.Helper();view:=f.f.e.Catalog.Read(state);auth:=dtpUnitAuthority(t,f.f,view);auth.State.CurrentUser=actor
 	source:=view.MustRelation(ids.ObjectAddress{ClassID:ids.RelationClassID,ObjectID:pgcatalog.InfoReferentialConstraintsOID})
-	return pgcatalog.Input{Context:t.Context(),Owner:view.Owner(),Catalog:view,Roles:auth.Roles,Source:source,Ref:view.Owner().Domain.Ref(view.Epoch(),source.Address()),Runtime:core.EngineCatalogRuntime{Auth:auth,Database:"captured_database"}}
+	return pgcatalog.Input{Context:t.Context(),Owner:view.Owner(),Catalog:view,Roles:auth.Roles,Source:source,Ref:view.Owner().Domain.Ref(view.Epoch(),source.Address()),Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth:auth,Database:"captured_database"})}
 }
 func ircUnitBag(t *testing.T,rows [][]sqltype.Value)map[[9]string]int{
 	t.Helper();bag:=map[[9]string]int{}
@@ -68,8 +68,8 @@ func TestInfoReferentialConstraintsCapture(t *testing.T){
 		func(in *pgcatalog.Input){in.Ref.Address.SubID=1},func(in *pgcatalog.Input){in.Ref.Address.ObjectID++},
 		func(in *pgcatalog.Input){in.Ref=new(ids.Domain).Ref(in.Ref.Epoch,in.Ref.Address)},
 		func(in *pgcatalog.Input){copy:=*in.Source;in.Source=&copy},
-		func(in *pgcatalog.Input){r:=in.Runtime.(core.EngineCatalogRuntime);r.Auth.RoleRecord=nil;in.Runtime=r},
-		func(in *pgcatalog.Input){r:=in.Runtime.(core.EngineCatalogRuntime);r.Auth.State.CurrentUser=authorization.PrincipalRef{};in.Runtime=r},
+		func(in *pgcatalog.Input){r:=core.CatalogRuntimeFieldsOf(in.Runtime);r.Auth.RoleRecord=nil;in.Runtime=core.NewCatalogRuntime(r)},
+		func(in *pgcatalog.Input){r:=core.CatalogRuntimeFieldsOf(in.Runtime);r.Auth.State.CurrentUser=authorization.PrincipalRef{};in.Runtime=core.NewCatalogRuntime(r)},
 	}{in:=old;mutate(&in);if rows,err:=produce(in);rows!=nil||err==nil{t.Fatal("invalid capture accepted",rows,err)}}
 	for _,kind:=range []string{"width","domain","domain-generation","base-generation","target","index","wrong-parent","namespace","action"}{t.Run(kind,func(t *testing.T){
 		state:=catalog.CloneState(f.state)

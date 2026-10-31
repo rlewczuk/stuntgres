@@ -49,7 +49,7 @@ func TestPGAuthMembersSourceCapture(t *testing.T) {
 	root, _, err := state.Root.AssignMembershipOIDs(30000)
 	if err != nil { t.Fatal(err) }
 	state.Root = root
-	in := pgcatalog.Input{Context:context.Background(),Catalog:view,Owner:&e.Catalog.Owner,Roles:e.RoleStore.Read(&e.Catalog.Owner,view,state),Ref:ref,Source:d,Runtime:core.EngineCatalogRuntime{}}
+	in := pgcatalog.Input{Context:context.Background(),Catalog:view,Owner:&e.Catalog.Owner,Roles:e.RoleStore.Read(&e.Catalog.Owner,view,state),Ref:ref,Source:d,Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	produce := registeredCatalogProducer(1261)
 	rows, err := produce(in)
 	if err != nil || len(rows) != 2 { t.Fatal(rows,err) }

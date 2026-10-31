@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/settings"
@@ -17,7 +16,7 @@ import (
 // Override only the producer's fact seam; all unused runtime operations retain
 // the composed engine adapter. These facts exercise conversion, not SQL capture.
 type settingsProducerRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	facts []pgcatalog.SettingsFact
 	cancel context.CancelFunc
 }

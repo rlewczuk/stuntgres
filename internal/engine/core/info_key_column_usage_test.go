@@ -56,7 +56,7 @@ func (f kcuUnitFixture) input(t *testing.T, state *catalog.State, actor authoriz
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.KeyColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 }
 func kcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -200,9 +200,9 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 	if rows := kcuUnitRows(t, tempInput); len(rows) != 2 {
 		t.Fatal("peer TEMP disclosed", len(rows))
 	}
-	runtime := tempInput.Runtime.(core.EngineCatalogRuntime)
-	core.SetCatalogRuntimeTemporary(&runtime, ns.Temporary)
-	tempInput.Runtime = runtime
+	runtime := core.CatalogRuntimeFieldsOf(tempInput.Runtime)
+	runtime.Temporary = ns.Temporary
+	tempInput.Runtime = core.NewCatalogRuntime(runtime)
 	if rows := kcuUnitRows(t, tempInput); len(rows) != 4 {
 		t.Fatal("own TEMP omitted", len(rows))
 	}
@@ -229,9 +229,9 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		bad := in
@@ -273,7 +273,7 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 // This wrapper delegates every metadata/privilege result to the real runtime.
 // Only cancellation timing is controlled, at actual column/index walk entries.
 type kcuCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	child                        ids.ObjectAddress
 	cancel                       context.CancelFunc
 	effectiveCalls, indexCalls   int
@@ -287,7 +287,7 @@ func (r *kcuCancelRuntime) Effective(ref ids.ObjectRef, owner bool) (authorizati
 			r.cancel()
 		}
 	}
-	return r.EngineCatalogRuntime.Effective(ref, owner)
+	return r.Runtime.Effective(ref, owner)
 }
 
 func (r *kcuCancelRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
@@ -295,7 +295,7 @@ func (r *kcuCancelRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key ca
 	if r.indexCalls == r.cancelIndex {
 		r.cancel()
 	}
-	return r.EngineCatalogRuntime.IndexSimpleAttribute(parent, key)
+	return r.Runtime.IndexSimpleAttribute(parent, key)
 }
 
 func TestInfoKeyColumnUsageCancellation(t *testing.T) {
@@ -332,7 +332,7 @@ func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 		in := f.input(t, state, actor)
 		ctx, cancel := context.WithCancel(t.Context())
 		in.Context = ctx
-		runtime := &kcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), child: child.Address(), cancel: cancel}
+		runtime := &kcuCancelRuntime{Runtime: in.Runtime, child: child.Address(), cancel: cancel}
 		if stage == "column" {
 			runtime.cancelEffective = 2
 		} else {

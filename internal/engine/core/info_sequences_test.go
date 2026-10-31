@@ -44,7 +44,7 @@ func (f infoSequencesFixture) input(t *testing.T, state *catalog.State, actor au
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSequencesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 }
 
 func infoSequencesRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -168,9 +168,9 @@ func TestInfoSequencesAuthority(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref = engine.New().Catalog.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		bad := in
@@ -247,9 +247,9 @@ func TestInfoSequencesAuthority(t *testing.T) {
 		}
 		state.SetDescriptor(relation.Address(), &relation)
 		input := f.input(t, state, f.f.owner)
-		runtime := input.Runtime.(core.EngineCatalogRuntime)
-		core.SetCatalogRuntimeTemporary(&runtime, temporary)
-		input.Runtime = runtime
+		runtime := core.CatalogRuntimeFieldsOf(input.Runtime)
+		runtime.Temporary = temporary
+		input.Runtime = core.NewCatalogRuntime(runtime)
 		if rows := infoSequencesRows(t, input); len(rows) != count {
 			t.Fatal("object boundary", boundary, rows)
 		}

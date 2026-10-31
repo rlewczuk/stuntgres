@@ -35,6 +35,3 @@ func CatalogRuntimeBuiltinViewDefinition(x EngineCatalogRuntime, ctx context.Con
 func CatalogRuntimePresentationRef(x *EngineCatalogRuntime) *stored.Presentation {
 	return &x.presentation
 }
-
-// SetCatalogRuntimeTemporary sets x.temporary.
-func SetCatalogRuntimeTemporary(x *EngineCatalogRuntime, v ids.SessionToken) { x.temporary = v }

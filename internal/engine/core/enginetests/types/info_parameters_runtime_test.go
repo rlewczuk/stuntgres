@@ -25,7 +25,7 @@ import (
 func TestRoutineDefaultPresentation(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	view := f.e.CatalogRead()
-	runtime := core.EngineCatalogRuntime{Auth: dtpUnitAuthority(t, f, view)}
+	runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: dtpUnitAuthority(t, f, view)})
 	for _, x := range []struct {
 		oid  ids.OID
 		slot int
@@ -93,7 +93,7 @@ func TestRoutineDefaultPresentation(t *testing.T) {
 		copy.LiteralDefaults = recipe
 		state.SetDescriptor(copy.Address(), &copy)
 		captured := f.e.Catalog.Read(state)
-		r := core.EngineCatalogRuntime{Auth: dtpUnitAuthority(t, f, captured)}
+		r := core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: dtpUnitAuthority(t, f, captured)})
 		if _, err := r.RoutineDefault(t.Context(), captured, &copy, 1); err == nil {
 			t.Fatal("malformed recipe accepted", recipe)
 		}
@@ -116,7 +116,7 @@ func TestRoutineDefaultPresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqlRoutine.SQLDefaults = defaults
-	r := core.EngineCatalogRuntime{Auth: dtpUnitAuthority(t, f, captured)}
+	r := core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: dtpUnitAuthority(t, f, captured)})
 	replay, err := defaults.DefaultSQL(t.Context(), captured, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestRoutineDefaultPresentation(t *testing.T) {
 	next := catalog.CloneState(state)
 	next.SetDescriptor(literalRoutine.Address(), literalRoutine)
 	nv := f.e.Catalog.Read(next)
-	nr := core.EngineCatalogRuntime{Auth: dtpUnitAuthority(t, f, nv)}
+	nr := core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: dtpUnitAuthority(t, f, nv)})
 	if got, err := nr.RoutineDefault(t.Context(), nv, literalRoutine, 0); err != nil || got != "NULL::bigint" {
 		t.Fatal("typed NULL", got, err)
 	}

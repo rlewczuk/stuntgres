@@ -33,7 +33,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
 	input := func(v catalog.Read, a core.AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a, Database: "captured_database"})}
 	}
 	checkRows := func(in pgcatalog.Input, want map[string]int) [][]sqltype.Value {
 		t.Helper()
@@ -163,7 +163,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		func(in *pgcatalog.Input) {
 			a := grantedAuth
 			a.RoleRecord = nil
-			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: a})
 		},
 	} {
 		in := input(grantedView, grantedAuth)

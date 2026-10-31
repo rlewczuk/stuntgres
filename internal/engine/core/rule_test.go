@@ -482,7 +482,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	}
 	r = r.With(func(p *stored.RuleParts) { p.References = refs })
 	src.Rules = stored.RulesPayload([]stored.Rule{r})
-	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -58,7 +58,7 @@ func (f mappingOptionsFixture) input(t *testing.T, state *catalog.State, actor a
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingOptionsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func mappingOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[5]any]int) {
@@ -147,7 +147,7 @@ func TestInfoUserMappingOptionsProducer(t *testing.T) {
 			t.Fatal("source metadata", i, column)
 		}
 	}
-	admin := in.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	admin := core.CatalogRuntimeFieldsOf(in.Runtime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, tc := range []struct {
 		actor    authorization.PrincipalRef
 		disclose string
@@ -214,7 +214,7 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 	server.ACL.Entries = []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}
 	state.SetDescriptor(server.Address(), &server)
 	fresh := f.input(t, state, f.f.reader)
-	auth := fresh.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth
 	role, _ := auth.Roles.Find(f.f.reader)
 	renamed := role
 	renamed.Name = "Renamed Reader"
@@ -225,7 +225,7 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 	auth.RoleRecord = &access.RoleRecord{Root: root, Revision: auth.RoleRecord.Revision + 1}
 	auth.Recapture(fresh.Catalog)
 	fresh.Roles = auth.Roles
-	fresh.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}
+	fresh.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})
 	_, got := mappingOptionsRows(t, fresh)
 	want := map[[5]any]int{{"Renamed Reader", "captured_database", "renamed_server", "new", "replacement"}: 1, {"default_owner", "captured_database", "renamed_server", "password", nil}: 1, {"PUBLIC", "captured_database", "renamed_server", "public", nil}: 1}
 	if !reflect.DeepEqual(got, want) {
@@ -260,9 +260,9 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := old
@@ -345,7 +345,7 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 	in = old
 	in.Context = ctx
 	calls := 0
-	in.Runtime = mappingOptionsCancelRuntime{EngineCatalogRuntime: old.Runtime.(core.EngineCatalogRuntime), cancel: cancel, calls: &calls}
+	in.Runtime = mappingOptionsCancelRuntime{Runtime: old.Runtime, cancel: cancel, calls: &calls}
 	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 3 {
 		t.Fatal("partial capture publication", source, err, calls)
 	}
@@ -356,13 +356,13 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 }
 
 type mappingOptionsCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	cancel context.CancelFunc
 	calls  *int
 }
 
 func (r mappingOptionsCancelRuntime) ForeignServerVisible(server *catalog.ForeignObject, mapped authorization.PrincipalRef) (bool, error) {
-	visible, err := r.EngineCatalogRuntime.ForeignServerVisible(server, mapped)
+	visible, err := r.Runtime.ForeignServerVisible(server, mapped)
 	*r.calls++
 	if *r.calls == 3 {
 		r.cancel()

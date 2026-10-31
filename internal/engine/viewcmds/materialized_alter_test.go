@@ -126,7 +126,7 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 			t.Fatal("malformed authority accepted", addresses)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

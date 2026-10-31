@@ -72,7 +72,7 @@ func (f ccuUnitFixture) input(t *testing.T, state *catalog.State, actor authoriz
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ConstraintColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 }
 
 func ccuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -268,9 +268,9 @@ func TestInfoConstraintColumnUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		bad := in
@@ -330,12 +330,12 @@ func (c *ccuCancelContext) Err() error {
 }
 
 type ccuCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	ctx *ccuCancelContext
 }
 
 func (r ccuCancelRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	refs, err := r.EngineCatalogRuntime.ExpressionReferences(ctx, view, value)
+	refs, err := r.Runtime.ExpressionReferences(ctx, view, value)
 	if err == nil && len(refs) == 2 {
 		r.ctx.armed = true
 	}
@@ -357,7 +357,7 @@ func TestInfoConstraintColumnUsageCancellation(t *testing.T) {
 		in := base
 		ctx := &ccuCancelContext{Context: t.Context(), remaining: remaining}
 		in.Context = ctx
-		in.Runtime = ccuCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: ctx}
+		in.Runtime = ccuCancelRuntime{Runtime: in.Runtime, ctx: ctx}
 		// The fourth post-dependency check starts the second reference, after
 		// the first member has been fully wrapped and appended. No traversal
 		// order, sleep, fake dependency answers or checkpoint sweep is needed.

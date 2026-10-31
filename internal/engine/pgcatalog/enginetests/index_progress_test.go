@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -14,7 +13,7 @@ import (
 // Projection-only facts test typed SQL NULL handling independently of active
 // command callbacks. Real work/lifetime tests live in core_test.
 type createIndexProjectionRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	facts []pgcatalog.CreateIndexProgressFact
 }
 

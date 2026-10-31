@@ -34,7 +34,7 @@ func pgConstraintUnitCapture(t *testing.T, e *core.Engine, view catalog.Read) ma
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
 	ref := e.Catalog.Domain.Ref(view.Epoch(), address)
-	got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGConstraint)
+	got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGConstraint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,12 +147,12 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	pgConstraintUnitCapture(t, e, view)
 	invalid := *source
 	invalid.Columns = slices.Clone(source.Columns[:9])
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("old shape admitted", got, err)
 	}
 	foreign := engine.New()
 	foreignSource, _ := pgConstraintUnitSource(t, foreign)
-	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("foreign generation admitted", got, err)
 	}
 }
@@ -272,7 +272,7 @@ func TestPGConstraintCapture(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2}} {
-		if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation published partial capture", got, err)
 		}
 	}

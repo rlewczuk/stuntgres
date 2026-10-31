@@ -25,7 +25,7 @@ func udtUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read, actor a
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserDefinedTypesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured db"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured db"})}
 }
 func udtUnitState(t *testing.T, f defaultUnitFixture) *catalog.State {
 	t.Helper()
@@ -257,14 +257,14 @@ func TestInfoUserDefinedTypesAuthority(t *testing.T) {
 	for _, mutate := range []func(*pgcatalog.Input){
 		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner }, func(in *pgcatalog.Input) { in.Roles = foreign.Roles() }, func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() }, func(in *pgcatalog.Input) { in.Ref.Epoch++ }, func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		bad := in

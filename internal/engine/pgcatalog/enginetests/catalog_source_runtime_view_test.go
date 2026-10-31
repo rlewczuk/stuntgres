@@ -69,7 +69,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 
 	// pg_depend calls this seam without an authorization capture. The explicit
 	// catalog, not runtime.auth.Catalog, owns the descriptor/definition frontier.
-	runtime := core.EngineCatalogRuntime{}
+	runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{})
 	for _, tc := range []struct {
 		name     string
 		view     catalog.Read
@@ -145,13 +145,13 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 			if len(definition.Sources()) != 1 || definition.Sources()[0].Ref.Epoch != before.Epoch() {
 				t.Fatal("fixture lost the retained source manifest")
 			}
-			refs, err := (core.EngineCatalogRuntime{}).ViewReferences(t.Context(), current, consumer)
+			refs, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{})).ViewReferences(t.Context(), current, consumer)
 			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{target}) {
 				t.Fatal("retained TEMP definition lost direct references", refs, err)
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			if refs, err := (core.EngineCatalogRuntime{}).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
+			if refs, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{})).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
 				t.Fatal("retained TEMP cancellation exposed references", refs, err)
 			}
 		})

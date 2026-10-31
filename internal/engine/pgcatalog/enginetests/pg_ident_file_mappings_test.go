@@ -23,7 +23,7 @@ import (
 func identInput(e *core.Engine) pgcatalog.Input {
 	view := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.IdentFileMappingsOID}
-	return pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}, IdentFile: e.IdentFile}
+	return pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{}), IdentFile: e.IdentFile}
 }
 func TestPGIdentFileMappingsCapture(t *testing.T) {
 	e := engine.New()

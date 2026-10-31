@@ -48,7 +48,7 @@ func (f serverOptionsFixture) input(t *testing.T, state *catalog.State, actor au
 		t.Fatal("missing foreign_server_options producer")
 	}
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: expectedForeignServerOptionsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func serverOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[4]any]int) {
@@ -130,7 +130,7 @@ func TestInfoForeignServerOptionsProducer(t *testing.T) {
 			t.Fatal("source metadata", i, column)
 		}
 	}
-	admin := in.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	admin := core.CatalogRuntimeFieldsOf(in.Runtime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	want := map[[4]any]int{{"captured_database", "options_server", "password", "private=é🙂"}: 1, {"captured_database", "options_server", "empty", ""}: 1}
 	for _, actor := range []authorization.PrincipalRef{admin, f.f.owner, f.f.member, f.f.reader} {
 		_, got := serverOptionsRows(t, f.input(t, f.state, actor))
@@ -207,7 +207,7 @@ func TestInfoForeignServerOptionsProducer(t *testing.T) {
 	}
 	// SET-only membership must not become immediately inherited ownership.
 	setOnly := f.input(t, f.state, f.f.member)
-	auth := setOnly.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(setOnly.Runtime).Auth
 	roles := cloneRoleFixture(auth.RoleRecord)
 	edges := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	for i := range edges {
@@ -218,7 +218,7 @@ func TestInfoForeignServerOptionsProducer(t *testing.T) {
 	auth.RoleRecord = roles
 	auth.Recapture(setOnly.Catalog)
 	setOnly.Roles = auth.Roles
-	setOnly.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}
+	setOnly.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})
 	_, setRows := serverOptionsRows(t, setOnly)
 	if len(setRows) != 0 {
 		t.Fatal("SET-only ownership", setRows)
@@ -244,7 +244,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	old := f.input(t, f.state, f.f.reader)
 	oldOptions := f.server.Options
 	oldOptionBacking := &oldOptions[0]
-	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
+	oldRecord := core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord
 	oldDomain := old.Source.Columns[0].Usage.Type
 	retained, original := serverOptionsRows(t, old)
 	saved := make([][]sqltype.Value, len(retained))
@@ -272,7 +272,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	admitted.ACL.Entries = []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}
 	state.SetDescriptor(admitted.Address(), &admitted)
 	fresh := f.input(t, state, f.f.reader)
-	auth := fresh.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth
 	role, _ := auth.Roles.Find(f.f.reader)
 	renamed := role
 	renamed.Name = "Renamed Reader"
@@ -284,12 +284,12 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	auth.RoleRecord = &access.RoleRecord{Root: root, Revision: auth.RoleRecord.Revision + 1}
 	auth.Recapture(fresh.Catalog)
 	fresh.Roles = auth.Roles
-	fresh.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "fresh_database"}
+	fresh.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "fresh_database"})
 	_, got = serverOptionsRows(t, fresh)
 	if !reflect.DeepEqual(got, map[[4]any]int{{"fresh_database", "renamed_server", "secret", "replacement"}: 1}) {
 		t.Fatal("fresh capture", got)
 	}
-	if old.Catalog.State() != f.state || fresh.Catalog.State() == old.Catalog.State() || fresh.Catalog.Get(f.server.Address()).Revision() <= f.server.Revision() || fresh.Roles == old.Roles || fresh.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Revision <= oldRecord.Revision {
+	if old.Catalog.State() != f.state || fresh.Catalog.State() == old.Catalog.State() || fresh.Catalog.Get(f.server.Address()).Revision() <= f.server.Revision() || fresh.Roles == old.Roles || core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth.RoleRecord.Revision <= oldRecord.Revision {
 		t.Fatal("replacement did not advance genuine catalog/role authorities")
 	}
 	if _, denied := serverOptionsRows(t, deniedCapture); len(denied) != 0 {
@@ -301,7 +301,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	if oldRole, _ := old.Roles.Find(f.f.reader); oldRole != role {
 		t.Fatal("old role root changed")
 	}
-	if &f.server.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.server.Options) || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || fresh.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord == oldRecord || retained[0][0].Type() != oldDomain {
+	if &f.server.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.server.Options) || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth.RoleRecord == oldRecord || retained[0][0].Type() != oldDomain {
 		t.Fatal("retained option/role/domain authority changed")
 	}
 	if !reflect.DeepEqual(retained, saved) {
@@ -320,7 +320,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	for _, mutate := range []func(*pgcatalog.Input){
 		func(in *pgcatalog.Input) { in.Owner = nil },
 		func(in *pgcatalog.Input) { in.Source = nil },
-		func(in *pgcatalog.Input) { in.Runtime = core.EngineCatalogRuntime{} },
+		func(in *pgcatalog.Input) { in.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{}) },
 		func(in *pgcatalog.Input) { in.Owner = &engine.New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = engine.New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = engine.New().Roles() },
@@ -330,15 +330,15 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
-			runtime.Auth = f.input(t, f.state, f.f.owner).Runtime.(core.EngineCatalogRuntime).Auth
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
+			runtime.Auth = core.CatalogRuntimeFieldsOf(f.input(t, f.state, f.f.owner).Runtime).Auth
 			runtime.Auth.Catalog = engine.New().CatalogRead()
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := old
@@ -442,7 +442,7 @@ func TestInfoForeignServerOptionsCapture(t *testing.T) {
 	if !reflect.DeepEqual(unchanged, original) {
 		t.Fatal("cancellation mutated catalog")
 	}
-	if &f.server.Options[0] != oldOptionBacking || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || old.Source.Columns[0].Usage.Type != oldDomain || !reflect.DeepEqual(retained, saved) {
+	if &f.server.Options[0] != oldOptionBacking || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || old.Source.Columns[0].Usage.Type != oldDomain || !reflect.DeepEqual(retained, saved) {
 		t.Fatal("cancellation changed retained authority")
 	}
 	for i, row := range retained {

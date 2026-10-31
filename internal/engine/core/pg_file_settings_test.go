@@ -32,7 +32,7 @@ func TestPGFileSettingsDefaults(t *testing.T) {
 		t.Helper()
 		view := e.CatalogRead()
 		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.FileSettingsOID}
-		in := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+		in := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: view.MustRelation(address), Ref: e.Catalog.Domain.Ref(view.Epoch(), address), Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 		source, err := core.CaptureCatalogSourceRows(in, produce)
 		if err != nil || source == nil || source.Anonymous == nil || len(source.Anonymous) != 0 {
 			t.Fatal("defaults are not file facts", source, err)

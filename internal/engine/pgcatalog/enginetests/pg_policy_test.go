@@ -24,7 +24,7 @@ func policyUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read) pgca
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.PolicyClassID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth})}
 }
 
 func TestPGPolicyMetadata(t *testing.T) {
@@ -107,7 +107,7 @@ func TestPGPolicyProducerAuthority(t *testing.T) {
 		bad.Roles = authorization.Read{}
 		reject("zero roles", bad)
 		bad = in
-		bad.Runtime = core.EngineCatalogRuntime{}
+		bad.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{})
 		reject("zero runtime authority", bad)
 		for _, shape := range []string{"width", "name", "type", "nullability"} {
 			state := catalog.CloneState(in.Catalog.State())

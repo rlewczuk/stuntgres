@@ -20,7 +20,7 @@ func collationsUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read, 
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoCollationsOID})
-	return pgcatalog.Input{Context:t.Context(), Catalog:view, Roles:auth.Roles, Owner:view.Owner(), Ref:view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source:source, Runtime:core.EngineCatalogRuntime{Auth:auth, Database:database}}
+	return pgcatalog.Input{Context:t.Context(), Catalog:view, Roles:auth.Roles, Owner:view.Owner(), Ref:view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source:source, Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth:auth, Database:database})}
 }
 
 func collationsUnitRows(t *testing.T, in pgcatalog.Input, want [][]string) [][]sqltype.Value {
@@ -104,8 +104,8 @@ func TestInfoCollationsProducer(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
-		func(in *pgcatalog.Input) { runtime := in.Runtime.(core.EngineCatalogRuntime); runtime.Auth.RoleRecord = nil; in.Runtime = runtime },
-		func(in *pgcatalog.Input) { runtime := in.Runtime.(core.EngineCatalogRuntime); runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres"); in.Runtime = runtime },
+		func(in *pgcatalog.Input) { runtime := core.CatalogRuntimeFieldsOf(in.Runtime); runtime.Auth.RoleRecord = nil; in.Runtime = core.NewCatalogRuntime(runtime) },
+		func(in *pgcatalog.Input) { runtime := core.CatalogRuntimeFieldsOf(in.Runtime); runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres"); in.Runtime = core.NewCatalogRuntime(runtime) },
 	} {
 		bad := in
 		mutate(&bad)

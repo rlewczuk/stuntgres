@@ -23,7 +23,7 @@ func yiddishSeedDependencies(t *testing.T) {
 	view := original.WithState(state)
 	check := func(want int) {
 		t.Helper()
-		edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+		edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 		if err != nil { t.Fatal(err) }
 		count := 0
 		for _, edge := range edges {

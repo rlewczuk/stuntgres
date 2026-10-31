@@ -45,7 +45,7 @@ func TestRoutineDeclarationTrees(t *testing.T) {
 	read := e.CatalogRead()
 	d := routineTreeProcedure(t, read, "tree_owner")
 	typ := routineTreeType(t, read)
-	runtime := core.EngineCatalogRuntime{}
+	runtime := core.NewCatalogRuntime(core.CatalogRuntimeFields{})
 	defaults, body, err := runtime.RoutineTrees(context.Background(), read, d, typ)
 	if err != nil {
 		t.Fatal(err)
@@ -142,13 +142,13 @@ func TestRoutineTreeCancellation(t *testing.T) {
 	enginetest.Run(t, e, `CREATE FUNCTION tree_cancel(a integer DEFAULT 7) RETURNS integer LANGUAGE SQL RETURN a`)
 	read := e.CatalogRead()
 	typ := routineTreeType(t, read)
-	defaults, body, err := (core.EngineCatalogRuntime{}).RoutineTrees(context.Background(), read, routineTreeProcedure(t, read, "tree_cancel"), typ)
+	defaults, body, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{})).RoutineTrees(context.Background(), read, routineTreeProcedure(t, read, "tree_cancel"), typ)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	failedDefaults, failedBody, err := (core.EngineCatalogRuntime{}).RoutineTrees(ctx, read, routineTreeProcedure(t, read, "tree_cancel"), typ)
+	failedDefaults, failedBody, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{})).RoutineTrees(ctx, read, routineTreeProcedure(t, read, "tree_cancel"), typ)
 	if !errors.Is(err, context.Canceled) || failedDefaults.Type() != nil || failedBody.Type() != nil {
 		t.Fatal("canceled capture published values", err)
 	}

@@ -126,7 +126,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err != nil || facts.Input != uint32(ext.Members[1].ObjectID) || facts.Output != uint32(ext.Members[2].ObjectID) || facts.Receive != 0 || facts.Send != 0 {
 		t.Fatal("selected manifest corrupted codec projection", facts, err)
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

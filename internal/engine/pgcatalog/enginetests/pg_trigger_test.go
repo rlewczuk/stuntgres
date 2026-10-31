@@ -23,12 +23,12 @@ import (
 type foreignTriggerPayload struct{ catalog.TriggersPayload }
 
 type cancelTriggerCapture struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	cancel context.CancelFunc
 }
 
 func (r cancelTriggerCapture) VisitTriggerCatalog(ctx context.Context, read catalog.Read, owner *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
-	return r.EngineCatalogRuntime.VisitTriggerCatalog(ctx, read, owner, typ, func(f pgcatalog.TriggerCatalogFact) error {
+	return r.Runtime.VisitTriggerCatalog(ctx, read, owner, typ, func(f pgcatalog.TriggerCatalogFact) error {
 		if err := visit(f); err != nil {
 			return err
 		}
@@ -41,7 +41,7 @@ func triggerCaptureInput(t *testing.T, f defaultUnitFixture, read catalog.Read) 
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, read)
 	source := read.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.TriggerClassID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Source: source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Runtime: core.EngineCatalogRuntime{Auth: auth}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: auth.Roles, Owner: read.Owner(), Source: source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth})}
 }
 
 func TestPGTriggerCapture(t *testing.T) {
@@ -145,7 +145,7 @@ func TestPGTriggerCapture(t *testing.T) {
 			during, cancel := context.WithCancel(t.Context())
 			bad := in
 			bad.Context = during
-			bad.Runtime = cancelTriggerCapture{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), cancel: cancel}
+			bad.Runtime = cancelTriggerCapture{Runtime: in.Runtime, cancel: cancel}
 			if rows, err := produce(bad); rows != nil || !errors.Is(err, context.Canceled) {
 				t.Fatal("partial capture published", rows, err)
 			}
@@ -325,7 +325,7 @@ func TestPGTriggerForeignKeyCapture(t *testing.T) {
 			}
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), retained, core.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), retained, core.NewCatalogRuntime(core.CatalogRuntimeFields{}))
 	if err != nil {
 		t.Fatal(err)
 	}

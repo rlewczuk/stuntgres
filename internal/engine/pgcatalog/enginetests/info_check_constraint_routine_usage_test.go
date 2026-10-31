@@ -57,7 +57,7 @@ func (f ccruUnitFixture) input(t *testing.T, state *catalog.State, actor authori
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoCheckConstraintRoutineUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func ccruUnitProduce(t *testing.T) pgcatalog.Producer {
@@ -171,9 +171,9 @@ func TestInfoCheckConstraintRoutineUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Roles = authorization.Read{} },
 		func(in *pgcatalog.Input) { in.Catalog = engine.New().CatalogRead() },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := f.input(t, f.state, f.f.owner)

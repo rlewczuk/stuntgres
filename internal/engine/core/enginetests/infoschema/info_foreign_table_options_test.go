@@ -44,7 +44,7 @@ func (f foreignTableOptionsFixture) input(t *testing.T, state *catalog.State, ac
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoForeignTableOptionsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func foreignTableOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[5]string]int) {
@@ -125,7 +125,7 @@ func TestInfoForeignTableOptionsProducer(t *testing.T) {
 			t.Fatal("source metadata", i, column)
 		}
 	}
-	admin := in.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	admin := core.CatalogRuntimeFieldsOf(in.Runtime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, actor := range []authorization.PrincipalRef{admin, f.f.owner, f.f.member} {
 		_, got := foreignTableOptionsRows(t, f.input(t, f.state, actor))
 		if !reflect.DeepEqual(got, foreignTableOptionsExpected()) {
@@ -214,7 +214,7 @@ func TestInfoForeignTableOptionsCapture(t *testing.T) {
 	oldOptions := f.table.Foreign.Options
 	oldOptionBacking := &oldOptions[0]
 	oldDomain := old.Source.Columns[0].Usage.Type
-	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
+	oldRecord := core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord
 	retained, original := foreignTableOptionsRows(t, old)
 	saved := make([][]sqltype.Value, len(retained))
 	backing := make([]*sqltype.Value, len(retained))
@@ -239,7 +239,7 @@ func TestInfoForeignTableOptionsCapture(t *testing.T) {
 		t.Fatal("fresh ownership/ACL", denied)
 	}
 	fresh := f.input(t, state, f.f.reader)
-	auth := fresh.Runtime.(core.EngineCatalogRuntime).Auth
+	auth := core.CatalogRuntimeFieldsOf(fresh.Runtime).Auth
 	originalRole, _ := old.Roles.Find(f.f.reader)
 	renamedRole := originalRole
 	renamedRole.Name = "renamed_reader"
@@ -248,7 +248,7 @@ func TestInfoForeignTableOptionsCapture(t *testing.T) {
 	auth.RoleRecord = roles
 	auth.Recapture(fresh.Catalog)
 	fresh.Roles = auth.Roles
-	fresh.Runtime = core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}
+	fresh.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})
 	if retainedRole, _ := old.Roles.Find(f.f.reader); retainedRole != originalRole || roles == oldRecord {
 		t.Fatal("role capture backing changed")
 	}
@@ -256,7 +256,7 @@ func TestInfoForeignTableOptionsCapture(t *testing.T) {
 	if !reflect.DeepEqual(got, map[[5]string]int{{"captured_database", "renamed_schema", "renamed", "secret", "replacement"}: 1}) {
 		t.Fatal("fresh capture", got)
 	}
-	if old.Catalog.Get(f.table.Address()) != f.table || &f.table.Foreign.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.table.Foreign.Options) || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || retained[0][0].Type() != oldDomain || fresh.Source.Columns[0].Usage.Type != oldDomain {
+	if old.Catalog.Get(f.table.Address()) != f.table || &f.table.Foreign.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.table.Foreign.Options) || core.CatalogRuntimeFieldsOf(old.Runtime).Auth.RoleRecord != oldRecord || retained[0][0].Type() != oldDomain || fresh.Source.Columns[0].Usage.Type != oldDomain {
 		t.Fatal("retained catalog/role/domain backing")
 	}
 	if !reflect.DeepEqual(retained, saved) {
@@ -282,14 +282,14 @@ func TestInfoForeignTableOptionsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.State.CurrentUser = authorization.PrincipalRef{}
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := old

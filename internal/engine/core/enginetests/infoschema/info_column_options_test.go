@@ -50,7 +50,7 @@ func (f columnOptionsFixture) input(t *testing.T, state *catalog.State, actor au
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnOptionsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func columnOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[6]string]int) {
@@ -213,9 +213,9 @@ func TestInfoColumnOptionsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		in := old
@@ -274,13 +274,13 @@ func TestInfoColumnOptionsCapture(t *testing.T) {
 }
 
 type columnOptionsCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	cancel context.CancelFunc
 	calls  *int
 }
 
 func (r columnOptionsCancelRuntime) Effective(ref ids.ObjectRef, owner bool) (authorization.Privileges, error) {
-	rights, err := r.EngineCatalogRuntime.Effective(ref, owner)
+	rights, err := r.Runtime.Effective(ref, owner)
 	*r.calls++
 	if *r.calls == 2 {
 		r.cancel()
@@ -314,7 +314,7 @@ func TestInfoColumnOptionsCancellation(t *testing.T) {
 	defer cancel()
 	calls := 0
 	in.Context = ctx
-	in.Runtime = columnOptionsCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), cancel: cancel, calls: &calls}
+	in.Runtime = columnOptionsCancelRuntime{Runtime: in.Runtime, cancel: cancel, calls: &calls}
 	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 2 {
 		t.Fatal("partial capture publication", source, err, calls)
 	}

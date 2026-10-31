@@ -31,7 +31,7 @@ func TestPGTSTemplateCaptureContract(t *testing.T) {
 			t.Fatal("template source-owned column contract", i, column)
 		}
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	nextOID, nextRevision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 	snowballAddress := view.NameAddress(ids.NameKey{ClassID: ids.TSTemplateClassID, Namespace: source.Namespace(), Name: "snowball"})
 	snowball, ok := view.TSTemplate(snowballAddress)

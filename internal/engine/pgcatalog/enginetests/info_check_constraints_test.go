@@ -56,7 +56,7 @@ func (f iccUnitFixture) input(t *testing.T, state *catalog.State, actor authoriz
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoCheckConstraintsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func iccUnitProducer(t *testing.T) pgcatalog.Producer {
@@ -192,9 +192,9 @@ func TestInfoCheckConstraintsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Roles = authorization.Read{} },
 		func(in *pgcatalog.Input) { in.Catalog = engine.New().CatalogRead() },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(core.EngineCatalogRuntime)
+			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 			runtime.Auth.RoleRecord = nil
-			in.Runtime = runtime
+			in.Runtime = core.NewCatalogRuntime(runtime)
 		},
 	} {
 		in := f.input(t, f.state, f.f.owner)
@@ -250,38 +250,38 @@ func TestInfoCheckConstraintsCapture(t *testing.T) {
 		})
 	}
 	in := f.input(t, f.state, f.f.owner)
-	runtime := in.Runtime.(core.EngineCatalogRuntime)
+	runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
 	expression := f.domain.DomainChecks[0].Expression
-	if text, err := runtime.DomainExpression(t.Context(), in.Catalog, f.domain, expression); err != nil || text != "true" {
+	if text, err := core.NewCatalogRuntime(runtime).DomainExpression(t.Context(), in.Catalog, f.domain, expression); err != nil || text != "true" {
 		t.Fatal(text, err)
 	}
 	copy := *f.domain
 	foreign := *f.domain
 	foreign.ObjectRevision++
 	for _, domain := range []*catalog.Type{nil, &copy, &foreign, in.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})} {
-		if _, err := runtime.DomainExpression(t.Context(), in.Catalog, domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if _, err := core.NewCatalogRuntime(runtime).DomainExpression(t.Context(), in.Catalog, domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("invalid domain owner", err)
 		}
 	}
-	if _, err := runtime.DomainExpression(t.Context(), engine.New().CatalogRead(), f.domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := core.NewCatalogRuntime(runtime).DomainExpression(t.Context(), engine.New().CatalogRead(), f.domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign capture", err)
 	}
-	if _, err := runtime.ColumnExpression(t.Context(), in.Catalog, nil, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := core.NewCatalogRuntime(runtime).ColumnExpression(t.Context(), in.Catalog, nil, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("nil relation", err)
 	}
 	table := *in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 24200})
-	if _, err := runtime.ColumnExpression(t.Context(), in.Catalog, &table, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := core.NewCatalogRuntime(runtime).ColumnExpression(t.Context(), in.Catalog, &table, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied relation", err)
 	}
 	replaced := catalog.CloneState(f.state)
 	replaced.SetDescriptor(copy.Address(), &copy)
-	fresh := f.input(t, replaced, f.f.owner).Runtime.(core.EngineCatalogRuntime)
-	if _, err := fresh.DomainExpression(t.Context(), fresh.Auth.Catalog, f.domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
+	fresh := core.CatalogRuntimeFieldsOf(f.input(t, replaced, f.f.owner).Runtime)
+	if _, err := core.NewCatalogRuntime(fresh).DomainExpression(t.Context(), fresh.Auth.Catalog, f.domain, expression); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale domain owner", err)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := runtime.DomainExpression(canceled, in.Catalog, f.domain, expression); !errors.Is(err, context.Canceled) {
+	if _, err := core.NewCatalogRuntime(runtime).DomainExpression(canceled, in.Catalog, f.domain, expression); !errors.Is(err, context.Canceled) {
 		t.Fatal("domain cancellation", err)
 	}
 }
@@ -308,7 +308,7 @@ func TestInfoCheckConstraintsCancellation(t *testing.T) {
 	failure := errors.New("renderer failure")
 	for _, domain := range []bool{false, true} {
 		in = f.input(t, f.state, f.f.owner)
-		in.Runtime = iccFailRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), failure: failure, domain: domain}
+		in.Runtime = iccFailRuntime{Runtime: in.Runtime, failure: failure, domain: domain}
 		if rows, err := produce(in); rows != nil || err != failure {
 			t.Fatal("renderer failure exposed prefix", rows, err)
 		}
@@ -316,7 +316,7 @@ func TestInfoCheckConstraintsCancellation(t *testing.T) {
 		calls := 0
 		in = f.input(t, f.state, f.f.owner)
 		in.Context = ctx
-		in.Runtime = iccCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), cancel: cancel, calls: &calls, domain: domain}
+		in.Runtime = iccCancelRuntime{Runtime: in.Runtime, cancel: cancel, calls: &calls, domain: domain}
 		rows, err := produce(in)
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) {
@@ -326,7 +326,7 @@ func TestInfoCheckConstraintsCancellation(t *testing.T) {
 }
 
 type iccFailRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	failure error
 	domain  bool
 }
@@ -335,18 +335,18 @@ func (r iccFailRuntime) ColumnExpression(ctx context.Context, capture catalog.Re
 	if !r.domain {
 		return "", r.failure
 	}
-	return r.EngineCatalogRuntime.ColumnExpression(ctx, capture, relation, expression)
+	return r.Runtime.ColumnExpression(ctx, capture, relation, expression)
 }
 
 func (r iccFailRuntime) DomainExpression(ctx context.Context, capture catalog.Read, domain *catalog.Type, expression expr.Expr) (string, error) {
 	if r.domain {
 		return "", r.failure
 	}
-	return r.EngineCatalogRuntime.DomainExpression(ctx, capture, domain, expression)
+	return r.Runtime.DomainExpression(ctx, capture, domain, expression)
 }
 
 type iccCancelRuntime struct {
-	core.EngineCatalogRuntime
+	pgcatalog.Runtime
 	cancel context.CancelFunc
 	calls  *int
 	domain bool
@@ -359,14 +359,14 @@ func (r iccCancelRuntime) ColumnExpression(ctx context.Context, capture catalog.
 			r.cancel()
 		}
 	}
-	return r.EngineCatalogRuntime.ColumnExpression(ctx, capture, relation, expression)
+	return r.Runtime.ColumnExpression(ctx, capture, relation, expression)
 }
 
 func (r iccCancelRuntime) DomainExpression(ctx context.Context, capture catalog.Read, domain *catalog.Type, expression expr.Expr) (string, error) {
 	if r.domain {
 		r.cancel()
 	}
-	return r.EngineCatalogRuntime.DomainExpression(ctx, capture, domain, expression)
+	return r.Runtime.DomainExpression(ctx, capture, domain, expression)
 }
 
 func iccUnitPairedCapture(t *testing.T) {

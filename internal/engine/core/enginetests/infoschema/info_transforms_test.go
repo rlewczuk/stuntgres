@@ -19,7 +19,7 @@ func transformsInput(t *testing.T, f defaultUnitFixture, state *catalog.State) p
 	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoTransformsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "captured_database"})}
 }
 
 func transformsCapture(t *testing.T, in pgcatalog.Input) {
@@ -73,9 +73,9 @@ func TestInfoTransformsProducer(t *testing.T) {
 	}
 	// Ordinary catalog metadata (including languages and types) cannot fabricate transforms.
 	reader := in
-	runtime := reader.Runtime.(core.EngineCatalogRuntime)
+	runtime := core.CatalogRuntimeFieldsOf(reader.Runtime)
 	runtime.Auth.State.CurrentUser = f.reader
-	reader.Runtime = runtime
+	reader.Runtime = core.NewCatalogRuntime(runtime)
 	transformsCapture(t, reader)
 }
 
@@ -106,9 +106,9 @@ func TestInfoTransformsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.Source = nil },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
+			r := core.CatalogRuntimeFieldsOf(in.Runtime)
 			r.Auth.RoleRecord = nil
-			in.Runtime = r
+			in.Runtime = core.NewCatalogRuntime(r)
 		},
 	} {
 		in := old

@@ -57,7 +57,7 @@ func TestHostTransformCatalogCarriers(t *testing.T) {
 			if !ok {
 				t.Fatal("missing transform catalog producer")
 			}
-			input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
+			input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 			rows, err := produce(input)
 			if err != nil || len(rows) != 1 || len(rows[0]) != 5 {
 				t.Fatal("nonempty transform capture", rows, err)
