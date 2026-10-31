@@ -1,0 +1,97 @@
+# internal/engine/core/catalogrt
+
+The catalog source runtime: the `pgcatalog.Runtime` that system relation
+producers read, the shared capture cache, keep filters for a capturing
+SELECT, the catalog source descriptors and the `pg_shdepend` classification.
+It is a leaf below core (ENGINE-SPLIT §3, L14.5).
+
+## Layering
+
+- Imports only packages below core: `access`, `analyze`, `authorization`,
+  `catalog`, `exec`, `expr`, `fdw`, `ids`, `index`, `partition`, `pgcatalog`,
+  `plan`, `publication`, `regobj`, `routine`, `session`, `settings`, `stored`,
+  `table`, `view`, `parser`, `sqltype`. It never imports core, a family or the
+  root.
+- Core keeps the capture policy: `openCatalogSourceLocked`
+  (`catalog_source_capture.go`) looks up `pgcatalog.ProducerFor`, chooses the
+  per-OID catalog and role roots, the authority, presentation and unlock
+  timing, and builds the runtime. Core also keeps the `Engine.catalogCaptures`
+  field, `captureSelectSourcesLocked` (which sets the scope's `KeepQuery`),
+  the shared-dependency root capture and the `Host` implementation
+  (`catalog_runtime_host.go`).
+
+## Contract
+
+- `Runtime` implements `pgcatalog.Runtime` for one capture. `View` is the
+  captured authority (`access.View`); `Input`, `Database`, `Temporary`,
+  `Presentation` and the sequence overlay (`SequenceBase`, `SequenceOwn`) are
+  the values the selected producer reads. It exposes values per call, never
+  Engine, StatementScope, AuthorizationView or bindings.
+- `Host` is embedded: the engine-level capture methods (cursors, prepared
+  statements and transactions, session settings, parameter validation,
+  maintenance, statistics, vacuum, COPY and CREATE INDEX progress, the frozen
+  XID) are promoted from it. It is also the authority's
+  `access.Environment`, gives its restricted relation kinds and the backing
+  engine's catalog owner. Core implements it on one struct that also holds
+  the `Runtime`, so a capture allocates once.
+- A `Runtime` without a `Host` serves only the presentation methods: core's
+  deparse functions and `BuiltinViewDefinition`.
+- Provenance is same-pointer authority (the engine's `catalog.Owner`), never
+  equal names, OIDs or epochs. `ValidateCapture` checks the exact source and
+  ref and the current principal before producing rows, even for an empty
+  catalog; publication, statistics and subscription readers also require the
+  backing engine's owner.
+- Routine-default presentation validates the paired capture and exact
+  Procedure, then renders checked expressions or declaration-owned finite
+  literals through `stored.Deparser` with captured path, output and string
+  settings. Finite source literals include the logical-decoding TEXT[]
+  default, decoded by its captured array codec. Source literals retain their
+  type and spelling across validated assignment coercion; no expression
+  evaluation, provider binding or replay-renderer change occurs.
+- `CaptureRows` is the sole constructor of a catalog `exec.Source`. An empty
+  producer result is still an owned anonymous rowset.
+- `CaptureCache` keeps the latest `pg_type`, `pg_proc` and `pg_depend` rows per
+  engine, owned by `Engine.Mu`, keyed by the published `*catalog.State`, the
+  published `*access.RoleRecord`, the source relation and its ref.
+  `CaptureLocked` serves statements reading the published catalog and roles
+  read-only; private transaction catalogs or role records capture fresh.
+  Errors are never stored, and a hit still returns the caller's context
+  error. The slot also keeps an `exec.CatalogKeyIndex` of its rows; hits and
+  misses attach it as `Source.CatalogKeys`, so oid equality filters visit only
+  matching rows. A statement whose filter yields a `pgcatalog.Keep`
+  (`pg_proc.oid`) uses a hit as is; on a miss it builds only the kept rows and
+  stores nothing.
+- `KeepQuery.Keep` returns the producer row test for a leaf of the SELECT
+  being captured (system relations with `pgcatalog.KeyColumns` only); nested
+  view and policy captures number their occurrences separately.
+- `InitializeSources` registers descriptors from `pgcatalog.Specs`, preserving
+  registration order, OIDs, columns and row/array links. It copies relation
+  templates built once per process and sets this engine's owner, ACL and
+  column types; engines share the templates' index maps and attribute slices.
+- `ClassifySharedDependencies` lists the `pg_shdepend` rows of the retained
+  per-database roots (`SharedDependencyDatabase`); exactly one is current.
+- `PublicationTableMetadata` and `VisitSequenceOverlay` are shared with core's
+  publication inquiry and `pg_sequences` capture.
+
+## Locks
+
+- The package holds no lock. `…Locked` functions (`CaptureCache.CaptureLocked`)
+  are entered with `Engine.Mu` held and return with it held. Settings rows
+  capture one coherent physical-session snapshot after core unlocks
+  `Engine.Mu`.
+
+## Testing
+
+- `go test ./internal/engine/core/catalogrt` runs the shared-dependency units
+  (internal) and the engine tests that need the `export_test.go` accessor
+  (`TestViewCapabilitiesForeignEvents`, `TestBuiltinViewRoutineIdentity`). Per
+  T7, engine tests of this package live here, not in an `enginetests`
+  subpackage.
+- Shared-dependency immutable-root, local-OID collision and referenced-pin
+  units use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
+  `reference/catalog_privileges`.
+- Producer tests build runtimes with `core.NewCatalogRuntime` and read their
+  fields back with `core.CatalogRuntimeFieldsOf`; they live with the
+  producers (`core/enginetests/{pgcatalog,infoschema}`,
+  `pgcatalog/enginetests`).
+- Reference selector: `make check REFERENCE=1 RUN='^TestReference(Pg|PG|Info|Catalog)'`.

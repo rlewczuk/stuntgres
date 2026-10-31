@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -119,7 +120,7 @@ func iccUnitBag(t *testing.T, in pgcatalog.Input, rows [][]sqltype.Value) map[[4
 
 func iccUnitRows(t *testing.T, in pgcatalog.Input, want map[[4]string]int) [][]sqltype.Value {
 	t.Helper()
-	captured, err := core.CaptureRows(in, iccUnitProducer(t))
+	captured, err := catalogrt.CaptureRows(in, iccUnitProducer(t))
 	if err != nil {
 		t.Fatal(err)
 	}

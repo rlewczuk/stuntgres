@@ -18,7 +18,7 @@ through [`engine/session`](../../session/README.md).
   `sqltype`. It never imports core, another leaf, a family or the root.
 - Core reaches it through one-line adapters (`statistics_hosts.go`):
   `statementHost`'s `exec.Host` methods `AttributeStatistics` and
-  `RelationStatistics`, `EngineCatalogRuntime`'s `pgcatalog.Runtime` visitors
+  `RelationStatistics`, the `catalogrt.Host` visitors of core's `catalogRuntime`
   and `DDLHost`'s `ddl.Host` recipe methods. `StatisticsSnapshotCodec`
   (`statistics_snapshot_binding.go`) builds a codec over core's bootstrap
   authority; the root's Dump and Restore, ANALYZE re-owning and catalog

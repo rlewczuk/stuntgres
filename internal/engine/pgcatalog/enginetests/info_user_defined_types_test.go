@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -63,7 +64,7 @@ func udtUnitRows(t *testing.T, in pgcatalog.Input, names ...string) [][]sqltype.
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	capture, err := core.CaptureRows(in, produce)
+	capture, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

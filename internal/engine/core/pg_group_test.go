@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -155,7 +156,7 @@ func TestPGGroupProjection(t *testing.T) {
 	enginetest.PutFixtureRole(state, role)
 	capture := func(root *access.RoleRecord) map[uint32][]sqltype.Value {
 		t.Helper()
-		source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup)
+		source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +193,7 @@ func TestPGGroupProjection(t *testing.T) {
 		invalid := *d
 		invalid.Columns = slices.Clone(d.Columns)
 		invalid.Columns[slot].Usage.Type = enginetest.Usage(e, sqltype.Int4).Type
-		if source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); err == nil || source != nil {
+		if source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); err == nil || source != nil {
 			t.Fatal("constructor failure published partial source", slot)
 		}
 	}
@@ -200,7 +201,7 @@ func TestPGGroupProjection(t *testing.T) {
 	invalid := *d
 	invalid.Columns = slices.Clone(d.Columns)
 	invalid.Columns[2].Usage.Type = enginetest.Usage(e, sqltype.ID(1007)).Type
-	if source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); err == nil || source != nil {
+	if source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); err == nil || source != nil {
 		t.Fatal("wrong element descriptor accepted")
 	}
 }
@@ -283,7 +284,7 @@ func TestPGGroupCancellation(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, root := range []*access.RoleRecord{state, emptyRoleFixture(e)} {
-		if source, err := core.CaptureRows(pgcatalog.Input{Context: canceled, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: canceled, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("precancellation published source", err)
 		}
 	}
@@ -291,14 +292,14 @@ func TestPGGroupCancellation(t *testing.T) {
 	// emission, final. Cancel deterministically within each meaningful pass.
 	for _, at := range []int{2, 12, 20, 21, 29, 30} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		if source, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
 		if len(enginetest.FixtureEdges(state)) != 8 || state.Root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}
-	source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup)
+	source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGGroup)
 	if err != nil {
 		t.Fatal(err)
 	}

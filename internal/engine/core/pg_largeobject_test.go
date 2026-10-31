@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/largeobject"
@@ -114,7 +115,7 @@ func TestPGLargeobjectCanceledCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, view := range []catalog.Read{e.CatalogRead(), old} {
-		result, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Owner: view.Owner(), Catalog: view, Source: source, Ref: ref}, produce)
+		result, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Owner: view.Owner(), Catalog: view, Source: source, Ref: ref}, produce)
 		if result != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", result, err)
 		}
@@ -134,7 +135,7 @@ func TestPGLargeobjectProjection(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(2613)
 	in := pgcatalog.Input{Context: context.Background(), Owner: &e.Catalog.Owner, Catalog: old, Roles: auth.Roles, Source: source, Ref: ref}
-	result, err := core.CaptureRows(in, produce)
+	result, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestPGLargeobjectProjection(t *testing.T) {
 	pglUnitPage(t, result.Anonymous, "\x00\x00\x80\xff")
 	empty := in
 	empty.Catalog = e.CatalogRead()
-	result, err = core.CaptureRows(empty, produce)
+	result, err = catalogrt.CaptureRows(empty, produce)
 	if err != nil || result == nil || result.Anonymous == nil || len(result.Anonymous) != 0 {
 		t.Fatal("empty capture", result, err)
 	}
@@ -225,7 +226,7 @@ func TestPGLargeobjectProjection(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := core.CaptureRows(test.change(in), produce)
+			result, err := catalogrt.CaptureRows(test.change(in), produce)
 			if result != nil {
 				result.Close()
 				t.Fatal("malformed authority published a source")

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -41,7 +42,7 @@ func roleRoutineGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing routine ACL producer", in.Source.Name())
 	}
-	captured, err := core.CaptureRows(in, produce)
+	captured, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

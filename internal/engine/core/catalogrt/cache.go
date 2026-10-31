@@ -1,4 +1,4 @@
-package core
+package catalogrt
 
 import (
 	"stuntgres/internal/engine/access"

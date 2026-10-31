@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -116,7 +117,7 @@ func TestPGAuthIDTypedProjectionAndIdentityWidth(t *testing.T) {
 	enginetest.PutFixtureRole(state, r)
 	capture := func(root *access.RoleRecord) *exec.Source {
 		t.Helper()
-		s, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
+		s, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,7 +283,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	state := emptyRoleFixture(e)
 	pgUserUnitRole(e, state, 20000, "first")
 	pgUserUnitRole(e, state, 20001, "second")
-	empty, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), emptyRoleFixture(e)), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
+	empty, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), emptyRoleFixture(e)), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 	if err != nil || empty == nil || empty.Anonymous == nil || len(empty.Anonymous) != 0 {
 		t.Fatal("empty anonymous source identity", err)
 	}
@@ -300,7 +301,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: phase.at}
-			source, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
+			source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 			if source != nil || !errors.Is(err, context.Canceled) || ctx.calls != phase.at {
 				t.Fatal("cancellation published credential prefix or missed check", phase.at, ctx.calls, err)
 			}
@@ -309,7 +310,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = enginetest.Usage(e, sqltype.Int4).Type
-	source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
+	source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 	if err == nil || source != nil {
 		t.Fatal("invalid descriptor published rows")
 	}

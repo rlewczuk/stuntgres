@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func foreignTablesRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureRows(in, produce)
+	source, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +434,7 @@ func TestInfoForeignTablesCancellation(t *testing.T) {
 	for remaining := 1; ; remaining++ {
 		in := old
 		in.Context = &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		source, err := core.CaptureRows(in, produce)
+		source, err := catalogrt.CaptureRows(in, produce)
 		if err == nil {
 			source.Close()
 			completed = remaining
@@ -450,7 +451,7 @@ func TestInfoForeignTablesCancellation(t *testing.T) {
 	cancel()
 	in := old
 	in.Context = ctx
-	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := catalogrt.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", source, err)
 	}
 	_, unchanged := foreignTablesRows(t, old)

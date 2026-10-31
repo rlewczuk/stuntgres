@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -62,7 +63,7 @@ func TestPGFileSettingsCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	pgFileSettingsCheckRows(t, input, later)
-	captured, err := core.CaptureRows(input, produce)
+	captured, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != input.Ref || captured.Anonymous == nil {
 		t.Fatal("configuration capture identity", captured, err)
 	}
@@ -80,7 +81,7 @@ func TestPGFileSettingsCapture(t *testing.T) {
 	}
 	for _, remaining := range []int{1, final} {
 		counted.Context = &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		if source, err := core.CaptureRows(counted, produce); source != nil || !errors.Is(err, context.Canceled) {
+		if source, err := catalogrt.CaptureRows(counted, produce); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled empty source published", source, err)
 		}
 	}
@@ -89,7 +90,7 @@ func TestPGFileSettingsCapture(t *testing.T) {
 		if rows, err := produce(in); rows != nil || err == nil {
 			t.Fatal("invalid producer input admitted", rows, err)
 		}
-		if source, err := core.CaptureRows(in, produce); source != nil || err == nil {
+		if source, err := catalogrt.CaptureRows(in, produce); source != nil || err == nil {
 			t.Fatal("invalid source published", source, err)
 		}
 	}
@@ -149,7 +150,7 @@ func TestPGFileSettingsCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation precedes validation", rows, err)
 	}
-	if source, err := core.CaptureRows(input, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := catalogrt.CaptureRows(input, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source published", source, err)
 	}
 }
@@ -243,7 +244,7 @@ func TestPGFileSettingsOwnership(t *testing.T) {
 	for _, source := range []*catalog.Relation{old, pgFileSettingsInput(engine.New()).Source} {
 		in := freshInput
 		in.Source = source
-		if got, err := core.CaptureRows(in, produce); got != nil || err == nil {
+		if got, err := catalogrt.CaptureRows(in, produce); got != nil || err == nil {
 			t.Fatal("foreign/stale source generation published", got, err)
 		}
 	}
@@ -258,7 +259,7 @@ func TestPGFileSettingsOwnership(t *testing.T) {
 		t.Fatal("restore adopted a retained descriptor/type generation")
 	}
 	for _, in := range []pgcatalog.Input{oldInput, freshInput, restoredInput} {
-		got, err := core.CaptureRows(in, produce)
+		got, err := catalogrt.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 {
 			t.Fatal("retained generation lost typed empty capture", got, err)
 		}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -105,7 +106,7 @@ func TestPGSubscriptionRelCaptureOwnership(t *testing.T) {
 		descriptors, names, roles := maps.Collect(in.Catalog.State().Descriptors()), maps.Collect(in.Catalog.State().Names()), e.RoleStore.Published
 		rows, err := produce(in)
 		if err != nil || rows == nil || len(rows) != 0 { t.Fatal("actual empty producer", rows, err) }
-		got, err := core.CaptureRows(in, produce)
+		got, err := catalogrt.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != in.Ref { t.Fatal("actual empty capture", got, err) }
 		assertRoots := func(t *testing.T) {
 			t.Helper()
@@ -134,7 +135,7 @@ func TestPGSubscriptionRelCaptureOwnership(t *testing.T) {
 		for _, tc := range cases { t.Run(tc.name, func(t *testing.T) {
 			bad := in; tc.mutate(&bad)
 			raw, err := produce(bad); subscriptionInvariant(t, raw == nil, err)
-			wrapped, err := core.CaptureRows(bad, produce); subscriptionInvariant(t, wrapped == nil, err)
+			wrapped, err := catalogrt.CaptureRows(bad, produce); subscriptionInvariant(t, wrapped == nil, err)
 			assertRoots(t)
 		}) }
 		// Structural mutations are installed into an unpublished captured root:
@@ -157,7 +158,7 @@ func TestPGSubscriptionRelCaptureOwnership(t *testing.T) {
 			bad.Runtime = core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: paired})
 			if bad.Catalog.Get(next.Address()) != bad.Source { t.Fatal("mutation is not current captured source") }
 			raw, err := produce(bad); subscriptionInvariant(t, raw == nil, err)
-			wrapped, err := core.CaptureRows(bad, produce); subscriptionInvariant(t, wrapped == nil, err)
+			wrapped, err := catalogrt.CaptureRows(bad, produce); subscriptionInvariant(t, wrapped == nil, err)
 			assertRoots(t)
 		}) }
 		unpaired := in.Catalog.WithState(catalog.CloneState(in.Catalog.State()))
@@ -178,7 +179,7 @@ func TestPGSubscriptionRelCaptureCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(in.Context); cancel(); in.Context = ctx
 		raw, err := produce(in); subscriptionInvariant(t, raw == nil, err)
 		if !errors.Is(err, context.Canceled) { t.Fatal(err) }
-		wrapped, err := core.CaptureRows(in, produce); subscriptionInvariant(t, wrapped == nil, err)
+		wrapped, err := catalogrt.CaptureRows(in, produce); subscriptionInvariant(t, wrapped == nil, err)
 		if !errors.Is(err, context.Canceled) { t.Fatal(err) }
 		if !maps.Equal(descriptors, maps.Collect(in.Catalog.State().Descriptors())) || !maps.Equal(names, maps.Collect(in.Catalog.State().Names())) || roles != e.RoleStore.Published { t.Fatal("cancellation mutated roots") }
 	})

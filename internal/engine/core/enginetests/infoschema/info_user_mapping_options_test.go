@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -67,7 +68,7 @@ func mappingOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, ma
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureRows(in, produce)
+	source, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +338,7 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 	cancel()
 	in := old
 	in.Context = ctx
-	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := catalogrt.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", source, err)
 	}
 	ctx, cancel = context.WithCancel(t.Context())
@@ -346,7 +347,7 @@ func TestInfoUserMappingOptionsCapture(t *testing.T) {
 	in.Context = ctx
 	calls := 0
 	in.Runtime = mappingOptionsCancelRuntime{Runtime: old.Runtime, cancel: cancel, calls: &calls}
-	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 3 {
+	if source, err := catalogrt.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) || calls != 3 {
 		t.Fatal("partial capture publication", source, err, calls)
 	}
 	_, unchanged := mappingOptionsRows(t, old)

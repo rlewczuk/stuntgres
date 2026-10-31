@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func schemataUnitRows(t *testing.T, in pgcatalog.Input, want [][]any) [][]sqltyp
 	if !ok {
 		t.Fatal("missing schemata producer")
 	}
-	capture, err := core.CaptureRows(in, produce)
+	capture, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

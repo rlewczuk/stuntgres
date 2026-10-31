@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -52,7 +53,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	capture := func(value, source string) *exec.Source {
 		t.Helper()
 		runtime := settingsRuntimeForTest(t, e, sess)
-		rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings)
+		rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings)
 		if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 			t.Fatal(rows, err)
 		}
@@ -89,7 +90,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	runtime := settingsRuntimeForTest(t, e, sess)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
 }

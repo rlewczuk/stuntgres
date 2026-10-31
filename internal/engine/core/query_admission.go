@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -468,8 +469,8 @@ type inquirySnapshot struct {
 	deparseAuth    AuthorizationView
 	// Retained with the catalog/role pair, never refreshed by source opening.
 	// The common single-database case needs no separate slice allocation.
-	sharedDependencySingle    [1]SharedDependencyDatabase
-	sharedDependencyDatabases []SharedDependencyDatabase
+	sharedDependencySingle    [1]catalogrt.SharedDependencyDatabase
+	sharedDependencyDatabases []catalogrt.SharedDependencyDatabase
 	DeparsePath               []ids.ObjectAddress
 	collationPath             []ids.ObjectAddress
 	visibilityCatalog         catalog.Read
@@ -518,7 +519,7 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 func (e *Engine) captureSharedDependencyRootsLocked(ctx context.Context, inquiry *inquirySnapshot) error {
 	roots := inquiry.sharedDependencySingle[:]
 	if len(e.Cluster.Targets) > 1 {
-		roots = make([]SharedDependencyDatabase, len(e.Cluster.Targets))
+		roots = make([]catalogrt.SharedDependencyDatabase, len(e.Cluster.Targets))
 	}
 	i := 0
 	for _, target := range e.Cluster.Targets {
@@ -529,7 +530,7 @@ func (e *Engine) captureSharedDependencyRootsLocked(ctx context.Context, inquiry
 		if target == e {
 			view = inquiry.CommentCatalog
 		}
-		roots[i] = SharedDependencyDatabase{Database: target.Catalog.DatabaseAddress().ObjectID, Catalog: view, Current: target == e}
+		roots[i] = catalogrt.SharedDependencyDatabase{Database: target.Catalog.DatabaseAddress().ObjectID, Catalog: view, Current: target == e}
 		i++
 	}
 	if len(e.Cluster.Targets) > 1 {

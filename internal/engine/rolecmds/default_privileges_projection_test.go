@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -23,7 +24,7 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth core.Authori
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureTablePrivileges)
+	rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureTablePrivileges)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +205,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	ref := f.e.Catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := core.CaptureRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (core.AuthorizationView{}).Roles, Owner: (core.AuthorizationView{}).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: core.AuthorizationView{}, Temporary: core.CatalogSourceTemporaryOwner(core.AuthorizationView{}), Database: "unit_database"})}, captureTablePrivileges)
+	rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (core.AuthorizationView{}).Roles, Owner: (core.AuthorizationView{}).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: core.AuthorizationView{}, Temporary: core.CatalogSourceTemporaryOwner(core.AuthorizationView{}), Database: "unit_database"})}, captureTablePrivileges)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

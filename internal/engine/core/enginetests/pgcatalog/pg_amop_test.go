@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -29,7 +30,7 @@ func amopUnitSource(t *testing.T, e *core.Engine, oid ids.OID) (*catalog.Relatio
 }
 
 func amopUnitCapture(view catalog.Read, d *catalog.Relation, ref ids.ObjectRef, ctx context.Context) (*exec.Source, error) {
-	return core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, registeredCatalogProducer(2602))
+	return catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, registeredCatalogProducer(2602))
 }
 
 func amopUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
@@ -113,7 +114,7 @@ func TestPGAmopCaptureValidation(t *testing.T) {
 		empty := catalog.CloneState(view.State())
 		for a := range empty.Descriptors() { if a.ClassID == oid { empty.RemoveDescriptor(a) } }
 		for _, view := range []catalog.Read{view,view.WithState(empty)} {
-			capture := func(source *catalog.Relation) (*exec.Source,error) { return core.CaptureRows(pgcatalog.Input{Context:context.Background(),Catalog:view,Ref:ref,Source:source,Owner:view.Owner(),Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},registeredCatalogProducer(oid)) }
+			capture := func(source *catalog.Relation) (*exec.Source,error) { return catalogrt.CaptureRows(pgcatalog.Input{Context:context.Background(),Catalog:view,Ref:ref,Source:source,Owner:view.Owner(),Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},registeredCatalogProducer(oid)) }
 			valid, err := capture(d)
 			if valid == nil || err != nil { t.Fatal("valid shape",oid,err) }
 			for _, row := range valid.Anonymous {
@@ -139,7 +140,7 @@ func TestPGAmopCaptureValidation(t *testing.T) {
 			missing := catalog.CloneState(view.State())
 			missing.RemoveDescriptor(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(sqltype.Oid)})
 			missingView := view.WithState(missing)
-			rows, err := core.CaptureRows(pgcatalog.Input{Context:context.Background(),Catalog:missingView,Ref:ref,Source:d,Owner:view.Owner(),Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},registeredCatalogProducer(oid))
+			rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context:context.Background(),Catalog:missingView,Ref:ref,Source:d,Owner:view.Owner(),Runtime:core.NewCatalogRuntime(core.CatalogRuntimeFields{})},registeredCatalogProducer(oid))
 			if rows != nil || err == nil { t.Fatal("missing owned type accepted",oid,rows,err) }
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -72,7 +73,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	}
 	check := func(in pgcatalog.Input, want map[[2]string]int) [][]sqltype.Value {
 		t.Helper()
-		captured, err := core.CaptureRows(in, produce)
+		captured, err := catalogrt.CaptureRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -59,7 +60,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal("effective setting", got, ok, value)
 				}
 				runtime := settingsRuntimeForTest(t, e, sess)
-				rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings)
+				rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(runtime)}, capturePGSettings)
 				if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 					t.Fatal(rows, err)
 				}

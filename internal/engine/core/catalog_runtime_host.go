@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/role"
@@ -35,7 +36,7 @@ type CatalogRuntimeFields struct {
 // catalogRuntime is the core Host of one Runtime. Both live in one
 // allocation, as the boxed runtime value did before.
 type catalogRuntime struct {
-	rt                 Runtime
+	rt                 catalogrt.Runtime
 	engine             *Engine
 	auth               AuthorizationView
 	cursors            *cursorRegistry
@@ -45,9 +46,9 @@ type catalogRuntime struct {
 }
 
 // newCatalogRuntime builds the runtime a catalog producer reads.
-func newCatalogRuntime(f CatalogRuntimeFields) *Runtime {
+func newCatalogRuntime(f CatalogRuntimeFields) *catalogrt.Runtime {
 	c := &catalogRuntime{engine: f.Engine, auth: f.Auth, cursors: f.Cursors, preparedStatements: f.PreparedStatements, settings: f.Settings, registry: f.Registry}
-	c.rt = Runtime{Host: c, View: f.Auth.View, Input: f.Input, Database: f.Database, Temporary: f.Temporary, Presentation: f.Presentation, SequenceBase: f.SequenceBase, SequenceOwn: f.SequenceOwn}
+	c.rt = catalogrt.Runtime{Host: c, View: f.Auth.View, Input: f.Input, Database: f.Database, Temporary: f.Temporary, Presentation: f.Presentation, SequenceBase: f.SequenceBase, SequenceOwn: f.SequenceOwn}
 	return &c.rt
 }
 

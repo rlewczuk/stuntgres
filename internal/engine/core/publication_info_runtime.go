@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/publication"
@@ -163,7 +164,7 @@ func publicationTableAncestor(ctx context.Context, view catalog.Read, relation *
 
 func publicationTableValue(ctx context.Context, view catalog.Read, item publicationTableInfo, result *sqltype.Descriptor) (sqltype.Value, error) {
 	p, r := item.publication, item.relation
-	metadata, err := PublicationTableMetadata(ctx, view, p, r)
+	metadata, err := catalogrt.PublicationTableMetadata(ctx, view, p, r)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

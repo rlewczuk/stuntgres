@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -50,7 +51,7 @@ func TestPGPoliciesMetadata(t *testing.T) {
 	if pgcatalog.ClassKind(in.Catalog, in.Source) != "v" || in.Source.RowType != 12020 || row.Array != 12019 || row.OwningRelation != in.Source.Address() || array.OwningRelation != in.Source.Address() || array.SQLType.Element() != row.SQLType {
 		t.Fatal("policies relation/row/array ownership")
 	}
-	rows, err := core.CaptureRows(in, registeredCatalogProducer(pgcatalog.PoliciesOID))
+	rows, err := catalogrt.CaptureRows(in, registeredCatalogProducer(pgcatalog.PoliciesOID))
 	if err != nil || rows == nil || rows.Anonymous == nil || len(rows.Anonymous) != 0 || rows.Ref != in.Ref {
 		t.Fatal("owned empty capture", rows, err)
 	}

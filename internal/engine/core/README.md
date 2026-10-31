@@ -135,7 +135,7 @@ the early ON CONFLICT UPDATE boundary; unrelated unsupported executors remain
 unsupported. ALTER's genuine metadata transfer validates remapped publication
 mapping descriptors through their registered providers.
 Catalog capture retains the exact catalog/role/source pairing and owned values.
-`EngineCatalogRuntime.VisitPublicationTables` bridges selected publication relations
+`catalogrt.Runtime.VisitPublicationTables` bridges selected publication relations
 to low catalog-producer facts under that captured root. A private shared projection
 supplies both the view and inquiry with the presented relation's direct mapping
 and default attributes, independently of DML-effective ancestry coverage.
@@ -1339,7 +1339,7 @@ with their family ([root README](../README.md#hosts)).
 | `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them; `contribHost` and `textSearchHost` enter `core/contrib` and `core/tsearch` |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
-| `EngineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
+| `catalogRuntime` (`catalog_runtime_host.go`), which also holds the `catalogrt.Runtime` | `catalogrt.Host` |
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
 
@@ -1924,31 +1924,15 @@ Producers, the OID registry and descriptor specs live in
   Restricted statistics-view capture additionally checks the current EXECUTE ACL of
   its metadata-only backing routine, after ordinary view SELECT admission and
   before the pure producer. Neither grant is retained in prepared artifacts.
-- `catalog_source_cache.go` keeps the latest `pg_type`, `pg_proc` and
-  `pg_depend` rows per engine, owned by `Engine.Mu`, keyed by the published
-  `*catalog.State`, the published `*access.RoleRecord`, the source relation and
-  its ref. Statements reading the published catalog and roles share these rows
-  read-only; private transaction catalogs or role records capture fresh. Errors
-  are never stored, and a hit still returns the caller's context error. The slot
-  also keeps an `exec.CatalogKeyIndex` of its rows; hits and misses attach it as
-  `Source.CatalogKeys`, so oid equality filters visit only matching rows. A
-  statement whose filter yields a `pgcatalog.Keep` (`pg_proc.oid`) uses a hit
-  as is; on a miss it builds only the kept rows and stores nothing.
-- `EngineCatalogRuntime` exposes values per call, never Engine, StatementScope,
-  AuthorizationView or bindings. Settings rows capture one coherent
-  physical-session snapshot after unlocking `Engine.Mu`; `pg_locks_capture.go`
-  keeps an unlock/capture/relock epoch fence.
-  Routine-default presentation validates the paired capture and exact Procedure,
-  then renders checked expressions or declaration-owned finite literals through
-  `stored.Deparser` with captured path/output/string settings. Finite source
-  literals include the logical-decoding TEXT[] default, decoded by its captured
-  array codec. Source literals retain their type and spelling across validated
-  assignment coercion; no expression evaluation, provider binding or
-  replay-renderer change occurs.
-- `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
-  registration order, OIDs, columns and row/array links. It copies relation
-  templates built once per process and sets this engine's owner, ACL and column
-  types; engines share the templates' index maps and attribute slices.
+- The runtime producers read is [`core/catalogrt`](catalogrt/README.md):
+  `catalogrt.Runtime` over `catalogrt.Host`, the shared capture cache
+  (`Engine.catalogCaptures`, owned by `Engine.Mu`), keep filters and the
+  catalog source descriptors. Core implements the Host in
+  `catalog_runtime_host.go` (`CatalogRuntimeFields`, one allocation per
+  capture) and keeps the engine-level facts it serves in their own files.
+  Settings rows capture one coherent physical-session snapshot after unlocking
+  `Engine.Mu`; `pg_locks_capture.go` keeps an unlock/capture/relock epoch
+  fence.
 - Provenance is same-pointer authority (`&e.catalog.Owner`), never equal
   names, OIDs or epochs.
 - `pg_policy` captures the statement's paired catalog/principal roots, including
@@ -2341,10 +2325,6 @@ in test-only `core/enginetests/<area>` packages (`functions`, `types`,
 `roles`, `stored`, `dump`, `routines`); `make check RUN=…` selects across
 packages, so the selectors below cover them too.
 
-Shared-dependency immutable-root, local-OID collision and referenced-pin units
-use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
-`reference/catalog_privileges`.
-
 Installed statistics provider, expression and capture ownership units use
 `RUN='^TestPgstat(index|hashindex)'`.
 
@@ -2640,7 +2620,7 @@ an accessor. The inspection accessors are:
 - binding, query tables and catalog sources:
   `AuthorizationMaterializedPopulation`, `EngineOpenRelationSourceLocked`,
   `EnginePrepareQueryTableLocked`,
-  `NewCatalogRuntime`, `ProcedureReturnsSet`;
+  `NewCatalogRuntime`, `CatalogRuntimeFieldsOf`, `ProcedureReturnsSet`;
 - materialized-view source fences: `EngineMaterializedSourceFenceCurrent`,
   `MaterializedSourceFences`, `MaterializedSourceFenceRef`,
   `MaterializedSourceFenceRelation`, `MaterializedSourceFenceStorage`,

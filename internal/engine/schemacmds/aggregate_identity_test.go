@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -84,7 +85,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	}
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.Catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAggregate)
+	rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAggregate)
 	if err != nil || len(rows.Anonymous) != 146 {
 		t.Fatal("installed aggregate source", err)
 	}

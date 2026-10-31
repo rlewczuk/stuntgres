@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -20,13 +20,13 @@ func TestPGShdependProducerAuthority(t *testing.T) {
 	in.Source = view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ShdependOID})
 	in.Ref = view.Owner().Domain.Ref(view.Epoch(), in.Source.Address())
 	produce := registeredCatalogProducer(pgcatalog.ShdependOID)
-	rows, err := core.CaptureRows(in, produce)
+	rows, err := catalogrt.CaptureRows(in, produce)
 	if err != nil || rows == nil || rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 		t.Fatal(rows, err)
 	}
 	fact := pgcatalog.SharedDependency{Database: 4294967295, Address: ids.ObjectAddress{ClassID: 1259, ObjectID: 4294967295, SubID: 2}, ReferenceClass: 1260, Reference: 4294967295, Kind: 'a'}
 	in.SharedDependencies = []pgcatalog.SharedDependency{fact}
-	rows, err = core.CaptureRows(in, produce)
+	rows, err = catalogrt.CaptureRows(in, produce)
 	if err != nil || len(rows.Anonymous) != 1 {
 		t.Fatal(rows, err)
 	}

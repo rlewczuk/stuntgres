@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -114,7 +115,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)
-	second, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
+	second, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		badSources = append(badSources, &wrong)
 	}
 	for _, bad := range badSources {
-		got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
+		got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
 		message := "stuntgres: foreign access-method source type"
 		if bad == nil || len(bad.Columns) != 4 {
 			message = "stuntgres: invalid access-method source shape"
@@ -160,7 +161,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			cancel()
 			ctx = during
 		}
-		got, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
+		got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
@@ -188,14 +189,14 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if d == fresh || oldRow == newRow || oldArray == newArray {
 		t.Fatal("relation/row/array descriptor reused")
 	}
-	freshRows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
+	freshRows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(pgAMUnitFacts(t, freshRows, fresh), facts) || !reflect.DeepEqual(pgAMUnitFacts(t, rows, d), facts) {
 		t.Fatal("replacement changed retained facts")
 	}
-	if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM); got != nil || err == nil || err.Error() != "stuntgres: foreign access-method source type" {
+	if got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGAM); got != nil || err == nil || err.Error() != "stuntgres: foreign access-method source type" {
 		t.Fatal("old source accepted by fresh generation", got, err)
 	}
 }
@@ -208,7 +209,7 @@ func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalo
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
 	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
-	return core.CaptureRows(in, produce)
+	return catalogrt.CaptureRows(in, produce)
 }
 
 // cancelAtErrCheck drives existing cooperative cancellation boundaries without

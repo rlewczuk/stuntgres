@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -113,7 +114,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:8]}} {
-		if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || err == nil {
+		if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || err == nil {
 			t.Fatal("invalid source accepted", rows, err)
 		}
 	}
@@ -122,7 +123,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, ctx := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if rows, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || !errors.Is(err, context.Canceled) {
+		if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", rows, err)
 		}
 	}
@@ -130,7 +131,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgOpclassUnitSource(t, e)
-	freshRows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass)
+	freshRows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if !reflect.DeepEqual(pgOpclassUnitBag(t, freshRows, fresh), bag) || !reflect.DeepEqual(pgOpclassUnitBag(t, rows, d), bag) {
 		t.Fatal("replacement changed immutable facts/old capture")
 	}
-	if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || err == nil {
+	if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass); rows != nil || err == nil {
 		t.Fatal("old descriptors accepted by new generation", rows, err)
 	}
 }
@@ -207,7 +208,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}
 		d, ref := pgOpclassUnitSource(t, e)
-		rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass)
+		rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOpclass)
 		if err != nil {
 			t.Fatal(err)
 		}

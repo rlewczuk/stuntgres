@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -94,7 +95,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			if !ok {
 				t.Fatal("missing usage producer")
 			}
-			usage, err := core.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
+			usage, err := catalogrt.CaptureRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
 			if err != nil {
 				t.Fatal("retained usage capture", err)
 			}

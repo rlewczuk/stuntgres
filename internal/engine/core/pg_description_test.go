@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -142,7 +143,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.Catalog.Read(&oldState)
-	captured, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
+	captured, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	updated.Comment = "replacement"
 	updated.ColumnMeta.Comments = map[int32]string{3: "replacement third"}
 	newState.SetDescriptor(relation, &updated)
-	newRows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(&newState), Ref: ref, Source: source, Owner: (e.Catalog.Read(&newState)).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
+	newRows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(&newState), Ref: ref, Source: source, Owner: (e.Catalog.Read(&newState)).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalog.State{e.Catalog.State, catalog.NewState(0)} {
-		captured, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: e.Catalog.Read(state), Ref: ref, Source: source, Owner: (e.Catalog.Read(state)).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
+		captured, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: e.Catalog.Read(state), Ref: ref, Source: source, Owner: (e.Catalog.Read(state)).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
 		}
@@ -204,7 +205,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	e := engine.New()
 	source, ref := pgDescriptionUnitSource(t, e)
-	captured, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
+	captured, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}

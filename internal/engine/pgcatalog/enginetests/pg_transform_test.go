@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ func TestPGTransformCapture(t *testing.T) {
 	}
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
-	captured, err := core.CaptureRows(input, produce)
+	captured, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {
 		t.Fatal("empty capture lost source identity", captured, err)
 	}
@@ -62,7 +63,7 @@ func TestPGTransformCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation must precede shape admission", rows, err)
 	}
-	if got, err := core.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := catalogrt.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 }

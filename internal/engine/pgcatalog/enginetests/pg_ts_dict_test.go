@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -243,7 +244,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 		}
 	}
 	for range 2 {
-		got, err := core.CaptureRows(input, produce)
+		got, err := catalogrt.CaptureRows(input, produce)
 		if err != nil || got == nil {
 			t.Fatal("seed dictionary capture", got, err)
 		}
@@ -458,7 +459,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	empty.RemoveDescriptor(serbianAddress)
 	emptyInput := input
 	emptyInput.Catalog = e.Catalog.Read(empty)
-	got, err := core.CaptureRows(emptyInput, produce)
+	got, err := catalogrt.CaptureRows(emptyInput, produce)
 	if err != nil || got == nil || got.Ref != ref || got.Anonymous == nil || len(got.Anonymous) != 0 {
 		t.Fatal("empty dictionary source must be nonnil", got, err)
 	}
@@ -467,7 +468,7 @@ func TestPGTSDictCaptureContract(t *testing.T) {
 	}
 	ordinaryFailure := func(in pgcatalog.Input, canceled bool) {
 		t.Helper()
-		got, err := core.CaptureRows(in, produce)
+		got, err := catalogrt.CaptureRows(in, produce)
 		if got != nil || err == nil {
 			t.Fatal("invalid dictionary capture published", got, err)
 		}

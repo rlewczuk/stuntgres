@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -31,7 +32,7 @@ func implementationInfoUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Va
 	if !ok {
 		t.Fatal("missing implementation info producer")
 	}
-	captured, err := core.CaptureRows(in, produce)
+	captured, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

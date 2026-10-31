@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -478,7 +479,7 @@ func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalo
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
 	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
-	return core.CaptureRows(in, produce)
+	return catalogrt.CaptureRows(in, produce)
 }
 
 func primaryKeyUnitCreate(name, constraint string) *parser.CreateTable {

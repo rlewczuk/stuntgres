@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -34,7 +35,7 @@ func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *
 	t.Helper()
 	d, ref := defaultACLUnitSource(t, f.e, c)
 	f.e.Mu.Lock()
-	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, c), Ref: ref, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
+	rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: f.e.RoleStore.PublishedRead(&f.e.Catalog.Owner, c), Ref: ref, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
 	f.e.Mu.Unlock()
 	if err != nil || rows == nil {
 		t.Fatal("capture", rows, err)
@@ -242,7 +243,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 	reject := func(view catalog.Read, r authorization.Read, reference ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		f.e.Mu.Lock()
-		rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
+		rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
 		f.e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if err == nil || rows != nil || errors.As(err, &diagnostic) {
@@ -338,7 +339,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		f.e.Mu.Lock()
-		rows, err := core.CaptureRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
+		rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: &f.e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: f.e})}, capturePGDefaultACL)
 		f.e.Mu.Unlock()
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) || f.e.Catalog.State != state || f.e.RoleStore.Published != roleRoot || f.e.Catalog.NextOID() != frontier {

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -25,7 +26,7 @@ import (
 // participate in declaration presentation.
 type routineInquiry struct {
 	stored.Deparser
-	runtime Runtime
+	runtime catalogrt.Runtime
 }
 
 func (s *StatementScope) deparseRoutine(c *exec.Context, signature functions.DeparseSignature, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -43,7 +44,7 @@ func (s *StatementScope) deparseRoutine(c *exec.Context, signature functions.Dep
 	}
 	in := s.deparseInputs()
 	r := routineInquiry{Deparser: stored.Deparser{View: view, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner, RoutineDeclaration: true}}
-	r.runtime = Runtime{View: s.Inquiry.deparseAuth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
+	r.runtime = catalogrt.Runtime{View: s.Inquiry.deparseAuth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
 	var text string
 	switch signature {
 	case functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments:

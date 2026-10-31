@@ -1,12 +1,13 @@
-package core
+package catalogrt
 
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"testing"
 )
 
 func TestPGShdependCapturedRoots(t *testing.T) {

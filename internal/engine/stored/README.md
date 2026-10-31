@@ -1154,7 +1154,7 @@ than duplicate `_RETURN` declarations.
   `ValidateViewReadGraph`, `CaptureRetainedViewInput` (`analysis_host.go`) and
   the `pgcatalog.Runtime` methods `ViewDefinition`, `VisitRuleDefinitions`,
   `ExpressionReferences`, `ViewReferences`, `IndexReferences`, `PartitionReferences`
-  (`catalog_source_runtime.go`). `IndexDefinition` renders through
+  (`core/catalogrt/runtime.go`). `IndexDefinition` renders through
   `index.DefinitionSQL`; relation deparsing is `table.Deparse`.
 
 `PolicyCarrier` retains the actual immutable `Policy`, analyzed expression and

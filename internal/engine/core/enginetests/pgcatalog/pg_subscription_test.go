@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -116,7 +117,7 @@ func TestPGSubscriptionCaptureOwnership(t *testing.T) {
 		if err != nil || rows == nil || len(rows) != 0 {
 			t.Fatal("empty producer", rows, err)
 		}
-		got, err := core.CaptureRows(in, produce)
+		got, err := catalogrt.CaptureRows(in, produce)
 		if err != nil || got == nil || got.Anonymous == nil || len(got.Anonymous) != 0 || got.Ref != in.Ref {
 			t.Fatal("empty wrapped source", got, err)
 		}
@@ -150,7 +151,7 @@ func TestPGSubscriptionCaptureOwnership(t *testing.T) {
 				tc.mutate(&bad)
 				raw, err := produce(bad)
 				subscriptionInvariant(t, raw == nil, err)
-				wrapped, err := core.CaptureRows(bad, produce)
+				wrapped, err := catalogrt.CaptureRows(bad, produce)
 				subscriptionInvariant(t, wrapped == nil, err)
 			})
 		}
@@ -218,7 +219,7 @@ func TestPGSubscriptionCaptureCancellation(t *testing.T) {
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		rows, err := core.CaptureRows(in, produce)
+		rows, err := catalogrt.CaptureRows(in, produce)
 		subscriptionInvariant(t, rows == nil, err)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)

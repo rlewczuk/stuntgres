@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
@@ -56,7 +57,7 @@ func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	retained, err := core.CaptureRows(input, produce)
+	retained, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || retained == nil || len(retained.Anonymous) != 1 {
 		t.Fatal(retained, err)
 	}
@@ -73,7 +74,7 @@ func TestStatisticsObjectCaptureRoleGeneration(t *testing.T) {
 	if rows, err := produce(wrong); rows != nil || err == nil {
 		t.Fatal("recreated owner authorized old definition", rows, err)
 	}
-	if rows, err := core.CaptureRows(wrong, produce); rows != nil || err == nil {
+	if rows, err := catalogrt.CaptureRows(wrong, produce); rows != nil || err == nil {
 		t.Fatal("mismatched capture published", rows, err)
 	}
 	rows, err := produce(input)

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -163,7 +164,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:14]}} {
-		if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || err == nil {
+		if got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || err == nil {
 			t.Fatal("invalid source accepted", got, err)
 		}
 	}
@@ -172,7 +173,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, c := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if got, err := core.CaptureRows(pgcatalog.Input{Context: c, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: c, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
 		}
 	}
@@ -180,14 +181,14 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgOperatorUnitSource(t, e)
-	freshRows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator)
+	freshRows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type || !reflect.DeepEqual(pgOperatorUnitBag(t, freshRows, fresh), want) || !reflect.DeepEqual(pgOperatorUnitBag(t, rows, d), want) {
 		t.Fatal("replacement changed facts/old capture or retained generation")
 	}
-	if got, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || err == nil {
+	if got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGOperator); got != nil || err == nil {
 		t.Fatal("foreign generation accepted", got, err)
 	}
 }

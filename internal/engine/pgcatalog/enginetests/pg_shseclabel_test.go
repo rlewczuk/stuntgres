@@ -6,7 +6,7 @@ import (
  "testing"
  "stuntgres/internal/engine/authorization"
  "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
  "stuntgres/internal/engine/ids"
  "stuntgres/internal/engine/pgcatalog"
  "stuntgres/internal/sqltype"
@@ -31,7 +31,7 @@ func TestPGShseclabelProducerAuthority(t *testing.T) {
  }
  if !ownerEntry || !publicEntry{t.Fatal("shared label owner/PUBLIC privileges",acl)}
  produce := registeredCatalogProducer(pgcatalog.ShseclabelOID)
- rows, err := core.CaptureRows(in,produce)
+ rows, err := catalogrt.CaptureRows(in,produce)
  if err!=nil || rows==nil || rows.Anonymous==nil || len(rows.Anonymous)!=0 { t.Fatal(rows,err) }
  reject := func(bad pgcatalog.Input) { t.Helper(); rows,err:=produce(bad);if rows!=nil || err==nil {t.Fatal("accepted malformed input",rows,err)} }
  bad:=in;bad.Owner=nil;reject(bad)

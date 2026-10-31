@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -208,7 +209,7 @@ func TestPGDependShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.Catalog.Domain.Ref(view.State().Epoch(), address)
-	rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend)
+	rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +265,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	want = append(want, pgDependUnitBootstrap(t, view)...)
 	pgDependUnitBag(t, got, want)
 	source := view.MustRelation(pgDependUnitAddress(1259, 2608, 0))
-	captured, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend)
+	captured, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +389,7 @@ func TestPGDependCanceledCapture(t *testing.T) {
 	if edges, err := pgcatalog.CollectDepend(ctx, catalog, core.NewCatalogRuntime(core.CatalogRuntimeFields{})); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal(edges, err)
 	}
-	if rows, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal(rows, err)
 	}
 }
@@ -415,7 +416,7 @@ func TestPGDependCancellationDuringWalk(t *testing.T) {
 		t.Fatal("partial collection published", edges, err)
 	}
 	ctx = &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if rows, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("partial source published", rows, err)
 	}
 }

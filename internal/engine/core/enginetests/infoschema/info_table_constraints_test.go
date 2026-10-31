@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func tcUnitBag(t *testing.T,rows [][]sqltype.Value) map[[11]string]int {
 func tcUnitCheck(t *testing.T,in pgcatalog.Input,want map[[11]string]int) [][]sqltype.Value {
  t.Helper()
  produce,ok:=pgcatalog.ProducerFor(pgcatalog.InfoTableConstraintsOID);if !ok { t.Fatal("missing producer") }
- captured,err:=core.CaptureRows(in,produce);if err!=nil { t.Fatal(err) };defer captured.Close()
+ captured,err:=catalogrt.CaptureRows(in,produce);if err!=nil { t.Fatal(err) };defer captured.Close()
  if captured.Ref!=in.Ref||captured.View!=nil||captured.Anonymous==nil { t.Fatal("capture identity/empty source",captured) }
  for _,row:=range captured.Anonymous { for i,value:=range row {
   column:=in.Source.Columns[i]

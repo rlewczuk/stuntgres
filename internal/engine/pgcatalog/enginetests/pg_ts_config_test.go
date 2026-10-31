@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	assertSeedConfigurations(t, view, source, rows)
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
-	captured, err := core.CaptureRows(input, produce)
+	captured, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 26 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
@@ -65,7 +66,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || err != context.Canceled {
 		t.Fatal("canceled producer", rows, err)
 	}
-	if got, err := core.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := catalogrt.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 }
@@ -563,7 +564,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	address := source.Address()
 	input.Ref = e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
-	captured, err := core.CaptureRows(input, produce)
+	captured, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != input.Ref || captured.Anonymous == nil || !reflect.DeepEqual(captured.Anonymous, rows) {
 		t.Fatal("mapping capture lost source identity/rows", captured, err)
 	}
@@ -676,7 +677,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
 	}
-	empty, err := core.CaptureRows(input, produce)
+	empty, err := catalogrt.CaptureRows(input, produce)
 	if err != nil || empty == nil || empty.Ref != input.Ref || empty.Anonymous == nil || len(empty.Anonymous) != 0 {
 		t.Fatal("empty capture lost anonymous source identity", empty, err)
 	}
@@ -685,7 +686,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		if rows, err := produce(input); rows != nil || err == nil {
 			t.Fatal(label, rows, err)
 		}
-		if got, err := core.CaptureRows(input, produce); got != nil || err == nil {
+		if got, err := catalogrt.CaptureRows(input, produce); got != nil || err == nil {
 			t.Fatal("wrapper published invalid "+label, got, err)
 		}
 	}
@@ -713,7 +714,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("mapping capture cancellation", rows, err)
 	}
-	if got, err := core.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := catalogrt.CaptureRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled mapping wrapper published source", got, err)
 	}
 }

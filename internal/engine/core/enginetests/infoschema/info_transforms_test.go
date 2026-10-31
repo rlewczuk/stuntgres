@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -28,7 +29,7 @@ func transformsCapture(t *testing.T, in pgcatalog.Input) {
 	if !ok {
 		t.Fatal("missing transforms producer")
 	}
-	source, err := core.CaptureRows(in, produce)
+	source, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestInfoTransformsCancellationAndOwnership(t *testing.T) {
 	if rows, err := produce(invalid); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation precedes invalid authority", rows, err)
 	}
-	if source, err := core.CaptureRows(invalid, produce); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := catalogrt.CaptureRows(invalid, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published", source, err)
 	}
 	columns := append([]catalog.Column(nil), old.Source.Columns...)

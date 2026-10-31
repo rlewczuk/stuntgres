@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -47,11 +48,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		e.Mu.Unlock()
 		var err error
-		in.SharedDependencies, err = ClassifySharedDependencies(in.Context, in.Catalog, in.Roles, databases)
+		in.SharedDependencies, err = catalogrt.ClassifySharedDependencies(in.Context, in.Catalog, in.Roles, databases)
 		if err != nil {
 			return nil, err
 		}
-		return CaptureRows(in, produce)
+		return catalogrt.CaptureRows(in, produce)
 	case pgcatalog.ClassOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
@@ -224,7 +225,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	in.Runtime = newCatalogRuntime(runtime)
 	if unlockBefore {
 		e.Mu.Unlock()
-		return CaptureRows(in, produce)
+		return catalogrt.CaptureRows(in, produce)
 	}
 	result, err := e.catalogCaptures.CaptureLocked(in, produce, sharedRoles, e.Catalog.State, e.RoleStore.Published)
 	e.Mu.Unlock()
@@ -237,7 +238,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 // key columns builds only the rows the filter can accept.
 func (e *Engine) captureSelectSourcesLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf, parameters []sqltype.Value, singleton bool) (*exec.Source, error) {
 	previous := scope.catalogKeep
-	scope.catalogKeep = &KeepQuery{Root: root, Leaves: leaves, Parameters: parameters}
+	scope.catalogKeep = &catalogrt.KeepQuery{Root: root, Leaves: leaves, Parameters: parameters}
 	defer func() { scope.catalogKeep = previous }()
 	return e.CaptureQuerySourcesLocked(scope, leaves, singleton)
 }

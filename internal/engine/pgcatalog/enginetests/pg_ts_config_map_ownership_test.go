@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	if got, err := produce(input); got != nil || err == nil {
 		t.Fatal("fresh mapping producer admitted old source", got, err)
 	}
-	if got, err := core.CaptureRows(input, produce); got != nil || err == nil {
+	if got, err := catalogrt.CaptureRows(input, produce); got != nil || err == nil {
 		t.Fatal("wrapper admitted old mapping source", got, err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/fdw"
@@ -238,7 +239,7 @@ func TestCatalogSourceEmptyMaterializedRows(t *testing.T) {
 		t.Fatal("missing materialized catalog producer")
 	}
 	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}
-	source, err := core.CaptureRows(in, produce)
+	source, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +308,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	if got, err := capturePGType(bad); got != nil || err == nil {
 		t.Fatal("old source paired with new generation", err)
 	}
-	wrapped, err := core.CaptureRows(in, capturePGType)
+	wrapped, err := catalogrt.CaptureRows(in, capturePGType)
 	if err != nil || wrapped.Ref != in.Ref || len(wrapped.Anonymous) != len(rows) {
 		t.Fatal("actual row wrapper ownership", err)
 	}
@@ -767,7 +768,7 @@ func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalo
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
 	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
-	return core.CaptureRows(in, produce)
+	return catalogrt.CaptureRows(in, produce)
 }
 
 // explicitCatalogSource reports the sources openCatalogSourceLocked captures

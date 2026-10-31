@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -140,7 +141,7 @@ func pgCollationUnitCapture(t *testing.T, e *core.Engine, view catalog.Read) *ex
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published partial source", got, err)
 	}
 	unchanged()

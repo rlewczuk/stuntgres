@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -20,7 +21,7 @@ import (
 var opfamilyUnitNames = []string{"oid", "opfmethod", "opfname", "opfnamespace", "opfowner"}
 
 func opfamilyUnitCapture(view catalog.Read, d *catalog.Relation, ref ids.ObjectRef, ctx context.Context) (*exec.Source, error) {
-	return core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, registeredCatalogProducer(2753))
+	return catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: view.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, registeredCatalogProducer(2753))
 }
 
 func opfamilyUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {

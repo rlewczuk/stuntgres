@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func wrapperOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, ma
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := core.CaptureRows(in, produce)
+	source, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +333,7 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 	for remaining := 1; ; remaining++ {
 		in := old
 		in.Context = &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		source, err := core.CaptureRows(in, produce)
+		source, err := catalogrt.CaptureRows(in, produce)
 		if err == nil { source.Close(); completed = remaining; break }
 		if source != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled prefix publication", source, err) }
 	}
@@ -341,7 +342,7 @@ func TestInfoForeignDataWrapperOptionsCapture(t *testing.T) {
 	cancel()
 	in := old
 	in.Context = ctx
-	if source, err := core.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled publication", source, err) }
+	if source, err := catalogrt.CaptureRows(in, produce); source != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled publication", source, err) }
 	_, unchanged := wrapperOptionsRows(t, old)
 	if !reflect.DeepEqual(unchanged, original) { t.Fatal("cancellation mutated catalog") }
 }

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -99,7 +100,7 @@ func TestPGReplicationOriginCaptureOwnership(t *testing.T) {
 			mutate(&bad)
 			rows, err := produce(bad)
 			subscriptionInvariant(t, rows == nil, err)
-			wrapped, err := core.CaptureRows(bad, produce)
+			wrapped, err := catalogrt.CaptureRows(bad, produce)
 			subscriptionInvariant(t, wrapped == nil, err)
 		}
 		// A coherent unpublished capture is legitimate; a source with a foreign

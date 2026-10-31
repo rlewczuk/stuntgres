@@ -886,14 +886,14 @@ association; role names and expression text are owned by the captured authority.
 2. Write a `Producer` in its own file, named after the relation.
 3. Add `{OID, producer}` to the registry, keeping it sorted.
 4. If the producer needs engine state, add a value-taking method to `Runtime`
-   and implement it on the engine's `EngineCatalogRuntime`. If the engine must
+   and implement it on `catalogrt.Runtime` (or its core `Host`). If the engine must
    choose a different catalog, role read or unlock policy for the OID, add a
    case to `openCatalogSourceLocked` in the engine.
 
 ## Runtime capability
 
 `Runtime` is the narrow interface the engine implements per call
-(`EngineCatalogRuntime`). Methods take and return values, never engine structs.
+(`catalogrt.Runtime`). Methods take and return values, never engine structs.
 Building the adapter reads nothing; only the selected producer calls the
 methods it needs. Rule facts and view options are read from catalog payloads
 directly (`Relation.HasRules`, `Relation.VisitRules`, `ViewPayload.Options`).

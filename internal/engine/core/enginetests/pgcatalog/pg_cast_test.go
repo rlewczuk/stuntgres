@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -54,7 +55,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if err := (core.RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
-	if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ids.ObjectRef{}, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast); err == nil || rows != nil {
+	if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ids.ObjectRef{}, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast); err == nil || rows != nil {
 		t.Fatal("foreign source capture", rows, err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -165,7 +166,7 @@ func TestPGCastProjection(t *testing.T) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
-	if rows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast); rows != nil || err == nil {
+	if rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}
 }
@@ -186,7 +187,7 @@ func (c *pgCastCancelDuringCapture) Err() error {
 func TestPGCastCancellationAndGenerations(t *testing.T) {
 	e := engine.New()
 	d, ref := pgCastUnitSource(t, e)
-	old, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
+	old, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgCastCancelDuringCapture{Context: context.Background()}} {
-		rows, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
+		rows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
 		}
@@ -203,7 +204,7 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgCastUnitSource(t, e)
-	newRows, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
+	newRows, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, capturePGCast)
 	if err != nil {
 		t.Fatal(err)
 	}

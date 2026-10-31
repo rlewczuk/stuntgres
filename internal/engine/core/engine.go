@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
@@ -73,9 +74,9 @@ type Engine struct {
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 	Statistics                      statistics.Provider
-	catalogCaptures                 CaptureCache  // Engine.mu; latest shared pg_type/pg_proc rows.
-	Statements                      Statements    // Family dispatch; set by the composition, shared by every target.
-	Factory                         EngineFactory // Composed constructor; set by the composition, shared by every target.
+	catalogCaptures                 catalogrt.CaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.
+	Statements                      Statements             // Family dispatch; set by the composition, shared by every target.
+	Factory                         EngineFactory          // Composed constructor; set by the composition, shared by every target.
 }
 
 // EngineFactory builds a fresh composed engine, as NewWithSettings does: the
@@ -363,7 +364,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.installBuiltinDomainChecks(); err != nil {
 		return nil, err
 	}
-	if err := InitializeSources(&e.Catalog, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)); err != nil {
+	if err := catalogrt.InitializeSources(&e.Catalog, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)); err != nil {
 		return nil, err
 	}
 	if err := e.Catalog.ValidateSeed(builtinSeed); err != nil {

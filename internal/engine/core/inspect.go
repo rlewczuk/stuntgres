@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -93,11 +94,11 @@ func PartitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(
 
 
 // NewCatalogRuntime builds a catalog source runtime from f.
-func NewCatalogRuntime(f CatalogRuntimeFields) *Runtime { return newCatalogRuntime(f) }
+func NewCatalogRuntime(f CatalogRuntimeFields) *catalogrt.Runtime { return newCatalogRuntime(f) }
 
 // CatalogRuntimeFieldsOf returns the fields NewCatalogRuntime built r from.
 func CatalogRuntimeFieldsOf(r pgcatalog.Runtime) CatalogRuntimeFields {
-	return r.(*Runtime).Host.(*catalogRuntime).fields()
+	return r.(*catalogrt.Runtime).Host.(*catalogRuntime).fields()
 }
 
 // AuthorizationMaterializedPopulation returns x.materializedPopulation.

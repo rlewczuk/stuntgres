@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -88,7 +89,7 @@ func TestPGShadowTypedProjectionAndIdentityWidth(t *testing.T) {
 	r = enginetest.FixtureRole(state, max); r.Password = ""; enginetest.PutFixtureRole(state, r)
 	capture := func(root *access.RoleRecord) *exec.Source {
 		t.Helper()
-		s, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
+		s, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 		if err != nil { t.Fatal(err) }; return s
 	}
 	if empty := capture(emptyRoleFixture(e)); empty == nil || empty.Anonymous == nil || len(empty.Anonymous) != 0 { t.Fatal("empty capture lost anonymous source identity") }
@@ -234,13 +235,13 @@ func TestPGShadowCancellation(t *testing.T) {
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: phase.at}
-			source, err := core.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
+			source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 			if source != nil || !errors.Is(err, context.Canceled) || ctx.calls != phase.at {
 				t.Fatal("cancellation published credential prefix or missed check", phase.at, ctx.calls, err)
 			}
 		})
 	}
 	invalid := *d; invalid.Columns = append([]catalog.Column(nil), d.Columns...); invalid.Columns[1].Usage.Type = enginetest.Usage(e, sqltype.Int4).Type
-	source, err := core.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
+	source, err := catalogrt.CaptureRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 	if err == nil || source != nil { t.Fatal("invalid descriptor published rows") }
 }

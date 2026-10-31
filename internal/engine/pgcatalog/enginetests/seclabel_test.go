@@ -7,7 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/core/catalogrt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -40,7 +40,7 @@ func TestSeclabelCaptureAuthority(t *testing.T) {
 	state := view.State()
 	for range 2 {
 		if rows, err := produce(in); err != nil || len(rows) != 0 { t.Fatal("truthful empty source", rows, err) }
-		if got, err := core.CaptureRows(in, produce); err != nil || got == nil || got.Ref != in.Ref || len(got.Anonymous) != 0 { t.Fatal("empty source capture", got, err) }
+		if got, err := catalogrt.CaptureRows(in, produce); err != nil || got == nil || got.Ref != in.Ref || len(got.Anonymous) != 0 { t.Fatal("empty source capture", got, err) }
 	}
 	if e.CatalogRead().State() != state { t.Fatal("capture published state") }
 	foreign := engine.New()
@@ -91,5 +91,5 @@ func TestSeclabelCaptureAuthority(t *testing.T) {
 	x := in
 	x.Context, x.Source = ctx, nil
 	if rows, err := produce(x); rows != nil || !errors.Is(err, context.Canceled) { t.Fatal("cancellation precedence", rows, err) }
-	if got, err := core.CaptureRows(x, produce); got != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled capture published", got, err) }
+	if got, err := catalogrt.CaptureRows(x, produce); got != nil || !errors.Is(err, context.Canceled) { t.Fatal("canceled capture published", got, err) }
 }
