@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `da9c9b9ad` (item 208 rebased on it).
+Last verified against `master` at `ea9ed53c8` (item 215 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 209, 211, 214, 215, 216, 218.
+- 209, 211, 214, 216, 217, 218.
 
 ## Linear plan
 
@@ -111,9 +111,21 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
 214. [ ] Contrib runtimes —
      [core](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) · needs 207, 212,
      213 · P, bench · core after 7.6
-215. [ ] Text-search runtime —
+215. [x] Text-search runtime —
      [core](ENGINE-SPLIT-core.md#item-215--text-search-runtime) · needs 207,
-     212, 213 · P, bench · core after 7.6
+     212, 213 · P, bench · core after 7.6 (`fb8b37d36`, `700f75839`,
+     `43cb74a34`, docs commit) · the text-search runtime (10 files plus the new
+     `host.go`, 38 KiB) moves to the leaf `core/tsearch` (L14.5) over
+     `tsearch.Host[A]` (shared method set on `statementHost`, 6 new methods) and
+     `tsearch.Authority[A]` (implemented by `AuthorizationView`), generic over
+     the authorization value so it is never boxed; core keeps `textSearchHost`'s
+     `exec.TextSearchRuntime` adapters and `dictionary_files.go` (a `DDLHost`
+     method). No test moves (census: no rule-1 tests). Core 10.34 → 10.31 MiB.
+     Bench: startup and 12 text-search probe allocations unchanged; `escdiff`
+     shows no new heap object. Passed: quickcheck, REFERENCE=1
+     `^TestReference(FTS|Dictionary|Thesaurus|TextSearch|TriggerBuiltins)`,
+     `layers.py` 0, `frames.py check`, `revcheck.py`, deps. Racecheck and
+     finalcheck skipped at user request.
 216. [ ] Statistics runtime —
      [core](ENGINE-SPLIT-core.md#item-216--statistics-runtime) · needs 207, 212
      · P, bench · core after 7.55

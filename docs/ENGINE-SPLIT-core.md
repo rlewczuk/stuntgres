@@ -984,7 +984,63 @@ Needs 228. Mode S. Gated.
   ts_rewrite, ts_stat and crosstab do not close a failed execution's rows; only
   connectby does (`CloseFailed`). Kept for byte-identical behaviour.
 - 214: not started.
-- 215: not started.
+- 215: done (`fb8b37d36`, `700f75839`, `43cb74a34`), at `ea9ed53c8`. - **Moved**
+  to `internal/engine/core/tsearch` (replay `move.sh`, cmdmv, 0
+  VIOLATION/SEAM/T6; token-equal to the cut modulo qualifiers):
+  `fts_acquisition`, `fts_conversion`, `fts_debug`, `fts_json`,
+  `fts_parser_runtime`, `fts_stat`, `fts_query_runtime`, `thesaurus_runtime`,
+  `dictionary_runtime`, `unaccent_runtime`, plus the seam file `host.go`. -
+  **Deviation: `dictionary_files.go` stays.** It is the `DDLHost` method
+  `DictionaryFiles` (`extension.DictionaryHost`), which cannot leave its type.
+  Text search reaches it through `Host.DictionaryHost`. - **Host.**
+  `tsearch.Host[A]` is implemented by `statementHost`
+  (`core/tsearch_statement_host.go`). Reused: `exec.NestedSQL` (embedded),
+  `Operation`, `Environments`, `PendingCatalog`, and item 212's
+  `ReacquireEngine`/`ReleaseEngineLocked`, which bracket every Engine.Mu window
+  at the places the old code locked. New: `ActivateRuntime`,
+  `PrivateCatalogLocked(changes)`, `AuthorizationLocked`,
+  `TextSearchInputLocked` (namespace authorization → catalog plus
+  `regobj.TextSearchInput`), `DictionaryHost` (`DDLHost{E, Op}`, boxed per call
+  as before), `ThesaurusMemos` (nil-safe pointer into `sessionPayload`). The
+  spec's routine enter/leave and `AcquireRelation` are not needed (nested SQL
+  covers the first; nothing acquires relations). - **Generic authority.**
+  `tsearch.Authority[A]` = `ddl.Authority` + `Access()` +
+  `Recaptured(catalog.Read) A`; `AuthorizationView` gains `Recaptured`, the
+  value form of `View.Recapture`. An interface would box the authorization once
+  per dictionary acquisition and acceptance (2–3 allocations per conversion, per
+  row); like `analyze.PathInput[E]`, the package is generic instead, and core
+  instantiates it with `AuthorizationView`. `thesaurusMemo.current` takes the
+  role. - **Exported:** `Host`, `Authority`, `ThesaurusMemos` (map type; its
+  element stays unexported), `Capture` (`CaptureConfiguration`, `Captured`,
+  `Walk`, `Accept`: the tsvector trigger's entry, item 217), and the runtime
+  bodies `Convert`, `ConvertJSON`, `Debug`, `Stat`, `Rewrite`, `Lexize`,
+  `Unaccent`, `ResolveParser`. - **Not an embedded state (§2.1).** Text search
+  keeps no state, so `TextSearch()` still returns `(*textSearchHost)(h)`, whose
+  eight methods call the entry functions with the host. - **Tests.** None moved
+  or deleted; no accessor entry reaches moved names (T6: none). Census (item
+  208's re-run) has no rule-1 B tsearch test; the rule-3 ones
+  (`TestFTSDebugCaptureOwnership`, `TestThesaurusDemand*`,
+  `TestThesaurusPreparedOwnership`, `TestThesaurusChain`,
+  `TestFTSQueryFunctionsDiagnosticPhases`,
+  `TestTSConfigurationPreparedIdentity`) stay in core, as item 212 left its
+  rule-3 tests. `thesaurus_demand_test.go` reads the payload by field names
+  `thesaurusMemos`, `runtime` and `normalizer`, kept. - **Measured.** Core 10.34
+  → 10.31 MiB; `core/tsearch` 38 KiB (47 KiB with the README). Interleaved
+  binaries (`bench.txt`): `BenchmarkOpenDatabase` 3,362–3,483 vs 3,353–3,479
+  allocs/op; a temporary probe (lexize, vector, default config, queries, JSON,
+  ts_debug, ts_parse, unaccent, ts_rewrite, ts_stat, 64 rows, the tsvector
+  trigger) has identical allocs/op in every case. `escdiff` over the changed
+  files: no new heap object (shaped acquisitions and consumers,
+  `make(ThesaurusMemos)` and `DDLHost{}` per `DictionaryHost` call match their
+  old twins). `revcheck.py`: test names 2,971 unchanged; literals +2 `"ERROR"`
+  (tsearch's `sqlError`). - **Docs.** New `core/tsearch/README.md`. The core
+  README's conversion, debug, nested-SQL, acquisition, thesaurus chain,
+  rewrite-rule and dictionary-execution paragraphs moved there; core keeps the
+  fold, DDL, Snowball seed and `TextSearchFiles` paragraphs and a pointer. -
+  **Notes for later items.** 217: `updateTriggerVector` uses
+  `tsearch.Capture[AuthorizationView]`, and `nativetrig.Host` needs
+  `tsearch.Host[A]` for `Walk`/`Accept`, so `nativetrig` is generic over the
+  authority too, or core instantiates the tsearch calls.
 - 216: not started.
 - 217: not started.
 - 218: not started.
