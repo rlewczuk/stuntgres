@@ -133,9 +133,17 @@ func TestEventTriggerClassification(t *testing.T) {
 	} {
 		check(stmt, "", false)
 	}
-	// Security labels on these shared objects never invoke event triggers.
-	for _, kind := range []string{"role", "database", "tablespace", "subscription"} {
-		check(&parser.SecurityLabel{Kind: kind}, "", false)
+	for _, kind := range []string{
+		"table", "column", "sequence", "view", "materialized view", "index", "foreign table",
+		"collation", "conversion", "statistics", "text search parser", "text search dictionary",
+		"text search template", "text search configuration", "access method", "extension",
+		"foreign data wrapper", "language", "publication", "schema", "server", "subscription",
+		"type", "domain", "aggregate", "function", "procedure", "routine", "large object",
+	} {
+		check(&parser.SecurityLabel{Kind: kind}, "SECURITY LABEL", true)
+	}
+	for _, kind := range []string{"database", "tablespace", "role", "event trigger", "", "unknown"} {
+		check(&parser.SecurityLabel{Kind: kind}, "SECURITY LABEL", false)
 	}
 	// Subscriptions are shared objects, excluded from event triggers for every action.
 	for _, action := range []string{"create", "connection", "options", "set", "add", "remove", "refresh", "enable", "disable", "skip", "owner", "rename", "drop"} {

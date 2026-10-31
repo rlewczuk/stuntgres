@@ -8,6 +8,8 @@ package parser
  xmlOperand XMLNamedOperand
  xmlStandalone xmlStandaloneOption
  stmt Statement
+ securityLabel *SecurityLabel
+ securityLabelName securityLabelName
  explainOptions []ExplainOption
  explainOption ExplainOption
  dictionaryOptions []DictionaryOption
@@ -1037,8 +1039,13 @@ package parser
 %type <stmt> prepare_sql execute_sql deallocate_sql preparable discard
 %type <stmt> notify listen unlisten load checkpoint
 %type <stmt> security_label
-%type <foreignText> label_provider label_value
-%type <tok> shared_label_kind
+%type <securityLabel> security_label_target
+%type <identifier> security_label_provider
+%type <tok> security_label_head security_label_qualified_kind security_label_single_kind security_label_search_kind
+%type <objectName> security_label_name security_label_signature_head
+%type <securityLabelName> security_label_function_name
+%type <tok> security_label_routine_keyword
+%type <grantRoutine> security_label_routine security_label_aggregate
 %type <stmt> alter_system
 %type <types> prepare_types prepare_type_list
 %type <row> execute_arguments execute_argument_list
@@ -1138,16 +1145,45 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
  | TRUE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$1.pos}} }
  | FALSE { $$=LiteralExpr{Value:Value{Kind:BooleanValue,Pos:$1.pos}} } ;
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
-checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
-security_label: ROUTINE_SECURITY KW_U label_provider ON shared_label_kind name IS label_value {
- if $2.text!="label" {sqllex.(*lexer).syntax($2);return 1}
- $$=&SecurityLabel{Provider:$3,Kind:$5.text,Name:Identifier{Text:$6.text,Pos:$6.pos},Label:$8,Pos:$1.pos}
+security_label_head: ROUTINE_SECURITY KW_U {if $2.text!="label" {sqllex.(*lexer).syntax($2);return 1};$$=$1} ;
+security_label: security_label_head security_label_provider ON security_label_target IS comment_text {
+ node:=$4;node.Provider=$2;node.Label=$6;node.Pos=$1.pos;$$=node
 } ;
-label_provider: /* empty */ {$$=nil}
- | FOR name {v:=$2.text;$$=&v}
- | FOR STRING {v:=$2.text;$$=&v} ;
-shared_label_kind: ROLE | DATABASE | TABLESPACE | SUBSCRIPTION ;
-label_value: STRING {v:=$1.text;$$=&v} | NULL {$$=nil} ;
+security_label_provider: /* empty */ {$$=nil}
+ | FOR col_label {if $2.keyword!=nil && $2.keyword.category==Reserved {sqllex.(*lexer).syntax($2);return 1};$$=&Identifier{Text:$2.text,Pos:$2.pos}}
+ | FOR STRING {$$=&Identifier{Text:$2.text,Pos:$2.pos}} ;
+/* Unlike relation_name, any_name does not impose lookup-time qualification
+ * restrictions. Provider resolution must precede every target lookup. */
+security_label_name: name {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
+ | security_label_name '.' col_label {$$=$1;$$.Parts=append($$.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
+security_label_target: security_label_qualified_kind security_label_name {$$=&SecurityLabel{Kind:$1.text,Name:$2}}
+ | security_label_single_kind name {$$=&SecurityLabel{Kind:$1.text,Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}}}}
+ | TYPE routine_argument_type {$$=&SecurityLabel{Kind:"type",Type:$2}}
+ | DOMAIN routine_argument_type {$$=&SecurityLabel{Kind:"domain",Type:$2}}
+ | grant_routine_kind security_label_routine {$$=&SecurityLabel{Kind:$1.text,Routine:$2}}
+ | AGGREGATE security_label_aggregate {$$=&SecurityLabel{Kind:"aggregate",Routine:$2}}
+ | LARGE OBJECT grant_object_number {$$=&SecurityLabel{Kind:"large object",Number:numberValue($3,"")}} ;
+security_label_function_name: name {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
+ | security_label_routine_keyword {$$=securityLabelName{name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},first:$1}}
+ | security_label_function_name '.' col_label {if !$1.first.keyword.columnName() {sqllex.(*lexer).syntax($<tok>2);return 1};$$=$1;$$.name.Parts=append($$.name.Parts,Identifier{Text:$3.text,Pos:$3.pos})} ;
+security_label_routine_keyword: ordinary_call_keyword | CURRENT_SCHEMA | COLLATION | LEFT | RIGHT | FREEZE | VERBOSE | SIMILAR | OVERLAPS ;
+/* Admit the callable opener before reading argument syntax, so an invalid
+ * unqualified keyword cannot defer its error until a later token or EOF. */
+security_label_signature_head: security_label_function_name '(' {name,ok:=sqllex.(*lexer).securityLabelSignatureName($1,$<tok>2);if !ok{return 1};$$=name} ;
+security_label_routine: security_label_function_name {$$=GrantRoutineTarget{Name:$1.name}}
+ | security_label_signature_head grant_routine_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$2,SignatureSpecified:true}} ;
+security_label_aggregate: security_label_signature_head aggregate_utility_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$2,SignatureSpecified:true}} ;
+security_label_qualified_kind: TABLE | SEQUENCE | VIEW | INDEX | COLUMN | COLLATION | CONVERSION | STATISTICS
+ | MATERIALIZED VIEW {$$=lexeme{text:"materialized view",pos:$1.pos}}
+ | FOREIGN TABLE {$$=lexeme{text:"foreign table",pos:$1.pos}}
+ | TEXT SEARCH security_label_search_kind {$$=lexeme{text:"text search "+$3.text,pos:$1.pos}} ;
+security_label_search_kind: dictionary_word | TS_PARSER | TS_TEMPLATE | TS_CONFIGURATION ;
+security_label_single_kind: SCHEMA | LANGUAGE | EXTENSION | FDW_SERVER | DATABASE | ROLE | SUBSCRIPTION | PUBLICATION | TABLESPACE
+ | LANGUAGE_PROCEDURAL LANGUAGE {$$=lexeme{text:"language",pos:$1.pos}}
+ | ACCESS method_word {$$=lexeme{text:"access method",pos:$1.pos}}
+ | EVENT TRIGGER {$$=lexeme{text:"event trigger",pos:$1.pos}}
+ | FOREIGN data_word wrapper_word {$$=lexeme{text:"foreign data wrapper",pos:$1.pos}} ;
+checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
  $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
 } ;

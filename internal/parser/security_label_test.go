@@ -6,7 +6,7 @@ import (
 )
 
 func TestSecurityLabelParser(t *testing.T) {
- for _, target := range []string{"ROLE", "DATABASE", "TABLESPACE", "SUBSCRIPTION"} {
+ for _, target := range []string{"ROLE", "DATABASE", "TABLESPACE", "SUBSCRIPTION", "TABLE"} {
   for _, tc := range []struct{ clause, provider string; present bool }{
    {"", "", false}, {" FOR MiSsInG", "missing", true}, {" FOR \"MiSsInG\"", "MiSsInG", true},
    {" FOR 'MiSsInG'", "MiSsInG", true}, {" FOR ''", "", true}, {" FOR 'quo''te'", "quo'te", true},
@@ -17,11 +17,11 @@ func TestSecurityLabelParser(t *testing.T) {
     stmts, err := Parse(q)
     if err != nil || len(stmts)!=1 { t.Fatal(q, stmts, err) }
     s, ok := stmts[0].(*SecurityLabel)
-    if !ok || s.Kind!=strings.ToLower(target) || s.Name.Text!="target" || (s.Provider!=nil)!=tc.present || s.Provider!=nil && *s.Provider!=tc.provider || (s.Label==nil)!=(label=="NULL") || s.Label!=nil && *s.Label!="value" || s.Pos.Character!=1 { t.Fatal(q,s) }
+    if !ok || s.Kind!=strings.ToLower(target) || len(s.Name.Parts)!=1 || s.Name.Parts[0].Text!="target" || (s.Provider!=nil)!=tc.present || s.Provider!=nil && s.Provider.Text!=tc.provider || (s.Label.Kind==NullValue)!=(label=="NULL") || s.Label.Kind!=NullValue && (s.Label.Kind!=StringValue || s.Label.Text!="value") || s.Pos.Character!=1 { t.Fatal(q,s) }
    }
   }
  }
- for _, q := range []string{"SECURITY LABEL ON ROLE r IS 'x' trailing", "SECURITY LABEL FOR ON ROLE r IS 'x'", "SECURITY LABEL ON TABLE r IS 'x'", "SECURITY LABEL ON ROLE r IS $1", "SECURITY LABEL ON ROLE r IS", "SECURITY other ON ROLE r IS NULL"} {
+ for _, q := range []string{"SECURITY LABEL ON ROLE r IS 'x' trailing", "SECURITY LABEL FOR ON ROLE r IS 'x'", "SECURITY LABEL ON TABLE r IS $1", "SECURITY LABEL ON ROLE r IS $1", "SECURITY LABEL ON ROLE r IS", "SECURITY other ON ROLE r IS NULL"} {
   if _, err := Parse(q); err==nil { t.Fatal("accepted malformed syntax",q) }
  }
  for _, q := range []string{"CREATE TABLE label(label text)", "CREATE FUNCTION label() RETURNS int LANGUAGE SQL SECURITY DEFINER AS 'SELECT 1'", "ALTER TABLE label ENABLE ROW LEVEL SECURITY"} {
@@ -46,7 +46,7 @@ func TestSecurityLabelEmbeddedParser(t *testing.T) {
   raw:=command.SQL
   if raw==nil || !ValidPLSQLStatement(raw) || raw.Kind!=PLCommandSQL || raw.Text!=tc.command || command.Target!=nil || command.Expression!=nil || command.Into!=nil{t.Fatal("security label not captured as ordinary utility",command)}
   label,ok:=raw.Query.(*SecurityLabel)
-  if !ok || label.Kind!="role" || label.Name.Text!="missing" || (label.Provider==nil)!=(tc.provider==nil) || label.Provider!=nil && *label.Provider!=*tc.provider || (label.Label==nil)!=(tc.label==nil) || label.Label!=nil && *label.Label!=*tc.label{t.Fatal("embedded security label fields",raw.Query)}
+  if !ok || label.Kind!="role" || len(label.Name.Parts)!=1 || label.Name.Parts[0].Text!="missing" || (label.Provider==nil)!=(tc.provider==nil) || label.Provider!=nil && label.Provider.Text!=*tc.provider || (label.Label.Kind==NullValue)!=(tc.label==nil) || tc.label!=nil && (label.Label.Kind!=StringValue || label.Label.Text!=*tc.label){t.Fatal("embedded security label fields",raw.Query)}
   for _,index:=range []int{0,2}{
    assignment:=block.Statements[index]
    target,ok:=assignment.Target.(ColumnExpr)

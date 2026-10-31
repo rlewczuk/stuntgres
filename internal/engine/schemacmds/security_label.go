@@ -8,6 +8,9 @@ import (
  "stuntgres/internal/parser"
 )
 
+// ExecuteSecurityLabel runs after ordinary session, failed-transaction, read-only
+// and eligible command-start event admission. Provider resolution precedes target
+// lookup/ownership. With no installed providers there is no target/mutation phase.
 func ExecuteSecurityLabel(e *core.Engine, op *session.Operation, stmt *parser.SecurityLabel, count int) (core.Result, error) {
  if count != 0 { return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count) }
  e.Mu.Lock()

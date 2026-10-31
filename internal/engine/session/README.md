@@ -308,6 +308,17 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   command tags (`command_tag.go`), including non-counted ALTER STATISTICS targets;
   ALTER DATABASE defaults are modifying, non-counted transactional utilities,
   excluded from event-trigger dispatch independently of their completion tag.
+  SECURITY LABEL is modifying and non-counted, with DescribeOperation before
+  snapshots. It is not a SQL PREPARE body, read-only exemption or aborted-control
+  command. Healthy read-write transactions reach provider resolution without a
+  provider-state journal or standalone-utility refusal; read-only and failed-state
+  admission precede callbacks and the execution-time absent-provider error.
+  EventCommand admits SECURITY LABEL for its database-local target families
+  and subscription, excluding database/tablespace/role/event-trigger targets.
+  The existing event frame invokes command-start before provider resolution,
+  retains callback writes atomically, and suppresses command-end on failure.
+  With zero installed providers it needs no target snapshot, relation lock
+  or replacement fence.
   admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,
   `ExplicitUtilityRefusal`, `TransactionalSchemaUtility`); snapshot, replacement-read and Describe classes

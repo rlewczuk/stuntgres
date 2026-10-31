@@ -4,9 +4,9 @@ The SQL lexer, goyacc grammar and AST. It imports only the standard library and
 `sqlstate`; binding, name resolution and execution policy (including the
 single-statement limit of driver calls) belong to callers.
 
-`SecurityLabel` retains bounded SECURITY LABEL shared-target syntax (ROLE,
-DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command, optional decoded
-identifier or string provider, and string versus NULL label. Provider presence
+`SecurityLabel` retains SECURITY LABEL target syntax, including shared targets
+(ROLE, DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command, optional
+decoded identifier or string provider, and string versus NULL label. Provider presence
 is independent of its spelling, so FOR '' is not omission. LABEL remains the
 existing unreserved word; routine SECURITY and row-security syntax are unchanged.
 Preparation is syntax-only; current execution owns absent-provider diagnostics.
@@ -64,6 +64,17 @@ ordinary assignments to an unreserved `security` variable.
 - CHECKPOINT retains only its command position and has no operand grammar.
   It remains an unreserved identifier; SQL PREPARE and EXPLAIN do not admit it.
   Privileges and the physical boundary belong to execution, not parsing.
+- SECURITY LABEL retains optional provider presence (including `FOR ''`),
+  decoded spelling, label string versus NULL, and structured target syntax.
+  Release target families include qualified object/column names, single names,
+  types/domains, routine/aggregate signatures and numeric large-object IDs.
+  Parsing does not resolve targets or providers, even for syntactically valid
+  provider-unsupported kinds. Labels are not expressions or parameters.
+  Routine and aggregate callable categories are checked at their shared positioned
+  opener, before argument parsing: malformed or incomplete arguments cannot
+  replace an already-invalid opener's diagnostic with a later token or EOF.
+  Whole-input syntax/character diagnostics remain ordinary parser errors;
+  SQL PREPARE excludes this utility, unlike protocol preparation.
 - Publication utilities retain positioned table/schema groups, ONLY/star,
   absent versus explicit column lists, normal filter syntax, ordered options
   and multi-object drops. Grammar owns full-input consumption; current

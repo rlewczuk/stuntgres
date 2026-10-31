@@ -76,13 +76,17 @@ type Load struct {
 
 func (*Load) statement() {}
 
-// SecurityLabel retains shared-target syntax without implying a loaded provider.
+// SecurityLabel preserves syntax without resolving the target. Providers are
+// execution-time external capabilities; a nil Provider differs from FOR ''.
 type SecurityLabel struct {
-	Provider *string // nil means FOR was omitted; an empty provider is distinct.
-	Kind string
-	Name Identifier
-	Label *string // nil means IS NULL (removal).
-	Pos Position
+	Provider *Identifier
+	Kind     string
+	Name     ObjectName
+	Type     TypeName
+	Routine  GrantRoutineTarget
+	Number   Value
+	Label    Value
+	Pos      Position
 }
 
 func (*SecurityLabel) statement() {}

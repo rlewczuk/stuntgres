@@ -123,6 +123,31 @@ type Producer func(Input) ([][]sqltype.Value, error)
   represented object's privileges or schema USAGE, while normal catalog
   relation/column SELECT admission and held-statement rechecks still apply.
   Reads never create history or derive it from current ACLs or provider recipes.
+- `pg_seclabel` (3596) exposes the five nonnullable PostgreSQL columns
+  `objoid`/`classoid` (OID), `objsubid` (INT4), `provider`/`label` (TEXT),
+  with no row OID. It reuses the initialized row/array types and validates
+  captured source, owned shape and paired role authority even when empty.
+  Textual bootstrap `pg_attribute` facts use C collation (950), independently
+  of the result carrier's ordinary TEXT usage (default collation 100).
+  PUBLIC SELECT and ordinary column grants/revocation apply before EOF.
+  There are no installed security-label providers: valid SECURITY LABEL
+  commands reject at execution with 22023 before target lookup or ownership.
+  This includes NULL removal and conventional dummy/selinux spellings.
+  Existing DDL command-start event triggers run before provider resolution for
+  eligible target kinds and may veto first. Database, tablespace, role and
+  event-trigger targets bypass those events; subscription remains eligible.
+  Read-only/failed-transaction admission precedes callbacks. Provider failure
+  suppresses command-end events and rolls back callback writes through the
+  existing event journal, without adding label storage.
+  No label map, provider registry, fake assignments or serializer exists.
+  Reset and Restore use normal catalog bootstrap; Dump emits no label commands.
+  With a real provider, labels would key object OID, catalog class, stable
+  subobject attribute number and provider; rename would preserve identity,
+  replacement/removal would affect only that key and drop would remove its
+  labels. Those provider-backed effects and veto/target-ownership branches are
+  unreachable here, not delivered successful attachment behavior.
+  Shared-object labels (`pg_shseclabel`) and the `pg_seclabels` presentation
+  view remain separate and are not exposed by this source.
 - `pg_partitioned_table` (3350) projects eight attributes from real immutable
   partition descriptors through `Runtime.PartitionMetadata`, without a row store
   or DDL population hooks. Stable key attnums, selected operator classes, effective

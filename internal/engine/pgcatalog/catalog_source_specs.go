@@ -42,6 +42,13 @@ var Specs = [...]Spec{
 		{"privtype", sqltype.Char, false, 0, 0, -1},
 		{"initprivs", sqltype.ID(1034), false, 0, 1, -1},
 	}, false, CatalogHasIndexes(3394), true, false, "stuntgres: missing initial privileges source type"},
+	{3596, ids.PGCatalogNamespaceOID, "pg_seclabel", []ColumnSpec{
+		{"objoid", sqltype.Oid, false, 0, 0, -1},
+		{"classoid", sqltype.Oid, false, 0, 0, -1},
+		{"objsubid", sqltype.Int4, false, 0, 0, -1},
+		{"provider", sqltype.Text, false, 0, 0, -1},
+		{"label", sqltype.Text, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(3596), true, false, "stuntgres: missing security label source type"},
 	{ids.TriggerClassID, ids.PGCatalogNamespaceOID, "pg_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"tgrelid", sqltype.Oid, false, 0, 0, -1},

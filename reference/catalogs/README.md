@@ -34,6 +34,27 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Security-label scenarios use `make check RUN='^TestReferencePgSeclabel'`
+(add `REFERENCE=1` for pinned PostgreSQL). The original seven permanent definitions
+cover Metadata, Diagnostics, Providers, Authorization, Transactions, Lifecycle and
+Smoke; Events additionally covers target-dependent command-start precedence.
+Independent expectations cover exact empty five-column catalog metadata,
+complete target grammar, decoded provider spelling, execution-time 22023,
+read-only 25006 before provider resolution, failed-transaction 25P02 and ordinary
+relation/column SELECT ACLs even at EOF. Direct and real prepared routes share
+the scenarios; native-only control phases exercise Dump/Reset/Restore and retained
+metadata, while PostgreSQL uses real SQL object lifecycle.
+The Events scenario independently observes command-start notices before 22023,
+start-trigger veto before provider resolution, absent command-end execution,
+excluded shared/event-trigger targets, eligible subscription targets, callback
+write rollback, and read-only/failed-state refusal before callbacks.
+Bootstrap catalog ownership is checked relative to pg_class: the oracle's
+bootstrap role is named stuntgres, whereas native bootstrap is postgres.
+Neither fixture installs a real label provider. No successful assignment,
+replacement/deletion, provider veto or provider-backed target-ownership/storage behavior
+is claimed. Arbitrary, dummy and selinux names and NULL removal all reject;
+native controls never manufacture providers or label rows.
+
 Encoding-name and parser-keyword scenarios use `RUN='^TestReferenceEncodingKeywords'`.
 Their independent release inventories cover all canonical encodings/aliases and
 the complete keyword bag. Shared direct/prepared bodies cover typed metadata,

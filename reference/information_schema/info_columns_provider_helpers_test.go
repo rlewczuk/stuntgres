@@ -23,6 +23,7 @@ func icProviderInventory(c *icCase) {
 		"pg_default_acl": fixture.PGDefaultACLColumns, "pg_description": fixture.PGDescriptionColumns,
 		"pg_enum": fixture.PGEnumColumns, "pg_extension": fixture.PGExtensionColumns,
 		"pg_init_privs": strings.Fields("objoid classoid objsubid privtype initprivs"),
+		"pg_seclabel": strings.Fields("objoid classoid objsubid provider label"),
 		"pg_namespace":  fixture.PGNamespaceColumns, "pg_type": fixture.PGTypeColumns,
 		"pg_group": fixture.PGGroupColumns, "pg_roles": fixture.PGRolesColumns,
 		"pg_language": fixture.PGLanguageColumns, "pg_parameter_acl": fixture.PGParameterACLColumns,
