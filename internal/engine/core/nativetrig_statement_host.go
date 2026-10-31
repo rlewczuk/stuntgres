@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/nativetrig"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +21,7 @@ import (
 // with the other leaves and exec.Host. The authorization, sequence, identity
 // and nested-SQL bodies stay core's; the trigger protocol checks and row work
 // are the bodies'.
-var _ Host[AuthorizationView] = (*statementHost)(nil)
+var _ nativetrig.Host[AuthorizationView] = (*statementHost)(nil)
 
 // NamespaceAuthorizationLocked is the statement's namespace authorization:
 // the callable authority over the statement's private catalog.

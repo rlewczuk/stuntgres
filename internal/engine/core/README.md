@@ -484,75 +484,13 @@ before allocating any PL frame.
 Each body borrows OLD/current NEW. Immediate bodies borrow stable command UPDATE
 attributes; queued events own an immutable target copy shared by the definitions
 accepted in one queue call and forward it unchanged to native firing. Earlier
-row rewrites never widen that lexical target set. Suppression uses cancellable
-typed payload comparison, not SQL equality. Vector bodies capture
-one immutable current FTS generation per invocation, resolving explicit names
-eagerly and row OIDs at the first non-NULL source. Parser, dictionary and notice
-callbacks run unlocked. Separate sources share a caller-owned position counter;
-non-rebuilding UPDATEs still validate and parse but retain no output vector.
-Argument lookup retains catalog system-attribute existence and type authority
-without treating negative attributes as dense slots. BEFORE NEW is a transient
-tuple: its tableoid is InvalidOid, not the producer relation's identity. Vector
-replacement preserves the destination's owned logical descriptor using the
-binary-compatible carrier, without introducing SQL assignment or fresh domain
-input checks. Ordinary input and subsequent table constraints retain their owners.
-The tcn body reads valid primary-index keys by stable attribute in key order,
-uses ordinary type output with exact payload quoting, and appends only validated
-events to the existing statement-local notification effects. UPDATE and DELETE
-borrow OLD; INSERT borrows NEW. Commit, rollback, deduplication and savepoints
-remain notification-owner responsibilities. Ordinary SQL helper calls retain
-installed routine authority but never borrow an enclosing trigger activation.
-Routine environments, trigger depth and statement rollback retain their existing
-owners. C TriggerData/native ABI, heap/TOAST layout, WAL and process loading are
-outside this process-local logical execution and control boundary.
-Autoinc borrows the incoming tuple for every literal column/sequence pair and
-clones output only at its first replacement. Only actual INT4 columns qualify;
-NULL/zero demands late textual relation lookup and the ordinary sequence host.
-Each allocated int64 narrows to int32; narrowed zero retries exactly once.
-Sequence identity is captured before its allocation lock wait, and allocation,
-ACL/read-only checks, session memory and rollback behavior remain sequence-owned.
-Logical replay stores current helper identity and unchanged argument text,
-never early-bound sequence/column identities or activation state.
+row rewrites never widen that lexical target set.
 
-Installed refint procedures join this checked native trigger boundary using
-their immutable provider symbols. `check_primary_key` probes ordinary SQL for
-the current referencing values; `check_foreign_key` executes restrict, cascade
-or setnull against OLD keys, preparing every listed reference before unchanged
-UPDATE detection. Any NULL local key short-circuits according to the stock
-protocol. Arguments naming local attributes use exact catalog spelling; remote
-relation/column arguments remain SQL text, including required identifier quotes.
-These are not dependency-bound relation names and renaming a table does not
-rewrite them. The generated SQL parser and typed binder share the same closed
-positional parameter count and local key type declarations; outer statement
-parameters never supply or bound a nested helper's frame.
-Generated SQL uses the ordinary nested command owner, invoker
-rights, RLS, inheritance and genuine child triggers. Effects share the outer
-statement journal and roll back atomically, while already delivered action
-notices remain observable. Per-invocation cascade UPDATE literals use current
-NEW output values with SQL quoting and explicit NULL, without a plan cache.
-Generated-SQL failures retain SPI-style internal positions/query or nested SQL
-contexts; helper-owned violations use 09000 rather than declarative-FK 23503.
-Native controls replay installed identities and postdata triggers, never frames
-or cached invocation values. PostgreSQL's SPI/fmgr C ABI and shared-library
-loading are external mechanisms, not exemptions from these logical SQL effects.
-
-The stock moddatetime provider replaces one exact builtin timestamp/timestamptz
-NEW field from the transaction start and current session zone, using unsized
-precision rather than reapplying the column typmod. Literal arguments name
-case-sensitive user columns; domains are not temporal helper destinations.
-Ordinary SQL invocation is an unfolded evaluation-time protocol error.
-BEFORE/AFTER STATEMENT, including TRUNCATE, and AFTER ROW enter the shared
-native boundary and receive the helper's row-before-timing protocol checks.
-Arbitrary shared-library loading and general PostgreSQL SPI are not engine paths.
-
-`trigger_lo.go` consumes authentic lo_manage dispatch through that same boundary.
-It borrows OLD/current NEW and stable target attribute identities, using inline
-unsigned OID/domain comparison on the common path and shared scalar output for
-other representations. The direct unlink host call enforces existence/ownership
-in the existing statement catalog journal, without another function EXECUTE
-check or undo store. Trigger lookup errors occur only when fired; extra literal
-arguments are ignored. No timing restriction, automatic attachment, reference
-counting or TRUNCATE/DROP cleanup is added.
+Native trigger bodies (tcn, refint, autoinc, insert_username, moddatetime,
+lo_manage, suppression and the tsvector triggers) are the leaf
+[`core/nativetrig`](nativetrig/README.md). Core keeps the invocation
+envelope (`invokeNativeTrigger`, `native_trigger.go`) and implements
+`nativetrig.Host` on `statementHost` (`nativetrig_statement_host.go`).
 
 
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
@@ -2311,10 +2249,6 @@ session, transaction, prepared-analysis and typed-frame authorities.
 
 Installed and fixed native DML trigger bodies use one balanced entry for
 routine depth, trigger depth, effective-user/configuration and command policy.
-The insert_username body borrows producer NEW, resolves its literal target
-against the admitted relation on each firing, requires exact declared TEXT and
-changes only that cell. Current-user capture occurs inside the routine
-environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
 
@@ -2406,9 +2340,6 @@ Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDept
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share
 `RUN='^TestTriggerBuiltins'`; public SQL/control witnesses live in `reference/operators`.
-LO cleanup datum/decimal-prefix decision units use `RUN='^TestLoManage'`;
-shared SQL, diagnostics and native-control witnesses live in
-`reference/extension_types`.
 Native tcn payload quoting and shared-entry unwind units use `RUN='^TestTcn'`;
 provider-authority units share that family in `schemacmds`, and public SQL,
 notification ordering and controls belong to `reference/sessions`.
