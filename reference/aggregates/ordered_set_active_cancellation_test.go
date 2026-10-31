@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -13,7 +14,19 @@ func TestReferenceOrderedSetAggregateActiveCancellation(t *testing.T) {
 		route := "direct"
 		if prepared { route = "prepared" }
 		t.Run(route, func(t *testing.T) {
-		orderedSetScenario(t,func(t *testing.T,p *fixture.Pair,c *sql.Conn,b fixture.Backend) {
+			p := fixture.NewScenario(t)
+			// This definition retains its 30-second route budget even when the
+			// generic fixture permits longer scenarios. Never refresh it per backend.
+			ctx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
+			defer cancel()
+			p.Ctx = ctx
+			for _, b := range p.Backends() {
+				t.Run(b.Name, func(t *testing.T) {
+					c, err := b.DB.Conn(p.Ctx)
+					if err != nil { t.Fatal(err) }
+					defer c.Close()
+					fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("SET IntervalStyle='postgres'",0))
+					fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("SET lc_monetary='C'",0))
 		fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("CREATE TABLE os_active(x INT)",0))
 		fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("INSERT INTO os_active SELECT generate_series(1,64)",64))
 		// Reuse a small stored seed. Active input has 64^3 nonconstant sums,
@@ -31,7 +44,8 @@ func TestReferenceOrderedSetAggregateActiveCancellation(t *testing.T) {
 			fixture.RunStep(t,p.Ctx,c,b.Recorder,orderedSetValue("SELECT count(*) AS v FROM os_active","INT8",int64(64)))
 			recovered:=orderedSetValue(q,"FLOAT8",float64(4.5));recovered.Args=[]any{int64(2)}
 			fixture.RunStep(t,p.Ctx,fixture.HeldStatement{Executor:c,Statement:stmt,SQL:q},b.Recorder,recovered)
-	})
+				})
+			}
 		})
 	}
 }

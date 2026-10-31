@@ -69,10 +69,31 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
     comparator in the same goroutine-profile record. It uses pprof's debug=1
     profile, not runtime.Stack/debug=2 all-goroutine stack dumps; profiler stack
     truncation cannot substitute an unrelated worker or a launcher-only frame.
+  - A missed profile waits `min(15s,max(5ms,2*capture wall))`, interruptible by
+    the original child context or operation result. The 15-second ceiling is
+    the existing admission horizon, not an additional budget.
+    Capture wall includes scheduling, collection and symbolization; it is not
+    worker CPU time or additive query overhead. Rest does not prove progress,
+    and a missed finite sort still fails. Initial capture and witnessed live
+    cancellation have no deliberate delay.
+  - Failure diagnostics distinguish worker deadline before **observed** sort,
+    observer deadline with the worker pending at the checked boundary, early
+    completion/missed sort and unexpected errors. They retain worker entry/
+    completion versus observer receipt, capture/wait costs, last owned live
+    frame/justified phase and cancellation/join brackets. Unknown or truncated
+    samples never prove that sort did not run between captures.
   - Native cancellation returns nil Rows/Result/Stmt and `context.Canceled`.
     Cleanup shares one 5-second join with normal cancellation handling.
-  - Recovery reuses the same held statement with a small input instead of
-    repeating the large sort.
+  - The stored seed remains 64 and active bind64 generates 64³ nonconstant
+    inputs. After cancellation, source count is still 64; recovery uses the
+    SAME physical connection and SAME preheld statement with bind2, requiring
+    exact FLOAT8/raw `float64` median 4.5. PostgreSQL retains actual PID/query
+    admission, real `pg_cancel_backend` and joined ERROR/57014
+    `canceling statement due to user request`; native requires ordinary
+    `context.Canceled` without SQLSTATE.
+  - Select the complete definition and local observer/cleanup units with
+    `make check RUN='^(TestReferenceOrderedSetAggregateActiveCancellation|TestOrderedSetWorkerSorting|TestOrderedSetWorkerProfile|TestOrderedSetObservationWait|TestOrderedSetObservationDiagnostic|TestOrderedSetCancellationJoin)$'`,
+    adding `REFERENCE=1` for the oracle or `RACE=1` for race coverage.
 - **Other cancellation.** Hypothetical-set cancellation admits on
   `stuntgres.WorkAggregateInput` through `fixture.BinaryConversionActiveCancel`; sort
   phases are covered by private units. SQL/JSON object aggregation places a

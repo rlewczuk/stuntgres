@@ -27,6 +27,8 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	}
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
 	done := make(chan fixture.RelationOutcome, 1)
+	entered := make(chan time.Time, 1)
+	finished := make(chan time.Time, 1)
 	// Routes are serial and each owns one operation. The test's full name gives
 	// its worker a distinct identity even when other packages are being tested.
 	worker := t.Name()
@@ -35,6 +37,10 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	var out fixture.RelationOutcome
 	var samples int
 	var captureTotal, captureMax time.Duration
+	var launchAt, resultAt, witnessAt, cancelAt, joinAt time.Duration
+	var firstCapture, lastCapture, requestedWait, actualWait time.Duration
+	var lastPhase string
+	var lastFrame []byte
 	var joinOwner orderedSetCancellationJoin
 	join := func() {
 		if joined || joinOwner.attempted {
@@ -43,10 +49,17 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		timer := time.NewTimer(5 * time.Second)
 		defer timer.Stop()
 		out, joined = joinOwner.receive(done, timer.C)
+		joinAt = time.Since(start)
+		if joined {
+			resultAt = joinAt
+		}
 	}
 	// Cleanup precedes outer statement/connection cleanup even when an assertion
 	// calls Fatal. Keep one terminal join allowance and the eventual real outcome.
 	defer func() {
+		if cancelAt == 0 {
+			cancelAt = time.Since(start)
+		}
 		cancel()
 		join()
 		if !joined {
@@ -58,17 +71,33 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		if out.Stmt != nil {
 			out.Stmt.Close()
 		}
+		var workerEntered, workerFinished time.Duration
+		select {
+		case at := <-entered:
+			workerEntered = at.Sub(start)
+		default:
+		}
+		select {
+		case at := <-finished:
+			workerFinished = at.Sub(start)
+		default:
+		}
 		if t.Failed() {
-			t.Logf("ordered observation: worker=%q samples=%d capture_total=%s capture_max=%s elapsed=%s joined=%t parent_err=%v child_err=%v actual_error=%T %v rows=%t result=%t stmt=%t",
-				worker, samples, captureTotal, captureMax, time.Since(start), joined, p.Ctx.Err(), ctx.Err(), out.Err, out.Err, out.Rows != nil, out.Result != nil, out.Stmt != nil)
+			t.Logf("ordered observation: worker=%q samples=%d capture_total=%s capture_max=%s elapsed=%s launch=%s worker_entered=%s worker_finished=%s first_capture=%s last_capture=%s requested_wait=%s actual_wait=%s last_phase=%s last_frame=%q witness=%s cancel=%s result_received=%s join=%s joined=%t parent_err=%v child_err=%v actual_error=%T %v rows=%t result=%t stmt=%t",
+				worker, samples, captureTotal, captureMax, time.Since(start), launchAt, workerEntered, workerFinished, firstCapture, lastCapture, requestedWait, actualWait, lastPhase, lastFrame, witnessAt, cancelAt, resultAt, joinAt, joined, p.Ctx.Err(), ctx.Err(), out.Err, out.Err, out.Rows != nil, out.Result != nil, out.Stmt != nil)
 		}
 	}()
+	launchAt = time.Since(start)
 	go pprof.Do(ctx, pprof.Labels(orderedSetWorkerLabel, worker), func(ctx context.Context) {
-		done <- operation(ctx)
+		entered <- time.Now()
+		actual := operation(ctx)
+		finished <- time.Now()
+		done <- actual
 	})
 	early := func(r fixture.RelationOutcome) {
 		out = r
 		joined = true
+		resultAt = time.Since(start)
 		t.Fatal(orderedSetObservationFailure(out.Err), out.Err)
 	}
 	profile := pprof.Lookup("goroutine")
@@ -85,7 +114,12 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		default:
 		}
 		if ctx.Err() != nil {
-			t.Fatal("observer deadline without observed sort", ctx.Err())
+			select {
+			case r := <-done:
+				early(r)
+			default:
+			}
+			t.Fatal("observer deadline without observed sort; worker pending at boundary", ctx.Err())
 		}
 		sample.Reset()
 		before := time.Now()
@@ -101,10 +135,23 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 		if cost > captureMax {
 			captureMax = cost
 		}
-		if orderedSetWorkerFrame(sample.Bytes(), worker, orderedSetSortFrame) {
+		lastCapture = time.Since(start)
+		if firstCapture == 0 {
+			firstCapture = lastCapture
+		}
+		owned := orderedSetWorkerRecord(sample.Bytes(), worker)
+		lastPhase = orderedSetObservationPhase(owned)
+		top, _, _ := bytes.Cut(owned, []byte("\n"))
+		if len(top) > 240 {
+			top = top[:240]
+		}
+		lastFrame = append(lastFrame[:0], top...)
+		if lastPhase == "sort" {
+			witnessAt = time.Since(start)
 			if ctx.Err() != nil || p.Ctx.Err() != nil {
 				t.Fatal("witness without live cancellation budget")
 			}
+			cancelAt = time.Since(start)
 			cancel()
 			join()
 			if !joined {
@@ -116,13 +163,18 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			fixture.LexicalOrdinary(t, out.Err, context.Canceled)
 			return
 		}
-		poll.Reset(orderedSetObservationWait(cost))
+		wait := orderedSetObservationWait(cost)
+		requestedWait += wait
+		poll.Reset(wait)
+		before = time.Now()
 		select {
 		case <-ctx.Done():
 		case r := <-done:
+			actualWait += time.Since(before)
 			early(r)
 		case <-poll.C:
 		}
+		actualWait += time.Since(before)
 	}
 }
 
@@ -131,44 +183,71 @@ func orderedSetActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 // launcher name or a sort frame belonging to another operation. Profile labels
 // avoid depending on a deep wrapper frame surviving the profiler's stack limit.
 func orderedSetWorkerFrame(sample []byte, worker, wantFrame string) bool {
+	return orderedSetRecordFrame(orderedSetWorkerRecord(sample, worker), wantFrame)
+}
+
+// Return only the owned record's live frames. Absence/truncation is unknown,
+// never evidence that the operation did not reach a phase between captures.
+func orderedSetWorkerRecord(sample []byte, worker string) []byte {
 	if worker == "" {
-		return false
+		return nil
 	}
 	for len(sample) > 0 {
 		block, rest, found := bytes.Cut(sample, []byte("\n\n"))
-		var owned, sorting bool
-		for _, line := range bytes.Split(block, []byte("\n")) {
+		_, lines, _ := bytes.Cut(block, []byte("\n"))
+		for remaining := lines; len(remaining) > 0; {
+			line, tail, _ := bytes.Cut(remaining, []byte("\n"))
+			remaining = tail
 			if labels, ok := bytes.CutPrefix(line, []byte("# labels: ")); ok {
 				var values map[string]string
-				if json.Unmarshal(labels, &values) == nil {
-					owned = values[orderedSetWorkerLabel] == worker
+				if json.Unmarshal(labels, &values) == nil && values[orderedSetWorkerLabel] == worker {
+					return tail
 				}
-				continue
 			}
-			fields := bytes.Fields(line)
-			if len(fields) < 3 || !bytes.Equal(fields[0], []byte("#")) {
-				continue
-			}
-			function, _, _ := bytes.Cut(fields[2], []byte("+"))
-			if bytes.Equal(function, []byte(wantFrame)) {
-				sorting = true
-			}
-		}
-		if owned && sorting {
-			return true
 		}
 		if !found {
 			break
 		}
 		sample = rest
 	}
+	return nil
+}
+
+func orderedSetRecordFrame(record []byte, wantFrame string) bool {
+	for len(record) > 0 {
+		line, rest, _ := bytes.Cut(record, []byte("\n"))
+		record = rest
+		fields := bytes.Fields(line)
+		if len(fields) < 3 || !bytes.Equal(fields[0], []byte("#")) {
+			continue
+		}
+		function, _, _ := bytes.Cut(fields[2], []byte("+"))
+		if bytes.Equal(function, []byte(wantFrame)) {
+			return true
+		}
+	}
 	return false
 }
 
-// Keep the existing bounded, cost-sensitive observation pacing.
+func orderedSetObservationPhase(record []byte) string {
+	if orderedSetRecordFrame(record, orderedSetSortFrame) {
+		return "sort"
+	}
+	if orderedSetRecordFrame(record, "stuntgres/internal/engine/exec.(*Stage).Drain") ||
+		orderedSetRecordFrame(record, "stuntgres/internal/engine/exec.OpenJoinNode") {
+		return "source"
+	}
+	// openAggregateNode alone spans input, staging and finalization, so it
+	// cannot establish staging without a separately justified source location.
+	return "unknown"
+}
+
+// Rest in proportion to the actual all-worker profile cost. The ceiling is the
+// existing admission horizon, not extra time: the caller always selects the
+// original child context and worker result. Rest itself proves no progress.
 func orderedSetObservationWait(cost time.Duration) time.Duration {
-	if cost >= 25*time.Millisecond/2 {
-		return 25 * time.Millisecond
+	if cost >= 15*time.Second/2 {
+		return 15 * time.Second
 	}
 	if cost <= 5*time.Millisecond/2 {
 		return 5 * time.Millisecond
@@ -298,7 +377,11 @@ func TestOrderedSetObservationWait(t *testing.T) {
 		{-1, 5 * time.Millisecond}, {0, 5 * time.Millisecond}, {time.Millisecond, 5 * time.Millisecond},
 		{2500 * time.Microsecond, 5 * time.Millisecond}, {4 * time.Millisecond, 8 * time.Millisecond},
 		{12 * time.Millisecond, 24 * time.Millisecond}, {12500 * time.Microsecond, 25 * time.Millisecond},
-		{time.Duration(1<<63 - 1), 25 * time.Millisecond},
+		{100 * time.Millisecond, 200 * time.Millisecond},
+		{3354342562 * time.Nanosecond, 6708685124 * time.Nanosecond},
+		{7500*time.Millisecond - time.Nanosecond, 15*time.Second - 2*time.Nanosecond},
+		{7500 * time.Millisecond, 15 * time.Second},
+		{time.Duration(1<<63 - 1), 15 * time.Second},
 	} {
 		if got := orderedSetObservationWait(tc.cost); got != tc.want {
 			t.Errorf("cost=%s wait=%s want=%s", tc.cost, got, tc.want)
@@ -321,6 +404,19 @@ func TestOrderedSetObservationDiagnostic(t *testing.T) {
 	}
 	if orderedSetObservationFailure(errors.Join(context.DeadlineExceeded, errors.New("wrapped"))) != orderedSetObservationFailure(context.DeadlineExceeded) {
 		t.Fatal("wrapped worker deadline lost its category")
+	}
+	for _, tc := range []struct{ frame, want string }{
+		{orderedSetSortFrame, "sort"},
+		{"stuntgres/internal/engine/exec.(*Stage).Drain", "source"},
+		{"stuntgres/internal/engine/exec.OpenJoinNode", "source"},
+		{"stuntgres/internal/engine/exec.openAggregateNode", "unknown"},
+		{"stuntgres/internal/engine/exec.OpenSortNode", "unknown"},
+		{"", "unknown"},
+	} {
+		record := []byte("# 0x123 " + tc.frame + "+0x10 /src/query.go:1\n")
+		if got := orderedSetObservationPhase(record); got != tc.want {
+			t.Errorf("frame=%q phase=%s want=%s", tc.frame, got, tc.want)
+		}
 	}
 }
 
