@@ -55,6 +55,18 @@
   NULL absence, supplied NULL, mixed rows and INSERT-owned identity generation.
   MERGE partial INSERT remains unsupported; no new rewrite capability is added.
 
+- Implement typed `pg_cancel_backend` and `pg_terminate_backend` with released
+  signatures, defaults and metadata; live authenticated-owner signaling privileges;
+  canonical query cancellation and physical termination with cleanup waits.
+  Cluster session IDs never become OS signals. Wire COPY termination preserves
+  fatal precedence and retires the connection without further frontend input.
+  Relation-analysis termination diagnostics retain their source position without
+  mutating the shared physical fatal or positioning cached execution/COPY errors.
+  Ordinary host cancellation and deadlines keep their original errors; only
+  canonical SQL/wire cancellation admits a later physical-fatal override.
+  Independent released catalog facts and predefined-role capability consumers
+  include both executable signaling declarations.
+
 - Add typed `pg_reload_conf()`, `pg_rotate_logfile()` and
   `pg_log_backend_memory_contexts(integer)` with released metadata, live mutable
   EXECUTE ACLs and ACL-only native persistence. Unknown cluster session IDs return

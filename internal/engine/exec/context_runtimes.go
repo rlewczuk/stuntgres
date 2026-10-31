@@ -45,10 +45,25 @@ func (c *Context) SessionActivityValue(kind functions.SessionActivityKind, resul
 var _ functions.ServerSignalRuntime = (*Context)(nil)
 
 func (c *Context) ServerSignalValue(kind functions.ServerSignalKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if err := EvaluationContext(c); err != nil { return sqltype.Value{}, err }
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
 	host := c.LiveHost()
-	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: server signal lacks statement authority") }
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: server signal lacks statement authority")
+	}
 	return host.ServerSignalValue(kind, pid, result)
+}
+
+func (c *Context) SessionSignalValue(kind functions.SessionSignalKind, pid, timeout int64, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: session signal lacks statement authority")
+	}
+	return host.SessionSignalValue(c, kind, pid, timeout, result)
 }
 
 var _ functions.TriggerDepthRuntime = (*Context)(nil)

@@ -25,11 +25,42 @@ func TestRoutineDefaultPresentation(t *testing.T) {
 		slot int
 		want string
 	}{
+		{2096, 1, "0"},
 		{3464, 0, "0"}, {3464, 6, "0.0"}, {6212, 0, "0"}, {6212, 1, "1"}, {1268, 1, "true"}, {4005, 2, "'{}'::jsonb"}, {4005, 3, "false"}, {4350, 1, "'NFC'::text"},
 		{3782, 3, "'{}'::text[]"}, {3783, 3, "'{}'::text[]"},
 		{3784, 3, "'{}'::text[]"}, {3785, 3, "'{}'::text[]"},
 	} {
 		d := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: x.oid})
+		if x.oid == 2096 && (d.Signature != "23,20" || d.LiteralDefaults.At(0) != (catalog.RoutineLiteral{SourceType: 23, Text: "0"})) {
+			t.Fatal("default source constant was confused with the bigint formal", d)
+		}
+		if x.oid == 2096 {
+			treeType, _ := view.LookupType(sqltype.PgNodeTree)
+			defaults, _, err := runtime.RoutineTrees(t.Context(), view, d, treeType)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tree, err := defaults.Tree()
+			if err != nil {
+				t.Fatal(err)
+			}
+			list, ok := tree.(plan.ExpressionListTree)
+			if !ok || list.Len() != 1 {
+				t.Fatal("missing owned default expression", tree)
+			}
+			coercion, ok := list.At(0).(plan.CoercionExpr)
+			if !ok || coercion.ResultUsage().Type.ID() != sqltype.Int8 || coercion.Mode != sqltype.Assignment {
+				t.Fatal("default lost its bigint formal coercion", list.At(0))
+			}
+			literal, ok := coercion.Child.(plan.LiteralExpr)
+			if !ok || literal.ResultUsage().Type.ID() != sqltype.Int4 {
+				t.Fatal("default lost its released source constant", coercion.Child)
+			}
+			value, err := literal.Value.Integer()
+			if err != nil || value != 0 {
+				t.Fatal(value, err)
+			}
+		}
 		got, err := runtime.RoutineDefault(t.Context(), view, d, x.slot)
 		if err != nil || got != x.want {
 			t.Fatal(x, got, err)

@@ -121,6 +121,8 @@ type Host interface {
 	SessionActivityValue(functions.SessionActivityKind, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.ServerSignalRuntime
 	ServerSignalValue(functions.ServerSignalKind, int64, *sqltype.Descriptor) (sqltype.Value, error)
+	// functions.SessionSignalRuntime
+	SessionSignalValue(*Context, functions.SessionSignalKind, int64, int64, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TriggerDepthRuntime
 	TriggerDepthValue(*sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TransactionInquiryRuntime

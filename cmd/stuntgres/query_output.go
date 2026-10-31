@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
+	"time"
 )
 
 func (c *client) descriptionBody(schema []catalog.Column, formats []int16) ([]byte, error) {
@@ -77,10 +78,16 @@ func (c *client) writeContextError(ctx context.Context, source session.ProtocolC
 	// context cause just because cleanup also returned context.Canceled.
 	var primary *sqlstate.Error
 	if !errors.As(err, &primary) && errors.Is(err, context.Canceled) {
-		if cause := context.Cause(ctx); cause == errUserCancel {
+		if cause := context.Cause(ctx); cause == session.UserCancelCause {
 			err = cause
 		} else if cause != nil && diagnostic(cause).Severity == "FATAL" {
 			err = cause
+		}
+	}
+	if diagnostic(err).Severity == "FATAL" && c.socket != nil {
+		c.interruptTerminalWrite()
+		if e := c.socket.SetWriteDeadline(time.Now().Add(time.Second)); e != nil {
+			return e
 		}
 	}
 	if logErr := c.server.logs.sqlError(ctx, source.Source, err, logParameters(source.Parameters), "connection_id", c.id, "database", c.database, "user", c.user); logErr != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -85,7 +86,7 @@ func (p *protocolCopy) Read(dst []byte) (int, error) {
 		}
 		operationDone := p.ctx.Done()
 		if err := p.ctx.Err(); err != nil {
-			if context.Cause(p.ctx) != errUserCancel {
+			if context.Cause(p.ctx) != session.UserCancelCause {
 				return 0, err
 			}
 			// COPY receives complete frontend frames with logical user cancel

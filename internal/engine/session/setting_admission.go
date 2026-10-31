@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 var StatementTimeoutCause = errors.New("stuntgres: statement timeout")
@@ -17,7 +18,7 @@ var StatementTimeoutCause = errors.New("stuntgres: statement timeout")
 // Initialization and native controls deliberately continue to use Acquire.
 func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Options, error) {
 	start := time.Now().UTC().Truncate(time.Microsecond)
-	op, err := s.AcquireActivity(ctx)
+	op, err := s.acquire(ctx, true, true)
 	if err != nil {
 		return nil, parser.Options{}, err
 	}
@@ -47,7 +48,6 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	op.PlannerMethods = s.Settings.PlannerMethodsLocked()
 	transactionTimeout := s.Settings.TypedValue("transaction_timeout").Number
 	op.NoticeThreshold, _ = messageLevel(s.Settings.Value(settings.ClientMinMessages.Name))
-	op.CommandAdmission = true
 	op.CommandStart = start
 	s.Settings.Mu.Unlock()
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
@@ -60,15 +60,53 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	return op, parser.Options{StandardConformingStrings: standard, Context: op.Ctx, Notice: op.ParseNotice}, nil
 }
 
-// CommandError translates only cancellation from this command's own timer.
-// A caller deadline or an unrelated SQL/adapter error must retain its identity.
+// CommandError maps only canonical interruption, preserving owned primary SQL
+// diagnostics. Physical retirement takes precedence over an earlier user cause.
 func (op *Operation) CommandError(err error) error {
-	var source lock.SourceError
-	if errors.As(err, &source) {
-		return source.Unwrap()
+	if err == nil {
+		return nil
 	}
-	if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) && errors.Is(context.Cause(op.Context()), StatementTimeoutCause) {
-		return sqlError("57014", "canceling statement due to statement timeout")
+	var primary *sqlstate.Error
+	errors.As(err, &primary)
+	var source lock.SourceError
+	if primary == nil && errors.As(err, &source) {
+		err = source.Unwrap()
+	}
+	if primary != nil && (primary.Severity == "FATAL" || primary.Code != "57014") {
+		return err
+	}
+	interrupted := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	cause := context.Cause(op.Context())
+	if primary != nil && cause != UserCancelCause {
+		return err
+	}
+	// An ordinary host cancellation is not SQL fatal authority. Only the shared
+	// wire/user cause permits physical retirement to override a canceled source.
+	if (interrupted || cause == UserCancelCause || primary != nil) &&
+		(op.SourceContext.Err() == nil || context.Cause(op.SourceContext) == UserCancelCause) {
+		op.Session.Mu.Lock()
+		fatal := op.Session.Timeouts.Fatal
+		if fatal != nil {
+			copy := *fatal
+			if primary != nil {
+				copy.Context = primary.Context
+			}
+			op.Session.Mu.Unlock()
+			return &copy
+		}
+		op.Session.Mu.Unlock()
+	}
+	if primary != nil {
+		return err
+	}
+	if interrupted {
+		if cause == UserCancelCause {
+			copy := *UserCancelCause
+			return &copy
+		}
+		if errors.Is(cause, StatementTimeoutCause) {
+			return sqlError("57014", "canceling statement due to statement timeout")
+		}
 	}
 	return op.fatalError(err)
 }

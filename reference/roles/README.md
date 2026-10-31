@@ -41,7 +41,11 @@ notation grammar from signature lookup, and nonaggregate decorations from
 trailing-input syntax errors; all retain direct/prepared stages and positions.
 Predefined-capability boundaries check read-function EXECUTE denial both before
 and after server-file role grants; those roles grant path authority, not function
-execution. Remaining unavailable functions retain their binding-time boundaries.
+execution. Session cancellation/termination are executable in both backends:
+the predefined-role scenario checks unknown-PID false/warning results and negative
+timeout diagnostics before and after capability grants, in both prepared modes.
+Actual live-target authority and teardown belong to `reference/sessions`.
+Remaining unavailable functions retain their binding-time boundaries.
 
 WAL summary scenarios own default PUBLIC execution, live held-statement ACL
 reauthorization and actual native control replay of typed views and raw routine

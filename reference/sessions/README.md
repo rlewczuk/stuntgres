@@ -3,9 +3,10 @@
 Public driver and session behavior: direct/prepared parameters, rows and metadata,
 cancellation and closed objects, physical sessions, notices, identifiers, session
 identity, `search_path` and namespace identity, version and Unicode inquiries,
-LISTEN/NOTIFY session messages, `pg_locks`, `pg_blocking_pids`, transaction
-status and commit timestamps with tracking off, primary-mode recovery inquiries
-and typed physical-registry and WAL-summary source admission, prepared-statement rebind, DISCARD,
+LISTEN/NOTIFY session messages, SQL backend cancellation and termination,
+`pg_locks`, `pg_blocking_pids`, transaction status and commit timestamps with
+tracking off, primary-mode recovery inquiries and typed physical-registry and
+WAL-summary source admission, prepared-statement rebind, DISCARD,
 SQL PREPARE/EXECUTE, and the wire-protocol server (`server_*_test.go`) against a
 real `cmd/stuntgres` subprocess. Related families live elsewhere: settings,
 timeouts, the physical-session adapter and direct-message batches in
@@ -26,6 +27,19 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   `session_messages_helpers_test.go`, `sql_prepared_helpers_test.go`,
   `view_locks_helpers_test.go`; raw wire client `serverWire` in
   `server_wire_test.go` and message builders in `server_extended_helpers_test.go`.
+  Session signaling family: `RUN='^TestReferenceSessionSignal'`.
+  Self-signaling Query witnesses use `sessionSignalSelfQuery` to consume all rows
+  and the terminal outcome. Native eager diagnostics and pq streaming/retirement
+  errors have different adapter phases. Self-termination also uses
+  `sessionSignalSelfFatalProtocol` on the existing pinned oracle to retain exact
+  FATAL fields through public pgconn; transport errors never substitute for that
+  proof. Each termination route owns a disposable physical connection.
+  Active termination repeats the real uncommitted-write/relation-wait witness
+  with pgconn to retain its full FATAL independently of pq's Exec retirement
+  sentinel. Cancellation prepares held statements outside explicit transactions,
+  before acquiring the competing lock, so admission observes Execute rather than
+  blocked metadata capture. Termination privilege targets use dedicated
+  authenticated pools that cannot recycle an unobserved dead idle socket.
 - **Server tests.** `fixture.NewServerFixture(t)` builds and launches a real
   `cmd/stuntgres` subprocess ([fixture README](../fixture/README.md#helpers)).
   Client witnesses run real `psql -X -w -At` with a private `PGPASSFILE`; a

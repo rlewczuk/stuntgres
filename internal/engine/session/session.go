@@ -186,7 +186,7 @@ func (s *Session) newOperation() *Operation {
 	return op
 }
 func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
-	op, err := s.acquire(ctx, false)
+	op, err := s.acquire(ctx, false, false)
 	if err == nil && s.Settings != nil {
 		s.Settings.Mu.Lock()
 		op.TableAccessMethod = s.Settings.Value("default_table_access_method")
@@ -197,7 +197,7 @@ func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
 	}
 	return op, err
 }
-func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error) {
+func (s *Session) acquire(ctx context.Context, activity, command bool) (*Operation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -215,6 +215,7 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	op := s.Operation(ctx, false)
 	op.OriginTransaction = s.Timeouts.Authority
 	op.sqlActivity = activity
+	op.CommandAdmission = command
 	if activity {
 		s.Timeouts.SQLLeases++
 		s.Timeouts.Idle.Stop()

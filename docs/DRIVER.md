@@ -351,6 +351,22 @@ names, cursors, `LISTEN` subscriptions, TEMP objects, advisory locks, sequence
 connection. A `*sql.DB` may use any connection, so pin a `*sql.Conn` (or `*sql.Tx`)
 for session-scoped work.
 
+`pg_backend_pid()` identifies that physical owner throughout identity switches
+and logical Reset/Restore. IDs are positive, monotonically allocated within one
+Driver cluster, never operating-system process IDs; other Drivers have independent
+ID domains. SQL session signaling resolves owners across that cluster's databases.
+Cancellation interrupts the current SQL command with `57014` without canceling
+the application context or poisoning a later command. Roll back an aborted
+explicit transaction before reusing its connection.
+
+Administrative termination retires the physical owner and releases its transaction
+and session resources. A zero/omitted timeout acknowledges delivery; a positive
+timeout waits for completed cleanup and unregister. The first pinned API use
+reports the physical `57P01` fatal without replay; later use is a bad connection
+and the pool can replace it. Pending wire COPY receives the terminal diagnostic
+without requiring more frontend input. The effective caller's current privileges
+are checked against the target's authenticated login, not its assumed SQL identity.
+
 Persisted role/database defaults are shared cluster authority, captured once for
 the login role and selected database when a physical connection opens. Existing
 sessions, pool reuse and identity switches retain their captured reset baseline;

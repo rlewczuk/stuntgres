@@ -11,6 +11,7 @@ import (
 
 func TestRoutineDefaultDeclarations(t *testing.T) {
 	expected := map[ids.OID][]catalog.RoutineLiteral{
+		2096: {{SourceType: 23, Text: "0"}},
 		3436: {{SourceType: 16, Text: "true"}, {SourceType: 23, Text: "60"}},
 		3577: {{SourceType: 16, Text: "false"}},
 		3578: {{SourceType: 16, Text: "false"}},
@@ -34,9 +35,6 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 	seen, defaults := 0, 0
 	for _, d := range BuiltinProcedures(authorization.PrincipalRef{}) {
 		oid := d.Address().ObjectID
-		if oid == 2096 {
-			t.Fatal("lookup-only identity materialized")
-		}
 		want, ok := expected[oid]
 		if !ok {
 			if d.LiteralDefaults != nil || d.Builtin.Defaults != 0 {
@@ -61,7 +59,7 @@ func TestRoutineDefaultDeclarations(t *testing.T) {
 			t.Fatal("COW lost default authority")
 		}
 	}
-	if seen != 30 || defaults != 52 {
+	if seen != 31 || defaults != 53 {
 		t.Fatal("finite inventory", seen, defaults)
 	}
 	input := []catalog.RoutineLiteral{{SourceType: 16, Text: "true"}}

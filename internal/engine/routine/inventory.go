@@ -1934,6 +1934,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{6005, ids.PGCatalogNamespaceOID, "pg_replication_origin_oid", "25"}, catalog.FunctionRoutine, 26, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{6012, ids.PGCatalogNamespaceOID, "pg_replication_origin_advance", "25,3220"}, catalog.FunctionRoutine, 2278, true, expr.Volatile, 'u', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{6013, ids.PGCatalogNamespaceOID, "pg_replication_origin_progress", "25,16"}, catalog.FunctionRoutine, 3220, true, expr.Volatile, 'u', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{2171, ids.PGCatalogNamespaceOID, "pg_cancel_backend", "23"}, catalog.FunctionRoutine, 16, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{2096, ids.PGCatalogNamespaceOID, "pg_terminate_backend", "23,20"}, catalog.FunctionRoutine, 16, true, expr.Volatile, 's', false, 0, 1, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3820, ids.PGCatalogNamespaceOID, "pg_last_wal_receive_lsn", ""}, catalog.FunctionRoutine, 3220, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3821, ids.PGCatalogNamespaceOID, "pg_last_wal_replay_lsn", ""}, catalog.FunctionRoutine, 3220, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3830, ids.PGCatalogNamespaceOID, "pg_last_xact_replay_timestamp", ""}, catalog.FunctionRoutine, 1184, true, expr.Volatile, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},

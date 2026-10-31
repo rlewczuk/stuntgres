@@ -49,6 +49,21 @@ synchronization with 0A000. Held recipes retain no actor, authorization or provi
 state. Logical-message publication needs no intrinsic role check or host state;
 the typed function rejects unavailable WAL publication after strictness.
 
+Session cancellation and termination borrow `SessionSignalRuntime` through the
+executing expression host. Registry lookup spans the cluster under Engine.Mu,
+releasing registry mutexes before Session.Mu; registered Ending owners remain
+addressable until cleanup unregisters them. Authorization uses the current
+effective expression actor, current role descriptors and INHERIT membership,
+against immutable CountedAuthenticated target ownership. No victim transaction
+admission lock is acquired. Request publication uses the session's existing
+command/fatal authority, then releases all locks before waits or notices.
+Identifiers never enter host process-signal APIs. Worker-role membership grants
+no special authority over authenticated client sessions.
+Parse-analysis relation waits attach their source location to an owned `57P01`
+diagnostic copy. The canonical physical fatal stays positionless for later API
+use; cached-execution and COPY admission keep their existing location fences.
+Query cancellation `57014` continues to bypass that relation-position callback.
+
 
 Application-provisioned scalar host routines use the same typed frame, invocation
 depth, EXECUTE admission, security/settings environment, volatility policy and
@@ -2516,6 +2531,11 @@ use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
 
 Installed compact B-tree statistics provider, expression and capture ownership
 units use `RUN='^TestPgstatindex'`.
+
+Low-level relation-admission owner tests must pass the statement through `Gate`
+before acquiring its relation: `StartStatement` alone does not attach the
+transaction incarnation or lock ticket. Wait witnesses inspect the real grant
+and queued owner, and fail immediately if the worker completes before admission.
 
 TEMP tablespace preparation, admission and composed-creation units use
 `RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.

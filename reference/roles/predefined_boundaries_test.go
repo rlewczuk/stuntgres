@@ -11,13 +11,18 @@ import (
 	"github.com/lib/pq"
 )
 
-func predefinedMissingFunction(s *fixture.RoleMembershipScenario, q, signature string) {
+func predefinedSessionSignals(s *fixture.RoleMembershipScenario) {
 	s.T.Helper()
-	if !s.Backend.PG {
-		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: "8"}, true, "prepare")
-		return
+	for _, function := range []string{"pg_cancel_backend", "pg_terminate_backend"} {
+		s.ClearNotices()
+		predefinedSelect(s, "SELECT "+function+"(2147483647)", []string{function}, []string{"BOOL"}, [][]any{{false}})
+		s.Notice("WARNING", "01000", "PID 2147483647 is not a PostgreSQL backend process")
 	}
-	predefinedFailure(s, q, fixture.Diagnostic{Code: "42883", Message: "function " + signature + " does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+	s.ClearNotices()
+	predefinedFailure(s, "SELECT pg_terminate_backend(2147483647,-1)", fixture.Diagnostic{Code: "22003", Message: `"timeout" must not be negative`}, true, "execute")
+	if len(*s.Notices) != 0 {
+		s.T.Fatalf("negative signaling timeout notices %#v", *s.Notices)
+	}
 }
 
 func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
@@ -29,12 +34,6 @@ func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "COPY server files are unsupported"}, false, "prepare")
 	}
 	predefinedFailure(s, "COPY t TO PROGRAM 'false'", fixture.Diagnostic{Code: "0A000", Message: "COPY PROGRAM is unsupported"}, false, "prepare")
-	for _, tc := range []struct{ q, signature string }{
-		{"SELECT pg_cancel_backend(2147483647)", "pg_cancel_backend(integer)"},
-		{"SELECT pg_terminate_backend(2147483647)", "pg_terminate_backend(integer)"},
-	} {
-		predefinedMissingFunction(s, tc.q, tc.signature)
-	}
 	predefinedFailure(s, "SELECT query FROM pg_stat_activity", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_stat_activity" does not exist`, Position: "19"}, true, "prepare")
 	predefinedSelect(s, "SHOW reserved_connections", []string{"reserved_connections"}, []string{"TEXT"}, [][]any{{"0"}})
 }
@@ -57,6 +56,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "42501", Message: "permission denied to create subscription", Detail: `Only roles with privileges of the "pg_create_subscription" role may create subscriptions.`}, false, "execute")
 		predefinedSubscriptionAbsent(s)
 		predefinedFailure(s, "CHECKPOINT", checkpointDenied, false, "execute")
+		predefinedSessionSignals(s)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
@@ -93,16 +93,10 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}})
 		predefinedSubscriptionCapability(s)
 		checkpointRun(s, true)
+		predefinedSessionSignals(s)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
-			// Safe PG-only local capability consumers, not native WAL/network proof.
-			for _, function := range []string{"pg_cancel_backend", "pg_terminate_backend"} {
-				s.ClearNotices()
-				predefinedSelect(s, "SELECT "+function+"(2147483647)", []string{function}, []string{"BOOL"}, [][]any{{false}})
-				s.Notice("WARNING", "01000", "PID 2147483647 is not a PostgreSQL backend process")
-			}
-			predefinedFailure(s, "SELECT pg_terminate_backend(2147483647,-1)", fixture.Diagnostic{Code: "22003", Message: `"timeout" must not be negative`}, true, "execute")
 			predefinedSelect(s, "SHOW reserved_connections", []string{"reserved_connections"}, []string{"TEXT"}, [][]any{{"0"}})
 			// Do not run authorized file COPY or PROGRAM against the host.
 		}

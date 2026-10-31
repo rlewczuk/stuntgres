@@ -68,3 +68,5 @@
 2848	pg_switch_wal	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_switch_wal	\N	false	\N
 3098	pg_create_restore_point	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	3220	25	\N	\N	\N	false	\N	pg_create_restore_point	\N	false	\N
 6305	pg_log_standby_snapshot	11	12	1	0	0	0	f	false	false	true	false	v	s	0	0	3220		\N	\N	\N	false	\N	pg_log_standby_snapshot	\N	false	\N
+2171	pg_cancel_backend	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	16	23	\N	\N	\N	false	\N	pg_cancel_backend	\N	false	\N
+2096	pg_terminate_backend	11	12	1	0	0	0	f	false	false	true	false	v	s	2	1	16	23 20	\N	\N	{pid,timeout}	true	\N	pg_terminate_backend	\N	false	\N

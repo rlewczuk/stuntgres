@@ -14,12 +14,8 @@ import (
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/sqlstate"
 )
 
-// Shared cancellation identity is immutable. Statement-specific diagnostic
-// context belongs on an owned copy, never on this cross-session cause.
-var errUserCancel = &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 var errPeerWatchUnsupported = errors.New("passive peer shutdown monitoring unavailable on this platform")
 
 type server struct {
@@ -62,6 +58,7 @@ type client struct {
 	copyDrain      [8192]byte
 	lastSettings   map[string]string
 	commandCancel  context.CancelCauseFunc // server.mu
+	terminalWake   sync.Once               // Socket deadline only; the serial writer owns all bytes.
 	readDone       chan struct{}
 	freeBuffers    chan []byte
 	readFailure    error // Reader-owned; published by closing messages/readDone.
@@ -123,7 +120,7 @@ func (s *server) cancelCommand(id uint32, key []byte) {
 	if c := s.backends[id]; c != nil && len(key) == c.keyLength && subtle.ConstantTimeCompare(c.key[:c.keyLength], key) == 1 && c.commandCancel != nil {
 		// context cancellation has no engine callback or external I/O. Holding mu
 		// fences this exact registration against a later command replacing it.
-		c.commandCancel(errUserCancel)
+		c.commandCancel(session.UserCancelCause)
 		reference = c.reference
 	}
 	s.mu.Unlock()
@@ -210,6 +207,10 @@ func (c *client) watchSessionEnd() <-chan error {
 		}
 		fatal := *diagnostic(c.session.Check(c.ctx))
 		fatal.Severity, fatal.SeverityUnlocalized = "FATAL", "FATAL"
+		// A partial frame cannot be repaired with a FATAL. Wake a blocked
+		// socket write so its serial owner can retire and release engine leases.
+		// The intact serial writer replaces this with a bounded FATAL budget.
+		c.interruptTerminalWrite()
 		c.server.mu.Lock()
 		if c.commandCancel != nil {
 			c.commandCancel(&fatal)
@@ -221,6 +222,16 @@ func (c *client) watchSessionEnd() <-chan error {
 		}
 	}()
 	return events
+}
+
+// Both watcher and writer join this one-shot wake before the writer installs its
+// bounded terminal budget. A late watcher can never re-arm an expired deadline.
+func (c *client) interruptTerminalWrite() {
+	c.terminalWake.Do(func() {
+		if c.socket != nil {
+			_ = c.socket.SetWriteDeadline(time.Now())
+		}
+	})
 }
 func (c *client) finish(reason session.EndReason) {
 	if c.session != nil {

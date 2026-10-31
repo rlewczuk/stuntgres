@@ -240,7 +240,7 @@ func (op *Operation) fatalError(err error) error {
 	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return err
 	}
-	if op.SourceContext.Err() != nil {
+	if op.SourceContext.Err() != nil && context.Cause(op.SourceContext) != UserCancelCause {
 		return err
 	}
 	s := op.Session
@@ -251,7 +251,7 @@ func (op *Operation) fatalError(err error) error {
 
 // Session.mu is already held by operation/publication validation.
 func (op *Operation) FatalErrorLocked(err error) error {
-	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) || op.SourceContext.Err() != nil {
+	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) || (op.SourceContext.Err() != nil && context.Cause(op.SourceContext) != UserCancelCause) {
 		return err
 	}
 	s := op.Session
@@ -265,6 +265,6 @@ func (op *Operation) FatalErrorLocked(err error) error {
 // Go controls and Ping have SQL activity/ready boundaries but do not parse SQL
 // or own a statement timer. Native controls retain plain Acquire.
 func (s *Session) AcquireActivity(ctx context.Context) (*Operation, error) {
-	op, err := s.acquire(ctx, true)
+	op, err := s.acquire(ctx, true, false)
 	return op, err
 }

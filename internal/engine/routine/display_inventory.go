@@ -1551,6 +1551,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	6005: {Language: catalog.InternalRoutineLanguage, Source: "pg_replication_origin_oid"},
 	6012: {Language: catalog.InternalRoutineLanguage, Source: "pg_replication_origin_advance"},
 	6013: {Language: catalog.InternalRoutineLanguage, Source: "pg_replication_origin_progress"},
+	2171: {Language: catalog.InternalRoutineLanguage, Source: "pg_cancel_backend"},
+	2096: {Language: catalog.InternalRoutineLanguage, Source: "pg_terminate_backend"},
 	3820: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_wal_receive_lsn"},
 	3821: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_wal_replay_lsn"},
 	3830: {Language: catalog.InternalRoutineLanguage, Source: "pg_last_xact_replay_timestamp"},

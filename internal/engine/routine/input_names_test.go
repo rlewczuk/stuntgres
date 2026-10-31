@@ -8,6 +8,7 @@ import (
 
 func TestRoutineInputNameDeclarations(t *testing.T) {
 	expected := map[ids.OID][]string{
+		2096: {"pid", "timeout"},
 		3436: {"wait", "wait_seconds"},
 		3577: {"transactional", "prefix", "message", "flush"},
 		3578: {"transactional", "prefix", "message", "flush"},

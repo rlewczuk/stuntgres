@@ -91,6 +91,10 @@ cost 10 in the exact inventory and all projected metadata fields.
 The physical compression inquiry retains OID2121, its one-any strict/STABLE/
 parallel-safe TEXT signature, cost 1 and internal implementation symbol.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
+The two session-signaling declarations add released OIDs2096/2171 with strict,
+VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`
+inputs and a trailing default. Exact membership and every direct/prepared
+property projection include both executable owners.
 Relation statistics restore/clear adds released OIDs6362/6397, non-strict
 VOLATILE/parallel-unsafe BOOL/VOID signatures, kwargs and two text input names,
 and restore's `{v}` modes with NULL all-argument types. Membership and complete

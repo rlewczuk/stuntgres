@@ -79,6 +79,19 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   original source. Nested execution keeps the outer command, while source-less
   internal operations remain explicitly unavailable. Source lives until Done and
   is never copied into a retained cursor or prepared expression.
+  `CancelQueryLocked` selects only admitted, unfinished SQL operations under the
+  same mutex as admission, completion and Done; activity/control leases never
+  qualify. `UserCancelCause` is the one immutable cancellation identity shared
+  with wire CancelRequest. CommandError maps canonical interruption, including
+  lock-source errors, while preserving owned primary/COPY diagnostics and ordinary
+  application errors. `TerminateLocked` records physical fatal authority before
+  requesting the existing teardown; an earlier canonical user cancel cannot hide
+  it. Ordinary caller cancellation/deadline errors retain their identity even if
+  physical fatal state is subsequently populated. Only the exact shared user
+  cause permits fatal conversion after the caller source is canceled, including
+  command, lock-wait and publication boundaries.
+  `WaitTermination` waits unlocked for Completed (all resources and registry
+  reservation released), not merely Ending or successful request delivery.
   `XMLInput` copies literal/parameter provenance into mapped XML errors and
   warnings for the active operation. `OutputNotices` retains only a handler and
   captured filtering threshold; a fresh `OutputNoticeCollector` records actual

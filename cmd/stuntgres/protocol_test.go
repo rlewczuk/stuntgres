@@ -245,7 +245,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		t.Fatal("wrong PID canceled owner")
 	}
 	s.cancelCommand(c.id, c.key[:])
-	if context.Cause(first) != errUserCancel {
+	if context.Cause(first) != session.UserCancelCause {
 		t.Fatal(context.Cause(first))
 	}
 	c.commandCancel = nil
@@ -264,7 +264,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		t.Fatal("stale full key canceled")
 	}
 	s.cancelCommand(c.id, c.key[:])
-	if context.Cause(second) != errUserCancel {
+	if context.Cause(second) != session.UserCancelCause {
 		t.Fatal("current command not canceled")
 	}
 	c.keyLength = 4
@@ -276,11 +276,11 @@ func TestServerProtocolCancellation(t *testing.T) {
 		t.Fatal("long key matched 3.0")
 	}
 	s.cancelCommand(c.id, c.key[:4])
-	if context.Cause(third) != errUserCancel {
+	if context.Cause(third) != session.UserCancelCause {
 		t.Fatal("3.0 key not matched")
 	}
 	t.Run("typed cancellation diagnostics preserve owned context", func(t *testing.T) {
-		original := *errUserCancel
+		original := *session.UserCancelCause
 		enriched := original
 		enriched.Context = "COPY server_failed_identity, line 1: \"1\""
 		conversion := &sqlstate.Error{Code: "22P02", Message: "conversion remains primary", Context: "owned conversion context"}
@@ -293,13 +293,13 @@ func TestServerProtocolCancellation(t *testing.T) {
 			code, message, where string
 			fatal                bool
 		}{
-			{"registered cause", errUserCancel, context.Canceled, "57014", original.Message, "", false},
-			{"enriched primary with cleanup cancellation", errUserCancel, errors.Join(context.Canceled, &enriched), "57014", original.Message, enriched.Context, false},
-			{"conversion before cancellation", errUserCancel, errors.Join(conversion, context.Canceled), "22P02", conversion.Message, conversion.Context, false},
+			{"registered cause", session.UserCancelCause, context.Canceled, "57014", original.Message, "", false},
+			{"enriched primary with cleanup cancellation", session.UserCancelCause, errors.Join(context.Canceled, &enriched), "57014", original.Message, enriched.Context, false},
+			{"conversion before cancellation", session.UserCancelCause, errors.Join(conversion, context.Canceled), "22P02", conversion.Message, conversion.Context, false},
 			{"unknown plain cause", errors.New(original.Message), context.Canceled, "57014", context.Canceled.Error(), "", false},
 			{"unknown typed cause identity", &foreign, context.Canceled, "57014", context.Canceled.Error(), "", false},
 			{"terminal cause", terminal, context.Canceled, "57P01", terminal.Message, terminal.Context, true},
-			{"later terminal primary after user cause", errUserCancel, errors.Join(context.Canceled, terminal), "57P01", terminal.Message, terminal.Context, true},
+			{"later terminal primary after user cause", session.UserCancelCause, errors.Join(context.Canceled, terminal), "57P01", terminal.Message, terminal.Context, true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ctx, cancel := context.WithCancelCause(context.Background())
@@ -342,7 +342,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 				if record["error"] != tc.code || record["errmsg"] != tc.message || record["query"] != "exact source" {
 					t.Fatal(record)
 				}
-				if *errUserCancel != original {
+				if *session.UserCancelCause != original {
 					t.Fatal("shared cancellation cause was mutated")
 				}
 			})
@@ -355,10 +355,10 @@ func TestServerProtocolCancellation(t *testing.T) {
 			packets [][]byte
 			want    string
 		}{
-			{"split frame bytes", errUserCancel, [][]byte{[]byte("1"), []byte("\n")}, "1\n"},
-			{"conversion belongs to engine", errUserCancel, [][]byte{[]byte("bad\n")}, "bad\n"},
-			{"arbitrary bytes remain opaque", errUserCancel, [][]byte{{255, 0}}, "\xff\x00"},
-			{"unknown cause", errors.New(errUserCancel.Message), [][]byte{[]byte("1\n")}, ""},
+			{"split frame bytes", session.UserCancelCause, [][]byte{[]byte("1"), []byte("\n")}, "1\n"},
+			{"conversion belongs to engine", session.UserCancelCause, [][]byte{[]byte("bad\n")}, "bad\n"},
+			{"arbitrary bytes remain opaque", session.UserCancelCause, [][]byte{{255, 0}}, "\xff\x00"},
+			{"unknown cause", errors.New(session.UserCancelCause.Message), [][]byte{[]byte("1\n")}, ""},
 			{"fatal operation", &sqlstate.Error{Severity: "FATAL", Code: "57P01", Message: "terminal"}, [][]byte{[]byte("1\n")}, ""},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		physical, closePhysical := context.WithCancel(context.Background())
 		defer closePhysical()
 		ctx, cancel := context.WithCancelCause(physical)
-		cancel(errUserCancel)
+		cancel(session.UserCancelCause)
 		messages := make(chan frontendMessage, 1)
 		messages <- frontendMessage{tag: 'd', body: []byte("1\n")}
 		c := &client{ctx: physical, messages: messages, freeBuffers: make(chan []byte, 2)}
@@ -451,7 +451,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("COPY reader did not release Flush")
 		}
-		cancel(errUserCancel)
+		cancel(session.UserCancelCause)
 		select {
 		case messages <- frontendMessage{tag: 'd', body: []byte("1\n")}:
 		case out := <-result:
@@ -471,7 +471,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 	t.Run("later fatal interrupts copy wait after user cancel", func(t *testing.T) {
 		physical, closePhysical := context.WithCancel(context.Background())
 		ctx, cancel := context.WithCancelCause(physical)
-		cancel(errUserCancel)
+		cancel(session.UserCancelCause)
 		messages := make(chan frontendMessage)
 		terminal := make(chan error, 1)
 		fatal := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "57P01", Message: "canonical terminal"}
@@ -507,7 +507,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		terminal <- fatal
 		select {
 		case err := <-result:
-			if err != fatal || context.Cause(ctx) != errUserCancel {
+			if err != fatal || context.Cause(ctx) != session.UserCancelCause {
 				t.Fatalf("terminal priority lost: %v / %v", err, context.Cause(ctx))
 			}
 		case <-time.After(2 * time.Second):
@@ -553,7 +553,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 				t.Error("session watcher did not join")
 			}
 		})
-		cancelOperation(errUserCancel)
+		cancelOperation(session.UserCancelCause)
 		closePhysical()
 		// The operation still owns its lease and still has its first cause.
 		// Physical retirement must therefore use independent session authority.
@@ -562,7 +562,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("physical close waited for operation lease")
 		}
-		if context.Cause(op.Context()) != errUserCancel {
+		if context.Cause(op.Context()) != session.UserCancelCause {
 			t.Fatal("first operation cause replaced")
 		}
 		select {

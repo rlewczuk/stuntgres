@@ -27,6 +27,9 @@ func builtinLiteralDefaults(oid ids.OID) *catalog.RoutineLiteralDefaults {
 		return catalog.RoutineLiteral{SourceType: typ, Text: text}
 	}
 	switch oid {
+	case 2096:
+		// Released default is an int4 zero coerced to the bigint formal.
+		return catalog.NewRoutineLiteralDefaults(literal(23, "0"))
 	case 3436:
 		return catalog.NewRoutineLiteralDefaults(literal(16, "true"), literal(23, "60"))
 	case 3779:

@@ -118,8 +118,13 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 - Session ID 1 is reserved for bootstrap; network session IDs equal wire PIDs
   and SQL `pg_backend_pid()` (2 through signed-int4 capacity). Exhaustion rejects
   admission without wrapping or registering a replacement identity.
-- The registered user-cancel cause is an immutable SQL diagnostic; COPY enriches
-  an owned clone.
+- CancelRequest and SQL cancellation share session.UserCancelCause; COPY enriches
+  an owned clone. Physical termination is independent of the first context cause
+  and wakes pending frontend/COPY input before waiting for engine lease cleanup.
+  The end watcher only arms a one-shot socket write deadline, never writes bytes.
+  The serial writer joins that arm before installing a bounded one-second FATAL
+  budget. Failed/partial writes remain terminal; bufio errors are never reset,
+  retried or followed by a fabricated fatal frame.
 - Normal-protocol C-string fields (including case-sensitive statement/portal
   names) decode through the admitted `client_encoding` pair before later
   framing, lookup or mutation. Invalid input raises recoverable 22021.

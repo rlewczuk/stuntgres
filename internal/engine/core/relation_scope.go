@@ -420,7 +420,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		_, viewDefinition := authorityStmt.(*parser.CreateView)
 		if !copyTarget && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) && (!execute || s.Expected == nil || viewDefinition) {
 			var diagnostic *sqlstate.Error
-			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04") && name.Parts[0].Pos.Character > 0 {
+			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04" || diagnostic.Code == "57P01") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
 				copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
 				return &copy

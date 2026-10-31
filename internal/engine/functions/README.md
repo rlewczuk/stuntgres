@@ -183,6 +183,12 @@ and strict typed NULL handling. Non-NULL demand borrows the narrow live
 `ReplicationOrigin` capability without retaining catalog, progress or actor state.
 Checked capture, reconstruction and rendering preserve original operand ownership.
 
+`SessionSignal` owns strict volatile BOOL recipes for cancellation and termination,
+with supplied typed operands in written order and checked formal destinations.
+Only termination has named inputs and a declaration-owned bigint zero default.
+Ordinary EXECUTE admission remains live; no actor, target pointer or permission
+is retained. The borrowed runtime requests real current-query cancellation or
+physical-session teardown through existing session owners.
 
 `WALSummary` retains immutable typed RECORD recipes, written operands and formal
 slots for two set sources and one scalar state inquiry. All written operands
