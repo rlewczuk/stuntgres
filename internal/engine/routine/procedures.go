@@ -53,8 +53,8 @@ func BuiltinRoutineCost(d *catalog.BuiltinRoutineDeclaration) float32 {
 	if !ok || display.Language.String() == "" {
 		// View-authority declarations deliberately stay outside the scalar
 		// inventory, but retain their genuine internal-language default.
-		for i := range sharedMemoryDeclarations {
-			if d == &sharedMemoryDeclarations[i] {
+		for i := range restrictedStatsDeclarations {
+			if d == &restrictedStatsDeclarations[i] {
 				return 1
 			}
 		}

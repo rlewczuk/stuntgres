@@ -8,6 +8,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts()},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
+	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},
 	{oid: WaitEventsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT "), viewIdentifier("type"), viewText(",\n"),
 		viewText("    "), viewIdentifier("name"), viewText(",\n"),

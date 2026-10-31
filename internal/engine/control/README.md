@@ -612,12 +612,14 @@ No physical WAL position or flush guarantee is serialized.
   locators use exact regtype identities, including generated companions. The
   role-aware ACLITEM codec preserves grantors/options and NULL versus
   explicit-empty/default-equivalent ACLs without collapsing raw provenance.
-  Shared-memory view and backing-routine ACLs omit only the exact destination
+  Restricted statistics-view and backing-routine ACLs omit only the exact destination
   seed baseline: bootstrap owner, namespace/identity and ordered explicit
   bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
   Changed raw authority uses the existing repairs; reordering, duplicates and
   explicit absence/emptiness are not effective-rights normalization. Defaults
   therefore add no dump noise, while custom SELECT/EXECUTE grants survive replay.
+  Absent backing-function ACLs also retain their PUBLIC EXECUTE default across
+  repeated replay rather than silently reverting to the restricted seed.
   Generic-file-list routine ACLs likewise omit only exact bootstrap-owned
   callable identities and ordered explicit owner/pg_monitor seed entries
   (owner-only for both pg_ls_dir overloads). NULL, empty, default-equivalent,

@@ -11,7 +11,7 @@ import (
 
 // Omit only authority reconstructed exactly by the destination's system seed.
 // Ordered raw entries matter: effective equality would discard user changes.
-func sharedMemoryACLReconstructed(d catalog.Descriptor, bootstrap, stats authorization.PrincipalRef) bool {
+func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats authorization.PrincipalRef) bool {
 	var name string
 	ownerMask, statsMask := authorization.ExecutePrivilege, authorization.ExecutePrivilege
 	switch object := d.(type) {
@@ -24,6 +24,8 @@ func sharedMemoryACLReconstructed(d catalog.Descriptor, bootstrap, stats authori
 			name = "pg_get_shmem_allocations"
 		case 4100:
 			name = "pg_get_shmem_allocations_numa"
+		case 6399:
+			name = "pg_get_aios"
 		default:
 			return false
 		}
@@ -36,6 +38,8 @@ func sharedMemoryACLReconstructed(d catalog.Descriptor, bootstrap, stats authori
 			name = "pg_shmem_allocations"
 		case pgcatalog.ShmemAllocationsNUMAOID:
 			name = "pg_shmem_allocations_numa"
+		case pgcatalog.AIOSOID:
+			name = "pg_aios"
 		default:
 			return false
 		}

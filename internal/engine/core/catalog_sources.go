@@ -52,7 +52,7 @@ func (e *Engine) initializeCatalogSources() error {
 				return err
 			}
 		}
-		if spec.OID == pgcatalog.ShmemAllocationsOID || spec.OID == pgcatalog.ShmemAllocationsNUMAOID {
+		if spec.OID == pgcatalog.ShmemAllocationsOID || spec.OID == pgcatalog.ShmemAllocationsNUMAOID || spec.OID == pgcatalog.AIOSOID {
 			stats := roles.LookupRef("pg_read_all_stats")
 			d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: d.Owner}, Privileges: authorization.TableGrantPrivileges},

@@ -87,13 +87,17 @@ func TestVisibilityExecutionReleasedAndHelperIdentities(t *testing.T) {
 	view := e.CatalogRead()
 	boolean, _ := view.LookupType(sqltype.Bool)
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
-	if _, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6399}); exists { t.Fatal("lookup-only pg_get_aios unexpectedly executable; retain a lookup-only control") }
+	if _, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 2900}); exists { t.Fatal("lookup-only xmlconcat2 unexpectedly materialized; retain a lookup-only control") }
+	aios := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 6399})
+	if aios.Builtin == nil || aios.Builtin != routine.BuiltinRoutine(6399) || aios.Builtin.Providers != 0 {
+		t.Fatal("AIO backing metadata gained executable provider authority", aios)
+	}
 	check := func(id ids.OID) {
 		got, err := regobj.VisibilityInquiry(view, nil, path, functions.FunctionVisibility, uint32(id), boolean)
 		visible, valueErr := got.Boolean()
 		if err != nil || valueErr != nil || !visible { t.Fatal(id, got, err, valueErr) }
 	}
-	for _, id := range []ids.OID{1397, 6399, 2108} { check(id) }
+	for _, id := range []ids.OID{1397, 2900, 6399, 2108} { check(id) }
 	count := 0
 	for _, owner := range view.HelperOwners() {
 		for _, helper := range owner.Aggregate.Helpers {

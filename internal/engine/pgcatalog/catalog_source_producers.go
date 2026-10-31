@@ -107,6 +107,7 @@ var producers = [...]Registration{
 	{PublicationTablesOID, capturePGPublicationTables},
 	{ProgressClusterOID, captureClusterProgress},
 	{WaitEventsOID, capturePGWaitEvents},
+	{AIOSOID, captureAIOS},
 	{16200, captureTablePrivileges},
 	{16201, captureDataTypePrivileges},
 	{16202, capturePGSettings},

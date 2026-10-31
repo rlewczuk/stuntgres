@@ -17,7 +17,7 @@ import (
 // CREATE OR REPLACE declarations. These are not native observations or copies
 // of production display/signature/property data. Only represented membership
 // comes from the actual routine declaration/cast completion and fixed conversion,
-// access-method, BRIN, shared-memory, generic-file, control-data, runtime-information, session-activity, session-endpoint, trigger-depth, trigger-builtin, event-trigger rewrite and settings/options descriptor owners. The existing
+// access-method, BRIN, restricted-statistics-view, generic-file, control-data, runtime-information, session-activity, session-endpoint, trigger-depth, trigger-builtin, event-trigger rewrite and settings/options descriptor owners. The existing
 // information_schema fact approach is reused, not mistaken for complete membership.
 // The fourteen parser/vector/DDL-receiver and twelve RI metadata descriptors are included.
 // The four pg_get_ruledef/pg_get_triggerdef executable overloads use the same
@@ -174,9 +174,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// WAL-position declarations, and four strict/volatile/parallel-unsafe
 	// large-object descriptor declarations, and two strict/volatile/parallel-safe
 	// session-signal declarations, and two statistics-snapshot lifecycle
-	// declarations.
-	if len(facts) != 2160 {
-		t.Fatalf("released represented overloads: got %d, want 2160", len(facts))
+	// declarations, and the metadata-only AIO view backing declaration.
+	if len(facts) != 2161 {
+		t.Fatalf("released represented overloads: got %d, want 2161", len(facts))
 	}
 	return facts
 }

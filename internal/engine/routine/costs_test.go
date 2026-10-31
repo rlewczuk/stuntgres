@@ -73,9 +73,9 @@ func TestBuiltinRoutineCosts(t *testing.T) {
 	if len(explicit) != 0 {
 		t.Fatalf("explicit-cost declarations were not materialized: %v", explicit)
 	}
-	for i := range sharedMemoryDeclarations {
-		if got := BuiltinRoutineCost(&sharedMemoryDeclarations[i]); got != 1 {
-			t.Fatalf("view-authority declaration %d cost = %g, want 1", sharedMemoryDeclarations[i].Identity.ID, got)
+	for i := range restrictedStatsDeclarations {
+		if got := BuiltinRoutineCost(&restrictedStatsDeclarations[i]); got != 1 {
+			t.Fatalf("view-authority declaration %d cost = %g, want 1", restrictedStatsDeclarations[i].Identity.ID, got)
 		}
 	}
 }

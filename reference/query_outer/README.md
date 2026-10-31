@@ -90,6 +90,9 @@ OIDs 2081/2082/2083/3829, strict STABLE parallel-safe OID-to-BOOL signatures and
 cost 10 in the exact inventory and all projected metadata fields.
 The physical compression inquiry retains OID2121, its one-any strict/STABLE/
 parallel-safe TEXT signature, cost 1 and internal implementation symbol.
+The AIO view's metadata-only backing declaration retains released OID6399,
+strict VOLATILE/parallel-restricted RECORD set metadata, fifteen OUT fields,
+cost 1 and row estimate 100 without acquiring a callable provider.
 Use `RUN='^TestReferencePGProcBuiltinInventory$'` in both modes.
 The two session-signaling declarations add released OIDs2096/2171 with strict,
 VOLATILE, parallel-safe BOOL metadata. Only termination has named `pid`/`timeout`

@@ -2008,10 +2008,10 @@ func BuiltinRoutine(id ids.OID) *catalog.BuiltinRoutineDeclaration {
 }
 
 func indexBuiltinRoutineDeclarations() map[ids.OID]*catalog.BuiltinRoutineDeclaration {
-	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations)+len(sharedMemoryDeclarations))
+	byOID := make(map[ids.OID]*catalog.BuiltinRoutineDeclaration, len(BuiltinRoutineDeclarations)+len(restrictedStatsDeclarations))
 	// Metadata-only backing declarations share canonical pointer validation,
 	// not the separate provider/formal selector index.
-	for _, declarations := range [...][]catalog.BuiltinRoutineDeclaration{BuiltinRoutineDeclarations, sharedMemoryDeclarations[:]} {
+	for _, declarations := range [...][]catalog.BuiltinRoutineDeclaration{BuiltinRoutineDeclarations, restrictedStatsDeclarations[:]} {
 		for i := range declarations {
 			d := &declarations[i]
 			if d.Outputs != nil && !d.Outputs.MatchesInputs(d.Identity.Signature) {

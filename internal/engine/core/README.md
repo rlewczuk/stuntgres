@@ -2226,7 +2226,7 @@ Producers, the OID registry and descriptor specs live in
   with the current database name and temporary-owner authority. Shared runtime
   validation checks the exact source/ref and current principal before producing
   rows, even for an empty catalog.
-  Shared-memory view capture additionally checks the current EXECUTE ACL of
+  Restricted statistics-view capture additionally checks the current EXECUTE ACL of
   its metadata-only backing routine, after ordinary view SELECT admission and
   before the pure producer. Neither grant is retained in prepared artifacts.
 - `catalog_source_cache.go` keeps the latest `pg_type`, `pg_proc` and

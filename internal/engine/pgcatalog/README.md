@@ -429,6 +429,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   implicit memberships. Stored row IDs are allocated by role publication, never
   by reads. Schema/relation/column ACL admission remains in the common path;
   restricted `pg_authid` credentials remain independent.
+- `pg_aios` captures the actual in-use AIO inventory as fifteen nullable typed
+  attributes. Logical storage owns no physical AIO handles, so capture is empty,
+  including after SQL work and native controls. Source identity, descriptor and
+  owned type generations are validated even for an empty result. Ordinary view
+  SELECT and current `pg_get_aios` EXECUTE are independent admissions; defaults
+  grant only the bootstrap owner and inherited `pg_read_all_stats` authority.
+  Its backing declaration supplies metadata and ACL authority, not a callable
+  provider. Capture never manufactures workers, handle generations or counters.
 - `pg_shmem_allocations` and `pg_shmem_allocations_numa` materialize a fixed,
   nonempty virtual 1 MiB profile, not process memory or host measurements. The
   named identity `stuntgres simulated arena` is a simulation label. Allocation

@@ -5,6 +5,11 @@
   sort until Resume or operation cancellation, without suspending preparation
   or requiring Resume for cancellation and same-owner recovery.
 
+- Expose `pg_aios` with all fifteen typed fields, current independent view SELECT
+  and backing-function EXECUTE authority, catalog definitions and native ACL
+  replay. The logical engine has no physical AIO handles: inventory remains
+  truthfully empty rather than manufacturing operations or measurements.
+
 - Add query-compatible CLUSTER simulation for explicit, remembered and whole-
   database selection, with real atomic catalog preferences, eligibility/MAINTAIN
   diagnostics, heap-lock cancellation and native control replay. Unpopulated
