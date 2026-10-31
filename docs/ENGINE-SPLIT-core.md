@@ -1220,7 +1220,70 @@ Needs 228. Mode S. Gated.
   `tsearch.Capture[AuthorizationView]`, and `nativetrig.Host` needs
   `tsearch.Host[A]` for `Walk`/`Accept`, so `nativetrig` is generic over the
   authority too, or core instantiates the tsearch calls.
-- 216: not started.
+- 216: done (`1c0e1592b`, `593b39acb`, `89d8a66f0`), at `dc247f79c`. - **Moved**
+  to `internal/engine/core/stats` (replay `move.sh`, cmdmv, 0 VIOLATION/SEAM/T6;
+  token-equal to the cut modulo qualifiers):
+  `attribute_statistics_{arguments,catalog,measured,runtime,update}`,
+  `relation_statistics_{arguments,runtime}`, `statistics_snapshot`,
+  `statistic_expression_runtime`, `statistics_expression`,
+  `extended_statistics_runtime`, plus the seam file `host.go`. - **Stays:**
+  `analyze_metadata.go`, `vacuum_metadata.go`; the two `…Locked` resets
+  (`resetImportedRelationStatisticsLocked`,
+  `truncateResetsImportedStatisticsLocked`) in the new
+  `imported_statistics_reset.go`. - **Deviation:
+  `statistics_snapshot_binding.go` stays.** `statisticsSnapshotBindingHost`
+  embeds core's `*BindingHost` and calls `resolveAnnotationTypeAuthority`,
+  `LookupNamespacesSnapshot`, `namedTypeSnapshot`, `captureRegclassInput` and
+  `BindingHost.view`: it is core's binder host. It now also holds
+  `StatisticsSnapshotCodec`, which builds the bootstrap `AuthorizationView` and
+  a `statisticsSnapshotHost` (it embeds the `stats.SnapshotCodec` it serves, so
+  a codec is still one allocation). The root's `dump_capture.go` and
+  `restore_ndistinct.go` and the tests keep calling
+  `core.StatisticsSnapshotCodec`, so they did not change. - **Host.**
+  `stats.Host[A Authority]` is implemented by `statementHost`
+  (`core/statistics_hosts.go`). Reused: `Operation`, `Context`, `Environments`,
+  `PendingCatalog`, `EngineStorageLocked`, the
+  `ReacquireEngine`/`ReleaseEngineLocked` pair (at the old `Engine.Mu` windows)
+  and item 214's `RoutineAuthorizationLocked`. New: `ResolveRelationLocked(auth,
+  schema, name)` (strings, so the identifier slice stays on the stack),
+  `VacuumAllowedLocked`, `AcquireObjectLock` (`AcquireSequence` with the
+  replacement reservation), `PublishedRelationLocked`, `StatementCatalogLocked`
+  (clone on first write). `stats.Authority` is `Access() access.View`;
+  `CatalogAuthority` adds `PendingCatalog` (read per relation, as before).
+  `RecipeAuthority` (`exec.AdmissionAuthority` + `Access`) and
+  `SnapshotAuthority` (+ `analyze.Authority`) are implemented by
+  `*AuthorizationView`. `stats.SnapshotHost` gives a fresh authority copy per
+  decode (the old value receiver copied it) and the binding host per constructor
+  scalar. - **Exported:** `Host`, `Authority`, `CatalogAuthority`,
+  `RecipeAuthority`, `SnapshotAuthority`, `SnapshotHost`, `SnapshotCodec`,
+  `NewSnapshotCodec`, `ImportAttribute`, `ImportRelation`, `VisitAttributes`,
+  `VisitExtended`, `BindExpression`, `SameExpression`. Core keeps the
+  `exec.Host` (`AttributeStatistics`, `RelationStatistics`), `pgcatalog.Runtime`
+  (`VisitAttributeStatistics`, `VisitExtendedStatistics`) and `ddl.Host`
+  (`BindStatisticsExpression`, `SameStatisticsExpression`) methods as one-line
+  adapters. - **Tests (T5, T6).** None moved or deleted; no accessor entry
+  reaches moved names. The re-run census (item 209's, at `e6e052a5f`) has no
+  rule-1 B stats test; the three rule-3 tests in `relation_statistics_test.go`
+  stay in core. `statistics_expression_collection_test.go` and
+  `ndistinct_publication_test.go` match `storage` frames, not moved ones
+  (`frames.py list`: 2 unresolved, the intentional `fixture.absent*`). -
+  **Measured.** Core 7.83 → 7.80 MiB; `core/stats` 44 KiB (50 KiB with the
+  README). Interleaved binaries (`bench.txt`): `BenchmarkOpenDatabase`
+  3,380–3,508 vs 3,375–3,498 allocs/op; a temporary probe (relation and
+  attribute restore and clear, `pg_stats`, `pg_statistic_ext_data`, CREATE
+  STATISTICS with expressions, ANALYZE, a planned SELECT) has identical
+  allocs/op in every case. `escdiff` over core and `core/stats`: every heap
+  object has its old twin (the codec's per-decode authority copy replaces the
+  copied value receiver). - **Docs.** New `core/stats/README.md`. The core
+  README's statistics expression, catalog-runtime and snapshot-codec paragraphs
+  moved there; core keeps the namespace-movement and snapshot binding adapter
+  paragraphs and a pointer. - **Notes for later items.** 218:
+  `VisitAttributeStatistics` and `VisitExtendedStatistics` stay
+  `EngineCatalogRuntime` adapters over `stats.VisitAttributes`/`VisitExtended`;
+  rule 6 lets `catalogrt` import neither `stats` nor core, so `catalogrt.Host`
+  serves them. 217: `ResolveRelationLocked`, `VacuumAllowedLocked`,
+  `AcquireObjectLock`, `PublishedRelationLocked` and `StatementCatalogLocked`
+  are now on `statementHost`'s shared method set.
 - 217: not started.
 - 218: not started.
 - 219: not started.

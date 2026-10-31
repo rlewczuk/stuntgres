@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `d57b7b53e` (item 214 rebased on it).
+Last verified against `master` at `dc247f79c` (item 216 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 216, 217, 218.
+- 217, 218.
 
 ## Linear plan
 
@@ -165,9 +165,24 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      `^TestReference(FTS|Dictionary|Thesaurus|TextSearch|TriggerBuiltins)`,
      `layers.py` 0, `frames.py check`, `revcheck.py`, deps. Racecheck and
      finalcheck skipped at user request.
-216. [ ] Statistics runtime —
+216. [x] Statistics runtime —
      [core](ENGINE-SPLIT-core.md#item-216--statistics-runtime) · needs 207, 212
-     · P, bench · core after 7.55
+     · P, bench · core after 7.55 (`1c0e1592b`, `593b39acb`, `89d8a66f0`, docs
+     commit) · the statistics runtime (11 files plus the new `host.go`, 44 KiB)
+     moves to the leaf `core/stats` (L14.5): the relation and attribute
+     statistics imports over `stats.Host[A]` (shared method set on
+     `statementHost`, 5 new methods) and `stats.Authority`, generic over the
+     authorization value; the `pg_stats` and `pg_statistic_ext_data` visitors,
+     statistics expression recipes and the snapshot codec over
+     `stats.SnapshotHost`. Core keeps one-line `exec.Host`, `pgcatalog.Runtime`
+     and `ddl.Host` adapters, the imported-statistics reset and, as deviations,
+     the snapshot binding host and the `StatisticsSnapshotCodec` constructor
+     (the root is unchanged). No test moves (census: no rule-1 tests). Core 7.83
+     → 7.80 MiB. Bench: startup and 9 statistics probe allocations unchanged;
+     `escdiff` shows no new heap object. Passed: quickcheck, REFERENCE=1
+     `^TestReference(Statistics|AttributeStatistics|AlterStatistics|Analyze)`,
+     `layers.py` 0, `frames.py`, `revcheck.py`, deps. Racecheck and finalcheck
+     skipped at user request.
 217. [ ] Native triggers —
      [core](ENGINE-SPLIT-core.md#item-217--native-triggers) · needs 215 · P,
      bench · core after 7.5
