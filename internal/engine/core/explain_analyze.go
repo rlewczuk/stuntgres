@@ -4,19 +4,20 @@ import (
 	"context"
 	"time"
 
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type explainAdmission struct {
-	options Options
+	options explain.Options
 	err     error
 }
 
 type explainExecution struct {
-	options   Options
-	renderers []*Renderer
+	options   explain.Options
+	renderers []*explain.Renderer
 	started   time.Time
 	planning  time.Duration
 	executing time.Time
@@ -27,7 +28,7 @@ type explainExecution struct {
 // captureExplainCommandLocked borrows the real prepared execution graph, after
 // canonical binding and preflight and before any executor startup. Presentation
 // is frozen now; rendering after execution only reads scalar measurements.
-func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation) (*Tree, error) {
+func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation) (*explain.Tree, error) {
 	owner := scope.explain
 	if owner == nil {
 		return nil, nil
@@ -52,7 +53,7 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 		return nil, err
 	}
 	renderer.Observation = observation
-	if _, err = renderer.Command(statement, Bound{Binding: binding}); err != nil {
+	if _, err = renderer.Command(statement, explain.Bound{Binding: binding}); err != nil {
 		return nil, err
 	}
 	if scope.ruleAction.Auth != nil {
@@ -75,7 +76,7 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 	return tree, nil
 }
 
-func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options Options) (Result, error) {
+func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options explain.Options) (Result, error) {
 	owner := &explainExecution{options: options}
 	owner.statement, owner.expected = statement.Statement, scope.Expected
 	if options.Summary {
@@ -107,7 +108,7 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 			lines = append(lines, renderer.Render()...)
 		}
 	}
-	var summaries Summaries
+	var summaries explain.Summaries
 	if options.Summary && (options.Format != "json" || !owner.executing.IsZero()) {
 		summaries.Planning, summaries.Execution = &owner.planning, &execution
 	}
@@ -117,7 +118,7 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 	if len(lines) == 0 {
 		lines = append(lines, "Rewrite: nothing")
 	}
-	rows, err := Output(scope.executionContext(), schema, options, owner.renderers, lines, summaries)
+	rows, err := explain.Output(scope.executionContext(), schema, options, owner.renderers, lines, summaries)
 	if err != nil {
 		return Result{}, err
 	}

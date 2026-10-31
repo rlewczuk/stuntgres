@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
@@ -31,7 +32,7 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 		// remain after child semantic analysis at the normal Execute boundary.
 		childExecute := false
 		if execute {
-			options, optionErr := ValidateOptions(explanation)
+			options, optionErr := explain.ValidateOptions(explanation)
 			s.explainAdmission = &explainAdmission{options: options, err: optionErr}
 			childExecute = optionErr == nil && options.Analyze
 		}

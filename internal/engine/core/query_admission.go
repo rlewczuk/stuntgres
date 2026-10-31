@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -418,7 +419,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		if plannerStore == nil {
 			plannerStore = e.PrivateStorageLocked(scope.PendingCatalog(), leaf.Ref.Address)
 		}
-		source.PlannerRows = PlannerSourceRows(plannerStore)
+		source.PlannerRows = explain.PlannerSourceRows(plannerStore)
 		source.PlannerColumns = len(leaf.Relation.Columns)
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i

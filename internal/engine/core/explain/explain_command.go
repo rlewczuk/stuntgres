@@ -1,4 +1,4 @@
-package core
+package explain
 
 import (
 	"database/sql/driver"

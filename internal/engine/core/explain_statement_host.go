@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
@@ -15,8 +16,8 @@ import (
 // The EXPLAIN renderer's host is the statement host; AuthorizationView is its
 // authority. Context, Operation, Environments, AdmittedPlannerMethods and
 // ReleaseReplacementRead are shared with exec.Host.
-var _ Host = (*statementHost)(nil)
-var _ Authority = AuthorizationView{}
+var _ explain.Host = (*statementHost)(nil)
+var _ explain.Authority = AuthorizationView{}
 
 func (h *statementHost) PendingCatalog() *session.Journal { return h.scope().PendingCatalog() }
 func (h *statementHost) CatalogDomain() *ids.Domain       { return h.scope().Engine().Catalog.Domain }
@@ -42,7 +43,7 @@ func (h *statementHost) CurrentAccessLocked() (access.View, error) {
 	return current.View, err
 }
 
-func (h *statementHost) AuthorizeViewSourceLocked(ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, current authorization.PrincipalRef) (Authority, error) {
+func (h *statementHost) AuthorizeViewSourceLocked(ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, current authorization.PrincipalRef) (explain.Authority, error) {
 	s := h.scope()
 	auth, err := s.Engine().authorizeViewSourceLocked(s, ref, definition, invoker, mark)
 	if err != nil {

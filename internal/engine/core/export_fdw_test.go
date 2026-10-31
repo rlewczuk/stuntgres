@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -101,9 +102,9 @@ func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
 // ExplainBoundForTest renders the actual retained binding under the ordinary
 // renderer. Enter and leave with Mu held, as at the production command boundary.
 func ExplainBoundForTest(scope *StatementScope, auth AuthorizationView, statement parser.Statement, binding analyze.Binding) ([]string, error) {
-	r, err := newExplainRenderer(scope, auth, Options{Verbose: true})
+	r, err := newExplainRenderer(scope, auth, explain.Options{Verbose: true})
 	if err != nil { return nil, err }
 	_, exportValue, _ := scope.Engine().Foreign.Codecs()
 	r.SetForeignParameters(exportValue, nil, nil)
-	return r.Command(statement, Bound{Binding: binding})
+	return r.Command(statement, explain.Bound{Binding: binding})
 }

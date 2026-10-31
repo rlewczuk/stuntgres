@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/explain"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,8 +37,8 @@ func explainSupportedChild(statement parser.Statement) bool {
 }
 
 // newExplainRenderer starts a renderer over scope's statement host.
-func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options Options) (*Renderer, error) {
-	return NewRenderer((*statementHost)(scope), auth, options)
+func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explain.Options) (*explain.Renderer, error) {
+	return explain.NewRenderer((*statementHost)(scope), auth, options)
 }
 
 func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
@@ -52,7 +53,7 @@ func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
 func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explain) (Description, error) {
 	child := explainChild(statement)
 	if !explainSupportedChild(child) {
-		return Description{}, Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
+		return Description{}, explain.Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -63,17 +64,17 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 	if err != nil {
 		return Description{}, err
 	}
-	var bound Bound
+	var bound explain.Bound
 	description, err := e.describeBoundOperationLocked(scope, child, auth, &bound)
 	if err != nil {
 		return Description{}, err
 	}
-	format, err := DescribeFormat(statement)
+	format, err := explain.DescribeFormat(statement)
 	if err != nil {
 		return Description{}, err
 	}
 	if format == "xml" || format == "yaml" {
-		_, err := ValidateOptions(statement)
+		_, err := explain.ValidateOptions(statement)
 		return Description{}, err
 	}
 	description.Results = e.explainSchemaLocked(format)
@@ -83,13 +84,13 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter) (Result, error) {
 	child := explainChild(statement)
 	if !explainSupportedChild(child) {
-		return Result{}, Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
+		return Result{}, explain.Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
 	}
-	options, optionErr := Options{}, error(nil)
+	options, optionErr := explain.Options{}, error(nil)
 	if admission := scope.explainAdmission; admission != nil {
 		options, optionErr = admission.options, admission.err
 	} else {
-		options, optionErr = ValidateOptions(statement)
+		options, optionErr = explain.ValidateOptions(statement)
 	}
 	if optionErr == nil && options.Analyze {
 		return e.executeExplainAnalyze(scope, statement, count, importFrame, options)
@@ -108,7 +109,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	var bound Bound
+	var bound explain.Bound
 	description, err := e.describeBoundOperationLocked(scope, child, auth, &bound)
 	if err != nil {
 		e.Mu.Unlock()
@@ -171,7 +172,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		current, authorityErr := scope.statementAuthorizationLocked(child)
 		err = authorityErr
 		if err == nil {
-			var finalBound Bound
+			var finalBound explain.Bound
 			_, err = e.describeBoundOperationLocked(scope, child, current, &finalBound)
 		}
 	}
@@ -179,12 +180,12 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	var summaries Summaries
+	var summaries explain.Summaries
 	if options.Summary {
 		planning := time.Since(planningStart)
 		summaries.Planning = &planning
 	}
-	rows, err := Output(scope.executionContext(), schema, options, []*Renderer{renderer}, lines, summaries)
+	rows, err := explain.Output(scope.executionContext(), schema, options, []*explain.Renderer{renderer}, lines, summaries)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
