@@ -29,6 +29,19 @@ have forward mappings on PostgreSQL but reverse lookup is NULL; native temporary
 forward inquiries have the same explicit unsupported boundary as other stored
 relations. No extra relation SELECT or server-file privilege is required.
 
+`CREATE EXTENSION pgstattuple` installs `pgstatindex(text/regclass)`,
+`pgstathashindex(regclass)`, `pgstattuple(text/regclass)`,
+`pgstattuple_approx(regclass)` and `pg_relpages(text/regclass)`. Heap tuple
+counts inspect real retained versions, including open and prepared transactions,
+rather than the caller's SELECT snapshot. Routine EXECUTE grants (initially the
+scan role), not table SELECT, authorize calls. Native fixture snapshots preserve
+the installed routines and stored expressions while importing only committed live
+rows into fresh heaps. Physical heap/index/hash sizes and pages are deterministic
+simulations, not PostgreSQL page storage. `pgstattuple` index metrics count
+currently represented logical items: committed deletions leave no physical
+archive, and this model reports zero dead index tuples.
+
+
 Storage and native Go text remain UTF8/Unicode. The optional server supports
 bidirectional `client_encoding` through actual registered PostgreSQL conversion
 defaults, plus SQL_ASCII. Native byte-stream COPY uses the same encoding

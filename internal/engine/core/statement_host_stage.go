@@ -184,6 +184,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 			reserved := *identity
 			reserved.KeyChangedAt, reserved.PendingKeyChange = predecessor.KeyChangedAt, predecessor.PendingKeyChange
 			reserved.IndexAdmission = admission
+			reserved.PrivateHistory = storage.RetainHeapPredecessor(predecessor)
 			versions[i] = reserved
 			continue
 		}
@@ -191,7 +192,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 		if predecessor.Born != 0 {
 			base = predecessor.Version
 		}
-		versions[i] = storage.RowVersion{Row: predecessor.Row, Version: e.Storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission}
+		versions[i] = storage.RowVersion{Row: predecessor.Row, Version: e.Storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission, PrivateHistory: storage.RetainHeapPredecessor(predecessor)}
 	}
 	if batch.States != nil {
 		for i := range versions {

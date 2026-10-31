@@ -144,6 +144,11 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   callers serialize owner inspection through admission or the owner mutex
   (`transaction_characteristics.go`). `SerializableWriteSurvives` tells rollback
   which serializable write evidence survives.
+  Private Writes carry immutable `RowVersion.PrivateHistory` roots, so the same
+  owner, savepoint and prepared transfers preserve actual superseded versions
+  without a second synchronized map. Restore/abort discard only the abandoned
+  roots. `ColumnProjection` transforms both heads and predecessor payloads into
+  fresh vectors; old marks and captured roots remain immutable.
   The same owner holds the TEMP tablespace selector: immutable builtin OIDs,
   assignment identity, transaction identity and a circular cursor, serialized by
   statement admission. Failed creation consumes a destination; unchanged savepoint

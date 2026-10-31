@@ -15,6 +15,12 @@ Cancellation, deadline, cause, unrelated values and the inert request policy are
 unchanged; only a later known-unlocked runtime owner may activate that policy.
 Pure unlocked execution preflight is not blanket-disabled by package location.
 
+Installed heap-statistics DEFAULT recipes retain their intrinsic VOLATILE and
+stage-sensitive properties. Their bounded closure authenticates the installed
+declaration and every caller argument; supported scalar wrappers do not admit
+row/parameter-dependent arguments or unrelated volatile producers. Execution
+uses the normal DEFAULT statement owner and live routine/schema ACL admission.
+
 XML constructor analysis uses assignment conversions only for XML source and
 TEXT PI/version operands. Named operands bind before name inference/duplicate
 checks; element/forest retain actual SQL types for runtime mapping. Ordinary

@@ -157,6 +157,7 @@ func RewriteTypeRows(evaluation exec.Context, old, next *catalog.Relation, store
 			}
 			row.Values = values
 			row.IndexOutputs = nil
+			row.PrivateHistory = nil // A genuine rewrite starts a new physical heap.
 			if !committed {
 				row.Base = 0
 			}

@@ -1007,9 +1007,10 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
-## Installed pgstattuple statistics runtime
+## Installed pgstattuple runtimes
 
-`pgstatindex_capture.go` authenticates the three pgstattuple declarations and
+`pgstatindex_capture.go` authenticates the two pgstatindex declarations and
+the pgstathashindex declaration, and
 checks ordinary EXECUTE before child evaluation/STRICT NULL and again after
 index AccessShare admission. Table ownership or SELECT is not authority. Text
 resolves a relation name at invocation; regclass carries supplied OID identity.
@@ -1022,6 +1023,33 @@ runs outside mutexes, without callbacks, parent ownership switching or parent
 Share locking. Exact selected AM (403 or 405) and ordinary index kind precede
 foreign TEMP and validity checks. Every exit releases its supplied-index lock;
 final descriptor/storage lifetime and cancellation fences precede results.
+
+`pgstattuple_capture.go` owns exact/approximate tuple and page inquiries. It
+uses the same sealed provider, routine/schema ACLs and scoped AccessShare
+fences. Record STRICT NULLs still require runtime EXECUTE; scalar constant
+NULLs use the shared strict-fold policy. Kind/AM errors use the authorized
+descriptor, never a peer's private catalog.
+
+Heap capture borrows actual heads, deletion ends and immutable retained
+predecessors, plus each matching owner's statement-published private roots
+and detached prepared roots. The caller may additionally include its own
+current stage. Peer statements linearize at the existing atomic owner merge:
+capture sees a complete pre-merge or post-merge state without peer Admission.
+TxRef and VersionID deduplication prevent double counting during PREPARE.
+Dirty and Vacuum classification use actual creator/end provenance, including
+Vacuum's different own/peer handling of inserted-and-ended versions.
+
+Detached allocation models run after releasing every metadata mutex. Heap
+pages pack actual aligned row allocations and item pointers into 8192-byte
+blocks; full-scan approximate statistics report 100 percent for nonempty heaps.
+No scan prunes roots or consults maintenance counters. VACUUM retires eligible
+predecessors through its existing horizon/fence; rewrite and logical import
+start new physical incarnations.
+Index tuple/page capture uses current logical roots and already-produced private
+outputs; no index archive is prepared, stamped, published or transported.
+Physical estimates can shrink immediately after logical DELETE, unlike
+PostgreSQL's retained on-page items. Heap logical history is unchanged.
+
 
 ## Installed byte pageinspect runtime
 
@@ -1689,6 +1717,13 @@ the shared visibility-sensitive dependency labels, never a bare-name fallback.
 `Session.Mu`, `SettingsStore.Mu` and `Engine.sessionMu`; the lock manager's
 mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](../lock/README.md#mutex-ownership-and-lock-order)).
+
+Multi-owner physical capture discovers owner pointers under `sessionMu`, drops
+it, and acquires distinct owner mutexes in ascending session-token order
+before `Engine.Mu`. The cohort is revalidated before borrowing roots; a changed
+cohort is released completely and recaptured. No owner mutex is acquired
+under `sessionMu` or `Engine.Mu`, and no peer Admission or completion is awaited.
+
 
 Cluster `AdmissionMu` protects only reservation state and per-target counts.
 Admission takes metadata Mu then AdmissionMu; claim/release take AdmissionMu alone
@@ -2599,6 +2634,11 @@ Low-level relation-admission owner tests must pass the statement through `Gate`
 before acquiring its relation: `StartStatement` alone does not attach the
 transaction incarnation or lock ticket. Wait witnesses inspect the real grant
 and queued owner, and fail immediately if the worker completes before admission.
+
+Retained heap version, logical index publication, capture and expression ownership
+units use `RUN='^TestPgstattupleHeap'`; public outcomes remain in
+`reference/extensions`.
+
 
 TEMP tablespace preparation, admission and composed-creation units use
 `RUN='^TestTempTablespaces'`; their SQL/diagnostic witnesses live in `reference/`.

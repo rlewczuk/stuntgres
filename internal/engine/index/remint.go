@@ -80,11 +80,13 @@ func RemintStorage(ctx context.Context, view catalog.Read, base RemintBase, rela
 			row.KeyChangedAt, row.PendingKeyChange = 0, false
 			row.IndexAdmission = nil
 			row.IndexOutputs = nil
+			row.PrivateHistory = nil
 		}
 		// Capture/remint contains only committed visible rows. Current
 		// cardinality survives transport; scan history and cumulative activity
 		// belong to the replaced incarnation and must not be inherited.
 		relation.Maintenance = storage.Maintenance{Live: int64(len(relation.Versions))}
+		relation.Retained = nil
 	}
 	roots, err := snapshot.Transport(ctx, view, relations, positions)
 	if err != nil {

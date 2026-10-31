@@ -146,6 +146,7 @@ var definitions = [...]Definition{
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
 	{Names: []string{"pgstatindex", "pgstathashindex"}, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
+	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Bind: bindPgstattuple, NamedCall: namedPgstattuple},
 	{Names: pageinspectNames[:], Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Bind: bindConnectby},

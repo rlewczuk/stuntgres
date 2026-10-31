@@ -549,6 +549,11 @@ SQL/PL input slots participate in strict-NULL proofs; the runtime still assemble
 the complete frame and checks live caller authority before testing its formals.
 An explicit NULL VARIADIC array retains the strict NULL result. Multirange NULL
 members instead reach the constructor's `22004` check.
+Source admission recognizes both ordinary and bare-metadata post-child strict
+folds. A current typed-parameter NULL uses the same proof as a literal NULL;
+unknown/generic parameter frames and row-derived NULLs still demand EXECUTE.
+Neither route reduces RECORD-returning calls or set-returning calls.
+
 
 After recursive child planning and typed-input validation, a strict scalar call
 with a literal NULL or a proven NULL in the current typed parameter frame becomes

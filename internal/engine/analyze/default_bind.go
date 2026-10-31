@@ -25,7 +25,7 @@ func (b *Binder) BindDefault(raw parser.Expr, column catalog.Column) (expr.Expr,
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > expr.Stable && !ClosedSequenceDefault(node) && !ClosedUUIDDefault(node) && !ClosedTransactionTimeDefault(node) && !ClosedPgcryptoDefault(node) && !ClosedSQLRoutineDefault(node) && !ClosedPageinspectDefault(node) {
+	if node.Properties().Volatility > expr.Stable && !ClosedSequenceDefault(node) && !ClosedUUIDDefault(node) && !ClosedTransactionTimeDefault(node) && !ClosedPgcryptoDefault(node) && !ClosedSQLRoutineDefault(node) && !ClosedPageinspectDefault(node) && !ClosedPgstattupleDefault(node, b.BindingCatalog()) {
 		return nil, expr.ErrorAt("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {

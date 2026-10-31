@@ -125,11 +125,15 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	_, slotCall := node.(functions.ReplicationSlot)
 	if StrictScalarRoutine(captured) && !slotCall {
 		null := false
+		var failure error
 		StrictRoutineArguments(node, func(child expr.Expr) {
-			if child != nil && RandomLiteralNull(child) && (!c.PreserveParameterDemand || !child.Properties().ParameterDependent) {
-				null = true
+			if !null && failure == nil {
+				null, failure = ExecutionKnownNullArgument(c, child)
 			}
 		})
+		if failure != nil {
+			return failure
+		}
 		if null {
 			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {
 				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, catalog.DefinitionDependency)

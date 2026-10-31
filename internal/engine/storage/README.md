@@ -22,9 +22,10 @@ and never the engine.
   Map writes use `state_write.go`: `InstallRelationLocked`,
   `RemoveRelationLocked`, `ReplaceRelationsLocked`, and the corresponding
   sequence and index-root methods. Reads may use the exported maps directly.
-- **Relation storage** (`relation.go`): `Relation` (the version vector, the
-  end root, the generation, the index-build origin and the lineage tokens),
-  `RowVersion`, `RowEnd` and `DeletionRoot`. `SameVersionRoot` compares
+- **Relation storage** (`relation.go`): `Relation` (the version vector, end
+  root, immutable retained-predecessor root, generation, index-build origin
+  and lineage tokens), `RowVersion`, `HeapPredecessor`, `RowEnd` and
+  `DeletionRoot`. `SameVersionRoot` compares
   two version roots by identity. `IndexIdentity` names the
   storage an index root was built from. `RowByID` finds a row by its stable
   `RowID`, trying a captured position first.
@@ -46,6 +47,8 @@ and never the engine.
   key `HashBinding`, and `IndexOutput`, an index membership/key a private
   row already produced. `CaptureRowEntries` builds the per-row hash entry
   index for exclusion indexes with runtime domain key conversion.
+  Index roots contain only current logical membership; tuple/page statistics
+  estimate physical metrics without retaining deleted index items.
   `brin.go` owns the immutable `BrinRoot`, per-key bindings and range summaries.
   It retains effective width and storage/generation/prefix/end captures, not
   a row-key list. Logical pages are authoritative version-vector slots; datum
@@ -253,10 +256,22 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   a nil map or acquires a lock. Installing into a nil map still panics.
   The engine builds detached candidates directly and publishes through these
   methods without changing preflight, allocator or catalog publication order.
-- **Immutable published roots.** Published `Relation` vectors, end roots and
-  index roots are immutable and shared copy-on-write. Publication swaps the
-  store's maps together with the catalog state under `Engine.Mu`. Snapshots
+- **Immutable published roots.** Published `Relation` vectors, end roots,
+  heap predecessors and index roots are immutable and shared copy-on-write.
+  Publication swaps the store's maps with the catalog state under `Engine.Mu`. Snapshots
   retain roots by pointer and never copy row values.
+  Private `RowVersion.PrivateHistory` links actual predecessor headers in O(1),
+  sharing immutable values. Existing Writes transfers retain these roots through
+  statement finish, savepoints, routines/rules and PREPARE; rollback drops only
+  the discarded ownership. Commit prepares fresh predecessor headers before the
+  all-relations veto and stamps/publishes them with heads, ends and indexes.
+  Published heads retain no private history or index-admission pins. Projection
+  transforms history into fresh payload vectors; a genuine rewrite/import starts
+  fresh physical history.
+  `MapHeapPredecessors` retains exact no-op roots and shares unchanged suffixes
+  during compatible generation transport. Existing datum/key visitors transform
+  changed heap headers without recipe evaluation, preserving row/version
+  identity, insertion provenance and end facts.
 - **Publication values take no lock.** `RowShape`, `Publication` and the
   stamping methods are value code the engine runs under `Engine.Mu` inside
   `publishCatalog`; the visibility calls, retry loop and installation stay
@@ -292,6 +307,11 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   B-tree remapping. BRIN compaction dispatches through the index owner's
   conservative destination-range reconstruction, never generic entry remapping.
   No-change passes retain roots; no row/version IDs are minted.
+  `InspectRetainedVacuum` applies the same conservative snapshot gate to real
+  committed heap predecessors; old captured roots remain immutable. Statistics
+  collection only borrows these roots. Index roots have no physical-item archive.
+  `pgstattuple.go` owns Dirty/Vacuum classification and checked deterministic
+  page/byte/percentage arithmetic, not a second statistics store.
 - **Imported relation estimates.** `RelationMetadata.Imported` owns immutable
   INT4/FLOAT4/INT4/INT4 values with independent presence bits. Partial imports
   merge without changing heaps, scan cardinality, live/dead counts or allocator
@@ -337,6 +357,8 @@ fork base is not a PostgreSQL page size.
 Signed-dimension collection invariants that require real `plan` expression
 recipes live in external `enginetests/`, avoiding a storage→plan→storage test
 variant import cycle. Pure collector and snapshot-codec units remain local.
+Heap tuple classification and allocation units use `RUN='^TestPgstattupleHeap'`;
+composed retention, publication and race witnesses live with core.
 MCV collection, full marginals, typed collision chains and immutable construction
 facts use `make check RUN='^TestStatisticsMCVCollection$'`.
 Sample-versus-population scalar counts, singleton estimation and empty/canceled

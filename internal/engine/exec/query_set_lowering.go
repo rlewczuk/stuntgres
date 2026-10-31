@@ -111,7 +111,7 @@ func (s *FunctionSetInvocation) Close() {
 func StrictScalarFunctionSource(call expr.Expr) bool {
 	source, admitted := call.(expr.Source)
 	strict, folds := call.(expr.StrictFolding)
-	if !admitted || !folds || strict.StrictNull() != expr.StrictAfter {
+	if !admitted || !folds || (strict.StrictNull() != expr.StrictAfter && strict.StrictNull() != expr.StrictAfterBare) {
 		return false
 	}
 	allowed, set := source.SourceAdmission()

@@ -39,7 +39,7 @@ func captureVacuumLocked(e *core.Engine, s *core.StatementScope, target vacuumHe
 	if err != nil {
 		return c, false, err
 	}
-	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Generation: target.store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
+	c = table.VacuumCapture{Rows: target.store.Versions, Ends: target.store.Ends, Retained: target.store.Retained, Generation: target.store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
 	return c, true, nil
 }
 
@@ -89,7 +89,7 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 	// Bind current storage/shape only now. Detached work still uses the same
 	// strict epoch, store, shape, root, index, rights and final-publication fences.
 	target := vacuumHeapTarget{selected.Ref, d, store}
-	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Generation: store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
+	first := table.VacuumCapture{Rows: store.Versions, Ends: store.Ends, Retained: store.Retained, Generation: store.Generation, Frontier: e.Visibility.CommitSeq(), Cutoff: cutoff, Retire: e.Visibility.VacuumRetirementAllowedLocked(s.TxRef), Catalog: e.Catalog.State, Relation: d}
 	first.CaptureIndexesLocked(&e.Catalog.Owner, e.Storage.IndexRoots, true)
 	if s.Op.Session.SessionToken.ID() > math.MaxInt32 {
 		e.Mu.Unlock()
@@ -144,7 +144,7 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 			next.Imported = storage.WithoutImportedRelationStatistics(next.Imported, storage.RelationStatisticsAll)
 			e.Storage.RelationMetadata[target.relation.Address()] = &next
 		}
-		target.store.Versions, target.store.Ends, target.store.Generation = pass.Candidate.Versions, pass.Candidate.Ends, pass.Generation
+		target.store.Versions, target.store.Ends, target.store.Retained, target.store.Generation = pass.Candidate.Versions, pass.Candidate.Ends, pass.Candidate.Retained, pass.Generation
 		for address, root := range pass.Roots {
 			e.Storage.InstallIndexRootLocked(address, root)
 		}

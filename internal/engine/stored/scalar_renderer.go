@@ -76,7 +76,15 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 	u, p := node.ResultUsage(), node.Properties()
 	pageinspectDefault := p.StageDependent && analyze.ClosedPageinspectDefault(node)
 	pageinspectStage := pageinspectDefault || r.Owner != nil && p.StageDependent && analyze.PageinspectStoredStage(node)
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && !r.RoutineDefault && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) && !pageinspectDefault || p.RowDependent) || p.ParameterDependent || p.StageDependent && !pageinspectStage || p.DomainDependent && r.DomainValue == nil {
+	closedPgstattuple := false
+	if p.StageDependent || p.Volatility > expr.Stable {
+		if r.Owner != nil {
+			closedPgstattuple = analyze.ClosedPgstattupleCheck(node, view)
+		} else {
+			closedPgstattuple = analyze.ClosedPgstattupleDefault(node, view)
+		}
+	}
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.Owner == nil && (r.DomainValue == nil && !r.RoutineDefault && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) && !pageinspectDefault && !closedPgstattuple || p.RowDependent) || p.ParameterDependent || p.StageDependent && !pageinspectStage && !closedPgstattuple || p.DomainDependent && r.DomainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.Definition, u); err != nil {
@@ -174,6 +182,8 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 	case plan.InstalledAutoincExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPgstattupleStatsExpr:
+		return r.ScalarFunctionSQL(ctx, view, node)
+	case plan.InstalledPgstattupleExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)
 	case plan.InstalledPageinspectExpr:
 		return r.ScalarFunctionSQL(ctx, view, node)

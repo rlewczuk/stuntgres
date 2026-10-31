@@ -194,7 +194,7 @@ func pgstattupleStatsAuthority(auth AuthorizationView, n plan.InstalledPgstattup
 	if !ok || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return ids.ErrCatalogReplaced
 	}
-	if err := extension.ValidatePgstattupleStatsIdentity(auth.Catalog, current, n.Ref); err != nil {
+	if err := extension.ValidatePgstattupleIdentity(auth.Catalog, current, n.Ref); err != nil {
 		return err
 	}
 	boundary := n.PgstattupleStats

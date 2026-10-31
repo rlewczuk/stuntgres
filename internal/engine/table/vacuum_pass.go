@@ -18,6 +18,7 @@ import (
 type VacuumCapture struct {
 	Rows       []storage.RowVersion
 	Ends       *storage.DeletionRoot
+	Retained   *storage.HeapPredecessor
 	Generation uint64
 	Frontier   ids.CommitSeq
 	Cutoff     uint64
@@ -58,7 +59,7 @@ func (c *VacuumCapture) CaptureIndexesLocked(owner *catalog.Owner, roots map[ids
 // rewrites the catalog also needs the same catalog state. Caller holds
 // Engine.mu.
 func (c VacuumCapture) SameLocked(current VacuumCapture, store *storage.Store, rewritesCatalog bool) bool {
-	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
+	same := storage.SameVersionRoot(current.Rows, c.Rows) && current.Ends == c.Ends && current.Retained == c.Retained && current.Generation == c.Generation && current.Retire == c.Retire && current.Cutoff >= c.Cutoff && current.Attached == c.Attached && current.IndexCount == c.IndexCount && store.IndexRootsCurrent(c.Indexes)
 	if rewritesCatalog && current.Catalog != c.Catalog {
 		same = false
 	}
@@ -111,7 +112,19 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 			return VacuumPass{}, err
 		}
 	}
-	changed := !storage.SameVersionRoot(candidate.Versions, c.Rows) || candidate.Ends != c.Ends
+	var retainedDead, retainedRemoved int64
+	candidate.Retained, retainedDead, retainedRemoved, err = storage.InspectRetainedVacuum(ctx, c.Retained, c.Frontier, c.Retire)
+	if err != nil {
+		return VacuumPass{}, err
+	}
+	candidate.Dead, err = storage.AddSize(candidate.Dead, retainedDead)
+	if err == nil {
+		candidate.Removed, err = storage.AddSize(candidate.Removed, retainedRemoved)
+	}
+	if err != nil {
+		return VacuumPass{}, err
+	}
+	changed := !storage.SameVersionRoot(candidate.Versions, c.Rows) || candidate.Ends != c.Ends || candidate.Retained != c.Retained
 	pass := VacuumPass{Candidate: candidate, Generation: c.Generation}
 	if changed {
 		if pass.Generation == ^uint64(0) {
@@ -120,15 +133,9 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		pass.Generation++
 	}
 	indexWork := 0
-	if changed {
-		if candidate.Positions != nil {
-			indexWork = len(c.Indexes)
-		} else {
-			for _, root := range c.Indexes {
-				if root.Hash != nil || root.Brin != nil {
-					indexWork++
-				}
-			}
+	for _, root := range c.Indexes {
+		if changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil) {
+			indexWork++
 		}
 	}
 	if indexWork != 0 {
@@ -136,7 +143,7 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		progress(state)
 		pass.Roots = make(map[ids.ObjectAddress]*storage.IndexRoot, indexWork)
 		for address, root := range c.Indexes {
-			if candidate.Positions == nil && root.Hash == nil && root.Brin == nil {
+			if !(changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil)) {
 				continue
 			}
 			var remapped *storage.IndexRoot

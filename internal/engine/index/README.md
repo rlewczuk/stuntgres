@@ -51,6 +51,14 @@ builds a binder.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
+  `pgstattuple.go` estimates tuple/page metrics from current logical roots and
+  already-produced private outputs. Published logical removal stops contributing
+  at once; pgstattuple dead index count is zero because roots have no killed-item
+  marker. No archive,
+  historical-key reconstruction or predicate/expression evaluation is required.
+  Private outputs and current keys retain their normal compatible-generation
+  transport; immutable saved roots remain usable. GiST root-only scans count no
+  tuples, and hash reserves a metadata page and at least two estimated buckets.
   `ClassOptions` captures each key's explicit siglen independently; relation
   fillfactor/buffering and key siglen retain logical configuration without
   physical pages. Catalog inquiry and replay preserve explicit defaults and

@@ -264,6 +264,10 @@ call live here.
   `VacuumWarning`s, which [`tablecmds`](../tablecmds/README.md#vacuum) emits
   after unlocking, in order. The pass's `phase` callback takes `Engine.Mu`
   once per progress update, so callers hold nothing.
+  Index work remaps current positions after compaction or rebinds hash/BRIN
+  generation when heap roots change. No physical index archive is maintained.
+  Heap predecessor retirement still respects protected horizons and immutable
+  old captures.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding,
   diagnostics over `access.View`, the probe (`FindForeignKeyParent`,
   `ProbeForeignKeyIndex`), OID-ordered provider walks, initial row scans and

@@ -865,6 +865,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
+	case plan.InstalledPgstattupleExpr:
+		if err := ValidateInstalledPgstattuple(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Ref.Address)
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pgstattuple namespace")
+		}
+		return pgstattupleCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
 	case plan.InstalledPgstattupleStatsExpr:
 		if err := ValidateInstalledPgstattupleStats(n, r.View); err != nil {
 			return "", err

@@ -164,7 +164,7 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_earth_point.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
   `InstalledUUIDOsspExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
-  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
+  `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledPgstattupleExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
   `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity

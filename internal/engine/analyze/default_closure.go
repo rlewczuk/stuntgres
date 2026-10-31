@@ -357,6 +357,60 @@ func SQLRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 	return valid, containsSQL
 }
 
+// Installed heap statistics execute against the DEFAULT statement owner, just
+// like stored SQL calls. Their intrinsic stage dependence is intentional: never
+// lower volatility or admit row/parameter-dependent arguments to gain closure.
+// Every retained provider leaf still needs its authentic installed declaration.
+func ClosedPgstattupleDefault(node expr.Expr, view catalog.Read) bool {
+	return closedPgstattupleExpression(node, view, false)
+}
+
+// ClosedPgstattupleCheck admits the same installed producers in an owner-bound
+// CHECK. Row references retain the renderer's ordinary attribute validation;
+// neither CHECK nor DEFAULT admits an unrelated stage-dependent producer.
+func ClosedPgstattupleCheck(node expr.Expr, view catalog.Read) bool {
+	return closedPgstattupleExpression(node, view, true)
+}
+
+func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner bool) bool {
+	if node == nil {
+		return true
+	}
+	p := node.Properties()
+	if p.RowDependent && !rowOwner || p.ParameterDependent {
+		return false
+	}
+	switch n := node.(type) {
+	case plan.InstalledPgstattupleExpr:
+		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
+		// Stored callers retain the selected immutable declaration across name,
+		// namespace and ACL changes. Authenticate that declaration before using
+		// the current sealed provider; pointer equality would reject relocation.
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgstattupleIdentity(view, current, n.Ref) != nil {
+			return false
+		}
+		call := n.Pgstattuple
+		call.RoutineReference = current
+		if extension.ValidatePgstattupleCall(view, current, call) != nil {
+			return false
+		}
+	case plan.CoercionExpr, plan.CollationExpr, plan.RowExpr, plan.FieldExpr,
+		plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr,
+		plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr,
+		plan.ConditionalExpr, plan.CaseExpr, plan.ScalarArrayComparisonExpr:
+	default:
+		return !p.StageDependent && (rowOwner || p.Volatility <= expr.Stable)
+	}
+	valid := true
+	plan.ExpressionChildren(node, func(child expr.Expr) {
+		valid = valid && closedPgstattupleExpression(child, view, rowOwner)
+	})
+	return valid
+}
+
 // Validate provider-specific captured authority without assuming a dictionary.
 func ValidInstalledText(n plan.InstalledTextExpr) bool {
 	p := n.Procedure

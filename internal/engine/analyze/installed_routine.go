@@ -80,9 +80,9 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, nil
 	}
 	if pgstats && proc == nil {
-		signature = "25"
-		if text == "pgstathashindex" {
-			signature = "2205"
+		proc = ProcedureInNamespaces(auth.ReadCatalog(), path, text, "25")
+		if proc == nil {
+			proc = ProcedureInNamespaces(auth.ReadCatalog(), path, text, "2205")
 		}
 	}
 	if proc != nil {
@@ -208,6 +208,27 @@ func (r installedExtensionRoutine) PgstattupleOperation() functions.PgstattupleO
 	return functions.PgstattupleOperation(255)
 }
 
+func (r installedExtensionRoutine) PgstattupleDeclaration() (functions.HeapStatisticsKind, sqltype.ID, string, []sqltype.CompositeMember) {
+	kind := functions.HeapStatisticsExact
+	switch r.procedure.Display.Source {
+	case "pgstattuple_approx_v1_5":
+		kind = functions.HeapStatisticsApprox
+	case "pg_relpages_v1_5", "pg_relpagesbyid_v1_5":
+		kind = functions.HeapStatisticsPages
+	}
+	input := r.PgstattupleStatsInput()
+	formal := r.procedure.Installed.ArgumentNames[0]
+	var members []sqltype.CompositeMember
+	if outputs := r.procedure.OutputDeclaration(); outputs != nil {
+		formal = outputs.Name(0)
+		members = make([]sqltype.CompositeMember, outputs.Len())
+		for i := range outputs.Len() {
+			members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+		}
+	}
+	return kind, input, formal, members
+}
+
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
 	ext, ok := catalog.OriginInstallation(r.procedure)
 	if !ok || extension.CubeProviderOf(r.procedure) != extension.StockCube || len(ext.Members) == 0 {
@@ -258,7 +279,7 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		b.dependency(ref, p.Revision())
 		return plan.InstalledAutoincExpr{TriggerBuiltin: c, Procedure: p, Ref: ref}, nil
 	case functions.PgstattupleStats:
-		if err := extension.ValidatePgstattupleStatsIdentity(r.catalog, p, ref); err != nil {
+		if err := extension.ValidatePgstattupleIdentity(r.catalog, p, ref); err != nil {
 			return nil, err
 		}
 		c.RoutineReference = p
@@ -267,6 +288,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgstattupleStatsExpr{PgstattupleStats: c, Procedure: p, Ref: ref}, nil
+	case functions.Pgstattuple:
+		if err := extension.ValidatePgstattupleIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgstattupleCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgstattupleExpr{Pgstattuple: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

@@ -20,6 +20,19 @@
   identity/control replay. Hash statistics use a deterministic effective-root
   sample and compact page model without changing hash storage or publication.
 
+- Repair heap-statistics integration: retain authenticated volatile DEFAULT
+  recipes through normal statement-owner execution; simplify strict scalar
+  literal/bound NULL calls in FROM without acquiring runtime EXECUTE, while
+  preserving RECORD and dynamic-NULL admission. Explicit foreign TEMP name
+  lookup honors the current superuser role before the statistics kernel applies
+  its own relation-access restriction.
+  Stored-default serialization applies the same authenticated bounded closure
+  without lowering VOLATILE or stage dependence. Scalar page-count sources have
+  no OUT parameter, so ordinary range and column aliases survive NULL folding
+  and prepared execution. Index tuple/page metrics now estimate current logical
+  roots without physical item archives, publication hooks or archive transport.
+  Heap history remains real for exact live/dead and transaction/rollback counts.
+
 - Add release-matched Irish Snowball morphology, genuine `irish_stem`/`irish`
   seeds and nineteen token mappings, with optional configured stoplists, typed
   prepared ownership, atomic publication and native edited-stock replay.
@@ -1699,7 +1712,13 @@ There is no need to record changes anymore.
 
 DO NOT add anything to changelog anywhere in this project.
 
-Installed pgstattuple 1.5 provides pgstatindex(text/regclass), ordinary scan-role
-EXECUTE ACLs, typed scalar/record/source calls and identity-preserving controls.
-Exact resident logical index contents drive the documented compact B-tree
-page/tree/density model; no physical PostgreSQL page inspection is claimed.
+Installed pgstattuple 1.5 provides pgstatindex(text/regclass),
+pgstathashindex(regclass), pgstattuple(text/regclass),
+pgstattuple_approx(regclass) and pg_relpages(text/regclass), with ordinary
+scan-role EXECUTE ACLs and identity-preserving typed calls and controls.
+Immutable heap predecessors use existing atomic publication, savepoint/prepared
+ownership and VACUUM retirement. Heap Dirty/Vacuum counts use coherent
+committed/private roots. Physical heap/index/hash bytes and pages use deterministic
+allocation models without PostgreSQL page decoding. Index tuple metrics count
+current represented items, not deleted physical leftovers; no index archive,
+archive publication or archive type transport is maintained.

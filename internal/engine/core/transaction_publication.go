@@ -234,7 +234,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			if store == nil || !live || a.SubID != 0 {
 				return ids.ErrCatalogReplaced
 			}
-			prepared = append(prepared, index.RowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
+			prepared = append(prepared, index.RowPublication{Address: a, Store: store, Original: original, OriginalRelation: originalRelation, Relation: relation, Root: store.Versions, Writes: rows, Ends: store.Ends, Retained: store.Retained, Deletion: deletion, Generation: store.Generation, SingleSlot: -1})
 			return nil
 		}
 		for a, rows := range writes {
@@ -381,7 +381,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		changed := e.RoleStore.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.Catalog.State != current || c != nil && e.Visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
-				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
+				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || p.Store.Retained != p.Retained || !storage.SameVersionRoot(p.Store.Versions, p.Root) {
 					changed = true
 					break
 				}
@@ -511,6 +511,21 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		for _, p := range prepared {
+			for prior := p.NextRetained; prior != p.Retained; prior = prior.Next {
+				prior.End = e.Visibility.CommitSeq()+1
+				prior.EndFullXID = e.Visibility.FullXIDLocked(ref)
+				if prior.Version.Born == 0 {
+					prior.Version.Born = prior.End
+					prior.Version.InsertFullXID = prior.EndFullXID
+					prior.Version.Base = 0
+					prior.Version.Frozen, prior.Version.ImportFrozen = false, false
+					if prior.Version.PendingKeyChange {
+						prior.Version.KeyChangedAt = prior.Version.Born
+						prior.Version.PendingKeyChange = false
+					}
+				}
+			}
+			p.Store.Retained = p.NextRetained
 			for i, row := range p.Writes {
 				slot := len(p.Root) + i
 				if p.Slots != nil {
@@ -533,6 +548,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				row.Frozen, row.ImportFrozen = false, false
 				row.IndexAdmission = nil
 				row.IndexOutputs = nil
+				row.PrivateHistory = nil
 				if row.PendingKeyChange {
 					row.KeyChangedAt = row.Born
 					row.PendingKeyChange = false

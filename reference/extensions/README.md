@@ -18,10 +18,10 @@ reconstruction use public fixture/control APIs only.
 
 ## pgstattuple: pgstatindex ownership
 
-`pgstatindex_*_test.go` owns the public acceptance for the bounded installed
-`pgstattuple` 1.5 provider's `pgstatindex(text)` and `pgstatindex(regclass)`.
-`pgstathashindex_*_test.go` owns its sole hash declaration,
-`pgstathashindex(regclass)`. Other module functions are not claimed.
+`pgstatindex_*_test.go` owns the public acceptance for the installed
+`pgstatindex(text)` and `pgstatindex(regclass)` overloads.
+`pgstathashindex_*_test.go` owns `pgstathashindex(regclass)`.
+Heap tuple and page inquiries have their own shared scenarios below.
 The shared fixture installs in `ps_part`; all scenarios use public SQL,
 `reference/fixture`, and public native controls, never internal packages.
 
@@ -90,6 +90,51 @@ body in both modes. Native hash statistics sample effective-root bucket lengths,
 report dead zero and apply the compact model documented by `index`; private DML
 phases assert callability, shape and lifecycle rather than forced private counts.
 PostgreSQL physical values are independently invariant-checked, not model parity.
+
+## Heap tuple statistics scenarios
+
+`pgstattuple_heap_*_test.go` owns the shared public scenarios for
+`pgstattuple(text/regclass)`, `pgstattuple_approx(regclass)` and
+`pg_relpages(text/regclass)`. The fixture installs in `hs_part`, disables
+autovacuum on the counted heap, and uses an established REPEATABLE READ
+horizon where genuine predecessors must remain available. Exact logical
+counts are independently specified for committed, own, peer and detached
+prepared transactions; ordinary SELECT snapshot visibility is checked
+separately. Own inserted-and-ended versions distinguish approximate Vacuum
+classification from peer insert-in-progress classification. Savepoint and full
+rollback assert restored live rows without assuming portable aborted-tuple debris.
+The rollback fixture explicitly ends its horizon after the protected savepoint
+phase, before later constraint DDL; maintenance ends it before heap replacement.
+A deferred rollback alone would retain an AccessShare lock that blocks the
+fixture's own AccessExclusive operation.
+
+The declaration and empty-result scenarios check the complete released
+catalog rows, OUT metadata, named/positional/direct/prepared/held paths,
+one-time child evaluation and non-SETOF STRICT NULL expansion. Permissions
+exercise actual per-overload EXECUTE, scan/monitor inheritance and schema
+USAGE, independently of table SELECT. Constant scalar page NULLs may fold before
+EXECUTE; nullable dynamic page arguments and record NULLs retain runtime checks.
+Kind/error scenarios include supported
+heap, leaf, materialized-view, sequence and index targets, unsupported kinds
+and access methods, textual lookup versus OID inputs, and peer TEMP storage.
+GIN, TOAST, custom table-AM and invalid-index construction are explicitly
+oracle-only setup phases; they do not claim native public construction coverage.
+Native descriptor/host dispatch supplements GIN, invalid supported-index and
+custom table-AM release witnesses without adding public construction machinery.
+
+Complete raw empty/NULL results establish every output field's name and type,
+including direct and prepared calls. Populated byte/page/scanning values use
+SQL equations and bounded percentages, not backend byte equality. The SQL
+projections check page alignment, length/free-space accounting, finite/range
+bounds and grouped CAST/round expressions for exact two-decimal percentages.
+Logical live/dead counts have independent expected values.
+Maintenance scenarios distinguish protected from eligible versions, then check
+TRUNCATE and descriptor changes. Native composed units additionally pin real
+immutable heap/index roots, atomic owner pre/post merge capture and PREPARE,
+savepoint restoration, publication vetoes, old captures and retirement.
+Stored name/OID consumers, moved members, extension relocation and native
+logical Dump/Reset/Restore retain real SQL witnesses, held statements and old
+Rows; rejected/canceled Restore and independent destinations check atomicity.
 
 ## Testing
 
@@ -189,6 +234,26 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
+- Heap tuple statistics: `RUN='^TestReferencePgstattupleHeap'`
+  Declaration fixtures distinguish declared signatures from implicit
+  text-to-regclass coercion. Permission fixtures retain dynamic nullable table
+  inputs so EXECUTE denial is reached, and separately cover PostgreSQL's static
+  STRICT-NULL scalar-call elision (RECORD calls are not elided). Supported-index
+  counts explicitly distinguish PostgreSQL's physical post-DELETE item (one for
+  B-tree/hash) from native current-root simulation (zero). Both count one before
+  DELETE and zero when empty; root-only GiST counts zero. No broad backend skip
+  or parity-only assertion replaces these independent expectations. Physical heap
+  equations retain exact two-decimal assertions using standard CAST syntax.
+  Native public GIN index construction is unavailable; only that genuine
+  construction witness joins the explicit oracle-only TOAST/invalid-index phase.
+  Its exact/approx rejection diagnostics and page-count assertions remain
+  present. Production `TestPgstattupleHeapCapture` must separately prove native
+  GIN descriptor dispatch, exact primary/detail diagnostics and page capture;
+  adding GIN construction is outside this part.
+  Visibility schedules distinguish own and peer approximate classifications:
+  Vacuum treats own inserted-and-ended versions as DELETE_IN_PROGRESS (live),
+  but a peer treats ongoing xmin as INSERT_IN_PROGRESS (dead), before xmax.
+  Exact Dirty classifications remain unchanged.
 - Encoding conversions: `RUN='^TestReferenceConversion'`
 - LOAD: `RUN='^TestReferenceLoad'`
 - Runtime inquiries: `RUN='^TestReferenceRuntimeInfo'`

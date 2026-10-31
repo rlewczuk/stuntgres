@@ -33,3 +33,4 @@ type IndexOutput struct {
 	Keys   []sqltype.Value
 	Key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
 }
+

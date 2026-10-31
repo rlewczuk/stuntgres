@@ -220,6 +220,14 @@ and takes no lock. The session-layer mutexes are exported fields of
 `Engine.Mu`; only root code takes it around their `…Locked` methods, and the
 root `notificationSessionEnd` resource callback takes it to end a listener.
 
+For coherent physical statistics capture, discovery copies session owner
+pointers under `Engine.sessionMu` and releases it before taking any owner
+mutex. Distinct owners are locked in ascending session-token order, including
+the caller, then `Engine.Mu` is taken. Cohort changes require releasing all
+locks before rediscovery. This never takes peer Admission, awaits transaction
+completion, or acquires a lock-manager mutex under `Engine.Mu`.
+
+
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
 readable without `mu`; the engine updates them under `Engine.Mu`, which is why
 `PGLocks` samples each ticket's XID once per capture.

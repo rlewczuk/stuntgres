@@ -91,7 +91,10 @@ func (r ClassInput) ResolveRelationName(ctx context.Context, text string) (uint3
 		} else {
 			namespace, _ := catalog.DefinitionNamespaceAt(a.View.Catalog, a.Definitions, ns)
 			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.capture.Token {
-				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
+				actor, exists := a.View.Roles.Find(a.View.State.CurrentUser)
+				if !exists || !actor.Superuser {
+					return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
+				}
 			}
 			if err := a.View.CanUse(a.Environment, a.View.Ref(ns)); err != nil {
 				return 0, err

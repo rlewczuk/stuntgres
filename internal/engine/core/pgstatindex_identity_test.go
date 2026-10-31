@@ -20,13 +20,17 @@ func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 3 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 8 {
 		t.Fatal("lost sealed release")
 	}
 	for i, a := range recipe.Members {
 		original := view.MustProcedure(a)
 		p := remap(original).(*catalog.Procedure)
 		canonical := next.Declarations[i].(*catalog.Procedure)
+		member := extension.PgstattupleMembers[i]
+		if original.Name() != member.Name || original.Signature != member.Signature || original.Result != member.Result || original.Display.Source != member.Source || canonical.Display.Source != member.Source || canonical.Installed != member.Declaration {
+			t.Fatal("canonical remap changed manifest declaration", i)
+		}
 		if p.Origin.Installation != next || p.Origin.Declaration != i || !p.Origin.Valid(mapping[a]) || next.Members[i] != mapping[a] || canonical.Address() != mapping[a] || canonical.Namespace() != mapping[ext.TargetNamespace] || canonical.Origin != nil {
 			t.Fatal("split canonical authority", i)
 		}
@@ -47,7 +51,7 @@ func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
 	foreignProc := foreign.CatalogRead().MustProcedure(foreignExt.Members[0])
 	for _, bad := range []*catalog.Procedure{original, foreignProc} {
 		ref := foreign.Catalog.Domain.Ref(view.Epoch(), bad.Address())
-		if err := extension.ValidatePgstattupleStatsIdentity(view, bad, ref); err == nil {
+		if err := extension.ValidatePgstattupleIdentity(view, bad, ref); err == nil {
 			t.Fatal("foreign-domain carrier accepted")
 		}
 	}

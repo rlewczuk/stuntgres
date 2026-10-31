@@ -11,6 +11,7 @@ import (
 type VacuumCandidate struct {
 	Versions                    []RowVersion
 	Ends                        *DeletionRoot
+	Retained                    *HeapPredecessor
 	Positions                   []int
 	Live, Dead, Removed, Frozen int64
 	Horizon                     uint64
@@ -96,8 +97,32 @@ func MaterializeVacuum(ctx context.Context, rows []RowVersion, ends *DeletionRoo
 	return c, ctx.Err()
 }
 
+// InspectRetainedVacuum borrows immutable committed predecessor headers. The
+// caller's existing conservative snapshot gate decides whether this complete
+// captured prefix may retire; statistics capture never invokes retirement.
+func InspectRetainedVacuum(ctx context.Context, root *HeapPredecessor, frontier ids.CommitSeq, retire bool) (*HeapPredecessor, int64, int64, error) {
+	var count int64
+	for prior := root; prior != nil; prior = prior.Next {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, 0, err
+		}
+		if prior.End == 0 || prior.End > frontier || prior.Version.Born == 0 {
+			return nil, 0, 0, fmt.Errorf("stuntgres: invalid committed heap predecessor")
+		}
+		var err error
+		count, err = AddSize(count, 1)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+	}
+	if retire {
+		return nil, 0, count, nil
+	}
+	return root, count, 0, nil
+}
+
 // RemapVacuumIndex never evaluates keys or predicates. Keys/bindings and index
-// validity remain the original authority; only retained physical positions move.
+// validity remain the original authority; only current item positions move.
 func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c VacuumCandidate, store *Relation, generation uint64) (*IndexRoot, error) {
 	if root == nil {
 		return nil, nil
@@ -106,10 +131,12 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 		return nil, fmt.Errorf("stuntgres: BRIN vacuum requires range reconstruction")
 	}
 	if c.Positions == nil {
-		if root.Hash == nil || SameVersionRoot(c.Versions, old) {
+		rebind := root.Hash != nil && (root.Hash.Generation != generation || root.Hash.Ends != c.Ends || !SameVersionRoot(c.Versions, old))
+		if !rebind {
 			return root, ctx.Err()
 		}
-		next, h := *root, *root.Hash
+		next := *root
+		h := *root.Hash
 		h.Storage, h.Generation, h.Ends = store, generation, c.Ends
 		next.Hash = &h
 		return &next, ctx.Err()

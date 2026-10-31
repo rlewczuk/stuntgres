@@ -67,25 +67,54 @@ func (p ColumnProjection) Versions(ctx context.Context, rows []storage.RowVersio
 	}
 	projected := make([]storage.RowVersion, len(rows))
 	for i, row := range rows {
-		if err := ctx.Err(); err != nil {
+		var err error
+		row, err = p.version(ctx, row)
+		if err != nil {
 			return nil, err
 		}
-		if len(row.Values) != p.width {
-			return nil, fmt.Errorf("stuntgres: invalid original row width")
+		row.PrivateHistory, err = p.Predecessors(ctx, row.PrivateHistory)
+		if err != nil {
+			return nil, err
 		}
-		values := make([]sqltype.Value, len(p.slots))
-		for j, slot := range p.slots {
-			if slot >= 0 {
-				values[j] = row.Values[slot]
-			} else {
-				values[j] = p.fills[j]
-			}
-		}
-		row.Values = values
-		row.IndexOutputs = nil
 		projected[i] = row
 	}
 	return projected, nil
+}
+
+func (p ColumnProjection) version(ctx context.Context, row storage.RowVersion) (storage.RowVersion, error) {
+	if err := ctx.Err(); err != nil {
+		return storage.RowVersion{}, err
+	}
+	if len(row.Values) != p.width {
+		return storage.RowVersion{}, fmt.Errorf("stuntgres: invalid original row width")
+	}
+	values := make([]sqltype.Value, len(p.slots))
+	for j, slot := range p.slots {
+		if slot >= 0 {
+			values[j] = row.Values[slot]
+		} else {
+			values[j] = p.fills[j]
+		}
+	}
+	row.Values = values
+	row.IndexOutputs = nil
+	return row, nil
+}
+
+// Predecessors transforms fresh headers/payload vectors without changing an
+// earlier savepoint, row capture or committed physical root.
+func (p ColumnProjection) Predecessors(ctx context.Context, root *storage.HeapPredecessor) (*storage.HeapPredecessor, error) {
+	var next *storage.HeapPredecessor
+	tail := &next
+	for prior := root; prior != nil; prior = prior.Next {
+		row, err := p.version(ctx, prior.Version)
+		if err != nil {
+			return nil, err
+		}
+		*tail = &storage.HeapPredecessor{Version: row, End: prior.End, EndFullXID: prior.EndFullXID}
+		tail = &(*tail).Next
+	}
+	return next, nil
 }
 
 // ProjectDeletions points a private delete root at store.
@@ -160,7 +189,11 @@ func ProjectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1, Maintenance: store.Maintenance}
+	retained, err := projection.Predecessors(ctx, store.Retained)
+	if err != nil {
+		return shape, nil, nil, err
+	}
+	shape.Replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Retained: retained, Generation: store.Generation + 1, Maintenance: store.Maintenance}
 	shape.Truncated = false
 	writes, err = projection.Versions(ctx, writes)
 	if err != nil {

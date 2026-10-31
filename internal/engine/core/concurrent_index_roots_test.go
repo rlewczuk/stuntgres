@@ -86,7 +86,10 @@ func concurrentUnitRootMatchesStorage(t *testing.T, e *core.Engine, idx *catalog
 	root := e.Storage.IndexRoots[idx.Address()]
 	e.Mu.Unlock()
 	expected, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx.SQLIndex, &snapshot, nil)
-	if err != nil || !reflect.DeepEqual(root, expected) {
+	if err != nil || root == nil || expected == nil {
+		t.Fatalf("could not compare installed logical root with live row-version build: %v", err)
+	}
+	if !reflect.DeepEqual(root, expected) {
 		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
 	}
 }
@@ -130,9 +133,15 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 		t.Fatal("phase mutated predecessor or missed committed row versions")
 	}
 	concurrentUnitRootMatchesStorage(t, e, healthy)
+	beforeUpdate := root
 	enginetest.SessionSQL(t, c, "UPDATE t SET n=5 WHERE n=2")
-	healthy, _ = concurrentUnitIndex(t, e, "ix", true, true)
+	healthy, root = concurrentUnitIndex(t, e, "ix", true, true)
 	concurrentUnitRootMatchesStorage(t, e, healthy)
+	// Replacement publishes current membership without mutating saved roots.
+	if root == beforeUpdate ||
+		!reflect.DeepEqual(btreeKeys(t, beforeUpdate), []string{"4", "2"}) || !reflect.DeepEqual(btreeKeys(t, root), []string{"5", "4"}) {
+		t.Fatal("live lookup publication lost current membership or mutated old root")
+	}
 	enginetest.LockEmpty(t, e)
 }
 

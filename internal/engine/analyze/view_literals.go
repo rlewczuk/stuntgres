@@ -755,8 +755,17 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, n.Args[:])
 		}
+		if n, ok := bound.(plan.InstalledPgstattupleExpr); ok {
+			if err := extension.ValidatePgstattupleIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, n.Args)
+		}
 		if n, ok := bound.(plan.InstalledPgstattupleStatsExpr); ok {
-			if err := extension.ValidatePgstattupleStatsIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+			if err := extension.ValidatePgstattupleIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err
 			}
 			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {

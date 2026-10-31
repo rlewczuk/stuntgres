@@ -25,7 +25,7 @@ func TestPgstatindexProvider(t *testing.T) {
 	ext := pgstatindexUnitInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgstattuple.Control()
-	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 3 {
+	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 8 {
 		t.Fatal(control, ext)
 	}
 	if err := extension.StockPgstattuple.ValidateExtension(view, ext); err != nil {
@@ -33,7 +33,7 @@ func TestPgstatindexProvider(t *testing.T) {
 	}
 	names := []string{"version", "tree_level", "index_size", "root_block_no", "internal_pages", "leaf_pages", "empty_pages", "deleted_pages", "avg_leaf_density", "leaf_fragmentation"}
 	types := []ids.OID{23, 23, 20, 20, 20, 20, 20, 20, 701, 701}
-	for i, address := range ext.Members {
+	for i, address := range ext.Members[:3] {
 		p := view.MustProcedure(address)
 		sig := []catalog.ProcedureSignature{"25", "2205", "2205"}[i]
 		source := []string{"pgstatindex_v1_5", "pgstatindexbyid_v1_5", "pgstathashindex"}[i]
@@ -74,12 +74,12 @@ func TestPgstatindexProvider(t *testing.T) {
 			t.Fatal("actual owner and scan grants", p.ACL)
 		}
 		ref := e.Catalog.Domain.Ref(view.Epoch(), address)
-		if err := extension.ValidatePgstattupleStatsIdentity(view, p, ref); err != nil {
+		if err := extension.ValidatePgstattupleIdentity(view, p, ref); err != nil {
 			t.Fatal(err)
 		}
 		stale := ref
 		stale.Epoch++
-		if err := extension.ValidatePgstattupleStatsIdentity(view, p, stale); err == nil {
+		if err := extension.ValidatePgstattupleIdentity(view, p, stale); err == nil {
 			t.Fatal("stale identity accepted")
 		}
 		for _, mutate := range []func(*catalog.Procedure){
@@ -154,10 +154,10 @@ func TestPgstathashindexProvider(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(view.Epoch(), p.Address())
 	foreign := engine.New()
 	refForeign := foreign.Catalog.Domain.Ref(view.Epoch(), p.Address())
-	if err := extension.ValidatePgstattupleStatsIdentity(view, p, refForeign); err == nil {
+	if err := extension.ValidatePgstattupleIdentity(view, p, refForeign); err == nil {
 		t.Fatal("foreign domain accepted")
 	}
-	if err := extension.ValidatePgstattupleStatsIdentity(view, p, ref); err != nil { t.Fatal(err) }
+	if err := extension.ValidatePgstattupleIdentity(view, p, ref); err != nil { t.Fatal(err) }
 	for _, slot := range []int{0, 1, 3} {
 		state := catalog.CloneState(view.State())
 		bad, origin := *p, *p.Origin

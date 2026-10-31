@@ -19,6 +19,7 @@ type RowPublication struct {
 	Relation           *catalog.Relation
 	Root, Next, Writes []storage.RowVersion
 	Ends, NextEnds     *storage.DeletionRoot
+	Retained, NextRetained *storage.HeapPredecessor
 	Deletion           *visibility.PrivateDeletes
 	Generation         uint64
 	Slots              []int
@@ -96,6 +97,22 @@ func PrepareRowPublication(p *RowPublication, domain *ids.Domain, ref ids.TxRef,
 				} else {
 					p.Slots[j] = slot
 				}
+			}
+		}
+	}
+	p.NextRetained = p.Retained
+	for _, row := range p.Writes {
+		successor := row.Version
+		for prior := row.PrivateHistory; prior != nil; prior = prior.Next {
+			version := prior.Version
+			if version.Row != row.Row || version.Version == 0 || version.Version >= successor || prior.End != 0 || prior.EndFullXID != 0 || version.PrivateHistory != nil || len(version.Values) != len(p.Relation.Columns) {
+				return errors.New("stuntgres: invalid retained heap predecessor")
+			}
+			successor = version.Version
+			if materialize {
+				version.IndexAdmission = nil
+				version.IndexOutputs = nil
+				p.NextRetained = &storage.HeapPredecessor{Version: version, Next: p.NextRetained}
 			}
 		}
 	}

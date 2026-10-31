@@ -913,7 +913,7 @@ host methods.
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
-  crosstab, pgrowlocks, pageinspect, pgstatindex, connectby and amcheck capture); view validation and
+  crosstab, pgrowlocks, pageinspect, pgstattuple, connectby and amcheck capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics, including global procedural
   languages and text-search templates, dictionaries and configurations with
@@ -1185,11 +1185,30 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
-`InstalledPgstattupleStatsExpr` uses immutable installation authority. Renderers
-preserve its selected overload and original text versus regclass argument;
+`InstalledPgstattupleStatsExpr` and the exact/approximate/page-discriminated
+`InstalledPgstattupleExpr` use immutable installation authority. Renderers
+preserve the selected overload and original text versus regclass argument;
 current names never select implementation. Reference walking, literal capture,
-dynamic-source dependencies, remapping and retagging carry its procedure, OUT
-shape and regclass object dependency into the destination identity universe.
+dynamic-source dependencies, remapping and retagging carry the procedure,
+scalar/OUT shape and regclass dependency into the destination identity universe.
+Both DEFAULT binding and recursive scalar serialization authenticate the bounded
+installed-statistics closure. VOLATILE/stage dependence remains on the recipe;
+row/parameter arguments and foreign or stale provider authority remain rejected.
+Owner-bound CHECK rendering permits ordinary row arguments under the same sealed
+provider/stage-producer validation and retains normal column-origin checks.
+Closure admission and call rendering compare the captured immutable executable
+declaration with the current sealed member, rather than requiring the same
+descriptor pointer after rename, relocation or ACL changes. Reference domain,
+epoch, overload and scalar/OUT usage authority remain mandatory at both boundaries.
+`pg_relpages` has no scalar OUT declaration: its range alias supplies the column
+label unless an explicit column alias overrides it, including folded NULL calls.
+
+Scalar type reownership visits current rows, their private predecessor roots
+and committed retained heap headers through the same datum mapper. Compatible
+transports preserve exact no-op roots and unchanged suffixes; changed payloads
+and headers are copy-on-write. Old captures and transaction/end provenance remain
+unchanged, including when a later datum conversion fails.
+
 
 ## Testing
 

@@ -463,6 +463,22 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.InstalledPgstattupleExpr:
+		n.Args = children(n.Args)
+		if err != nil {
+			return node, false, err
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgstattupleProviderOf(proc) != extension.StockPgstattuple {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pgstattuple function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgstattuple(n, view); err != nil {
+			return nil, false, err
+		}
+		rebound = n
 	case plan.InstalledPgstattupleStatsExpr:
 		n.Args = children(n.Args)
 		if err != nil {

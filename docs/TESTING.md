@@ -152,6 +152,12 @@ package share one container, so **never use `t.Parallel()`**. Each package's
 - **Steps vs callbacks.** Use `p.Step` for plain statement streams. Use
   `p.Backends()` with one shared callback for transactions, pinned sessions, held
   statements, richer metadata, concurrency and oracle discovery.
+- **Simulated physical statistics.** `TestReferencePgstattupleHeapKinds` keeps
+  independent PostgreSQL and native expectations: after DELETE PostgreSQL retains
+  the B-tree/hash physical tuple, while native current logical roots count zero.
+  Run changed reference definitions with both native and `REFERENCE=1` selected
+  checks. This model difference does not relax heap logical live/dead/rollback
+  assertions, typed results, diagnostics, privileges or numerical consistency.
 - **Sessions and cleanup.** Keep session state on a borrowed `*sql.Conn` or
   `*sql.Tx`. Close rows, then statements, then return connections before fixture,
   schema and role cleanup. Register cleanup immediately; cancel and join goroutines

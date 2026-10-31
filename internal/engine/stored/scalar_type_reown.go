@@ -81,108 +81,130 @@ func reownScalarRows(next *catalog.State, relations map[ids.ObjectAddress]*stora
 		}
 		return nil
 	}
+	header := func(row storage.RowVersion) (storage.RowVersion, bool, error) {
+		var values []sqltype.Value
+		for j, value := range row.Values {
+			target := typ(value.Type())
+			if target == nil {
+				return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing imported datum type")
+			}
+			rebound := value
+			changed := target != value.Type()
+			var err error
+			if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
+				rebound, err = typedef.ReownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
+				if err != nil {
+					return storage.RowVersion{}, false, err
+				}
+				changed = changed || rebound != value
+			}
+			if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
+				remapped, er := regobj.RemapClassDatum(rebound, func(id ids.OID) ids.OID {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
+						return target.ObjectID
+					}
+					return id
+				})
+				if er != nil {
+					return storage.RowVersion{}, false, er
+				}
+				changed = changed || remapped != rebound
+				rebound = remapped
+			}
+			if len(mapping) != 0 && !rebound.IsNull() && (target.ContainsRegtype() || target.ContainsRegObject()) {
+				remapped, er := regobj.RemapAliasDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
+					if target, ok := mapping[address]; ok {
+						return target
+					}
+					return address
+				})
+				if er != nil {
+					return storage.RowVersion{}, false, er
+				}
+				changed = changed || remapped != rebound
+				rebound = remapped
+			}
+			if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegproc() {
+				remapped, er := regobj.RemapRoutineDatum(rebound, func(id ids.OID) ids.OID {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
+						return target.ObjectID
+					}
+					return id
+				})
+				if er != nil {
+					return storage.RowVersion{}, false, er
+				}
+				changed = changed || remapped != rebound
+				rebound = remapped
+			}
+			if len(mapping) != 0 && !rebound.IsNull() && target.ContainsOperatorAlias() {
+				remapped, er := regobj.RemapOperatorDatum(rebound, func(id ids.OID) ids.OID {
+					if target, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
+						return target.ObjectID
+					}
+					return id
+				})
+				if er != nil {
+					return storage.RowVersion{}, false, er
+				}
+				changed = changed || remapped != rebound
+				rebound = remapped
+			}
+			if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegTS() {
+				remapped, er := regobj.RemapTextSearchDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
+					if target, ok := mapping[address]; ok {
+						return target
+					}
+					return address
+				})
+				if er != nil {
+					return storage.RowVersion{}, false, er
+				}
+				changed = changed || remapped != rebound
+				rebound = remapped
+			}
+			if changed {
+				if values == nil {
+					values = append([]sqltype.Value(nil), row.Values...)
+				}
+				values[j] = rebound
+			}
+		}
+		if values == nil {
+			return row, false, nil
+		}
+		row.Values, row.IndexOutputs = values, nil
+		return row, true, nil
+	}
 	for address, relation := range relations {
 		var versions []storage.RowVersion
 		for i, row := range relation.Versions {
-			var values []sqltype.Value
-			for j, value := range row.Values {
-				target := typ(value.Type())
-				if target == nil {
-					return fmt.Errorf("stuntgres: missing imported datum type")
-				}
-				rebound := value
-				changed := target != value.Type()
-				var err error
-				if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
-					rebound, err = typedef.ReownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
-					if err != nil {
-						return err
-					}
-					changed = changed || rebound != value
-				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
-					remapped, er := regobj.RemapClassDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}]; ok {
-							return target.ObjectID
-						}
-						return id
-					})
-					if er != nil {
-						return er
-					}
-					changed = changed || remapped != rebound
-					rebound = remapped
-				}
-				if len(mapping) != 0 && !rebound.IsNull() && (target.ContainsRegtype() || target.ContainsRegObject()) {
-					remapped, er := regobj.RemapAliasDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
-						if target, ok := mapping[address]; ok {
-							return target
-						}
-						return address
-					})
-					if er != nil {
-						return er
-					}
-					changed = changed || remapped != rebound
-					rebound = remapped
-				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegproc() {
-					remapped, er := regobj.RemapRoutineDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}]; ok {
-							return target.ObjectID
-						}
-						return id
-					})
-					if er != nil {
-						return er
-					}
-					changed = changed || remapped != rebound
-					rebound = remapped
-				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsOperatorAlias() {
-					remapped, er := regobj.RemapOperatorDatum(rebound, func(id ids.OID) ids.OID {
-						if target, ok := mapping[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}]; ok {
-							return target.ObjectID
-						}
-						return id
-					})
-					if er != nil {
-						return er
-					}
-					changed = changed || remapped != rebound
-					rebound = remapped
-				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegTS() {
-					remapped, er := regobj.RemapTextSearchDatum(rebound, func(address ids.ObjectAddress) ids.ObjectAddress {
-						if target, ok := mapping[address]; ok {
-							return target
-						}
-						return address
-					})
-					if er != nil {
-						return er
-					}
-					changed = changed || remapped != rebound
-					rebound = remapped
-				}
-				if changed {
-					if values == nil {
-						values = append([]sqltype.Value(nil), row.Values...)
-					}
-					values[j] = rebound
-				}
+			mapped, changed, err := header(row)
+			if err != nil {
+				return err
 			}
-			if values != nil {
+			history, err := storage.MapHeapPredecessors(row.PrivateHistory, header)
+			if err != nil {
+				return err
+			}
+			if changed || history != row.PrivateHistory {
 				if versions == nil {
 					versions = append([]storage.RowVersion(nil), relation.Versions...)
 				}
-				versions[i].Values = values
-				versions[i].IndexOutputs = nil
+				mapped.PrivateHistory = history
+				versions[i] = mapped
 			}
 		}
-		if versions != nil {
+		retained, err := storage.MapHeapPredecessors(relation.Retained, header)
+		if err != nil {
+			return err
+		}
+		if versions != nil || retained != relation.Retained {
 			copy := *relation
-			copy.Versions = versions
+			if versions != nil {
+				copy.Versions = versions
+			}
+			copy.Retained = retained
 			relations[address] = &copy
 		}
 	}
