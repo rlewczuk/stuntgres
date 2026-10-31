@@ -51,7 +51,7 @@ func TestHstoreJSONPreparedOwnership(t *testing.T) {
 			}
 			bind := func(name string) {
 				command(func(scope *core.StatementScope) error {
-					_, err := scope.BindProtocolPortal(name, "hs_owned", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+					_, err := scope.BindProtocolPortal(name, "hs_owned", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 					return err
 				})
 			}

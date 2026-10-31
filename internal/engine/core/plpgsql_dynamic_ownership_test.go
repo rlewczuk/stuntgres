@@ -43,7 +43,7 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 		t.Fatal("prepare retained activation or wrong declaration")
 	}
 	command(func(s *core.StatementScope) error {
-		_, err := s.BindProtocolPortal("dsportal", "dsownership", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+		_, err := s.BindProtocolPortal("dsportal", "dsownership", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
 	})
 	accepted := registry.Binding("dsportal")
@@ -83,12 +83,12 @@ func TestPLpgSQLDynamicSQLOwnership(t *testing.T) {
 	if accepted.Entry.Body != body || accepted.Entry.Description.Analysis != oldAnalysis || accepted.Resource.Root != root || accepted.Folds.Generation != oldAccepted.Generation || &accepted.Folds.Entries[0] != &oldAccepted.Entries[0] || &definition.Description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || declaration.SQL.PL != program {
 		t.Fatal("replacement mutated prior owner/backing")
 	}
-	ast, description := sequencePreparedDescription(t, e, owner, "SELECT pg_catalog.ds_ownership(COALESCE(-(7::integer),0)) AS v")
+	ast, description := enginetest.PreparedDescription(t, e, owner, "SELECT pg_catalog.ds_ownership(COALESCE(-(7::integer),0)) AS v")
 	preparedFoldExecute(t, e, owner, ast, &description)
 	beforeRejection := snapshotFoldDescription(description)
 	saved := description.Results
 	description.Results = nil
-	if result, err := sequencePreparedExecute(e, owner, ast, &description); err == nil {
+	if result, err := enginetest.PreparedExecute(e, owner, ast, &description); err == nil {
 		if result.Rows != nil {
 			result.Rows.Close()
 		}

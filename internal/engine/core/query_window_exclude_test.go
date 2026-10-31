@@ -98,7 +98,7 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 }
 
 func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w,sum(v) OVER w,sum(v+1) OVER w,sum(v::bigint) OVER w,row_number() OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW EXCLUDE GROUP)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w,sum(v) OVER w,sum(v) OVER w,sum(v+1) OVER w,sum(v::bigint) OVER w,row_number() OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW EXCLUDE GROUP)")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 6 || len(node.Specs) != 1 {
@@ -148,7 +148,7 @@ func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 }
 
 func TestQueryWindowExcludeGraphRemap(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT sum(v+1) OVER(ORDER BY id ROWS CURRENT ROW EXCLUDE TIES) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT sum(v+1) OVER(ORDER BY id ROWS CURRENT ROW EXCLUDE TIES) FROM t")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	argument := node.Calls[0].Argument
@@ -233,7 +233,7 @@ func TestQueryWindowExcludeCancellation(t *testing.T) {
 	for _, exclusion := range []string{" EXCLUDE TIES", ""} {
 		for _, phase := range []string{"CompareWindowRows", "WindowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "ColumnExpr.Eval", "sum-output", "sum-publication"} {
 			t.Run(phase+exclusion, func(t *testing.T) {
-				_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
+				query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
 				continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 				if err != nil {
 					t.Fatal(err)
@@ -303,7 +303,7 @@ func TestQueryWindowExcludeFinishAtomicity(t *testing.T) {
 }
 
 func TestQueryWindowExcludePeers(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v DESC NULLS FIRST,id) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER(ORDER BY v DESC NULLS FIRST,id) FROM t")
 	defer source.Close()
 	keys := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Specs[0].Order
 	typ := keys[0].Expression.ResultUsage().Type
@@ -332,7 +332,8 @@ func TestQueryWindowExcludePeers(t *testing.T) {
 
 func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	sql := "SELECT sum(v+1) OVER(ROWS CURRENT ROW EXCLUDE TIES) FROM t"
-	e, query, source := queryCoreFixture(t, sql)
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, sql)
 	defer source.Close()
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
@@ -361,7 +362,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 }
 
 func TestQueryWindowExcludeGroupedArgument(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,sum(count(*)) OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM t GROUP BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,sum(count(*)) OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM t GROUP BY v")
 	defer source.Close()
 	window := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if _, ok := window.Calls[0].Argument.(plan.GroupExpr); !ok {

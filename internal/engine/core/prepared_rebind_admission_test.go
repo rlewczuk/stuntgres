@@ -79,7 +79,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 				if kind == "nested_source" {
 					query = "SELECT v FROM (SELECT v FROM t) AS d"
 				}
-				ast, description := sequencePreparedDescription(t, e, caller, query)
+				ast, description := enginetest.PreparedDescription(t, e, caller, query)
 				late := description.Analysis.Target
 				if kind == "nested_source" {
 					for _, source := range description.Analysis.Sources {
@@ -169,7 +169,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 							enginetest.SessionSQL(t, ddl, q)
 						}
 					}
-					result, err := sequencePreparedExecute(e, caller, ast, &description)
+					result, err := enginetest.PreparedExecute(e, caller, ast, &description)
 					if err != nil {
 						t.Fatal("next builtin statement could not recover", err)
 					}

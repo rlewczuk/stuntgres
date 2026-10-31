@@ -172,7 +172,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES('a')")
 			enginetest.SessionSQL(t, a, "CREATE VIEW joined AS SELECT s.sequencename FROM pg_sequences s JOIN t ON t.n=s.sequencename")
 			tx := enginetest.TransactionBegin(t, a)
-			sequencePreparedDescription(t, e, a, query)
+			enginetest.PreparedDescription(t, e, a, query)
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.Locks.Inspect()

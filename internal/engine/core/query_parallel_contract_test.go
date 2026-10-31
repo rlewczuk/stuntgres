@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +18,8 @@ import (
 
 func parallelTransactionOccurrences(t *testing.T) {
 	t.Helper()
-	e, query, _ := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	query, _ := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	s := enginetest.StartSession(t, e, nil)
 	for _, mode := range []string{"update-delete", "truncate"} {
 		t.Run(mode, func(t *testing.T) {
@@ -66,7 +68,8 @@ func parallelTransactionOccurrences(t *testing.T) {
 
 func parallelAdmissionAndTemporary(t *testing.T) {
 	t.Helper()
-	e, query, _ := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	query, _ := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "SET max_parallel_workers_per_gather=7")
 	op, _, err := s.AcquireCommand(context.Background())
@@ -109,7 +112,7 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 
 func parallelCachedOrderProof(t *testing.T) {
 	t.Helper()
-	_, query, source := queryCoreFixture(t, "SELECT id+1 AS result FROM t ORDER BY v+1 NULLS FIRST,id")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id+1 AS result FROM t ORDER BY v+1 NULLS FIRST,id")
 	project := query.Root.(*plan.ProjectNode)
 	ordered := project.Child.(*plan.SortNode)
 	var keyCalls, outputCalls atomic.Int64
@@ -140,7 +143,7 @@ func parallelCachedOrderProof(t *testing.T) {
 
 func parallelMergeCancellationProof(t *testing.T) {
 	t.Helper()
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id")
 	project := query.Root.(*plan.ProjectNode)
 	ordered := project.Child.(*plan.SortNode)
 	var runs []exec.QueryParallelRun
@@ -177,7 +180,7 @@ func parallelMergeCancellationProof(t *testing.T) {
 
 func parallelOpenFailureProof(t *testing.T) {
 	t.Helper()
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	project.Child.(*plan.SourceNode).Ref = ids.ObjectRef{}
 	rows, n, err := exec.FinalizeParallelQuery(context.Background(), project, nil, source, nil, 2)
@@ -190,7 +193,7 @@ func parallelOpenFailureProof(t *testing.T) {
 // SELECT permission. Merely opening their physical scan never launches workers.
 func parallelSerialEntryProof(t *testing.T) {
 	t.Helper()
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	calls := 0
 	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {

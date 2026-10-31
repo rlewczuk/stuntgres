@@ -24,7 +24,7 @@ const preparedFoldPoint = "SELECT (point '0.10000000000000002,1')::text AS p"
 
 func preparedFoldExecute(t *testing.T, e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) {
 	t.Helper()
-	r, err := sequencePreparedExecute(e, s, ast, d)
+	r, err := enginetest.PreparedExecute(e, s, ast, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 		"'abs(integer)'::regprocedure",
 		`'{"abs(integer)"}'::regprocedure[]`,
 	} {
-		_, operandDescription := sequencePreparedDescription(t, e, s, "SELECT "+operand)
+		_, operandDescription := enginetest.PreparedDescription(t, e, s, "SELECT "+operand)
 		for _, dep := range operandDescription.Analysis.Dependencies {
 			if dep.Ref.Address.ClassID == ids.TypeClassID && dep.Ref.Address.ObjectID == ids.OID(sqltype.Int4) {
 				if dep.Purpose != catalog.OperandDependency {
@@ -56,7 +56,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 			}
 		}
 		for _, projection := range []string{operand + ",7::integer", "7::integer," + operand} {
-			_, description := sequencePreparedDescription(t, e, s, "SELECT "+projection)
+			_, description := enginetest.PreparedDescription(t, e, s, "SELECT "+projection)
 			executableSeen := false
 			for _, dep := range description.Analysis.Dependencies {
 				if dep.Ref.Address.ClassID == ids.TypeClassID && dep.Ref.Address.ObjectID == ids.OID(sqltype.Int4) {
@@ -79,7 +79,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	}
 	enginetest.SessionSQL(t, s, "CREATE TABLE fold_operand(v int)")
 	enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
-	ast, d := sequencePreparedDescription(t, e, s, preparedFoldPoint)
+	ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
 	preparedFoldExecute(t, e, s, ast, &d)
 	original := snapshotFoldDescription(d)
 	preparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
@@ -129,7 +129,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	discardUnitApply(t, s, parser.DiscardPlans)
 	saved := d.Results
 	d.Results = nil
-	if _, err := sequencePreparedExecute(e, s, ast, &d); err == nil {
+	if _, err := enginetest.PreparedExecute(e, s, ast, &d); err == nil {
 		t.Fatal("missing signature failure")
 	}
 	d.Results = saved
@@ -153,7 +153,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 				if cause == "relation" {
 					source += " FROM t"
 				}
-				statement, description := sequencePreparedDescription(t, engine, owner, source)
+				statement, description := enginetest.PreparedDescription(t, engine, owner, source)
 				preparedFoldExecute(t, engine, owner, statement, &description)
 				old := snapshotFoldDescription(description)
 				enginetest.SessionSQL(t, owner, "SET extra_float_digits=0")
@@ -185,7 +185,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 		for _, q := range []string{"CREATE TABLE fold_rls(v int)", "INSERT INTO fold_rls VALUES(1)", "ALTER TABLE fold_rls ENABLE ROW LEVEL SECURITY", "SET extra_float_digits=3"} {
 			enginetest.SessionSQL(t, owner, q)
 		}
-		statement, description := sequencePreparedDescription(t, engine, owner, preparedFoldPoint+" FROM fold_rls")
+		statement, description := enginetest.PreparedDescription(t, engine, owner, preparedFoldPoint+" FROM fold_rls")
 		preparedFoldExecute(t, engine, owner, statement, &description)
 		if !description.Folds.RoleSensitive {
 			t.Fatal("represented RLS environment was not collected")
@@ -204,7 +204,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 		owner := enginetest.StartSession(t, engine, nil)
 		enginetest.SessionSQL(t, owner, "CREATE DOMAIN fold_semantic AS integer")
 		enginetest.SessionSQL(t, owner, "CREATE CAST (xid AS real) WITHOUT FUNCTION")
-		_, description := sequencePreparedDescription(t, engine, owner, "SELECT abs(-7::integer)")
+		_, description := enginetest.PreparedDescription(t, engine, owner, "SELECT abs(-7::integer)")
 		op, err := owner.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -368,7 +368,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 		for _, q := range []string{"SET extra_float_digits=3", "BEGIN", "SAVEPOINT before_source", "CREATE TEMP TABLE fold_private(v int)", "INSERT INTO fold_private VALUES(1)"} {
 			enginetest.SessionSQL(t, owner, q)
 		}
-		statement, description := sequencePreparedDescription(t, engine, owner, preparedFoldPoint+" FROM pg_temp.fold_private")
+		statement, description := enginetest.PreparedDescription(t, engine, owner, preparedFoldPoint+" FROM pg_temp.fold_private")
 		preparedFoldExecute(t, engine, owner, statement, &description)
 		old := snapshotFoldDescription(description)
 		enginetest.SessionSQL(t, owner, "ROLLBACK TO before_source")
@@ -391,7 +391,7 @@ func TestPreparedFoldPublication(t *testing.T) {
 			t.Run(change, func(t *testing.T) {
 				e := rootengine.New()
 				s := enginetest.StartSession(t, e, nil)
-				ast, d := sequencePreparedDescription(t, e, s, preparedFoldPoint)
+				ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
 				op, err := s.Acquire(t.Context())
 				if err != nil {
 					t.Fatal(err)
@@ -451,7 +451,7 @@ func TestPreparedFoldPublication(t *testing.T) {
 		e := rootengine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TABLE fold_import(v int)")
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT v FROM fold_import WHERE v=$1")
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT v FROM fold_import WHERE v=$1")
 		before := d.Analysis
 		enginetest.SessionSQL(t, s, "ALTER TABLE fold_import ADD spare int")
 		op, err := s.Acquire(context.Background())
@@ -480,8 +480,8 @@ func TestPreparedFoldPublication(t *testing.T) {
 		for _, q := range []string{"CREATE TABLE fold_runtime(v int)", "INSERT INTO fold_runtime VALUES(0)", "SET extra_float_digits=3"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT (point '0.10000000000000002,1')::text AS p,1/v AS n FROM fold_runtime")
-		_, err := sequencePreparedExecute(e, s, ast, &d)
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT (point '0.10000000000000002,1')::text AS p,1/v AS n FROM fold_runtime")
+		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || !foldRootsReusable(d.Folds) {
 			t.Fatal("execution failure undid accepted fold planning", err)
@@ -501,13 +501,13 @@ func TestPreparedFoldPublication(t *testing.T) {
 		for _, q := range []string{"CREATE USER fold_reader", "CREATE TABLE fold_authority(v int)", "INSERT INTO fold_authority VALUES(1)", "GRANT SELECT ON fold_authority TO fold_reader", "SET SESSION AUTHORIZATION fold_reader", "SET extra_float_digits=3"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, preparedFoldPoint+" FROM fold_authority")
+		ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+" FROM fold_authority")
 		preparedFoldExecute(t, e, s, ast, &d)
 		before := snapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON fold_authority FROM fold_reader", "SET SESSION AUTHORIZATION fold_reader", "SET extra_float_digits=0", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		_, err := sequencePreparedExecute(e, s, ast, &d)
+		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || foldRootsReusable(d.Folds) || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("final authority rejection published a private group", err)
@@ -524,21 +524,21 @@ func TestPreparedFoldPublication(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	// Ordinary Go SELECT keeps bare arithmetic at row demand. An immutable
 	// integral conversion genuinely demands its child during preflight.
-	ast, failed := sequencePreparedDescription(t, e, s, "SELECT abs(-7),(1/0)::bigint")
-	if _, err := sequencePreparedExecute(e, s, ast, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
+	ast, failed := enginetest.PreparedDescription(t, e, s, "SELECT abs(-7),(1/0)::bigint")
+	if _, err := enginetest.PreparedExecute(e, s, ast, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("demanded fold published a partial group", err)
 	}
 	assertFoldReuseRetirement(t, failed.Folds, false)
 	// All commands, not each auxiliary independently, own one planning group.
 	enginetest.SessionSQL(t, s, "CREATE TABLE fold_effect(v int)")
 	enginetest.SessionSQL(t, s, "INSERT INTO fold_effect VALUES(1)")
-	ast, failed = sequencePreparedDescription(t, e, s, "WITH c AS (UPDATE fold_effect SET v=abs(-7) RETURNING v) SELECT (1/0)::bigint FROM c")
-	if _, err := sequencePreparedExecute(e, s, ast, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
+	ast, failed = enginetest.PreparedDescription(t, e, s, "WITH c AS (UPDATE fold_effect SET v=abs(-7) RETURNING v) SELECT (1/0)::bigint FROM c")
+	if _, err := enginetest.PreparedExecute(e, s, ast, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("auxiliary planning leaked a prefix", err)
 	}
 	assertFoldReuseRetirement(t, failed.Folds, false)
 	enginetest.TransactionRows(t, s, "SELECT v FROM fold_effect", 1)
-	ast, d := sequencePreparedDescription(t, e, s, preparedFoldPoint)
+	ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
 	preparedFoldExecute(t, e, s, ast, &d)
 	before := snapshotFoldDescription(d)
 	// Exercise the real final publisher with a private COW candidate. Retirement

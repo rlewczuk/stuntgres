@@ -29,7 +29,7 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
 			// Resolve the actual frozen datum, not the direct input resolver's
 			// optional provider-owner operands (which omit direct identities).
-			_, operand := sequencePreparedDescription(t, e, s, "SELECT 'fold_identifier_provider(integer)'::regprocedure")
+			_, operand := enginetest.PreparedDescription(t, e, s, "SELECT 'fold_identifier_provider(integer)'::regprocedure")
 			if operand.Regtypes == nil || len(operand.Regtypes.Constants) != 1 {
 				t.Fatal("missing regprocedure capture")
 			}
@@ -56,7 +56,7 @@ func TestPreparedFoldStoredOperandPurpose(t *testing.T) {
 				query += ", fold_identifier_provider(-7::integer) AS invoked"
 			}
 			query += " FROM fold_identifier_nested"
-			ast, d := sequencePreparedDescription(t, e, s, query)
+			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			preparedFoldExecute(t, e, s, ast, &d)
 			for _, name := range []string{"fold_identifier", "fold_identifier_nested"} {
 				source := primaryKeyUnitRelation(t, e, name)
@@ -166,7 +166,7 @@ func TestPreparedFoldStoredRegclassPurpose(t *testing.T) {
 		"SELECT r FROM fold_regclass_operand, fold_regclass_target",
 		"SELECT r FROM fold_regclass_target, fold_regclass_operand",
 	} {
-		_, description := sequencePreparedDescription(t, e, s, query)
+		_, description := enginetest.PreparedDescription(t, e, s, query)
 		seen = false
 		for _, dependency := range description.Analysis.Dependencies {
 			if dependency.Ref == ref {

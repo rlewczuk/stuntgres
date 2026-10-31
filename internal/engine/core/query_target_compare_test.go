@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -28,7 +29,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		{"(SELECT v AS x FROM t AS q(id,v,f))", "(SELECT other AS x FROM t AS q(id,other,f))", false},
 		{"(SELECT t.v FROM t)", "(SELECT t.v FROM t AS t)", false},
 	} {
-		_, query, source := queryCoreFixture(t, "SELECT "+tc.left+","+tc.right+" FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT "+tc.left+","+tc.right+" FROM t")
 		project := query.Root.(*plan.ProjectNode)
 		a, b := project.Expressions[0], project.Expressions[1]
 		got := (*analyze.Binder)(nil).SameSubqueryTarget(a, b)
@@ -46,7 +47,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 }
 
 func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON((SELECT max(v) FROM t)) id FROM t ORDER BY (SELECT /* λ */ max(t.v) FROM t),id DESC")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON((SELECT max(v) FROM t)) id FROM t ORDER BY (SELECT /* λ */ max(t.v) FROM t),id DESC")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	sorted := node.Child.(*plan.SortNode)
@@ -75,7 +76,7 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	if !c.PairFrame(2, 3) || !c.SameFrame(2, 3) || c.SameFrame(2, 2) || c.SameFrame(1, 3) || !c.SameFrame(1, 1) || c.PairFrame(2, 4) || c.PairFrame(4, 3) {
 		t.Fatal("non-bijective child/outer frame identity", c)
 	}
-	_, query, source := queryCoreFixture(t, "SELECT (SELECT v FROM t) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT (SELECT v FROM t) FROM t")
 	defer source.Close()
 	root := query.Root.(*plan.ProjectNode).Expressions[0].(plan.SubqueryExpr).QueryPlan.Root.(*plan.ProjectNode)
 	leaf := root.Child.(*plan.SourceNode)

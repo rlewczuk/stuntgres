@@ -26,7 +26,7 @@ func TestLtreeLqueryPreparedRecreationOwnership(t *testing.T) {
 			for _,q := range []string{"CREATE SCHEMA provider", "CREATE EXTENSION ltree SCHEMA provider", "SET search_path=public,provider"} {
 				enginetest.SessionSQL(t,s,q)
 			}
-			ast,description := sequencePreparedDescription(t,e,s,"SELECT "+expression+" AS matched")
+			ast,description := enginetest.PreparedDescription(t,e,s,"SELECT "+expression+" AS matched")
 			oldAnalysis := description.Analysis
 			oldCaptures := append([]analyze.TemporalConstant(nil),description.Temporals...)
 			if len(oldCaptures)!=2 { t.Fatal("real scalar operand captures missing",oldCaptures) }
@@ -40,7 +40,7 @@ func TestLtreeLqueryPreparedRecreationOwnership(t *testing.T) {
 				enginetest.SessionSQL(t,s,q)
 			}
 			// A failed candidate must not publish replacement values or provenance.
-			if result,err := sequencePreparedExecute(e,s,ast,&description);err==nil {
+			if result,err := enginetest.PreparedExecute(e,s,ast,&description);err==nil {
 				if result.Rows!=nil { result.Rows.Close() }
 				t.Fatal("absent provider unexpectedly authorized held literal")
 			}
@@ -48,7 +48,7 @@ func TestLtreeLqueryPreparedRecreationOwnership(t *testing.T) {
 				t.Fatal("failed reanalysis replaced accepted literal captures")
 			}
 			enginetest.SessionSQL(t,s,"CREATE EXTENSION ltree SCHEMA provider")
-			result,err := sequencePreparedExecute(e,s,ast,&description)
+			result,err := enginetest.PreparedExecute(e,s,ast,&description)
 			if err!=nil { t.Fatal(err) }
 			got := enginetest.Tuples(result)
 			result.Rows.Close()
@@ -78,7 +78,7 @@ func TestLtreeLqueryPreparedRetirementFences(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t,e,nil)
 	enginetest.SessionSQL(t,s,"CREATE EXTENSION ltree")
-	_,description := sequencePreparedDescription(t,e,s,"SELECT 'a'::ltree ~ 'a'::lquery")
+	_,description := enginetest.PreparedDescription(t,e,s,"SELECT 'a'::ltree ~ 'a'::lquery")
 	original := append([]analyze.TemporalConstant(nil),description.Temporals...)
 	if len(original)!=2 { t.Fatal("real operand captures missing",original) }
 	enginetest.SessionSQL(t,s,"CREATE SCHEMA changed_namespace")

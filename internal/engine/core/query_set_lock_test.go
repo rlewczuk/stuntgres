@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -28,7 +29,8 @@ import (
 // recipes and actual private ACLs. Public SQL witnesses live in reference only.
 func querySetLockAuthorityFixture(t *testing.T) (*core.Engine, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectRef, ids.ObjectRef, map[string]ids.ObjectRef) {
 	t.Helper()
-	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT v FROM t")
 	base := source.Ref
 	owner := e.RoleStore.Domain.Principal(1000000)
 	reader := e.RoleStore.Domain.Principal(1000001)

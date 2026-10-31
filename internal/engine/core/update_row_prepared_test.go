@@ -47,7 +47,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				}
 				return insert
 			}
-			ast, description := sequencePreparedDescription(t, e, s, query("1"))
+			ast, description := enginetest.PreparedDescription(t, e, s, query("1"))
 			assertBorrowed := func() {
 				if description.Sequences != nil || description.Regtypes != nil {
 					t.Fatal("stored recipe entered caller literal provenance", description.Sequences, description.Regtypes)
@@ -62,7 +62,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			if tc.conditional && (stored.ConditionBinding() == nil || len(stored.ConditionBinding().Prepared.SequenceConstants) == 0) {
 				t.Fatal("condition lost its recipe capture")
 			}
-			ownedAST, owned := sequencePreparedDescription(t, e, s, query("nextval('own_draw')"))
+			ownedAST, owned := enginetest.PreparedDescription(t, e, s, query("nextval('own_draw')"))
 			ownedRef := enginetest.CatalogRef(t, e, e.CatalogRead(), "own_draw")
 			assertOwned := func() {
 				if owned.Sequences == nil || len(owned.Sequences.Constants) != 1 || owned.Sequences.Constants[0].Ref != ownedRef || owned.Regtypes != nil {
@@ -70,13 +70,13 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				}
 			}
 			assertOwned()
-			_, regtype := sequencePreparedDescription(t, e, s, "SELECT 'integer'::regtype")
+			_, regtype := enginetest.PreparedDescription(t, e, s, "SELECT 'integer'::regtype")
 			if regtype.Regtypes == nil || len(regtype.Regtypes.Constants) != 1 {
 				t.Fatal("direct regtype capture was discarded")
 			}
 			before := description.Analysis
 			enginetest.SessionSQL(t, s, "COMMENT ON TABLE t IS 'invalidate rule target dependency'")
-			result, err := sequencePreparedExecute(e, s, ast, &description)
+			result, err := enginetest.PreparedExecute(e, s, ast, &description)
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
@@ -84,7 +84,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				t.Fatal("stored dependency failed normal reanalysis", err)
 			}
 			assertBorrowed()
-			result, err = sequencePreparedExecute(e, s, ownedAST, &owned)
+			result, err = enginetest.PreparedExecute(e, s, ownedAST, &owned)
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
@@ -99,7 +99,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				t.Fatal(err)
 			}
 			setup()
-			result, err = sequencePreparedExecute(e, s, ast, &description)
+			result, err = enginetest.PreparedExecute(e, s, ast, &description)
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
@@ -107,7 +107,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				t.Fatal("borrowed current recipe was fenced as an old caller literal", err)
 			}
 			assertBorrowed()
-			result, err = sequencePreparedExecute(e, s, ownedAST, &owned)
+			result, err = enginetest.PreparedExecute(e, s, ownedAST, &owned)
 			if result.Rows != nil {
 				result.Rows.Close()
 				t.Fatal("retired caller literal exposed rows")

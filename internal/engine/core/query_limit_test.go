@@ -30,7 +30,8 @@ func queryLimitBound(t *testing.T, e *core.Engine, value int64) expr.Expr {
 func TestQueryLimitDemand(t *testing.T) {
 	for _, count := range []int64{0, 1} {
 		t.Run(string(rune('0'+count)), func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t WHERE f")
 			project := query.Root.(*plan.ProjectNode)
 			filter := project.Child.(*plan.FilterNode)
 			boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
@@ -55,7 +56,8 @@ func TestQueryLimitDemand(t *testing.T) {
 		})
 	}
 	t.Run("nested-loop stops after first accepted pair", func(t *testing.T) {
-		e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+		e := engine.New()
+		query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 		project := query.Root.(*plan.ProjectNode)
 		left := project.Child
 		right := &plan.SourceNode{Occurrence: 1}
@@ -79,7 +81,8 @@ func TestQueryLimitDemand(t *testing.T) {
 }
 
 func TestQueryLimitBoundsOnce(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 	var calls []string
@@ -109,7 +112,8 @@ func TestQueryLimitBoundsOnce(t *testing.T) {
 func TestQueryLimitCancellation(t *testing.T) {
 	for _, phase := range []string{"bound", "rejected filter", "offset", "projection", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t WHERE f")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			project := query.Root.(*plan.ProjectNode)
@@ -151,7 +155,7 @@ func TestQueryLimitCancellation(t *testing.T) {
 
 func TestQueryLimitMetadata(t *testing.T) {
 	for _, suffix := range []string{"LIMIT 0", "OFFSET 99", "OFFSET 1 LIMIT 2"} {
-		_, query, source := queryCoreFixture(t, "SELECT id,v FROM t "+suffix)
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id,v FROM t "+suffix)
 		want := append([]catalog.Column(nil), query.Root.Schema()...)
 		rows, _, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || !reflect.DeepEqual(rows.Schema(), want) {

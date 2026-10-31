@@ -78,7 +78,8 @@ func TestQueryFromValuesCellPrecedenceAndStarts(t *testing.T) {
 func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 	for _, mode := range []string{"complete", "limit0", "cancel", "error"} {
 		t.Run(mode, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 			project := query.Root.(*plan.ProjectNode)
 			usage := project.Schema()[0].Usage
 			calls := []int{0, 0, 0}

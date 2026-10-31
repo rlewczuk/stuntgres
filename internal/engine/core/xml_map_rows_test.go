@@ -25,7 +25,7 @@ func TestXMLMapRowsPreparedOwnership(t *testing.T){
 	command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("xml_map_owner",`SELECT query_to_xml(CASE WHEN n=1 THEN $1::text ELSE 'SELECT 1/0 AS a' END,false,false,'') AS mapped,length('owned') AS folded FROM (VALUES(1),(2)) AS input(n)`,[]uint32{25});return err})
 	inner:="SELECT 1 AS a";packet:=[]byte{0,0,0,1};packet=binary.BigEndian.AppendUint32(packet,uint32(len(inner)));packet=append(packet,inner...);packet=append(packet,0,0)
-	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("xml_map_owner_portal","xml_map_owner",&protocolUnitInput{data:packet});return err})
+	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("xml_map_owner_portal","xml_map_owner",&enginetest.ProtocolReader{Data:packet});return err})
 	registry:=core.PayloadOf(s).PreparedSQL;definition:=registry.Lookup("xml_map_owner");binding:=registry.Binding("xml_map_owner_portal")
 	if definition==nil||binding==nil||binding.Resource==nil||binding.Resource.Root==nil||binding.Folds==nil{t.Fatal("missing real accepted mapper graph")}
 	graph,accepted:=binding.Resource.Root,*binding.Folds

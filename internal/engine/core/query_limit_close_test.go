@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -15,7 +17,8 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 	for _, mode := range []string{"all", "one", "ties"} {
 		for _, primary := range []bool{false, true} {
 			t.Run(mode+map[bool]string{false: "/close veto", true: "/primary preserved"}[primary], func(t *testing.T) {
-				e, query, input := queryCoreFixture(t, "SELECT id FROM t")
+				e := engine.New()
+				query, input := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 				project := query.Root.(*plan.ProjectNode)
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
@@ -53,7 +56,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 }
 
 func TestQueryLimitEOFCloses(t *testing.T) {
-	_, query, input := queryCoreFixture(t, "SELECT id FROM t")
+	query, input := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	failure := errors.New("EOF close failure")
 	closes := 0

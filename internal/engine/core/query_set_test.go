@@ -21,7 +21,7 @@ import (
 
 func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*plan.SetNode, *plan.ProjectNode, *exec.Source) {
 	t.Helper()
-	_, query, source := queryCoreFixture(t, "SELECT v FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v FROM t")
 	arm := query.Root.(*plan.ProjectNode)
 	copy := *arm
 	copy.Expressions = append([]expr.Expr(nil), arm.Expressions...)

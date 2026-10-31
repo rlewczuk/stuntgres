@@ -204,7 +204,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	}
 	execute := func() {
 		t.Helper()
-		result, err := sequencePreparedExecute(e, s, ast, &description)
+		result, err := enginetest.PreparedExecute(e, s, ast, &description)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -304,7 +304,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	aRoot, bRoot := e.Storage.IndexRoots[a.Address()], e.Storage.IndexRoots[b.Address()]
 	rejected := replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b")
 	rejected.Actions = append(rejected.Actions, parser.AlterTableAction{Action: parser.SetReplicaIdentity, ReplicaIdentity: parser.ReplicaIdentityIndex, ReplicaIndex: parser.Identifier{Text: "ri_missing"}})
-	_, err = sequencePreparedExecute(e, s, rejected, nil)
+	_, err = enginetest.PreparedExecute(e, s, rejected, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" {
 		t.Fatal("rejected selection", err)

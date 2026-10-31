@@ -16,7 +16,7 @@ func TestDeleteReturningSequenceDemand(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE t(id INT)", "INSERT INTO t VALUES(1),(2),(3)", "CREATE SEQUENCE seq START 101 CACHE 1"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ast, description := sequencePreparedDescription(t, e, s, "DELETE FROM t RETURNING nextval('seq') AS draw,'seq'::regclass AS name")
+	ast, description := enginetest.PreparedDescription(t, e, s, "DELETE FROM t RETURNING nextval('seq') AS draw,'seq'::regclass AS name")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "seq")
 	check := func(last int64, called bool) {
 		t.Helper()
@@ -29,7 +29,7 @@ func TestDeleteReturningSequenceDemand(t *testing.T) {
 	}
 	check(101, false)
 	tx := enginetest.TransactionBegin(t, s)
-	result, err := sequencePreparedExecute(e, s, ast, &description)
+	result, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil || result.Count != 3 {
 		t.Fatal(result, err)
 	}

@@ -70,7 +70,7 @@ func TestQueryWindowValueMemberSelection(t *testing.T) {
 }
 
 func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT first_value(v) OVER w,nth_value(v,id) OVER w,nth_value(v,id+1) OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT first_value(v) OVER w,nth_value(v,id) OVER w,nth_value(v,id+1) OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW)")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	for _, column := range query.Root.Schema() {
@@ -150,7 +150,7 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 	for _, phase := range []string{"ordinal", "value"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT nth_value(v,id) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT nth_value(v,id) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
 			node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -235,7 +235,7 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 }
 
 func TestQueryWindowValueCurrentOrdinalAndSelectedEvaluation(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT nth_value(v,CASE WHEN id%2=1 THEN 1 ELSE 2 END) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT nth_value(v,CASE WHEN id%2=1 THEN 1 ELSE 2 END) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	call := &node.Calls[0]
 	argument, ordinal := call.Argument, call.Ordinal
@@ -284,7 +284,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 		{"", 2, false},
 	} {
 		t.Run(tc.order, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)"+tc.order)
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT first_value(nextval($1)) OVER w AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)"+tc.order)
 			defer source.Close()
 			project := query.Root.(*plan.ProjectNode)
 			child := project.Child
@@ -309,7 +309,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 		})
 	}
 	t.Run("retained-wrapper-is-not-a-leaf-owner", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id) ORDER BY a")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT first_value(nextval($1)) OVER w+1 AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id) ORDER BY a")
 		defer source.Close()
 		node := query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Child.(*plan.WindowNode)
 		if len(node.Calls) != 2 || node.Calls[0].Expression.Slot == node.Calls[1].Expression.Slot {
@@ -321,7 +321,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 	for _, phase := range []string{"output", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT nth_value(v,id) OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW)")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT nth_value(v,id) OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW)")
 			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
@@ -348,7 +348,7 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 }
 
 func TestQueryWindowValueHiddenSortOwner(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a FROM t WINDOW w AS(ORDER BY id) ORDER BY first_value(nextval($1)) OVER w")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT first_value(nextval($1)) OVER w+1 AS a FROM t WINDOW w AS(ORDER BY id) ORDER BY first_value(nextval($1)) OVER w")
 	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.SortNode).Child.(*plan.WindowNode)

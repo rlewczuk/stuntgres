@@ -130,7 +130,8 @@ func analysisOnlyFixture(t *testing.T, sql string) (*core.Engine, *plan.Query, [
 	t.Helper()
 	// Reuse the core's real catalog/source fixture, then bind WITH through the
 	// binder rather than its single-table FROM convenience wrapper.
-	e, _, source := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	_, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	source.Close()
 	enginetest.Run(t, e, "CREATE USER analysis_reader")
 	raw := enginetest.Statement(t, sql).(*parser.Select)
@@ -312,7 +313,8 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 // invocation walker; no EXECUTE admission belongs to this boundary.
 func analysisOnlyFrozenLifetime(t *testing.T, sql string) {
 	t.Helper()
-	e, _, source := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	_, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	source.Close()
 	enginetest.Run(t, e, "CREATE VIEW analysis_lifetime_view AS "+sql)
 	ref := enginetest.RoleTableRef(t, e, "analysis_lifetime_view")

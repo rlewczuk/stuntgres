@@ -37,7 +37,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	typ := e.CatalogRead().MustType(address)
 	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	enginetest.SessionSQL(t, s, "SET ROLE routine_operand_a")
-	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
+	ast, d := enginetest.PreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
 	if d.Regtypes == nil || len(d.Regtypes.Constants) != 3 {
 		t.Fatal("mixed datum did not enter shared analysis", d.Regtypes)
 	}
@@ -140,7 +140,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("qualified operand authority change retained mixed cell")
 	}
-	result, failure := sequencePreparedExecute(e, s, ast, &d)
+	result, failure := enginetest.PreparedExecute(e, s, ast, &d)
 	var diagnostic *sqlstate.Error
 	if !errors.As(failure, &diagnostic) || diagnostic.Code != "42501" || result.Rows != nil {
 		if result.Rows != nil {
@@ -152,7 +152,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
 	enginetest.SessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
-	result, err := sequencePreparedExecute(e, s, ast, &d)
+	result, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("held mixed statement did not recover", err)
 	}
@@ -179,7 +179,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("mixed capture accepted stale operand revision")
 	}
 	priorAnalysis := d.Analysis
-	revised, err := sequencePreparedExecute(e, s, ast, &d)
+	revised, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("mixed revision recapture failed", err)
 	}

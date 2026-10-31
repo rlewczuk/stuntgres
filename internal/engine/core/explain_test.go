@@ -78,7 +78,7 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 	}
 	// Ordinary executable definitions retain publication rights; an EXPLAIN
 	// definition must not acquire those rights merely by sharing its binder.
-	_, ordinary := sequencePreparedDescription(t, e, s, "SELECT abs(-7::integer),id FROM explain_boundary_foreign")
+	_, ordinary := enginetest.PreparedDescription(t, e, s, "SELECT abs(-7::integer),id FROM explain_boundary_foreign")
 	if ordinary.Folds == nil || !ordinary.Folds.Live() || ordinary.Folds.Current().Generation != 0 || len(ordinary.Folds.Current().Entries) != 0 || ordinary.FoldPlanning != nil || wrapper.entered {
 		t.Fatal("ordinary Describe lost its unevaluated fold-publication owner")
 	}
@@ -91,7 +91,7 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 		"EXPLAIN SELECT id FROM explain_boundary_d FOR UPDATE",
 	} {
 		planned := wrapper.planned
-		ast, description := sequencePreparedDescription(t, e, s, query)
+		ast, description := enginetest.PreparedDescription(t, e, s, query)
 		if description.Folds == nil || description.FoldPlanning != nil || description.Folds.Live() {
 			t.Fatal("Describe admitted child execution folds", query)
 		}
@@ -101,7 +101,7 @@ func TestExplainNonExecutionBoundary(t *testing.T) {
 		owner, generation := description.Folds, description.Folds.Current().Generation
 		analysis := description.Analysis
 		for range 2 {
-			result, err := sequencePreparedExecute(e, s, ast, &description)
+			result, err := enginetest.PreparedExecute(e, s, ast, &description)
 			if err != nil {
 				t.Fatal(query, err)
 			}
@@ -150,7 +150,8 @@ func TestExplainPresentation(t *testing.T) {
 	explainAliasOwnership(t)
 	// The real bound graph proves stage/occurrence ownership independently of
 	// rendered strings; the public reference suite owns SQL-only presentation.
-	e, query, _ := queryCoreFixture(t, `SELECT CASE WHEN "odd alias".id=2 THEN 'it''s' ELSE NULL END FROM t AS "odd alias" WHERE "odd alias".id=2 ORDER BY "odd alias".id DESC`)
+	e := engine.New()
+	query, _ := enginetest.QueryFixture(t, e, `SELECT CASE WHEN "odd alias".id=2 THEN 'it''s' ELSE NULL END FROM t AS "odd alias" WHERE "odd alias".id=2 ORDER BY "odd alias".id DESC`)
 	project, ok := query.Root.(*plan.ProjectNode)
 	if !ok || len(project.Expressions) != 1 || project.Frame == 0 {
 		t.Fatal("missing actual bound projection owner")

@@ -23,7 +23,7 @@ func TestPreparedFoldProtocolCommandParameters(t *testing.T) {
 	})
 	bind := func(name string) {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, "parameterized", &protocolUnitInput{data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
+			_, err := scope.BindProtocolPortal(name, "parameterized", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
 			return err
 		})
 	}

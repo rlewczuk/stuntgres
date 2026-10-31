@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -20,7 +21,8 @@ import (
 func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 	for _, name := range []string{"literalFalse", "literalNull", "parameterFalse", "parameterNull", "literalTrue", "parameterTrue", "semanticFalse", "identityFalse", "contextFalse"} {
 		t.Run(name, func(t *testing.T) {
-			e, query, input := queryCoreFixture(t, "SELECT id FROM t")
+			e := engine.New()
+			query, input := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 			boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			mood, err := sqltype.EnumWithMembers(45000, "mood", "mood", []sqltype.EnumMember{{ID: 101, Label: "old", SortOrder: 1}, {ID: 102, Label: "pending", SortOrder: 2}})
 			if err != nil {

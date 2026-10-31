@@ -122,7 +122,7 @@ func TestQueryWindowActualPhaseCancellation(t *testing.T) {
 			if phase == "offset" || phase == "inrange" {
 				q = "SELECT count(*) OVER(ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t"
 			}
-			_, query, source := queryCoreFixture(t, q)
+			query, source := enginetest.QueryFixture(t, engine.New(), q)
 			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
@@ -147,7 +147,7 @@ func TestQueryWindowActualPhaseCancellation(t *testing.T) {
 	}
 }
 func TestQueryWindowMetadataAndOverlayOwnership(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT id,row_number() OVER(ORDER BY id) AS rn,count(*) OVER(ORDER BY v) AS n FROM t ORDER BY id")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id,row_number() OVER(ORDER BY id) AS rn,count(*) OVER(ORDER BY v) AS n FROM t ORDER BY id")
 	schema := query.Root.Schema()
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 {
 		t.Fatal(schema)
@@ -169,7 +169,7 @@ func TestQueryWindowMetadataAndOverlayOwnership(t *testing.T) {
 	}
 }
 func TestQueryWindowLateKeyFailureAndCountOverflow(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY 1/(id-3)) FROM t LIMIT 1")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER(ORDER BY 1/(id-3)) FROM t LIMIT 1")
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	var diagnostic *sqlstate.Error
 	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" || source.View != nil {
@@ -268,7 +268,8 @@ func TestQueryWindowInsertFinishVeto(t *testing.T) {
 }
 
 func TestQueryWindowBorrowedOverlayAndPayloadOwnership(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY row_number() OVER(ORDER BY id DESC)")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t ORDER BY row_number() OVER(ORDER BY id DESC)")
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 4 || len(rows.Schema()) != 1 {
 		t.Fatal(rows, count, err)

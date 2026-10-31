@@ -164,7 +164,7 @@ func TestPlannerCostsAdmission(t *testing.T) {
 	if admitted.Tuple!=1.25 || op.PlannerCosts!=admitted { t.Fatal("mutable admission",admitted,op.PlannerCosts) }; op.Done()
 	next,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; if next.PlannerCosts.Tuple!=2 { t.Fatal(next.PlannerCosts) }; next.Done()
 	for _,q:=range []string{"CREATE TABLE t(n INT)","INSERT INTO t VALUES(1),(2)","SET cpu_tuple_cost='0.01'"} { plannerCostCommand(t,s,q) }
-	ast,d:=sequencePreparedDescription(t,e,s,"SELECT n FROM t")
+	ast,d:=enginetest.PreparedDescription(t,e,s,"SELECT n FROM t")
 	execute:=func(want float64) {
 		op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer op.Done()
 		scope,err:=e.StartStatement(op); if err!=nil { t.Fatal(err) }; scope.Expected=&d
@@ -186,7 +186,7 @@ func TestPlannerCostsAdmission(t *testing.T) {
 	command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("cost_definition","SELECT n FROM t",nil);return err})
 	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=5")
-	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("cost_portal","cost_definition",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err})
+	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("cost_portal","cost_definition",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})
 	portal:=core.ProtocolPortalOf(core.PayloadOf(s).PreparedSQL.Binding("cost_portal"))
 	producer:=core.PortalProducer(portal)
 	if producer==nil || producer.Source.PlannerCosts.Tuple!=5 {t.Fatal("portal missed opening admission")}
@@ -239,7 +239,7 @@ func TestPlannerCostsParallelExecution(t *testing.T) {
 	}
 	for _,profile:=range []string{"cheap","setup","delivery","size"} {
 		t.Run("query_"+profile,func(t *testing.T) {
-			_,query,source:=queryCoreFixture(t,"SELECT id FROM t")
+			query,source:=enginetest.QueryFixture(t,engine.New(),"SELECT id FROM t")
 			switch profile {case "setup":source.PlannerCosts.ParallelSetup=1000000;case "delivery":source.PlannerCosts.ParallelTuple=1000000;case "size":source.PlannerCosts.MinParallelTableBlocks=715827882}
 			rows,n,err:=exec.FinalizeSelect(context.Background(),query.Root,source,nil,2)
 			if err!=nil || n!=4 {t.Fatal(n,err)}

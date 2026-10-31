@@ -14,7 +14,7 @@ import (
 
 func TestXMLProducePreparedFoldOwnership(t *testing.T){
  e:=rootengine.New();s:=enginetest.StartSession(t,e,nil)
- ast,d:=sequencePreparedDescription(t,e,s,`SELECT xmltext('<&') AS tx,xmlcomment('owned') AS cm,xmlelement(NAME r,'live') AS el`)
+ ast,d:=enginetest.PreparedDescription(t,e,s,`SELECT xmltext('<&') AS tx,xmlcomment('owned') AS cm,xmlelement(NAME r,'live') AS el`)
  analysis:=d.Analysis;owner,epoch:=d.CatalogOwner,d.CatalogEpoch
  if analysis==nil||d.Folds==nil||len(d.Folds.Current().Entries)!=0{t.Fatal("Prepare published execution folds")}
  preparedFoldExecute(t,e,s,ast,&d)
@@ -34,7 +34,7 @@ func TestXMLProducePreparedFoldOwnership(t *testing.T){
 
 func TestXMLProduceUnknownParameterAdmission(t *testing.T){
  e:=rootengine.New();s:=enginetest.StartSession(t,e,nil)
- ast,accepted:=sequencePreparedDescription(t,e,s,`SELECT xmltext('accepted') AS v`)
+ ast,accepted:=enginetest.PreparedDescription(t,e,s,`SELECT xmltext('accepted') AS v`)
  preparedFoldExecute(t,e,s,ast,&accepted)
  analysis,cell:=accepted.Analysis,accepted.Folds
  generation:=cell.Current();backing:=&generation.Entries[0]

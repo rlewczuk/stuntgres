@@ -28,7 +28,7 @@ func TestReplicationSlotPreparedOwnership(t *testing.T) {
  registry:=core.PayloadOf(s).PreparedSQL; definition:=registry.Lookup("slot_owned"); owner:=definition.Description.Folds
  analysis:=definition.Description.Analysis; manifest:=slices.Clone(analysis.Dependencies)
  for _,tc:=range []struct{name string; data []byte}{{"slot_null",[]byte{0,0,0,1,255,255,255,255,0,0}},{"slot_value",[]byte{0,0,0,1,0,0,0,8,'r','s','l','_','u','n','i','t',0,0}}} {
-  command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(tc.name,"slot_owned",&protocolUnitInput{data:tc.data});return err})
+  command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(tc.name,"slot_owned",&enginetest.ProtocolReader{Data:tc.data});return err})
  }
  a,b:=registry.Binding("slot_null"),registry.Binding("slot_value")
  if a==nil || b==nil || a.Resource==b.Resource || a.Resource.Root==b.Resource.Root || a.Folds==nil || b.Folds==nil || len(a.Folds.Entries)==0 || len(b.Folds.Entries)==0 || &a.Folds.Entries[0]==&b.Folds.Entries[0] { t.Fatal("frames share graphs or immutable fold backing") }
@@ -40,7 +40,7 @@ func TestReplicationSlotPreparedOwnership(t *testing.T) {
  // A separate constant definition makes the real definition publication owner
  // observable. Reject a private candidate at the final cancellation fence.
  command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("slot_constant",preparedFoldPoint+",pg_drop_replication_slot(NULL::name)",nil);return err})
- command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("slot_constant_portal","slot_constant",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err})
+ command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("slot_constant_portal","slot_constant",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})
  constant:=registry.Lookup("slot_constant"); constantOwner:=constant.Description.Folds; accepted:=constantOwner.Current()
  constantBinding:=registry.Binding("slot_constant_portal")
  if constantBinding==nil || constantBinding.Resource==nil || constantBinding.Resource.Root==nil { t.Fatal("missing constant portal graph") }

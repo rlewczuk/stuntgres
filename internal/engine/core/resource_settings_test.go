@@ -82,7 +82,7 @@ func TestResourceTemporaryInitializedValidation(t *testing.T) {
 					}
 					ast:=enginetest.Statement(t,query)
 					var description core.Description
-					if prepared { ast,description=sequencePreparedDescription(t,e,s,query) }
+					if prepared { ast,description=enginetest.PreparedDescription(t,e,s,query) }
 					store:=s.Settings
 					store.Mu.Lock()
 					beforeActions,beforeValues,beforeTyped:=maps.Clone(store.Actions),maps.Clone(store.Values),maps.Clone(store.Typed)

@@ -67,7 +67,7 @@ func TestFTSConvertPreparedOwnership(t *testing.T) {
 			dictionary := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "convert_fold_dict"})
 			configuration := e.CatalogRead().MustTSConfiguration(address)
 			query := "SELECT " + name + "('public.convert_fold'::regconfig,'The'::text) AS normalized"
-			ast, d := sequencePreparedDescription(t, e, s, query)
+			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			if len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 				t.Fatal("Describe executed immutable query")
 			}
@@ -95,10 +95,10 @@ func TestFTSConvertPreparedOwnership(t *testing.T) {
 			if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.TSQuery, "")) {
 				t.Fatal("accepted query backing replaced")
 			}
-			freshAST, fresh := sequencePreparedDescription(t, e, s, query)
+			freshAST, fresh := enginetest.PreparedDescription(t, e, s, query)
 			preparedFoldExecute(t, e, s, freshAST, &fresh)
 			preparedFoldEntry(t, fresh, sqltype.TSQuery, "'the'")
-			runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT "+name+"('public.convert_fold'::regconfig,$1::text) AS normalized")
+			runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT "+name+"('public.convert_fold'::regconfig,$1::text) AS normalized")
 			convertOwnedExecute(t, e, s, runtimeAST, &runtime, "The", "'the'")
 			enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH CONFIGURATION public.convert_fold DROP MAPPING FOR asciiword")
 			preparedFoldExecute(t, e, s, ast, &d)
@@ -117,7 +117,7 @@ func TestFTSConvertPreparedOwnership(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "SET default_text_search_config='simple'")
-			ast, d := sequencePreparedDescription(t, e, s, "SELECT "+name+"('Rats'::text) AS normalized")
+			ast, d := enginetest.PreparedDescription(t, e, s, "SELECT "+name+"('Rats'::text) AS normalized")
 			simple, english := "'rats'", "'rat'"
 			if name == "to_tsvector" {
 				simple, english = "'rats':1", "'rat':1"

@@ -42,7 +42,7 @@ func TestXMLTableProviderOwnership(t *testing.T) {
  owner:=definition.Description.Folds
  if owner.Current().Generation!=0 {t.Fatal("parse published execution folds")}
  bind:=func(name string)*core.PreparedBinding {
-  command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(name,"xt_owned",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err})
+  command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(name,"xt_owned",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})
   binding:=registry.Binding(name)
   if binding==nil || binding.Resource==nil || binding.Resource.Root==nil || binding.Folds==nil {t.Fatal("missing actual binding")}
   return binding

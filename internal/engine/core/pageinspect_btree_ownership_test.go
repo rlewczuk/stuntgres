@@ -16,7 +16,7 @@ func TestPageinspectBtreePreparedOwnership(t *testing.T){
  enginetest.SessionSQL(t,s,"CREATE EXTENSION pageinspect");enginetest.SessionSQL(t,s,"BEGIN")
  cycle:=s.NewProtocolCycle();command:=func(fn func(*core.StatementScope)error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
  parse:=func(){command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("bt_owned","SELECT * FROM bt_page_items(NULL::bytea)",nil);return err})}
- bind:=func(name string){command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(name,"bt_owned",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err})}
+ bind:=func(name string){command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal(name,"bt_owned",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})}
  parse();registry:=core.PayloadOf(s).PreparedSQL;definition:=registry.Lookup("bt_owned");owner:=definition.Description.Folds
  if owner==nil || !owner.Live(){t.Fatal("missing actual prepared owner")}
  bind("bt_old");portal:=registry.Binding("bt_old");root:=portal.Resource.Root;accepted:=owner.Current();analysis:=definition.Description.Analysis

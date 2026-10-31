@@ -139,7 +139,7 @@ func TestIspellPreparedFoldOwnership(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.ispell_fold (TEMPLATE=ispell,DictFile=unit,AffFile=unit)")
 	q := "SELECT ts_lexize('public.ispell_fold'::regdictionary,'rooting'::text) AS lexemes"
-	ast, d := sequencePreparedDescription(t, e, s, q)
+	ast, d := enginetest.PreparedDescription(t, e, s, q)
 	preparedFoldExecute(t, e, s, ast, &d)
 	entry := preparedFoldEntry(t, d, 1009, "{rooting,root}")
 	if entry.Value.ArrayLen() != 2 || entry.Value.ArrayElement(0).Type() != entry.Result.Type.Element() || entry.Value.ArrayElement(1).Type() != entry.Result.Type.Element() {
@@ -157,7 +157,7 @@ func TestIspellPreparedFoldOwnership(t *testing.T) {
 	if accepted.Generation != before.Accepted.Generation || &accepted.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{rooting,root}")) {
 		t.Fatal("multi-lexeme accepted owner replaced")
 	}
-	freshAST, fresh := sequencePreparedDescription(t, e, s, q)
+	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
 	preparedFoldExecute(t, e, s, freshAST, &fresh)
 	preparedFoldEntry(t, fresh, 1009, "{rooting}")
 	ctx, cancel := context.WithCancel(context.Background())

@@ -20,7 +20,8 @@ import (
 // Exercise the real query admission and rule-slot protocol. Generic dependency
 // membership must not turn a fresh key into an original stored occurrence.
 func TestRoutineEqualityRecipeAuthority(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT DISTINCT id FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT DISTINCT id FROM t")
 	defer source.Close()
 	var distinct *plan.DistinctNode
 	plan.VisitExecutableQuery(query.Root, func(node plan.Node) {

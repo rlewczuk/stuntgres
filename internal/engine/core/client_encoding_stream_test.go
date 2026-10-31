@@ -81,7 +81,7 @@ func TestClientEncodingStream(t *testing.T) {
 		var log session.ProtocolContext
 		frame := make([]sqltype.Value, 1)
 		env := sqltype.InputEnvironment{Transport: s.Settings.ClientEncoding()}
-		err := session.ImportProtocolParameters(context.Background(), sqltype.OutputEnvironment{}, &protocolUnitInput{data: data}, []int16{0}, 1, []sqltype.Usage{enginetest.Usage(e, c.id)}, frame, env, &log, session.ProtocolBindInput)
+		err := session.ImportProtocolParameters(context.Background(), sqltype.OutputEnvironment{}, &enginetest.ProtocolReader{Data: data}, []int16{0}, 1, []sqltype.Usage{enginetest.Usage(e, c.id)}, frame, env, &log, session.ProtocolBindInput)
 		var diagnostic *sqlstate.Error
 		if c.code == "" {
 			if err != nil {

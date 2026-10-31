@@ -20,7 +20,7 @@ func TestExplainAnalyzePreparedOwnership(t *testing.T) {
 	s:=enginetest.StartSession(t,e,nil)
 	enginetest.SessionSQL(t,s,"CREATE TABLE ea_owner(v integer)")
 	enginetest.SessionSQL(t,s,"INSERT INTO ea_owner VALUES(1)")
-	ast,description:=sequencePreparedDescription(t,e,s,"EXPLAIN ANALYZE UPDATE ea_owner SET v=v+$1 RETURNING v")
+	ast,description:=enginetest.PreparedDescription(t,e,s,"EXPLAIN ANALYZE UPDATE ea_owner SET v=v+$1 RETURNING v")
 	if len(description.Results)!=1 || description.Results[0].Name!="QUERY PLAN" || description.Results[0].Usage.Type.ID()!=sqltype.Text || description.Parameters.Count!=1 {t.Fatal(description)}
 	resultBacking,parameterBacking:=&description.Results[0],&description.Parameters.Types[0]
 	foldOwner:=description.Folds
@@ -50,9 +50,9 @@ func TestExplainAnalyzePreparedOwnership(t *testing.T) {
 		}
 	}
 	enginetest.TransactionRows(t,s,"SELECT v FROM ea_owner",10)
-	failedSyntax,failedDescription:=sequencePreparedDescription(t,e,s,"EXPLAIN ANALYZE SELECT 1/(v-v) FROM ea_owner")
+	failedSyntax,failedDescription:=enginetest.PreparedDescription(t,e,s,"EXPLAIN ANALYZE SELECT 1/(v-v) FROM ea_owner")
 	failedOwner:=failedDescription.Folds
-	result,failure:=sequencePreparedExecute(e,s,failedSyntax,&failedDescription)
+	result,failure:=enginetest.PreparedExecute(e,s,failedSyntax,&failedDescription)
 	enginetest.State(t,failure,"22012")
 	if result.Rows!=nil || failedDescription.Folds!=failedOwner || failedDescription.FoldPlanning!=nil {t.Fatal("failed child published output or replaced definition")}
 	if failedOwner!=nil && (failedOwner.Current().Generation!=0 || len(failedOwner.Current().Entries)!=0) {t.Fatal("failed child accepted a retained fold generation")}
@@ -67,7 +67,7 @@ func TestExplainAnalyzeExecutionBoundary(t *testing.T) {
 			{"SELECT id FROM t ORDER BY id DESC LIMIT 1",1,4,1},
 		}{
 			t.Run(c.query,func(t *testing.T){
-				_,query,source:=queryCoreFixture(t,c.query)
+				query,source:=enginetest.QueryFixture(t,engine.New(),c.query)
 				ctx,observed:=exec.Observe(context.Background(),true)
 				observed.Register(query.Root)
 				rows,count,err:=exec.Finalize(ctx,query.Root,source,nil)
@@ -86,7 +86,7 @@ func TestExplainAnalyzeExecutionBoundary(t *testing.T) {
 		}
 	})
 	t.Run("parallel-runtime-records",func(t *testing.T){
-		_,query,source:=queryCoreFixture(t,"SELECT id FROM t")
+		query,source:=enginetest.QueryFixture(t,engine.New(),"SELECT id FROM t")
 		pin,err:=exec.ParallelQuerySource(source)
 		if err!=nil {t.Fatal(err)}
 		ctx,observed:=exec.Observe(context.Background(),true)

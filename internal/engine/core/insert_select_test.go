@@ -139,7 +139,8 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 
 func insertSelectEvaluationFixture(t *testing.T, sql string) (analyze.Binding, *exec.Source) {
 	t.Helper()
-	e, q, source := queryCoreFixture(t, sql)
+	e := engine.New()
+	q, source := enginetest.QueryFixture(t, e, sql)
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	e.Mu.Lock()
 	relation := e.Catalog.State.MustRelation(ref.Address)

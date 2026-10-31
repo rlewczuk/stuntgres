@@ -51,7 +51,7 @@ func TestPLpgSQLDiagnosticsPreparedOwnership(t *testing.T) {
 		t.Fatal("description retained a portal")
 	}
 	command(func(s *core.StatementScope) error {
-		_, err := s.BindProtocolPortal("diagnostics_portal", "diagnostics_owner", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+		_, err := s.BindProtocolPortal("diagnostics_portal", "diagnostics_owner", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
 	})
 	accepted := registry.Binding("diagnostics_portal")

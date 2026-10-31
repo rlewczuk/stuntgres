@@ -18,9 +18,9 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE s START 10")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT 's'::regclass")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT 's'::regclass")
 	oid := d.Sequences.Constants[0].Ref.Address.ObjectID
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,8 +28,8 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	if r.Rows.Schema()[0].Name != "regclass" {
 		t.Fatal(r.Rows.Schema())
 	}
-	numeric, nd := sequencePreparedDescription(t, e, s, fmt.Sprintf("SELECT nextval('%d'::regclass)", oid))
-	parameter, pd := sequencePreparedDescription(t, e, s, "SELECT nextval($1)")
+	numeric, nd := enginetest.PreparedDescription(t, e, s, fmt.Sprintf("SELECT nextval('%d'::regclass)", oid))
+	parameter, pd := enginetest.PreparedDescription(t, e, s, "SELECT nextval($1)")
 	param := func() (core.Result, error) {
 		op, err := s.Acquire(context.Background())
 		if err != nil {
@@ -63,7 +63,7 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	if text, err := r.Rows.RegclassText(frame[0]); err != nil || text != "s" {
 		t.Fatal("retained presentation changed", text, err)
 	}
-	result, err := sequencePreparedExecute(e, s, numeric, &nd)
+	result, err := enginetest.PreparedExecute(e, s, numeric, &nd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	enginetest.SessionSQL(t, s, "DROP SEQUENCE identity")
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE s START 90")
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "XX000", Message: fmt.Sprintf("could not open relation with OID %d", oid)}
-	_, err = sequencePreparedExecute(e, s, numeric, &nd)
+	_, err = enginetest.PreparedExecute(e, s, numeric, &nd)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatalf("literal got=%#v want=%#v", diagnostic, want)

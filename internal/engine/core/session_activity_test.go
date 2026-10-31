@@ -37,7 +37,7 @@ func TestSessionActivityProtocolAuthorityAndFolds(t *testing.T) {
 	}
 	for _, portal := range []string{"first", "second"} {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(portal, "activity", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(portal, "activity", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			if scope.Op.OriginalSQL != query || !scope.Op.SQLAvailable {
 				t.Fatal("Bind lost source")
 			}

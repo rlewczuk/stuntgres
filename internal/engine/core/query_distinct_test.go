@@ -6,14 +6,16 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v AS shown FROM t ORDER BY shown,shown DESC")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT v AS shown FROM t ORDER BY shown,shown DESC")
 	project := query.Root.(*plan.ProjectNode)
 	sort := project.Child.(*plan.SortNode)
 	node := sort.Child.(*plan.DistinctNode)
@@ -48,7 +50,7 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 }
 
 func TestQueryDistinctCollisionCandidates(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT v FROM t")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	d := node.Schema()[0].Usage.Type
@@ -70,7 +72,7 @@ func TestQueryDistinctCollisionCandidates(t *testing.T) {
 func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 	for _, phase := range []string{"projection", "late failure", "prepublication", "hash"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT v FROM t")
 			project := query.Root.(*plan.ProjectNode)
 			node := project.Child.(*plan.DistinctNode)
 			ctx, cancel := context.WithCancel(context.Background())

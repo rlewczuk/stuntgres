@@ -128,12 +128,12 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
 	sequenceScalar(t, peer, "SELECT '"+name+".storage_foreign'::regclass::oid::bigint", int64(foreign.Address().ObjectID))
 	for _, query := range []string{"SELECT v FROM " + name + ".storage_foreign", "SELECT v FROM ONLY " + name + ".storage_foreign", "SELECT v FROM " + name + "." + chain.Name()} {
-		ast, description := sequencePreparedDescription(t, e, peer, query)
+		ast, description := enginetest.PreparedDescription(t, e, peer, query)
 		before, sequence, oid, revision := e.Catalog.State, e.Visibility.CommitSeq(), e.Catalog.NextOID(), e.Catalog.NextRevision()
 		for _, prepared := range []bool{false, true} {
 			var err error
 			if prepared {
-				_, err = sequencePreparedExecute(e, peer, ast, &description)
+				_, err = enginetest.PreparedExecute(e, peer, ast, &description)
 			} else {
 				op, acquireErr := peer.Acquire(context.Background())
 				if acquireErr != nil {
@@ -171,12 +171,12 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		"TRUNCATE " + name + ".storage_foreign",
 	}
 	for _, query := range queries {
-		ast, description := sequencePreparedDescription(t, e, peer, query)
+		ast, description := enginetest.PreparedDescription(t, e, peer, query)
 		for _, prepared := range []bool{false, true} {
 			before, sequence, oid, revision := e.Catalog.State, e.Visibility.CommitSeq(), e.Catalog.NextOID(), e.Catalog.NextRevision()
 			var err error
 			if prepared {
-				_, err = sequencePreparedExecute(e, peer, ast, &description)
+				_, err = enginetest.PreparedExecute(e, peer, ast, &description)
 			} else {
 				op, acquireErr := peer.Acquire(context.Background())
 				if acquireErr != nil {

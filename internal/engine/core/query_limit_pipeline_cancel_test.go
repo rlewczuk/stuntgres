@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -11,7 +13,8 @@ import (
 
 func TestQueryLimitPipelineCancellation(t *testing.T) {
 	t.Run("nonproductive join", func(t *testing.T) {
-		e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+		e := engine.New()
+		query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 		project := query.Root.(*plan.ProjectNode)
 		bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -27,7 +30,8 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 	})
 	for _, mode := range []string{"NULL", "tie"} {
 		t.Run("sort comparator "+mode, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY v")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t ORDER BY v")
 			project := query.Root.(*plan.ProjectNode)
 			sort := project.Child.(*plan.SortNode)
 			typ, _ := e.CatalogRead().LookupType(sqltype.Int4)

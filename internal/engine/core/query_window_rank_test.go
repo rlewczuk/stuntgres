@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +14,7 @@ import (
 )
 
 func TestQueryWindowRankDescriptors(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT id,rank() OVER w AS r,dense_rank() OVER w AS d,percent_rank() OVER w AS pr,cume_dist() OVER w AS cd FROM t WINDOW w AS(ORDER BY v ROWS CURRENT ROW)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id,rank() OVER w AS r,dense_rank() OVER w AS d,percent_rank() OVER w AS pr,cume_dist() OVER w AS cd FROM t WINDOW w AS(ORDER BY v ROWS CURRENT ROW)")
 	schema := query.Root.Schema()
 	if len(schema) != 5 || schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 {
 		t.Fatal("source origin or exposed width", schema)
@@ -48,7 +50,7 @@ func TestQueryWindowRankDescriptors(t *testing.T) {
 func TestQueryWindowRankPeerDemand(t *testing.T) {
 	for _, frame := range []string{"ROWS CURRENT ROW", "ROWS NULL PRECEDING", "ROWS -1 PRECEDING", "RANGE CURRENT ROW EXCLUDE GROUP"} {
 		t.Run(frame, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v "+frame+")")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v "+frame+")")
 			rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if err != nil || rows == nil || count != 4 {
 				t.Fatal(rows, count, err)
@@ -81,7 +83,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 	}
 	// Equivalent key sorts can share peer endpoints while distinct frame specs
 	// retain their own membership and bound-validation demand.
-	_, query, source := queryCoreFixture(t, "SELECT rank() OVER(ORDER BY v ROWS CURRENT ROW),dense_rank() OVER(ORDER BY v RANGE CURRENT ROW),count(*) OVER(ORDER BY v ROWS CURRENT ROW EXCLUDE GROUP) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT rank() OVER(ORDER BY v ROWS CURRENT ROW),dense_rank() OVER(ORDER BY v RANGE CURRENT ROW),count(*) OVER(ORDER BY v ROWS CURRENT ROW EXCLUDE GROUP) FROM t")
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal(rows, count, err)
@@ -103,7 +105,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 	}
 	rows.Close()
 	for _, offset := range []string{"NULL", "-1"} {
-		_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY v ROWS "+offset+" PRECEDING)")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT rank() OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY v ROWS "+offset+" PRECEDING)")
 		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		code, message := "22004", "frame starting offset must not be null"
 		if offset == "-1" {
@@ -119,7 +121,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 func TestQueryWindowRankCancellation(t *testing.T) {
 	for _, phase := range []string{"sort", "peer"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v ROWS CURRENT ROW)")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v ROWS CURRENT ROW)")
 			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)

@@ -22,7 +22,7 @@ import (
 )
 
 func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT id AS shown,v,id+1 AS computed FROM t WHERE FALSE")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT id AS shown,v,id+1 AS computed FROM t WHERE FALSE")
 	defer source.Close()
 	schema := query.Root.Schema()
 	if len(schema) != 3 || schema[0].Name != "shown" || schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 || !schema[0].NullabilityKnown || schema[0].Nullable || schema[1].OriginAttribute != 2 || !schema[1].NullabilityKnown || !schema[1].Nullable || schema[2].OriginTable != 0 || schema[2].OriginAttribute != 0 || schema[2].NullabilityKnown {
@@ -51,7 +51,8 @@ func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 
 func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 	for _, suffix := range []string{"y", "2"} {
-		e, query, source := queryCoreFixture(t, "SELECT DISTINCT random() AS x,random() AS y FROM t ORDER BY "+suffix)
+		e := engine.New()
+		query, source := enginetest.QueryFixture(t, e, "SELECT DISTINCT random() AS x,random() AS y FROM t ORDER BY "+suffix)
 		project := query.Root.(*plan.ProjectNode)
 		sorted := project.Child.(*plan.SortNode)
 		node := sorted.Child.(*plan.DistinctNode)

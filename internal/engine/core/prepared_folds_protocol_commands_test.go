@@ -79,7 +79,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			}
 			bind := func(name string) {
 				command(func(scope *core.StatementScope) error {
-					_, err := scope.BindProtocolPortal(name, "command", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+					_, err := scope.BindProtocolPortal(name, "command", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 					return err
 				})
 			}
@@ -185,7 +185,7 @@ func TestPreparedFoldProtocolCommandFailure(t *testing.T) {
 				enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION fold_command_reader")
 			}
 			err := preparedFoldProtocolTry(t, e, s, cycle, phase == "cancel", func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal("failed", "failed", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal("failed", "failed", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 			if err == nil || owner.Current().Generation != 0 || len(owner.Current().Entries) != 0 || core.PayloadOf(s).PreparedSQL.Binding("failed") != nil {

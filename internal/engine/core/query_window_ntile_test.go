@@ -85,7 +85,7 @@ func TestQueryWindowNtileState(t *testing.T) {
 
 func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 	for _, prefix := range []int64{0, 1, 2} {
-		_, query, source := queryCoreFixture(t, "SELECT ntile(2) OVER(ORDER BY id) FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(2) OVER(ORDER BY id) FROM t")
 		node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 		call := &node.Calls[0]
 		argument := call.Argument
@@ -136,7 +136,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 		rows.Close()
 	}
 	t.Run("partition-reset-and-separate-calls", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT ntile(1) OVER(PARTITION BY f ORDER BY id),ntile(2) OVER(PARTITION BY f ORDER BY id) FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(1) OVER(PARTITION BY f ORDER BY id),ntile(2) OVER(PARTITION BY f ORDER BY id) FROM t")
 		node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 		var evaluated [2][]int64
 		for i := range node.Calls {
@@ -181,7 +181,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 }
 
 func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT id,ntile(id) OVER w,ntile(id+1) OVER w,ntile((SELECT 2)) OVER w FROM t WINDOW w AS(ORDER BY id)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id,ntile(id) OVER w,ntile(id+1) OVER w,ntile((SELECT 2)) OVER w FROM t WINDOW w AS(ORDER BY id)")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	for i, column := range query.Root.Schema() {
@@ -290,7 +290,7 @@ func (c *ntileOutputCancellation) Err() error {
 func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 	for _, phase := range []string{"argument", "initialized-output"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT ntile(2) OVER(ORDER BY id) FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT ntile(2) OVER(ORDER BY id) FROM t")
 			node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 			base, cancel := context.WithCancel(context.Background())
 			defer cancel()

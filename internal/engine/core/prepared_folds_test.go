@@ -162,11 +162,11 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.expression, func(t *testing.T) {
-			ast, d := sequencePreparedDescription(t, e, s, "SELECT "+tc.expression+" AS v")
+			ast, d := enginetest.PreparedDescription(t, e, s, "SELECT "+tc.expression+" AS v")
 			if d.Folds == nil || d.Folds.Current().Entries != nil {
 				t.Fatal("Describe computed a fold")
 			}
-			r, err := sequencePreparedExecute(e, s, ast, &d)
+			r, err := enginetest.PreparedExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -181,7 +181,7 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 				}
 			}
 			before := snapshotFoldDescription(d)
-			r, err = sequencePreparedExecute(e, s, ast, &d)
+			r, err = enginetest.PreparedExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -209,8 +209,8 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 	// selected-call arithmetic frontier; this witness needs no grammar change.
 	// Real immutable composite construction retains exact catalog-owned leaves.
 	enginetest.SessionSQL(t, s, "CREATE TYPE fold_pair AS (i integer,n text)")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT COALESCE(ROW(7,'owned')::fold_pair,NULL::fold_pair) AS v")
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(ROW(7,'owned')::fold_pair,NULL::fold_pair) AS v")
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestPreparedFoldTypedOwnership(t *testing.T) {
 		t.Fatal("missing typed compound constructor artifact")
 	}
 	before := snapshotFoldDescription(d)
-	r, err = sequencePreparedExecute(e, s, ast, &d)
+	r, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestPreparedFoldOccurrenceProvenance(t *testing.T) {
 			{"SELECT fold_default_call() AS a,fold_default_call() AS b", ids.ProcedureClassID, 2},
 		} {
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
-			ast, d := sequencePreparedDescription(t, e, s, tc.query)
+			ast, d := enginetest.PreparedDescription(t, e, s, tc.query)
 			preparedFoldExecute(t, e, s, ast, &d)
 			origins := make(map[exec.FoldOrigin]bool)
 			for _, entry := range d.Folds.Current().Entries {
@@ -287,8 +287,8 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 		"SELECT current_timestamp AS v",
 		"SELECT random() AS v",
 	} {
-		ast, d := sequencePreparedDescription(t, e, s, query)
-		r, err := sequencePreparedExecute(e, s, ast, &d)
+		ast, d := enginetest.PreparedDescription(t, e, s, query)
+		r, err := enginetest.PreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -299,8 +299,8 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 	}
 	enginetest.SessionSQL(t, s, "CREATE TABLE fold_rows(v int)")
 	enginetest.SessionSQL(t, s, "INSERT INTO fold_rows VALUES(-7)")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT abs(v) AS v FROM fold_rows")
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT abs(v) AS v FROM fold_rows")
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 		t.Fatal("row-dependent result retained")
 	}
 	// Conditional demand skips an unreached provider, without filling its key.
-	conditional, conditionalDescription := sequencePreparedDescription(t, e, s, "SELECT coalesce('safe',(1/0)::text) AS v")
+	conditional, conditionalDescription := enginetest.PreparedDescription(t, e, s, "SELECT coalesce('safe',(1/0)::text) AS v")
 	preparedFoldExecute(t, e, s, conditional, &conditionalDescription)
 	for _, entry := range conditionalDescription.Folds.Current().Entries {
 		if entry.Result.Type.ID() != sqltype.Text {
@@ -317,8 +317,8 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "CREATE DOMAIN fold_positive AS integer CHECK(VALUE>0)")
-	domainStatement, domainDescription := sequencePreparedDescription(t, e, s, "SELECT (-1)::fold_positive AS v")
-	if _, err := sequencePreparedExecute(e, s, domainStatement, &domainDescription); err == nil {
+	domainStatement, domainDescription := enginetest.PreparedDescription(t, e, s, "SELECT (-1)::fold_positive AS v")
+	if _, err := enginetest.PreparedExecute(e, s, domainStatement, &domainDescription); err == nil {
 		t.Fatal("runtime domain truth was elided")
 	}
 	for _, entry := range domainDescription.Folds.Current().Entries {
@@ -328,7 +328,7 @@ func TestPreparedFoldDemandBarriers(t *testing.T) {
 	}
 	// Execute a genuine fixed formal frame, including a constant sibling. The
 	// entire definition group stays untouched rather than persisting either arm.
-	ast, d = sequencePreparedDescription(t, e, s, "SELECT ($1::point)::text AS p,abs(-7) AS n")
+	ast, d = enginetest.PreparedDescription(t, e, s, "SELECT ($1::point)::text AS p,abs(-7) AS n")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

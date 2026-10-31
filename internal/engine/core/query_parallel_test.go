@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -81,7 +82,7 @@ func parallelTestIDs(t *testing.T, rows exec.RowResult) []int64 {
 func TestQueryParallelPartition(t *testing.T) {
 	parallelTransactionOccurrences(t)
 	for _, visible := range [][]int{nil, {}, {0}, {0, 1}, {3, 1, 0}, {0, 1, 2, 3}} {
-		_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 		source.Visible = visible
 		want := []int64{1, 2, 3, 4}
 		if visible != nil {
@@ -122,7 +123,7 @@ func TestQueryParallelPartition(t *testing.T) {
 		}
 	}
 	// Logical visibility can select an own version while omitting an older head.
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	source.Own = []storage.RowVersion{source.Committed[0]}
 	source.Own[0].Values = append([]sqltype.Value(nil), source.Committed[0].Values...)
 	source.Own[0].Values[0], _ = sqltype.Integer(source.Own[0].Values[0].Type(), 99)
@@ -143,7 +144,7 @@ func TestQueryParallelPartition(t *testing.T) {
 func TestQueryParallelConcurrentExecution(t *testing.T) {
 	for _, phase := range []string{"target", "filter"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f")
 			project, ordered, eligible := exec.ParallelQueryPlan(query.Root, source)
 			if !eligible || ordered != nil {
 				t.Fatal("ordinary scan not eligible")
@@ -229,7 +230,8 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 }
 
 func TestQueryParallelSnapshot(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	entered := make(chan *exec.State, 2)
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
@@ -326,7 +328,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 func TestQueryParallelEligibility(t *testing.T) {
 	parallelAdmissionAndTemporary(t)
 	parallelSerialEntryProof(t)
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE v>=1 ORDER BY v+1 DESC NULLS LAST,id")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE v>=1 ORDER BY v+1 DESC NULLS LAST,id")
 	project, ordered, ok := exec.ParallelQueryPlan(query.Root, source)
 	if !ok || ordered == nil {
 		t.Fatal("positive scalar scan rejected")
@@ -388,7 +390,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 
 func TestQueryParallelErrorIdentity(t *testing.T) {
 	parallelOpenFailureProof(t)
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	blocked := make(chan struct{})
 	var joined atomic.Bool
@@ -421,7 +423,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 	parallelMergeCancellationProof(t)
 	for _, phase := range []string{"before", "filter", "target", "sort"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id+1")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f ORDER BY id+1")
 			project := query.Root.(*plan.ProjectNode)
 			ordered := project.Child.(*plan.SortNode)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -455,7 +457,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 		})
 	}
 	// The live admission authority must not overwrite sibling cancellation.
-	_, _, source := queryCoreFixture(t, "SELECT id FROM t")
+	_, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	scope := &core.StatementScope{}
 	source.Authority = &exec.Authority{Host: core.HostOf(scope)}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -473,7 +475,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 func TestQueryParallelMerge(t *testing.T) {
 	parallelCachedOrderProof(t)
 	for _, q := range []string{"SELECT id FROM t ORDER BY v DESC NULLS LAST,id", "SELECT id FROM t ORDER BY v+1 ASC NULLS FIRST,id", "SELECT id+1 AS id FROM t ORDER BY v DESC NULLS LAST,id"} {
-		_, query, source := queryCoreFixture(t, q)
+		query, source := enginetest.QueryFixture(t, engine.New(), q)
 		project, ordered, ok := exec.ParallelQueryPlan(query.Root, source)
 		if !ok {
 			t.Fatal(q, "not eligible")
@@ -494,7 +496,7 @@ func TestQueryParallelMerge(t *testing.T) {
 		}
 	}
 	for _, workers := range []int{2, 4} {
-		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id")
 		project := query.Root.(*plan.ProjectNode)
 		ordered := project.Child.(*plan.SortNode)
 		ordered.Keys[0].Comparison = sqltype.Comparison{}
@@ -509,7 +511,7 @@ func TestQueryParallelMerge(t *testing.T) {
 
 func TestQueryParallelOwnership(t *testing.T) {
 	for _, q := range []string{"SELECT id FROM t", "SELECT id+1 AS id FROM t", "SELECT FROM t"} {
-		_, query, source := queryCoreFixture(t, q)
+		query, source := enginetest.QueryFixture(t, engine.New(), q)
 		rows, n, err := exec.FinalizeSelect(context.Background(), query.Root, source, nil, 2)
 		if err != nil || n != 4 {
 			t.Fatal(n, err)

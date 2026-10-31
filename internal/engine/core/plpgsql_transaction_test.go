@@ -551,7 +551,7 @@ func TestPLpgSQLTransactionCommandContext(t *testing.T) {
 				return err
 			})
 			command(func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal("prior", "prior", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal("prior", "prior", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 			command(func(scope *core.StatementScope) error { _, err := scope.DescribeProtocolPortal("prior"); return err })

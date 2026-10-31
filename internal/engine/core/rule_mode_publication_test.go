@@ -74,9 +74,9 @@ func TestRuleModePreparedPublication(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE src(id INT,v INT)", "CREATE TABLE sink(id INT,v INT)", "INSERT INTO src VALUES(1,10)", "CREATE RULE r AS ON INSERT TO src DO ALSO INSERT INTO sink VALUES(NEW.id,NEW.v)"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM src")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM src")
 	execute := func() {
-		r, err := sequencePreparedExecute(e, s, ast, &d)
+		r, err := enginetest.PreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -124,7 +124,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 		}
 	}
 	beforeAnalysis, beforeFolds := d.Analysis, d.Folds.Current()
-	_, failure := sequencePreparedExecute(e, s, enginetest.Statement(t, "ALTER TABLE src DISABLE RULE r, ENABLE RULE missing"), nil)
+	_, failure := enginetest.PreparedExecute(e, s, enginetest.Statement(t, "ALTER TABLE src DISABLE RULE r, ENABLE RULE missing"), nil)
 	var state interface{ SQLState() string }
 	if !errors.As(failure, &state) || state.SQLState() != "42704" {
 		t.Fatal("expected genuine failed ALTER", failure)
@@ -134,9 +134,9 @@ func TestRuleModePreparedPublication(t *testing.T) {
 		t.Fatal("failed ALTER replaced accepted owners/backing")
 	}
 	// Genuine held DML analysis also follows catalog mode and effective setting.
-	insert, held := sequencePreparedDescription(t, e, s, "INSERT INTO src VALUES(2,20)")
+	insert, held := enginetest.PreparedDescription(t, e, s, "INSERT INTO src VALUES(2,20)")
 	for _, q := range []string{"ALTER TABLE src DISABLE RULE r", "ALTER TABLE src ENABLE ALWAYS RULE r", "SET session_replication_role=replica", "RESET session_replication_role"} {
-		r, err := sequencePreparedExecute(e, s, insert, &held)
+		r, err := enginetest.PreparedExecute(e, s, insert, &held)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +145,7 @@ func TestRuleModePreparedPublication(t *testing.T) {
 		}
 		previous := held.Analysis
 		enginetest.SessionSQL(t, s, q)
-		r, err = sequencePreparedExecute(e, s, insert, &held)
+		r, err = enginetest.PreparedExecute(e, s, insert, &held)
 		if err != nil {
 			t.Fatal(err)
 		}

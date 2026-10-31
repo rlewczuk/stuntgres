@@ -42,7 +42,7 @@ func TestClientEncodingOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := command(func(scope *core.StatementScope) error {
-		_, err := scope.BindProtocolPortal("p", "s", &protocolUnitInput{data: make([]byte, 6)})
+		_, err := scope.BindProtocolPortal("p", "s", &enginetest.ProtocolReader{Data: make([]byte, 6)})
 		return err
 	}); err != nil {
 		t.Fatal(err)

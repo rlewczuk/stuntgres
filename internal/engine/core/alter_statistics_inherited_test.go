@@ -67,10 +67,10 @@ func TestAlterStatisticsInheritedConsumer(t *testing.T) {
 				t.Fatal("local authority does not distinguish inherited source", local)
 			}
 			query := "EXPLAIN SELECT a FROM " + root + " WHERE a=1"
-			ast, description := sequencePreparedDescription(t, e, s, query)
+			ast, description := enginetest.PreparedDescription(t, e, s, query)
 			read := func(want int) [][]driver.Value {
 				t.Helper()
-				result, err := sequencePreparedExecute(e, s, ast, &description)
+				result, err := enginetest.PreparedExecute(e, s, ast, &description)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -75,7 +75,8 @@ func (p *aggregateCombineProbe) Deserialize(ctx context.Context, data []byte, pr
 
 func aggregateCombineParallelFixture(t *testing.T) (*core.Engine, *plan.Query, *exec.Source, *plan.AggregateNode, *aggregateCombineProbe) {
 	t.Helper()
-	e, query, source := queryCoreFixture(t, "SELECT string_agg(id::text,','::text) AS v FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT string_agg(id::text,','::text) AS v FROM t")
 	n, eligible := exec.ParallelAggregatePlan(query.Root, source)
 	if !eligible {
 		t.Fatal("supported string aggregate not eligible")

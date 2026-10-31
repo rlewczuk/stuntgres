@@ -5,7 +5,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"testing"
 
@@ -19,41 +18,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// This reader exercises staged engine consumption, not SQL or a fake backend.
-type protocolUnitInput struct {
-	data     []byte
-	position int
-}
-
-func (r *protocolUnitInput) Bytes(n int) ([]byte, error) {
-	if n < 0 || n > len(r.data)-r.position {
-		return nil, core.SQLError("08P01", "insufficient data left in message")
-	}
-	p := r.data[r.position : r.position+n]
-	r.position += n
-	return p, nil
-}
-func (r *protocolUnitInput) Uint16() (uint16, error) {
-	p, e := r.Bytes(2)
-	if e != nil {
-		return 0, e
-	}
-	return binary.BigEndian.Uint16(p), nil
-}
-func (r *protocolUnitInput) Int32() (int32, error) {
-	p, e := r.Bytes(4)
-	if e != nil {
-		return 0, e
-	}
-	return int32(binary.BigEndian.Uint32(p)), nil
-}
-func (r *protocolUnitInput) End() error {
-	if r.position != len(r.data) {
-		return core.SQLError("08P01", "invalid message format")
-	}
-	return nil
-}
 
 func TestProtocolPreparedRegistry(t *testing.T) {
 	e := engine.New()
@@ -274,9 +238,9 @@ func TestProtocolFunctionInvocation(t *testing.T) {
 	s.Transactions.Mu.Lock()
 	s.Transactions.State = session.TxAborted
 	s.Transactions.Mu.Unlock()
-	input := &protocolUnitInput{}
+	input := &enginetest.ProtocolReader{}
 	_, err = scope.CallProtocolFunction(input)
-	if err == nil || input.position != 0 {
+	if err == nil || input.Position != 0 {
 		t.Fatal("aborted gate consumed fastpath input", err)
 	}
 	if err = scope.Finish(err); err == nil {

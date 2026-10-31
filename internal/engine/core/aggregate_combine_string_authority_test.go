@@ -126,7 +126,8 @@ func aggregateCombineStringOwnerAuthority(t *testing.T) {
 }
 
 func aggregateCombineStringSupportRemap(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT string_agg(id::text,','::text) AS v FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT string_agg(id::text,','::text) AS v FROM t")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := &node.Calls[0]

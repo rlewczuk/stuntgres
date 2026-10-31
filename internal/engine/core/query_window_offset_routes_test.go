@@ -19,7 +19,7 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 		for _, tail := range []string{"", " FROM t member WHERE member.id=t.id"} {
 			left := "(SELECT " + fn + "(0,1,t.id) OVER()" + tail + ")"
 			different := "(SELECT " + fn + "(0,1,-t.id) OVER()" + tail + ")"
-			_, query, source := queryCoreFixture(t, "SELECT "+left+","+different+","+left+" FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT "+left+","+different+","+left+" FROM t")
 			project := query.Root.(*plan.ProjectNode)
 			a, b, equal := project.Expressions[0], project.Expressions[1], project.Expressions[2]
 			// Independently bound child frames may pair, but their window defaults

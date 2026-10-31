@@ -288,7 +288,7 @@ func TestExplainAnalyzeForeignExecutionIdentity(t *testing.T){
 	for _,mode:=range []string{"base-current-params","composite-chosen","composite-declined"} {t.Run(mode,func(t *testing.T){
 		e,s,w:=explainExecutionFixture(t);w.declineExecution=mode!="composite-chosen"
 		query:="SELECT k FROM executed_explain_data WHERE k=$1";if mode!="base-current-params" {query="SELECT a.k FROM executed_explain_data a JOIN executed_explain_data b ON a.k=b.k WHERE a.k=$1"}
-		ast,description:=sequencePreparedDescription(t,e,s,"EXPLAIN (ANALYZE,VERBOSE) "+query)
+		ast,description:=enginetest.PreparedDescription(t,e,s,"EXPLAIN (ANALYZE,VERBOSE) "+query)
 		analysis,folds,generation:=description.Analysis,description.Folds,description.PlanGeneration;backing:=&description.Results[0];parameter:=&description.Parameters.Types[0]
 		var previousLines []string
 		var previousText string

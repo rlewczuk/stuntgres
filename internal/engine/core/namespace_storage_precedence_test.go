@@ -138,12 +138,12 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		collect(allowed, view, "0A000", "cannot access temporary tables of other sessions")
 		collect(denied, view, "42501", "permission denied for table storage_acl_source")
 		query := "SELECT v FROM " + name + "." + view
-		ast, description := sequencePreparedDescription(t, e, peer, query)
+		ast, description := enginetest.PreparedDescription(t, e, peer, query)
 		for _, prepared := range []bool{false, true} {
 			before, sequence, oid, revision := e.Catalog.State, e.Visibility.CommitSeq(), e.Catalog.NextOID(), e.Catalog.NextRevision()
 			var err error
 			if prepared {
-				_, err = sequencePreparedExecute(e, peer, ast, &description)
+				_, err = enginetest.PreparedExecute(e, peer, ast, &description)
 			} else {
 				op, acquireErr := peer.Acquire(context.Background())
 				if acquireErr != nil {

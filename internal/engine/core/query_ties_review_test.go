@@ -16,7 +16,7 @@ import (
 )
 
 func TestQueryTiesPresenceOnly(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id+0 FETCH FIRST ROW WITH TIES")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id+0 FETCH FIRST ROW WITH TIES")
 	if !analyze.CanSimplifyExists(query) {
 		t.Fatal("literal positive bound not eligible")
 	}
@@ -168,7 +168,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 func TestQueryTiesPresenceBoundEligibility(t *testing.T) {
 	for _, count := range []string{"0", "$1"} {
 		t.Run(count, func(t *testing.T) {
-			_, query, _ := queryCoreFixture(t, "SELECT id FROM t ORDER BY id+0 FETCH FIRST "+count+" ROWS WITH TIES")
+			query, _ := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id+0 FETCH FIRST "+count+" ROWS WITH TIES")
 			if analyze.CanSimplifyExists(query) {
 				t.Fatal("ordinary bound incorrectly discarded")
 			}

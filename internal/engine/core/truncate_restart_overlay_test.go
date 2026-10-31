@@ -124,8 +124,8 @@ func TestTruncateRestartCache(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, peer, "SET search_path TO a,b")
 			query := "SELECT nextval('s'),nextval('other')"
-			callerAST, caller := sequencePreparedDescription(t, e, s, query)
-			peerAST, other := sequencePreparedDescription(t, e, peer, query)
+			callerAST, caller := enginetest.PreparedDescription(t, e, s, query)
+			peerAST, other := enginetest.PreparedDescription(t, e, peer, query)
 			ref := caller.Sequences.Constants[0].Ref
 			original := e.Catalog.State.MustRelation(ref.Address)
 			enginetest.SessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
@@ -164,7 +164,7 @@ func TestTruncateRestartCache(t *testing.T) {
 				{peer, peerAST, &other, 10, 20},
 				{s, callerAST, &caller, 100, 200},
 			} {
-				result, err := sequencePreparedExecute(e, test.s, test.ast, test.description)
+				result, err := enginetest.PreparedExecute(e, test.s, test.ast, test.description)
 				if err != nil {
 					t.Fatal(err)
 				}

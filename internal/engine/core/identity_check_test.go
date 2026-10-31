@@ -89,7 +89,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			// kept then consumes the padded source owner's table address.
 			enginetest.SessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
-			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
+			_, description := enginetest.PreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			temp := description.Sequences.Constants[0].Ref.Address
 			owner := roleTableRef(t, source, "portable.i").Address
 			originalView, originalCheck := roleTableRef(t, source, "portable.v").Address, roleTableRef(t, source, "portable.c").Address

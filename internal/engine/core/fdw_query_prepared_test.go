@@ -68,7 +68,7 @@ func preparedQueryFixture(t *testing.T) (*core.Engine, *session.Session, *prepar
 
 func TestFDWQueryPreparedArtifactIsolation(t *testing.T) {
 	e, s, provider := preparedQueryFixture(t)
-	ast, description := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0),l.k FROM query_left l JOIN query_right r ON l.k=r.k")
+	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0),l.k FROM query_left l JOIN query_right r ON l.k=r.k")
 	preparedFoldExecute(t, e, s, ast, &description)
 	owner := description.Folds
 	accepted := owner.Current()
@@ -80,7 +80,7 @@ func TestFDWQueryPreparedArtifactIsolation(t *testing.T) {
 	entries := &accepted.Entries[0]
 	failure := errors.New("execution-private query Begin failed")
 	provider.failure = failure
-	result, err := sequencePreparedExecute(e, s, ast, &description)
+	result, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if result.Rows != nil {
 		result.Rows.Close()
 		t.Fatal("failed execution published rows")
@@ -113,7 +113,7 @@ func TestFDWQueryProtocolArtifactIsolation(t *testing.T) {
 	definition := registry.Lookup("query_definition")
 	for _, name := range []string{"successful_query", "failed_query"} {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, "query_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(name, "query_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 		binding := registry.Binding(name)

@@ -23,7 +23,7 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 	session := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, session, "CREATE PROCEDURE procedure_inner() LANGUAGE SQL AS 'SELECT 1'")
 	enginetest.SessionSQL(t, session, "CREATE PROCEDURE procedure_owned(IN x integer,OUT answer integer) LANGUAGE SQL AS 'CALL procedure_inner();SELECT 7/x'")
-	ast, description := sequencePreparedDescription(t, e, session, "CALL procedure_owned(COALESCE(-(7::integer),0),1/0)")
+	ast, description := enginetest.PreparedDescription(t, e, session, "CALL procedure_owned(COALESCE(-(7::integer),0),1/0)")
 	if description.Analysis == nil || description.Folds == nil || len(description.Folds.Current().Entries) != 0 || len(description.Results) != 1 || description.Results[0].Name != "answer" {
 		t.Fatal("CALL Describe ran producers or lost tuple metadata")
 	}
@@ -59,7 +59,7 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 	if !operandOnly {
 		t.Fatal("OUT analysis dependencies vanished or entered executable purpose")
 	}
-	_, parameters := sequencePreparedDescription(t, e, session, "CALL procedure_owned($1,$2)")
+	_, parameters := enginetest.PreparedDescription(t, e, session, "CALL procedure_owned($1,$2)")
 	if parameters.Parameters.Count != 2 || parameters.Parameters.Types[0].Type != call.Procedure.SQL.Inputs[0].Type || parameters.Parameters.Types[1].Type != call.Procedure.SQL.Formals[1].Usage.Type {
 		t.Fatal("OUT protocol type inference lost with execution projection")
 	}
@@ -94,7 +94,7 @@ func TestSQLRoutineProcedureCallOwnership(t *testing.T) {
 	}
 	bind := func(name string) {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, "procedure_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(name, "procedure_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 	}

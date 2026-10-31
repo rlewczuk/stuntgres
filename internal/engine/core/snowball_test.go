@@ -267,7 +267,7 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION unaccent")
 	enginetest.SessionSQL(t, s, "ALTER EXTENSION unaccent ADD TEXT SEARCH DICTIONARY public.snowball_fold")
 	q := "SELECT ts_lexize('public.snowball_fold'::regdictionary,'" + input + "'::text) AS lexemes"
-	ast, d := sequencePreparedDescription(t, e, s, q)
+	ast, d := enginetest.PreparedDescription(t, e, s, q)
 	if len(d.Folds.Current().Entries) != 0 {
 		t.Fatal("description evaluated dictionary")
 	}
@@ -303,10 +303,10 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{}")) {
 		t.Fatal("accepted immutable provider fold lost backing/current analysis")
 	}
-	freshAST, fresh := sequencePreparedDescription(t, e, s, q)
+	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q)
 	preparedFoldExecute(t, e, s, freshAST, &fresh)
 	preparedFoldEntry(t, fresh, 1009, "{"+want+"}")
-	runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT ts_lexize('public.snowball_fold'::regdictionary,$1::text) AS lexemes")
+	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.snowball_fold'::regdictionary,$1::text) AS lexemes")
 	// Existing owner helper supplies YeS: non-stopword remains a genuine stem.
 	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
@@ -323,8 +323,8 @@ func snowballPreparedOwnership(t *testing.T, language, input, want string) {
 		}
 	}
 	preparedFoldEntry(t, before, 1009, "{}")
-	failedAST, failed := sequencePreparedDescription(t, e, s, q+",(1/0)::bigint")
-	if _, err := sequencePreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
+	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
+	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 {
 		t.Fatal("later failure published Snowball prefix", err)
 	}
 	snowballRejectedFold(t, e, s, ast, d, "{}")

@@ -30,7 +30,7 @@ func TestXMLSQLPreparedPortalOwnership(t *testing.T) {
 				packet := append([]byte{0, 0, 0, 1, 0, 0, 0, 8}, []byte("text<a/>")...)
 				packet = append(packet, 0, 0)
 				command(func(scope *core.StatementScope) error {
-					_, err := scope.BindProtocolPortal("xml_modes_portal", "xml_modes", &protocolUnitInput{data: packet})
+					_, err := scope.BindProtocolPortal("xml_modes_portal", "xml_modes", &enginetest.ProtocolReader{Data: packet})
 					return err
 				})
 				registry := core.PayloadOf(s).PreparedSQL

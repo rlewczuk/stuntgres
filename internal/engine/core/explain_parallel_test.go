@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -60,7 +62,7 @@ func TestExplainAnalyzeParallelAggregateOwnership(t *testing.T) {
 		{"cancel-combine", "SELECT id%2,string_agg('x'::text,''::text) FROM t GROUP BY id%2", 0, 0, 4, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, tc.query)
+			query, source := enginetest.QueryFixture(t, engine.New(), tc.query)
 			pin, err := exec.ParallelQuerySource(source)
 			if err != nil { t.Fatal(err) }
 			aggregate, ok := exec.ParallelAggregatePlan(query.Root, pin)

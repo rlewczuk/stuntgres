@@ -19,7 +19,7 @@ func TestAlterAccessMethodPreparedOwnership(t *testing.T) {
 	cycle:=s.NewProtocolCycle()
 	command:=func(fn func(*core.StatementScope) error){preparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope) error {_,err:=scope.ParseProtocol("method_select","SELECT COALESCE(-(7::integer),0) AS folded,id FROM method_owned",nil);return err})
-	bind:=func(name string){command(func(scope *core.StatementScope) error {_,err:=scope.BindProtocolPortal(name,"method_select",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err})}
+	bind:=func(name string){command(func(scope *core.StatementScope) error {_,err:=scope.BindProtocolPortal(name,"method_select",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})}
 	bind("before")
 	registry:=core.PayloadOf(s).PreparedSQL
 	definition:=registry.Lookup("method_select")

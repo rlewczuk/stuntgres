@@ -98,7 +98,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 
 func TestProtocolSimplePlanningBounds(t *testing.T) {
 	t.Run("closed_error", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT 1/(2-2) FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT 1/(2-2) FROM t")
 		defer source.Close()
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		_, err := view.PreflightQuery(&evaluation, query.Root)
@@ -108,7 +108,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		}
 	})
 	t.Run("planning_and_live_demand", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT id, 12/(2+1) FROM t ORDER BY id")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id, 12/(2+1) FROM t ORDER BY id")
 		original := query.Root.(*plan.ProjectNode)
 		variable := original.Expressions[0]
 		calls := 0
@@ -178,7 +178,8 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			{"required_predicate", "SELECT 1 FROM t WHERE 1/(2-2)>0", "22012"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				e, query, source := queryCoreFixture(t, tc.sql)
+				e := engine.New()
+				query, source := enginetest.QueryFixture(t, e, tc.sql)
 				defer source.Close()
 				plan, err := analyze.PresenceQueryPlan(query)
 				if err != nil {

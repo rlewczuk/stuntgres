@@ -188,7 +188,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TABLE discard_signature_capture(v int)")
 		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_signature_seq")
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT *,TIMESTAMP 'now',nextval('discard_signature_seq'),'integer'::regtype FROM discard_signature_capture")
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT *,TIMESTAMP 'now',nextval('discard_signature_seq'),'integer'::regtype FROM discard_signature_capture")
 		if len(d.Temporals) == 0 || d.Sequences == nil || d.Regtypes == nil {
 			t.Fatal("missing real capture groups")
 		}
@@ -197,7 +197,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		enginetest.SessionSQL(t, s, "ALTER TABLE discard_signature_capture ADD COLUMN other text")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
-			r, err := sequencePreparedExecute(e, s, ast, &d)
+			r, err := enginetest.PreparedExecute(e, s, ast, &d)
 			if r.Rows != nil {
 				r.Rows.Close()
 				t.Fatal("rejected signature returned rows")
@@ -215,7 +215,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
 		before := d
 		sequenceBefore, regtypeBefore := *d.Sequences, *d.Regtypes
 		if err := engine.Reset(context.Background(), e); err != nil {
@@ -224,7 +224,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
-			r, err := sequencePreparedExecute(e, s, ast, &d)
+			r, err := enginetest.PreparedExecute(e, s, ast, &d)
 			if r.Rows != nil {
 				r.Rows.Close()
 				t.Fatal("retired authority returned rows")
@@ -242,7 +242,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	// Genuine analyzer groups, retained descriptions and catalog fences; SQL is
 	// only fixture construction, not a duplicate public response witness.
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE discard_capture_seq")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('discard_capture_seq'),'integer'::regtype")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('discard_capture_seq'),'integer'::regtype")
 	if len(d.Temporals) < 2 || d.Sequences == nil || d.Regtypes == nil || d.PlanOwner != s.SessionToken {
 		t.Fatal("missing complete private capture fixture")
 	}
@@ -252,7 +252,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	if d.PlanGeneration != original.PlanGeneration || &d.Temporals[0] != &original.Temporals[0] {
 		t.Fatal("discard eagerly mutated descriptions")
 	}
-	result, err := sequencePreparedExecute(e, s, ast, &d)
+	result, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal("DISCARD changed fixed signature", err)
 	}
 	stable := d
-	result, err = sequencePreparedExecute(e, s, ast, &d)
+	result, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	discardUnitApply(t, s, parser.DiscardPlans)
 	before := d
 	sequenceBefore, regtypeBefore := *d.Sequences, *d.Regtypes
-	_, err = sequencePreparedExecute(e, s, ast, &d)
+	_, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err == nil || d.PlanGeneration != before.PlanGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.Regtypes, regtypeBefore) {
 		t.Fatal("failed group published captures", err)
 	}

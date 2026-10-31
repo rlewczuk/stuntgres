@@ -74,7 +74,7 @@ func TestQueryTiesNullAndCancellation(t *testing.T) {
 func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		t.Run(map[bool]string{false: "error", true: "cancel"}[cancelled], func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id FETCH FIRST ROW WITH TIES")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id FETCH FIRST ROW WITH TIES")
 			project := query.Root.(*plan.ProjectNode)
 			limit := project.Child.(*plan.LimitNode)
 			ctx, cancel := context.WithCancel(context.Background())

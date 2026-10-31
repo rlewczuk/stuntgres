@@ -26,7 +26,7 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 		dictionary := thesaurusUnitAddress(e, ids.TSDictionaryClassID, "json_fold_dict")
 		configuration := e.CatalogRead().MustTSConfiguration(address)
 		query := "SELECT " + tc.constant + " AS normalized"
-		ast, d := sequencePreparedDescription(t, e, s, query)
+		ast, d := enginetest.PreparedDescription(t, e, s, query)
 		if len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe performed conversion")
 		}
@@ -53,10 +53,10 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 		if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.TSVector, "")) {
 			t.Fatal("accepted vector replaced")
 		}
-		freshAST, fresh := sequencePreparedDescription(t, e, s, query)
+		freshAST, fresh := enginetest.PreparedDescription(t, e, s, query)
 		preparedFoldExecute(t, e, s, freshAST, &fresh)
 		preparedFoldEntry(t, fresh, sqltype.TSVector, "'the':1")
-		runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT "+tc.runtime+" AS normalized")
+		runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT "+tc.runtime+" AS normalized")
 		convertOwnedExecute(t, e, s, runtimeAST, &runtime, `"The"`, "'the':1")
 		enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH CONFIGURATION public.json_fold DROP MAPPING FOR asciiword")
 		preparedFoldExecute(t, e, s, ast, &d)
@@ -72,7 +72,7 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 	for _, call := range []string{`to_tsvector('"The Rats"'::json)`, `jsonb_to_tsvector('"The Rats"'::jsonb,'"string"'::jsonb)`} {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT "+call)
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT "+call)
 		for _, tc := range []struct{ setting, want string }{{"simple", "'rats':2 'the':1"}, {"english", "'rat':2"}, {"simple", "'rats':2 'the':1"}} {
 			enginetest.SessionSQL(t, s, "SET default_text_search_config='"+tc.setting+"'")
 			convertOwnedExecute(t, e, s, ast, &d, "", tc.want)
@@ -90,7 +90,7 @@ func TestFTSJSONPreparedOwnership(t *testing.T) {
 
 func TestFTSJSONCancellation(t *testing.T) {
 	e, s := thesaurusCoreSetup(t)
-	savedAST, saved := sequencePreparedDescription(t, e, s, `SELECT to_tsvector('simple'::regconfig,'["saved"]'::json)`)
+	savedAST, saved := enginetest.PreparedDescription(t, e, s, `SELECT to_tsvector('simple'::regconfig,'["saved"]'::json)`)
 	preparedFoldExecute(t, e, s, savedAST, &saved)
 	savedEntry := preparedFoldEntry(t, saved, sqltype.TSVector, "'saved':1")
 	accepted := snapshotFoldDescription(saved).Accepted

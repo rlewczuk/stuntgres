@@ -20,7 +20,7 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 			"SELECT 'cat<->rat'::tsquery @@ 'cat:1 rat:2'::tsvector",
 			"SELECT to_tsvector('english'::regconfig,'Rats'::text) @@ to_tsquery('english'::regconfig,'rat'::text)",
 		} {
-			ast, d := sequencePreparedDescription(t, e, s, query)
+			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 				t.Fatal("Describe evaluated match")
 			}
@@ -44,7 +44,7 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "SET default_text_search_config='simple'")
-			ast, d := sequencePreparedDescription(t, e, s, query)
+			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			for _, tc := range []struct{ setting, want string }{{"english", "t"}, {"simple", "f"}, {"english", "t"}} {
 				enginetest.SessionSQL(t, s, "SET default_text_search_config='"+tc.setting+"'")
 				convertOwnedExecute(t, e, s, ast, &d, "Rats", tc.want)
@@ -74,7 +74,7 @@ func TestFTSMatchPreparedOwnership(t *testing.T) {
 				data := []byte{0, 0, 0, 1, 0, 0, 0, byte(len(input))}
 				data = append(data, []byte(input)...)
 				data = append(data, 0, 0)
-				_, err := scope.BindProtocolPortal(name, "match_definition", &protocolUnitInput{data: data})
+				_, err := scope.BindProtocolPortal(name, "match_definition", &enginetest.ProtocolReader{Data: data})
 				return err
 			})
 		}

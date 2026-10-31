@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +18,7 @@ import (
 // Public persisted rows/replay belong to reference. This directly exercises the
 // actual graph remapper's descriptor-owned support and immutable original graph.
 func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
-	_, query, _ := queryCoreFixture(t, "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
+	query, _ := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
 	original := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	before := original.Specs[0].Frame
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -59,7 +60,7 @@ func TestQueryWindowRangeDescriptorSupportRemap(t *testing.T) {
 }
 
 func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
-	_, query, _ := queryCoreFixture(t, "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v FROM t WINDOW w AS(ORDER BY id RANGE 1 PRECEDING),v AS(ORDER BY id RANGE 1 PRECEDING)")
+	query, _ := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v FROM t WINDOW w AS(ORDER BY id RANGE 1 PRECEDING),v AS(ORDER BY id RANGE 1 PRECEDING)")
 	project := query.Root.(*plan.ProjectNode)
 	original := project.Child.(*plan.WindowNode)
 	if len(original.Specs) != 2 || len(original.Calls) != 2 || original.Specs[0].Definition != 1 || original.Specs[1].Definition != 2 || !reflect.DeepEqual(original.SortIndices, []int{0, 0}) || !reflect.DeepEqual(original.SpecIndices, []int{0, 1}) {

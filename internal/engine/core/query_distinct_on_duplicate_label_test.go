@@ -3,12 +3,14 @@ package core_test
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/plan"
 )
 
 func TestQueryDistinctOnDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 	for _, suffix := range []string{"", " ORDER BY x"} {
-		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(x) (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t"+suffix)
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(x) (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t"+suffix)
 		defer source.Close()
 		project := query.Root.(*plan.ProjectNode)
 		on := project.Child.(*plan.DistinctOnNode)
@@ -28,7 +30,7 @@ func TestQueryDistinctOnDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 }
 
 func TestQueryOrderDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t ORDER BY x")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t ORDER BY x")
 	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	sorted := project.Child.(*plan.SortNode)

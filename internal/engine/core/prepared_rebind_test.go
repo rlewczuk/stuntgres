@@ -44,7 +44,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 	for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE b.t(v INT)", "SET search_path TO a,b"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	_, d := sequencePreparedDescription(t, e, s, "SELECT l.v,r.v FROM t AS l CROSS JOIN t AS r")
+	_, d := enginetest.PreparedDescription(t, e, s, "SELECT l.v,r.v FROM t AS l CROSS JOIN t AS r")
 	cell := d.Analysis
 	if cell == nil || len(cell.Sources) != 2 {
 		t.Fatal("occurrences were collapsed", cell)
@@ -90,17 +90,17 @@ func TestPreparedRebindValidity(t *testing.T) {
 	if preparedRebindValid(t, e, s, cell) {
 		t.Fatal("equal-path namespace callback ignored")
 	}
-	_, pathDescription := sequencePreparedDescription(t, e, s, "SELECT v FROM t")
+	_, pathDescription := enginetest.PreparedDescription(t, e, s, "SELECT v FROM t")
 	enginetest.SessionSQL(t, s, "SET search_path TO b,a")
 	if preparedRebindValid(t, e, s, pathDescription.Analysis) {
 		t.Fatal("effective path reorder ignored")
 	}
-	_, dependencyDescription := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
+	_, dependencyDescription := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
 	enginetest.SessionSQL(t, s, "ALTER TABLE b.t ADD unused INT")
 	if preparedRebindValid(t, e, s, dependencyDescription.Analysis) {
 		t.Fatal("dependency definition change ignored")
 	}
-	_, removed := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
+	_, removed := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
 	enginetest.SessionSQL(t, s, "DROP TABLE b.t")
 	if preparedRebindValid(t, e, s, removed.Analysis) {
 		t.Fatal("missing dependency accepted")
@@ -109,7 +109,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 	if preparedRebindValid(t, e, s, removed.Analysis) {
 		t.Fatal("replacement dependency reused old identity")
 	}
-	_, native := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
+	_, native := enginetest.PreparedDescription(t, e, s, "SELECT v FROM b.t")
 	if err := rootengine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		for _, q := range []string{"BEGIN", "SAVEPOINT before_temp", "CREATE TEMP TABLE rollback_source(v INT)"} {
 			enginetest.SessionSQL(t, privateSession, q)
 		}
-		_, retained := sequencePreparedDescription(t, privateEngine, privateSession, "SELECT v FROM pg_temp.rollback_source")
+		_, retained := enginetest.PreparedDescription(t, privateEngine, privateSession, "SELECT v FROM pg_temp.rollback_source")
 		if !preparedRebindValid(t, privateEngine, privateSession, retained.Analysis) {
 			t.Fatal("private analysis was not initially valid")
 		}
@@ -152,8 +152,8 @@ func TestPreparedRebindValidity(t *testing.T) {
 		set(late, usage)
 		enginetest.SessionSQL(t, caller, "SET search_path TO a,b")
 		enginetest.SessionSQL(t, caller, "SET SESSION AUTHORIZATION acl_reader")
-		ast, description := sequencePreparedDescription(t, engine, caller, "SELECT v FROM t")
-		qualifiedAST, qualified := sequencePreparedDescription(t, engine, caller, "SELECT v FROM b.t")
+		ast, description := enginetest.PreparedDescription(t, engine, caller, "SELECT v FROM t")
+		qualifiedAST, qualified := enginetest.PreparedDescription(t, engine, caller, "SELECT v FROM b.t")
 		if description.Analysis == nil || len(description.Analysis.Sources) != 1 || qualified.Analysis == nil || len(qualified.Analysis.Sources) != 1 {
 			t.Fatal("missing initial prepared namespace identities")
 		}
@@ -168,7 +168,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		if preparedRebindValid(t, engine, caller, initial) {
 			t.Fatal("real schema-USAGE callback retained validity")
 		}
-		result, err := sequencePreparedExecute(engine, caller, ast, &description)
+		result, err := enginetest.PreparedExecute(engine, caller, ast, &description)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 		original := qualified
 		set(late, authorization.ACLValue{Explicit: true})
-		result, err = sequencePreparedExecute(engine, caller, qualifiedAST, &qualified)
+		result, err = enginetest.PreparedExecute(engine, caller, qualifiedAST, &qualified)
 		if result.Rows != nil {
 			result.Rows.Close()
 			t.Fatal("schema denial exposed rows")
@@ -197,7 +197,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			t.Fatal("schema denial published candidate identities or signatures")
 		}
 		set(late, usage)
-		result, err = sequencePreparedExecute(engine, caller, qualifiedAST, &qualified)
+		result, err = enginetest.PreparedExecute(engine, caller, qualifiedAST, &qualified)
 		if err != nil {
 			t.Fatal("same qualified handle did not recover schema-USAGE", err)
 		}
@@ -221,7 +221,7 @@ func TestPreparedRebindDependencyManifest(t *testing.T) {
 		"DELETE FROM t USING outer_view AS src WHERE t.v=src.v",
 		"MERGE INTO t USING outer_view AS src ON t.v=src.v WHEN NOT MATCHED THEN INSERT(v) VALUES(src.v)",
 	} {
-		_, description := sequencePreparedDescription(t, e, s, query)
+		_, description := enginetest.PreparedDescription(t, e, s, query)
 		seen := make(map[ids.ObjectAddress]bool)
 		for _, dependency := range description.Analysis.Dependencies {
 			seen[dependency.Ref.Address] = true
@@ -286,13 +286,13 @@ func TestPreparedRebindPublication(t *testing.T) {
 	t.Run("ValuesRetainsInitialCaptures", func(t *testing.T) {
 		engine := rootengine.New()
 		session := enginetest.StartSession(t, engine, nil)
-		ast, description := sequencePreparedDescription(t, engine, session, "VALUES(TIMESTAMP 'now',('{now}'::timestamp[])[1])")
+		ast, description := enginetest.PreparedDescription(t, engine, session, "VALUES(TIMESTAMP 'now',('{now}'::timestamp[])[1])")
 		if len(description.Temporals) != 2 || description.Analysis == nil {
 			t.Fatal("missing initial VALUES analysis", description.Temporals)
 		}
 		original := description
 		for range 2 {
-			result, err := sequencePreparedExecute(engine, session, ast, &description)
+			result, err := enginetest.PreparedExecute(engine, session, ast, &description)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -307,7 +307,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE t(v INT)", "CREATE SEQUENCE q"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT t.*,TIMESTAMP 'now','{now}'::timestamp[],nextval('q'),'integer'::regtype FROM t")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT t.*,TIMESTAMP 'now','{now}'::timestamp[],nextval('q'),'integer'::regtype FROM t")
 	if len(d.Temporals) < 2 || d.Sequences == nil || d.Regtypes == nil || d.Analysis == nil {
 		t.Fatal("missing genuine capture groups")
 	}
@@ -320,7 +320,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE t ADD other INT")
-	result, err := sequencePreparedExecute(e, s, ast, &d)
+	result, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if result.Rows != nil {
 		result.Rows.Close()
 		t.Fatal("shape failure exposed rows")
@@ -331,13 +331,13 @@ func TestPreparedRebindPublication(t *testing.T) {
 	}
 	assertUnchanged()
 	enginetest.SessionSQL(t, s, "DROP TABLE t")
-	_, err = sequencePreparedExecute(e, s, ast, &d)
+	_, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "42P01" {
 		t.Fatal("missing analysis error", err)
 	}
 	assertUnchanged()
 	enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
-	result, err = sequencePreparedExecute(e, s, ast, &d)
+	result, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +349,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	stable := d
-	result, err = sequencePreparedExecute(e, s, ast, &d)
+	result, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 	}
 
 	// Successful analysis publication precedes importing execution values.
-	parameterAST, parameterDescription := sequencePreparedDescription(t, e, s, "SELECT $1::int,TIMESTAMP 'now' FROM t")
+	parameterAST, parameterDescription := enginetest.PreparedDescription(t, e, s, "SELECT $1::int,TIMESTAMP 'now' FROM t")
 	old := parameterDescription.Analysis
 	enginetest.SessionSQL(t, s, "ALTER TABLE t ADD unused INT")
 	op, err := s.Acquire(context.Background())
@@ -386,7 +386,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		for _, q := range []string{"CREATE TABLE source(v INT)", "CREATE SEQUENCE source_q"} {
 			enginetest.SessionSQL(t, session, q)
 		}
-		ast, description := sequencePreparedDescription(t, engine, session, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('source_q'),'integer'::regtype FROM source")
+		ast, description := enginetest.PreparedDescription(t, engine, session, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('source_q'),'integer'::regtype FROM source")
 		old := description
 		sequence, regtype := *description.Sequences, *description.Regtypes
 		if err := rootengine.Reset(context.Background(), engine); err != nil {
@@ -395,7 +395,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		for _, q := range []string{"CREATE TABLE source(v INT)", "CREATE SEQUENCE source_q"} {
 			enginetest.SessionSQL(t, session, q)
 		}
-		result, err := sequencePreparedExecute(engine, session, ast, &description)
+		result, err := enginetest.PreparedExecute(engine, session, ast, &description)
 		if result.Rows != nil {
 			result.Rows.Close()
 			t.Fatal("retired provenance exposed rows")

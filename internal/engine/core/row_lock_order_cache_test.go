@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -140,7 +141,7 @@ func TestRowLockOrderedCacheRejection(t *testing.T) {
 }
 
 func TestRowLockOrderedCacheRefreshCounts(t *testing.T) {
-	_, query, _ := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
+	query, _ := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f ORDER BY id")
 	usage := query.Root.Schema()[0].Usage
 	value, err := sqltype.Integer(usage.Type, 7)
 	if err != nil {

@@ -69,7 +69,7 @@ func TestFDWExplainContextDemandOwnership(t *testing.T) {
 		{"SELECT count(*) AS n FROM explain_context_data",false,true},
 	} {
 		w.decline = tc.decline
-		ast,description := sequencePreparedDescription(t,e,s,"EXPLAIN (VERBOSE,COSTS false) "+tc.query)
+		ast,description := enginetest.PreparedDescription(t,e,s,"EXPLAIN (VERBOSE,COSTS false) "+tc.query)
 		analysis,folds,generation := description.Analysis,description.Folds,description.PlanGeneration
 		statement := enginetest.Statement(t,tc.query)
 		op,err := s.Acquire(context.Background()); if err != nil { t.Fatal(err) }
@@ -101,7 +101,7 @@ func TestFDWExplainContextDemandOwnership(t *testing.T) {
 		}
 		op.Done()
 		for range 2 {
-			result,err := sequencePreparedExecute(e,s,ast,&description)
+			result,err := enginetest.PreparedExecute(e,s,ast,&description)
 			if err != nil { t.Fatal(err) }; result.Rows.Close()
 			if description.Analysis != analysis || description.Folds != folds || description.PlanGeneration != generation || folds.Live() || folds.Current().Generation != 0 || len(folds.Current().Entries) != 0 { t.Fatal("EXPLAIN replaced its accepted definition owner/generation") }
 		}

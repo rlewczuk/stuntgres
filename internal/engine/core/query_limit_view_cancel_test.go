@@ -4,13 +4,16 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func TestQueryLimitViewCancellation(t *testing.T) {
-	e, query, input := queryCoreFixture(t, "SELECT id FROM t WHERE f")
+	e := engine.New()
+	query, input := enginetest.QueryFixture(t, e, "SELECT id FROM t WHERE f")
 	inner := query.Root.(*plan.ProjectNode)
 	filter := inner.Child.(*plan.FilterNode)
 	ctx, cancel := context.WithCancel(context.Background())

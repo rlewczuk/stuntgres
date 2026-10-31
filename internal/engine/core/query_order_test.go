@@ -18,7 +18,7 @@ import (
 func TestQueryOrderCacheAndCancellation(t *testing.T) {
 	for _, failure := range []string{"none", "late-key", "cancel"} {
 		t.Run(failure, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f ORDER BY id")
 			project := query.Root.(*plan.ProjectNode)
 			sorted := project.Child.(*plan.SortNode)
 			usage := project.Schema()[0].Usage

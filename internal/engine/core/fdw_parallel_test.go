@@ -7,7 +7,9 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +18,7 @@ import (
 // Inputs are real captured engine rows, with the ordinary scan available so a
 // missing dispatch produces a bounded, deterministic failing gate assertion.
 func TestFDWParallelConcurrentExecution(t *testing.T) {
-	_, query, captured := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+	query, captured := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id")
 	entered := make(chan int, 2)
 	release := make(chan struct{})
 	w := &fdwDispatchWrapper{entered: entered, release: release}

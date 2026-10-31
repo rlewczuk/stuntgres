@@ -204,7 +204,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 	}
 	probe := &defaultOrdinal{}
 	defaultProbe(t, e, probe)
-	ast, description := sequencePreparedDescription(t, e, s, "DELETE FROM p WHERE id=10")
+	ast, description := enginetest.PreparedDescription(t, e, s, "DELETE FROM p WHERE id=10")
 	if probe.ordinal != 0 || description.Analysis == nil {
 		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.Analysis)
 	}
@@ -214,7 +214,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 	// retained initiating analysis must never own an executable child plan/value.
 	current := &defaultOrdinal{ordinal: 5}
 	defaultProbe(t, e, current)
-	result, err := sequencePreparedExecute(e, s, ast, &description)
+	result, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil || result.Count != 1 {
 		t.Fatal(result, err)
 	}

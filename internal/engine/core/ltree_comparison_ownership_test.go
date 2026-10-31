@@ -46,7 +46,7 @@ func TestLtreeComparisonPreparedOwnership(t *testing.T) {
 				_,err:=scope.ParseProtocol("lt_plain","SELECT "+tc.expression+" AS v",nil);return err
 			})
 			command(func(scope *core.StatementScope) error {
-				_,err:=scope.BindProtocolPortal("lt_plain_portal","lt_plain",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}});return err
+				_,err:=scope.BindProtocolPortal("lt_plain_portal","lt_plain",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err
 			})
 			plain:=registry.Binding("lt_plain_portal")
 			if plain==nil||plain.Resource==nil||plain.Resource.Root==nil||len(plain.Resource.Root.Expressions)!=1{t.Fatal("missing actual plain comparison binding")}
@@ -90,7 +90,7 @@ func TestLtreeComparisonPreparedOwnership(t *testing.T) {
 			}
 			bind := func(name string) {
 				command(func(scope *core.StatementScope) error {
-					_, err := scope.BindProtocolPortal(name, "lt_owned", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+					_, err := scope.BindProtocolPortal(name, "lt_owned", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 					return err
 				})
 			}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -14,7 +15,7 @@ import (
 
 func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 	for _, suffix := range []string{"", " ORDER BY v+0,id DESC"} {
-		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v+0) v+0 AS shown FROM t"+suffix)
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v+0) v+0 AS shown FROM t"+suffix)
 		project := query.Root.(*plan.ProjectNode)
 		node := project.Child.(*plan.DistinctOnNode)
 		var cached []expr.Expr
@@ -59,7 +60,7 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 }
 
 func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v) id FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	usage := node.Expressions[0].ResultUsage()
 	scratch := make([]sqltype.Value, 1)

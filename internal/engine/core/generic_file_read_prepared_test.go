@@ -68,7 +68,7 @@ func TestGenericFileReadPreparedOwnership(t *testing.T) {
 			owner := definition.Description.Folds
 			if owner == nil || !owner.Live() || owner.Current().Generation != 0 || len(owner.Current().Entries) != 0 { t.Fatal("Parse ownership") }
 			bind := func(name string) {
-				command(func(scope *core.StatementScope) error { _, err := scope.BindProtocolPortal(name,"file_owned",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}}); return err })
+				command(func(scope *core.StatementScope) error { _, err := scope.BindProtocolPortal(name,"file_owned",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}}); return err })
 			}
 			bind("file_first")
 			first := registry.Binding("file_first")
@@ -172,7 +172,7 @@ func TestGenericFileReadPreparedFrames(t *testing.T) {
 				{"null",[]byte{0,0,0,1,255,255,255,255,0,0}},
 				{"nonnull",nonnullData},
 			} {
-				command(func(scope *core.StatementScope) error{_,err:=scope.BindProtocolPortal(tc.name,"file_frame",&protocolUnitInput{data:tc.data});return err})
+				command(func(scope *core.StatementScope) error{_,err:=scope.BindProtocolPortal(tc.name,"file_frame",&enginetest.ProtocolReader{Data:tc.data});return err})
 			}
 			null, nonnull := registry.Binding("null"),registry.Binding("nonnull")
 			if null.Folds == nil || nonnull.Folds == nil || len(null.Folds.Entries)==0 || len(nonnull.Folds.Entries)==0 || &null.Folds.Entries[0]==&nonnull.Folds.Entries[0] { t.Fatal("frames borrowed definition or sibling backing") }

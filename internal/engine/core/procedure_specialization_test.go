@@ -21,7 +21,7 @@ func TestPLpgSQLProcedureInvocationSpecializationComposed(t *testing.T) {
 	enginetest.SessionSQL(t, s, `CREATE PROCEDURE procedure_projection(IN x anyelement, OUT answer anyelement, OUT other anyelement) LANGUAGE plpgsql AS 'DECLARE "copy" answer%TYPE; transitive "copy"%TYPE; BEGIN RETURN; END'`)
 	var published *catalog.Procedure
 	for _, source := range []string{"CALL procedure_projection(7,NULL,NULL)", "CALL procedure_projection('word'::text,NULL,NULL)", "CALL procedure_projection(8,NULL,NULL)"} {
-		ast, description := sequencePreparedDescription(t, e, s, source)
+		ast, description := enginetest.PreparedDescription(t, e, s, source)
 		op, err := s.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)

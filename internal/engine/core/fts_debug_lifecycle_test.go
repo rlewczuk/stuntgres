@@ -71,7 +71,7 @@ func TestFTSStatLifecycle(t *testing.T) {
 	inspectionLifecycle(t, true)
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	outer, description := sequencePreparedDescription(t, e, s, "SELECT * FROM ts_stat('SELECT ''x:1''::tsvector')")
+	outer, description := enginetest.PreparedDescription(t, e, s, "SELECT * FROM ts_stat('SELECT ''x:1''::tsvector')")
 	op, err := s.Acquire(t.Context())
 	if err != nil {
 		t.Fatal(err)

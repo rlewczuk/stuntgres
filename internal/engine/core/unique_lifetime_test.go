@@ -170,7 +170,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
-			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
+			_, description := enginetest.PreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.Sequences.Constants[0].Ref
 			temp := target.Catalog.State.Get(tempRef.Address)
 			generator := target.Storage.Sequences[tempRef.Address]

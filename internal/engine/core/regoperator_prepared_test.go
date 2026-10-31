@@ -84,7 +84,7 @@ func regoperatorPreparedCellValid(t *testing.T, e *core.Engine, s *session.Sessi
 func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT '551'::regtype AS t,'551'::regoper AS r,'551'::regoperator AS s,'597'::regoper AS other")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT '551'::regtype AS t,'551'::regoper AS r,'551'::regoperator AS s,'597'::regoper AS other")
 	if d.Regtypes == nil || len(d.Regtypes.Constants) != 4 {
 		t.Fatal("mixed constants did not share one analysis cell", d.Regtypes)
 	}
@@ -99,7 +99,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	signature := slices.Clone(d.Results)
 	ids := []sqltype.ID{sqltype.Regtype, sqltype.Regoper, sqltype.Regoperator, sqltype.Regoper}
 	texts := []string{"551", "pg_catalog.+", "+(integer,integer)", "||/"}
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	op.Done()
 	for _, query := range []string{"CREATE ROLE regop_unrelated", "ALTER ROLE regop_unrelated LOGIN", "DROP ROLE regop_unrelated"} {
 		enginetest.SessionSQL(t, s, query)
-		next, err := sequencePreparedExecute(e, s, ast, &d)
+		next, err := enginetest.PreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,10 +172,10 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	b := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_b"})
 	regoperatorPreparedInstall(t, e, a, 91000, 23, 23)
 	regoperatorPreparedInstall(t, e, b, 91001, 23, 23)
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT '#=#'::regoper AS r,'#=#(int4,int4)'::regoperator AS s")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT '#=#'::regoper AS r,'#=#(int4,int4)'::regoperator AS s")
 	oldConstants := regoperatorPreparedSnapshot(d.Regtypes.Constants)
 	oldSignature := slices.Clone(d.Results)
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	texts := []string{"#=#", "#=#(integer,integer)"}
 	// Hold the unread finalized cursor across successful reanalysis.
 	enginetest.SessionSQL(t, s, "SET search_path TO regop_b,regop_a")
-	next, err := sequencePreparedExecute(e, s, ast, &d)
+	next, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	enginetest.SessionSQL(t, s, "SET search_path TO regop_a")
 	before := regoperatorPreparedSnapshot(d.Regtypes.Constants)
 	analysis := d.Analysis
-	failed, err := sequencePreparedExecute(e, s, ast, &d)
+	failed, err := enginetest.PreparedExecute(e, s, ast, &d)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || failed.Rows != nil {
 		t.Fatal("later literal failure did not reject entire result", err, failed.Rows)
@@ -226,7 +226,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 		t.Fatal("failed reanalysis partially published constants, plan or signature")
 	}
 	enginetest.SessionSQL(t, s, "SET search_path TO regop_b")
-	recovered, err := sequencePreparedExecute(e, s, ast, &d)
+	recovered, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				enginetest.SessionSQL(t, s, "SET search_path TO regop_types,public")
 				query = "SELECT '||/'::regoper AS first,'public.#=#(secret,integer)'::regoperator AS second"
 			}
-			ast, d := sequencePreparedDescription(t, e, s, query)
+			ast, d := enginetest.PreparedDescription(t, e, s, query)
 			old := regoperatorPreparedSnapshot(d.Regtypes.Constants)
 			signature := slices.Clone(d.Results)
 			operands := old[1].Operands
@@ -263,7 +263,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			if !regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 				t.Fatal("unchanged operand group failed direct shared-cell validation")
 			}
-			r, err := sequencePreparedExecute(e, s, ast, &d)
+			r, err := enginetest.PreparedExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -316,7 +316,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				t.Error("changed operand environment passed direct shared-cell validation", change)
 			}
 			beforeAnalysis := d.Analysis
-			result, failure := sequencePreparedExecute(e, s, ast, &d)
+			result, failure := enginetest.PreparedExecute(e, s, ast, &d)
 			if change == "Revision" {
 				if failure != nil {
 					t.Fatal(failure)
@@ -359,7 +359,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				} else {
 					enginetest.SessionSQL(t, s, "SET search_path TO regop_types,public")
 				}
-				recovered, err := sequencePreparedExecute(e, s, ast, &d)
+				recovered, err := enginetest.PreparedExecute(e, s, ast, &d)
 				if err != nil {
 					t.Fatal("restored operand environment did not recover held description", err)
 				}
@@ -376,7 +376,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 func TestRegOperatorPreparedOperandBoundaries(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	_, d := sequencePreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
+	_, d := enginetest.PreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
 	constants := d.Regtypes.Constants
 	if len(constants) != 3 || len(constants[0].Operands) != 1 || constants[0].Operands[0].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].Operands) != 0 || len(constants[2].Operands) != 0 {
 		t.Fatal("NONE, numeric, or name-only input invented operand identities", constants)

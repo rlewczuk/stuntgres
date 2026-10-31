@@ -53,7 +53,7 @@ func ltreeLtxtqueryPreparedBindRecovery(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	input := func(value *string) *protocolUnitInput {
+	input := func(value *string) *enginetest.ProtocolReader {
 		data := []byte{0, 0, 0, 1}
 		if value == nil {
 			data = binary.BigEndian.AppendUint32(data, ^uint32(0))
@@ -62,7 +62,7 @@ func ltreeLtxtqueryPreparedBindRecovery(t *testing.T) {
 			data = append(data, (*value)...)
 		}
 		data = append(data, 0, 0)
-		return &protocolUnitInput{data: data}
+		return &enginetest.ProtocolReader{Data: data}
 	}
 	bind := func(name string, value *string) error {
 		return command(func(scope *core.StatementScope) error {

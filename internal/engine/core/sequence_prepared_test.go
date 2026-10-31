@@ -21,35 +21,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.Description) {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	ast := enginetest.Statement(t, query)
-	d, err := e.Describe(op, ast)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ast, d
-}
-func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) (core.Result, error) {
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		return core.Result{}, err
-	}
-	defer op.Done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		return core.Result{}, err
-	}
-	scope.Expected = d
-	r, err := scope.Execute(ast, 0, nil)
-	err = scope.Finish(err)
-	return r, err
-}
 func TestSequencePreparedAuthority(t *testing.T) {
 	t.Run("ACLInvalidation", func(t *testing.T) {
 		e := engine.New()
@@ -57,7 +28,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SEQUENCE b.s START 10", "SET search_path TO a,b"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 		original := d.Sequences.Constants[0].Ref
 		oldStamp := e.Catalog.State.MustRelation(original.Address).SequencePlanStamp
 		enginetest.SessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
@@ -67,7 +38,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		if e.Catalog.State.MustRelation(original.Address).SequencePlanStamp == oldStamp {
 			t.Fatal("ACL publication did not invalidate relation plan stamp")
 		}
-		r, err := sequencePreparedExecute(e, s, ast, &d)
+		r, err := enginetest.PreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,7 +53,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SEQUENCE b.s START 10", "SET search_path TO a,b"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 		cell := d.Sequences
 		constant := &cell.Constants[0]
 		path := &cell.Path.Namespaces[0]
@@ -91,7 +62,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		stamp := e.Catalog.State.MustRelation(ref.Address).SequencePlanStamp
 		enginetest.SessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
 		for _, want := range []int64{10, 11, 12} {
-			r, err := sequencePreparedExecute(e, s, ast, &d)
+			r, err := enginetest.PreparedExecute(e, s, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +117,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEMP SEQUENCE s")
-		_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+		_, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 		cell := d.Sequences
 		constant := &cell.Constants[0]
 		path := &cell.Path.Namespaces[0]
@@ -185,12 +156,12 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, a, "CREATE SEQUENCE s START 10")
 		sequenceScalar(t, a, "SELECT nextval('s')", 10)
-		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
+		ast, d := enginetest.PreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := enginetest.TransactionBegin(t, a)
 		enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RENAME TO identity")
 		done := make(chan error, 1)
 		go func() {
-			r, err := sequencePreparedExecute(e, b, ast, &d)
+			r, err := enginetest.PreparedExecute(e, b, ast, &d)
 			if err == nil {
 				got := enginetest.Tuples(r)
 				r.Rows.Close()
@@ -205,7 +176,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		_, err := sequencePreparedExecute(e, b, ast, &d)
+		_, err := enginetest.PreparedExecute(e, b, ast, &d)
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "s" does not exist`, Position: "16"}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
@@ -218,12 +189,12 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		e := engine.New()
 		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, a, "CREATE SEQUENCE s START 14")
-		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
+		ast, d := enginetest.PreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := enginetest.TransactionBegin(t, a)
 		enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RENAME TO identity")
 		done := make(chan error, 1)
 		go func() {
-			r, err := sequencePreparedExecute(e, b, ast, &d)
+			r, err := enginetest.PreparedExecute(e, b, ast, &d)
 			if err == nil {
 				got := enginetest.Tuples(r)
 				r.Rows.Close()
@@ -244,12 +215,12 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		e := engine.New()
 		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, a, "CREATE SEQUENCE s START 14")
-		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
+		ast, d := enginetest.PreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := enginetest.TransactionBegin(t, a)
 		enginetest.SessionSQL(t, a, "DROP SEQUENCE s")
 		done := make(chan error, 1)
 		go func() {
-			r, err := sequencePreparedExecute(e, b, ast, &d)
+			r, err := enginetest.PreparedExecute(e, b, ast, &d)
 			if r.Rows != nil {
 				r.Rows.Close()
 			}
@@ -263,7 +234,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("queued error=%#v want=%#v", diagnostic, want)
 		}
-		_, err = sequencePreparedExecute(e, b, ast, &d)
+		_, err = enginetest.PreparedExecute(e, b, ast, &d)
 		want = sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "s" does not exist`, Position: "16"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
 			t.Fatalf("next execution error=%#v want=%#v", diagnostic, want)
@@ -299,11 +270,11 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	grant("a", 0)
 	enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION reader")
 	enginetest.SessionSQL(t, s, "SET search_path TO a,b")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
-	qualified, qd := sequencePreparedDescription(t, e, s, "SELECT nextval('b.s')")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
+	qualified, qd := enginetest.PreparedDescription(t, e, s, "SELECT nextval('b.s')")
 	result := func(ast parser.Statement, d *core.Description, want int64) {
 		t.Helper()
-		r, err := sequencePreparedExecute(e, s, ast, d)
+		r, err := enginetest.PreparedExecute(e, s, ast, d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -316,14 +287,14 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	grant("a", authorization.UsagePrivilege)
 	result(ast, &d, 100)
 	grant("b", 0)
-	_, err := sequencePreparedExecute(e, s, qualified, &qd)
+	_, err := enginetest.PreparedExecute(e, s, qualified, &qd)
 	var diagnostic *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema b", Position: "16"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatalf("schema reanalysis got=%#v want=%#v", diagnostic, want)
 	}
 	enginetest.SessionSQL(t, s, `SET search_path TO "$user",b`)
-	user, ud := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+	user, ud := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 	result(user, &ud, 30)
 	enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
 	enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION reader2")
@@ -333,9 +304,9 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	// A real owner change invalidates; same-owner and same-persistence do not.
 	grant("b", authorization.UsagePrivilege|authorization.CreatePrivilege)
 	enginetest.SessionSQL(t, s, "DROP SEQUENCE a.s")
-	shadow, sd := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+	shadow, sd := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE a.s START 500")
-	owned, od := sequencePreparedDescription(t, e, s, "SELECT nextval('b.s')")
+	owned, od := enginetest.PreparedDescription(t, e, s, "SELECT nextval('b.s')")
 	stamp := od.Sequences.Constants[0].Stamp
 	enginetest.SessionSQL(t, s, "ALTER SEQUENCE b.s OWNER TO reader")
 	result(shadow, &sd, 500)
@@ -359,7 +330,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEMP SEQUENCE s")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.Sequences.Constants[0].Ref
 	descriptor := e.Catalog.State.MustRelation(ref.Address)
 	namespace := e.Catalog.State.MustNamespace(descriptor.Namespace())
@@ -379,7 +350,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 			t.Fatal("rejected persistence published descriptor/stamp")
 		}
 	}
-	r, err := sequencePreparedExecute(e, s, ast, &d)
+	r, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,11 +383,11 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	asts := make([]parser.Statement, len(queries))
 	descriptions := make([]core.Description, len(queries))
 	for i, q := range queries {
-		asts[i], descriptions[i] = sequencePreparedDescription(t, e, s, q)
+		asts[i], descriptions[i] = enginetest.PreparedDescription(t, e, s, q)
 	}
 	grant(0)
 	for i, q := range queries {
-		r, err := sequencePreparedExecute(e, s, asts[i], &descriptions[i])
+		r, err := enginetest.PreparedExecute(e, s, asts[i], &descriptions[i])
 		if r.Rows != nil {
 			r.Rows.Close()
 			t.Fatal("denied call returned cursor", q)
@@ -428,7 +399,7 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 		}
 	}
 	grant(authorization.UsagePrivilege)
-	r, err := sequencePreparedExecute(e, s, asts[0], &descriptions[0])
+	r, err := enginetest.PreparedExecute(e, s, asts[0], &descriptions[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,8 +417,8 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE persistent")
 	enginetest.SessionSQL(t, a, "CREATE TEMP SEQUENCE temporary CACHE 10")
-	temporary, td := sequencePreparedDescription(t, e, a, "SELECT nextval('pg_temp.temporary')")
-	persistent, pd := sequencePreparedDescription(t, e, a, "SELECT nextval('persistent')")
+	temporary, td := enginetest.PreparedDescription(t, e, a, "SELECT nextval('pg_temp.temporary')")
+	persistent, pd := enginetest.PreparedDescription(t, e, a, "SELECT nextval('persistent')")
 	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +427,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 		ast         parser.Statement
 		description *core.Description
 	}{{b, temporary, &td}, {a, persistent, &pd}} {
-		r, err := sequencePreparedExecute(e, tc.s, tc.ast, tc.description)
+		r, err := enginetest.PreparedExecute(e, tc.s, tc.ast, tc.description)
 		if r.Rows != nil {
 			r.Rows.Close()
 			t.Fatal("fenced authority returned cursor")
@@ -465,7 +436,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 			t.Fatal("replacement provenance was rescued", err)
 		}
 	}
-	r, err := sequencePreparedExecute(e, a, temporary, &td)
+	r, err := enginetest.PreparedExecute(e, a, temporary, &td)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +451,7 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE SEQUENCE s")
-	_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+	_, d := enginetest.PreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.Sequences.Constants[0].Ref
 	original := e.Catalog.State
 	roles := e.RoleStore.Published
@@ -542,7 +513,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		for _, query := range []string{"CREATE SCHEMA a", "CREATE TABLE a.t(v INT)", "INSERT INTO a.t VALUES(7)", "CREATE SEQUENCE a.s START 10"} {
 			enginetest.SessionSQL(t, s, query)
 		}
-		ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('a.s')")
+		ast, description := enginetest.PreparedDescription(t, e, s, "SELECT nextval('a.s')")
 		state := catalog.CloneState(e.Catalog.State)
 		state.SetNamespaceGeneration(^uint64(0))
 		e.Catalog.PublishLocked(state)
@@ -558,7 +529,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		if e.Catalog.State != state {
 			t.Fatal("failed schema closure published partial removals")
 		}
-		r, err := sequencePreparedExecute(e, s, ast, &description)
+		r, err := enginetest.PreparedExecute(e, s, ast, &description)
 		if err != nil {
 			t.Fatal("failed closure invalidated retained sequence", err)
 		}
@@ -585,9 +556,9 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 			if query == `SELECT setval('s',nextval('t'),"flag") FROM runtime_null` {
 				sequenceScalar(t, a, "SELECT nextval('t')", 20)
 			}
-			ast, d := sequencePreparedDescription(t, e, b, query)
+			ast, d := enginetest.PreparedDescription(t, e, b, query)
 			tx := enginetest.TransactionBegin(t, b)
-			r, err := sequencePreparedExecute(e, b, ast, &d)
+			r, err := enginetest.PreparedExecute(e, b, ast, &d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -639,12 +610,12 @@ func TestSequencePreparedQueuedArguments(t *testing.T) {
 	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE s START 10")
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE t START 20")
-	ast, d := sequencePreparedDescription(t, e, b, "SELECT setval('s',nextval('t'))")
+	ast, d := enginetest.PreparedDescription(t, e, b, "SELECT setval('s',nextval('t'))")
 	tx := enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RENAME TO identity")
 	done := make(chan error, 1)
 	go func() {
-		r, err := sequencePreparedExecute(e, b, ast, &d)
+		r, err := enginetest.PreparedExecute(e, b, ast, &d)
 		if err == nil {
 			got := enginetest.Tuples(r)
 			r.Rows.Close()
@@ -661,7 +632,7 @@ func TestSequencePreparedQueuedArguments(t *testing.T) {
 	}
 	sequenceScalar(t, b, "SELECT currval('t')", 20)
 	sequenceScalar(t, b, "SELECT lastval()", 20)
-	_, err := sequencePreparedExecute(e, b, ast, &d)
+	_, err := enginetest.PreparedExecute(e, b, ast, &d)
 	var diagnostic *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "s" does not exist`, Position: "15"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {

@@ -41,7 +41,7 @@ func TestPreparedFoldProtocolOwnership(t *testing.T) {
 	}
 	bind := func(name, definition string) {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, definition, &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(name, definition, &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 	}
@@ -119,7 +119,7 @@ func TestPreparedFoldProtocolOwnership(t *testing.T) {
 	if sqlOwner.Live() {
 		t.Fatal("SQL deallocation retained publication rights")
 	}
-	_, goDescription := sequencePreparedDescription(t, e, s, preparedFoldPoint)
+	_, goDescription := enginetest.PreparedDescription(t, e, s, preparedFoldPoint)
 	if goDescription.Folds == cell || goDescription.Folds == sqlOwner {
 		t.Fatal("independent definitions shared cells")
 	}

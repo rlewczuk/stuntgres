@@ -78,7 +78,7 @@ func TestQueryAliasesMetadata(t *testing.T) {
 func TestQueryAliasesCancellation(t *testing.T) {
 	for _, phase := range []string{"projection", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT x.iid AS shown FROM t x(iid) WHERE x.f")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT x.iid AS shown FROM t x(iid) WHERE x.f")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			project := query.Root.(*plan.ProjectNode)
@@ -206,7 +206,7 @@ func TestQueryAliasesTypmodAndCollation(t *testing.T) {
 }
 
 func TestQueryAliasesFailure(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT 1/(x.iid-2) AS quotient FROM t x(iid) ORDER BY x.iid")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT 1/(x.iid-2) AS quotient FROM t x(iid) ORDER BY x.iid")
 	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	var got *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}

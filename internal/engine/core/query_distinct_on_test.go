@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id AS shown FROM t ORDER BY v,id DESC")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v) id AS shown FROM t ORDER BY v,id DESC")
 	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.DistinctOnNode)
@@ -45,7 +46,7 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 
 func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 	for _, q := range []string{"SELECT DISTINCT ON(y) random() AS x,random() AS y FROM t ORDER BY y,id", "SELECT DISTINCT ON(1,2) random() AS x,random() AS y FROM t ORDER BY 1,2"} {
-		_, query, source := queryCoreFixture(t, q)
+		query, source := enginetest.QueryFixture(t, engine.New(), q)
 		defer source.Close()
 		p := query.Root.(*plan.ProjectNode)
 		n := p.Child.(*plan.DistinctOnNode)
@@ -62,7 +63,7 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 }
 
 func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v) id FROM t")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	typ := node.Expressions[0].ResultUsage().Type
@@ -84,7 +85,7 @@ func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 	for _, phase := range []string{"key", "late key", "hash", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v) id FROM t")
 			project := query.Root.(*plan.ProjectNode)
 			node := project.Child.(*plan.DistinctOnNode)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -163,7 +164,7 @@ func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 }
 
 func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v,id) id FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT DISTINCT ON(v,id) id FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	first := node.Expressions[0]
 	node.Expressions[0] = queryProbe(first.ResultUsage(), func(*exec.Context) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })

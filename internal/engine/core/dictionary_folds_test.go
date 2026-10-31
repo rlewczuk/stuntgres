@@ -58,7 +58,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.dictionary_fold (TEMPLATE=pg_catalog.simple,stopwords=english)")
 		address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "dictionary_fold"})
-		ast, d := sequencePreparedDescription(t, e, s, dictionaryFoldSQL)
+		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL)
 		if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe evaluated dictionary constant")
 		}
@@ -78,7 +78,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 				t.Fatal("dictionary operand leaked into executable fold manifest")
 			}
 		}
-		runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT ts_lexize('public.dictionary_fold'::regdictionary,$1::text) AS lexemes")
+		runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.dictionary_fold'::regdictionary,$1::text) AS lexemes")
 		r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 		if err != nil {
 			t.Fatal(err)
@@ -111,7 +111,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		if len(got) != 1 || len(got[0]) != 1 || got[0][0] != nil {
 			t.Fatal("runtime-token call reused constant state", got)
 		}
-		freshAST, fresh := sequencePreparedDescription(t, e, s, dictionaryFoldSQL)
+		freshAST, fresh := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL)
 		preparedFoldExecute(t, e, s, freshAST, &fresh)
 		preparedFoldEntry(t, fresh, 1009, "NULL")
 		preparedFoldEntry(t, before, 1009, "{yes}")
@@ -128,8 +128,8 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.dictionary_fold (TEMPLATE=simple,stopwords=english)")
-		ast, d := sequencePreparedDescription(t, e, s, dictionaryFoldSQL+",(1/0)::bigint")
-		if _, err := sequencePreparedExecute(e, s, ast, &d); err == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
+		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL+",(1/0)::bigint")
+		if _, err := enginetest.PreparedExecute(e, s, ast, &d); err == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("later demanded failure published dictionary prefix", err)
 		}
 	})
@@ -138,7 +138,7 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.dictionary_fold (TEMPLATE=simple,stopwords=english)")
-		ast, d := sequencePreparedDescription(t, e, s, dictionaryFoldSQL)
+		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL)
 		preparedFoldExecute(t, e, s, ast, &d)
 		before := snapshotFoldDescription(d)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -199,13 +199,13 @@ func TestDictionaryPreparedFoldOwnership(t *testing.T) {
 		for _, q := range []string{"CREATE TEXT SEARCH DICTIONARY public.dictionary_fold (TEMPLATE=simple,stopwords=english)", "CREATE USER dictionary_fold_reader", "CREATE TABLE dictionary_fold_authority(v int)", "INSERT INTO dictionary_fold_authority VALUES(1)", "GRANT SELECT ON dictionary_fold_authority TO dictionary_fold_reader", "SET SESSION AUTHORIZATION dictionary_fold_reader"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, dictionaryFoldSQL+" FROM dictionary_fold_authority")
+		ast, d := enginetest.PreparedDescription(t, e, s, dictionaryFoldSQL+" FROM dictionary_fold_authority")
 		preparedFoldExecute(t, e, s, ast, &d)
 		before := snapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON dictionary_fold_authority FROM dictionary_fold_reader", "SET SESSION AUTHORIZATION dictionary_fold_reader", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		_, err := sequencePreparedExecute(e, s, ast, &d)
+		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		extensionUnitError(t, err, "42501")
 		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || foldRootsReusable(d.Folds) {
 			t.Fatal("authority rejection accepted dictionary candidate")

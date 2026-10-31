@@ -44,7 +44,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 	}
 	bindParameters := func(name string) {
 		command(func(s *core.StatementScope) error {
-			_, err := s.BindProtocolPortal(name, "insteadparams", &protocolUnitInput{data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
+			_, err := s.BindProtocolPortal(name, "insteadparams", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
 			return err
 		})
 	}
@@ -66,7 +66,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 	})
 	definition := registry.Lookup("insteadownership")
 	command(func(s *core.StatementScope) error {
-		_, err := s.BindProtocolPortal("insteadownership_portal", "insteadownership", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+		_, err := s.BindProtocolPortal("insteadownership_portal", "insteadownership", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
 	})
 	accepted := registry.Binding("insteadownership_portal")

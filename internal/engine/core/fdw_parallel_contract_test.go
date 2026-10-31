@@ -8,7 +8,9 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -77,7 +79,7 @@ func (s *fdwContractScan) EndForeignScan(ctx context.Context) error {
 
 func fdwContractFixture(t *testing.T, q string) (*plan.Query, *exec.Source, *fdwContractWrapper) {
 	t.Helper()
-	_, query, captured := queryCoreFixture(t, q)
+	query, captured := enginetest.QueryFixture(t, engine.New(), q)
 	w := &fdwContractWrapper{count: 2}
 	for _, version := range captured.Committed {
 		id, _ := version.Values[0].Integer()

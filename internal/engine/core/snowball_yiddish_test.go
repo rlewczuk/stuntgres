@@ -146,7 +146,7 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 	e := engine.New(); s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TEXT SEARCH DICTIONARY public.yiddish_fold (TEMPLATE=snowball,Language=yiddish)", "CREATE EXTENSION unaccent", "ALTER EXTENSION unaccent ADD TEXT SEARCH DICTIONARY public.yiddish_fold"} { enginetest.SessionSQL(t, s, q) }
 	const q = "SELECT ts_lexize('public.yiddish_fold'::regdictionary,'ONLY'::text) AS lexemes"
-	ast, d := sequencePreparedDescription(t, e, s, q)
+	ast, d := enginetest.PreparedDescription(t, e, s, q)
 	if len(d.Folds.Current().Entries) != 0 { t.Fatal("description evaluated dictionary") }
 	preparedFoldExecute(t, e, s, ast, &d)
 	entry := preparedFoldEntry(t, d, 1009, "{only}"); before := snapshotFoldDescription(d)
@@ -162,8 +162,8 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 	preparedFoldExecute(t, e, s, ast, &d)
 	after := d.Folds.Current(); refreshed := dictionaryFoldDependency(t, d, a)
 	if d.Analysis == analysis || refreshed.Revision != current.Revision() || after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, 1009, "{only}")) { t.Fatal("accepted fold lost backing/current analysis") }
-	freshAST, fresh := sequencePreparedDescription(t, e, s, q); preparedFoldExecute(t, e, s, freshAST, &fresh); preparedFoldEntry(t, fresh, 1009, "{}")
-	runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT ts_lexize('public.yiddish_fold'::regdictionary,$1::text) AS lexemes")
+	freshAST, fresh := enginetest.PreparedDescription(t, e, s, q); preparedFoldExecute(t, e, s, freshAST, &fresh); preparedFoldEntry(t, fresh, 1009, "{}")
+	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.yiddish_fold'::regdictionary,$1::text) AS lexemes")
 	for _, tc := range [][2]string{{"ONLY", "{}"}, {"קינדער", "{קינד}"}, {"RATS", "{rats}"}} {
 		func() {
 			op, err := s.Acquire(t.Context()); if err != nil { t.Fatal(err) }; defer op.Done()
@@ -176,7 +176,7 @@ func TestSnowballYiddishPreparedOwnership(t *testing.T) {
 	}
 	for _, dep := range before.Accepted.Dependencies { if dep.Ref.Address == a { t.Fatal("fold operand retained executable authority") } }
 	preparedFoldEntry(t, before, 1009, "{only}")
-	failedAST, failed := sequencePreparedDescription(t, e, s, q+",(1/0)::bigint")
-	if _, err := sequencePreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 { t.Fatal("later expression published prefix", err) }
+	failedAST, failed := enginetest.PreparedDescription(t, e, s, q+",(1/0)::bigint")
+	if _, err := enginetest.PreparedExecute(e, s, failedAST, &failed); err == nil || len(failed.Folds.Current().Entries) != 0 || failed.Folds.Current().Generation != 0 { t.Fatal("later expression published prefix", err) }
 	snowballRejectedFold(t, e, s, ast, d, "{only}")
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -45,7 +46,8 @@ func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Va
 }
 
 func TestQueryAggregateCountProvider(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT count(*) FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT count(*) FROM t")
 	_ = e
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
@@ -55,7 +57,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	}
 }
 func TestQueryAggregateEagerOwnershipAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v ORDER BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v ORDER BY v")
 	schema := query.Root.Schema()
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 2 || !schema[0].NullabilityKnown || !schema[0].Nullable || schema[1].Usage.Type.ID() != sqltype.Int8 || schema[1].OriginTable != 0 || !schema[1].NullabilityKnown || schema[1].Nullable {
 		t.Fatal(schema)
@@ -90,7 +92,7 @@ func TestQueryAggregateEagerOwnershipAndMetadata(t *testing.T) {
 func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 	for _, phase := range []string{"key", "advance", "finalize", "having", "HAVING-to-sort boundary", "projection", "prepublication", "late_finalize"} {
 		t.Run(phase, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v HAVING count(*)>0 ORDER BY v")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v HAVING count(*)>0 ORDER BY v")
 			project := query.Root.(*plan.ProjectNode)
 			sort := project.Child.(*plan.SortNode)
 			having := sort.Child.(*plan.FilterNode)
@@ -171,7 +173,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 	}
 }
 func TestQueryAggregateHashCollisionEquality(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	typ := node.Keys[0].ResultUsage().Type
@@ -210,7 +212,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 }
 
 func TestQueryAggregateLateKeyFailure(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Keys[0]
 	sentinel := errors.New("late group key")
@@ -244,7 +246,7 @@ func (c *aggregateCancelContext) Err() error {
 	return nil
 }
 func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	usage := source.Row(0)[1].Type().Usage()
 	// The collision comparator cancels after entering typed equality, not merely
@@ -276,7 +278,8 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 }
 
 func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT (v+1)*2,count(*) FROM t GROUP BY v+1")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT (v+1)*2,count(*) FROM t GROUP BY v+1")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	key := node.Keys[0].(plan.ArithmeticExpr)
@@ -349,7 +352,7 @@ func (c *aggregateSortCancelContext) Err() error {
 }
 
 func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v ORDER BY v")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT v,count(*) FROM t GROUP BY v ORDER BY v")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel}
@@ -364,7 +367,7 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 // and publishes no rows. Count's unreachable practical maximum remains covered
 // in the child's private state unit; NULL filtering is tested with real COUNT.
 func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT sum(1::real) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT sum(1::real) FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	usage := node.Calls[0].Arguments[0].ResultUsage()
 	argumentEffects := 0

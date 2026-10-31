@@ -58,7 +58,7 @@ func TestXMLSQLPreparedOwnership(t *testing.T) {
 	t.Run("AcceptedDescriptionAcrossMode", func(t *testing.T) {
 		e := rootengine.New()
 		s := enginetest.StartSession(t, e, nil)
-		ast, d := sequencePreparedDescription(t, e, s, `SELECT XML 'text<a/>' AS frozen, length('owned') AS folded`)
+		ast, d := enginetest.PreparedDescription(t, e, s, `SELECT XML 'text<a/>' AS frozen, length('owned') AS folded`)
 		literal := xmlPreparedLiteral(t, d)
 		owner, epoch, analysis := d.CatalogOwner, d.CatalogEpoch, d.Analysis
 		if owner != &e.Catalog.Owner || epoch != e.CatalogRead().Epoch() || analysis == nil || d.Folds == nil || d.Folds.Current().Entries != nil {
@@ -139,7 +139,7 @@ func TestXMLSQLPreparedOwnership(t *testing.T) {
 		definition := registry.Lookup("xml_owned")
 		literal := xmlPreparedLiteral(t, definition.Description)
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal("xml_portal", "xml_owned", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal("xml_portal", "xml_owned", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 		binding := registry.Binding("xml_portal")

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -52,7 +53,7 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 		{"group-masks-all", parser.ExcludeGroup, [][2]int{{0, 3}, {0, 3}, {0, 3}}, []string{"NULL", "NULL", "NULL"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT sum(v) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t")
 			defer source.Close()
 			project := query.Root.(*plan.ProjectNode)
 			node := project.Child.(*plan.WindowNode)
@@ -118,7 +119,7 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 }
 
 func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER w,sum(v::bigint) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT sum(v) OVER w,sum(v::bigint) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)")
 	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.WindowNode)

@@ -296,7 +296,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "CREATE TEMP TABLE local_t(id SERIAL)")
-			ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('local_t_id_seq')")
+			ast, description := enginetest.PreparedDescription(t, e, s, "SELECT nextval('local_t_id_seq')")
 			ref := description.Sequences.Constants[0].Ref
 			tx := enginetest.TransactionBegin(t, s)
 			truncateUnitExecute(t, e, s, truncateRestartUnitAST("local_t"))
@@ -316,7 +316,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			if core.PayloadOf(s).Sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
 				t.Fatal("exact caller-owned live TEMP event lost across control replacement")
 			}
-			result, err := sequencePreparedExecute(e, s, ast, &description)
+			result, err := enginetest.PreparedExecute(e, s, ast, &description)
 			if err != nil {
 				t.Fatal(err)
 			}

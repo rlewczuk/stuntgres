@@ -27,8 +27,8 @@ func TestTriggerModeStageCancellation(t *testing.T) {
 				if explicit {
 					enginetest.SessionSQL(t, s, "BEGIN")
 				}
-				ast, description := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
-				result, err := sequencePreparedExecute(e, s, ast, &description)
+				ast, description := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
+				result, err := enginetest.PreparedExecute(e, s, ast, &description)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -107,9 +107,9 @@ func TestTriggerModeStageCancellation(t *testing.T) {
 func TestTriggerModePreparedPublication(t *testing.T) {
 	e, s := triggerModeUnitSetup(t)
 	enginetest.SessionSQL(t, s, "INSERT INTO mode_parent VALUES(1,5)")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT COALESCE(-(7::integer),0) AS v FROM mode_parent")
 	execute := func() {
-		r, err := sequencePreparedExecute(e, s, ast, &d)
+		r, err := enginetest.PreparedExecute(e, s, ast, &d)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +152,7 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 		}
 	}
 	before, folds := d.Analysis, d.Folds.Current()
-	_, err := sequencePreparedExecute(e, s, enginetest.Statement(t, "ALTER TABLE mode_parent DISABLE TRIGGER a, ENABLE TRIGGER missing"), nil)
+	_, err := enginetest.PreparedExecute(e, s, enginetest.Statement(t, "ALTER TABLE mode_parent DISABLE TRIGGER a, ENABLE TRIGGER missing"), nil)
 	var state interface{ SQLState() string }
 	if !errors.As(err, &state) || state.SQLState() != "42704" {
 		t.Fatal(err)
@@ -161,11 +161,11 @@ func TestTriggerModePreparedPublication(t *testing.T) {
 	if d.Analysis != before || &d.Folds.Current().Entries[0] != &folds.Entries[0] || d.Folds.Current().Generation != folds.Generation {
 		t.Fatal("failed candidate changed accepted backing")
 	}
-	insert, held := sequencePreparedDescription(t, e, s, "INSERT INTO mode_parent VALUES(2,5)")
+	insert, held := enginetest.PreparedDescription(t, e, s, "INSERT INTO mode_parent VALUES(2,5)")
 	for _, q := range []string{"ALTER TABLE mode_parent DISABLE TRIGGER a", "ALTER TABLE mode_parent ENABLE ALWAYS TRIGGER a", "SET session_replication_role=replica", "RESET session_replication_role"} {
 		previous := held.Analysis
 		enginetest.SessionSQL(t, s, q)
-		r, err := sequencePreparedExecute(e, s, insert, &held)
+		r, err := enginetest.PreparedExecute(e, s, insert, &held)
 		if err != nil {
 			t.Fatal(err)
 		}

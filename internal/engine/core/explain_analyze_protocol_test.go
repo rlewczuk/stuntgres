@@ -30,7 +30,7 @@ func explainAnalyzeProtocolOwnership(t *testing.T) {
 	owner:=definition.Description.Folds
 	if called() || owner==nil || owner.Live() || owner.Current().Generation!=0 {t.Fatal("Parse executed child or gained fold rights")}
 	command(func(scope *core.StatementScope)error{
-		_,err:=scope.BindProtocolPortal("ea_portal","ea_definition",&protocolUnitInput{data:[]byte{0,0,0,0,0,0}})
+		_,err:=scope.BindProtocolPortal("ea_portal","ea_definition",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}})
 		return err
 	})
 	binding:=registry.Binding("ea_portal")

@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,8 @@ import (
 )
 
 func TestProtocolPortalProducer(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t ORDER BY id")
 	root := query.Root.(*plan.ProjectNode)
 	original := root.Expressions[0]
 	calls := 0

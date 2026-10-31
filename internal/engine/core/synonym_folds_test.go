@@ -44,7 +44,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=pg_catalog.synonym,Synonyms=synonym_sample)")
 		address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "synonym_fold"})
-		ast, d := sequencePreparedDescription(t, e, s, synonymFoldSQL)
+		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL)
 		if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("Describe evaluated synonym")
 		}
@@ -61,7 +61,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 				t.Fatal("operand leaked into executable fold lifetime")
 			}
 		}
-		runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT ts_lexize('public.synonym_fold'::regdictionary,$1::text) AS lexemes")
+		runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT ts_lexize('public.synonym_fold'::regdictionary,$1::text) AS lexemes")
 		checkRuntime := func(want any) {
 			r, err := synonymRuntimeExecute(e, s, runtimeAST, &runtime)
 			if err != nil {
@@ -89,7 +89,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 			t.Fatal("operand ALTER replaced accepted backing/provenance")
 		}
 		checkRuntime(nil)
-		freshAST, fresh := sequencePreparedDescription(t, e, s, synonymFoldSQL)
+		freshAST, fresh := enginetest.PreparedDescription(t, e, s, synonymFoldSQL)
 		preparedFoldExecute(t, e, s, freshAST, &fresh)
 		preparedFoldEntry(t, fresh, 1009, "NULL")
 		preparedFoldEntry(t, before, 1009, "{pgsql}")
@@ -114,7 +114,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		}
 		bind := func(name string) {
 			command(func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal(name, "synonym_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal(name, "synonym_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 		}
@@ -172,8 +172,8 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=synonym,Synonyms=synonym_sample)")
-		ast, d := sequencePreparedDescription(t, e, s, synonymFoldSQL+",(1/0)::bigint")
-		if _, err := sequencePreparedExecute(e, s, ast, &d); err == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
+		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL+",(1/0)::bigint")
+		if _, err := enginetest.PreparedExecute(e, s, ast, &d); err == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 			t.Fatal("failed demand published synonym prefix", err)
 		}
 	})
@@ -182,7 +182,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=synonym,Synonyms=synonym_sample)")
-		ast, d := sequencePreparedDescription(t, e, s, synonymFoldSQL)
+		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL)
 		preparedFoldExecute(t, e, s, ast, &d)
 		before := snapshotFoldDescription(d)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -243,13 +243,13 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		for _, q := range []string{"CREATE TEXT SEARCH DICTIONARY public.synonym_fold (TEMPLATE=synonym,Synonyms=synonym_sample)", "CREATE USER synonym_fold_reader", "CREATE TABLE synonym_fold_authority(v int)", "INSERT INTO synonym_fold_authority VALUES(1)", "GRANT SELECT ON synonym_fold_authority TO synonym_fold_reader", "SET SESSION AUTHORIZATION synonym_fold_reader"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		ast, d := sequencePreparedDescription(t, e, s, synonymFoldSQL+" FROM synonym_fold_authority")
+		ast, d := enginetest.PreparedDescription(t, e, s, synonymFoldSQL+" FROM synonym_fold_authority")
 		preparedFoldExecute(t, e, s, ast, &d)
 		before := snapshotFoldDescription(d)
 		for _, q := range []string{"RESET SESSION AUTHORIZATION", "REVOKE SELECT ON synonym_fold_authority FROM synonym_fold_reader", "SET SESSION AUTHORIZATION synonym_fold_reader", "DISCARD PLANS"} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		_, err := sequencePreparedExecute(e, s, ast, &d)
+		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		extensionUnitError(t, err, "42501")
 		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || foldRootsReusable(d.Folds) {
 			t.Fatal("authority rejection accepted synonym candidate")

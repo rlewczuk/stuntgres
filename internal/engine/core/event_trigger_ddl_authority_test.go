@@ -17,11 +17,11 @@ func TestEventTriggerDDLFiringAuthority(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE et_auth_data(v integer)", "CREATE TABLE et_auth_audit(v integer)", "CREATE FUNCTION et_auth_record() RETURNS integer LANGUAGE SQL AS $$INSERT INTO et_auth_audit VALUES(1); SELECT 1$$", "CREATE FUNCTION et_auth_fn() RETURNS event_trigger LANGUAGE plpgsql AS $$DECLARE n integer; BEGIN SELECT et_auth_record() INTO n; END$$", "CREATE EVENT TRIGGER et_auth ON ddl_command_end WHEN TAG IN ('ALTER TABLE') EXECUTE FUNCTION et_auth_fn()"} {
 		enginetest.SessionSQL(t, actor, q)
 	}
-	ast, held := sequencePreparedDescription(t, e, actor, "ALTER TABLE et_auth_data ALTER COLUMN v SET DEFAULT 7")
-	query, prepared := sequencePreparedDescription(t, e, actor, "SELECT COALESCE(-(7::integer),0) FROM et_auth_data")
+	ast, held := enginetest.PreparedDescription(t, e, actor, "ALTER TABLE et_auth_data ALTER COLUMN v SET DEFAULT 7")
+	query, prepared := enginetest.PreparedDescription(t, e, actor, "SELECT COALESCE(-(7::integer),0) FROM et_auth_data")
 	execute := func(want int64) {
 		t.Helper()
-		r, err := sequencePreparedExecute(e, actor, ast, &held)
+		r, err := enginetest.PreparedExecute(e, actor, ast, &held)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -33,7 +33,7 @@ func TestEventTriggerDDLFiringAuthority(t *testing.T) {
 			t.Fatal("effective authority", got, want)
 		}
 		previous := prepared.PlanGeneration
-		r, err = sequencePreparedExecute(e, actor, query, &prepared)
+		r, err = enginetest.PreparedExecute(e, actor, query, &prepared)
 		if err != nil {
 			t.Fatal(err)
 		}

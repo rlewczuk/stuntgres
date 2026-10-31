@@ -38,7 +38,7 @@ func TestExecutionPauseProtocolFunctionDemand(t *testing.T) {
 				message = binary.BigEndian.AppendUint32(message, uint32(len("[1,2]")))
 				message = append(message, "[1,2]"...)
 				message = binary.BigEndian.AppendUint16(message, 0)
-				field, err := scope.CallProtocolFunction(&protocolUnitInput{data: message})
+				field, err := scope.CallProtocolFunction(&enginetest.ProtocolReader{Data: message})
 				return executionPauseOwnerOutcome{field: field, err: err}
 			})
 			if canceled {
@@ -56,7 +56,7 @@ func TestExecutionPauseProtocolFunctionDemand(t *testing.T) {
 				message = binary.BigEndian.AppendUint32(message, 2)
 				message = append(message, "[]"...)
 				message = binary.BigEndian.AppendUint16(message, 0)
-				field, err := scope.CallProtocolFunction(&protocolUnitInput{data: message})
+				field, err := scope.CallProtocolFunction(&enginetest.ProtocolReader{Data: message})
 				return executionPauseOwnerOutcome{field: field, err: err}
 			})
 			if healthy.err != nil || healthy.field.Null || string(healthy.field.Bytes) != "0" {

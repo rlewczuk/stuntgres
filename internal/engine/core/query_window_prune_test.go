@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
@@ -36,7 +37,8 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 		{"aggregate-retained", "SELECT CASE WHEN FALSE THEN lag(sum(v)) OVER() ELSE 7 END FROM t", []bool{true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, tc.sql)
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, tc.sql)
 			defer source.Close()
 			original := pruningTestWindow(t, query.Root)
 			calls := append([]plan.WindowCall(nil), original.Calls...)
@@ -66,7 +68,7 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 }
 
 func TestQueryWindowPrunedSharedSort(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END,lead(v) OVER(ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) FROM t ORDER BY id")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT CASE WHEN FALSE THEN lag(v) OVER(ORDER BY id) ELSE 7 END,lead(v) OVER(ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) FROM t ORDER BY id")
 	original := pruningTestWindow(t, query.Root)
 	if len(original.Specs) != 2 || original.SortIndices[1] != 0 {
 		t.Fatal("fixture does not have distinct frames sharing the first sort")
@@ -102,7 +104,8 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 		{"dead", "SELECT CASE WHEN FALSE THEN row_number() OVER() ELSE 7 END FROM t", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, tc.sql)
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, tc.sql)
 			defer source.Close()
 			original := pruningTestWindow(t, query.Root)
 			originalCall := original.Calls[0]

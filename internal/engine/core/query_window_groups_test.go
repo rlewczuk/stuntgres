@@ -65,7 +65,7 @@ func TestQueryWindowGroupsEndpoints(t *testing.T) {
 }
 
 func TestQueryWindowGroupsRemap(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
 	defer source.Close()
 	original := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	before := original.Specs[0].Frame
@@ -107,7 +107,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 }
 
 func TestQueryWindowGroupsIdentity(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v,count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t WINDOW w AS(ORDER BY id GROUPS 1 PRECEDING),v AS(ORDER BY id GROUPS 1 PRECEDING)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v,count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t WINDOW w AS(ORDER BY id GROUPS 1 PRECEDING),v AS(ORDER BY id GROUPS 1 PRECEDING)")
 	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	original := project.Child.(*plan.WindowNode)
@@ -162,7 +162,7 @@ func TestQueryWindowGroupsIdentity(t *testing.T) {
 		}
 	}
 	// Inline specs must also distinguish units when their key/bound SQL matches.
-	_, inline, inlineSource := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY id GROUPS 1 PRECEDING),count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t")
+	inline, inlineSource := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER(ORDER BY id GROUPS 1 PRECEDING),count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t")
 	defer inlineSource.Close()
 	n := inline.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(n.Specs) != 2 || !reflect.DeepEqual(n.SortIndices, []int{0, 0}) {
@@ -174,7 +174,7 @@ func TestQueryWindowGroupsCancellation(t *testing.T) {
 	for _, phase := range []string{"key", "prepare", "hash", "equal", "sort", "peer", "groups-offset", "groups-validation", "groups-frame", "count", "output", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			q := "SELECT id,row_number() OVER(PARTITION BY v ORDER BY id),count(*) OVER(PARTITION BY v ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t"
-			_, query, source := queryCoreFixture(t, q)
+			query, source := enginetest.QueryFixture(t, engine.New(), q)
 			continuation, err := exec.CaptureSource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
@@ -201,7 +201,7 @@ func TestQueryWindowGroupsCancellation(t *testing.T) {
 
 func TestQueryWindowGroupsOffsetFailureRelease(t *testing.T) {
 	for _, frame := range []string{"BETWEEN -1 PRECEDING AND NULL FOLLOWING", "BETWEEN NULL PRECEDING AND -1 FOLLOWING"} {
-		_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v GROUPS "+frame+") FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*) OVER(ORDER BY v GROUPS "+frame+") FROM t")
 		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		code, message := "22013", "frame starting offset must not be negative"
 		if frame == "BETWEEN NULL PRECEDING AND -1 FOLLOWING" {
@@ -218,7 +218,8 @@ func TestQueryWindowGroupsOffsetFailureRelease(t *testing.T) {
 }
 
 func TestQueryWindowGroupsMetadata(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id,count(*) OVER(ORDER BY v GROUPS 1 PRECEDING) AS n FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id,count(*) OVER(ORDER BY v GROUPS 1 PRECEDING) AS n FROM t")
 	defer source.Close()
 	schema := query.Root.Schema()
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 {

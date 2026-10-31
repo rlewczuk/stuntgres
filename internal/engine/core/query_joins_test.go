@@ -270,7 +270,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	if large > small+8192 {
 		t.Fatal("rejected-pair allocations scale with product", small, large)
 	}
-	_, single, singleSource := queryCoreFixture(t, "SELECT id FROM t")
+	single, singleSource := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 	rows, n, err := exec.Finalize(context.Background(), single.Root, singleSource, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)

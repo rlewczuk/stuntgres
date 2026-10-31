@@ -11,7 +11,7 @@ func TestPreparedFoldNaNStableGeneration(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	for _, typ := range []string{"real", "double precision"} {
 		t.Run(typ, func(t *testing.T) {
-			ast, d := sequencePreparedDescription(t, e, s, "SELECT abs('NaN'::"+typ+") AS v")
+			ast, d := enginetest.PreparedDescription(t, e, s, "SELECT abs('NaN'::"+typ+") AS v")
 			preparedFoldExecute(t, e, s, ast, &d)
 			before := snapshotFoldDescription(d)
 			if len(before.Accepted.Entries) == 0 {

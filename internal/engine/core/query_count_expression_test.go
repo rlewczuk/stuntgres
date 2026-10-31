@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
@@ -15,7 +16,7 @@ import (
 
 func TestCountExpressionArgumentVeto(t *testing.T) {
 	for _, cancelArgument := range []bool{false, true} {
-		_, query, source := queryCoreFixture(t, "SELECT count(v) FROM t")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(v) FROM t")
 		node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 		original := node.Calls[0].Arguments[0]
 		ctx, cancel := context.WithCancel(context.Background())
@@ -42,7 +43,7 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 }
 
 func TestCountExpressionSlotsAndMetadata(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT count(*),count(v),count(f),count(NULL),count(v) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT count(*),count(v),count(f),count(NULL),count(v) FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 4 {
 		t.Fatal("distinct calls collapsed or immutable call not shared", len(node.Calls))
@@ -90,7 +91,8 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 }
 
 func TestCountExpressionVolatileCalls(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT count(random()),count(random()) FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT count(random()),count(random()) FROM t")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 2 {
 		t.Fatal("volatile calls shared", len(node.Calls))

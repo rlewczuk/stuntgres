@@ -14,13 +14,13 @@ import (
 
 func explainJSONPreparedOwnership(t *testing.T, e *core.Engine, s *session.Session) {
 	t.Helper()
-	ast, description := sequencePreparedDescription(t, e, s, "EXPLAIN (FORMAT JSON,VERBOSE,COSTS false) SELECT id FROM explain_boundary_foreign")
+	ast, description := enginetest.PreparedDescription(t, e, s, "EXPLAIN (FORMAT JSON,VERBOSE,COSTS false) SELECT id FROM explain_boundary_foreign")
 	defer e.RetirePreparedDescription(&description)
 	owner := description.Folds
 	if owner == nil || owner.Live() || owner.Current().Generation != 0 || description.FoldPlanning != nil {
 		t.Fatal("JSON Describe admitted folds")
 	}
-	result, err := sequencePreparedExecute(e, s, ast, &description)
+	result, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func explainJSONPreparedOwnership(t *testing.T, e *core.Engine, s *session.Sessi
 	} {
 		enginetest.SessionSQL(t, s, query)
 	}
-	current, err := sequencePreparedExecute(e, s, ast, &description)
+	current, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}

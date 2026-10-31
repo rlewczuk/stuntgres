@@ -23,7 +23,7 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_fold (COPY=pg_catalog.simple)")
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_fold"})
 	query := "SELECT to_tsvector('public.config_fold'::regconfig,'The Fat Rats') AS normalized"
-	ast, d := sequencePreparedDescription(t, e, s, query)
+	ast, d := enginetest.PreparedDescription(t, e, s, query)
 	if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 		t.Fatal("Describe evaluated conversion")
 	}
@@ -53,10 +53,10 @@ func TestTSConfigurationFoldOwnership(t *testing.T) {
 	if after.Generation != before.Accepted.Generation || &after.Entries[0] != &before.Accepted.Entries[0] || !samePublishedFold(entry, preparedFoldEntry(t, d, sqltype.TSVector, "'fat':2 'rats':3 'the':1")) {
 		t.Fatal("mapping edit replaced accepted immutable vector backing")
 	}
-	freshAST, fresh := sequencePreparedDescription(t, e, s, query)
+	freshAST, fresh := enginetest.PreparedDescription(t, e, s, query)
 	preparedFoldExecute(t, e, s, freshAST, &fresh)
 	preparedFoldEntry(t, fresh, sqltype.TSVector, "")
-	runtimeAST, runtime := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_fold'::regconfig,$1::text) AS normalized")
+	runtimeAST, runtime := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_fold'::regconfig,$1::text) AS normalized")
 	r, err := dictionaryFoldRuntimeExecute(e, s, runtimeAST, &runtime)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_identity (COPY=pg_catalog.simple)")
 	key := ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_identity"}
 	address := e.CatalogRead().NameAddress(key)
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_identity'::regconfig,$1::text) AS normalized")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_identity'::regconfig,$1::text) AS normalized")
 	r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestTSConfigurationPreparedIdentity(t *testing.T) {
 	if d.Analysis != analysis || !regoperatorPreparedCellValid(t, e, s, cell) || !reflect.DeepEqual(cell.Constants, captures) {
 		t.Fatal("stable absent observation reanalyzed or replaced original capture")
 	}
-	_, fresh := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_identity'::regconfig,$1::text) AS normalized")
+	_, fresh := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_identity'::regconfig,$1::text) AS normalized")
 	freshOID, err := fresh.Regtypes.Constants[0].Value.RegTSOID()
 	if err != nil || ids.OID(freshOID) != replacement.ObjectID {
 		t.Fatal("fresh analysis did not capture the new descriptor", freshOID, err)
@@ -204,7 +204,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE SCHEMA config_capture_destination")
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_capture (COPY=pg_catalog.simple)")
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_capture"})
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_capture'::regconfig,$1::text) AS normalized")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_capture'::regconfig,$1::text) AS normalized")
 	r, err := dictionaryFoldRuntimeExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
@@ -249,7 +249,7 @@ func TestTSConfigurationPreparedRenameMove(t *testing.T) {
 			t.Fatal("object presentation change published runtime conversion folds")
 		}
 	}
-	_, fresh := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_capture'::regconfig,$1::text) AS normalized")
+	_, fresh := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_capture'::regconfig,$1::text) AS normalized")
 	replacement := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "config_capture"})
 	oid, err := fresh.Regtypes.Constants[0].Value.RegTSOID()
 	if err != nil || replacement == address || ids.OID(oid) != replacement.ObjectID {
@@ -261,7 +261,7 @@ func TestTSConfigurationPreparedObservations(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_observation (COPY=pg_catalog.simple)")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_observation'::regconfig,$1::text) AS normalized")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_observation'::regconfig,$1::text) AS normalized")
 	cell := d.Regtypes
 	captures := regoperatorPreparedSnapshot(cell.Constants)
 	address := captures[0].Operands[0].Ref.Address
@@ -335,7 +335,7 @@ func TestTSConfigurationPreparedPublication(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_publication (COPY=pg_catalog.simple)")
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_publication'::regconfig,$1::text) AS normalized")
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_publication'::regconfig,$1::text) AS normalized")
 	cell := d.Regtypes
 	captures := regoperatorPreparedSnapshot(cell.Constants)
 	enginetest.SessionSQL(t, s, "ALTER TEXT SEARCH CONFIGURATION public.config_publication RENAME TO config_publication_old")
@@ -423,7 +423,7 @@ func TestTSConfigurationPreparedOwnerFences(t *testing.T) {
 			e := engine.New()
 			s := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "CREATE TEXT SEARCH CONFIGURATION public.config_fence (COPY=pg_catalog.simple)")
-			ast, d := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.config_fence'::regconfig,$1::text) AS normalized")
+			ast, d := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.config_fence'::regconfig,$1::text) AS normalized")
 			original, err := d.Regtypes.Constants[0].Value.RegTSOID()
 			if err != nil {
 				t.Fatal(err)

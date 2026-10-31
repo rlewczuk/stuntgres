@@ -99,7 +99,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				}
 				enginetest.SessionSQL(t, peer, "CREATE TEMP SEQUENCE kept START 30")
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
-				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
+				_, description := enginetest.PreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.Sequences.Constants[0].Ref
 				temp := target.Catalog.State.Get(tempRef.Address)
 				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {

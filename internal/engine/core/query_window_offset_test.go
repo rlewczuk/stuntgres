@@ -51,7 +51,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 }
 
 func TestQueryWindowOffsetGraph(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT lead(v,id,id+1) OVER w,lead(v,id,id+2) OVER w FROM t WINDOW w AS(ORDER BY id)")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT lead(v,id,id+1) OVER w,lead(v,id,id+2) OVER w FROM t WINDOW w AS(ORDER BY id)")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 2 {
@@ -85,7 +85,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		}
 	}
 	t.Run("grouped-default", func(t *testing.T) {
-		_, grouped, input := queryCoreFixture(t, "SELECT lead(sum(v),0,sum(id)) OVER() FROM t")
+		grouped, input := enginetest.QueryFixture(t, engine.New(), "SELECT lead(sum(v),0,sum(id)) OVER() FROM t")
 		defer input.Close()
 		fallback := grouped.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0].DefaultValue
 		if _, ok := fallback.(plan.GroupExpr); !ok {
@@ -93,7 +93,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		}
 	})
 	t.Run("matched-order-default", func(t *testing.T) {
-		_, matched, input := queryCoreFixture(t, "SELECT lead(v,0,(SELECT max(id) FROM t)) OVER() AS x FROM t ORDER BY lead(v,0,(SELECT max(id) FROM t)) OVER()")
+		matched, input := enginetest.QueryFixture(t, engine.New(), "SELECT lead(v,0,(SELECT max(id) FROM t)) OVER() AS x FROM t ORDER BY lead(v,0,(SELECT max(id) FROM t)) OVER()")
 		defer input.Close()
 		project := matched.Root.(*plan.ProjectNode)
 		found := false
@@ -181,7 +181,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 			if phase == "default" {
 				offset = "100"
 			}
-			_, query, source := queryCoreFixture(t, "SELECT lead(v,"+offset+",id) OVER(ORDER BY id) FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT lead(v,"+offset+",id) OVER(ORDER BY id) FROM t")
 			call := &query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -219,7 +219,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 }
 
 func TestQueryWindowOffsetEvaluationRoles(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT lead(v,CASE WHEN id<4 THEN 4-id ELSE 100 END,id) OVER(ORDER BY id) FROM t")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT lead(v,CASE WHEN id<4 THEN 4-id ELSE 100 END,id) OVER(ORDER BY id) FROM t")
 	call := &query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	argument, offset, fallback := call.Argument, call.Ordinal, call.DefaultValue
 	var current, selected, defaults []int64

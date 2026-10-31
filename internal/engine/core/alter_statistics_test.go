@@ -18,8 +18,8 @@ func TestAlterStatisticsPublication(t *testing.T) {
 	descriptor := e.CatalogRead().MustRelation(ref.Address)
 	metadata := e.Storage.RelationMetadata[ref.Address]
 	fact := metadata.Statistics.Columns[storage.StatisticsKey{Attribute: 1}]
-	ast, d := sequencePreparedDescription(t, e, s, "SELECT a,abs(-7) FROM statistics_prepared ORDER BY a")
-	result, err := sequencePreparedExecute(e, s, ast, &d)
+	ast, d := enginetest.PreparedDescription(t, e, s, "SELECT a,abs(-7) FROM statistics_prepared ORDER BY a")
+	result, err := enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestAlterStatisticsPublication(t *testing.T) {
 	oldAnalysisDependencies := slices.Clone(analysis.Dependencies)
 	// Unchanged execution must actually reuse this definition's accepted
 	// generation/backing, not merely recompute an equal scalar.
-	result, err = sequencePreparedExecute(e, s, ast, &d)
+	result, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestAlterStatisticsPublication(t *testing.T) {
 	if changed == descriptor || changed.Revision() <= descriptor.Revision() || preparedRebindValid(t, e, s, analysis) || e.Storage.RelationMetadata[ref.Address] != metadata {
 		t.Fatal("metadata revision did not invalidate actual prepared analysis or eagerly replaced facts")
 	}
-	result, err = sequencePreparedExecute(e, s, ast, &d)
+	result, err = enginetest.PreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal(err)
 	}

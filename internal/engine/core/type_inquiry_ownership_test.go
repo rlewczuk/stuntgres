@@ -117,7 +117,7 @@ func TestTypeDescribePreparedOwnership(t *testing.T) {
 	}
 	bind := func(name string) {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, "td_owner", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(name, "td_owner", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 	}
@@ -344,7 +344,7 @@ func TestTypeDescribeConcurrentReuse(t *testing.T) {
 	bindings := make([]*core.PreparedBinding, 2)
 	for i, name := range []string{"td_left", "td_right"} {
 		command(func(scope *core.StatementScope) error {
-			_, err := scope.BindProtocolPortal(name, "td_concurrent", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := scope.BindProtocolPortal(name, "td_concurrent", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 		bindings[i] = registry.Binding(name)

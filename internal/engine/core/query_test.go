@@ -18,53 +18,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func queryCoreFixture(t *testing.T, sql string) (*core.Engine, *plan.Query, *exec.Source) {
-	t.Helper()
-	// Parsing may terminate the test; never do it while holding e.mu, since
-	// deferred session teardown needs that mutex before WaitEnd can return.
-	ast := enginetest.Statement(t, sql)
-	e := engine.New()
-	enginetest.Run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
-	enginetest.Run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
-	captured := enginetest.Run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
-	source, captureErr := exec.CaptureSource(context.Background(), captured.Source.View, captured.Source.Ref)
-	if captureErr != nil {
-		t.Fatal(captureErr)
-	}
-	captured.Close()
-	// This low-level fixture explicitly requests the real worker alternative.
-	source.PlannerCosts = plan.DefaultPlannerCosts()
-	source.PlannerCosts.ParallelSetup, source.PlannerCosts.ParallelTuple, source.PlannerCosts.MinParallelTableBlocks = 0, 0, 0
-	source.PlannerRows, source.PlannerColumns = 1000, 3
-	t.Cleanup(source.Close)
-	op, done, err := enginetest.Operation(e, context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer done()
-	e.Mu.Lock()
-	auth, err := e.AuthorizationLocked(op)
-	if err != nil {
-		e.Mu.Unlock()
-		t.Fatal(err)
-	}
-	from := ast.(*parser.Select).From
-	if alias, ok := from.(*parser.AliasReference); ok {
-		from = alias.Input
-	}
-	ref, err := e.ResolveReference(auth, from.(*parser.TableReference).Name)
-	if err != nil {
-		e.Mu.Unlock()
-		t.Fatal(err)
-	}
-	b, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return e, b.Query, source
-}
-
 type queryProbeExpression struct {
 	expr.Info
 	eval func(*exec.Context) (sqltype.Value, error)
@@ -79,7 +32,7 @@ func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, er
 
 func TestQueryCoreEagerFinalization(t *testing.T) {
 	t.Run("later admitted target failure", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id")
 		project := query.Root.(*plan.ProjectNode)
 		usage := project.Schema()[0].Usage
 		sentinel := errors.New("later target")
@@ -97,7 +50,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 		}
 	})
 	t.Run("rejected rows do not evaluate targets", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t WHERE f ORDER BY id")
 		project := query.Root.(*plan.ProjectNode)
 		calls := 0
 		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
@@ -133,7 +86,8 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 func TestQueryCoreCancellation(t *testing.T) {
 	for _, phase := range []string{"rejected scan", "projection", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t WHERE f")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			project := query.Root.(*plan.ProjectNode)
@@ -163,7 +117,8 @@ func TestQueryCoreCancellation(t *testing.T) {
 	}
 	for _, mode := range []string{"NULL", "tie"} {
 		t.Run(mode, func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY v")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t ORDER BY v")
 			typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			value := sqltype.Null(typ)
 			if mode == "tie" {
@@ -206,7 +161,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 		t.Fatal(err, calls)
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
-		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
+		query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t ORDER BY id")
 		query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Keys[0].Comparison = sqltype.Comparison{}
 		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.View != nil {
@@ -214,7 +169,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 		}
 	})
 	for _, q := range []string{"SELECT v FROM t ORDER BY v", "SELECT v FROM t ORDER BY v DESC"} {
-		_, query, source := queryCoreFixture(t, q)
+		query, source := enginetest.QueryFixture(t, engine.New(), q)
 		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 4 {
 			t.Fatal(err, count)
@@ -237,7 +192,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 func TestQueryCoreResultOwnership(t *testing.T) {
 	for _, ending := range []string{"EOF", "cancel", "width", "close"} {
 		t.Run(ending, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, "SELECT id FROM t")
+			query, source := enginetest.QueryFixture(t, engine.New(), "SELECT id FROM t")
 			rows, _, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -353,7 +308,7 @@ func TestQueryCoreZeroWidth(t *testing.T) {
 func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 	for _, q := range []string{"SELECT id FROM t", "SELECT id FROM t WHERE f", "SELECT id FROM t WHERE f ORDER BY id"} {
 		t.Run(q, func(t *testing.T) {
-			_, query, source := queryCoreFixture(t, q)
+			query, source := enginetest.QueryFixture(t, engine.New(), q)
 			project := query.Root.(*plan.ProjectNode)
 			stage, err := exec.OpenNode(context.Background(), &exec.State{Source: source}, project.Child)
 			if err != nil {

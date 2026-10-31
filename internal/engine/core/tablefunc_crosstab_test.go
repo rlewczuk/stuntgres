@@ -382,7 +382,7 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 	}
 	owner := definition.Description.Folds
 	command(func(scope *core.StatementScope) error {
-		_, err := scope.BindProtocolPortal("ct_binding", "ct_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+		_, err := scope.BindProtocolPortal("ct_binding", "ct_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
 	})
 	binding := registry.Binding("ct_binding")

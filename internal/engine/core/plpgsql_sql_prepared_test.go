@@ -49,7 +49,7 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 		t.Fatal("Prepare installed execution state")
 	}
 	command(func(s *core.StatementScope) error {
-		_, err := s.BindProtocolPortal("sqlownership_portal", "sqlownership", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+		_, err := s.BindProtocolPortal("sqlownership_portal", "sqlownership", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
 	})
 	accepted := registry.Binding("sqlownership_portal")
@@ -92,12 +92,12 @@ func sqlExecutionPreparedOwnership(t *testing.T) {
 	}
 	// A rejected metadata refresh must preserve the description actually used
 	// for that attempt, as well as the original immutable body/program.
-	ast, description := sequencePreparedDescription(t, e, owner, "SELECT pg_catalog.sql_ownership_wrapper(COALESCE(-(7::integer),0)) AS v")
+	ast, description := enginetest.PreparedDescription(t, e, owner, "SELECT pg_catalog.sql_ownership_wrapper(COALESCE(-(7::integer),0)) AS v")
 	preparedFoldExecute(t, e, owner, ast, &description)
 	beforeRejection := snapshotFoldDescription(description)
 	saved := description.Results
 	description.Results = nil
-	if result, err := sequencePreparedExecute(e, owner, ast, &description); err == nil {
+	if result, err := enginetest.PreparedExecute(e, owner, ast, &description); err == nil {
 		if result.Rows != nil {
 			result.Rows.Close()
 		}

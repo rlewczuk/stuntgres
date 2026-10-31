@@ -47,7 +47,7 @@ func explainProtocolFormatBoundary(t *testing.T, e *core.Engine, s *session.Sess
 		t.Fatal("Parse entered child execution folding")
 	}
 	command(func(scope *core.StatementScope) error {
-		_, err := scope.BindProtocolPortal("explain_portal", "explain_definition", &protocolUnitInput{data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
+		_, err := scope.BindProtocolPortal("explain_portal", "explain_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 1, 0, 0, 0, 1, '2', 0, 0}})
 		return err
 	})
 	binding := registry.Binding("explain_portal")

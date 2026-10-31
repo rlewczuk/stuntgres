@@ -15,7 +15,7 @@ import (
 )
 
 func TestExpressionFloatingArithmeticCancellationBeforePublication(t *testing.T) {
-	_, query, source := queryCoreFixture(t, "SELECT (v::real+1)^2 FROM t WHERE id=1")
+	query, source := enginetest.QueryFixture(t, engine.New(), "SELECT (v::real+1)^2 FROM t WHERE id=1")
 	project := query.Root.(*plan.ProjectNode)
 	real := project.Expressions[0]
 	schema := project.Schema()[0]

@@ -16,7 +16,7 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	t.Run("ProtocolGraphs", thesaurusProtocolOwnership)
 	e, s := thesaurusCoreSetup(t)
 	const query = "SELECT ts_lexize('public.thes_unit'::regdictionary,'one'::text) AS lexemes"
-	ast, d := sequencePreparedDescription(t, e, s, query)
+	ast, d := enginetest.PreparedDescription(t, e, s, query)
 	if d.Folds == nil || len(d.Folds.Current().Entries) != 0 || d.Folds.Current().Generation != 0 {
 		t.Fatal("Describe evaluated thesaurus")
 	}
@@ -33,7 +33,7 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	if d.Analysis != analysis || d.Folds.Current().Generation != before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("unchanged invocation lost accepted owner/backing")
 	}
-	vectorAST, vectorDescription := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
+	vectorAST, vectorDescription := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
 	preparedFoldExecute(t, e, s, vectorAST, &vectorDescription)
 	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
 	vectorBefore := snapshotFoldDescription(vectorDescription)
@@ -57,8 +57,8 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	}
 	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
 	for _, freshQuery := range []string{query, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized"} {
-		freshAST, fresh := sequencePreparedDescription(t, e, s, freshQuery)
-		_, failure := sequencePreparedExecute(e, s, freshAST, &fresh)
+		freshAST, fresh := enginetest.PreparedDescription(t, e, s, freshQuery)
+		_, failure := enginetest.PreparedExecute(e, s, freshAST, &fresh)
 		var diagnostic *sqlstate.Error
 		if !errors.As(failure, &diagnostic) || diagnostic.Code != "F0000" || diagnostic.Message != `thesaurus sample word "one" isn't recognized by subdictionary (rule 1)` {
 			t.Fatal("fresh invocation reused accepted fold", failure)
@@ -77,10 +77,10 @@ func TestThesaurusPreparedOwnership(t *testing.T) {
 	}
 	preparedFoldEntry(t, d, 1009, "{1}")
 	preparedFoldEntry(t, vectorDescription, 3614, "'123':1")
-	freshScalarAST, freshScalar := sequencePreparedDescription(t, e, s, query)
+	freshScalarAST, freshScalar := enginetest.PreparedDescription(t, e, s, query)
 	preparedFoldExecute(t, e, s, freshScalarAST, &freshScalar)
 	preparedFoldEntry(t, freshScalar, 1009, "NULL")
-	freshVectorAST, freshVector := sequencePreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
+	freshVectorAST, freshVector := enginetest.PreparedDescription(t, e, s, "SELECT to_tsvector('public.thes_unit_cfg','one two three') AS normalized")
 	preparedFoldExecute(t, e, s, freshVectorAST, &freshVector)
 	preparedFoldEntry(t, freshVector, 3614, "'one':1 'three':3 'two':2")
 	preparedFoldEntry(t, before, 1009, "{1}")

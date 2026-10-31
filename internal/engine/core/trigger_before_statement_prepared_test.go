@@ -87,7 +87,7 @@ func beforeStatementPreparedOwner(t *testing.T) {
 			if core.ScopeBeforeTestMap(s) != nil || len(s.BeforeCaptures) != 0 {
 				t.Fatal("Bind inherited a firing activation")
 			}
-			_, err := s.BindProtocolPortal(name, "bst_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+			_, err := s.BindProtocolPortal(name, "bst_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 			return err
 		})
 	}

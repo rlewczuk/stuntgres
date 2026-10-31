@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
@@ -17,7 +18,8 @@ import (
 func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 	for _, count := range []int64{0, 1} {
 		t.Run(map[int64]string{0: "zero", 1: "one"}[count], func(t *testing.T) {
-			e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+			e := engine.New()
+			query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 			enginetest.Run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 			ref := enginetest.RoleTableRef(t, e, "d")
 			relation := e.CatalogRead().MustRelation(ref.Address)
@@ -47,7 +49,8 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 }
 
 func TestQueryLimitInsertDefaultFailure(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT id FROM t")
 	enginetest.Run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 	ref := enginetest.RoleTableRef(t, e, "d")
 	relation := e.CatalogRead().MustRelation(ref.Address)

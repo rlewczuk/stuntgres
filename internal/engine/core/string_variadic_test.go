@@ -23,11 +23,11 @@ import (
 func TestStringVariadicRetainedGeneration(t *testing.T) {
 	e := rootengine.New()
 	s := enginetest.StartSession(t, e, nil)
-	ast, description := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo')")
+	ast, description := enginetest.PreparedDescription(t, e, s, "SELECT quote_ident('foo')")
 	if description.Folds.Current().Entries != nil {
 		t.Fatal("Describe published Execute-only quotes")
 	}
-	result, err := sequencePreparedExecute(e, s, ast, &description)
+	result, err := enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("missing owner-qualified capture")
 	}
 	original := snapshotFoldDescription(description)
-	result, err = sequencePreparedExecute(e, s, ast, &description)
+	result, err = enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if &original.Accepted.Entries[0] != &description.Folds.Current().Entries[0] || description.Folds.Environment.Discard != original.Environment.Discard {
 		t.Fatal("eager discard mutation")
 	}
-	result, err = sequencePreparedExecute(e, s, ast, &description)
+	result, err = enginetest.PreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +60,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("source capture changed during refresh")
 	}
 
-	bad, failed := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo'),quote_literal(1/0)")
-	_, err = sequencePreparedExecute(e, s, bad, &failed)
+	bad, failed := enginetest.PreparedDescription(t, e, s, "SELECT quote_ident('foo'),quote_literal(1/0)")
+	_, err = enginetest.PreparedExecute(e, s, bad, &failed)
 	if err == nil || failed.Folds.Current().Entries != nil {
 		t.Fatal("failed demanded fold published partial group", err)
 	}
@@ -69,7 +69,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	discardUnitApply(t, s, parser.DiscardPlans)
 	savedResults := description.Results
 	description.Results = nil
-	_, err = sequencePreparedExecute(e, s, ast, &description)
+	_, err = enginetest.PreparedExecute(e, s, ast, &description)
 	description.Results = savedResults
 	if err == nil || description.Folds.Environment.Discard != before.Environment.Discard || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("signature failure published private group", err)
@@ -95,8 +95,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			"UPDATE ov SET v='inval' WHERE v='seed'",
 			"UPDATE ov SET v='outvl' WHERE v='seed'",
 		} {
-			ast, description := sequencePreparedDescription(t, engine, session, query)
-			_, err := sequencePreparedExecute(engine, session, ast, &description)
+			ast, description := enginetest.PreparedDescription(t, engine, session, query)
+			_, err := enginetest.PreparedExecute(engine, session, ast, &description)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "44000" {
 				t.Fatalf("%s: local check lost its layer: %v", query, err)
@@ -111,22 +111,22 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				t.Fatalf("lowered equal-offset view calls collided: %+v / %+v", a, b)
 			}
 		}
-		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO ov VALUES('valid')")
-		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
+		ast, description := enginetest.PreparedDescription(t, engine, session, "INSERT INTO ov VALUES('valid')")
+		if _, err := enginetest.PreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal("valid local-check row rejected", err)
 		}
 		published := description.Folds.Current().Entries
 		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
 		enginetest.SessionSQL(t, session, "ALTER TABLE bv ADD COLUMN spare integer")
-		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
+		if _, err := enginetest.PreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal("stored-only analysis replan failed", err)
 		}
 		if len(description.Folds.Current().Entries) != 2 || &description.Folds.Current().Entries[0] != &published[0] {
 			t.Fatal("analysis-only replan copied or refreshed unchanged view captures")
 		}
 		enginetest.SessionSQL(t, session, "CREATE VIEW nv AS SELECT v FROM bv WHERE concat(quote_nullable(v),'')=quote_nullable(v) WITH LOCAL CHECK OPTION")
-		nestedAST, nestedDescription := sequencePreparedDescription(t, engine, session, "UPDATE nv SET v='nested' WHERE v='seed'")
-		result, err := sequencePreparedExecute(engine, session, nestedAST, &nestedDescription)
+		nestedAST, nestedDescription := enginetest.PreparedDescription(t, engine, session, "UPDATE nv SET v='nested' WHERE v='seed'")
+		result, err := enginetest.PreparedExecute(engine, session, nestedAST, &nestedDescription)
 		if err != nil || result.Count != 1 || len(nestedDescription.Folds.Current().Entries) != 0 {
 			t.Fatal("nested row-dependent quotes lost column lowering or were retained", result.Count, err)
 		}
@@ -150,14 +150,14 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		engine := rootengine.New()
 		session := enginetest.StartSession(t, engine, nil)
 		enginetest.SessionSQL(t, session, "CREATE TABLE sv_replan(v text,w text DEFAULT quote_ident('stored'))")
-		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_replan(v) VALUES(quote_ident('root'))")
-		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
+		ast, description := enginetest.PreparedDescription(t, engine, session, "INSERT INTO sv_replan(v) VALUES(quote_ident('root'))")
+		if _, err := enginetest.PreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal(err)
 		}
 		published := description.Folds.Current().Entries
 		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
 		enginetest.SessionSQL(t, session, "ALTER TABLE sv_replan ADD COLUMN spare integer")
-		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
+		if _, err := enginetest.PreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal(err)
 		}
 		if len(published) != 2 || len(description.Folds.Current().Entries) != 2 {
@@ -187,8 +187,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=off")
 		enginetest.SessionSQL(t, session, "SET bytea_output=hex")
 		enginetest.SessionSQL(t, session, `CREATE TABLE sv_retry(v text,z timestamptz,a text DEFAULT quote_ident('stored'),b text DEFAULT quote_literal('\x00015c'::bytea))`)
-		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_retry(v,z) VALUES(quote_ident('root'),'now'::timestamptz)")
-		result, err := sequencePreparedExecute(engine, session, ast, &description)
+		ast, description := enginetest.PreparedDescription(t, engine, session, "INSERT INTO sv_retry(v,z) VALUES(quote_ident('root'),'now'::timestamptz)")
+		result, err := enginetest.PreparedExecute(engine, session, ast, &description)
 		if err != nil || result.Count != 1 {
 			t.Fatal("initial capture execution", result.Count, err)
 		}
@@ -211,7 +211,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		discardUnitApply(t, session, parser.DiscardPlans)
 		enginetest.SessionSQL(t, session, "ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal(1/0)")
-		result, err = sequencePreparedExecute(engine, session, ast, &description)
+		result, err = enginetest.PreparedExecute(engine, session, ast, &description)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}) || result.Rows != nil {
 			t.Fatal("demanded fold failure", result, err)
@@ -236,7 +236,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
 		enginetest.SessionSQL(t, session, "SET bytea_output=escape")
 		enginetest.SessionSQL(t, session, `ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal('\x00015c'::bytea)`)
-		result, err = sequencePreparedExecute(engine, session, ast, &description)
+		result, err = enginetest.PreparedExecute(engine, session, ast, &description)
 		if err != nil || result.Count != 1 {
 			t.Fatal("successful stale retry", result.Count, err)
 		}
@@ -288,8 +288,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		engine := rootengine.New()
 		session := enginetest.StartSession(t, engine, nil)
 		enginetest.SessionSQL(t, session, "CREATE TABLE sv_merge_origin(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
-		ast, description := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_merge_origin t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,r) VALUES(s.id,quote_ident('root'))")
-		result, err := sequencePreparedExecute(engine, session, ast, &description)
+		ast, description := enginetest.PreparedDescription(t, engine, session, "MERGE INTO sv_merge_origin t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,r) VALUES(s.id,quote_ident('root'))")
+		result, err := enginetest.PreparedExecute(engine, session, ast, &description)
 		if err != nil || result.Count != 1 || len(description.Folds.Current().Entries) != 3 {
 			t.Fatal("MERGE did not execute demanded defaults", result.Count, description.Folds.Current().Entries, err)
 		}
@@ -333,8 +333,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		engine := rootengine.New()
 		session := enginetest.StartSession(t, engine, nil)
 		enginetest.SessionSQL(t, session, "CREATE TABLE sv_local_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
-		ast, description := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
-		peerAST, peerDescription := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		ast, description := enginetest.PreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		peerAST, peerDescription := enginetest.PreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
 		stamp := description.Folds.Environment.Discard
 		var previous []exec.FoldConstant
 		for id := int64(1); id <= 12; id++ {
@@ -442,7 +442,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		session := enginetest.StartSession(t, engine, nil)
 		enginetest.SessionSQL(t, session, "CREATE TABLE sv_local_view_base(id integer,r text)")
 		enginetest.SessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
-		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
+		ast, description := enginetest.PreparedDescription(t, engine, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
 		stamp := description.Folds.Environment.Discard
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()

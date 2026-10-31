@@ -33,7 +33,7 @@ func TestPreparedFoldProtocolCommandExecuteFences(t *testing.T) {
 				return err
 			})
 			command(func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal("fenced", "fenced", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal("fenced", "fenced", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 			registry := core.PayloadOf(s).PreparedSQL
@@ -101,7 +101,7 @@ func TestPreparedFoldProtocolPrivateContext(t *testing.T) {
 				return err
 			})
 			command(func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal("private", "private", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal("private", "private", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 			registry := core.PayloadOf(s).PreparedSQL

@@ -59,8 +59,8 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		} {
 			enginetest.SessionSQL(t, s, q)
 		}
-		optimized, folded := sequencePreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(NULL::integer)")
-		reached, runtime := sequencePreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(v) FROM public.attribute_input")
+		optimized, folded := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(NULL::integer)")
+		reached, runtime := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",public.attribute_private(v) FROM public.attribute_input")
 		preparedFoldExecute(t, e, s, optimized, &folded)
 		preparedFoldExecute(t, e, s, reached, &runtime)
 		old := snapshotFoldDescription(folded)
@@ -77,7 +77,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		enginetest.SessionSQL(t, s, "REVOKE EXECUTE ON FUNCTION attribute_private(integer) FROM PUBLIC")
 		enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION attribute_reader")
 		preparedFoldExecute(t, e, s, optimized, &folded)
-		result, err := sequencePreparedExecute(e, s, reached, &runtime)
+		result, err := enginetest.PreparedExecute(e, s, reached, &runtime)
 		if result.Rows != nil {
 			result.Rows.Close()
 		}
@@ -97,7 +97,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE FUNCTION attribute_held(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'")
 		enginetest.SessionSQL(t, s, "SET extra_float_digits=3")
-		ast, d := sequencePreparedDescription(t, e, s, preparedFoldPoint+",attribute_held(COALESCE(-(7::integer),0)) AS v")
+		ast, d := enginetest.PreparedDescription(t, e, s, preparedFoldPoint+",attribute_held(COALESCE(-(7::integer),0)) AS v")
 		preparedFoldExecute(t, e, s, ast, &d)
 		old := snapshotFoldDescription(d)
 		owner := d.Folds
@@ -146,7 +146,7 @@ func TestRoutineAttributeHeldPublication(t *testing.T) {
 		definition := registry.Lookup("attribute_definition")
 		bind := func(name string) {
 			command(func(scope *core.StatementScope) error {
-				_, err := scope.BindProtocolPortal(name, "attribute_definition", &protocolUnitInput{data: []byte{0, 0, 0, 0, 0, 0}})
+				_, err := scope.BindProtocolPortal(name, "attribute_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
 		}

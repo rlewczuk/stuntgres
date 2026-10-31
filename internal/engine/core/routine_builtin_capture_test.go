@@ -32,7 +32,8 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 		"SELECT rank() OVER(ORDER BY id) FROM t",
 	} {
 		t.Run(query, func(t *testing.T) {
-			e, bound, source := queryCoreFixture(t, query)
+			e := engine.New()
+			bound, source := enginetest.QueryFixture(t, e, query)
 			defer source.Close()
 			var captures []routineTestCapture
 			plan.VisitExecutableQuery(bound.Root, func(node plan.Node) {
@@ -124,7 +125,8 @@ func TestRoutineBuiltinCapturedDeclarations(t *testing.T) {
 }
 
 func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
-	e, query, source := queryCoreFixture(t, "SELECT abs(id) FROM t")
+	e := engine.New()
+	query, source := enginetest.QueryFixture(t, e, "SELECT abs(id) FROM t")
 	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Expressions[0]
 	captured, err := exec.ExpressionRoutineDescriptor(node)
