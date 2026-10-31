@@ -1,4 +1,4 @@
-package core_test
+package views_test
 
 import (
 	"context"
@@ -47,3 +47,5 @@ func TestRowLockViewSequenceDiagnostics(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	enginetest.LockEmpty(t, e)
 }
+
+var rowLockTestClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}

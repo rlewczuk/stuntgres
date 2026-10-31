@@ -1,10 +1,14 @@
-package core_test
+package views_test
 
 import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
@@ -12,6 +16,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/sqltype"
 )
 
 func TestRuleConflictInstantiation(t *testing.T) {
@@ -82,4 +87,23 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ruleUnitCatalog(t *testing.T) (*core.Engine, core.AuthorizationView, *catalog.Relation, *catalog.Relation) {
+	t.Helper()
+	e := engine.New()
+	base := e.CatalogRead()
+	typ, ok := base.LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("INT4 unavailable")
+	}
+	makeRelation := func(id ids.OID, name string) *catalog.Relation {
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, RelationKind: catalog.TableRelation}
+	}
+	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
+	next := catalog.CloneState(e.Catalog.State)
+	next.SetDescriptor(src.Address(), src)
+	next.SetDescriptor(sink.Address(), sink)
+	e.Catalog.PublishLocked(next)
+	return e, e.AuthorityView(access.View{Owner: &e.Catalog.Owner, Catalog: e.Catalog.Read(next)}), src, sink
 }

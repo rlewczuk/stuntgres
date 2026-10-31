@@ -1,4 +1,4 @@
-package core_test
+package views_test
 
 import (
 	"strings"

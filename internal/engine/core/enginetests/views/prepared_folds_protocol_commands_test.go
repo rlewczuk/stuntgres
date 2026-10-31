@@ -1,4 +1,4 @@
-package core_test
+package views_test
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/enginetest"
-
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
 
 func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 	expression := "length((point '0.10000000000000002,1')::text)"
@@ -170,5 +170,25 @@ func TestPreparedFoldProtocolCommandFailure(t *testing.T) {
 			}
 			enginetest.PreparedFoldProtocolRows(t, s, "0")
 		})
+	}
+}
+
+
+// Exercise the eligibility transition, including empty accepted groups that
+// cannot demonstrate reuse by lending a root entry. Call only after all other
+// observations: this deliberately retires the definition's next-use rights.
+func assertFoldReuseRetirement(t *testing.T, owner *core.PreparedFolds, reusable bool) {
+	t.Helper()
+	before := owner.Current().Generation
+	owner.Invalidate(false)
+	want := before
+	if reusable {
+		want++
+	}
+	if owner.Current().Generation != want {
+		t.Fatal("reuse retirement changed the wrong generation", before, owner.Current().Generation, want)
+	}
+	if enginetest.FoldRootsReusable(owner) {
+		t.Fatal("retired root syntax remains reusable")
 	}
 }

@@ -1,4 +1,4 @@
-package core_test
+package views_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -169,4 +170,114 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, owner, "ROLLBACK")
+}
+
+// Exercise semantic revisions against the actual registry definition and its
+// accepted portal, without publishing a synthetic catalog into the engine.
+func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *session.Session, definition *core.PreparedDefinition, accepted *core.PreparedBinding, statementName, portalName string) {
+	t.Helper()
+	description := &definition.Description
+	before := enginetest.SnapshotFoldDescription(*description)
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
+	if accepted.Folds == nil || len(accepted.Folds.Entries) == 0 || len(accepted.Folds.Dependencies) == 0 || accepted.Entry.Description.Folds != description.Folds {
+		t.Fatal("PL SQL/CALL portal lacks composed accepted fold ownership")
+	}
+	bindingFolds := *accepted.Folds
+	if bindingFolds.Generation != before.Accepted.Generation || &bindingFolds.Entries[0] != &before.Accepted.Entries[0] {
+		t.Fatal("portal did not accept the definition's immutable generation")
+	}
+	op, err := owner.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment, err := e.PreparedEnvironmentLocked(auth, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integer := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
+	presentation := *integer
+	presentation.ObjectRevision = integer.Revision() + 1
+	state := catalog.CloneState(auth.Catalog.State())
+	state.SetDescriptor(presentation.Address(), &presentation)
+	presented := e.Catalog.Read(state)
+	if presentation.Revision() == integer.Revision() || description.Analysis.Valid(presented, environment) || !description.Analysis.FoldsValid(presented, environment) {
+		t.Fatal("presentation revision did not distinguish analysis from executable validity")
+	}
+	publication, err := core.BeginFoldPublication(description, definition.Body, environment, presented, nil)
+	if err != nil || publication == nil {
+		t.Fatal("presentation publication", err)
+	}
+	if err := publication.Accept(op.Ctx, presented, environment, e.Catalog.State.Epoch()); err != nil {
+		t.Fatal("unchanged codec rejected", err)
+	}
+	if description.Folds.Current().Generation != before.Accepted.Generation || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || !enginetest.FoldRootsReusable(description.Folds) {
+		t.Fatal("presentation-only revision replaced executable backing")
+	}
+	// The same address/revision with a distinct executable codec must retire
+	// this exact definition and reject this exact portal's fixed fold input.
+	codec := *integer.SQLType
+	presentation.SQLType = &codec
+	state = catalog.CloneState(auth.Catalog.State())
+	state.SetDescriptor(presentation.Address(), &presentation)
+	replaced := e.Catalog.Read(state)
+	if description.Analysis.FoldsValid(replaced, environment) || core.FoldDependenciesValid(replaced, environment, bindingFolds.Dependencies) {
+		t.Fatal("effective codec replacement left the PL accepted artifact valid")
+	}
+	if portal, err := core.BeginFoldPublication(&accepted.Entry.Description, accepted.Entry.Body, environment, replaced, accepted); !errors.Is(err, ids.ErrCatalogReplaced) || portal != nil {
+		t.Fatal("codec replacement admitted old portal", err)
+	}
+	publication, err = core.BeginFoldPublication(description, definition.Body, environment, replaced, nil)
+	if err != nil || publication == nil {
+		t.Fatal("codec invalidation publication", err)
+	}
+	retired := description.Folds.Current()
+	if retired.Generation <= before.Accepted.Generation || enginetest.FoldRootsReusable(description.Folds) || len(publication.Group.Entries) != 0 {
+		t.Fatal("codec replacement did not retire demanded root folds")
+	}
+	// Give the rejected attempt distinct candidate backing. A publisher that
+	// incorrectly installs it cannot pass an equality-only value assertion.
+	publication.Group.Entries = append([]exec.FoldConstant(nil), before.Accepted.Entries...)
+	publication.Group.Dependencies = append([]exec.FoldDependency(nil), before.Accepted.Dependencies...)
+	publication.Group.Private, publication.Group.DependenciesPrivate = true, true
+	if err := publication.Accept(op.Ctx, replaced, environment, e.Catalog.State.Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) {
+		t.Fatal("stale codec publication was not rejected", err)
+	}
+	current := description.Folds.Current()
+	if registry := core.PayloadOf(owner).PreparedSQL; registry.Lookup(statementName) != definition || registry.Binding(portalName) != accepted {
+		t.Fatal("rejection replaced registry ownership")
+	}
+	if description.Analysis != before.Analysis || description.Folds != before.Folds || description.Folds.Analysis != before.Analysis || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || enginetest.FoldRootsReusable(description.Folds) {
+		t.Fatal("rejected publication changed its actual owner or resurrected backing")
+	}
+	if accepted.Folds.Generation != bindingFolds.Generation || &accepted.Folds.Entries[0] != &bindingFolds.Entries[0] || &accepted.Folds.Dependencies[0] != &bindingFolds.Dependencies[0] {
+		t.Fatal("invalidation or rejection mutated prior accepted portal backing")
+	}
+	enginetest.PreparedFoldEntry(t, before, sqltype.Int4, "-7")
+}
+
+func preparedRebindValid(t *testing.T, e *core.Engine, s *session.Session, cell *core.Analysis) bool {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment, err := e.PreparedEnvironmentLocked(auth, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cell.Valid(auth.Catalog, environment)
 }
