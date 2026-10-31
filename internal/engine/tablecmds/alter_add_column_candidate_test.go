@@ -102,19 +102,86 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, volatility := range []expr.Volatility{expr.Immutable, expr.Stable} {
+		for _, innerDomain := range []bool{false, true} {
+			calls := 0
+			references := []ids.ObjectRef{scope.RoutineAuth.Catalog.Domain().Ref(scope.RoutineAuth.Catalog.Epoch(), old.Address())}
+			programs := map[*catalog.Type]exec.DomainCheckProgram{nil: {}}
+			expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility, RuntimeDomainConversion: innerDomain}}, eval: func(c *exec.Context) (sqltype.Value, error) {
+				calls++
+				if calls == 1 && (!c.RoutineRecipe || c.RoutineGraft || c.RoutineConsumer != old || !reflect.DeepEqual(c.RoutineReferences, references)) {
+					t.Fatal("ADD evaluation lost its admitted stored recipe")
+				}
+				if _, exists := c.PreparedDomainChecks[nil]; !exists {
+					t.Fatal("ADD evaluation lost prepared domain programs")
+				}
+				return value, nil
+			}}
+			additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "b"}, Expression: expression, Dependencies: references, Consumer: old, Value: sqltype.Null(u.Type)}}
+			evaluation := tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog)
+			evaluation.RoutineGraft = true
+			evaluation.PreparedDomainChecks = programs
+			fills, volatile, err := table.PlanAddedColumns(evaluation, additions)
+			if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].Value != value {
+				t.Fatal(fills, volatile, calls, err)
+			}
+			// Empty backfill does not suppress the earlier one-time demand.
+			if rows, err := session.ProjectVersions(context.Background(), nil, old, old, fills); err != nil || len(rows) != 0 || calls != 1 {
+				t.Fatal(rows, calls, err)
+			}
+			// A companion's genuine rewrite demands runtime domain conversions
+			// again per live row, matching PostgreSQL rather than using its fill.
+			next := *old
+			next.Columns = append(append([]catalog.Column(nil), old.Columns...), catalog.Column{Name: "b", Usage: u, Nullable: true})
+			next.Attributes, next.Index = []int32{1, 4}, map[string]int{"a": 0, "b": 1}
+			next.ColumnMeta.HighWater = 4
+			store := &storage.Relation{Generation: 1, Versions: []storage.RowVersion{
+				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}},
+				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value}},
+				{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{value}},
+			}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{3: {Version: 3, End: 2}}}}
+			rewritten, own, deleted, err := table.RewriteTypeRows(evaluation, old, &next, store, 2, nil, nil, nil, additions, nil, table.NewAlterRowValidator(&next, "public"))
+			wantCalls := 1
+			if innerDomain {
+				wantCalls += 2
+			}
+			if err != nil || calls != wantCalls || len(rewritten.Versions) != 2 || len(own) != 0 || deleted != nil {
+				t.Fatal("companion rewrite changed domain demand", rewritten, own, deleted, calls, err)
+			}
+			for i, row := range rewritten.Versions {
+				if row.Row != ids.RowID(i+1) || row.Version != ids.VersionID(i+1) || !reflect.DeepEqual(row.Values, []sqltype.Value{value, value}) {
+					t.Fatal("companion rewrite lost value or identity", row)
+				}
+			}
+			if len(store.Versions) != 3 || len(store.Versions[0].Values) != 1 || len(old.Columns) != 1 {
+				t.Fatal("companion rewrite mutated predecessor")
+			}
+			if expression.Property.Volatility != volatility || expression.Property.RuntimeDomainConversion != innerDomain || !evaluation.RoutineGraft || evaluation.RoutineRecipe {
+				t.Fatal("stored expression or caller context changed")
+			}
+		}
+	}
+}
+
+func TestAlterAddColumnConstrainedDestinationKeepsRowDemand(t *testing.T) {
+	_, scope, _, old := alterAddUnitScope(t)
+	base := old.Columns[0].Usage
+	for _, checks := range []bool{false, true} {
+		domain, err := sqltype.Domain(20001, "added_domain", "public.added_domain", base, checks, !checks)
+		if err != nil {
+			t.Fatal(err)
+		}
 		calls := 0
-		expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return value, nil }}
-		additions := []table.AddedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(u.Type)}}
-		fills, volatile, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
-		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].Value != value {
-			t.Fatal(fills, volatile, calls, err)
+		expression := queryProbeExpression{Info: expr.Info{Usage: domain.Usage(), Property: expr.Properties{RuntimeDomainConversion: true}}, eval: func(*exec.Context) (sqltype.Value, error) {
+			calls++
+			return sqltype.Null(domain), nil
+		}}
+		additions := []table.AddedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(domain)}}
+		fills, perRow, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
+		if err != nil || !perRow || calls != 0 || len(fills) != 0 {
+			t.Fatal("destination constraints lost row demand", fills, perRow, calls, err)
 		}
-		// Empty backfill does not suppress the earlier one-time demand.
-		if rows, err := session.ProjectVersions(context.Background(), nil, old, old, fills); err != nil || len(rows) != 0 || calls != 1 {
-			t.Fatal(rows, calls, err)
-		}
-		if expression.Property.Volatility != volatility {
-			t.Fatal("stored expression changed")
+		if !expression.Property.RuntimeDomainConversion || additions[0].Value.Type() != domain {
+			t.Fatal("destination conversion authority changed")
 		}
 	}
 }

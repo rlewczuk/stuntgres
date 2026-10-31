@@ -10,6 +10,14 @@
   not simulated. `pg_stat_progress_cluster` retains twelve typed columns but no
   fabricated physical workers or counters.
 
+- Fix ADD COLUMN nonvolatile base-type defaults containing inner domain casts:
+  evaluate once with the admitted private CHECK recipe instead of unnecessarily
+  rewriting existing rows and rebuilding unrelated indexes. Empty-table failures
+  preserve schema/data and report visible domain names; constrained destination
+  domains and genuinely volatile defaults retain their per-row conversion.
+  Independent companion rewrites still demand runtime domain conversions per
+  live row and rebuild indexes after the initial missing-value capture.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

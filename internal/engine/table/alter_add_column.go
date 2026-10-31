@@ -63,11 +63,14 @@ func PlanAddedColumns(evaluation exec.Context, additions []AddedColumn) (map[int
 			}
 			added.Expression = planned
 			properties := planned.Properties()
-			if properties.Volatility > expr.Stable || properties.RuntimeDomainConversion {
+			// Only constraints on the destination domain force row demand.
+			// An inner domain conversion in a nonvolatile base-type DEFAULT
+			// is evaluated once with its prepared CHECK recipes below.
+			if properties.Volatility > expr.Stable || added.Value.Type().HasDomainConstraints() {
 				perRow = true
 				continue
 			}
-			added.Value, err = planned.Eval(&evaluation)
+			added.Value, err = planned.Eval(&recipe)
 			if err != nil {
 				return nil, false, AlterCookingError(err)
 			}
@@ -157,11 +160,6 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 	node, origin := analyze.ColumnDefault(view.Catalog, &next, len(next.Columns)-1)
 	added.Expression = node
 	added.Dependencies, added.Consumer = origin.Definition.Dependencies, origin.Consumer
-	if sqltype.ContainsDomainConstraints(usage.Type) && h.Input().TypeDiagnosticName == nil {
-		if err := h.CaptureTypeDiagnosticName(auth); err != nil {
-			return fail(err)
-		}
-	}
 	if declaration.DefaultExpr != nil {
 		node, err := h.BindDefault(auth, old, definition, declaration.DefaultExpr)
 		if err != nil {
@@ -178,6 +176,11 @@ func AddColumnCandidate(h AlterHost, auth ddl.Authority, old *catalog.Relation, 
 			next.ColumnMeta.Defaults[attribute] = persisted
 			added.Expression = node
 			added.Dependencies, added.Consumer = persisted.Dependencies, old
+		}
+	}
+	if h.Input().TypeDiagnosticName == nil && (sqltype.ContainsDomainConstraints(usage.Type) || added.Expression != nil && added.Expression.Properties().RuntimeDomainConversion) {
+		if err := h.CaptureTypeDiagnosticName(auth); err != nil {
+			return fail(err)
 		}
 	}
 	if err := stored.RefreshGenerationChecks(&next, view.Catalog); err != nil {

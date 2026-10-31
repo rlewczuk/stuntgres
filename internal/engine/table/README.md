@@ -82,6 +82,18 @@ call live here.
   The row passes take no lock, but expressions may reach host methods that take
   `Engine.Mu`, so callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
+  `PlanAddedColumns` captures a nonvolatile base-destination DEFAULT once, even
+  on an empty table, using the same private stored-recipe context for preflight,
+  admission and evaluation. Inner domain conversions retain their prepared CHECK
+  programs and visible-type diagnostics without forcing an unrelated index
+  rebuild. Constraints on the destination domain still require per-row conversion;
+  genuinely volatile defaults retain the live-row rewrite and index-build path.
+  When a companion action independently requires a physical rewrite, runtime
+  domain conversions are demanded again for each effective live row and indexes
+  are legitimately rebuilt; the initial missing-value capture does not suppress
+  those conversions.
+  This execution-private fill does not become a retained expression fold or
+  replace the immutable DEFAULT definition used by future inserts.
   `ValidateConstraintCandidate` returns an immutable validity-only successor and
   selected stable scan identities; eligible valid facts return the identical
   predecessor. Misc resolution follows all ADD definitions, including deferred
