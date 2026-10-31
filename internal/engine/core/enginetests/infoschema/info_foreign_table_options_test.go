@@ -1,4 +1,4 @@
-package core_test
+package infoschema_test
 
 import (
 	"context"
@@ -15,43 +15,41 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type foreignTablesFixture struct {
+type foreignTableOptionsFixture struct {
 	f     defaultUnitFixture
 	state *catalog.State
 	table *catalog.Relation
 }
 
-func newForeignTablesFixture(t *testing.T) foreignTablesFixture {
+func newForeignTableOptionsFixture(t *testing.T) foreignTableOptionsFixture {
 	t.Helper()
 	// Reuse the actual foreign relation fixture, including dropped-column decoys.
 	base := newColumnOptionsFixture(t)
 	table := *base.table
-	table.ObjectName = "ift_unit"
+	table.ObjectName = "fto_unit"
 	foreign := *table.Foreign
 	foreign.Options = []catalog.ForeignOption{{Name: "empty", Value: ""}, {Name: "password", Value: "visible=value"}, {Name: "remote", Value: "é=🙂"}, {Name: "quoted", Value: "a'b\\c  "}}
 	table.Foreign = &foreign
 	base.state.SetDescriptor(table.Address(), &table)
-	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 22600}, ObjectName: "ift_wrapper", ObjectRevision: 1, Owner: base.f.owner}
-	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 22601}, ObjectName: "ift_server", ObjectRevision: 1, Owner: base.f.owner, Wrapper: wrapper.Address()}
-	base.state.SetDescriptor(wrapper.Address(), wrapper)
-	base.state.SetDescriptor(server.Address(), server)
-	foreign.Server = server.Address()
-
-	return foreignTablesFixture{f: base.f, state: base.state, table: &table}
+	for i, class := range []ids.OID{ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID} {
+		decoy := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(22600 + i)}, ObjectName: "decoy", ObjectRevision: 1, Owner: base.f.owner, Options: []catalog.ForeignOption{{Name: "decoy", Value: "excluded"}}}
+		base.state.SetDescriptor(decoy.Address(), decoy)
+	}
+	return foreignTableOptionsFixture{f: base.f, state: base.state, table: &table}
 }
 
-func (f foreignTablesFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
+func (f foreignTableOptionsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
 	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoForeignTablesOID})
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoForeignTableOptionsOID})
 	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
 }
 
-func foreignTablesRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[5]string]int) {
+func foreignTableOptionsRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map[[5]string]int) {
 	t.Helper()
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoForeignTablesOID)
+	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoForeignTableOptionsOID)
 	if !ok {
 		t.Fatal("missing producer")
 	}
@@ -75,8 +73,11 @@ func foreignTablesRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map
 				t.Fatal("domain authority", i, value)
 			}
 			base, err := value.BaseValue()
-			want, ok := in.Catalog.LookupType(sqltype.Name)
-			if err != nil || !ok || base.Type() != want {
+			want := sqltype.Name
+			if i == 4 {
+				want = sqltype.VarChar
+			}
+			if err != nil || base.Type().ID() != want {
 				t.Fatal("base authority", i, base, err)
 			}
 			values[i], err = base.Text()
@@ -84,45 +85,50 @@ func foreignTablesRows(t *testing.T, in pgcatalog.Input) ([][]sqltype.Value, map
 				t.Fatal(err)
 			}
 		}
-		if row[0] != row[3] {
-			t.Fatal("catalog cells do not share the captured value")
-		}
 		bag[values]++
 	}
 	return source.Anonymous, bag
 }
 
-func foreignTablesExpected() map[[5]string]int {
-	return map[[5]string]int{{"captured_database", "default_schema", "ift_unit", "captured_database", "ift_server"}: 1}
+func foreignTableOptionsExpected() map[[5]string]int {
+	return map[[5]string]int{
+		{"captured_database", "default_schema", "fto_unit", "empty", ""}:                 1,
+		{"captured_database", "default_schema", "fto_unit", "password", "visible=value"}: 1,
+		{"captured_database", "default_schema", "fto_unit", "remote", "é=🙂"}:             1,
+		{"captured_database", "default_schema", "fto_unit", "quoted", "a'b\\c  "}:        1,
+	}
 }
 
-func TestInfoForeignTablesProducer(t *testing.T) {
-	f := newForeignTablesFixture(t)
+func TestInfoForeignTableOptionsProducer(t *testing.T) {
+	f := newForeignTableOptionsFixture(t)
 	in := f.input(t, f.state, f.f.owner)
-	if in.Source.Name() != "foreign_tables" || in.Source.Namespace().ObjectID != 13229 || in.Source.Address().ObjectID != 16248 || !in.Source.VirtualView {
+	if in.Source.Name() != "foreign_table_options" || in.Source.Namespace().ObjectID != 13229 || in.Source.Address().ObjectID != 16247 || !in.Source.VirtualView {
 		t.Fatal("source identity", in.Source)
 	}
 	row := in.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(in.Source.RowType)})
 	array := in.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
-	if in.Source.RowType != 13563 || row.Array != 13562 || row.OwningRelation != in.Source.Address() || array.OwningRelation != in.Source.Address() || array.SQLType.Element() != row.SQLType {
+	if in.Source.RowType != 13559 || row.Array != 13558 || row.OwningRelation != in.Source.Address() || array.OwningRelation != in.Source.Address() || array.SQLType.Element() != row.SQLType {
 		t.Fatal("row/array ownership")
 	}
-	names := []string{"foreign_table_catalog", "foreign_table_schema", "foreign_table_name", "foreign_server_catalog", "foreign_server_name"}
+	names := []string{"foreign_table_catalog", "foreign_table_schema", "foreign_table_name", "option_name", "option_value"}
 	if len(in.Source.Columns) != len(names) || len(in.Source.Attributes) != len(names) {
 		t.Fatal("source width")
 	}
 	for i, column := range in.Source.Columns {
 		domainID, baseID := sqltype.ID(13248), sqltype.Name
+		if i == 4 {
+			domainID, baseID = 13246, sqltype.VarChar
+		}
 		domain, _ := in.Catalog.LookupType(domainID)
 		base, _ := in.Catalog.LookupType(baseID)
-		if column.Name != names[i] || column.Usage != domain.Usage() || domain.BaseType() != base || !column.Nullable || !column.NullabilityKnown || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.DeclaredDimensions != 0 || column.OriginTable != 16248 || column.OriginAttribute != int16(i+1) || in.Source.Attributes[i] != int32(i+1) {
+		if column.Name != names[i] || column.Usage != domain.Usage() || domain.BaseType() != base || !column.Nullable || !column.NullabilityKnown || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.DeclaredDimensions != 0 || column.OriginTable != 16247 || column.OriginAttribute != int16(i+1) || in.Source.Attributes[i] != int32(i+1) {
 			t.Fatal("source metadata", i, column)
 		}
 	}
 	admin := in.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, actor := range []authorization.PrincipalRef{admin, f.f.owner, f.f.member} {
-		_, got := foreignTablesRows(t, f.input(t, f.state, actor))
-		if !reflect.DeepEqual(got, foreignTablesExpected()) {
+		_, got := foreignTableOptionsRows(t, f.input(t, f.state, actor))
+		if !reflect.DeepEqual(got, foreignTableOptionsExpected()) {
 			t.Fatal("authorized full values", actor, got)
 		}
 	}
@@ -143,10 +149,10 @@ func TestInfoForeignTablesProducer(t *testing.T) {
 				mask |= authorization.DeletePrivilege | authorization.TruncatePrivilege | authorization.TriggerPrivilege
 			}
 			state.SetDescriptor(table.Address(), &table)
-			_, got := foreignTablesRows(t, f.input(t, state, f.f.reader))
+			_, got := foreignTableOptionsRows(t, f.input(t, state, f.f.reader))
 			want := map[[5]string]int{}
 			if privilege&mask != 0 {
-				want = foreignTablesExpected()
+				want = foreignTableOptionsExpected()
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatal("eligibility", column, privilege, got, want)
@@ -167,7 +173,6 @@ func TestInfoForeignTablesProducer(t *testing.T) {
 			table.RelationKind = catalog.TableRelation
 		case "unoptioned":
 			foreign.Options = nil
-			visible = true
 		case "no-foreign-definition":
 			table.Foreign = nil
 		case "zero-column":
@@ -192,52 +197,25 @@ func TestInfoForeignTablesProducer(t *testing.T) {
 		if kind != "empty-catalog" {
 			state.SetDescriptor(table.Address(), &table)
 		}
-		rows, got := foreignTablesRows(t, f.input(t, state, actor))
+		rows, got := foreignTableOptionsRows(t, f.input(t, state, actor))
 		want := map[[5]string]int{}
 		if visible {
-			want = foreignTablesExpected()
+			want = foreignTableOptionsExpected()
 		}
 		if rows == nil || !reflect.DeepEqual(got, want) {
 			t.Fatal("boundary", kind, got, want)
 		}
 	}
-	t.Run("actual_server_associations", func(t *testing.T) {
-		state := catalog.CloneState(f.state)
-		original, ok := in.Catalog.Foreign(f.table.Foreign.Server)
-		if !ok {
-			t.Fatal("missing fixture server")
-		}
-		server := *original
-		server.ObjectAddress.ObjectID = 22602
-		server.ObjectName = "ift_second_server"
-		state.SetDescriptor(server.Address(), &server)
-		for i, address := range []ids.ObjectAddress{server.Address(), f.table.Foreign.Server} {
-			table := *f.table
-			table.ObjectAddress.ObjectID = ids.OID(22610 + i)
-			table.ObjectName = []string{"ift_second", "ift_shared"}[i]
-			foreign := *table.Foreign
-			foreign.Server = address
-			table.Foreign = &foreign
-			state.SetDescriptor(table.Address(), &table)
-		}
-		_, got := foreignTablesRows(t, f.input(t, state, f.f.owner))
-		want := foreignTablesExpected()
-		want[[5]string{"captured_database", "default_schema", "ift_second", "captured_database", "ift_second_server"}] = 1
-		want[[5]string{"captured_database", "default_schema", "ift_shared", "captured_database", "ift_server"}] = 1
-		if !reflect.DeepEqual(got, want) {
-			t.Fatal("table-server association or shared-server cardinality", got, want)
-		}
-	})
 }
 
-func TestInfoForeignTablesAuthority(t *testing.T) {
-	f := newForeignTablesFixture(t)
+func TestInfoForeignTableOptionsCapture(t *testing.T) {
+	f := newForeignTableOptionsFixture(t)
 	old := f.input(t, f.state, f.f.owner)
 	oldOptions := f.table.Foreign.Options
 	oldOptionBacking := &oldOptions[0]
 	oldDomain := old.Source.Columns[0].Usage.Type
 	oldRecord := old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord
-	retained, original := foreignTablesRows(t, old)
+	retained, original := foreignTableOptionsRows(t, old)
 	saved := make([][]sqltype.Value, len(retained))
 	backing := make([]*sqltype.Value, len(retained))
 	for i, row := range retained {
@@ -256,14 +234,7 @@ func TestInfoForeignTablesAuthority(t *testing.T) {
 	namespace := *old.Catalog.MustNamespace(f.f.schema)
 	namespace.ObjectName = "renamed_schema"
 	state.SetDescriptor(namespace.Address(), &namespace)
-	serverDescriptor, ok := old.Catalog.Foreign(f.table.Foreign.Server)
-	if !ok {
-		t.Fatal("missing fixture server")
-	}
-	server := *serverDescriptor
-	server.ObjectName = "renamed_server"
-	state.SetDescriptor(server.Address(), &server)
-	_, denied := foreignTablesRows(t, f.input(t, state, f.f.owner))
+	_, denied := foreignTableOptionsRows(t, f.input(t, state, f.f.owner))
 	if len(denied) != 0 {
 		t.Fatal("fresh ownership/ACL", denied)
 	}
@@ -281,15 +252,12 @@ func TestInfoForeignTablesAuthority(t *testing.T) {
 	if retainedRole, _ := old.Roles.Find(f.f.reader); retainedRole != originalRole || roles == oldRecord {
 		t.Fatal("role capture backing changed")
 	}
-	_, got := foreignTablesRows(t, fresh)
-	if !reflect.DeepEqual(got, map[[5]string]int{{"captured_database", "renamed_schema", "renamed", "captured_database", "renamed_server"}: 1}) {
+	_, got := foreignTableOptionsRows(t, fresh)
+	if !reflect.DeepEqual(got, map[[5]string]int{{"captured_database", "renamed_schema", "renamed", "secret", "replacement"}: 1}) {
 		t.Fatal("fresh capture", got)
 	}
 	if old.Catalog.Get(f.table.Address()) != f.table || &f.table.Foreign.Options[0] != oldOptionBacking || !reflect.DeepEqual(oldOptions, f.table.Foreign.Options) || old.Runtime.(core.EngineCatalogRuntime).Auth.RoleRecord != oldRecord || retained[0][0].Type() != oldDomain || fresh.Source.Columns[0].Usage.Type != oldDomain {
 		t.Fatal("retained catalog/role/domain backing")
-	}
-	if old.Catalog.Get(serverDescriptor.Address()) != serverDescriptor || serverDescriptor.Name() != "ift_server" {
-		t.Fatal("retained server association backing changed")
 	}
 	if !reflect.DeepEqual(retained, saved) {
 		t.Fatal("retained values changed")
@@ -299,11 +267,11 @@ func TestInfoForeignTablesAuthority(t *testing.T) {
 			t.Fatal("row backing replaced")
 		}
 	}
-	_, oldBag := foreignTablesRows(t, old)
+	_, oldBag := foreignTableOptionsRows(t, old)
 	if !reflect.DeepEqual(oldBag, original) {
 		t.Fatal("old authority changed")
 	}
-	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoForeignTablesOID)
+	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoForeignTableOptionsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
 		func(in *pgcatalog.Input) { in.Owner = &engine.New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = engine.New().CatalogRead() },
@@ -351,7 +319,7 @@ func TestInfoForeignTablesAuthority(t *testing.T) {
 			case "name":
 				source.Columns[0].Name = "wrong"
 			case "domain":
-				source.Columns[0].Usage.Type, _ = old.Catalog.LookupType(sqltype.Text)
+				source.Columns[0].Usage = source.Columns[4].Usage
 			case "generation":
 				source.Columns[0].Usage.Type, _ = engine.New().CatalogRead().LookupType(13248)
 			case "base-generation":
@@ -389,45 +357,7 @@ func TestInfoForeignTablesAuthority(t *testing.T) {
 			}
 		})
 	}
-	for _, kind := range []string{"missing-server", "wrong-server-class", "missing-wrapper", "wrong-wrapper-class"} {
-		state := catalog.CloneState(f.state)
-		table := *f.table
-		foreign := *table.Foreign
-		table.Foreign = &foreign
-		serverDescriptor, ok := old.Catalog.Foreign(foreign.Server)
-		if !ok {
-			t.Fatal("missing fixture server")
-		}
-		server := *serverDescriptor
-		switch kind {
-		case "missing-server":
-			foreign.Server.ObjectID = 999999
-		case "wrong-server-class":
-			foreign.Server = server.Wrapper
-		case "missing-wrapper":
-			server.Wrapper.ObjectID = 999999
-		case "wrong-wrapper-class":
-			server.Wrapper = server.Address()
-		}
-		state.SetDescriptor(table.Address(), &table)
-		state.SetDescriptor(server.Address(), &server)
-		rows, err := produce(f.input(t, state, f.f.owner))
-		var stateError interface{ SQLState() string }
-		if rows != nil || err == nil || errors.As(err, &stateError) {
-			t.Fatal("invalid association must fail without SQLSTATE", kind, rows, err)
-		}
-	}
-}
-
-func TestInfoForeignTablesCancellation(t *testing.T) {
-	f := newForeignTablesFixture(t)
-	old := f.input(t, f.state, f.f.owner)
-	_, original := foreignTablesRows(t, old)
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoForeignTablesOID)
-	if !ok {
-		t.Fatal("missing foreign_tables producer")
-	}
-	// Walk every deterministic cancellation boundary, including relation prefixes
+	// Walk every deterministic cancellation boundary, including option prefixes
 	// and the final publication fence; no timing or public SQL is involved.
 	completed := 0
 	for remaining := 1; ; remaining++ {
@@ -444,7 +374,7 @@ func TestInfoForeignTablesCancellation(t *testing.T) {
 		}
 	}
 	if completed < 4 {
-		t.Fatal("capture did not traverse foreign tables")
+		t.Fatal("capture did not traverse options")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -453,7 +383,7 @@ func TestInfoForeignTablesCancellation(t *testing.T) {
 	if source, err := core.CaptureCatalogSourceRows(in, produce); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", source, err)
 	}
-	_, unchanged := foreignTablesRows(t, old)
+	_, unchanged := foreignTableOptionsRows(t, old)
 	if !reflect.DeepEqual(unchanged, original) {
 		t.Fatal("cancellation mutated catalog")
 	}

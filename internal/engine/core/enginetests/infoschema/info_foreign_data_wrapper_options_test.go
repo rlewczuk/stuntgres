@@ -1,4 +1,4 @@
-package core_test
+package infoschema_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
+
 
 type wrapperOptionsFixture struct {
 	f defaultUnitFixture

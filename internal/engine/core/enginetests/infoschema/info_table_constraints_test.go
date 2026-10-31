@@ -1,19 +1,20 @@
-package core_test
+package infoschema_test
 
 import (
- "context"
- "errors"
- "reflect"
- "testing"
+	"context"
+	"errors"
+	"reflect"
+	"testing"
 
- "stuntgres/internal/engine"
- "stuntgres/internal/engine/authorization"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/core"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/pgcatalog"
- "stuntgres/internal/sqltype"
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/sqltype"
 )
+
 
 type tcUnitFixture struct {
  f defaultUnitFixture

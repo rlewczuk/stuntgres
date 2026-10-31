@@ -1,4 +1,4 @@
-package core_test
+package infoschema_test
 
 import (
 	"context"
@@ -322,4 +322,8 @@ func TestInfoColumnOptionsCancellation(t *testing.T) {
 	if !reflect.DeepEqual(bag, columnOptionsExpected()) {
 		t.Fatal("cancellation mutated catalog", bag)
 	}
+}
+
+func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorization.Privileges) authorization.ACLEntry {
+	return authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
 }

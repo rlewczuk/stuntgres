@@ -1,4 +1,4 @@
-package core_test
+package infoschema_test
 
 import (
 	"context"

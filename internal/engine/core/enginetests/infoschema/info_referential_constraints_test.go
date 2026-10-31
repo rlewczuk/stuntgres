@@ -1,4 +1,4 @@
-package core_test
+package infoschema_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
+
 
 type ircUnitFixture struct {
 	f defaultUnitFixture
