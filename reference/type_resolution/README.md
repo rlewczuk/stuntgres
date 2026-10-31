@@ -307,6 +307,12 @@ share `RUN='^TestReferenceNepaliSnowball'` with typed direct/held calls, complet
 diagnostics, cancellation and actual emitted seed/carrier replay. Private rules,
 resource authority, publication fences, accepted-fold backing and replay use
 `RUN='^TestSnowballNepali'`. Stream replay requires both backends.
+Porter's optional, non-seeded Snowball provider scenarios share
+`RUN='^TestReferencePorterSnowball'`: historical morphology, explicit English
+stoplists, genuine custom mappings, typed direct/held results, ordered
+diagnostics, immutable prepared behavior, actual emitted replay and native
+control atomicity. Admitted cancellation gates on Porter-specific output;
+no scenario assumes a stock Porter dictionary, configuration or resource.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

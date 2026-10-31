@@ -37,6 +37,7 @@ var snowballLanguages = [...]snowballLanguage{
 	{name: "yiddish", stem: yiddishStem},
 	{name: "indonesian", stem: indonesianStem},
 	{name: "nepali", stem: nepaliStem},
+	{name: "porter", stem: porterStem},
 }
 
 // DefaultSnowballDictionary shares the immutable compiled bootstrap provider.
