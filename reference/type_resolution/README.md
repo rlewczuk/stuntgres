@@ -266,6 +266,13 @@ seed authority, publication fences and accepted folds use `RUN='^TestSnowballIri
 Irish stock-cycle cleanup resolves original objects by OID, restores their captured
 owners as well as names, and checks the original options and mapping bags before
 fixture teardown. Mapping repair also tolerates an interrupted mutation sequence.
+Italian's released prelude, fixed UTF8 regions, complete pronoun/standard/verb
+rules, 279 independent stopwords and no-elision boundaries share
+`RUN='^TestReferenceItalianSnowball'` with options, typed direct/prepared values,
+stock identities/maps, output-gated cancellation and actual native-emitted
+dictionary/configuration replay. Private kernel/resources, seed authority,
+publication fences, accepted-fold ownership and seed replay use
+`RUN='^TestSnowballItalian'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

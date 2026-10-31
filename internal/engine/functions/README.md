@@ -943,7 +943,7 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
-  `english.stop`, `danish.stop`, `dutch.stop`, `german.stop` and `hungarian.stop` are verbatim released PostgreSQL resources.
+  `english.stop`, `danish.stop`, `dutch.stop`, `german.stop`, `hungarian.stop` and `italian.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
   publish no cache entry. Lists are not reread per evaluation.
@@ -951,12 +951,12 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian and Irish kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Irish and Italian kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
   is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi and Irish have no stock
-  stopword resource. English, Danish, Dutch, German and Hungarian stock lists contain 127, 94, 101, 231 and 199 entries (Hungarian retains the released duplicate);
+  stopword resource. English, Danish, Dutch, German, Hungarian and Italian stock lists contain 127, 94, 101, 231, 199 and 279 entries (Hungarian retains the released duplicate);
   any resource can be explicitly configured with any supported provider.
   The full BSD notice is in
   `snowball_LICENSE.txt`; binary
@@ -971,6 +971,12 @@ publication and lock-manager tickets stay in the engine.
   noun, derivation and verb suffix stages once each. Region checks follow global
   longest-match selection, and offsets remain fixed during suffix edits. Irish
   has neither a stock stoplist nor an English ASCII backup.
+  Italian preserves fixed UTF8 RV/R1/R2 after acute-to-grave and I/U prelude
+  marking. Its exact divano exception precedes the 37-pronoun, 51-standard,
+  87-verb and final-vowel stages; a failed standard predicate permits the verb
+  stage without retrying a shorter standard suffix. Prefix/tail edits avoid
+  intermediate word copies. It has no elision, Unicode case folding, canonical
+  normalization or English ASCII backup.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.
