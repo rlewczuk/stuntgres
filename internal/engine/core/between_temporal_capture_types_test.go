@@ -1,0 +1,90 @@
+package core_test
+
+import (
+	"context"
+	"reflect"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine/core"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE temporal_bounds(d DATE,ts TIMESTAMP)")
+	op, done, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	first := sqltype.InputEnvironment{TransactionStart: time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)}
+	later := sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 0, time.UTC)}
+	for _, form := range []string{"BETWEEN", "NOT BETWEEN", "BETWEEN SYMMETRIC", "NOT BETWEEN SYMMETRIC"} {
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		if err != nil {
+			e.Mu.Unlock()
+			t.Fatal(err)
+		}
+		ast := enginetest.Statement(t, "SELECT '2000-01-02' "+form+" d AND ts FROM temporal_bounds")
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		if err != nil {
+			e.Mu.Unlock()
+			t.Fatal(err)
+		}
+		bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, first, nil, nil)
+		if err != nil {
+			e.Mu.Unlock()
+			t.Fatal(err)
+		}
+		if len(bound.QuerySources) != 1 || bound.QuerySources[0].Ref != ref || !reflect.DeepEqual(bound.QuerySources[0].Uses, []int{0, 1}) || len(bound.Parameters.Types) != 0 {
+			e.Mu.Unlock()
+			t.Fatal("mixed temporal dependencies changed", bound.QuerySources, bound.Parameters)
+		}
+		desc := core.Description{Temporals: bound.Prepared.Temporals}
+		before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
+		counts := map[sqltype.ID]int{}
+		for _, capture := range before {
+			if capture.Offset != 7 || capture.Typmod != -1 {
+				e.Mu.Unlock()
+				t.Fatal(capture)
+			}
+			counts[capture.TypeID]++
+			wantScalar := map[sqltype.ID]int64{sqltype.Date: 1, sqltype.Timestamp: 86400000000}[capture.TypeID]
+			if capture.Scalar != wantScalar {
+				e.Mu.Unlock()
+				t.Fatal("incorrect frozen scalar", capture, wantScalar)
+			}
+		}
+		wantEach := 1
+		if form == "BETWEEN SYMMETRIC" || form == "NOT BETWEEN SYMMETRIC" {
+			wantEach = 2
+		}
+		if len(counts) != 2 || counts[sqltype.Date] != wantEach || counts[sqltype.Timestamp] != wantEach {
+			e.Mu.Unlock()
+			t.Fatal("independent temporal contexts lost", before)
+		}
+		for range 3 {
+			rebound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, later, &desc, nil)
+			if err != nil {
+				e.Mu.Unlock()
+				t.Fatal(form, err)
+			}
+			if len(rebound.QuerySources) != 1 || rebound.QuerySources[0].Ref != bound.QuerySources[0].Ref || !reflect.DeepEqual(rebound.QuerySources[0].Uses, bound.QuerySources[0].Uses) || !reflect.DeepEqual(rebound.Parameters, bound.Parameters) {
+				e.Mu.Unlock()
+				t.Fatal("rebind dependencies changed")
+			}
+			if !reflect.DeepEqual(desc.Temporals, before) || len(rebound.Prepared.Temporals) != 0 {
+				e.Mu.Unlock()
+				t.Fatal("frozen captures replaced", desc.Temporals, rebound.Prepared.Temporals)
+			}
+		}
+		e.Mu.Unlock()
+	}
+}
