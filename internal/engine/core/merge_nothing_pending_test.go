@@ -76,7 +76,7 @@ func TestMergeNothingRowRecheck(t *testing.T) {
 	tx := enginetest.TransactionBegin(t, holder)
 	enginetest.SessionSQL(t, holder, "UPDATE t SET v=40")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED AND t.v=40 AND s.v=7 THEN DO NOTHING WHEN MATCHED THEN UPDATE SET v=t.v+s.v RETURNING merge_action(),t.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	enginetest.SessionSQL(t, peer, "UPDATE source SET v=99")
 	enginetest.TransactionEnd(t, holder, tx, true)
 	mergeNothingPendingOutput(t, done, 0, nil)
@@ -97,7 +97,7 @@ func TestMergeNothingSourceAfter(t *testing.T) {
 	tx := enginetest.TransactionBegin(t, holder)
 	enginetest.SessionSQL(t, holder, "UPDATE t SET id=2,v=40")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=s.v WHEN NOT MATCHED BY SOURCE THEN DO NOTHING WHEN NOT MATCHED BY TARGET THEN INSERT VALUES(s.id,s.v) RETURNING merge_action(),t.id,t.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	enginetest.SessionSQL(t, peer, "UPDATE source SET v=99")
 	enginetest.TransactionEnd(t, holder, tx, true)
 	mergeNothingPendingOutput(t, done, 1, [][]driver.Value{{"INSERT", int64(1), int64(7)}})
@@ -155,7 +155,7 @@ func TestMergeNothingCancellation(t *testing.T) {
 			t.Error("cancelled omission worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, "SELECT id,v FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(3), int64(30)}}) {
 		t.Fatalf("pending survivors got %v", got)
 	}

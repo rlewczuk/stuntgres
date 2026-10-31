@@ -45,7 +45,7 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 				op := enginetest.TransactionOperation(t, a)
 				_, err := e.Execute(op, enginetest.Statement(t, "UPDATE t SET v=4 WHERE v=1"), 0, nil)
 				op.Done()
-				waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
+				enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
 				enginetest.SessionSQL(t, a, "ROLLBACK")
 			case "physical":
 				a.RequestEnd(session.CleanClose)
@@ -140,7 +140,7 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 				op = enginetest.TransactionOperation(t, a)
 				_, err = e.Execute(op, enginetest.Statement(t, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"), 0, nil)
 				op.Done()
-				waitsDiagnostic(t, err, "25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
+				enginetest.WaitDiagnostic(t, err, "25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 				owner := a.Transactions
 				owner.Mu.Lock()
 				state, isolation, readOnly := owner.State, owner.Isolation, owner.ReadOnly
@@ -195,7 +195,7 @@ func TestTransactionIsolationImmediateConflictPrecedence(t *testing.T) {
 				if peer == "DELETE FROM t" {
 					word = "delete"
 				}
-				waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent "+word)
+				enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent "+word)
 				enginetest.SessionSQL(t, a, "ROLLBACK")
 				enginetest.LockEmpty(t, e)
 			})

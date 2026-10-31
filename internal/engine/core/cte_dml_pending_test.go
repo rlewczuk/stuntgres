@@ -83,7 +83,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	if scope == nil {
 		t.Fatal("missing worker scope")
 	}
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	// The manager mutex's enqueue/observation ordering publishes this earlier
 	// private stage while the exact original-row worker remains blocked.
 	if len(scope.Stage.Rows[audit.Address]) != 1 || scope.View == nil || scope.LockTicket == nil || core.ScopeCTEInvocation(scope) == nil {

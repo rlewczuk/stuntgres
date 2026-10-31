@@ -133,7 +133,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 	if source.Sources[0].View.Data() != source.Sources[1].View.Data() || len(source.View.Data().Committed) != 2 {
 		t.Fatal("not one selected multi-table view")
 	}
-	unused := catalogRef(t, e, source.View.Catalog(), "unused")
+	unused := enginetest.CatalogRef(t, e, source.View.Catalog(), "unused")
 	if _, ok := source.View.Data().Committed[unused.Address]; ok {
 		t.Fatal("unrelated root captured")
 	}

@@ -24,7 +24,7 @@ func TestMergeReturningRowRecheck(t *testing.T) {
 	tx := enginetest.TransactionBegin(t, holder)
 	enginetest.SessionSQL(t, holder, "UPDATE t SET v=40 WHERE id=1")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source src ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+src.delta RETURNING merge_action(),src.delta,old.v,new.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	// The source changes only after observing the worker's actual row queue.
 	enginetest.SessionSQL(t, peer, "UPDATE source SET delta=99")
 	enginetest.TransactionEnd(t, holder, tx, true)

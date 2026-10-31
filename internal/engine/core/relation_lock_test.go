@@ -17,13 +17,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func mustLockStatement(q string) parser.Statement {
-	statements, err := parser.Parse(q)
-	if err != nil {
-		panic(err)
-	}
-	return statements[0]
-}
 func TestRelationLockCompatibility(t *testing.T) {
 	modes := []lock.Mode{lock.AccessShare, lock.RowExclusive, lock.AccessExclusive, lock.ShareUpdateExclusive, lock.ShareRowExclusive}
 	for _, held := range modes {

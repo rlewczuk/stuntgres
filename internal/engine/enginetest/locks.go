@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // LockEmpty requires that the lock manager of e holds no owner and no
@@ -65,10 +68,10 @@ func LockAsync(e *core.Engine, s *session.Session, ctx context.Context, q string
 		op, err := s.Acquire(ctx)
 		if err == nil {
 			if prepare {
-				_, err = e.Describe(op, lockStatement(q))
+				_, err = e.Describe(op, LockStatement(q))
 			} else {
 				var r core.Result
-				r, err = e.Execute(op, lockStatement(q), 0, nil)
+				r, err = e.Execute(op, LockStatement(q), 0, nil)
 				if r.Rows != nil {
 					r.Rows.Close()
 				}
@@ -80,12 +83,97 @@ func LockAsync(e *core.Engine, s *session.Session, ctx context.Context, q string
 	return done
 }
 
-// lockStatement parses the first statement of q and panics on a parse error;
-// it runs off the test goroutine.
-func lockStatement(q string) parser.Statement {
+// LockStatement parses the first statement of q and panics on a parse error,
+// so it can run off the test goroutine.
+func LockStatement(q string) parser.Statement {
 	statements, err := parser.Parse(q)
 	if err != nil {
 		panic(err)
 	}
 	return statements[0]
+}
+
+// ExecuteAsync executes q in one operation of s on a new goroutine, under a
+// five-second deadline derived from parent, and returns a function that joins
+// the worker and returns its result. The worker runs the real command and
+// Finish; at test cleanup the owner cancels and joins it before session
+// cleanup, even when an assertion ends the test early.
+func ExecuteAsync(t testing.TB, e *core.Engine, s *session.Session, parent context.Context, q string) func() (core.Result, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	type outcome struct {
+		result core.Result
+		err    error
+	}
+	done := make(chan outcome, 1)
+	joined := false
+	go func() {
+		op, err := s.Acquire(ctx)
+		var result core.Result
+		if err == nil {
+			result, err = e.Execute(op, LockStatement(q), 0, nil)
+			op.Done()
+		}
+		done <- outcome{result, err}
+	}()
+	await := func() (core.Result, error) {
+		t.Helper()
+		select {
+		case o := <-done:
+			joined = true
+			return o.result, o.err
+		case <-time.After(5 * time.Second):
+			t.Fatal("mixed DML worker not joined")
+			return core.Result{}, context.DeadlineExceeded
+		}
+	}
+	t.Cleanup(func() {
+		cancel()
+		if !joined {
+			await()
+		}
+	})
+	return await
+}
+
+// RowLockPending waits up to five seconds until worker has a live pending
+// request (of mode, or any mode when mode is 0) on row of ref while blocker
+// holds it.
+func RowLockPending(t testing.TB, e *core.Engine, ref ids.ObjectRef, row ids.RowID, worker *session.Session, blocker *lock.Ticket, mode lock.Mode) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		lockState := e.Locks.Inspect()
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
+		found := false
+		if entry != nil && entry.Holders[blocker].Mode != 0 {
+			for _, request := range entry.Pending {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.SessionToken && (mode == 0 || request.Mode == mode) {
+					found = true
+					break
+				}
+			}
+		}
+		if found {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("missing exact live MERGE row request", row, mode)
+		}
+		runtime.Gosched()
+	}
+}
+
+// WaitDiagnostic requires err to be exactly the ERROR diagnostic with code,
+// message and, when given, position.
+func WaitDiagnostic(t testing.TB, err error, code, message string, position ...string) {
+	t.Helper()
+	var got *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+	if len(position) != 0 {
+		want.Position = position[0]
+	}
+	if !errors.As(err, &got) || *got != want {
+		t.Fatalf("diagnostic = %#v (%v), want %#v", got, err, want)
+	}
 }

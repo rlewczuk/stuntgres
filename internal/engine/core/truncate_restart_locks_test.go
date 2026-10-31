@@ -29,7 +29,7 @@ func truncateRestartUnitAsyncSQL(t *testing.T, e *core.Engine, s *session.Sessio
 		op, err := s.Acquire(ctx)
 		if err == nil {
 			var r core.Result
-			r, err = e.Execute(op, mustLockStatement(q), 0, nil)
+			r, err = e.Execute(op, enginetest.LockStatement(q), 0, nil)
 			if r.Rows != nil {
 				r.Rows.Close()
 			}

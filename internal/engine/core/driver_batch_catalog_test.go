@@ -116,7 +116,7 @@ func TestDriverBatchNewIndexReconstructsPrefix(t *testing.T) {
 			if err := m.end(nil); err != nil {
 				t.Fatal(err)
 			}
-			ref := catalogRef(t, e, e.CatalogRead(), "ix")
+			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "ix")
 			root := e.Storage.IndexRoots[ref.Address]
 			if method == "btree" {
 				if root == nil || len(root.Entries) != 2 {
@@ -126,7 +126,7 @@ func TestDriverBatchNewIndexReconstructsPrefix(t *testing.T) {
 				if root == nil || root.Hash == nil {
 					t.Fatal("new real hash root")
 				}
-				table := catalogRef(t, e, e.CatalogRead(), "t")
+				table := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 				store := e.Storage.Relations[table.Address]
 				if root.Hash.Storage != store || root.Hash.Prefix != len(store.Versions) || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends {
 					t.Fatal("hash root source is not published storage")
@@ -158,7 +158,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TABLE entry_authority(v INT)")
-	ref := catalogRef(t, e, e.CatalogRead(), "entry_authority")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "entry_authority")
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	before := e.Catalog.State

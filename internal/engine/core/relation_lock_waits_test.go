@@ -11,20 +11,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/sqlstate"
 )
-
-func waitsDiagnostic(t *testing.T, err error, code, message string, position ...string) {
-	t.Helper()
-	var got *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
-	if len(position) != 0 {
-		want.Position = position[0]
-	}
-	if !errors.As(err, &got) || *got != want {
-		t.Fatalf("diagnostic = %#v (%v), want %#v", got, err, want)
-	}
-}
 
 func TestRelationLockWaitsNowait(t *testing.T) {
 	for _, held := range []lock.Mode{lock.AccessShare, lock.RowExclusive, lock.AccessExclusive, lock.ShareUpdateExclusive} {
@@ -92,12 +79,12 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 			cancel()
 		}
 		if timeout {
-			waitsDiagnostic(t, e.Locks.ExpireWait(ax, ax.Deadline()), "55P03", "canceling statement due to lock timeout")
+			enginetest.WaitDiagnostic(t, e.Locks.ExpireWait(ax, ax.Deadline()), "55P03", "canceling statement due to lock timeout")
 		}
 		err = ax.Wait()
 		cancel()
 		if timeout {
-			waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout")
+			enginetest.WaitDiagnostic(t, err, "55P03", "canceling statement due to lock timeout")
 		} else if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
@@ -131,7 +118,7 @@ func TestRelationLockWaitsTimeoutPrecedence(t *testing.T) {
 		if tc.code == "57014" {
 			message = "canceling statement due to statement timeout"
 		}
-		waitsDiagnostic(t, err, tc.code, message)
+		enginetest.WaitDiagnostic(t, err, tc.code, message)
 	}
 }
 
@@ -141,10 +128,10 @@ func waitsCommandAsync(e *core.Engine, s *session.Session, ctx context.Context, 
 		op, _, err := s.AcquireCommand(ctx)
 		if err == nil {
 			if prepare {
-				_, err = e.Describe(op, mustLockStatement(q))
+				_, err = e.Describe(op, enginetest.LockStatement(q))
 			} else {
 				var r core.Result
-				r, err = e.Execute(op, mustLockStatement(q), 0, nil)
+				r, err = e.Execute(op, enginetest.LockStatement(q), 0, nil)
 				if r.Rows != nil {
 					r.Rows.Close()
 				}
@@ -214,7 +201,7 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 			if tc.code == "55P03" {
 				position = "15"
 			}
-			waitsDiagnostic(t, outcome, tc.code, tc.message, position)
+			enginetest.WaitDiagnostic(t, outcome, tc.code, tc.message, position)
 			enginetest.LockPending(t, e, 0)
 			if state := e.Locks.Inspect(); state.Resources[resource].Holders[holder].Mode != lock.AccessExclusive {
 				t.Fatal("timeout released the blocking holder")
@@ -243,7 +230,7 @@ func TestRelationLockWaitsTimeoutCleanup(t *testing.T) {
 	// Use the actual request deadline. A real timer that already won must
 	// still yield the exact timeout and retire the same registrations.
 	e.Locks.ExpireWait(r, r.Deadline())
-	waitsDiagnostic(t, r.Wait(), "55P03", "canceling statement due to lock timeout")
+	enginetest.WaitDiagnostic(t, r.Wait(), "55P03", "canceling statement due to lock timeout")
 	if !r.Released() {
 		t.Fatal("timed-out acquisition retained timer or context callback")
 	}

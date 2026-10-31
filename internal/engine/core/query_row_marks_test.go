@@ -34,7 +34,7 @@ func TestQueryLockNullableNormalizedDiagnostics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			waitsDiagnostic(t, view.ValidateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0), "0A000", tc.mode+" cannot be applied to the nullable side of an outer join")
+			enginetest.WaitDiagnostic(t, view.ValidateQueryJoinExecution(&evaluation, root, e.CatalogRead(), 0), "0A000", tc.mode+" cannot be applied to the nullable side of an outer join")
 		})
 	}
 }
@@ -94,9 +94,9 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	if err := check("SELECT a.id FROM t a CROSS JOIN s FOR UPDATE OF a"); err != nil {
 		t.Fatal("unselected sequence acquired invented UPDATE requirement", err)
 	}
-	waitsDiagnostic(t, check("SELECT a.id FROM t a JOIN u b USING(id) FOR UPDATE OF b"), "42501", "permission denied for table u")
+	enginetest.WaitDiagnostic(t, check("SELECT a.id FROM t a JOIN u b USING(id) FOR UPDATE OF b"), "42501", "permission denied for table u")
 	grant(column, 0)
-	waitsDiagnostic(t, check("SELECT id FROM invoker"), "42501", "permission denied for table t")
+	enginetest.WaitDiagnostic(t, check("SELECT id FROM invoker"), "42501", "permission denied for table t")
 	if err := check("SELECT id FROM owned"); err != nil {
 		t.Fatal("owner view inherited invoker ACL", err)
 	}

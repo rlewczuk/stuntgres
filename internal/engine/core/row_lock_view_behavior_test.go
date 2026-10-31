@@ -271,7 +271,7 @@ func TestRowLockViewRecheck(t *testing.T) {
 					result.Rows.Close()
 					t.Fatal("error cursor")
 				}
-				waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
+				enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
 			}
 			enginetest.SessionSQL(t, b, "ROLLBACK")
 			enginetest.LockEmpty(t, e)
@@ -373,7 +373,7 @@ func TestRowLockViewDiagnostics(t *testing.T) {
 					result.Rows.Close()
 					t.Fatal("error cursor")
 				}
-				waitsDiagnostic(t, err, "0A000", clause+" is not allowed with "+tc.suffix)
+				enginetest.WaitDiagnostic(t, err, "0A000", clause+" is not allowed with "+tc.suffix)
 				enginetest.LockEmpty(t, e)
 			})
 		}
@@ -388,7 +388,7 @@ func TestRowLockViewDiagnostics(t *testing.T) {
 				result.Rows.Close()
 				t.Fatal("readonly cursor")
 			}
-			waitsDiagnostic(t, err, "25006", "cannot execute SELECT in a read-only transaction")
+			enginetest.WaitDiagnostic(t, err, "25006", "cannot execute SELECT in a read-only transaction")
 			enginetest.SessionSQL(t, a, "ROLLBACK")
 			enginetest.LockEmpty(t, e)
 		})
@@ -408,7 +408,7 @@ func TestRowLockVirtualCatalogBoundary(t *testing.T) {
 							result.Rows.Close()
 							t.Fatal("virtual cursor")
 						}
-						waitsDiagnostic(t, err, "0A000", "row locking is not supported for virtual catalog relations")
+						enginetest.WaitDiagnostic(t, err, "0A000", "row locking is not supported for virtual catalog relations")
 						enginetest.LockEmpty(t, e)
 					}
 				})

@@ -30,7 +30,7 @@ func lockUtilityAsync(t *testing.T, e *core.Engine, s *session.Session, prepare 
 	go func() {
 		op, err := s.Acquire(ctx)
 		if err == nil {
-			q := mustLockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			q := enginetest.LockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			if prepare {
 				_, err = e.Describe(op, q)
 			}
@@ -85,7 +85,7 @@ func TestRelationLockExclusiveConflict(t *testing.T) {
 						cancel()
 						t.Fatal(err)
 					}
-					d, err := e.Describe(op, mustLockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE"))
+					d, err := e.Describe(op, enginetest.LockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE"))
 					op.Done()
 					cancel()
 					if err != nil || len(d.Results) != 0 || d.Parameters.Count != 0 {

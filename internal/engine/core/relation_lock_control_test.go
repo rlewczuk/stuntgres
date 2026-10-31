@@ -39,7 +39,7 @@ func TestRelationLockViewAfterWait(t *testing.T) {
 				op, err := b.Acquire(context.Background())
 				var r core.Result
 				if err == nil {
-					r, err = e.Execute(op, mustLockStatement("SELECT v FROM t ORDER BY v"), 0, nil)
+					r, err = e.Execute(op, enginetest.LockStatement("SELECT v FROM t ORDER BY v"), 0, nil)
 					op.Done()
 				}
 				done <- answer{r, err}
@@ -157,7 +157,7 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT)")
 		ra := enginetest.TransactionBegin(t, a)
 		rb := enginetest.TransactionBegin(t, b)
-		ref := catalogRef(t, e, e.CatalogRead(), "t")
+		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 		if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}

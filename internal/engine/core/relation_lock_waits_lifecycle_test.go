@@ -118,7 +118,7 @@ func TestRelationLockWaitsAbort(t *testing.T) {
 		enginetest.LockPending(t, e, 1)
 		select {
 		case err := <-done:
-			waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "15")
+			enginetest.WaitDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "15")
 		case <-time.After(5 * time.Second):
 			t.Fatal("timeout did not finish")
 		}
@@ -126,10 +126,10 @@ func TestRelationLockWaitsAbort(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = e.Execute(op, mustLockStatement("SELECT v FROM u"), 0, nil)
+		_, err = e.Execute(op, enginetest.LockStatement("SELECT v FROM u"), 0, nil)
 		err = op.CommandError(err)
 		op.Done()
-		waitsDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		enginetest.WaitDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
 		rc := enginetest.TransactionBegin(t, c)
 		enginetest.SessionSQL(t, c, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE")
 		if got := enginetest.Tuples(enginetest.SessionSQL(t, c, "SELECT v FROM u")); len(got) != 0 {
@@ -154,10 +154,10 @@ func TestRelationLockWaitsNowaitAbort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.Execute(op, mustLockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT"), 0, nil)
+	_, err = e.Execute(op, enginetest.LockStatement("LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT"), 0, nil)
 	err = op.CommandError(err)
 	op.Done()
-	waitsDiagnostic(t, err, "55P03", `could not obtain lock on relation "t"`)
+	enginetest.WaitDiagnostic(t, err, "55P03", `could not obtain lock on relation "t"`)
 	if b.TransactionState() != session.TxAborted {
 		t.Fatal("NOWAIT did not abort explicit transaction")
 	}

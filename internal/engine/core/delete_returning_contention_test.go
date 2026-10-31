@@ -37,7 +37,7 @@ func TestDeleteReturningCurrentPredecessor(t *testing.T) {
 			if lane == "no_where" {
 				query = "DELETE FROM t RETURNING v,old.v,new.v"
 			}
-			await := updateDeleteAsync(t, e, worker, context.Background(), query)
+			await := enginetest.ExecuteAsync(t, e, worker, context.Background(), query)
 			enginetest.LockPending(t, e, 1)
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			resource := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
@@ -96,7 +96,7 @@ func TestDeleteReturningWaitCancellation(t *testing.T) {
 	enginetest.SessionSQL(t, holder, "DELETE FROM t WHERE id=2")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	await := updateDeleteAsync(t, e, worker, ctx, "DELETE FROM t RETURNING id")
+	await := enginetest.ExecuteAsync(t, e, worker, ctx, "DELETE FROM t RETURNING id")
 	enginetest.LockPending(t, e, 1)
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.Locks.Inspect()

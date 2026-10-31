@@ -264,7 +264,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 					fail <- err
 					return
 				}
-				r, err := e.Execute(op, mustLockStatement("SELECT v FROM t ORDER BY v"), 0, nil)
+				r, err := e.Execute(op, enginetest.LockStatement("SELECT v FROM t ORDER BY v"), 0, nil)
 				op.Done()
 				if err != nil {
 					fail <- err

@@ -37,7 +37,7 @@ func TestRowLockRepeatableRead(t *testing.T) {
 								outcome.result.Rows.Close()
 								t.Fatal("error exposed cursor")
 							}
-							waitsDiagnostic(t, outcome.err, "40001", "could not serialize access due to concurrent update")
+							enginetest.WaitDiagnostic(t, outcome.err, "40001", "could not serialize access due to concurrent update")
 						case <-ctx.Done():
 							t.Fatal(ctx.Err())
 						}
@@ -147,7 +147,7 @@ func TestRowLockDiagnostics(t *testing.T) {
 			enginetest.SessionSQL(t, a, "BEGIN READ ONLY")
 			done := deleteAsync(t, a, context.Background(), "SELECT v FROM t WHERE id=99 "+clause)
 			outcome := <-done
-			waitsDiagnostic(t, outcome.err, "25006", "cannot execute SELECT "+clause+" in a read-only transaction")
+			enginetest.WaitDiagnostic(t, outcome.err, "25006", "cannot execute SELECT "+clause+" in a read-only transaction")
 			enginetest.SessionSQL(t, a, "ROLLBACK")
 			enginetest.LockEmpty(t, e)
 		})
@@ -157,7 +157,7 @@ func TestRowLockDiagnostics(t *testing.T) {
 		enginetest.SessionSQL(t, a, "CREATE TABLE dest(v INT)")
 		done := deleteAsync(t, a, context.Background(), "INSERT INTO dest SELECT 100/(20-v) FROM t ORDER BY id FOR UPDATE")
 		outcome := <-done
-		waitsDiagnostic(t, outcome.err, "22012", "division by zero")
+		enginetest.WaitDiagnostic(t, outcome.err, "22012", "division by zero")
 		enginetest.TransactionRows(t, b, "SELECT v FROM dest")
 		enginetest.SessionSQL(t, b, "UPDATE t SET v=30")
 		enginetest.LockEmpty(t, e)

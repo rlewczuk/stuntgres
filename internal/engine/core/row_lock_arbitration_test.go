@@ -95,7 +95,7 @@ func TestRowLockTimeouts(t *testing.T) {
 			if setting == "statement_timeout" {
 				code, message = "57014", "canceling statement due to statement timeout"
 			}
-			waitsDiagnostic(t, outcome.err, code, message)
+			enginetest.WaitDiagnostic(t, outcome.err, code, message)
 			enginetest.SessionSQL(t, b, "RESET "+setting)
 			enginetest.TransactionEnd(t, a, ar, false)
 			enginetest.LockEmpty(t, e)

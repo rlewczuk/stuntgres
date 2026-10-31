@@ -69,7 +69,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 			t.Error("cancelled mixed worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
+	enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	enginetest.TransactionRows(t, peer, "SELECT v FROM t", 10)
 	cancel()
 	select {

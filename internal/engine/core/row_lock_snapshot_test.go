@@ -38,7 +38,7 @@ func TestRowLockKeyShareDeletedReplacement(t *testing.T) {
 		result.Rows.Close()
 		t.Fatal("deleted RR chain exposed rows")
 	}
-	waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
+	enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
 	enginetest.SessionSQL(t, b, "ROLLBACK")
 	enginetest.LockEmpty(t, e)
 }

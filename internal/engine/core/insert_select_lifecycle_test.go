@@ -28,7 +28,7 @@ func TestInsertSelectSourceTimeoutPosition(t *testing.T) {
 		done := waitsCommandAsync(e, b, context.Background(), "INSERT INTO t SELECT i FROM s", prepare)
 		enginetest.LockPending(t, e, 1)
 		err := <-done
-		waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "29")
+		enginetest.WaitDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "29")
 		enginetest.TransactionEnd(t, a, tx, false)
 		enginetest.LockEmpty(t, e)
 	}
@@ -64,7 +64,7 @@ func TestInsertSelectSourceTimeoutPosition(t *testing.T) {
 		done <- err
 	}()
 	enginetest.LockPending(t, e, 1)
-	waitsDiagnostic(t, <-done, "55P03", "canceling statement due to lock timeout")
+	enginetest.WaitDiagnostic(t, <-done, "55P03", "canceling statement due to lock timeout")
 	enginetest.TransactionEnd(t, a, tx, false)
 	enginetest.LockEmpty(t, e)
 }

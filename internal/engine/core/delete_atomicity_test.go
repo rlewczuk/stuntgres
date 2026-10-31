@@ -293,7 +293,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			ref := enginetest.TransactionBegin(t, a)
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			enginetest.SessionSQL(t, a, "INSERT INTO u VALUES(7)")
-			target := catalogRef(t, e, e.CatalogRead(), "t")
+			target := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			frontier := e.Visibility.CommitSeq()
 			switch failure {
 			case "wrong_version":

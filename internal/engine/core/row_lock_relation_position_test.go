@@ -56,7 +56,7 @@ func TestRowLockRelationWaitPosition(t *testing.T) {
 					if phase == "cached" {
 						position = ""
 					}
-					waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", position)
+					enginetest.WaitDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", position)
 				})
 			}
 		}

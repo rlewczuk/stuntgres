@@ -38,7 +38,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			observer := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			enginetest.SessionSQL(t, s, "INSERT INTO t VALUES"+conflictUpdateBatchValues(size, 10))
-			ref := catalogRef(t, e, e.CatalogRead(), "t")
+			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			committed := e.Storage.Relations[ref.Address].Versions
 			frontier := e.Visibility.CommitSeq()
 			tx := enginetest.TransactionBegin(t, s)

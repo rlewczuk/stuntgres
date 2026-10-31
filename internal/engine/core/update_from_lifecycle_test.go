@@ -54,7 +54,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 				var result core.Result
 				var rows [][]driver.Value
 				if err == nil {
-					result, err = e.Execute(op, mustLockStatement("UPDATE t SET v=t.v+s.n FROM s JOIN r USING(k) WHERE t.id=k RETURNING old.v,new.v,s.n"), 0, nil)
+					result, err = e.Execute(op, enginetest.LockStatement("UPDATE t SET v=t.v+s.n FROM s JOIN r USING(k) WHERE t.id=k RETURNING old.v,new.v,s.n"), 0, nil)
 					if result.Rows != nil {
 						rows = enginetest.Tuples(result)
 						result.Rows.Close()
@@ -121,7 +121,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 				if mode == "rr_delete" {
 					message = "could not serialize access due to concurrent delete"
 				}
-				waitsDiagnostic(t, got.err, "40001", message)
+				enginetest.WaitDiagnostic(t, got.err, "40001", message)
 				if got.count != 0 || got.rows != nil || writer.TransactionState() != session.TxAborted {
 					t.Fatal(got, writer.TransactionState())
 				}

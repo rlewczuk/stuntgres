@@ -66,7 +66,7 @@ func TestPGSequencesProvider(t *testing.T) {
 	pgSequencesRows(t, b, "SELECT sequencename FROM pg_sequences", [][]driver.Value{{"s"}})
 	sequenceScalar(t, a, "SELECT nextval('s')", 1)
 	sequenceScalar(t, b, "SELECT nextval('s')", 11)
-	ref := catalogRef(t, e, e.CatalogRead(), "s")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	before := *e.Storage.Sequences[ref.Address]
 	pgSequencesRows(t, a, "SELECT start_value,cache_size,last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{int64(1), int64(10), int64(20)}})
 	if *e.Storage.Sequences[ref.Address] != before {
@@ -87,7 +87,7 @@ func TestPGSequencesProvider(t *testing.T) {
 	enginetest.TransactionEnd(t, a, tx, false)
 	pgSequencesRows(t, a, "SELECT last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{int64(20)}})
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE stale")
-	stale := catalogRef(t, e, e.CatalogRead(), "stale")
+	stale := enginetest.CatalogRef(t, e, e.CatalogRead(), "stale")
 	tx = enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
 	sequenceScalar(t, a, "SELECT count(*) FROM pg_sequence", 3)
@@ -97,7 +97,7 @@ func TestPGSequencesProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := e.Execute(op, mustLockStatement("SELECT sequencename FROM pg_sequences WHERE sequencename='stale'"), 0, nil)
+	result, err := e.Execute(op, enginetest.LockStatement("SELECT sequencename FROM pg_sequences WHERE sequencename='stale'"), 0, nil)
 	op.Done()
 	if result.Rows != nil {
 		result.Rows.Close()
@@ -113,7 +113,7 @@ func TestPGSequencesACL(t *testing.T) {
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE s")
 	sequenceScalar(t, a, "SELECT setval('s',42)", 42)
 	enginetest.SessionSQL(t, a, "CREATE ROLE reader")
-	ref := catalogRef(t, e, e.CatalogRead(), "s")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	owner := e.Catalog.State.MustRelation(ref.Address).Owner
 	enginetest.SessionSQL(t, a, "SET SESSION AUTHORIZATION reader")
 	for _, mask := range []authorization.Privileges{0, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.SelectPrivilege, authorization.UsagePrivilege | authorization.UpdatePrivilege} {
@@ -174,7 +174,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			tx := enginetest.TransactionBegin(t, a)
 			enginetest.PreparedDescription(t, e, a, query)
 			for _, name := range []string{"a", "b"} {
-				ref := catalogRef(t, e, e.CatalogRead(), name)
+				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				held := entry != nil && entry.Holders[a.Transactions.Ticket].Mode != 0
@@ -185,7 +185,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			result := enginetest.SessionSQL(t, a, query)
 			result.Rows.Close()
 			for _, name := range []string{"a", "b"} {
-				ref := catalogRef(t, e, e.CatalogRead(), name)
+				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				held := entry != nil && entry.Holders[a.Transactions.Ticket].Mode == lock.RowExclusive
@@ -194,7 +194,7 @@ func TestPGSequencesDemand(t *testing.T) {
 					t.Fatal(name, "RX", held, "want", want)
 				}
 			}
-			tableRef := catalogRef(t, e, e.CatalogRead(), "t")
+			tableRef := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			lockState := e.Locks.Inspect()
 			tableMarked := false
 			for resource, entry := range lockState.Resources {
@@ -219,7 +219,7 @@ func TestPGSequencesConcurrency(t *testing.T) {
 	tx := enginetest.TransactionBegin(t, a)
 	result := enginetest.SessionSQL(t, a, "SELECT sequencename FROM pg_sequences")
 	result.Rows.Close()
-	ref := catalogRef(t, e, e.CatalogRead(), "s")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	// RESTART uses the existing sequence DDL ShareRowExclusive admission,
 	// which conflicts with the helper's transaction-owned RowExclusive lock.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -252,7 +252,7 @@ func TestPGSequencesCancellation(t *testing.T) {
 	e := engine.New()
 	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE s CACHE 10")
-	ref := catalogRef(t, e, e.CatalogRead(), "s")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	tx := enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RESTART 19")
 	before := *e.Storage.Sequences[ref.Address]

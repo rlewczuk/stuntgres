@@ -152,7 +152,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if _, err = e.ValidateCatalogStage(context.Background(), bad); err == nil {
 		t.Fatal("foreign stage accepted")
 	}
-	ref := catalogRef(t, e, e.CatalogRead(), "first")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "first")
 	ref.Address.SubID = 1
 	if err = enginetest.ValidateObjectRef(e, foreign, ref); err == nil {
 		t.Fatal("foreign read accepted")
@@ -209,7 +209,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	ref := catalogRef(t, e, view, "p")
+	ref := enginetest.CatalogRef(t, e, view, "p")
 	ref.Address.SubID = 1
 	if err := enginetest.ValidateObjectRef(e, view, ref); err != nil {
 		t.Fatal(err)
@@ -463,17 +463,6 @@ func TestForeignCatalogReplacementOwnsRowBacking(t *testing.T) {
 	assertRows(target, []int64{1, 2, 3, 50})
 }
 
-func catalogRef(t *testing.T, e *core.Engine, view catalog.Read, name string) ids.ObjectRef {
-	t.Helper()
-	e.Mu.Lock()
-	ref, err := e.ResolveReference(enginetest.CatalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ref
-}
-
 func TestCatalogReferenceProvenance(t *testing.T) {
 	a, b := engine.New(), engine.New()
 	for i, e := range []*core.Engine{a, b} {
@@ -481,7 +470,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		enginetest.Run(t, e, "INSERT INTO public.t VALUES ($1)", int64((i+1)*11))
 	}
 	va, vb := a.CatalogRead(), b.CatalogRead()
-	ra, rb := catalogRef(t, a, va, "t"), catalogRef(t, b, vb, "t")
+	ra, rb := enginetest.CatalogRef(t, a, va, "t"), enginetest.CatalogRef(t, b, vb, "t")
 	if ra.Address.ObjectID == 0 || ra.Address != rb.Address || ra.Epoch != rb.Epoch || ra == rb || ra.Domain() == nil || rb.Domain() == nil {
 		t.Fatalf("coincident identities lack provenance: %#v / %#v", ra, rb)
 	}
@@ -504,7 +493,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		if err := enginetest.ValidateObjectRef(tc.engine, va, tc.own); tc.engine == b && (err == nil || err.Error() != "stuntgres: foreign catalog view") {
 			t.Fatalf("foreign view: %v", err)
 		}
-		if tc.engine.CatalogRead().State() != tc.view.State() || catalogRef(t, tc.engine, tc.view, "t") != tc.own {
+		if tc.engine.CatalogRead().State() != tc.view.State() || enginetest.CatalogRef(t, tc.engine, tc.view, "t") != tc.own {
 			t.Fatal("rejected validation changed authority")
 		}
 		rows := enginetest.Tuples(enginetest.Run(t, tc.engine, "SELECT id FROM public.t"))
@@ -519,7 +508,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	base := e.CatalogRead()
 	enginetest.Run(t, e, "CREATE TABLE public.committed (id INTEGER)")
 	current := e.CatalogRead()
-	ref := catalogRef(t, e, current, "committed")
+	ref := enginetest.CatalogRef(t, e, current, "committed")
 	if err := enginetest.ValidateObjectRef(e, base, ref); err == nil || err.Error() != "stuntgres: catalog object is missing" {
 		t.Fatalf("old same-epoch view adopted later object: %v", err)
 	}
@@ -539,7 +528,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.StageRead(stage)
-	private := catalogRef(t, e, view, "private")
+	private := enginetest.CatalogRef(t, e, view, "private")
 	column := private
 	column.Address.SubID = 1
 	if err := enginetest.ValidateObjectRef(e, view, column); err != nil {
@@ -560,7 +549,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != private.Address {
 		t.Fatalf("private publication: %#v, %v", changes, err)
 	}
-	if catalogRef(t, e, e.CatalogRead(), "private") != private || catalogRef(t, e, current, "committed") != ref {
+	if enginetest.CatalogRef(t, e, e.CatalogRead(), "private") != private || enginetest.CatalogRef(t, e, current, "committed") != ref {
 		t.Fatal("unrelated publication changed same-epoch identity")
 	}
 }
@@ -572,13 +561,13 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	enginetest.Run(t, target, "CREATE TABLE public.t (id INTEGER)")
 	enginetest.Run(t, target, "INSERT INTO public.t VALUES (11)")
 	sourceView, old := source.CatalogRead(), target.CatalogRead()
-	sourceRef, oldRef := catalogRef(t, source, sourceView, "t"), catalogRef(t, target, old, "t")
+	sourceRef, oldRef := enginetest.CatalogRef(t, source, sourceView, "t"), enginetest.CatalogRef(t, target, old, "t")
 	owner := target.Catalog.Domain
 	changes, err := target.ReplaceCatalog(context.Background(), source, sourceView)
 	if err != nil || !changes.Replacement || target.Catalog.Domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatalf("replacement ownership: %#v, %v", changes, err)
 	}
-	newRef := catalogRef(t, target, target.CatalogRead(), "t")
+	newRef := enginetest.CatalogRef(t, target, target.CatalogRead(), "t")
 	if newRef.Domain() != owner || newRef.Address != sourceRef.Address {
 		t.Fatalf("replacement ref: %#v", newRef)
 	}
@@ -719,7 +708,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	enginetest.Run(t, e, "CREATE TABLE public.t (id INTEGER)")
 	enginetest.Run(t, e, "INSERT INTO public.t VALUES (11)")
 	before := e.CatalogRead()
-	ref := catalogRef(t, e, before, "t")
+	ref := enginetest.CatalogRef(t, e, before, "t")
 	owner := e.Catalog.Domain
 	storage := e.Storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
@@ -778,7 +767,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 				enginetest.Run(t, e, "INSERT INTO public.p VALUES (22)")
 			}
 			before := e.CatalogRead()
-			sentinel := catalogRef(t, e, before, "sentinel")
+			sentinel := enginetest.CatalogRef(t, e, before, "sentinel")
 			owner := e.Catalog.Domain
 			sentinelStorage := e.Storage.Relations[sentinel.Address]
 			publishedStorage := e.Storage.Relations[d.Address()]

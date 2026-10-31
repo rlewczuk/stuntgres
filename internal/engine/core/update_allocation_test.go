@@ -133,7 +133,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 					if err != nil {
 						b.Fatal(err)
 					}
-					_, err = e.Execute(op, mustLockStatement(q), 0, nil)
+					_, err = e.Execute(op, enginetest.LockStatement(q), 0, nil)
 					op.Done()
 					if err != nil {
 						b.Fatal(err)
@@ -153,7 +153,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 				if match {
 					query = "UPDATE t SET v=2 WHERE id=0"
 				}
-				ast := mustLockStatement(query)
+				ast := enginetest.LockStatement(query)
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {

@@ -52,7 +52,7 @@ func TestTransactionIsolationConflicts(t *testing.T) {
 								if peer == "DELETE FROM t" {
 									word = "delete"
 								}
-								waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent "+word)
+								enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent "+word)
 							}
 						case <-time.After(5 * time.Second):
 							t.Fatal("row wait did not finish")
@@ -188,14 +188,14 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 	timeoutPendingPublish(t, e, request, op.StatementDeadline)
 	select {
 	case err := <-done:
-		waitsDiagnostic(t, err, "57014", "canceling statement due to statement timeout")
+		enginetest.WaitDiagnostic(t, err, "57014", "canceling statement due to statement timeout")
 	case <-time.After(5 * time.Second):
 		t.Fatal("statement timer did not end row wait")
 	}
 	done = enginetest.LockAsync(e, a, context.Background(), "SELECT num_nonnulls(1)", false)
 	select {
 	case err := <-done:
-		waitsDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		enginetest.WaitDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	case <-time.After(5 * time.Second):
 		t.Fatal("aborted owner stalled")
 	}

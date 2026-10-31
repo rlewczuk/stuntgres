@@ -100,9 +100,9 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = e.Execute(op, mustLockStatement("SELECT v FROM u"), 0, nil)
+				_, err = e.Execute(op, enginetest.LockStatement("SELECT v FROM u"), 0, nil)
 				op.Done()
-				waitsDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
+				enginetest.WaitDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block")
 				enginetest.TransactionEnd(t, b, rb, false)
 				enginetest.TransactionEnd(t, a, ra, true)
 				enginetest.TransactionRows(t, a, "SELECT v FROM u")

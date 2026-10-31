@@ -31,7 +31,7 @@ func TestAnalysisHostReadsStoredViews(t *testing.T) {
 	auth := core.AuthorityOf(enginetest.CatalogAuthorization(e, read))
 	host := e.AnalysisHost(nil)
 	relation := func(name string) plan.Node {
-		return &plan.SourceNode{Ref: catalogRef(t, e, read, name)}
+		return &plan.SourceNode{Ref: enginetest.CatalogRef(t, e, read, name)}
 	}
 	for name, want := range map[string]bool{"host_plain": false, "host_moods": false, "host_nested_sequences": true} {
 		if volatile, err := host.StoredViewVolatile(auth, relation(name)); err != nil || volatile != want {
@@ -39,7 +39,7 @@ func TestAnalysisHostReadsStoredViews(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]int{"host_plain": 0, "host_nested_moods": 1} {
-		d := read.MustRelation(catalogRef(t, e, read, name).Address)
+		d := read.MustRelation(enginetest.CatalogRef(t, e, read, name).Address)
 		var diagnosed []*sqltype.Descriptor
 		err := host.CaptureRetainedViewInput(auth, d, func() error { return nil }, func() error { return nil }, func(typ *sqltype.Descriptor) error {
 			diagnosed = append(diagnosed, typ)

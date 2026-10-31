@@ -26,7 +26,7 @@ func TestQueryLimitLockRepeatableRead(t *testing.T) {
 					if r.Count != 0 {
 						t.Fatal("serialization exposed count", r.Count)
 					}
-					waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
+					enginetest.WaitDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
 				}
 				enginetest.SessionSQL(t, b, "ROLLBACK")
 				enginetest.LockEmpty(t, e)

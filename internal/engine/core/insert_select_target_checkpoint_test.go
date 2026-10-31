@@ -34,7 +34,7 @@ func TestInsertSelectTargetBeforeSource(t *testing.T) {
 			}
 			err = op.CommandError(err)
 			op.Done()
-			waitsDiagnostic(t, err, tc.code, tc.message, tc.pos)
+			enginetest.WaitDiagnostic(t, err, tc.code, tc.message, tc.pos)
 		}
 	}
 	enginetest.TransactionEnd(t, holder, tx, false)

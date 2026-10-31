@@ -108,7 +108,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			tx := enginetest.TransactionBegin(t, holder)
 			enginetest.SessionSQL(t, holder, "DELETE FROM t")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE")
-			mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
+			enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 			enginetest.TransactionEnd(t, holder, tx, commit)
 			if commit {
 				mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})

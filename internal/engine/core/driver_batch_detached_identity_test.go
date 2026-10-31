@@ -30,7 +30,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, owner, "CREATE TABLE t(v INT)")
 			enginetest.SessionSQL(t, owner, "INSERT INTO t VALUES(7)")
-			table := catalogRef(t, e, e.CatalogRead(), "t")
+			table := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			original := owner.Authorization.State
 			m := batchUnitStart(t, owner, context.Background())
 			defer m.end(context.Canceled)

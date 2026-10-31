@@ -51,6 +51,10 @@ it imports core and lower packages, and nothing imports it except tests.
 | `ProtocolReader{Data: b}` | `session.ProtocolInput` over bytes for Bind and fastpath messages; `Position` counts consumed bytes |
 | `QueryFixture(t, e, sql)` | table `t` with four rows, the query bound through `core.Describe`, and a captured source costed for the parallel worker alternative |
 | `LockEmpty`, `LockPending`, `LockAsync`, `LockAwait` | lock-manager inspection (`Engine.Locks`) and a statement run on its own goroutine |
+| `LockStatement(q)` | parse the first statement of q off the test goroutine (panics on error) |
+| `ExecuteAsync(t, e, s, ctx, q)` | execute q on its own goroutine; the returned function joins it, and cleanup cancels and joins |
+| `RowLockPending(t, e, ref, row, worker, blocker, mode)` | wait for worker's live row-lock request behind blocker |
+| `WaitDiagnostic(t, err, code, message, position...)` | require an exact ERROR diagnostic |
 | `CatalogAuthorization`, `CatalogRef`, `RoleTableRef` | bootstrap-principal authorization and relation references |
 | `PublishCatalog`, `ValidateObjectRef` | catalog publication and reference checks outside an operation |
 | `ExpressionBinder` | scalar binder over a postgres session |

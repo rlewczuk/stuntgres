@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,31 +21,6 @@ import (
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
 // A live request on the original RowID establishes the exact interleaving.
-func mergeUpdatePendingRow(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, worker *session.Session, blocker *lock.Ticket, mode lock.Mode) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		lockState := e.Locks.Inspect()
-		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
-		found := false
-		if entry != nil && entry.Holders[blocker].Mode != 0 {
-			for _, request := range entry.Pending {
-				if !request.Terminal && request.Ticket.Ref().Session() == worker.SessionToken && (mode == 0 || request.Mode == mode) {
-					found = true
-					break
-				}
-			}
-		}
-		if found {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("missing exact live MERGE row request", row, mode)
-		}
-		runtime.Gosched()
-	}
-}
-
 func mergeUpdatePendingExecute(t *testing.T, s *session.Session, q string) <-chan deleteOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -130,7 +104,7 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 					q += " WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, 0)
+				enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, 0)
 				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 30)
 				if lane == "fixedSource" {
 					enginetest.SessionSQL(t, peer, "UPDATE source SET x=8")
@@ -238,7 +212,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					q = "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) s ON t.id=s.id WHEN NOT MATCHED BY SOURCE AND t.id=1 THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.Ticket, 0)
+				enginetest.RowLockPending(t, e, ref, original.Row, worker, holder.Transactions.Ticket, 0)
 				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 				enginetest.TransactionEnd(t, holder, tx, commit)
 				if commit {
@@ -354,10 +328,10 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			done := mergeUpdatePendingExecute(t, worker, q)
-			mergeUpdatePendingRow(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
+			enginetest.RowLockPending(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
 			enginetest.TransactionEnd(t, writer, b, true)
 			if tc.strong {
-				mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
+				enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
 				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 20)
 				enginetest.TransactionEnd(t, holder, a, false)
 			}

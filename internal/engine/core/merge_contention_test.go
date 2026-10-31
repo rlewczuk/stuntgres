@@ -47,7 +47,7 @@ func TestMergeInsertConcurrentUnique(t *testing.T) {
 			enginetest.SessionSQL(t, holder, "CREATE TABLE t(id INT NOT NULL CONSTRAINT t_pkey UNIQUE)")
 			enginetest.SessionSQL(t, holder, "BEGIN")
 			enginetest.SessionSQL(t, holder, "INSERT INTO t VALUES(7)")
-			join := updateDeleteAsync(t, e, worker, context.Background(), "MERGE INTO t USING (VALUES(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)")
+			join := enginetest.ExecuteAsync(t, e, worker, context.Background(), "MERGE INTO t USING (VALUES(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)")
 			enginetest.LockPending(t, e, 1)
 			if commit {
 				enginetest.SessionSQL(t, holder, "COMMIT")

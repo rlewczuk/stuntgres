@@ -51,7 +51,7 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 			}
 			e.Mu.Unlock()
 			if tc.sequenceError {
-				waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "s"`)
+				enginetest.WaitDiagnostic(t, err, "42809", `cannot lock rows in sequence "s"`)
 			} else {
 				if err != nil || (scope.QueryLockContext != nil) != tc.marked {
 					t.Fatal(err, scope.QueryLockContext, tc.marked)

@@ -136,7 +136,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 			result.Rows.Close()
 			t.Fatal("failed insert cursor")
 		}
-		waitsDiagnostic(t, err, "22012", "division by zero")
+		enginetest.WaitDiagnostic(t, err, "22012", "division by zero")
 		enginetest.TransactionRows(t, b, "SELECT v FROM target")
 		enginetest.LockEmpty(t, e)
 	})

@@ -23,7 +23,7 @@ func TestUpdateReturningFixedCandidatesAndSkippedDemand(t *testing.T) {
 			hold = "UPDATE t SET id=3 WHERE id=1"
 		}
 		enginetest.SessionSQL(t, holder, hold)
-		await := updateDeleteAsync(t, e, worker, context.Background(), "UPDATE t SET a=a+1 WHERE id=1 RETURNING old.a,new.a,nextval('s')")
+		await := enginetest.ExecuteAsync(t, e, worker, context.Background(), "UPDATE t SET a=a+1 WHERE id=1 RETURNING old.a,new.a,nextval('s')")
 		enginetest.LockPending(t, e, 1)
 		// The initially rejected row becomes matching while the worker genuinely waits.
 		enginetest.SessionSQL(t, peer, "UPDATE t SET id=1 WHERE id=2")

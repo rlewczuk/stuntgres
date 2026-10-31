@@ -53,7 +53,7 @@ func TestUpdateFromEarlierSourceMetadataAndAuthorityRefresh(t *testing.T) {
 			if revoked {
 				select {
 				case err := <-done:
-					waitsDiagnostic(t, err, "42501", "permission denied for table s")
+					enginetest.WaitDiagnostic(t, err, "42501", "permission denied for table s")
 				case <-time.After(5 * time.Second):
 					t.Fatal("revoked source waiter did not finish")
 				}

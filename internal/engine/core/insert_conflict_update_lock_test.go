@@ -35,7 +35,7 @@ func conflictUpdateStartWorker(t *testing.T, e *core.Engine, s *session.Session,
 		op, err := s.Acquire(ctx)
 		var result core.Result
 		if err == nil {
-			result, err = e.Execute(op, mustLockStatement(q), 0, nil)
+			result, err = e.Execute(op, enginetest.LockStatement(q), 0, nil)
 			op.Done()
 		}
 		worker.done <- conflictUpdateWorkerResult{result, err}

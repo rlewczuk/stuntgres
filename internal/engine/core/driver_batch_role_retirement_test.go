@@ -82,7 +82,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					}
 				case "policy":
 					enginetest.SessionSQL(t, b, "CREATE POLICY retirement_peer ON retirement_policy TO retired USING(i>0)")
-					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
+					address = enginetest.CatalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
 					descriptor = e.Catalog.State.Get(address)
 					policies := descriptor.(*catalog.Relation).Security.Policies
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {

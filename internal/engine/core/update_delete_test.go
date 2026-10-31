@@ -18,48 +18,9 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-// This worker executes the real command and Finish; its owner cancels and joins
-// before session cleanup, even when an assertion terminates the subtest.
-func updateDeleteAsync(t *testing.T, e *core.Engine, s *session.Session, parent context.Context, q string) func() (core.Result, error) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-	type outcome struct {
-		result core.Result
-		err    error
-	}
-	done := make(chan outcome, 1)
-	joined := false
-	go func() {
-		op, err := s.Acquire(ctx)
-		var result core.Result
-		if err == nil {
-			result, err = e.Execute(op, mustLockStatement(q), 0, nil)
-			op.Done()
-		}
-		done <- outcome{result, err}
-	}()
-	await := func() (core.Result, error) {
-		t.Helper()
-		select {
-		case o := <-done:
-			joined = true
-			return o.result, o.err
-		case <-time.After(5 * time.Second):
-			t.Fatal("mixed DML worker not joined")
-			return core.Result{}, context.DeadlineExceeded
-		}
-	}
-	t.Cleanup(func() {
-		cancel()
-		if !joined {
-			await()
-		}
-	})
-	return await
-}
 func updateDeleteExecute(t *testing.T, e *core.Engine, s *session.Session, q string, n int64) {
 	t.Helper()
-	result, err := updateDeleteAsync(t, e, s, context.Background(), q)()
+	result, err := enginetest.ExecuteAsync(t, e, s, context.Background(), q)()
 	if err != nil || result.Count != n || result.Rows != nil {
 		t.Fatal(q, result, err, n)
 	}
@@ -86,7 +47,7 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 					q = "DELETE FROM t WHERE id=1"
 				}
 				enginetest.SessionSQL(t, holder, hold)
-				await := updateDeleteAsync(t, e, worker, context.Background(), q)
+				await := enginetest.ExecuteAsync(t, e, worker, context.Background(), q)
 				enginetest.LockPending(t, e, 1)
 				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 				resource := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
@@ -216,7 +177,7 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 			ticket := owner.Transactions.Ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			await := updateDeleteAsync(t, e, owner, ctx, q)
+			await := enginetest.ExecuteAsync(t, e, owner, ctx, q)
 			enginetest.LockPending(t, e, 1)
 			cancel()
 			result, err := await()
