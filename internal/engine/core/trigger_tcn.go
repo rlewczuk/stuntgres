@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -97,6 +96,6 @@ func (s *StatementScope) notifyTriggerChange(relation *catalog.Relation, p store
 	if payload.Len() >= 8000 {
 		return SQLError("22023", "payload string too long")
 	}
-	s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.Op.Session.SessionToken.ID()), Channel: channel, Payload: payload.String()})
+	s.WriteHost().QueueNotification(channel, payload.String())
 	return nil
 }

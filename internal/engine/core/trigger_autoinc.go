@@ -5,9 +5,6 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -42,11 +39,11 @@ func (s *StatementScope) autoincTrigger(relation *catalog.Relation, p stored.Tri
 			if err != nil { return original, err }
 			if n != 0 { continue }
 		}
-		n, err := s.autoincNextval(p.Arguments[i+1])
+		n, err := s.WriteHost().NextvalText(p.Arguments[i+1])
 		if err != nil { return original, err }
 		narrowed := int32(n)
 		if narrowed == 0 {
-			n, err = s.autoincNextval(p.Arguments[i+1])
+			n, err = s.WriteHost().NextvalText(p.Arguments[i+1])
 			if err != nil { return original, err }
 			narrowed = int32(n)
 		}
@@ -56,21 +53,4 @@ func (s *StatementScope) autoincTrigger(relation *catalog.Relation, p stored.Tri
 		result[slot] = value
 	}
 	return result, nil
-}
-
-// Legacy nextval(text) resolves a relation name per demanded call. The captured
-// ObjectRef then travels through the normal sequence gate and lock wait, never
-// being retargeted by name or compensated on statement/transaction failure.
-func (s *StatementScope) autoincNextval(text string) (int64, error) {
-	e := s.Engine()
-	e.Mu.Lock()
-	auth, err := s.namespaceAuthorizationLocked(e)
-	var path []ids.ObjectAddress
-	if err == nil { path, err = ReferencePath(auth) }
-	e.Mu.Unlock()
-	if err != nil { return 0, err }
-	oid, err := regobj.NewClassInput(inputCapture(auth, path)).ResolveRelationName(s.Op.Context(), text)
-	if err != nil { return 0, err }
-	ref := auth.Ref(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
-	return (*statementHost)(s).Sequence(functions.SequenceRequest{Name: "nextval", Ref: ref, OID: ids.OID(oid), Temporary: auth.Session.SessionToken})
 }

@@ -14,9 +14,8 @@ import (
 // invokeRefint receives only an admitted native invocation. Its borrowed rows
 // and literal arguments never escape this call or enter a retained SQL plan.
 func (s *StatementScope) invokeRefint(d *catalog.Procedure, relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value) error {
- previousAtomic := s.plAtomic
- s.plAtomic = true
- defer func(){ s.plAtomic = previousAtomic }()
+ previousAtomic := s.WriteHost().SetRoutineAtomic(true)
+ defer s.WriteHost().SetRoutineAtomic(previousAtomic)
  read:=s.refintCatalog()
  if extension.RefintProviderOf(d)!=extension.StockRefint { return fmt.Errorf("stuntgres: invalid native trigger provider") }
  symbol,err:=extension.ProcedureSymbol(read,d); if err!=nil { return err }
