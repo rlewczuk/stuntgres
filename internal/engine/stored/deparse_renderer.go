@@ -865,8 +865,8 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
-	case plan.InstalledPgstatindexExpr:
-		if err := ValidateInstalledPgstatindex(n, r.View); err != nil {
+	case plan.InstalledPgstattupleStatsExpr:
+		if err := ValidateInstalledPgstattupleStats(n, r.View); err != nil {
 			return "", err
 		}
 		procedure, _ := r.View.Procedure(n.Ref.Address)
@@ -874,7 +874,7 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing pgstatindex namespace")
 		}
-		return pgstatindexCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
+		return pgstattupleStatsCallSQL(n, procedure, r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), r.Identifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, arg, DeparseParent{}) })
 	case plan.InstalledPageinspectExpr:
 		if err := ValidateInstalledPageinspect(n, r.View); err != nil {
 			return "", err

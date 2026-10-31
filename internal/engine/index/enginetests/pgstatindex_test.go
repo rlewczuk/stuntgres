@@ -48,7 +48,7 @@ func TestPgstatindexApproximation(t *testing.T) {
 	if _, err := index.CompactBtreeLayout(canceled, 28); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := index.CapturePgstatindex(canceled, index.PgstatindexCapture{}); !errors.Is(err, context.Canceled) {
+	if _, err := index.CapturePgstattupleStats(canceled, index.PgstattupleStatsCapture{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

@@ -135,7 +135,7 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		}
 	case plan.InstalledAutoincExpr:
 		r.Add(n.Ref.Address)
-	case plan.InstalledPgstatindexExpr:
+	case plan.InstalledPgstattupleStatsExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledPageinspectExpr:
 		r.Add(n.Ref.Address)

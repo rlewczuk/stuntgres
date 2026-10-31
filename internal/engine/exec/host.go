@@ -145,7 +145,7 @@ type Host interface {
 	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)
 	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
-	Pgstatindex(n plan.InstalledPgstatindexExpr, input sqltype.Value) ([8]int64, [2]float64, error)
+	PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) ([8]int64, [2]float64, error)
 	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
 	PageinspectNotice(notice sqlstate.Error)
 	// functions.SequenceRuntime

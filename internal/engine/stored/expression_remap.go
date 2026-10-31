@@ -483,7 +483,7 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
 		next = n
-	case plan.InstalledPgstatindexExpr:
+	case plan.InstalledPgstattupleStatsExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)

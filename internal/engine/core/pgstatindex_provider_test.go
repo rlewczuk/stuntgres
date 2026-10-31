@@ -25,7 +25,7 @@ func TestPgstatindexProvider(t *testing.T) {
 	ext := pgstatindexUnitInstalled(t, e)
 	view := e.CatalogRead()
 	control := extension.StockPgstattuple.Control()
-	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 2 {
+	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "show tuple-level statistics" || len(ext.Members) != 3 {
 		t.Fatal(control, ext)
 	}
 	if err := extension.StockPgstattuple.ValidateExtension(view, ext); err != nil {
@@ -35,17 +35,24 @@ func TestPgstatindexProvider(t *testing.T) {
 	types := []ids.OID{23, 23, 20, 20, 20, 20, 20, 20, 701, 701}
 	for i, address := range ext.Members {
 		p := view.MustProcedure(address)
-		sig := []catalog.ProcedureSignature{"25", "2205"}[i]
-		source := []string{"pgstatindex_v1_5", "pgstatindexbyid_v1_5"}[i]
-		if p.Name() != "pgstatindex" || p.Signature != sig || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || p.Installed.ReturnsSet || p.Installed.Parallel != 's' || p.Display.Source != source || p.Display.Binary != "$libdir/pgstattuple" || !p.Display.HasBinary || p.Display.Language != catalog.CRoutineLanguage {
+		sig := []catalog.ProcedureSignature{"25", "2205", "2205"}[i]
+		source := []string{"pgstatindex_v1_5", "pgstatindexbyid_v1_5", "pgstathashindex"}[i]
+		name := "pgstatindex"
+		wantNames, wantTypes := names, types
+		if i == 2 {
+			name = "pgstathashindex"
+			wantNames = []string{"version", "bucket_pages", "overflow_pages", "bitmap_pages", "unused_pages", "live_items", "dead_items", "free_percent"}
+			wantTypes = []ids.OID{23, 20, 20, 20, 20, 20, 20, 701}
+		}
+		if p.Name() != name || p.Signature != sig || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || p.Installed.ReturnsSet || p.Installed.Parallel != 's' || p.Display.Source != source || p.Display.Binary != "$libdir/pgstattuple" || !p.Display.HasBinary || p.Display.Language != catalog.CRoutineLanguage {
 			t.Fatal(p)
 		}
 		out := p.OutputDeclaration()
-		if out == nil || out.Inputs() != 1 || out.Len() != 10 || out.Name(0) != "relname" {
+		if out == nil || out.Inputs() != 1 || out.Len() != len(wantNames) || out.Name(0) != "relname" {
 			t.Fatal(out)
 		}
-		for j, name := range names {
-			if out.Name(j+1) != name || out.Type(j) != types[j] {
+		for j, name := range wantNames {
+			if out.Name(j+1) != name || out.Type(j) != wantTypes[j] {
 				t.Fatal(j, out)
 			}
 		}
@@ -67,12 +74,12 @@ func TestPgstatindexProvider(t *testing.T) {
 			t.Fatal("actual owner and scan grants", p.ACL)
 		}
 		ref := e.Catalog.Domain.Ref(view.Epoch(), address)
-		if err := extension.ValidatePgstatindexIdentity(view, p, ref); err != nil {
+		if err := extension.ValidatePgstattupleStatsIdentity(view, p, ref); err != nil {
 			t.Fatal(err)
 		}
 		stale := ref
 		stale.Epoch++
-		if err := extension.ValidatePgstatindexIdentity(view, p, stale); err == nil {
+		if err := extension.ValidatePgstattupleStatsIdentity(view, p, stale); err == nil {
 			t.Fatal("stale identity accepted")
 		}
 		for _, mutate := range []func(*catalog.Procedure){
@@ -109,13 +116,13 @@ func TestPgstatindexProvider(t *testing.T) {
 			t.Fatal("lost creation default", p.ACL)
 		}
 	}
-	// Both an early and late signature collision roll back every staged member.
-	for _, arg := range []string{"text", "regclass"} {
-		t.Run(arg, func(t *testing.T) {
+	// Early and late signature collisions roll back every staged member.
+	for _, signature := range []string{"pgstatindex(text)", "pgstatindex(regclass)", "pgstathashindex(regclass)"} {
+		t.Run(signature, func(t *testing.T) {
 			x := engine.New()
 			op, finish := enginetest.RoleOperation(t, x, "postgres")
 			defer finish()
-			enginetest.RoleExecute(t, x, op, "CREATE FUNCTION pgstatindex("+arg+") RETURNS integer LANGUAGE SQL AS 'SELECT 7'")
+			enginetest.RoleExecute(t, x, op, "CREATE FUNCTION "+signature+" RETURNS integer LANGUAGE SQL AS 'SELECT 7'")
 			before := x.CatalogRead().State()
 			_, err := x.Execute(op, enginetest.Statement(t, "CREATE EXTENSION pgstattuple"), 0, nil)
 			if err == nil || x.CatalogRead().State() != before {
@@ -136,5 +143,27 @@ func TestPgstatindexProvider(t *testing.T) {
 		if !destination.MustProcedure(address).ACL.Explicit {
 			t.Fatal("ACL absence changed")
 		}
+	}
+}
+
+func TestPgstathashindexProvider(t *testing.T) {
+	e := engine.New()
+	ext := pgstatindexUnitInstalled(t, e)
+	view := e.CatalogRead()
+	p := view.MustProcedure(ext.Members[2])
+	ref := e.Catalog.Domain.Ref(view.Epoch(), p.Address())
+	foreign := engine.New()
+	refForeign := foreign.Catalog.Domain.Ref(view.Epoch(), p.Address())
+	if err := extension.ValidatePgstattupleStatsIdentity(view, p, refForeign); err == nil {
+		t.Fatal("foreign domain accepted")
+	}
+	if err := extension.ValidatePgstattupleStatsIdentity(view, p, ref); err != nil { t.Fatal(err) }
+	for _, slot := range []int{0, 1, 3} {
+		state := catalog.CloneState(view.State())
+		bad, origin := *p, *p.Origin
+		origin.Declaration = slot
+		bad.Origin = &origin
+		state.SetDescriptor(p.Address(), &bad)
+		if err := extension.StockPgstattuple.ValidateProcedure(e.Catalog.Read(state), &bad); err == nil { t.Fatal("forged hash slot accepted", slot) }
 	}
 }

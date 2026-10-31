@@ -19,8 +19,9 @@ reconstruction use public fixture/control APIs only.
 ## pgstattuple: pgstatindex ownership
 
 `pgstatindex_*_test.go` owns the public acceptance for the bounded installed
-`pgstattuple` 1.5 provider: **only `pgstatindex(text)` and
-`pgstatindex(regclass)`**. It does not claim the other module functions.
+`pgstattuple` 1.5 provider's `pgstatindex(text)` and `pgstatindex(regclass)`.
+`pgstathashindex_*_test.go` owns its sole hash declaration,
+`pgstathashindex(regclass)`. Other module functions are not claimed.
 The shared fixture installs in `ps_part`; all scenarios use public SQL,
 `reference/fixture`, and public native controls, never internal packages.
 
@@ -79,7 +80,20 @@ Run `make check RUN='^TestReferencePgstatindexPermissionArgumentOrder$'` both
 natively and with `REFERENCE=1`; denied callers expect `42501`, while explicitly
 authorized callers reach the child and expect `22012` (`division by zero`).
 
+Hash fixtures install in `ph_part` and use supported full, sibling and expression
+indexes. Fresh root witnesses are 4/4/5 live entries, rebuilt witnesses 1/1/4;
+stored expression views distinguish exact target identity with 5 entries.
+The eight released fields include `dead_items`, not `dead_tuples`. Ordinary
+coercion, owned scalar/FROM shapes, STRICT NULL, runtime ACLs, supplied-index
+AccessShare cancellation, identity and native controls share the same scenario
+body in both modes. Native hash statistics sample effective-root bucket lengths,
+report dead zero and apply the compact model documented by `index`; private DML
+phases assert callability, shape and lifecycle rather than forced private counts.
+PostgreSQL physical values are independently invariant-checked, not model parity.
+
 ## Testing
+
+Installed statistics scenarios use `RUN='^TestReferencePgstat(index|hashindex)'`.
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 [reference/catalogs](../catalogs/README.md#testing). `TestMain` is

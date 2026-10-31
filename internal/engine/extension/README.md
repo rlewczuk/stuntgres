@@ -374,9 +374,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
 - **pgstattuple** (`pgstattuple_provider.go`): the superuser, untrusted,
-  relocatable 1.5 provider installs only `pgstatindex(text)` and
-  `pgstatindex(regclass)`, with ten immutable fixed OUT fields, STRICT VOLATILE
-  RECORD results and PARALLEL SAFE C declarations. The sealed declaration slot
+  relocatable 1.5 provider installs only `pgstatindex(text)`,
+  `pgstatindex(regclass)` and `pgstathashindex(regclass)`, with ten B-tree or
+  eight hash immutable fixed OUT fields, STRICT VOLATILE RECORD results and
+  PARALLEL SAFE C declarations. Hash has no text overload; ordinary coercion
+  selects its sole regclass input. The sealed declaration slot
   retains distinct released C symbols through rename, move, membership and
   control remapping. Installation preserves creation defaults, revokes PUBLIC
   EXECUTE and grants EXECUTE to the actual predefined pg_stat_scan_tables

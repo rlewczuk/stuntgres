@@ -111,7 +111,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	// Both installed pgstatindex declarations must reach catalog overload
 	// selection before the provider binds the winning immutable signature.
-	if name == "pgstatindex" {
+	if name == "pgstatindex" || name == "pgstathashindex" {
 		providerOverride = true
 	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))

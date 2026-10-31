@@ -81,6 +81,9 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	}
 	if pgstats && proc == nil {
 		signature = "25"
+		if text == "pgstathashindex" {
+			signature = "2205"
+		}
 	}
 	if proc != nil {
 		// The shared callable selector already resolved the live public name.
@@ -185,11 +188,24 @@ func (r installedExtensionRoutine) Validate() error {
 	return fmt.Errorf("stuntgres: invalid installed routine")
 }
 
-func (r installedExtensionRoutine) PgstatindexInput() sqltype.ID {
+func (r installedExtensionRoutine) PgstattupleStatsInput() sqltype.ID {
 	if r.procedure.Signature == "2205" {
 		return sqltype.Regclass
 	}
 	return sqltype.Text
+}
+
+func (r installedExtensionRoutine) PgstattupleOperation() functions.PgstattupleOperation {
+	symbol, err := extension.ProcedureSymbol(r.catalog, r.procedure)
+	if err == nil {
+		switch symbol {
+		case "pgstatindex":
+			return functions.BtreeStats
+		case "pgstathashindex":
+			return functions.HashStats
+		}
+	}
+	return functions.PgstattupleOperation(255)
 }
 
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
@@ -241,16 +257,16 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledAutoincExpr{TriggerBuiltin: c, Procedure: p, Ref: ref}, nil
-	case functions.Pgstatindex:
-		if err := extension.ValidatePgstatindexIdentity(r.catalog, p, ref); err != nil {
+	case functions.PgstattupleStats:
+		if err := extension.ValidatePgstattupleStatsIdentity(r.catalog, p, ref); err != nil {
 			return nil, err
 		}
 		c.RoutineReference = p
-		if err := extension.ValidatePgstatindexCall(r.catalog, p, c); err != nil {
+		if err := extension.ValidatePgstattupleStatsCall(r.catalog, p, c); err != nil {
 			return nil, err
 		}
 		b.dependency(ref, p.Revision())
-		return plan.InstalledPgstatindexExpr{Pgstatindex: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledPgstattupleStatsExpr{PgstattupleStats: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

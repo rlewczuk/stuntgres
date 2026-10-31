@@ -144,7 +144,7 @@ var definitions = [...]Definition{
 	{Names: []string{"now", "transaction_timestamp", "statement_timestamp", "clock_timestamp", "timeofday"}, Bind: bindTransactionTime},
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
-	{Names: []string{"pgstatindex"}, Bind: bindPgstatindex, NamedCall: namedPgstatindex},
+	{Names: []string{"pgstatindex", "pgstathashindex"}, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
 	{Names: pageinspectNames[:], Bind: bindPageinspect, NamedCall: namedPageinspect},
 	{Names: []string{"normal_rand"}, Bind: bindTablefuncNormal},
 	{Names: []string{"connectby"}, Bind: bindConnectby},

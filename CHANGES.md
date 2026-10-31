@@ -15,6 +15,11 @@
   Statement capture preserves immutable rows without a dependency store or
   fabricated physical/tablespace edges.
 
+- Add installed `pgstathashindex(regclass)` with released eight-field records,
+  ordinary coercion and ACLs, exact target diagnostics, cancellation and stored
+  identity/control replay. Hash statistics use a deterministic effective-root
+  sample and compact page model without changing hash storage or publication.
+
 - Add release-matched Irish Snowball morphology, genuine `irish_stem`/`irish`
   seeds and nineteen token mappings, with optional configured stoplists, typed
   prepared ownership, atomic publication and native edited-stock replay.

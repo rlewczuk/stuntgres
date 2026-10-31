@@ -1167,7 +1167,7 @@ is involved. Ordinary view/rule/routine replay modes remain unchanged.
 `TestPGPolicyDisplayRestoreSources` covers actual native replacement, stable
 redump/replacement, renamed providers/attributes and retained payload ownership.
 
-`InstalledPgstatindexExpr` uses immutable installation authority. Renderers
+`InstalledPgstattupleStatsExpr` uses immutable installation authority. Renderers
 preserve its selected overload and original text versus regclass argument;
 current names never select implementation. Reference walking, literal capture,
 dynamic-source dependencies, remapping and retagging carry its procedure, OUT

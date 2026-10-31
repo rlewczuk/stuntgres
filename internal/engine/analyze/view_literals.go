@@ -755,8 +755,8 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			}
 			return children(r.Args, n.Args[:])
 		}
-		if n, ok := bound.(plan.InstalledPgstatindexExpr); ok {
-			if err := extension.ValidatePgstatindexIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+		if n, ok := bound.(plan.InstalledPgstattupleStatsExpr); ok {
+			if err := extension.ValidatePgstattupleStatsIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err
 			}
 			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {

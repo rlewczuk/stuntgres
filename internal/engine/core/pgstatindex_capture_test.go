@@ -18,7 +18,7 @@ import (
 	"testing"
 )
 
-func pgstatindexCaptureFixture(t *testing.T, e *core.Engine, s *session.Session, name string) index.PgstatindexCapture {
+func pgstatindexCaptureFixture(t *testing.T, e *core.Engine, s *session.Session, name string) index.PgstattupleStatsCapture {
 	t.Helper()
 	var target *catalog.Relation
 	for _, d := range e.CatalogRead().Descriptors() {
@@ -38,13 +38,15 @@ func pgstatindexCaptureFixture(t *testing.T, e *core.Engine, s *session.Session,
 		writes = s.Transactions.Writes[parent.Address()]
 		deletes = s.Transactions.Deletes[parent.Address()]
 	}
-	return index.PgstatindexCapture{Index: target, Parent: parent, Root: index.EffectiveRoot(e.Storage.IndexRoots, nil, target.Address()), Store: *store, Writes: writes, Deletes: deletes, Frontier: e.Visibility.CommitSeq()}
+	capture := index.PgstattupleStatsCapture{Index: target, Parent: parent, Root: index.EffectiveRoot(e.Storage.IndexRoots, nil, target.Address()), Store: *store, Writes: writes, Deletes: deletes, Frontier: e.Visibility.CommitSeq()}
+	capture.Store.IndexSource = store.IndexIdentity()
+	return capture
 }
-func pgstatindexCaptureWant(t *testing.T, c index.PgstatindexCapture, live, dead, weight int64) {
+func pgstatindexCaptureWant(t *testing.T, c index.PgstattupleStatsCapture, live, dead, weight int64) {
 	t.Helper()
 	before := c.Root
 	versions := c.Store.Versions
-	got, err := index.CapturePgstatindex(context.Background(), c)
+	got, err := index.CapturePgstattupleStats(context.Background(), c)
 	if err != nil || got.LiveItems != live || got.DeadItems != dead || got.Weight != weight {
 		t.Fatalf("capture: %+v, %v; want live/dead/bytes %d/%d/%d", got, err, live, dead, weight)
 	}
@@ -76,7 +78,7 @@ func TestPgstatindexCapture(t *testing.T) {
 			root.Entries[0].Version++
 		}
 		broken.Root = &root
-		if _, err := index.CapturePgstatindex(context.Background(), broken); err == nil {
+		if _, err := index.CapturePgstattupleStats(context.Background(), broken); err == nil {
 			t.Fatal("invalid actual association accepted", damage)
 		}
 	}
@@ -116,7 +118,7 @@ func TestPgstatindexCapture(t *testing.T) {
 	broken.Writes = append([]storage.RowVersion(nil), inserted.Writes...)
 	broken.Writes[0].IndexOutputs = maps.Clone(broken.Writes[0].IndexOutputs)
 	delete(broken.Writes[0].IndexOutputs, baseline.Index.Address())
-	if _, err := index.CapturePgstatindex(context.Background(), broken); err == nil {
+	if _, err := index.CapturePgstattupleStats(context.Background(), broken); err == nil {
 		t.Fatal("missing producer output accepted")
 	}
 	broken = inserted
@@ -129,7 +131,7 @@ func TestPgstatindexCapture(t *testing.T) {
 	foreign.SQLIndex = &definition
 	out.Index = &foreign
 	broken.Writes[0].IndexOutputs[baseline.Index.Address()] = out
-	if _, err := index.CapturePgstatindex(context.Background(), broken); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := index.CapturePgstattupleStats(context.Background(), broken); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign output accepted", err)
 	}
 	// A candidate root that already contains an actual private version counts it once.

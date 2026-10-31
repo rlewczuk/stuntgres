@@ -5,11 +5,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *Context) EvalPgstatindex(n plan.InstalledPgstatindexExpr) (sqltype.Value, error) {
+func (c *Context) EvalPgstattupleStats(n plan.InstalledPgstattupleStatsExpr) (sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -21,9 +22,9 @@ func (c *Context) EvalPgstatindex(n plan.InstalledPgstatindexExpr) (sqltype.Valu
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	boundary := n.Pgstatindex
+	boundary := n.PgstattupleStats
 	boundary.RoutineReference = current
-	if err := extension.ValidatePgstatindexCall(view, current, boundary); err != nil {
+	if err := extension.ValidatePgstattupleStatsCall(view, current, boundary); err != nil {
 		return sqltype.Value{}, err
 	}
 	// EXECUTE precedes child evaluation and STRICT NULL, including dynamic NULL.
@@ -54,20 +55,24 @@ func (c *Context) EvalPgstatindex(n plan.InstalledPgstatindexExpr) (sqltype.Valu
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing pgstatindex statement runtime")
 	}
-	integers, floats, err := host.Pgstatindex(n, value)
+	integers, floats, err := host.PgstattupleStats(n, value)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	d := n.Usage.Type
-	fields := make([]sqltype.Value, 10)
-	for i, v := range integers {
+	integerCount, floatCount := 8, 2
+	if n.Operation == functions.HashStats {
+		integerCount, floatCount = 7, 1
+	}
+	fields := make([]sqltype.Value, integerCount+floatCount)
+	for i, v := range integers[:integerCount] {
 		fields[i], err = sqltype.Integer(d.CompositeMember(i).Usage.Type, v)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	for i, v := range floats {
-		fields[i+8], err = sqltype.Float(d.CompositeMember(i+8).Usage.Type, v)
+	for i, v := range floats[:floatCount] {
+		fields[i+integerCount], err = sqltype.Float(d.CompositeMember(i+integerCount).Usage.Type, v)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

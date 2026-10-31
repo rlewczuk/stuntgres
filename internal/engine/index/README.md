@@ -68,7 +68,7 @@ builds a binder.
   their roots are rebuilt against destination row and descriptor identities.
   Ordinary GiST and SP-GiST partitioned indexes use the same parent/child publication and
   attachment path as partitioned constraint indexes.
-- **Compact B-tree statistics** (`pgstatindex.go`): `CapturePgstatindex` borrows
+- **Compact B-tree statistics** (`pgstatindex.go`): `CapturePgstattupleStats` borrows
   one effective immutable root, parent versions/ends, commit frontier and actual
   private produced outputs. It validates row/version associations, counts resident
   live/dead memberships once and never reevaluates predicates or expressions.
@@ -86,6 +86,16 @@ builds a binder.
   modeled, including DELETE-to-empty. Counts and inputs are exact; these page,
   byte, level, version and density outputs are explicitly the compact model,
   not physical inspection. Arithmetic is checked and loops honor cancellation.
+- **Compact hash statistics** (`pgstatindex.go`): the shared capture samples the
+  immutable effective hash root by summing bucket lengths, including duplicates.
+  It never visits entries, heap rows or private projections. Live items are this
+  simulated root sample and dead items are zero, not transaction-visible or
+  LP_DEAD accounting. Private DML remains callable without forcing publication.
+  `CompactHashLayout` uses version 4, four base bucket pages, one bitmap page,
+  zero unused pages, 8152 usable bytes per page and 20 bytes per sampled item.
+  With N items, P=max(4,ceil(N/407)); overflow=P-4 and free percent is
+  100*(8152*P-20*N)/(8152*P). Checked arithmetic and bounded bucket cancellation
+  require no per-entry allocation or physical page/split history.
 - **Logical verification** (`amcheck*.go`): `CheckBtree` consumes an immutable
   `AmcheckCapture`, validates actual stored order/identity/positions and parent
   maps, searches the real baseline root independently, and checks demanded heap
@@ -374,8 +384,8 @@ write-time loops
 
 ## Testing
 
-Compact B-tree layout arithmetic and cancellation units use
-`RUN='^TestPgstatindexApproximation$'` from `enginetests/`.
+Compact statistics layout arithmetic and cancellation units use
+`RUN='^TestPgstat(index|hashindex)Approximation$'` from `enginetests/`.
 
 Package units cover column capabilities, `EffectiveRoot`, savepoint exclusion
 marks, access-method properties, operator-family validation and BRIN summaries.

@@ -9,44 +9,44 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type InstalledPgstatindexExpr struct {
-	functions.Pgstatindex
+type InstalledPgstattupleStatsExpr struct {
+	functions.PgstattupleStats
 	Procedure *catalog.Procedure
 	Ref       ids.ObjectRef
 }
 
-func (n InstalledPgstatindexExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
+func (n InstalledPgstattupleStatsExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	runtime, ok := ctx.(interface {
-		EvalPgstatindex(InstalledPgstatindexExpr) (sqltype.Value, error)
+		EvalPgstattupleStats(InstalledPgstattupleStatsExpr) (sqltype.Value, error)
 	})
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing installed pgstatindex runtime")
 	}
-	return runtime.EvalPgstatindex(n)
+	return runtime.EvalPgstattupleStats(n)
 }
-func (n InstalledPgstatindexExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+func (n InstalledPgstattupleStatsExpr) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
 	v, err := n.Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return expr.ScalarSource(v), nil
 }
-func (n InstalledPgstatindexExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (n InstalledPgstattupleStatsExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if info.RoutineReference != n.Procedure {
 		return nil, fmt.Errorf("stuntgres: pgstatindex lost installed identity")
 	}
-	call, err := n.Pgstatindex.Rebuild(info, children)
+	call, err := n.PgstattupleStats.Rebuild(info, children)
 	if err != nil {
 		return nil, err
 	}
-	n.Pgstatindex = call.(functions.Pgstatindex)
+	n.PgstattupleStats = call.(functions.PgstattupleStats)
 	return n, nil
 }
-func (n InstalledPgstatindexExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (n InstalledPgstattupleStatsExpr) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return n.Rebuild(info, children)
 }
-func (n InstalledPgstatindexExpr) SameSourceOccurrence(other expr.Expr) bool {
-	o, ok := other.(InstalledPgstatindexExpr)
-	return ok && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage())
+func (n InstalledPgstattupleStatsExpr) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(InstalledPgstattupleStatsExpr)
+	return ok && n.Operation == o.Operation && n.Input == o.Input && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage())
 }
-func (n InstalledPgstatindexExpr) ScalarSourceOutName() string { return n.Procedure.Name() }
+func (n InstalledPgstattupleStatsExpr) ScalarSourceOutName() string { return n.Procedure.Name() }

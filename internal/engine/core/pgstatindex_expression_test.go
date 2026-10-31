@@ -16,15 +16,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgstatindexUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgstatindexExpr {
+func pgstatindexUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgstattupleStatsExpr {
+	return pgstattupleUnitExpression(t, e, "pgstatindex")
+}
+func pgstattupleUnitExpression(t *testing.T, e *core.Engine, name string) plan.InstalledPgstattupleStatsExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pgstatindex"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "i"}}}}
+	value := parser.Value{Kind: parser.StringValue, Text: "i"}
+	if name == "pgstathashindex" { value = parser.Value{Kind: parser.NullValue} }
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: value}}}
 	node, err := b.BindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(plan.InstalledPgstatindexExpr)
+	return node.(plan.InstalledPgstattupleStatsExpr)
 }
 
 // Exercise the public-call gateway, not BindFunctionProvider's already-selected
@@ -67,14 +72,14 @@ func TestPgstatindexCallableResolution(t *testing.T) {
 				if err != nil || !handled {
 					t.Fatalf("installed overload not admitted: handled=%v err=%v", handled, err)
 				}
-				call, ok := node.(plan.InstalledPgstatindexExpr)
+				call, ok := node.(plan.InstalledPgstattupleStatsExpr)
 				if !ok {
 					t.Fatalf("selected call has type %T", node)
 				}
 				if call.Input != tc.input || call.Procedure.Signature != tc.signature || call.CallRoutineReference() != call.Procedure {
 					t.Fatal("selected overload identity lost", call)
 				}
-				if err := stored.ValidateInstalledPgstatindex(call, e.CatalogRead()); err != nil {
+				if err := stored.ValidateInstalledPgstattupleStats(call, e.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
 				for _, input := range []sqltype.ID{0, sqltype.Int4, sqltype.Text, sqltype.Regclass} {
@@ -83,7 +88,7 @@ func TestPgstatindexCallableResolution(t *testing.T) {
 					}
 					bad := call
 					bad.Input = input
-					if err := stored.ValidateInstalledPgstatindex(bad, e.CatalogRead()); err == nil {
+					if err := stored.ValidateInstalledPgstattupleStats(bad, e.CatalogRead()); err == nil {
 						t.Fatal("unauthorized input/signature pair accepted", input, bad.Procedure.Signature)
 					}
 				}
@@ -92,34 +97,46 @@ func TestPgstatindexCallableResolution(t *testing.T) {
 	}
 }
 func TestPgstatindexExpressionIdentity(t *testing.T) {
+	pgstattupleExpressionIdentity(t, "pgstatindex")
+}
+func TestPgstathashindexExpressionIdentity(t *testing.T) {
+	pgstattupleExpressionIdentity(t, "pgstathashindex")
+}
+func pgstattupleExpressionIdentity(t *testing.T, name string) {
 	e := engine.New()
 	pgstatindexUnitInstalled(t, e)
-	n := pgstatindexUnitExpression(t, e)
+	n := pgstattupleUnitExpression(t, e, name)
 	if n.Usage.Type.ID() != 2249 || n.Properties().Volatility != expr.Volatile || !n.Properties().StageDependent || len(n.Children()) != 1 || n.CallRoutineReference() != n.Procedure {
 		t.Fatal(n)
 	}
+	wantFields := 10
+	if name == "pgstathashindex" { wantFields = 8 }
+	if n.ResultUsage().Type.CompositeLen() != wantFields { t.Fatal("owned shape", n.ResultUsage()) }
 	rebuilt, err := n.Rebuild(expr.InfoOf(n), n.Children())
 	if err != nil {
 		t.Fatal(err)
 	}
-	copy := rebuilt.(plan.InstalledPgstatindexExpr)
-	if copy.Ref != n.Ref || copy.Procedure != n.Procedure || copy.Input != n.Input {
+	copy := rebuilt.(plan.InstalledPgstattupleStatsExpr)
+	if copy.Ref != n.Ref || copy.Procedure != n.Procedure || copy.Input != n.Input || copy.Operation != n.Operation || copy.ResultUsage().Type != n.ResultUsage().Type {
 		t.Fatal("rebuild lost selected identity", copy)
 	}
-	if err := stored.ValidateInstalledPgstatindex(copy, e.CatalogRead()); err != nil {
+	if err := stored.ValidateInstalledPgstattupleStats(copy, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(*plan.InstalledPgstatindexExpr){
-		func(n *plan.InstalledPgstatindexExpr) { n.Input = sqltype.Regclass },
-		func(n *plan.InstalledPgstatindexExpr) { n.RoutineReference = nil },
-		func(n *plan.InstalledPgstatindexExpr) { n.Ref.Address.ObjectID++ },
-		func(n *plan.InstalledPgstatindexExpr) {
+	for _, mutate := range []func(*plan.InstalledPgstattupleStatsExpr){
+		func(n *plan.InstalledPgstattupleStatsExpr) {
+			if n.Input == sqltype.Text { n.Input = sqltype.Regclass } else { n.Input = sqltype.Text }
+		},
+		func(n *plan.InstalledPgstattupleStatsExpr) { n.RoutineReference = nil },
+		func(n *plan.InstalledPgstattupleStatsExpr) { n.Ref.Address.ObjectID++ },
+		func(n *plan.InstalledPgstattupleStatsExpr) { n.Operation ^= 1 },
+		func(n *plan.InstalledPgstattupleStatsExpr) {
 			n.Usage.Type = e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25}).SQLType
 		},
 	} {
 		bad := n
 		mutate(&bad)
-		if err := stored.ValidateInstalledPgstatindex(bad, e.CatalogRead()); err == nil {
+		if err := stored.ValidateInstalledPgstattupleStats(bad, e.CatalogRead()); err == nil {
 			t.Fatal("forged expression accepted", bad)
 		}
 	}
@@ -160,11 +177,11 @@ func TestPgstatindexExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapped := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgstatindexExpr)
+	mapped := remapped.(*plan.ProjectNode).Expressions[0].(plan.InstalledPgstattupleStatsExpr)
 	if mapped.Ref != remap(n.Ref) || mapped.Procedure.Address() != mapping[n.Procedure.Address()] || mapped.CallRoutineReference() != mapped.Procedure || n.Procedure != view.Get(n.Ref.Address) {
 		t.Fatal("remap lost or mutated identity", mapped)
 	}
-	if err := stored.ValidateInstalledPgstatindex(mapped, e.Catalog.Read(state)); err != nil {
+	if err := stored.ValidateInstalledPgstattupleStats(mapped, e.Catalog.Read(state)); err != nil {
 		t.Fatal(err)
 	}
 }

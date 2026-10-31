@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func ValidateInstalledPgstatindex(n plan.InstalledPgstatindexExpr, v catalog.Read) error {
+func ValidateInstalledPgstattupleStats(n plan.InstalledPgstattupleStatsExpr, v catalog.Read) error {
 	p, _, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
 	if err != nil {
 		return err
@@ -16,11 +16,11 @@ func ValidateInstalledPgstatindex(n plan.InstalledPgstatindexExpr, v catalog.Rea
 	if n.CallRoutineReference() != n.Procedure || extension.PgstattupleProviderOf(p) != extension.StockPgstattuple {
 		return fmt.Errorf("stuntgres: invalid installed pgstatindex carrier")
 	}
-	boundary := n.Pgstatindex
+	boundary := n.PgstattupleStats
 	boundary.RoutineReference = p
-	return extension.ValidatePgstatindexCall(v, p, boundary)
+	return extension.ValidatePgstattupleStatsCall(v, p, boundary)
 }
-func pgstatindexCallSQL(n plan.InstalledPgstatindexExpr, p *catalog.Procedure, name string, quote func(string) string, render func(expr.Expr) (string, error)) (string, error) {
+func pgstattupleStatsCallSQL(n plan.InstalledPgstattupleStatsExpr, p *catalog.Procedure, name string, quote func(string) string, render func(expr.Expr) (string, error)) (string, error) {
 	arg, err := render(n.Args[0])
 	if err != nil {
 		return "", err

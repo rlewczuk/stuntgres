@@ -20,7 +20,7 @@ func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
 	remap := extension.DescriptorRemapper(mapping)
 	mapped := remap(ext).(*catalog.Extension)
 	next := mapped.Installation
-	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 2 {
+	if next == recipe || !next.Valid() || next.Cohort != mapping[ext.Address()] || next.Implementation != recipe.Implementation || next.Version != "1.5" || len(next.Declarations) != 3 {
 		t.Fatal("lost sealed release")
 	}
 	for i, a := range recipe.Members {
@@ -47,7 +47,7 @@ func TestPgstatindexProviderCanonicalRemap(t *testing.T) {
 	foreignProc := foreign.CatalogRead().MustProcedure(foreignExt.Members[0])
 	for _, bad := range []*catalog.Procedure{original, foreignProc} {
 		ref := foreign.Catalog.Domain.Ref(view.Epoch(), bad.Address())
-		if err := extension.ValidatePgstatindexIdentity(view, bad, ref); err == nil {
+		if err := extension.ValidatePgstattupleStatsIdentity(view, bad, ref); err == nil {
 			t.Fatal("foreign-domain carrier accepted")
 		}
 	}

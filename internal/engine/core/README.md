@@ -955,18 +955,21 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
-## Installed pgstatindex runtime
+## Installed pgstattuple statistics runtime
 
-`pgstatindex_capture.go` authenticates the two pgstattuple declarations and
+`pgstatindex_capture.go` authenticates the three pgstattuple declarations and
 checks ordinary EXECUTE before child evaluation/STRICT NULL and again after
 index AccessShare admission. Table ownership or SELECT is not authority. Text
 resolves a relation name at invocation; regclass carries supplied OID identity.
 Admission releases replacement reads around waits, rejoins them, and fences
 catalog domain/epoch, descriptors, parent storage and candidate roots. Capture
-borrows the effective root plus immutable versions/ends and exact private
-outputs under Owner.Mu then Engine.Mu. Model computation runs outside mutexes,
-without callbacks, parent ownership switching or parent Share locking. Declared
-AM403 and ordinary index kind precede foreign TEMP and validity checks.
+borrows the effective root under Owner.Mu then Engine.Mu. B-tree captures also
+borrow immutable versions/ends and exact private outputs; hash statistics only
+sample bucket lengths, without private projection traversal. Model computation
+runs outside mutexes, without callbacks, parent ownership switching or parent
+Share locking. Exact selected AM (403 or 405) and ordinary index kind precede
+foreign TEMP and validity checks. Every exit releases its supplied-index lock;
+final descriptor/storage lifetime and cancellation fences precede results.
 
 ## Installed byte pageinspect runtime
 
@@ -2529,8 +2532,8 @@ Shared-dependency immutable-root, local-OID collision and referenced-pin units
 use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
 `reference/catalog_privileges`.
 
-Installed compact B-tree statistics provider, expression and capture ownership
-units use `RUN='^TestPgstatindex'`.
+Installed statistics provider, expression and capture ownership units use
+`RUN='^TestPgstat(index|hashindex)'`.
 
 Low-level relation-admission owner tests must pass the statement through `Gate`
 before acquiring its relation: `StartStatement` alone does not attach the

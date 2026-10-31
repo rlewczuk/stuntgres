@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -19,7 +20,7 @@ import (
 
 // Only the supplied index is locked. Parent storage is borrowed coherently
 // under Owner.Mu then Engine.Mu, without owner switching or recipe callbacks.
-func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
+func (h *statementHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err = s.Active(); err != nil {
 		return
@@ -28,7 +29,7 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 	auth, failure := s.RoutineAuthorizationLocked()
 	err = failure
 	if err == nil {
-		err = pgstatindexAuthority(auth, n)
+		err = pgstattupleStatsAuthority(auth, n)
 	}
 	var path []ids.ObjectAddress
 	if err == nil && n.Input == sqltype.Text {
@@ -58,7 +59,7 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = pgstatindexAuthority(auth, n)
+		err = pgstattupleStatsAuthority(auth, n)
 	}
 	var target, parent *catalog.Relation
 	var store *storage.Relation
@@ -103,7 +104,7 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = pgstatindexAuthority(auth, n)
+		err = pgstattupleStatsAuthority(auth, n)
 	}
 	if err == nil && (ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || auth.Catalog.Get(target.Address()) != target) {
 		err = ids.ErrCatalogReplaced
@@ -113,9 +114,9 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 	}
 	if err == nil {
 		e.markTemporaryAccessLocked(s, ref, temporaryTargetAttempt)
-		err = pgstatindexTargetCheckable(auth.Catalog, target, s.Op.Session.SessionToken)
+		err = pgstattupleStatsTargetCheckable(auth.Catalog, target, s.Op.Session.SessionToken, n.Operation)
 	}
-	var capture index.PgstatindexCapture
+	var capture index.PgstattupleStatsCapture
 	if err == nil && store == nil {
 		err = ids.ErrCatalogReplaced
 	}
@@ -126,17 +127,20 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 				err = ids.ErrCatalogReplaced
 			}
 		}
-		writes, deletes := s.ColumnProjectionRoots(parent.Address())
-		capture = index.PgstatindexCapture{Index: target, Parent: parent, Root: root, Store: *store, Writes: writes, Deletes: deletes, Frontier: e.Visibility.CommitSeq()}
-		capture.Store.IndexSource = store.IndexIdentity()
+		capture = index.PgstattupleStatsCapture{Index: target, Parent: parent, Root: root}
+		if n.Operation != functions.HashStats {
+			writes, deletes := s.ColumnProjectionRoots(parent.Address())
+			capture.Store, capture.Writes, capture.Deletes, capture.Frontier = *store, writes, deletes, e.Visibility.CommitSeq()
+			capture.Store.IndexSource = store.IndexIdentity()
+		}
 	}
 	e.Mu.Unlock()
 	s.Owner.Mu.Unlock()
 	if err != nil {
 		return
 	}
-	var stats index.PgstatindexStats
-	stats, err = index.CapturePgstatindex(s.Op.Context(), capture)
+	var stats index.PgstattupleStatsResult
+	stats, err = index.CapturePgstattupleStats(s.Op.Context(), capture)
 	if err != nil {
 		return
 	}
@@ -150,29 +154,39 @@ func (h *statementHost) Pgstatindex(n plan.InstalledPgstatindexExpr, input sqlty
 	if err = s.Op.Context().Err(); err != nil {
 		return
 	}
-	integers = [8]int64{stats.Version, stats.Level, stats.Size, stats.Root, stats.Internal, stats.Leaves, stats.Empty, stats.Deleted}
-	floats = [2]float64{stats.Density, stats.Fragmentation}
+	if n.Operation == functions.HashStats {
+		integers = [8]int64{stats.Version, stats.Buckets, stats.Overflow, stats.Bitmap, stats.Unused, stats.LiveItems, stats.DeadItems}
+		floats[0] = stats.FreePercent
+	} else {
+		integers = [8]int64{stats.Version, stats.Level, stats.Size, stats.Root, stats.Internal, stats.Leaves, stats.Empty, stats.Deleted}
+		floats = [2]float64{stats.Density, stats.Fragmentation}
+	}
 	return
 }
-func pgstatindexTargetCheckable(v catalog.Read, target *catalog.Relation, token ids.SessionToken) error {
+func pgstattupleStatsTargetCheckable(v catalog.Read, target *catalog.Relation, token ids.SessionToken, operation functions.PgstattupleOperation) error {
 	parentPartitioned := false
 	if target.SQLIndex != nil {
 		if parent, ok := v.Relation(target.SQLIndex.Parent); ok {
 			parentPartitioned = parent.Partition != nil
 		}
 	}
-	if target.RelationKind != catalog.IndexRelation || target.SQLIndex == nil || target.SQLIndex.MethodIdentity() != catalog.BtreeMethod.OID() || parentPartitioned {
-		return SQLError("42809", fmt.Sprintf("relation \"%s\" is not a btree index", target.Name()))
+	method, kind, temporary := catalog.BtreeMethod.OID(), "btree", "tables"
+	if operation == functions.HashStats {
+		method, kind, temporary = catalog.HashMethod.OID(), "hash", "indexes"
+		parentPartitioned = false
+	}
+	if target.RelationKind != catalog.IndexRelation || target.SQLIndex == nil || target.SQLIndex.MethodIdentity() != method || parentPartitioned {
+		return SQLError("42809", fmt.Sprintf("relation \"%s\" is not a %s index", target.Name(), kind))
 	}
 	if ns, ok := v.Namespace(target.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token {
-		return SQLError("0A000", "cannot access temporary tables of other sessions")
+		return SQLError("0A000", "cannot access temporary "+temporary+" of other sessions")
 	}
 	if !target.SQLIndex.Valid {
 		return SQLError("55000", fmt.Sprintf("index \"%s\" is not valid", target.Name()))
 	}
 	return nil
 }
-func pgstatindexAuthority(auth AuthorizationView, n plan.InstalledPgstatindexExpr) error {
+func pgstattupleStatsAuthority(auth AuthorizationView, n plan.InstalledPgstattupleStatsExpr) error {
 	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != auth.Catalog.Owner().Domain || n.Ref.Epoch != auth.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -180,12 +194,12 @@ func pgstatindexAuthority(auth AuthorizationView, n plan.InstalledPgstatindexExp
 	if !ok || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return ids.ErrCatalogReplaced
 	}
-	if err := extension.ValidatePgstatindexIdentity(auth.Catalog, current, n.Ref); err != nil {
+	if err := extension.ValidatePgstattupleStatsIdentity(auth.Catalog, current, n.Ref); err != nil {
 		return err
 	}
-	boundary := n.Pgstatindex
+	boundary := n.PgstattupleStats
 	boundary.RoutineReference = current
-	if err := extension.ValidatePgstatindexCall(auth.Catalog, current, boundary); err != nil {
+	if err := extension.ValidatePgstattupleStatsCall(auth.Catalog, current, boundary); err != nil {
 		return err
 	}
 	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {

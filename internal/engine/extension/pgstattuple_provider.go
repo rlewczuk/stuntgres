@@ -29,13 +29,16 @@ func PgstattupleProviderOf(p *catalog.Procedure) *PgstattupleProvider {
 }
 
 var pgstatindexOutputs = catalog.NewRoutineOutputs([]ids.OID{23, 23, 20, 20, 20, 20, 20, 20, 701, 701}, "relname", "version", "tree_level", "index_size", "root_block_no", "internal_pages", "leaf_pages", "empty_pages", "deleted_pages", "avg_leaf_density", "leaf_fragmentation")
+var pgstathashindexOutputs = catalog.NewRoutineOutputs([]ids.OID{23, 20, 20, 20, 20, 20, 20, 701}, "relname", "version", "bucket_pages", "overflow_pages", "bitmap_pages", "unused_pages", "live_items", "dead_items", "free_percent")
 var PgstattupleMembers = [...]struct {
+	Name      string
 	Signature catalog.ProcedureSignature
 	Source    string
-}{{"25", "pgstatindex_v1_5"}, {"2205", "pgstatindexbyid_v1_5"}}
-
-func pgstatindexDeclaration() catalog.InstalledRoutineDeclaration {
-	return catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstatindexOutputs}
+	Declaration catalog.InstalledRoutineDeclaration
+}{
+	{"pgstatindex", "25", "pgstatindex_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstatindexOutputs}},
+	{"pgstatindex", "2205", "pgstatindexbyid_v1_5", catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstatindexOutputs}},
+	{"pgstathashindex", "2205", "pgstathashindex", catalog.InstalledRoutineDeclaration{Parallel: 's', Outputs: pgstathashindexOutputs}},
 }
 func (p *PgstattupleProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) error {
 	if p != StockPgstattuple || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "pgstattuple" || ext.Version != "1.5" || len(ext.Members) != len(PgstattupleMembers) {
@@ -58,7 +61,7 @@ func (p *PgstattupleProvider) ValidateExtension(v catalog.Read, ext *catalog.Ext
 func (p *PgstattupleProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	return ValidateProcedureOrigin(v, proc, p)
 }
-func ValidatePgstatindexIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
+func ValidatePgstattupleStatsIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
 	actual, ok := v.Procedure(ref.Address)
 	if v.Owner() == nil || !ok || proc == nil || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || PgstattupleProviderOf(proc) != StockPgstattuple {
 		return fmt.Errorf("stuntgres: invalid stored pgstatindex identity")
@@ -81,7 +84,7 @@ func (p *PgstattupleProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: "pgstatindex", Signature: m.Signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: 2249, Volatility: expr.Volatile, Strict: true, Installed: pgstatindexDeclaration(), Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pgstattuple", HasBinary: true}, Implementation: p}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: m.Name, Signature: m.Signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: 2249, Volatility: expr.Volatile, Strict: true, Installed: m.Declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pgstattuple", HasBinary: true}, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}
@@ -101,7 +104,7 @@ func (p *PgstattupleProvider) Stage(stage Stage, ext *catalog.Extension, owner a
 	}
 	return nil
 }
-func ValidatePgstatindexCall(v catalog.Read, p *catalog.Procedure, call functions.Pgstatindex) error {
+func ValidatePgstattupleStatsCall(v catalog.Read, p *catalog.Procedure, call functions.PgstattupleStats) error {
 	if p == nil || PgstattupleProviderOf(p) != StockPgstattuple || call.RoutineReference != p {
 		return fmt.Errorf("stuntgres: invalid pgstatindex call identity")
 	}
@@ -109,7 +112,7 @@ func ValidatePgstatindexCall(v catalog.Read, p *catalog.Procedure, call function
 	if err != nil {
 		return err
 	}
-	if symbol != "pgstatindex" || !((call.Input == sqltype.Text && p.Signature == "25") || (call.Input == sqltype.Regclass && p.Signature == "2205")) {
+	if symbol != call.Operation.Name() || !((call.Input == sqltype.Text && p.Signature == "25" && call.Operation == functions.BtreeStats) || (call.Input == sqltype.Regclass && p.Signature == "2205")) {
 		return fmt.Errorf("stuntgres: mismatched pgstatindex overload")
 	}
 	if err := call.ValidateArguments(call.Args); err != nil {

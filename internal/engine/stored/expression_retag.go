@@ -463,7 +463,7 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
-	case plan.InstalledPgstatindexExpr:
+	case plan.InstalledPgstattupleStatsExpr:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -475,7 +475,7 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		changed = changed || n.Procedure != proc
 		n.Procedure, info.RoutineReference = proc, proc
 		n.Info = info
-		if err = ValidateInstalledPgstatindex(n, view); err != nil {
+		if err = ValidateInstalledPgstattupleStats(n, view); err != nil {
 			return nil, false, err
 		}
 		rebound = n
