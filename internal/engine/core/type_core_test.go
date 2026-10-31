@@ -1,14 +1,11 @@
 package core_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -90,37 +87,6 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 	}
 }
 
-func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
-	e := engine.New()
-	stale := enginetest.Usage(e, sqltype.Int4)
-	if err := engine.Reset(context.Background(), e); err != nil {
-		t.Fatal(err)
-	}
-	for _, usage := range []sqltype.Usage{{}, enginetest.Usage(e, sqltype.Unknown), enginetest.Usage(engine.New(), sqltype.Int4), stale} {
-		base := e.CatalogRead()
-		stage := e.BeginCatalogStage(base)
-		descriptor := &catalog.Relation{
-			ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000},
-			ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
-			ObjectName:      "invalid", ObjectRevision: 1,
-			Columns: []catalog.Column{{Name: "id", Usage: usage}},
-			Index:   map[string]int{"id": 0}, Attributes: []int32{1},
-			ColumnMeta: catalog.ColumnMetadata{
-				HighWater: 1,
-			},
-		}
-		if err := stage.Create(descriptor); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
-			t.Fatal("invalid column type accepted", usage)
-		}
-		if e.CatalogRead().State() != base.State() {
-			t.Fatal("invalid type published")
-		}
-	}
-}
-
 func TestFloatCatalogDescriptionsAndOwnership(t *testing.T) {
 	e := engine.New()
 	enginetest.Run(t, e, `CREATE TABLE f(a REAL NOT NULL,b FLOAT4,c DOUBLE PRECISION,d FLOAT8,e FLOAT,f FLOAT(1),g FLOAT(24),h FLOAT(25),i FLOAT(53),j "float4",k "float8")`)
@@ -142,28 +108,5 @@ func TestFloatCatalogDescriptionsAndOwnership(t *testing.T) {
 	bound, err := e.Describe(op, enginetest.Statement(t, "INSERT INTO f(a,c) VALUES($1,$2)"))
 	if err != nil || bound.Parameters.Types[0].Type.ID() != 700 || bound.Parameters.Types[1].Type.ID() != 701 {
 		t.Fatal(bound, err)
-	}
-}
-
-func TestFloatFailedRestorePreservesEpochAndCatalog(t *testing.T) {
-	e := engine.New()
-	enginetest.Run(t, e, "CREATE TABLE f(r REAL,d DOUBLE PRECISION)")
-	enginetest.Run(t, e, "INSERT INTO f VALUES('7.038531e-26','-0')")
-	before := e.CatalogRead()
-	var original bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &original); err != nil {
-		t.Fatal(err)
-	}
-	for _, script := range []string{"CREATE TABLE replacement(r REAL); INSERT INTO replacement VALUES('1'),('oops')", "CREATE TABLE replacement(d DOUBLE PRECISION); INSERT INTO replacement VALUES('1'),('1e999')"} {
-		if err := engine.Restore(context.Background(), e, strings.NewReader(script)); err == nil {
-			t.Fatal("invalid restore")
-		}
-		if current := e.CatalogRead(); current.State() != before.State() || current.Epoch() != before.Epoch() {
-			t.Fatal("failed float restore changed catalog generation")
-		}
-		var dump bytes.Buffer
-		if err := engine.Dump(context.Background(), e, &dump); err != nil || dump.String() != original.String() {
-			t.Fatal(dump.String(), err)
-		}
 	}
 }

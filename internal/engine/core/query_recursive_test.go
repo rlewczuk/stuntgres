@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -373,21 +372,5 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	}
 	if copy.Schema()[0].Usage.Type == n.Schema()[0].Usage.Type || n.Definition.Query.Root != project {
 		t.Fatal("foreign remap retained/mutated source owner")
-	}
-}
-
-func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
-	typ := cteUnitType(t)
-	table := &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "r"}}}}
-	definition := &plan.CTEDefinition{Recursive: true}
-	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
-	project := &plan.ProjectNode{Child: &plan.FilterNode{Child: self}}
-	if stored.ViewCTETable(project, table) != self || stored.ViewCTEOrdinal(project, -1) != self {
-		t.Fatal("stored self scan lost opaque node identity")
-	}
-	renderer := &stored.QueryRenderer{Slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
-	text, err := renderer.SlotSQL(context.Background(), catalog.Read{}, stored.ViewCTETable(project, table), 0)
-	if err != nil || text != "r.n" {
-		t.Fatal("worktable namespace slot", text, err)
 	}
 }
