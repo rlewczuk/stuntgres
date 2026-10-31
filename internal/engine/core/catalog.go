@@ -20,6 +20,7 @@ import (
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -921,6 +922,14 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			e.Storage.ReplaceIndexRootsLocked(indexRoots)
 			for a := range s.Removals() {
 				e.Storage.RemoveSequenceLocked(a)
+				if category, tracked := statsObjectCategory(a); tracked {
+					key := statistics.Key{Object: e.Catalog.Domain.Ref(next.Epoch(), a), Category: category}
+					if op != nil {
+						PayloadOf(op.Session).statsWriter.Retire(&e.Statistics, key)
+					} else {
+						e.Statistics.Retire(key)
+					}
+				}
 			}
 			for a, generator := range s.Sequence.StagedGenerators() {
 				e.Storage.InstallSequenceLocked(a, generator)
@@ -1320,6 +1329,7 @@ func (e *Engine) replacementACLsLocked(next *catalog.State) (ids.DefinitionRevis
 // The caller holds replacementMu and mu.
 func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, metadata map[ids.ObjectAddress]*storage.RelationMetadata, roots map[ids.ObjectAddress]*storage.IndexRoot, nextRow, nextVersion uint64, nextRevision ids.DefinitionRevision, nextOID ids.OID, progress map[ids.OID]uint64) {
 	sharedRoots := e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
+	e.replaceStatsLocked(next, relations)
 	e.Storage.SetFrontierLocked(nextRow, nextVersion)
 	e.Storage.ReplaceIndexRootsLocked(roots)
 	e.Visibility.AdvanceCommitSeqLocked()

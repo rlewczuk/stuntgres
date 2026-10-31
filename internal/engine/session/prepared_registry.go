@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -25,6 +26,7 @@ type PreparedTransaction struct {
 	Ticket   *lock.Ticket
 	Writes   map[ids.ObjectAddress][]storage.RowVersion
 	Deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats    statistics.Ledger
 	Catalog  *Journal
 	Claimed  bool
 	Roots    map[ids.ObjectAddress]visibility.Root

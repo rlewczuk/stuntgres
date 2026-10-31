@@ -248,14 +248,12 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 		run(fixture.Select("SHOW log_statement_stats", []string{"log_statement_stats"}, []string{"TEXT"}, [][]any{{"on"}}))
 		run(fixture.Exec("RESET log_statement_stats", 0))
 		run(fixture.Select("SHOW log_statement_stats", []string{"log_statement_stats"}, []string{"TEXT"}, [][]any{{"off"}}))
+		run(fixture.Select("SELECT name,setting FROM pg_settings WHERE name='track_counts'", []string{"name", "setting"}, []string{"TEXT", "TEXT"}, [][]any{{"track_counts", "on"}}))
 		if !pg {
-			run(fixture.ImplicitError("SHOW track_counts", fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "track_counts"`)))
-			run(fixture.Select("SELECT name FROM pg_settings WHERE name='track_counts'", []string{"name"}, []string{"TEXT"}, nil))
 			s := fixture.ErrorDiagnostic("UPDATE pg_settings SET setting='smoke' WHERE name='application_name'", statisticsSettingsWriteDiagnostic("update", "updating the view"))
 			run(s)
 			run(fixture.Select("SELECT current_setting('application_name')", []string{"current_setting"}, []string{"TEXT"}, [][]any{{""}}))
 		} else {
-			run(fixture.Select("SELECT name,setting FROM pg_settings WHERE name='track_counts'", []string{"name", "setting"}, []string{"TEXT", "TEXT"}, [][]any{{"track_counts", "on"}}))
 			run(fixture.Exec("BEGIN", 0))
 			defer conn.ExecContext(p.Ctx, "ROLLBACK")
 			run(fixture.Exec("UPDATE pg_settings SET setting='smoke' WHERE name='application_name'", 0))

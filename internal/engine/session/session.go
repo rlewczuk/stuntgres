@@ -457,6 +457,11 @@ func (s *Session) end() {
 			s.cleanupErrors = append(s.cleanupErrors, err)
 		}
 	}
+	// Always drain deferred host work, even if no Transaction resource was
+	// attached or a quiescent caller detached it earlier.
+	s.Mu.Unlock()
+	s.Host.DrainStatistics(s)
+	s.Mu.Lock()
 	s.result = errors.Join(s.cleanupErrors...)
 	s.Host.Unregister(s.SessionToken, s)
 	s.State = Ended

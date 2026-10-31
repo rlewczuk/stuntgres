@@ -36,6 +36,7 @@ func TestReferenceVacuumProgress(t *testing.T) {
 		run(fixture.Exec("DELETE FROM vacuum_progress WHERE id=2", 1))
 		run(fixture.Exec("VACUUM (FREEZE) vacuum_progress", 0))
 		vacuumProgressEmpty(t, p, b, c)
+		vacuumCount(t, p.Ctx, c, "vacuum_progress", 1)
 		run(fixture.Select("SELECT relname,n_live_tup,n_dead_tup,vacuum_count FROM pg_stat_user_tables WHERE relid='vacuum_progress'::regclass", []string{"relname", "n_live_tup", "n_dead_tup", "vacuum_count"}, []string{"NAME", "INT8", "INT8", "INT8"}, [][]any{{"vacuum_progress", int64(2), int64(0), int64(1)}}))
 		run(fixture.Select("SELECT relname FROM pg_stat_sys_tables WHERE relid='vacuum_progress'::regclass", []string{"relname"}, []string{"NAME"}, nil))
 		// A second unchanged pass makes native logical counters deterministic.

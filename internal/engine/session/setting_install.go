@@ -51,6 +51,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	if err := s.ValidateValueLocked(d, value); err != nil {
 		return "", err
 	}
+	beforeStats := s.Value("stats_fetch_consistency")
 	beforeRole := ""
 	if d.Name == "session_replication_role" {
 		beforeRole = s.TypedValue(d.Name).Text
@@ -78,6 +79,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 	if d.Name == "session_replication_role" {
 		s.RuleRoleChanged(beforeRole)
 	}
+	s.StatsChanged(beforeStats)
 	if !s.Invocation && (d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout") {
 		op.Session.PublishTimeoutSettingsLocked(s, d.Name == "transaction_timeout", time.Now())
 	}
@@ -92,6 +94,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 // invoked again. Caller holds Settings.Mu then Session.Mu of s.Session.
 func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 	beforeRole := s.TypedValue("session_replication_role").Text
+	beforeStats := s.Value("stats_fetch_consistency")
 	timeoutChanged, transactionAssignment := false, false
 	for key := range s.Values {
 		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && !(d.Access == settings.Privileged && parameterGrantSetting(d.Name)) {
@@ -111,6 +114,7 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 		}
 	}
 	s.RuleRoleChanged(beforeRole)
+	s.StatsChanged(beforeStats)
 	if timeoutChanged && !s.Invocation {
 		s.Session.PublishTimeoutSettingsLocked(s, transactionAssignment, time.Now())
 	}

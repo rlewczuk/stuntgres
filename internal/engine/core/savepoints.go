@@ -43,6 +43,8 @@ func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, s
 // protocol portals, the owner's state and settings, and exclusions. Engine.mu
 // -> Settings.Mu -> Session.Mu are held, with t.Mu.
 func (e *Engine) restoreSavepointLocked(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
+	abortStatsFrames(e, t.Session, t.Stats, mark.StatsLevel)
+	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog, mark.Catalog, mark.StatementCatalog)
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.rollback(mark.Cursors))
 	ownerExtensionOf(t).largeObjects.rollback(mark.LargeObjects)
 	retireProtocolPortalsAfter(t, mark.Cursors)
@@ -175,6 +177,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.TruncateSavepoints(position + 1)
 			t.State = session.TxActive
 		case parser.ReleaseSavepoint:
+			t.Stats.Release(position)
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.
 			t.ReadOnly = mark.ReadOnly

@@ -54,5 +54,6 @@ func (e *Engine) finishStatementAdmissionError(op *session.Operation, err error,
 	// The timeout is already primary, just as in ordinary Finish.
 	_ = drainCursorCleanup(t, op.Context(), nil)
 	e.EndLockOwner(endedTicket)
+	statsIdle(op.Session, false)
 	return err
 }

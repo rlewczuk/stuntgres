@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 
@@ -68,6 +69,7 @@ type Engine struct {
 	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	Statistics                      statistics.Provider
 	catalogCaptures                 catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
 	Statements                      Statements                   // Family dispatch; set by the composition, shared by every target.
 	Factory                         EngineFactory                // Composed constructor; set by the composition, shared by every target.

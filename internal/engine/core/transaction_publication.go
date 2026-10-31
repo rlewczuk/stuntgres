@@ -140,6 +140,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				e.installNotificationPublicationLocked(notifications)
 				e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
 				e.Visibility.RecordCommitTimestampLocked(ref)
+				publishTransactionStats(e, op.Session, ref, phase, scope)
 				e.finishPreparedLocked(phase)
 				op.FinishDiscardRoleResetLocked()
 			}
@@ -597,6 +598,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
 		e.Storage.ReplaceIndexRootsLocked(indexRoots)
+		publishTransactionStats(e, sess, ref, phase, scope)
 		e.Visibility.AdvanceCommitSeqLocked()
 		e.Visibility.RecordCommitTimestampLocked(ref)
 		e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())

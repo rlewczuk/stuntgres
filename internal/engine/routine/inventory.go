@@ -1957,6 +1957,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3163, ids.PGCatalogNamespaceOID, "pg_trigger_depth", ""}, catalog.FunctionRoutine, 23, true, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2560, ids.PGCatalogNamespaceOID, "pg_postmaster_start_time", ""}, catalog.FunctionRoutine, 1184, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2034, ids.PGCatalogNamespaceOID, "pg_conf_load_time", ""}, catalog.FunctionRoutine, 1184, true, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3788, ids.PGCatalogNamespaceOID, "pg_stat_get_snapshot_timestamp", ""}, catalog.FunctionRoutine, 1184, true, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{2230, ids.PGCatalogNamespaceOID, "pg_stat_clear_snapshot", ""}, catalog.FunctionRoutine, 2278, false, expr.Volatile, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2196, ids.PGCatalogNamespaceOID, "inet_client_addr", ""}, catalog.FunctionRoutine, 869, false, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2197, ids.PGCatalogNamespaceOID, "inet_client_port", ""}, catalog.FunctionRoutine, 23, false, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{2198, ids.PGCatalogNamespaceOID, "inet_server_addr", ""}, catalog.FunctionRoutine, 869, false, expr.Stable, 'r', false, 0, 0, functions.CatalogRoutineProvider, nil},

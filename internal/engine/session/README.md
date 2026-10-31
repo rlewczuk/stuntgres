@@ -28,6 +28,11 @@ the same selected deltas until creation commits; existing-object maintenance
 is not rolled back. Descriptor/epoch and optional real-heap identities fence
 publication, not metadata-pointer changes caused by a peer's compatible refresh.
 This is not a second committed store or a row rewrite.
+These are optimizer metadata lifetimes, not cumulative monitoring reports.
+Completed ANALYZE/VACUUM update the shared monitoring provider immediately;
+ordinary tuple pending/throttle ownership is unchanged. A private creation's
+report is owner-readable before commit, but its discarded journal identity is
+retired on top/subtransaction or prepared abort. Existing-object reports survive.
 Selected-deletion tombstones remain in the immutable delta until commit applies
 them to the newest canonical root, including structural inherited-flavor removal.
 `StorageChange.TruncateScanReset` records actual truncate scan invalidation
@@ -189,6 +194,10 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   The typed role action and mark retain the complete current-ref/active/text
   triple, including masked SET candidates and active-only self/NONE changes.
   Restoration uses captured refs/text without name or membership rechecks.
+  Effective `stats_fetch_consistency` changes advance one physical atomic
+  generation. Detached invocation/checkpoint images share its original authority
+  without sharing mutable values or acquiring the physical store's mutex;
+  assignment and all restoration paths invalidate readers without callbacks.
   The physical `RoleState` retains its startup reset ref/text pair independently
   of effective invocation actors; DISCARD restores that same pair.
   Physical startup selects committed global, database, login-role and
@@ -505,6 +514,11 @@ unrelated page/visibility updates. No new canonical counter is introduced.
   releases the physical reservation under cluster AdmissionMu. It never takes
   metadata Mu. `NewOperation` (possibly under `Session.Mu`) only allocates the
   operation with its binding host.
+  `StatisticsReadyLocked` services only a due cumulative publication request
+  under `Session.Mu`, using nonblocking admission/owner acquisition and the leaf
+  provider lock. Unconditional `DrainStatistics`, after all resource callbacks,
+  cancels the one-shot timer under authority and then joins callbacks outside
+  session/admission/owner locks, including initialization-failure/detached paths.
 
 ## Invariants
 
@@ -582,6 +596,8 @@ before reading settings; a zero or incomplete role view is not a visibility gran
 Routine configuration journal units live in `enginetests/` and use
 `RUN='^TestRoutineConfiguration'`, also with `RACE=1`; they assert typed action
 ownership, immutable checkpoint backing and transaction versus SAVE boundaries.
+Consistency-generation restoration/authority units use `RUN='^TestStatsSnapshot'`,
+also with `RACE=1`; they retain a real reader across detached no-read round trips.
 XML diagnostic ownership and real protocol output codec units use
 `RUN='^TestXML(Input|Protocol)'`, including `RACE=1`
 for detached collector/cancellation ownership.

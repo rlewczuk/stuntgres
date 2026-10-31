@@ -5,6 +5,8 @@ package settings
 func builtinMetadata(d Definition) Definition {
 	d.Category = "Client Connection Defaults / Statement Behavior"
 	switch d.Name {
+	case "stats_fetch_consistency", "track_activities", "track_counts", "track_functions", "track_io_timing", "track_wal_io_timing":
+		d.Category = "Statistics / Cumulative Query and Index Statistics"
 	case "is_superuser":
 		d.Category = "Preset Options"
 	case "deadlock_timeout", "max_locks_per_transaction", "max_pred_locks_per_page", "max_pred_locks_per_relation", "max_pred_locks_per_transaction":

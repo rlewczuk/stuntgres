@@ -74,6 +74,12 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 			return core.Result{}, err
 		}
 	}
+	var stats view.MaterializedCounts
+	_, _, statsPolicy := scope.Op.EffectiveSettings().StatsConfiguration()
+	var collect *view.MaterializedCounts
+	if statsPolicy.Counts {
+		collect = &stats
+	}
 	if concurrent {
 		var err error
 		if len(ownRows) != 0 || ownDeletes != nil {
@@ -84,13 +90,18 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 				return core.Result{}, err
 			}
 		}
-		rows, err = view.MaterializedConcurrentRows(scope.Op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.Output)
+		rows, err = view.MaterializedConcurrentRows(scope.Op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.Output, collect)
 		if err != nil {
 			return core.Result{}, err
 		}
 	}
 	if err := stageMaterializedRows(e, scope.Op.Context(), stage, d, scope.LockedStorage, rows, !stmt.NoData, scope.TxRef); err != nil {
 		return core.Result{}, err
+	}
+	if concurrent {
+		scope.RecordStatsPopulation(ref, stats.Inserts, stats.Deletes, false)
+	} else {
+		scope.RecordStatsPopulation(ref, int64(len(rows)), 0, true)
 	}
 	materializedStage(stage).Replacement.Concurrent = concurrent
 	// Provider validation may replace the catalog. Exact stage fences, not this
@@ -104,8 +115,11 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
+		scope.CompleteStatsPopulation()
 		scope.RecordDDLCommand("REFRESH MATERIALIZED VIEW", ref.Address)
 		scope.CompleteUtility()
+	} else {
+		scope.AbortStatsPopulation()
 	}
 	return core.Result{}, err
 }

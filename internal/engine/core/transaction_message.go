@@ -112,6 +112,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 	s.Op.Session.Mu.Unlock()
 	s.messageEnded = true
 	s.messageResult = err
+	statsIdle(t.Session, false)
 	t.Admission.Unlock()
 	return err
 }

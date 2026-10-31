@@ -33,6 +33,9 @@ func TestReferenceVacuumF3ImportedStatistics(t *testing.T) {
 		t.Fatal(err)
 	}
 	check := func(live, dead, inserts, deletes, mods, since int64) {
+		vacuumStatistic(t, p.Ctx, c, "vacuum_review_import", "n_tup_ins", inserts)
+		vacuumStatistic(t, p.Ctx, c, "vacuum_review_import", "n_tup_del", deletes)
+		vacuumStatistic(t, p.Ctx, c, "vacuum_review_import", "n_mod_since_analyze", mods)
 		run(fixture.Select("SELECT n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del,n_mod_since_analyze,n_ins_since_vacuum,vacuum_count,last_vacuum IS NULL AS no_history FROM pg_stat_all_tables WHERE relid='vacuum_review_import'::regclass", []string{"n_live_tup", "n_dead_tup", "n_tup_ins", "n_tup_upd", "n_tup_del", "n_mod_since_analyze", "n_ins_since_vacuum", "vacuum_count", "no_history"}, []string{"INT8", "INT8", "INT8", "INT8", "INT8", "INT8", "INT8", "INT8", "BOOL"}, [][]any{{live, dead, inserts, int64(0), deletes, mods, since, int64(0), true}}))
 		run(fixture.Select("SELECT reltuples=-1::real AS unscanned FROM pg_class WHERE oid='vacuum_review_import'::regclass", []string{"unscanned"}, []string{"BOOL"}, [][]any{{true}}))
 	}

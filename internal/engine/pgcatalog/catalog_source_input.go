@@ -83,6 +83,8 @@ func KeyColumns(relation ids.OID) []int {
 		return []int{AttributeRelationColumn}
 	case ClassOID:
 		return []int{ClassOIDColumn, ClassNameColumn}
+	case StatAllTablesOID, StatSysTablesOID, StatUserTablesOID:
+		return []int{0, 2}
 	case ids.ProcedureClassID:
 		return []int{ProcedureOIDColumn}
 	case InfoRoutinesOID:
@@ -178,6 +180,7 @@ type Runtime interface {
 	PreparedCount() int
 	VisitPreparedTransactions(context.Context, func(PreparedFact) error) error
 	Maintenance(ids.ObjectAddress) (MaintenanceFact, bool)
+	TableStatistics(ids.ObjectAddress) MaintenanceFact
 	VisitExtendedStatistics(context.Context, func(ids.OID, bool, sqltype.Value, sqltype.Value, sqltype.Value, sqltype.Value) error) error
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64

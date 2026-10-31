@@ -82,6 +82,12 @@ func ScopeTruncateOrZero(x *StatementScope) dml.TruncateScope {
 	return x.truncateOrZero()
 }
 
+// ScopeTruncateSlot returns the command-local manifest without allocating it.
+func ScopeTruncateSlot(x *StatementScope) *dml.TruncateScope { return x.truncateSlot }
+
+// ScopeStageTruncate executes the admitted manifest's actual storage guards.
+func ScopeStageTruncate(x *StatementScope) error { return x.stageTruncate() }
+
 // EngineRowDiagnosticDetail calls x.rowDiagnosticDetail.
 func EngineRowDiagnosticDetail(x *Engine, s *StatementScope, b *analyze.Binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
 	return x.rowDiagnosticDetail(s, b, row, suppressEmpty)

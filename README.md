@@ -216,9 +216,10 @@ stay stale after DML and unselected columns retain their facts; empty refresh
 retains old column distributions but refreshes row estimates to zero.
 `BUFFER_USAGE_LIMIT` is validated but its physical buffer-strategy control is
 inapplicable in this in-memory engine. No pages, WAL, sampling workers or
-autovacuum are implied. `pg_class` and table-statistics views publish real
-maintenance facts. Logical Dump/Restore transports checked extended and
-single-column statistics alongside data.
+autovacuum are implied. `pg_class` exposes maintenance and imported relation
+estimates; `pg_stat_all_tables`, `pg_stat_sys_tables` and `pg_stat_user_tables`
+read shared cumulative statistics. Logical Dump/Restore transports checked
+extended and single-column statistics alongside data.
 
 `pg_restore_relation_stats(VARIADIC kwargs "any")` restores exact logical
 `pg_class` estimates: `relpages`, `relallvisible` and `relallfrozen` require
@@ -240,6 +241,29 @@ statistics while emptying rows. Nested savepoints retain that distinction.
 Argument names
 match ASCII case-insensitively under the C/UTF8 contract; Unicode lookalikes
 are unknown names, not aliases for required selectors or `version`.
+
+Cumulative table statistics honor `track_counts` at collection without disabling
+DML, ANALYZE metadata or VACUUM work. Already collected facts remain visible.
+Tuple attempts remain private until transaction or aborted-subtransaction reporting;
+PREPARE transfers unresolved accounting without publishing it on preparing exit.
+Completed ANALYZE/VACUUM reports update the same shared statistics immediately,
+even inside an open transaction; they do not flush pending tuple events or
+invalidate retained reader snapshots. ANALYZE reconciles its sampled estimates
+with current unresolved work; full reports reset shared modifications, while
+column-list reports retain them. VACUUM resets shared inserts-since-vacuum,
+leaving pending inserts to contribute when they later publish. Monitoring reports
+survive existing-object rollback; aborted private creations retire their own
+qualified statistics identity.
+Reportable session-local batches publish only at outside-transaction idle, normally
+at most once per second. Throttled pending gets a one-shot ten-second idle retry;
+busy/transaction blocks defer it until ready. Physical exit joins the retry and
+force-drains after cleanup. `stats_fetch_consistency` selects current
+published reads (`none`), per-object transaction caching (`cache`, the default),
+or one lazy transaction-wide capture (`snapshot`). In snapshot mode
+`pg_stat_get_snapshot_timestamp()` is NULL until the first cumulative read and
+then remains stable. `pg_stat_clear_snapshot()` discards only the reader's cache;
+it neither resets counters nor flushes another connection. Transaction completion
+and effective consistency-setting changes discard retained reader state.
 
 The fifteen-column read-only `pg_stat_progress_vacuum` view reports real admitted
 VACUUM workers, actual phases and completed logical work. Authorized counters

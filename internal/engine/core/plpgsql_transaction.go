@@ -126,6 +126,11 @@ func (s *StatementScope) rotatePLTransaction(commit, chain bool) error {
 	if chain {
 		restart = restartPLChain
 	}
+	if !commit {
+		t.Mu.Lock()
+		t.Stats.Take(&s.Stage.Stats)
+		t.Mu.Unlock()
+	}
 	_, err := e.endAdmitted(s.Op, t, s.TxRef, commit, restart, true, time.Now().UTC().Truncate(time.Microsecond), s)
 	if err != nil {
 		return err
@@ -151,6 +156,7 @@ func (s *StatementScope) resetPLSegment() {
 	s.Input.XMLInput = session.XMLInput{Op: s.Op}
 	s.installSQLRoutineScratch(s.rebaseRoutineScratch(s.sqlRoutineScratch()))
 	s.Stage.Rows, s.Stage.Deletes = nil, nil
+	s.Stage.Stats = nil
 	s.Stage.Replacing = false
 	s.Catalog, s.CatalogAuthority = nil, nil
 	s.ProjectedRoots = false

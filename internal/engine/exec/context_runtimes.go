@@ -66,6 +66,17 @@ func (c *Context) SessionSignalValue(kind functions.SessionSignalKind, pid, time
 	return host.SessionSignalValue(c, kind, pid, timeout, result)
 }
 
+func (c *Context) StatsSnapshotValue(clear bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: statistics snapshot lacks statement authority")
+	}
+	return host.StatsSnapshotValue(clear, result)
+}
+
 var _ functions.TriggerDepthRuntime = (*Context)(nil)
 
 func (c *Context) TriggerDepthValue(result *sqltype.Descriptor) (sqltype.Value, error) {

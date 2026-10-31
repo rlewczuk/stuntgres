@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 )
 
 // sessionPayload is the root-owned part of a session (13c decision 3): SQL
@@ -21,6 +22,9 @@ type sessionPayload struct {
 	Sequences      sequence.SessionMemory
 	notifications  session.NotificationListener
 	thesaurusMemos map[ids.ObjectAddress]thesaurusMemo // Engine.Mu; this session's successful initializations.
+	statsWriter    statistics.Writer                   // Transaction admission serializes collection and drains.
+	statsReader    statistics.Reader                   // Cleared at every transaction terminal boundary.
+	statsFlush     statsFlushSlot                      // Session.Mu; callbacks use nonblocking transaction admission.
 }
 
 func (*sessionPayload) PayloadSlot() {}

@@ -83,6 +83,7 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if err == nil {
 		e.transferReplicationOriginsLocked(stage, scope.TxRef)
+		scope.absorbStatsPopulation()
 		scope.Catalog = changes
 		if scope.CatalogAuthority == nil {
 			scope.CatalogAuthority = stage.FinishAuthority
@@ -124,7 +125,9 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 		changes.RecordMaterializedRefresh(session.MaterializedRefresh{Address: a, Predecessor: r.Predecessor, Storage: r.Storage, Ends: r.Ends, Generation: r.Generation, Descriptor: r.Descriptor, Concurrent: r.Concurrent, Committed: r.Predecessor == e.Storage.Relations[a], Frontier: e.Visibility.CommitSeq()})
 		if !r.Concurrent {
 			replacement := storage.ImportedRelationStatistics{Mask: storage.RelationStatisticsAll, Tuples: -1}
-			if r.Storage.Maintenance.Scanned { replacement.Tuples = float32(r.Storage.Maintenance.Tuples) }
+			if r.Storage.Maintenance.Scanned {
+				replacement.Tuples = float32(r.Storage.Maintenance.Tuples)
+			}
 			e.resetImportedRelationStatisticsLocked(changes, r.Descriptor, replacement, r.Storage)
 		}
 	}

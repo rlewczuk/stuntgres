@@ -280,6 +280,10 @@ imports `view`.
   Refresh replacement preserves exact `TableMethod` as defining authority;
   compatible row/population updates cannot authorize a changed method or attach
   unrelated method metadata to a constructor's storage token.
+  The same concurrent row-matching pass optionally reports `MaterializedCounts`
+  (actual inserted/deleted rows) to the cumulative collector. Nil output does no
+  counting work; statistics never change matching, buffer ownership or physical
+  replacement. Provider timing/publication belongs to core, not this package.
 - **Policies and RLS** (`policy*.go`, `rls_base.go`, `row_security*.go`): policy
   validation and dependencies, `RowSecurityLayers`, the `row_security` setting
   walkers and the command state `RowSecurity`, which borrows OLD/NEW

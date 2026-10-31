@@ -23,6 +23,7 @@ type analyzeSegment struct {
 }
 
 func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarget, options table.AnalyzeOptions) error {
+	started := time.Now()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
@@ -131,6 +132,7 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	}
 	refs := make([]ids.ObjectRef, 0, len(closure))
 	segments := make([]analyzeSegment, 0, len(closure))
+	var sampledDead int64
 	for _, physical := range closure {
 		if physical.Partition != nil {
 			continue
@@ -139,6 +141,11 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		if store == nil {
 			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
+		}
+		if physical.Address() == relation.Address() {
+			// The in-memory maintenance estimate is the supported dead sample;
+			// invisible raw versions are not all dead (birth frontiers matter).
+			sampledDead = store.Maintenance.Dead
 		}
 		layout, err := catalog.InheritanceQueryLayout(relation, physical)
 		if err != nil {
@@ -268,6 +275,9 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if err != nil {
 		return err
 	}
+	// Preserve the local sample independently of rows, which the inherited
+	// pass also uses for partition-parent optimizer cardinality below.
+	sampledLive := int64(rows)
 	var delta map[storage.StatisticsKey]*storage.ColumnStatistics
 	if local != nil {
 		delta = local.Columns
@@ -328,7 +338,9 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	}
 	metadata.Imported = storage.WithoutImportedRelationStatistics(metadata.Imported, storage.RelationTuples)
 	if pending := s.PendingCatalog(); pending != nil {
-		if s.Catalog == nil { s.Catalog = pending.Clone() }
+		if s.Catalog == nil {
+			s.Catalog = pending.Clone()
+		}
 		s.Catalog.ForgetRelationStatistics(relation.Address(), storage.RelationTuples)
 	}
 	metadata.AnalyzeCount++
@@ -392,5 +404,10 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 		store.Maintenance.Tuples = int64(rows)
 		store.Maintenance.Modifications = 0
 	}
+	// Live population comes from the actual captured collector, including own
+	// visible writes. The core reporter subtracts unresolved/current deltas and
+	// pending dead estimates before updating shared statistics immediately.
+	// Partition parents report their zero local sample, not inherited tuples.
+	s.RecordStatsMaintenance(auth.Ref(relation.Address()), true, started, completed, sampledLive, sampledDead, len(target.columns) == 0)
 	return nil
 }

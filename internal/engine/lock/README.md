@@ -205,10 +205,15 @@ For reference, the surrounding engine order takes `replacementMu` and
 `TransactionOwner.Mu` before `Engine.Mu`, and `Engine.Mu` before `Session.Mu`,
 `SettingsStore.Mu` and `Engine.sessionMu`; `Session.Mu` comes before
 `Engine.sessionMu`. Session code reaches the engine only through
-`session.Host`: `Unregister` runs under `Session.Mu` and takes only
-`Engine.sessionMu`; `EndMaintenance` runs with no session lock held, outside
-every `SessionResource` callback, and may take `Engine.Mu`; `NewOperation` only
-allocates and takes no lock. The session-layer mutexes are exported fields of
+`session.Host`: `Unregister` runs under `Session.Mu`, removes registration under
+`Engine.sessionMu`, drains the leaf statistics provider, and releases physical
+admission. `EndMaintenance` runs without session/admission/owner locks, outside
+every `SessionResource` callback, and may take metadata locks. Unconditional
+post-resource `DrainStatistics` cancels and joins callbacks outside locks.
+`StatisticsReadyLocked` runs under `Session.Mu` but only
+tries admission/owner mutexes without waiting, then takes the leaf provider lock.
+It cannot wait in the inverse owner/session order. `NewOperation` only allocates
+and takes no lock. The session-layer mutexes are exported fields of
 `session` types (`Session.Mu`, `TransactionOwner.Mu` and `Admission`,
 `SettingsStore.Mu`). The LISTEN/NOTIFY registry and listener fields
 (`session.NotificationRegistry`, `session.NotificationListener`) belong to

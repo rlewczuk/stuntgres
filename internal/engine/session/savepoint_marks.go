@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -21,6 +22,8 @@ type SavepointMark struct {
 	LargeObjects uint64 // Opening ordinal; cursor motion and explicit closes never roll back.
 	Writes              map[ids.ObjectAddress][]storage.RowVersion
 	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats statistics.Ledger
+	StatsLevel int // actual child nesting, including internal exception marks
 	Catalog             *Journal
 	// Internal exception marks also retain the enclosing statement's COW
 	// journal; it is not the transaction journal restored by RollbackToLocked.
@@ -39,12 +42,12 @@ type SavepointMark struct {
 }
 
 type SettingsMark struct {
-	Values      map[string]string
-	Typed       map[string]settings.Value
-	Actions     map[string]settingAction
-	RoleAction  roleSettingAction
-	CurrentRole roleSetting
-	NestLevel   int
+	Values          map[string]string
+	Typed           map[string]settings.Value
+	Actions         map[string]settingAction
+	RoleAction      roleSettingAction
+	CurrentRole     roleSetting
+	NestLevel       int
 	TempTablespaces *TempTablespaceAssignment
 }
 
@@ -74,11 +77,13 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 // final preflight and effect installation.
 func (s *SettingsStore) RestoreSavepointLocked(candidate SettingsMark, identity authorization.RoleState) {
 	beforeRole := s.TypedValue("session_replication_role").Text
+	beforeStats := s.Value("stats_fetch_consistency")
 	s.Values, s.Typed, s.Actions = candidate.Values, candidate.Typed, candidate.Actions
 	s.restoreTempTablespaces(candidate.TempTablespaces)
 	s.RoleAction = candidate.RoleAction
 	s.NestLevel = candidate.NestLevel
 	s.RuleRoleChanged(beforeRole)
+	s.StatsChanged(beforeStats)
 	if s.Session != nil {
 		candidate.CurrentRole.restore(&identity)
 		s.RestoreIdentityLocked(identity)
@@ -99,6 +104,8 @@ func (t *TransactionOwner) CaptureSavepoint(mark SavepointMark) SavepointMark {
 	t.SavepointSerial++
 	mark.Serial = t.SavepointSerial
 	mark.Writes, mark.Deletes, mark.Catalog = writes, t.Deletes, t.Catalog
+	mark.Stats = t.Stats.Clone()
+	mark.StatsLevel = len(t.Savepoints) + 1
 	mark.Isolation, mark.ReadOnly, mark.Deferrable = t.Isolation, t.ReadOnly, t.Deferrable
 	mark.NotificationActions = t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)]
 	mark.NotificationEvents = t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]
@@ -122,6 +129,7 @@ func (t *TransactionOwner) FindSavepoint(name string) int {
 // portals, exclusions and SSI around it.
 func (t *TransactionOwner) RollbackToLocked(mark SavepointMark, settings SettingsMark) {
 	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
+	t.Stats = mark.Stats.Clone()
 	t.NotificationActions, t.NotificationEvents = mark.NotificationActions, mark.NotificationEvents
 	if mark.Invocation != nil {
 		mark.Invocation.Restore()

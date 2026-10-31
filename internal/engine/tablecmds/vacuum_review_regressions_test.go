@@ -171,10 +171,19 @@ func TestVacuumF3ImportedStatistics(t *testing.T) {
 				if m.Live != live || m.Dead != dead || m.Inserts != inserts || m.Updates != 0 || m.Deletes != deletes || m.Modifications != mods || m.InsertsSince != since || m.Scanned || m.VacuumCount != 0 || !m.LastVacuum.IsZero() {
 					t.Errorf("%s current/history facts got %#v; want live/dead=%d/%d ins/del/mod/since=%d/%d/%d/%d with unscanned/reset history", phase, m, live, dead, inserts, deletes, mods, since)
 				}
-				got := enginetest.Tuples(sessionSQL(t, reader, "SELECT n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del,n_mod_since_analyze,n_ins_since_vacuum,vacuum_count,last_vacuum IS NULL FROM pg_stat_all_tables WHERE relid='review_import'::regclass"))
 				want := [][]driver.Value{{live, dead, inserts, int64(0), deletes, mods, since, int64(0), true}}
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("%s registered provider got %#v want %#v", phase, got, want)
+				// Fresh reads on the writer provide real idle boundaries for its
+				// throttled batch; physical Maintenance above remains immediate.
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					got := enginetest.Tuples(sessionSQL(t, reader, "SELECT n_live_tup,n_dead_tup,n_tup_ins,n_tup_upd,n_tup_del,n_mod_since_analyze,n_ins_since_vacuum,vacuum_count,last_vacuum IS NULL FROM pg_stat_all_tables WHERE relid='review_import'::regclass"))
+					if reflect.DeepEqual(got, want) {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatalf("%s registered provider got %#v want %#v", phase, got, want)
+					}
+					time.Sleep(5 * time.Millisecond)
 				}
 				projected := enginetest.Tuples(sessionSQL(t, reader, "SELECT reltuples=-1::real AS unknown FROM pg_class WHERE oid='review_import'::regclass"))
 				if !reflect.DeepEqual(projected, [][]driver.Value{{true}}) {

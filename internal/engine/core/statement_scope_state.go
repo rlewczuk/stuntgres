@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -43,6 +44,8 @@ type StatementScope struct {
 	ActiveMutation          int
 	cteInvocation           *exec.CTEInvocation
 	self                    *StatementScope
+	statsFunction           *statsFunctionFrame
+	statsPopulation         statistics.Ledger
 	Owner                   *session.TransactionOwner
 	Op                      *session.Operation
 	ruleAction              RuleActionScope
@@ -155,5 +158,6 @@ type WriteStage struct {
 	scope     *StatementScope
 	Rows      map[ids.ObjectAddress][]storage.RowVersion
 	Deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats     statistics.Ledger
 	Replacing bool // Rows replace complete private roots instead of appending.
 }

@@ -3,14 +3,18 @@ package settings
 import (
 	"reflect"
 	"strings"
-	"testing"
 	"stuntgres/internal/sqltype"
+	"testing"
 )
 
 func TestSettingFlagsMetadata(t *testing.T) {
 	// Independent release expectations, including zero-bit definitions. These
 	// literals come from REL_18_6 guc_tables.c and plpgsql/src/pl_handler.c.
-	cases := []struct { names string; flags Flags }{
+	cases := []struct {
+		names string
+		flags Flags
+	}{
+		{`stats_fetch_consistency track_activities track_counts track_functions track_io_timing track_wal_io_timing`, 0},
 		{`allow_alter_system archive_cleanup_command archive_command archive_library archive_mode archive_timeout array_nulls authentication_timeout autovacuum autovacuum_analyze_scale_factor autovacuum_analyze_threshold autovacuum_freeze_max_age autovacuum_max_workers autovacuum_multixact_freeze_max_age autovacuum_naptime autovacuum_vacuum_cost_delay autovacuum_vacuum_cost_limit autovacuum_vacuum_insert_scale_factor autovacuum_vacuum_insert_threshold autovacuum_vacuum_max_threshold autovacuum_vacuum_scale_factor autovacuum_vacuum_threshold autovacuum_work_mem autovacuum_worker_slots backend_flush_after backslash_quote bgwriter_delay bgwriter_flush_after bgwriter_lru_maxpages bgwriter_lru_multiplier bonjour bonjour_name bytea_output check_function_bodies checkpoint_completion_target checkpoint_flush_after checkpoint_timeout checkpoint_warning client_connection_check_interval client_encoding client_min_messages cluster_name commit_delay commit_siblings commit_timestamp_buffers config_file createrole_self_grant data_directory datestyle deadlock_timeout debug_pretty_print debug_print_parse default_statistics_target default_table_access_method default_tablespace default_text_search_config default_toast_compression default_transaction_deferrable default_transaction_isolation default_transaction_read_only dynamic_library_path dynamic_shared_memory_type escape_string_warning event_source event_triggers extension_control_path external_pid_file extra_float_digits file_copy_method file_extend_method fsync full_page_writes gin_fuzzy_search_limit gin_pending_list_limit gss_accept_delegation hba_file hot_standby hot_standby_feedback huge_page_size huge_pages icu_validation_level ident_file idle_in_transaction_session_timeout idle_replication_slot_timeout idle_session_timeout intervalstyle io_combine_limit io_max_combine_limit io_max_concurrency io_method io_workers jit_provider krb_caseins_users krb_server_keyfile lc_messages lc_monetary lc_numeric lc_time listen_addresses lo_compat_privileges local_preload_libraries lock_timeout log_autovacuum_min_duration log_checkpoints log_connections log_destination log_directory log_disconnections log_duration log_error_verbosity log_executor_stats log_file_mode log_filename log_hostname log_line_prefix log_lock_failures log_lock_waits log_min_duration_sample log_min_duration_statement log_min_error_statement log_min_messages log_parameter_max_length log_parameter_max_length_on_error log_parser_stats log_planner_stats log_recovery_conflict_waits log_replication_commands log_rotation_age log_rotation_size log_startup_progress_interval log_statement log_statement_sample_rate log_statement_stats log_temp_files log_timezone log_transaction_sample_rate log_truncate_on_rotation logging_collector logical_decoding_work_mem maintenance_work_mem max_active_replication_origins max_connections max_files_per_process max_locks_per_transaction max_logical_replication_workers max_notify_queue_pages max_parallel_apply_workers_per_subscription max_parallel_maintenance_workers max_pred_locks_per_page max_pred_locks_per_relation max_pred_locks_per_transaction max_prepared_transactions max_replication_slots max_slot_wal_keep_size max_stack_depth max_standby_archive_delay max_standby_streaming_delay max_sync_workers_per_subscription max_wal_senders max_wal_size max_worker_processes md5_password_warnings min_dynamic_shared_memory min_wal_size multixact_member_buffers multixact_offset_buffers notify_buffers oauth_validator_libraries output_plugin_libraries password_encryption plpgsql.check_asserts port primary_conninfo primary_slot_name quote_all_identifiers recovery_end_command recovery_min_apply_delay recovery_prefetch recovery_target recovery_target_action recovery_target_inclusive recovery_target_lsn recovery_target_name recovery_target_time recovery_target_timeline recovery_target_xid reserved_connections restore_command row_security scram_iterations serializable_buffers session_preload_libraries session_replication_role shared_buffers shared_memory_type shared_preload_libraries ssl ssl_ca_file ssl_cert_file ssl_ciphers ssl_crl_dir ssl_crl_file ssl_dh_params_file ssl_groups ssl_key_file ssl_max_protocol_version ssl_min_protocol_version ssl_passphrase_command ssl_passphrase_command_supports_reload ssl_prefer_server_ciphers ssl_tls13_ciphers standard_conforming_strings statement_timeout subtransaction_buffers summarize_wal superuser_reserved_connections sync_replication_slots synchronize_seqscans synchronized_standby_slots synchronous_commit synchronous_standby_names syslog_facility syslog_ident syslog_sequence_numbers syslog_split_messages tcp_keepalives_count tcp_keepalives_idle tcp_keepalives_interval tcp_user_timeout temp_file_limit temp_tablespaces timezone timezone_abbreviations track_commit_timestamp transaction_buffers transaction_timeout transform_null_equals unix_socket_directories unix_socket_group unix_socket_permissions update_process_title vacuum_buffer_usage_limit vacuum_cost_delay vacuum_cost_limit vacuum_cost_page_dirty vacuum_cost_page_hit vacuum_cost_page_miss vacuum_failsafe_age vacuum_freeze_min_age vacuum_freeze_table_age vacuum_max_eager_freeze_failure_rate vacuum_multixact_failsafe_age vacuum_multixact_freeze_min_age vacuum_multixact_freeze_table_age vacuum_truncate wal_buffers wal_compression wal_decode_buffer_size wal_init_zero wal_keep_size wal_level wal_log_hints wal_receiver_create_temp_slot wal_receiver_status_interval wal_receiver_timeout wal_recycle wal_retrieve_retry_interval wal_sender_timeout wal_skip_threshold wal_summary_keep_time wal_sync_method wal_writer_delay wal_writer_flush_after xmlbinary xmloption`, 0},
 		{`allow_in_place_tablespaces allow_system_table_mods application_name backtrace_functions block_size debug_assertions debug_discard_caches debug_io_direct debug_logical_replication_streaming huge_pages_status ignore_checksum_failure ignore_invalid_pages ignore_system_indexes in_hot_standby integer_datetimes jit_debugging_support jit_dump_bitcode jit_expressions jit_profiling_support jit_tuple_deforming max_function_args max_identifier_length max_index_keys post_auth_delay pre_auth_delay remove_temp_files_after_crash restrict_nonsystem_relation_kind segment_size send_abort_for_crash send_abort_for_kill server_encoding server_version server_version_num ssl_library trace_notify trace_sort wal_block_size wal_consistency_checking zero_damaged_pages`, FlagNotInSample},
 		{`constraint_exclusion cpu_index_tuple_cost cpu_operator_cost cpu_tuple_cost cursor_tuple_fraction effective_cache_size effective_io_concurrency enable_async_append enable_bitmapscan enable_distinct_reordering enable_gathermerge enable_group_by_reordering enable_hashagg enable_hashjoin enable_incremental_sort enable_indexonlyscan enable_indexscan enable_material enable_memoize enable_mergejoin enable_nestloop enable_parallel_append enable_parallel_hash enable_partition_pruning enable_partitionwise_aggregate enable_partitionwise_join enable_presorted_aggregate enable_self_join_elimination enable_seqscan enable_sort enable_tidscan from_collapse_limit geqo geqo_effort geqo_generations geqo_pool_size geqo_seed geqo_selection_bias geqo_threshold hash_mem_multiplier jit jit_above_cost jit_inline_above_cost jit_optimize_above_cost join_collapse_limit maintenance_io_concurrency max_parallel_workers max_parallel_workers_per_gather min_parallel_index_scan_size min_parallel_table_scan_size parallel_leader_participation parallel_setup_cost parallel_tuple_cost plan_cache_mode random_page_cost recursive_worktable_factor search_path seq_page_cost temp_buffers work_mem`, FlagExplain},
@@ -25,33 +29,68 @@ func TestSettingFlagsMetadata(t *testing.T) {
 	for _, tc := range cases {
 		for _, name := range strings.Fields(tc.names) {
 			got, exists := r.LookupFlags(name)
-			if !exists || got != tc.flags { t.Fatalf("%s: %v %t, want %v", name, got, exists, tc.flags) }
+			if !exists || got != tc.flags {
+				t.Fatalf("%s: %v %t, want %v", name, got, exists, tc.flags)
+			}
 			seen[name] = true
 		}
 	}
-	for name := range r.Definitions() { if !seen[name] { t.Fatal("missing independent release expectation", name) } }
-	for _, name := range []string{"", "missing", "never.seen", "bad..name"} { if _, ok := r.LookupFlags(name); ok { t.Fatal("unknown recognized", name) } }
-	for alias, canonical := range map[string]string{"WORK_MEM":"work_mem", "sort_mem":"work_mem", "vacuum_mem":"maintenance_work_mem", "ssl_ecdh_curve":"ssl_groups"} {
-		got, ok := r.LookupFlags(alias); want, _ := r.LookupFlags(canonical)
-		if !ok || got != want { t.Fatal(alias, got, want) }
+	for name := range r.Definitions() {
+		if !seen[name] {
+			t.Fatal("missing independent release expectation", name)
+		}
 	}
-	d, err := Validate(Definition{Name:"flags.registered", Type:String})
-	if err != nil { t.Fatal(err) }
+	for _, name := range []string{"", "missing", "never.seen", "bad..name"} {
+		if _, ok := r.LookupFlags(name); ok {
+			t.Fatal("unknown recognized", name)
+		}
+	}
+	for alias, canonical := range map[string]string{"WORK_MEM": "work_mem", "sort_mem": "work_mem", "vacuum_mem": "maintenance_work_mem", "ssl_ecdh_curve": "ssl_groups"} {
+		got, ok := r.LookupFlags(alias)
+		want, _ := r.LookupFlags(canonical)
+		if !ok || got != want {
+			t.Fatal(alias, got, want)
+		}
+	}
+	d, err := Validate(Definition{Name: "flags.registered", Type: String})
+	if err != nil {
+		t.Fatal(err)
+	}
 	custom := NewRegistry([]Definition{d}, false)
-	if got, ok := custom.LookupFlags(d.Name); !ok || got != 0 { t.Fatal(got, ok) }
-	if _, err := Validate(Definition{Name:"flags.invalid", Type:String, Flags:FlagExplain}); err == nil { t.Fatal("accepted builtin-only flags") }
+	if got, ok := custom.LookupFlags(d.Name); !ok || got != 0 {
+		t.Fatal(got, ok)
+	}
+	if _, err := Validate(Definition{Name: "flags.invalid", Type: String, Flags: FlagExplain}); err == nil {
+		t.Fatal("accepted builtin-only flags")
+	}
 	var text *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
-		if typ.ID() == sqltype.Text { text = typ }
+		if typ.ID() == sqltype.Text {
+			text = typ
+		}
 	}
 	array, err := sqltype.Array(1009, "_text", text)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	value, err := Flags(63).Array(array)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	var got []string
-	for i := range value.ArrayLen() { s, err := value.ArrayElement(i).Text(); if err != nil { t.Fatal(err) }; got = append(got, s) }
-	want := []string{"EXPLAIN","NO_RESET","NO_RESET_ALL","NO_SHOW_ALL","NOT_IN_SAMPLE","RUNTIME_COMPUTED"}
-	if !reflect.DeepEqual(got,want) || value.IsNull() || value.ArrayDimension(0).Lower != 1 { t.Fatal(got, value) }
+	for i := range value.ArrayLen() {
+		s, err := value.ArrayElement(i).Text()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, s)
+	}
+	want := []string{"EXPLAIN", "NO_RESET", "NO_RESET_ALL", "NO_SHOW_ALL", "NOT_IN_SAMPLE", "RUNTIME_COMPUTED"}
+	if !reflect.DeepEqual(got, want) || value.IsNull() || value.ArrayDimension(0).Lower != 1 {
+		t.Fatal(got, value)
+	}
 	empty, err := Flags(0).Array(array)
-	if err != nil || empty.IsNull() || empty.ArrayLen() != 0 || empty.ArrayRank() != 0 { t.Fatal(empty, err) }
+	if err != nil || empty.IsNull() || empty.ArrayLen() != 0 || empty.ArrayRank() != 0 {
+		t.Fatal(empty, err)
+	}
 }

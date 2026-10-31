@@ -40,7 +40,9 @@ func TestReferenceVacuumPermissions(t *testing.T) {
 			} else {
 				vacuumWarning(t, notices, "01000", `permission denied to vacuum "vacuum_acl", skipping it`)
 			}
-			vacuumCount(t, p.Ctx, owner, "vacuum_acl", count)
+			// Poll the retained writer: observer reads cannot publish its batch.
+			// Fresh writer commands reach genuine eligible idle boundaries.
+			vacuumCount(t, p.Ctx, actor, "vacuum_acl", count)
 			vacuumRows(t, p, b, owner, "vacuum_acl", 2)
 			if count > 0 {
 				run(fixture.Select("SELECT reltuples FROM pg_class WHERE oid='vacuum_acl'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}}))

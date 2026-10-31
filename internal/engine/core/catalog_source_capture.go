@@ -85,6 +85,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
+		runtime.settings = scope.Op.EffectiveSettings()
 	case pgcatalog.SettingsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

@@ -44,6 +44,7 @@ func captureVacuumLocked(e *core.Engine, s *core.StatementScope, target vacuumHe
 }
 
 func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
+	started := time.Now()
 	e.Mu.Lock()
 	if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 		e.Mu.Unlock()
@@ -151,6 +152,7 @@ func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.Vacuu
 			e.Catalog.PublishLocked(pass.Catalog)
 		}
 		target.store.Maintenance.RecordVacuum(pass.Candidate, completed)
+		s.RecordStatsMaintenance(target.ref, false, started, completed, target.store.Maintenance.Live, target.store.Maintenance.Dead, false)
 		e.Mu.Unlock()
 		if o.Verbose {
 			message := table.VacuumReport(catalog.NewRead(&e.Catalog.Owner, capture.Catalog), capture.Relation, pass.Candidate)

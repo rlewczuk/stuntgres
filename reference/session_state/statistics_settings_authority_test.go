@@ -56,9 +56,7 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 				unchanged.Prepared = prepared
 				run(unchanged)
 			}
-			if !b.PG {
-				run(fixture.ImplicitError("SHOW track_counts", fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "track_counts"`)))
-			}
+			run(fixture.Select("SHOW track_counts", []string{"track_counts"}, []string{"TEXT"}, [][]any{{"on"}}))
 			run(fixture.Exec("RESET ROLE", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION statistics_metadata_reader", 0))
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")

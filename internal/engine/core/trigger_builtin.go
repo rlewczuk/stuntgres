@@ -33,6 +33,8 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 	defer func() { err = leave(err) }()
 	leavePolicy := s.activateRoutineCommandPolicy(d, false)
 	defer leavePolicy()
+	stats := s.beginStatsFunction(p.Procedure, statsFunctionLanguage(d), false)
+	defer func() { s.endStatsFunction(stats, err == nil) }()
 	if extension.TcnProviderOf(d) == extension.StockTcn {
 		err = s.notifyTriggerChange(relation, p, event, next, old)
 		return result, err

@@ -91,6 +91,9 @@ import this package directly.
   `LookupFlags` is noncreating, includes identity-only settings and fixed release
   aliases, and distinguishes unknown names from existing zero-bit definitions.
   Session-owned placeholders are recognized only by the live settings store.
+  The six cumulative-collector settings (`stats_fetch_consistency` and the five
+  tracking switches) are explicitly classified as zero-bit definitions: their
+  flags inquiry returns a non-NULL empty array, independently of SET privilege.
 
 ## Invariants
 
@@ -505,6 +508,20 @@ conflicting combination, which subsequent explicit assignments must still check.
 Rollback/savepoint restoration likewise restores state without revalidation.
 Trusted providers may capture statistics defaults; fixed, postmaster and sighup
 defaults retain their existing restrictions.
+
+The cumulative collector settings are independent of those performance-log
+flags. `track_counts` and `track_activities` default on; `track_functions`
+selects none/pl/all; ordinary and WAL I/O timing default off and do not suppress
+operation counts. Collection policy never hides old facts or reconstructs work
+from disabled intervals. All five tracking settings use existing privileged SET
+authority. `stats_fetch_consistency` is user-settable (none/cache/snapshot,
+default cache). Every effective change, including RESET ALL and transactional
+SET LOCAL/SAVE/savepoint restoration, advances the settings owner's generation;
+reader access checks it without a settings-to-provider callback.
+Tuple policy is captured at mutation; ANALYZE/VACUUM use the current counts
+policy at their successful immediate shared-report boundary. Disabling counts
+never cancels physical maintenance or removes an earlier report, and report
+completion never flushes unrelated ordinary pending tuple events.
 
 ## Planner method settings
 

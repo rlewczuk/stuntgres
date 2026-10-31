@@ -891,7 +891,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance facts and authenticated active-work redaction |
+| `Maintenance`, `TableStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | physical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
@@ -1034,11 +1034,18 @@ catalog writes or bypass a provider's independent backing-source checks.
   to boot, and RESET restores that captured typed value without invoking the
   provider again. The producer owns its enum-array buffers and never publishes
   partial canceled rows; empty captures retain the same 17-column carrier.
-- Table-statistics and progress views: committed logical DML and manual VACUUM
-  facts and real active phases with authenticated-owner visibility, captured
-  under the engine capture lock. NULL/zero semantics are view-specific:
-  unavailable CREATE INDEX totals are zero for authorized observers; restricted
-  work details are typed NULL.
+- Table-statistics views read the shared cumulative provider through the current
+  transaction reader, separately from physical `Maintenance`. `relid`/`relname`
+  safe-key rejection precedes any fact fetch, preserving per-object cache
+  semantics. These dynamic rows never enter the shared catalog capture slots.
+  Uncollected fields retain typed zero/NULL values; scan fields are unavailable.
+  Completed ANALYZE/VACUUM publish directly into that same shared provider,
+  independently of the ordinary tuple writer's outside-transaction gate.
+  `none` sees the report immediately; cached/snapshot facts still require clear
+  or transaction end. Report policy does not gate physical optimizer work.
+  Progress views report real active phases with authenticated-owner visibility:
+  unavailable CREATE INDEX totals are zero for authorized observers, while
+  restricted work details are typed NULL.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.
@@ -1409,6 +1416,7 @@ a hash root alone does not select that access method.
 - Trigger and constraint-ownership producer units: `RUN='^TestPGTrigger'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
+- Cumulative-statistics SQL: `RUN='^TestReferenceStatsSnapshot'`
 - Transforms: `RUN='^TestReferencePGTransform'`
 - Sequence-definition producer units: `RUN='^TestInfoSequences'`
 - Sequence-definition public scenarios: `RUN='^TestReferenceInfoSequences'`

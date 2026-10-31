@@ -170,11 +170,14 @@ func materializedRowsMatch(ctx context.Context, orderings []index.Ordering, old,
 	return MaterializedSameRow(old, new), nil
 }
 
+// MaterializedCounts is the actual differential work selected by row matching.
+type MaterializedCounts struct{ Inserts, Deletes int64 }
+
 // Called outside Engine.mu with the captured immutable predecessor roots. One
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment, counts *MaterializedCounts) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -196,6 +199,17 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	}
 	if err := MaterializedDuplicatePreflight(ctx, view, parent, ordering, entries, rows, output); err != nil {
 		return nil, err
+	}
+	if counts != nil {
+		*counts = MaterializedCounts{Inserts: int64(len(rows))}
+		for _, old := range previous.Versions {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if visibility.LiveVersion(old, frontier, previous.Ends, nil) {
+				counts.Deletes++
+			}
+		}
 	}
 	if len(rows) == 0 || len(previous.Versions) == 0 {
 		return rows, nil
@@ -246,6 +260,9 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 					return nil, err
 				}
 				if match {
+					if counts != nil && (matched == nil || !matched[at]) {
+						counts.Inserts--
+					}
 					if matched == nil {
 						matched = make([]bool, len(rows))
 						effective = make([][]sqltype.Value, 0, len(oldEntries)+len(rows))
@@ -255,6 +272,9 @@ func MaterializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 				}
 			}
 			if survives {
+				if counts != nil {
+					counts.Deletes--
+				}
 				effective = append(effective, values)
 			}
 		}

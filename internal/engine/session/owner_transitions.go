@@ -44,6 +44,7 @@ func (t *TransactionOwner) Clear() {
 	t.Command = 0
 	t.Writes = nil
 	t.Deletes = nil
+	t.Stats = nil
 	t.Start = time.Time{}
 	t.SnapshotSet = false
 	t.CurrentSnapshot = nil
@@ -68,6 +69,7 @@ func (t *TransactionOwner) Abort() *lock.Ticket {
 	t.TempTablespaces = TempTablespaceSelector{}
 	t.Writes = nil
 	t.Deletes = nil
+	t.Stats = nil
 	t.Roots = nil
 	t.SequenceCatalog = nil
 	t.CurrentSnapshot = nil
@@ -129,5 +131,6 @@ func (t *TransactionOwner) PrepareRefusal(gid string, withHold, foreign bool) er
 // for the statement's incarnation ref, sharing the block's roots, journal and
 // ticket. The publication preflight rejects it if ref is no longer t.Ref.
 func (t *TransactionOwner) PreparedEntry(gid string, ref ids.TxRef, owner authorization.PrincipalRef, database string, at time.Time) *PreparedTransaction {
-	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, Deletes: t.Deletes, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+	t.Stats.Release(0)
+	return &PreparedTransaction{GID: gid, Owner: owner, Ref: ref, Prepared: at, Database: database, Ticket: t.Ticket, Writes: t.Writes, Deletes: t.Deletes, Stats: t.Stats, Catalog: t.Catalog, Roots: t.Roots, Frontier: t.Frontier, Options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 }

@@ -91,7 +91,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 		ticket := t.Ticket
 		t.Ticket = nil
 		e.endSerializable(ref, false)
-		clearTransaction(t)
+		clearTransaction(t, false)
 		t.Session.RetireTransactionTimeout()
 		t.Session.Settings.FinishTransaction(false)
 		t.Mu.Unlock()
@@ -125,6 +125,8 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
 		if err == nil {
+			settleStatsLedger(e, op.Session, &entry.Stats, false)
+			retireStatsObjects(e, op.Session, entry.Ref.Epoch(), false, entry.Catalog)
 			e.prepared.RemoveLocked(gid)
 			e.prepareReplicationOriginsLocked(entry.Ref, false)
 			e.releaseReplicationOriginsLocked(entry.Ref)

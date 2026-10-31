@@ -129,6 +129,9 @@ func (s *Session) ReadyTimeoutLocked(now time.Time) {
 	if s.State != Live || s.Timeouts.SQLLeases != 0 {
 		return
 	}
+	if s.Host != nil {
+		s.Host.StatisticsReadyLocked(s)
+	}
 	s.Timeouts.Idle.Stop()
 	limit, code := s.Timeouts.IdleSessionLimit, "57P05"
 	if s.Timeouts.Explicit {

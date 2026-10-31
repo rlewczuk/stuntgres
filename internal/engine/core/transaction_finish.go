@@ -86,6 +86,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, err != nil)
 		s.releaseCopyReservation()
 		if !s.message {
+			statsIdle(s.Op.Session, false)
 			s.Owner.Admission.Unlock()
 		}
 		return err
@@ -183,6 +184,10 @@ func (s *StatementScope) Finish(err error) error {
 	if err != nil {
 		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, true)
 	}
+	if err != nil {
+		s.AbortStatsPopulation()
+		t.Stats.Take(&s.Stage.Stats)
+	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *lock.Ticket
@@ -191,10 +196,15 @@ func (s *StatementScope) Finish(err error) error {
 		e.endSerializable(t.Ref, err == nil)
 		endedTicket = t.Ticket
 		t.Ticket = nil
-		clearTransaction(t)
+		clearTransaction(t, err == nil)
 		t.Session.RetireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.State == session.TxActive || t.State == session.TxAborted) {
 		endedTicket = e.failExplicitTransactionLocked(s.Op, t, err)
+	}
+	if err != nil {
+		retireStatsObjects(e, t.Session, s.TxRef.Epoch(), false, s.Catalog, t.Catalog)
+	} else if published {
+		retireStatsObjects(e, t.Session, s.TxRef.Epoch(), true, s.Catalog)
 	}
 	e.Mu.Lock()
 	e.reconcileReplicationOriginsLocked(t)
@@ -207,6 +217,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.partitionsSlot.ReleaseValidationView()
 	s.Stage.Rows = nil
 	s.Stage.Deletes = nil
+	s.Stage.Stats = nil
 	s.notificationActions = nil
 	s.notificationEvents = nil
 	s.multiEvents = nil
@@ -243,6 +254,7 @@ func (s *StatementScope) Finish(err error) error {
 	e.EndLockOwner(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {
+		statsIdle(s.Op.Session, false)
 		t.Admission.Unlock()
 	}
 	return err
@@ -279,6 +291,9 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	ownerExtensionOf(t).retireForeign()
 	ownerExtensionOf(t).largeObjects = largeObjectDescriptors{}
 	ownerExtensionOf(t).largeObjectBase = nil
+	PayloadOf(t.Session).statsReader.Clear()
+	settleStatsLedger(e, t.Session, &t.Stats, false)
+	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog)
 	t.Session.Settings.FinishTransaction(false)
 	e.endSerializable(t.Ref, false)
 	endedTicket := t.Abort()
@@ -349,6 +364,7 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 			t.Writes = writes
 			t.Deletes = deletes
 			t.Catalog = catalog
+			t.Stats.Take(&s.Stage.Stats)
 			t.NotificationActions = notificationActions
 			t.NotificationEvents = notificationEvents
 			if s.IndexesOrZero().ConstraintsStarted {

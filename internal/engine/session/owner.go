@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -60,6 +61,7 @@ type TransactionOwner struct {
 	Command         ids.CommandID
 	Writes          map[ids.ObjectAddress][]storage.RowVersion
 	Deletes         map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats           statistics.Ledger
 	Start           time.Time
 	Isolation       Isolation
 	ReadOnly        bool

@@ -18,11 +18,13 @@ func (s *StatementScope) WithAmcheckOwner(parent *catalog.Relation, work func(*e
 		current := op.EffectiveSettings()
 		current.Mu.Lock()
 		beforeRole := current.TypedValue("session_replication_role").Text
+		beforeStats := current.Value("stats_fetch_consistency")
 		current.Mu.Unlock()
 		op.Restricted = previous
 		restored := op.EffectiveSettings()
 		restored.Mu.Lock()
 		restored.RuleRoleChanged(beforeRole)
+		restored.StatsChanged(beforeStats)
 		restored.Mu.Unlock()
 		s.Identity, s.Inquiry, s.Input, s.Output, s.RoutineAuth = identity, inquiry, input, output, RoutineAuth
 		s.RowSecurity, s.presentationSlot = RowSecurity, presentation

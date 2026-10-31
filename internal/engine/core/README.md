@@ -417,10 +417,62 @@ Partition parents never own entries in the physical `Storage.Relations` map.
 Their statistics, row estimates and analyze counters live in the same metadata
 root as other relations. New private-object metadata remains on its creation
 journal until commit; committed-object maintenance remains nontransactional.
+Cumulative monitoring keeps the local ANALYZE sample independently of the
+inherited population used for optimizer cardinality. A partition parent can
+therefore retain an optimizer population of two while reporting zero local
+live/dead tuples; inherited collection must not overwrite that local sample.
 DDL prunes dropped objects and incompatible column facts. Native Reset/Restore
 discards imported/persistent/reminted planner metadata, but preserves compatible
 facts and counters for genuinely retained destination TEMP identities through
 the existing TEMP-retention authority, never address coincidence.
+
+Cumulative monitoring statistics are distinct from those physical planner facts.
+The engine owns one `statistics.Provider`; physical session payloads own pending
+writers, and transaction termination clears their readers. Real row mutation
+records private attempted counts using operation-effective policy. A dedicated
+write ledger carries actual relation nesting frames and first-pre-truncate state.
+It belongs to `WriteStage`/`TransactionOwner`, clones at `SavepointMark`, and
+transfers to `PreparedTransaction`; collection never creates a catalog journal.
+Only completed top-level or aborted-child work becomes writer-reportable.
+Successful children merge privately; PREPARE reports nothing unresolved, including
+on preparing-session exit. Abort restores first-pre-truncate attempts, contributes
+inserted versions to since-vacuum, and never publishes private live rows.
+Completed ANALYZE/VACUUM reports instead update the same shared provider
+immediately, including inside an open transaction. They neither drain ordinary
+pending deltas nor change their throttle/retry or existing reader snapshots.
+ANALYZE uses the actual local collector population (partition parents report
+zero local tuples), subtracts current owner/statement frames and pending dead,
+and clamps estimates. Its supported physical dead estimate is sampled under
+the captured storage authority; raw invisible versions are not presumed dead
+because birth frontiers also exclude live versions. Column-list reports retain
+modifications. Existing-object reports and completed function calls survive
+unrelated rollback. Journal-proven relation/function creations discarded by abort
+retire their category-qualified keys unless retained by a restored owner or
+statement checkpoint. Explicit existing/new object drops retire only on successful
+commit, after tuple settlement; direct catalog publication also retires its
+validated removals, even without an operation. PREPARE and child release transfer
+ownership without retiring pending drops. Rolled-back drops and compatible
+non-removal replacements preserve facts. Shared tombstones reject late writer
+batches and function completions without resetting unrelated facts or readers.
+Physical storage and optimizer metadata remain independent of report policy.
+Function collection starts at admitted ordinary, PL-trigger and native-trigger
+body boundaries, after effective routine configuration and identity are installed.
+Dispatch/enqueue/WHEN filtering do not collect calls. Stock internal routines
+remain untracked; procedural bodies follow `pl`/`all`, and applicable C/SQL bodies
+follow `all`. Disabled selection samples no clock and allocates no frame.
+Completed bodies share the physical writer's saved pending-total and backend
+charged-self baselines: same-key recursive overlap is replaced, distinct keys
+retain inclusive totals, and each completed invocation retains its call/self.
+Error/cancellation unwinds the frame without completing the failed body or
+discarding already completed descendants. Function facts use ordinary publication.
+Ordinary Finish/message/native-terminal/admitted-error boundaries attempt publication only
+at true outside-transaction idle. A generation-qualified one-shot ten-second retry
+handles throttled pending; due requests survive busy/transaction blocks until
+ready. The existing SQL-lease ready hook uses only nonblocking admission/owner
+acquisition and the leaf provider. Unconditional post-resource DrainStatistics
+cancels and joins callbacks outside locks, even without a Transaction attachment;
+Unregister force-drains after cleanup. Reader clear
+never publishes. Provider locking is a leaf beneath existing owner/engine locks.
 Retained TEMP statistics definitions advance their checked relation-reference
 epoch with the replacement, without applying imported identity mappings.
 Incompatible non-retained dependencies reject replacement before installation.
@@ -1183,12 +1235,15 @@ The opaque ninth field owns bounded immutable command facts, not lexical state.
 `ProjectedRoots` and `WriteStage.Replacing`
 distinguish complete private roots from appended suffixes; `DiscardRemovedWrites`
 uses the same conversion as column projection. `ActivateSQLRoutine` owns fresh
-lexical admission and restores the exact outer `MaterializedSlot` and TRUNCATE
-manifest pointers once on exit. Each nested command starts with no TRUNCATE
-admission scratch, so prior Relations/Names/storage references cannot leak into
-its fresh selection. The shared catalog/statistics journal and physical effects
-remain root-owned. Exception checkpoints retain their independent rollback
-snapshot; transaction rotation discards obsolete utility admission.
+lexical admission and restores the exact outer `MaterializedSlot` and typed
+`TruncateScope` manifest pointers once on exit, including the suspended caller's
+exact backing. Each nested command starts with no TRUNCATE admission scratch:
+prior Relations/Names/storage references cannot leak into its fresh selection,
+and sequential commands admit current private storage. The shared
+catalog/statistics journal and physical effects remain root-owned. Exception
+checkpoints retain their independent rollback snapshot; transaction rotation
+discards obsolete utility admission instead of restoring old storage authority.
+The exact descriptor/storage guards remain authoritative for genuine replacement.
 Volatile nested commands snapshot complete projected private roots instead of
 merging their removed entries with older transaction writes. Thus AFTER TRUNCATE
 reads the staged empty target even when earlier commands wrote it in the same
@@ -2603,6 +2658,7 @@ Held cursor store/producer ownership and replacement units share
 `RUN='^TestSQLCursorHold'`; public SQL/control observations stay in reference.
 
 Session activity command/portal authority units use `RUN='^TestSessionActivity'`.
+Cumulative reader/lifecycle/source/physical ownership units use `RUN='^TestStatsSnapshot'`.
 Live trigger/RI invocation ownership and unwind units use `RUN='^TestTriggerDepth'`.
 Immediate trigger ownership units use `RUN='^TestTrigger(Core|Instead|BeforeStatement)'`.
 Builtin admission, borrowed payloads, streaming positions and unwind units share

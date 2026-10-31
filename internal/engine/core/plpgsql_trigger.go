@@ -44,5 +44,7 @@ func (s *StatementScope) invokePLTrigger(d *catalog.Procedure, f *proc.PLFrame, 
 	previousIdentity := s.sqlRoutine.plDiagnostic
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	defer func() { s.sqlRoutine.plDiagnostic = previousIdentity }()
+	stats := s.beginStatsFunction(read.Owner().Domain.Ref(read.Epoch(), d.Address()), statsFunctionLanguage(d), false)
+	defer func() { s.endStatsFunction(stats, err == nil) }()
 	return s.newPLRun(d, f, read).Trigger(relation.RowType)
 }

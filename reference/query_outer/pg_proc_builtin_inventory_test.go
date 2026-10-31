@@ -56,6 +56,8 @@ import (
 // parallel-unsafe scalar metadata, unnamed inputs and released be_lo* symbols.
 // The session-signal identities 2096/2171 retain strict VOLATILE/parallel-safe
 // BOOL declarations; only termination names pid/timeout and defaults timeout.
+// The two statistics-snapshot lifecycle declarations retain their released
+// zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -171,9 +173,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// origin identity/progress routines, six strict/volatile/parallel-safe
 	// WAL-position declarations, and four strict/volatile/parallel-unsafe
 	// large-object descriptor declarations, and two strict/volatile/parallel-safe
-	// session-signal declarations.
-	if len(facts) != 2158 {
-		t.Fatalf("released represented overloads: got %d, want 2158", len(facts))
+	// session-signal declarations, and two statistics-snapshot lifecycle
+	// declarations.
+	if len(facts) != 2160 {
+		t.Fatalf("released represented overloads: got %d, want 2160", len(facts))
 	}
 	return facts
 }

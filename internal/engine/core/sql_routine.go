@@ -154,10 +154,14 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	defer func() { err = leaveEnvironment(err) }()
 	leavePolicy := parent.activateRoutineCommandPolicy(d, constantPlanning)
 	defer leavePolicy()
+	stats := parent.beginStatsFunction(e.Catalog.Domain.Ref(read.Epoch(), d.Address()), statsFunctionLanguage(d), constantPlanning)
+	defer func() { parent.endStatsFunction(stats, err == nil) }()
 	if d.Host != nil {
 		if d.Host.Layout.Procedure {
 			scalar, failure := parent.invokeHostRoutine(d, frame, catalog.HostResultUsage(d.Host.Layout), auth)
-			if failure != nil { return value, failure }
+			if failure != nil {
+				return value, failure
+			}
 			return d.Host.WrapResult(parent.executionContext(), scalar, resultUsage, parent.Input, parent.Output)
 		}
 		return parent.invokeHostRoutine(d, frame, resultUsage, auth)

@@ -22,7 +22,7 @@ const (
 )
 
 type MaintenanceFact struct {
-	Imported storage.ImportedRelationStatistics
+	Imported                                               storage.ImportedRelationStatistics
 	FrozenXID                                              uint64
 	Scanned                                                bool
 	Live, Dead                                             int64
@@ -36,6 +36,7 @@ type MaintenanceFact struct {
 	InheritedTuples                                        int64
 	ForeignAnalyzed                                        bool
 	ForeignRows, ForeignDeadRows, ForeignPages             float64
+	VacuumTime, AnalyzeTime                                time.Duration
 }
 type VacuumProgressFact struct {
 	PID                                                                 int64
@@ -160,7 +161,10 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 		row[0] = oid
 		row[1] = sqltype.String(in.Source.Columns[1].Usage.Type, ns.Name())
 		row[2] = sqltype.String(in.Source.Columns[2].Usage.Type, d.Name())
-		fact, _ := in.Runtime.Maintenance(d.Address())
+		if in.Keep.Rejects(0, func() (sqltype.Value, error) { return row[0], nil }) || in.Keep.Rejects(2, func() (sqltype.Value, error) { return row[2], nil }) {
+			continue
+		}
+		fact := in.Runtime.TableStatistics(d.Address())
 		counters := [...]struct {
 			column int
 			value  int64
@@ -181,6 +185,22 @@ func captureTableStatistics(in Input) ([][]sqltype.Value, error) {
 			if err != nil {
 				return nil, err
 			}
+		}
+		row[26], err = sqltype.Float(in.Source.Columns[26].Usage.Type, float64(fact.VacuumTime)/float64(time.Millisecond))
+		if err != nil {
+			return nil, err
+		}
+		row[27], err = sqltype.Float(in.Source.Columns[27].Usage.Type, 0)
+		if err != nil {
+			return nil, err
+		}
+		row[28], err = sqltype.Float(in.Source.Columns[28].Usage.Type, float64(fact.AnalyzeTime)/float64(time.Millisecond))
+		if err != nil {
+			return nil, err
+		}
+		row[29], err = sqltype.Float(in.Source.Columns[29].Usage.Type, 0)
+		if err != nil {
+			return nil, err
 		}
 		rows = append(rows, row)
 	}

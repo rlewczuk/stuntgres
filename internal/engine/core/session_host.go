@@ -3,6 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"time"
 )
 
 // sessionHost is the engine seen by session-layer code as a session.Host. It
@@ -20,6 +21,14 @@ func (h *sessionHost) EndMaintenance(s *session.Session) error {
 	return (*Engine)(h).endTemporaryCollations(s)
 }
 
+func (h *sessionHost) StatisticsReadyLocked(s *session.Session) {
+	if p := PayloadOf(s); p != nil && p.statsFlush.requested {
+		statsReadyLocked(s, time.Now())
+	}
+}
+
+func (h *sessionHost) DrainStatistics(s *session.Session) { cancelStatsFlush(s) }
+
 func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 	e := (*Engine)(h)
 	e.sessionMu.Lock()
@@ -28,6 +37,8 @@ func (h *sessionHost) Unregister(token ids.SessionToken, s *session.Session) {
 	}
 	e.sessionMu.Unlock()
 	if payload := PayloadOf(s); payload != nil {
+		statsIdle(s, true)
+		e.Statistics.End(token)
 		payload.admission.release(true)
 	}
 }

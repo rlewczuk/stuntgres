@@ -64,7 +64,7 @@ func (e *Engine) beginAdmitted(op *session.Operation, t *session.TransactionOwne
 	ticket, err := e.registerTransactionLocks(ref)
 	t.Mu.Lock()
 	if err != nil {
-		clearTransaction(t)
+		clearTransaction(t, false)
 		t.Session.RetireTransactionTimeout()
 		return ids.TxRef{}, err
 	}
@@ -125,7 +125,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 				t.Ticket = nil
 				t.Session.Settings.FinishTransaction(false)
 				e.endSerializable(t.Ref, false)
-				clearTransaction(t)
+				clearTransaction(t, false)
 				t.Session.RetireTransactionTimeout()
 			}
 			return EndResult{}, err
@@ -274,7 +274,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	t.Ticket = nil
 	t.Session.Settings.FinishTransaction(committed)
 	e.endSerializable(t.Ref, committed)
-	clearTransaction(t)
+	clearTransaction(t, committed)
 	t.Session.RetireTransactionTimeout()
 	if err != nil {
 		return EndResult{Committed: committed}, err

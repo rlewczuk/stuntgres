@@ -20,11 +20,21 @@ const PlaceholderFlags = FlagNoShowAll | FlagNotInSample
 func (f Flags) Array(result *sqltype.Descriptor) (sqltype.Value, error) {
 	labels := [...]string{"EXPLAIN", "NO_RESET", "NO_RESET_ALL", "NO_SHOW_ALL", "NOT_IN_SAMPLE", "RUNTIME_COMPUTED"}
 	count := 0
-	for i := range labels { if f & (1 << i) != 0 { count++ } }
+	for i := range labels {
+		if f&(1<<i) != 0 {
+			count++
+		}
+	}
 	values := make([]sqltype.Value, 0, count)
-	for i, label := range labels { if f & (1 << i) != 0 { values = append(values, sqltype.String(result.Element(), label)) } }
+	for i, label := range labels {
+		if f&(1<<i) != 0 {
+			values = append(values, sqltype.String(result.Element(), label))
+		}
+	}
 	var dimensions []sqltype.ArrayDimension
-	if count != 0 { dimensions = []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}} }
+	if count != 0 {
+		dimensions = []sqltype.ArrayDimension{{Lower: 1, Length: int32(count)}}
+	}
 	return sqltype.OwnedArrayValue(result, dimensions, values)
 }
 
@@ -246,6 +256,7 @@ func builtinFlags(name string) Flags {
 		"ssl_tls13_ciphers",
 		"standard_conforming_strings",
 		"statement_timeout",
+		"stats_fetch_consistency",
 		"subtransaction_buffers",
 		"summarize_wal",
 		"superuser_reserved_connections",
@@ -266,7 +277,12 @@ func builtinFlags(name string) Flags {
 		"temp_tablespaces",
 		"timezone",
 		"timezone_abbreviations",
+		"track_activities",
 		"track_commit_timestamp",
+		"track_counts",
+		"track_functions",
+		"track_io_timing",
+		"track_wal_io_timing",
 		"transaction_buffers",
 		"transaction_timeout",
 		"transform_null_equals",
@@ -438,13 +454,19 @@ func builtinFlags(name string) Flags {
 func (r Registry) LookupFlags(name string) (Flags, bool) {
 	key := FoldName(name)
 	switch key {
-	case "sort_mem": key = "work_mem"
-	case "vacuum_mem": key = "maintenance_work_mem"
-	case "ssl_ecdh_curve": key = "ssl_groups"
+	case "sort_mem":
+		key = "work_mem"
+	case "vacuum_mem":
+		key = "maintenance_work_mem"
+	case "ssl_ecdh_curve":
+		key = "ssl_groups"
 	}
-	if d, ok := r.definitions[key]; ok { return d.Flags, true }
+	if d, ok := r.definitions[key]; ok {
+		return d.Flags, true
+	}
 	switch key {
-	case "role", "session_authorization", "seed": return builtinFlags(key), true
+	case "role", "session_authorization", "seed":
+		return builtinFlags(key), true
 	}
 	return 0, false
 }

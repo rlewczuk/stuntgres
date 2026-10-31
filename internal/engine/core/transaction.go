@@ -20,14 +20,19 @@ import (
 
 type EndResult struct{ Committed bool }
 
-func clearTransaction(t *session.TransactionOwner) {
+func clearTransaction(t *session.TransactionOwner, committed bool) {
 	releaseReplicationOrigins(t)
+	settleStatsLedger(EngineOf(t.Session), t.Session, &t.Stats, false)
+	retireStatsObjects(EngineOf(t.Session), t.Session, t.Ref.Epoch(), committed, t.Catalog)
 	clearTransactionContents(t)
 }
 
 // clearTransactionContents also serves PREPARE's engine-locked ownership
 // transfer, where the prepared entry retains the old incarnation's exclusions.
 func clearTransactionContents(t *session.TransactionOwner) {
+	if p := PayloadOf(t.Session); p != nil {
+		p.statsReader.Clear()
+	}
 	ownerExtensionOf(t).retireForeign()
 	ownerExtensionOf(t).largeObjects = largeObjectDescriptors{}
 	ownerExtensionOf(t).largeObjectBase = nil
@@ -68,7 +73,7 @@ func endTransactionSession(t *session.TransactionOwner, token ids.SessionToken) 
 	}
 	EngineOf(t.Session).endSerializable(t.Ref, false)
 	t.Session.Settings.FinishTransaction(false)
-	clearTransaction(t)
+	clearTransaction(t, false)
 	t.Session.RetireTransactionTimeout()
 	ticket := t.Ticket
 	t.Ticket = nil
@@ -124,6 +129,7 @@ func (e *Engine) Begin(op *session.Operation, options session.TxOptions) (ids.Tx
 		return ids.TxRef{}, err
 	}
 	defer t.Admission.Unlock()
+	defer statsIdle(op.Session, false)
 	ref, err := e.beginAdmitted(op, t, start)
 	if err == nil {
 		t.Mu.Lock()
@@ -149,6 +155,7 @@ func (e *Engine) Rollback(op *session.Operation, ref ids.TxRef) (EndResult, erro
 		return EndResult{}, err
 	}
 	defer t.Admission.Unlock()
+	defer statsIdle(op.Session, false)
 	result, err := e.endAdmitted(op, t, ref, false, restartNone, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
@@ -166,6 +173,7 @@ func (e *Engine) Commit(op *session.Operation, ref ids.TxRef) (EndResult, error)
 		return EndResult{}, err
 	}
 	defer t.Admission.Unlock()
+	defer statsIdle(op.Session, false)
 	result, err := e.endAdmitted(op, t, ref, true, restartNone, false, time.Time{}, nil)
 	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
@@ -192,6 +200,7 @@ func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) 
 // without starting a new admitted statement or provisional timeout.
 func newStatementScope(op *session.Operation, owner *session.TransactionOwner, start time.Time) *StatementScope {
 	s := &StatementScope{Owner: owner, Op: op, statementStart: start}
+	s.statsCommand()
 	s.self = s
 	s.lease.Statement = s
 	s.Stage.scope = s
@@ -286,6 +295,7 @@ func (s *StatementScope) attachTransactionLocked() {
 	s.implicit = t.State == session.TxImplicit
 	s.Input.TransactionStart = t.Start
 	s.CommandID = t.Command
+	s.statsCommand()
 	s.OwnWrites = t.Writes
 	s.OwnDeletes = t.Deletes
 }

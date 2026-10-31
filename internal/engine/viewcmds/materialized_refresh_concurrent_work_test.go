@@ -46,7 +46,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		}
 		ctx := &materializedWorkContext{Context: context.Background()}
 		fresh := concurrentUnitRows(t, d, make([]any, count)...)
-		effective, err := view.MaterializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.Visibility.CommitSeq(), entries, []*catalog.Relation{idx}, fresh, sqltype.OutputEnvironment{})
+		effective, err := view.MaterializedConcurrentRows(ctx, e.CatalogRead(), d, old, e.Visibility.CommitSeq(), entries, []*catalog.Relation{idx}, fresh, sqltype.OutputEnvironment{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -320,7 +320,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			}
 			old := e.Storage.Relations[d.Address()]
 			frontier := e.Visibility.CommitSeq()
-			effective, err := view.MaterializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.Storage.IndexRoots[first.Address()].Entries, indices, produced, sqltype.OutputEnvironment{})
+			effective, err := view.MaterializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.Storage.IndexRoots[first.Address()].Entries, indices, produced, sqltype.OutputEnvironment{}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

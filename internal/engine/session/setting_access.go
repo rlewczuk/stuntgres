@@ -39,6 +39,8 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and unlisted builtins remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
+	case "track_activities", "track_counts", "track_functions", "track_io_timing", "track_wal_io_timing":
+		return true
 	case "commit_delay", "wal_compression", "wal_init_zero", "wal_recycle":
 		return true
 	case "log_statement_stats", "log_parser_stats", "log_planner_stats", "log_executor_stats":

@@ -123,6 +123,7 @@ func (s *StatementScope) BeginPLException() (*plExceptionCheckpoint, error) {
 		t.Mu.Unlock()
 		return nil, errors.New("stuntgres: foreign savepoint identity exhausted")
 	}
+	t.Stats.Take(&s.Stage.Stats)
 	mark := captureSavepoint(t, "")
 	mark.Invocation = s.Op.CaptureInvocation()
 	mark.Internal = true
@@ -227,9 +228,12 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		cleanup = foreignSavepoint(t, context.WithoutCancel(s.Op.Context()), 2, mark.Serial)
 	}
 	t.Mu.Lock()
+	t.Stats.Take(&s.Stage.Stats)
 	if rollback {
 		restoreSavepoint(t, mark, mark.Settings.Clone())
+		retireStatsObjects(s.Engine(), t.Session, s.TxRef.Epoch(), false, s.Catalog, c.catalog, t.Catalog)
 		s.Stage.Rows, s.Stage.Deletes, s.Stage.Replacing = c.rows, c.deletes, c.replacing
+		s.Stage.Stats = nil
 		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
 		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority
 		s.restoreForeignConstructions(c.foreignConstructions)
@@ -257,6 +261,9 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 		s.multiEvents = c.multiEvents
 		s.notificationActions, s.notificationEvents = c.notificationActions, c.notificationEvents
 		s.Completed, s.sessionCompleted, s.ProjectedRoots = c.completed, c.sessionCompleted, c.ProjectedRoots
+	}
+	if !rollback && cleanup == nil {
+		t.Stats.Release(n)
 	}
 	t.TruncateSavepoints(n)
 	s.Engine().Mu.Lock()

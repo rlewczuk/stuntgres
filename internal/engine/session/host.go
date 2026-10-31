@@ -22,4 +22,12 @@ type Host interface {
 	// slot). Session.Operation calls it, possibly while holding Session.Mu;
 	// it only allocates and takes no lock.
 	NewOperation(s *Session) *Operation
+	// StatisticsReadyLocked services an already-due cumulative flush request.
+	// Session.Mu is held; it may only try admission and owner mutexes without
+	// blocking, then take the leaf provider lock. It never takes metadata Mu.
+	StatisticsReadyLocked(s *Session)
+	// DrainStatistics invalidates and joins deferred publication callbacks
+	// after all resource callbacks, before Unregister, without session,
+	// admission, transaction-owner or metadata locks held.
+	DrainStatistics(s *Session)
 }

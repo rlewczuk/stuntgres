@@ -215,8 +215,11 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err = e.StageQueryTableRows(ctx, stage, d, rows, scope.TxRef); err != nil {
 		return Result{}, err
 	}
+	scope.RecordStatsPopulation(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), int64(len(rows)), 0, false)
 	if err = e.publishQueryTable(scope, stage); err != nil {
+		scope.AbortStatsPopulation()
 		return Result{}, err
 	}
+	scope.CompleteStatsPopulation()
 	return Result{Count: int64(count)}, nil
 }

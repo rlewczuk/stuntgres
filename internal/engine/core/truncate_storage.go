@@ -152,6 +152,11 @@ func (s *StatementScope) stageTruncate() error {
 	if err := e.StageCatalogOverlay(s, stage, changes); err != nil {
 		return err
 	}
+	for _, selected := range s.truncateOrZero().Relations {
+		if selected.Relation.RelationKind.Stored() {
+			s.recordStatsTruncate(selected.Ref)
+		}
+	}
 	if err := s.executeForeignTruncate(groups); err != nil {
 		return err
 	}

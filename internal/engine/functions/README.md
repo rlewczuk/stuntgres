@@ -223,6 +223,12 @@ All four remain unfolded in planning and preflight. `SessionActivityRuntime`
 borrows the executing command through the live host, including FETCH; no source,
 session, clock result or authority is retained in the immutable leaf.
 
+`StatsSnapshot` retains only zero-child typed recipe and routine provenance.
+Timestamp inspection is STABLE/TIMESTAMPTZ, clearing is VOLATILE/non-null VOID;
+both remain unfolded and borrow current statement authority at every execution.
+Preparation and description do not construct or clear statistics. The live
+runtime owns setting-generation checks and transaction reader lifetime.
+
 `TriggerDepth` is a stable, unfolded zero-child INT4 recipe with ordinary
 routine identity. Its runtime capability reads the executing invocation owner;
 reconstruction, stored capture and scalar sources retain no measured depth.
@@ -1271,6 +1277,7 @@ Visibility inquiry binding/protocol and composed capture ownership use
 `reference/catalog_objects`.
 
 Session activity leaf and composed authority units use `RUN='^TestSessionActivity'`.
+Snapshot recipe and authority units use `RUN='^TestStatsSnapshotExpressionAuthority'`.
 Endpoint leaf ownership units use `RUN='^TestSessionEndpoint'`.
 XML expression protocol, immutable conversion authority and call-local diagnostics
 use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.

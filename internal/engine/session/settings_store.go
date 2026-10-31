@@ -27,7 +27,9 @@ type SettingsStore struct {
 	DefaultSources      map[string]DefaultSource // Captured non-registry reset provenance.
 	Actions             map[string]settingAction
 	RoleAction          roleSettingAction
-	NestLevel           int // Zero outside explicit SAVE frames; transaction base is level one.
+	NestLevel           int            // Zero outside explicit SAVE frames; transaction base is level one.
+	StatsGeneration     atomic.Uint64  // Physical-session effective consistency authority.
+	statsOwner          *SettingsStore // Detached images share the physical generation.
 	// Physical-session sticky simulated TEMP initialization; not journaled.
 	// Detached images share the original authority rather than snapshotting it.
 	// Atomic access avoids taking the live store mutex under a detached store's
@@ -63,9 +65,9 @@ func (s *Session) Setting(name string) (string, bool) {
 }
 
 type settingOverride struct {
-	Present bool
-	Text    string
-	Typed   settings.Value
+	Present         bool
+	Text            string
+	Typed           settings.Value
 	TempTablespaces *TempTablespaceAssignment
 }
 type settingAction struct {
@@ -151,6 +153,7 @@ func (s *SettingsStore) override(name string) settingOverride {
 	return v
 }
 func (s *SettingsStore) Restore(name string, v settingOverride) {
+	beforeStats := s.Value("stats_fetch_consistency")
 	beforeRole := ""
 	if name == "session_replication_role" {
 		beforeRole = s.TypedValue(name).Text
@@ -168,6 +171,7 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 	if name == "temp_tablespaces" {
 		s.restoreTempTablespaces(v.TempTablespaces)
 	}
+	s.StatsChanged(beforeStats)
 }
 
 // SettingAction distinguishes ordinary assignment, transaction-local assignment

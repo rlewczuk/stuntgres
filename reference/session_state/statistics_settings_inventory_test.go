@@ -133,10 +133,10 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 			{"compute_query_id", "enum", "auto", "superuser"},
 		} {
 			var want [][]any
-			if pg {
+			if pg || statsSnapshotSetting(tc.name) {
 				want = [][]any{{tc.name, tc.kind, tc.boot, tc.context}}
 			}
-			if pg {
+			if pg || statsSnapshotSetting(tc.name) {
 				var unit, min, max, enums any
 				category := "Statistics / Cumulative Query and Index Statistics"
 				switch tc.name {
@@ -158,7 +158,7 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 					[][]any{{unit, category, min, max, enums}}, tc.name))
 			}
 			run(fixture.Select("SELECT name,vartype,boot_val,context FROM pg_settings WHERE name=$1", []string{"name", "vartype", "boot_val", "context"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, want, tc.name))
-			if !pg {
+			if !pg && !statsSnapshotSetting(tc.name) {
 				for _, query := range []string{"SHOW " + tc.name, "SELECT current_setting('" + tc.name + "')", "SET " + tc.name + "='on'"} {
 					for _, prepared := range []bool{false, true} {
 						s := fixture.ImplicitError(query, fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "`+tc.name+`"`))
@@ -171,11 +171,9 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 			}
 		}
 		run(fixture.Select("SELECT name,setting,vartype,context,category FROM pg_settings WHERE name='log_statement_stats'", []string{"name", "setting", "vartype", "context", "category"}, []string{"TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"log_statement_stats", "off", "bool", "superuser", "Statistics / Monitoring"}}))
-		if pg {
-			run(fixture.Exec("SET stats_fetch_consistency='none'", 0))
-			run(fixture.Select("SHOW stats_fetch_consistency", []string{"stats_fetch_consistency"}, []string{"TEXT"}, [][]any{{"none"}}))
-			run(fixture.Exec("RESET stats_fetch_consistency", 0))
-		}
+		run(fixture.Exec("SET stats_fetch_consistency='none'", 0))
+		run(fixture.Select("SHOW stats_fetch_consistency", []string{"stats_fetch_consistency"}, []string{"TEXT"}, [][]any{{"none"}}))
+		run(fixture.Exec("RESET stats_fetch_consistency", 0))
 	})
 }
 
@@ -240,4 +238,12 @@ func statisticsSettingsFields(name string) (unit, min, max, enums any) {
 		enums = "{disabled,debug5,debug4,debug3,debug2,debug1,log,notice,warning,error}"
 	}
 	return
+}
+
+func statsSnapshotSetting(name string) bool {
+	switch name {
+	case "stats_fetch_consistency", "track_activities", "track_counts", "track_functions", "track_io_timing", "track_wal_io_timing":
+		return true
+	}
+	return false
 }

@@ -37,6 +37,8 @@ func (s *StatementScope) leaveSQLRoutine() {
 // This deliberately excludes effects, constraint queues and completion programs.
 // The live replacement reservation is root owner state, not lexical scratch;
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
+// TRUNCATE's admitted manifest is command-local: nested commands start fresh
+// and restore the suspended caller's manifest, never append to an earlier one.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
 	txRef               ids.TxRef
