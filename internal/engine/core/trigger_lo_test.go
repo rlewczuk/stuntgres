@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -98,10 +100,20 @@ func TestLoManageUnmentionedAttribute(t *testing.T) {
 	// A target of 2 must return before inspecting the deliberately absent rows.
 	relation := &catalog.Relation{Index: map[string]int{"v": 1}, Attributes: []int32{2, 3}}
 	parts := stored.TriggerParts{Name: "lm_cleanup", Level: stored.TriggerRow, Arguments: []string{"v"}}
-	if err := (&StatementScope{}).manageLargeObjectReference(relation, parts, stored.TriggerUpdate, nil, nil, []int32{2}); err != nil {
+	if err := manageLargeObjectReference[testAuthority](nil, relation, parts, stored.TriggerUpdate, nil, nil, []int32{2}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (&StatementScope{}).manageLargeObjectReference(relation, parts, stored.TriggerInsert, nil, nil, nil); err != nil {
+	if err := manageLargeObjectReference[testAuthority](nil, relation, parts, stored.TriggerInsert, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
+
+// testAuthority instantiates the trigger bodies for the decisions that return
+// before reaching the host.
+type testAuthority struct{}
+
+func (testAuthority) TemporaryNamespace() ids.ObjectAddress       { return ids.ObjectAddress{} }
+func (testAuthority) ReferencePath() ([]ids.ObjectAddress, error) { return nil, nil }
+func (testAuthority) DDLAuthority()                               {}
+func (testAuthority) Access() access.View                         { return access.View{} }
+func (a testAuthority) Recaptured(catalog.Read) testAuthority     { return a }

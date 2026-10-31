@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -15,17 +16,17 @@ import (
 // manageLargeObjectReference borrows the row chain's current NEW and original
 // OLD. Unlink participates in the ordinary statement catalog journal; no row
 // copies, reference counting or separate rollback authority are introduced.
-func (s *StatementScope) manageLargeObjectReference(relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) error {
+func manageLargeObjectReference[A tsearch.Authority[A]](h Host[A], relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) error {
 	if p.Level != stored.TriggerRow {
-		return SQLError("XX000", p.Name+": must be fired for row")
+		return sqlError("XX000", p.Name+": must be fired for row")
 	}
 	if len(p.Arguments) == 0 {
-		return SQLError("XX000", p.Name+": no column name provided in the trigger definition")
+		return sqlError("XX000", p.Name+": no column name provided in the trigger definition")
 	}
 	name := p.Arguments[0]
 	slot, ok := relation.Index[name]
 	if !ok || slot < 0 || relation.Attributes[slot] <= 0 {
-		return SQLError("XX000", fmt.Sprintf(`%s: column "%s" does not exist`, p.Name, name))
+		return sqlError("XX000", fmt.Sprintf(`%s: column "%s" does not exist`, p.Name, name))
 	}
 	compare := event == stored.TriggerUpdate
 	if event != stored.TriggerDelete && (!compare || !slices.Contains(targets, relation.Attributes[slot])) {
@@ -35,13 +36,14 @@ func (s *StatementScope) manageLargeObjectReference(relation *catalog.Relation, 
 	if compare {
 		fresh = next[slot]
 	}
-	oid, unlink, err := loManageReference(s.executionContext(), old[slot], fresh, compare, s.Output)
+	_, output := h.Environments()
+	oid, unlink, err := loManageReference(h.Context(), old[slot], fresh, compare, output)
 	if err != nil || !unlink {
 		return err
 	}
 	// The released helper calls be_lo_unlink directly. This deliberately does
 	// not perform a second SQL function EXECUTE check on lo_unlink.
-	_, err = (*statementHost)(s).LargeObject(functions.LargeObjectRequest{Name: "lo_unlink", OID: ids.OID(oid)})
+	_, err = h.LargeObject(functions.LargeObjectRequest{Name: "lo_unlink", OID: ids.OID(oid)})
 	return err
 }
 

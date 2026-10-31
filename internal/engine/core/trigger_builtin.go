@@ -9,58 +9,42 @@ import (
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fts"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
-// invokeNativeTrigger borrows row slots for one admitted invocation. It enters
-// the same balanced body boundary as PL without constructing a PL frame.
-func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) (result dml.BeforeResult, err error) {
+// Invoke runs one admitted native trigger body inside the body boundary core
+// entered for the invocation: the installed tcn, refint, autoinc,
+// insert_username, moddatetime or lo_manage provider, or the builtin
+// suppress_redundant_updates_trigger and tsvector_update_trigger bodies. Row
+// slots are borrowed for this call only.
+func Invoke[A tsearch.Authority[A]](h Host[A], d *catalog.Procedure, relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value, targets []int32) (result dml.BeforeResult, err error) {
 	result = dml.BeforeResult{Row: next, Proceed: true}
-	if err = s.Op.Context().Err(); err != nil {
-		return result, err
-	}
-	if err = s.enterSQLRoutine(); err != nil {
-		return result, err
-	}
-	defer s.leaveSQLRoutine()
-	s.enterTrigger()
-	defer s.leaveTrigger()
-	leave, err := s.enterRoutineEnvironment(d)
-	if err != nil {
-		return result, err
-	}
-	defer func() { err = leave(err) }()
-	leavePolicy := s.activateRoutineCommandPolicy(d, false)
-	defer leavePolicy()
-	stats := s.beginStatsFunction(p.Procedure, statsFunctionLanguage(d), false)
-	defer func() { s.endStatsFunction(stats, err == nil) }()
 	if extension.TcnProviderOf(d) == extension.StockTcn {
-		err = s.notifyTriggerChange(relation, p, event, next, old)
+		err = notifyTriggerChange(h, relation, p, event, next, old)
 		return result, err
 	}
 	if extension.RefintProviderOf(d) == extension.StockRefint {
-		err = s.invokeRefint(d, relation, p, event, next, old)
+		err = invokeRefint(h, d, relation, p, event, next, old)
 		return result, err
 	}
 	if extension.AutoincProviderOf(d) == extension.StockAutoinc {
-		result.Row, err = s.autoincTrigger(relation, p, event, next)
+		result.Row, err = autoincTrigger(h, relation, p, event, next)
 		return result, err
 	}
 	if extension.StockInsertUsername.SupportsDMLTrigger(d) {
-		err = s.insertTriggerUsername(relation, p, event, next)
+		err = insertTriggerUsername(h, relation, p, event, next)
 		return result, err
 	}
 	if extension.ModdatetimeProviderOf(d) == extension.StockModdatetime {
-		err = s.updateModdatetime(relation, p, event, next)
+		err = updateModdatetime(h, relation, p, event, next)
 		return result, err
 	}
 	if extension.StockLo.SupportsDMLTrigger(d) {
 		if event == stored.TriggerDelete {
 			result.Row = old
 		}
-		err = s.manageLargeObjectReference(relation, p, event, next, old, targets)
+		err = manageLargeObjectReference(h, relation, p, event, next, old, targets)
 		return result, err
 	}
 	builtin := catalog.BuiltinDMLTrigger(d)
@@ -68,51 +52,50 @@ func (s *StatementScope) invokeNativeTrigger(d *catalog.Procedure, relation *cat
 		return result, err
 	}
 	if builtin == 1291 {
-		result.Proceed, err = triggerRowChanged(s.Op.Context(), old, next)
+		result.Proceed, err = triggerRowChanged(h.Operation().Context(), old, next)
 		return result, err
 	}
-	err = s.updateTriggerVector(builtin == 3753, relation, p.Arguments, event, next, targets)
+	err = updateTriggerVector(h, builtin == 3753, relation, p.Arguments, event, next, targets)
 	return result, err
 }
 
 func builtinTriggerProtocol(suppress bool, p stored.TriggerParts, event stored.TriggerEvent) error {
 	if suppress {
 		if event != stored.TriggerUpdate {
-			return SQLError("39P01", "suppress_redundant_updates_trigger: must be called on update")
+			return sqlError("39P01", "suppress_redundant_updates_trigger: must be called on update")
 		}
 		if p.Timing != stored.TriggerBefore {
-			return SQLError("39P01", "suppress_redundant_updates_trigger: must be called before update")
+			return sqlError("39P01", "suppress_redundant_updates_trigger: must be called before update")
 		}
 		if p.Level != stored.TriggerRow {
-			return SQLError("39P01", "suppress_redundant_updates_trigger: must be called for each row")
+			return sqlError("39P01", "suppress_redundant_updates_trigger: must be called for each row")
 		}
 		return nil
 	}
 	if p.Level != stored.TriggerRow {
-		return SQLError("XX000", "tsvector_update_trigger: must be fired for row")
+		return sqlError("XX000", "tsvector_update_trigger: must be fired for row")
 	}
 	if p.Timing != stored.TriggerBefore {
-		return SQLError("XX000", "tsvector_update_trigger: must be fired BEFORE event")
+		return sqlError("XX000", "tsvector_update_trigger: must be fired BEFORE event")
 	}
 	if event != stored.TriggerInsert && event != stored.TriggerUpdate {
-		return SQLError("XX000", "tsvector_update_trigger: must be fired for INSERT or UPDATE")
+		return sqlError("XX000", "tsvector_update_trigger: must be fired for INSERT or UPDATE")
 	}
 	if len(p.Arguments) < 3 {
-		return SQLError("XX000", "tsvector_update_trigger: arguments must be tsvector_field, ts_config, text_field1, ...)")
+		return sqlError("XX000", "tsvector_update_trigger: arguments must be tsvector_field, ts_config, text_field1, ...)")
 	}
 	return nil
 }
 
-func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Relation, args []string, event stored.TriggerEvent, next []sqltype.Value, targets []int32) error {
-	ctx := s.executionContext()
-	e := s.Engine()
-	e.Mu.Lock()
-	auth, err := s.namespaceAuthorizationLocked(e)
-	e.Mu.Unlock()
+func updateTriggerVector[A tsearch.Authority[A]](h Host[A], byColumn bool, relation *catalog.Relation, args []string, event stored.TriggerEvent, next []sqltype.Value, targets []int32) error {
+	ctx := h.Context()
+	h.ReacquireEngine()
+	auth, err := h.NamespaceAuthorizationLocked()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return err
 	}
-	read := auth.Catalog
+	read := auth.Access().Catalog
 	column := func(name, missing, wrong string, target sqltype.ID) (int, error) {
 		slot, ok := relation.Index[name]
 		var id sqltype.ID
@@ -125,10 +108,10 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 				slot = -6
 			}
 		} else {
-			return 0, SQLError("42703", fmt.Sprintf(missing, name))
+			return 0, sqlError("42703", fmt.Sprintf(missing, name))
 		}
 		if _, ok := catalog.ImplicitBinaryCast(read, id, target); !ok {
-			return 0, SQLError("42804", fmt.Sprintf(wrong, name))
+			return 0, sqlError("42804", fmt.Sprintf(wrong, name))
 		}
 		return slot, nil
 	}
@@ -137,7 +120,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		return err
 	}
 	var oid uint32
-	var captured tsearch.Capture[AuthorizationView]
+	var captured tsearch.Capture[A]
 	if byColumn {
 		slot, err := column(args[1], "configuration column %q does not exist", "column %q is not of regconfig type", sqltype.Regconfig)
 		if err != nil {
@@ -148,7 +131,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 		if config.IsNull() {
-			return SQLError("22004", fmt.Sprintf("configuration column %q must not be null", args[1]))
+			return sqlError("22004", fmt.Sprintf("configuration column %q must not be null", args[1]))
 		}
 		value, err := triggerBinaryValue(ctx, read, config, sqltype.Regconfig)
 		if err != nil {
@@ -159,13 +142,13 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 	} else {
-		oid, err = regobj.NewTextSearchInput(inputCapture(auth, nil)).ResolveTriggerConfig(ctx, args[1])
+		oid, err = h.TextSearchInput(auth).ResolveTriggerConfig(ctx, args[1])
 		if err != nil {
 			return err
 		}
-		e.Mu.Lock()
-		captured, err = tsearch.CaptureConfiguration[AuthorizationView](ctx, read, oid)
-		e.Mu.Unlock()
+		h.ReacquireEngine()
+		captured, err = tsearch.CaptureConfiguration[A](ctx, read, oid)
+		h.ReleaseEngineLocked()
 		if err != nil {
 			return err
 		}
@@ -179,7 +162,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			}
 		}
 	}
-	ctx = s.ActivateRuntime(ctx)
+	ctx = h.ActivateRuntime(ctx)
 	position := 0
 	var builder fts.VectorBuilder
 	for _, name := range args[2:] {
@@ -206,16 +189,16 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 			return err
 		}
 		if !captured.Captured() {
-			e.Mu.Lock()
-			captured, err = tsearch.CaptureConfiguration[AuthorizationView](ctx, read, oid)
-			e.Mu.Unlock()
+			h.ReacquireEngine()
+			captured, err = tsearch.CaptureConfiguration[A](ctx, read, oid)
+			h.ReleaseEngineLocked()
 			if err != nil {
 				return err
 			}
 		}
 		// Parsing remains observable on non-rebuilding UPDATEs too, but the
 		// final-vector builder need not retain any lexical output in that case.
-		if err := captured.Walk(ctx, s.WriteHost(), text, &position, func(p fts.LexicalPosition) {
+		if err := captured.Walk(ctx, h, text, &position, func(p fts.LexicalPosition) {
 			if !rebuild {
 				return
 			}
@@ -227,7 +210,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 		}
 	}
 	if !rebuild {
-		return captured.Accept(ctx, s.WriteHost())
+		return captured.Accept(ctx, h)
 	}
 	vector, err := builder.Finish(ctx)
 	if err != nil {
@@ -244,7 +227,7 @@ func (s *StatementScope) updateTriggerVector(byColumn bool, relation *catalog.Re
 	if err != nil {
 		return err
 	}
-	if err := captured.Accept(ctx, s.WriteHost()); err != nil {
+	if err := captured.Accept(ctx, h); err != nil {
 		return err
 	}
 	next[destination] = value

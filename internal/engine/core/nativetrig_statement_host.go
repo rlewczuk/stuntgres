@@ -15,9 +15,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The native trigger bodies' host methods on the statement host. The
-// authorization, sequence, identity and nested-SQL bodies stay core's; the
-// trigger protocol checks and row work are the bodies'.
+// The native trigger bodies' host is the statement host; AuthorizationView is
+// its authority. The text-search host, Context and LargeObject are shared
+// with the other leaves and exec.Host. The authorization, sequence, identity
+// and nested-SQL bodies stay core's; the trigger protocol checks and row work
+// are the bodies'.
+var _ Host[AuthorizationView] = (*statementHost)(nil)
 
 // NamespaceAuthorizationLocked is the statement's namespace authorization:
 // the callable authority over the statement's private catalog.

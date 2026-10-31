@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core/tsearch"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -20,8 +21,8 @@ func tcnQuote(b *strings.Builder, text string, quote byte) {
 	b.WriteByte(quote)
 }
 
-func (s *StatementScope) notifyTriggerChange(relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value) error {
-	protocol := func(message string) error { return SQLError("39P01", "triggered_change_notification: "+message) }
+func notifyTriggerChange[A tsearch.Authority[A]](h Host[A], relation *catalog.Relation, p stored.TriggerParts, event stored.TriggerEvent, next, old []sqltype.Value) error {
+	protocol := func(message string) error { return sqlError("39P01", "triggered_change_notification: "+message) }
 	if p.Timing != stored.TriggerAfter {
 		return protocol("must be called after the change")
 	}
@@ -41,23 +42,23 @@ func (s *StatementScope) notifyTriggerChange(relation *catalog.Relation, p store
 	if len(p.Arguments) > 1 {
 		return protocol("must not be called with more than one parameter")
 	}
-	e := s.Engine()
-	e.Mu.Lock()
-	auth, err := s.namespaceAuthorizationLocked(e)
+	h.ReacquireEngine()
+	auth, err := h.NamespaceAuthorizationLocked()
 	var keys []catalog.IndexKey
 	if err == nil {
+		read := auth.Access().Catalog
 		for _, constraint := range relation.Constraints.Unique {
 			if !constraint.Primary {
 				continue
 			}
-			index, ok := auth.Catalog.Relation(constraint.Index)
+			index, ok := read.Relation(constraint.Index)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Valid && index.SQLIndex.Constraint != nil && index.SQLIndex.Constraint.Primary {
 				keys = index.SQLIndex.Keys
 				break
 			}
 		}
 	}
-	e.Mu.Unlock()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return err
 	}
@@ -68,13 +69,15 @@ func (s *StatementScope) notifyTriggerChange(relation *catalog.Relation, p store
 	tcnQuote(&payload, relation.Name(), '"')
 	payload.WriteByte(',')
 	payload.WriteByte(op)
+	ctx := h.Context()
+	_, output := h.Environments()
 	for _, key := range keys {
 		slot := relation.IndexForAttribute(key.Attribute)
 		if slot < 0 || slot >= len(row) {
 			return fmt.Errorf("stuntgres: invalid tcn primary key attribute")
 		}
 		value := row[slot]
-		text, err := value.Type().OutputWithEnvironment(s.executionContext(), value, s.Output)
+		text, err := value.Type().OutputWithEnvironment(ctx, value, output)
 		if err != nil {
 			return err
 		}
@@ -88,14 +91,14 @@ func (s *StatementScope) notifyTriggerChange(relation *catalog.Relation, p store
 		channel = p.Arguments[0]
 	}
 	if channel == "" {
-		return SQLError("22023", "channel name cannot be empty")
+		return sqlError("22023", "channel name cannot be empty")
 	}
 	if len(channel) >= 64 {
-		return SQLError("22023", "channel name too long")
+		return sqlError("22023", "channel name too long")
 	}
 	if payload.Len() >= 8000 {
-		return SQLError("22023", "payload string too long")
+		return sqlError("22023", "payload string too long")
 	}
-	s.WriteHost().QueueNotification(channel, payload.String())
+	h.QueueNotification(channel, payload.String())
 	return nil
 }
