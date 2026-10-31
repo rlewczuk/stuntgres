@@ -1,4 +1,4 @@
-package core_test
+package locking_test
 
 import (
 	"context"

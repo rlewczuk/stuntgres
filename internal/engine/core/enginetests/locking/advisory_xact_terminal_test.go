@@ -1,4 +1,4 @@
-package core_test
+package locking_test
 
 import (
 	"context"
@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -126,4 +128,13 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		}
 		e.EndLockOwner(b.Transactions.Ticket)
 	}
+}
+
+func advisoryXactUnitHold(s *session.Session, key lock.Resource) lock.Hold {
+	m := core.EngineOf(s).Locks
+	lockState := m.Inspect()
+	if e := lockState.Resources[key]; e != nil {
+		return e.Holders[s.Transactions.Ticket]
+	}
+	return lock.Hold{}
 }

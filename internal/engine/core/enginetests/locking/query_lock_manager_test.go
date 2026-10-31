@@ -1,4 +1,4 @@
-package core_test
+package locking_test
 
 import (
 	"context"
@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func TestQueryLockConditionalRowManager(t *testing.T) {
@@ -96,4 +99,15 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	if probe != nil || err != nil {
 		t.Fatal("cancelled predecessor left ghost conditional denial", probe, err)
 	}
+}
+
+func rowLockEngineFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *session.Session) {
+	t.Helper()
+	e := engine.New()
+	a := enginetest.StartSession(t, e, nil)
+	b := enginetest.StartSession(t, e, nil)
+	c := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, c, "CREATE TABLE t(id INT,v INT)")
+	enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1,10),(2,20)")
+	return e, a, b, c
 }

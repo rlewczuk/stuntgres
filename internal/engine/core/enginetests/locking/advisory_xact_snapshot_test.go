@@ -1,4 +1,4 @@
-package core_test
+package locking_test
 
 import (
 	"context"
@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -101,4 +103,40 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	if err := preparedUnitControl(t, e, a, parser.KindRollbackPrepared, "advisory_snapshot"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func advisoryXactUnitGrant(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact bool) {
+	t.Helper()
+	r, err := advisoryXactUnitAcquire(t, s, key, mode, xact, true)
+	if r != nil || err != nil {
+		t.Fatal("expected immediate grant", r, err)
+	}
+}
+
+func preparedUnitControl(t *testing.T, e *core.Engine, s *session.Session, kind parser.TransactionControlKind, gid string) error {
+	t.Helper()
+	op := enginetest.TransactionOperation(t, s)
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = scope.Execute(&parser.TransactionControl{Kind: kind, GID: gid}, 0, nil)
+	finish := scope.Finish(err)
+	if finish != err || scope.Finish(nil) != err {
+		t.Fatal("control Finish replaced its execution diagnostic", err, finish)
+	}
+	return finish
+}
+
+func advisoryXactUnitAcquire(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
+	t.Helper()
+	return core.EngineOf(s).Locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.Transactions.Ref, NoWait: nowait})
+}
+
+func advisoryXactUnitTicket(s *session.Session, xact bool) *lock.Ticket {
+	if xact {
+		return s.Transactions.Ticket
+	}
+	return s.Advisory.Ticket
 }
