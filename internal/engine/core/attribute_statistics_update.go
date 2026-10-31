@@ -10,9 +10,10 @@ import (
 )
 
 // Released REL_18_6 validation order is observable through ordered notices.
-func(h *statementHost) updateAttributeStatistics(read catalog.Read,name string,a attributeStatsArguments,next *storage.ColumnStatistics)(bool,error){
+func updateAttributeStatistics[A Authority](h Host[A],read catalog.Read,name string,a attributeStatsArguments,next *storage.ColumnStatistics)(bool,error){
  result:=true
- warn:=func(code,message,detail string){h.attributeStatsWarning(sqlstate.Error{Code:code,Message:message,Detail:detail});result=false}
+ op:=h.Operation()
+ warn:=func(code,message,detail string){attributeStatsWarning(op,sqlstate.Error{Code:code,Message:message,Detail:detail});result=false}
  doMCV,doHist,doCorr:=a.has(8)&&a.has(9),a.has(10),a.has(11)
  doElem,doCount:=a.has(12)&&a.has(13),a.has(14)
  doLength,doBounds:=a.has(15)&&a.has(16),a.has(17)
@@ -41,8 +42,8 @@ func(h *statementHost) updateAttributeStatistics(read catalog.Read,name string,a
  parse:=func(i int,element *sqltype.Descriptor)(sqltype.Value,bool,error){
   d,ok:=read.LookupType(2277);if !ok{return sqltype.Value{},false,fmt.Errorf("stuntgres: statistics ANYARRAY type unavailable")}
   usage:=element.Usage();usage.Typmod=next.Usage.Typmod;if element==next.Usage.Type{usage=next.Usage}
-  text,_:=a[i].Text();v,err:=sqltype.ParseStatisticArray(h.Context(),d,usage,text,h.Input)
-  if err!=nil{var diagnostic *sqlstate.Error;if sqltype.InputSoftError(err)&&errors.As(err,&diagnostic){h.attributeStatsWarning(*diagnostic);result=false;return sqltype.Value{},false,nil};return sqltype.Value{},false,err}
+  text,_:=a[i].Text();input,_:=h.Environments();v,err:=sqltype.ParseStatisticArray(h.Context(),d,usage,text,input)
+  if err!=nil{var diagnostic *sqlstate.Error;if sqltype.InputSoftError(err)&&errors.As(err,&diagnostic){attributeStatsWarning(op,*diagnostic);result=false;return sqltype.Value{},false,nil};return sqltype.Value{},false,err}
   if v.ArrayRank()!=1{warn("22023",fmt.Sprintf(`"%s" must be a one-dimensional array`,attributeStatsKeys[i]),"");return sqltype.Value{},false,nil}
   for j:=range v.ArrayLen(){if v.ArrayElement(j).IsNull(){warn("22023",fmt.Sprintf(`"%s" array must not contain null values`,attributeStatsKeys[i]),"");return sqltype.Value{},false,nil}}
   return v,true,nil

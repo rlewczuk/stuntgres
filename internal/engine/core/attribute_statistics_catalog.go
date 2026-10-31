@@ -11,24 +11,26 @@ import (
  "stuntgres/internal/sqltype"
 )
 
-// VisitAttributeStatistics shares the catalog capture frontier with pg_class.
+// VisitAttributes shares the catalog capture frontier with pg_class.
 // Own uncommitted selected deltas are resolved before privilege-filtered output.
-func(r EngineCatalogRuntime) VisitAttributeStatistics(ctx context.Context,source *catalog.Relation,visit func([]sqltype.Value)error)error{
- for _,raw:=range r.Auth.Catalog.Descriptors(){
+// The catalog runtime calls it under its capture lock with the engine's store.
+func VisitAttributes[A CatalogAuthority](ctx context.Context,auth A,store *storage.Store,source *catalog.Relation,visit func([]sqltype.Value)error)error{
+ view:=auth.Access()
+ for _,raw:=range view.Catalog.Descriptors(){
   relation,ok:=raw.(*catalog.Relation);if !ok{continue}
-  active,err:=access.RowSecurityApplies(r.Auth.Roles,relation,r.Auth.State.CurrentUser);if err!=nil{return err};if active{continue}
-  metadata:=session.ResolveRelationMetadata(r.Auth.PendingCatalog(),r.engine.Storage.RelationMetadata,relation.Address())
-  facts:=session.ResolveStatistics(r.Auth.PendingCatalog(),relation.Address(),metadata,relation,r.Auth.Catalog);if facts==nil{continue}
-  ns,ok:=r.Auth.Catalog.Namespace(relation.Namespace());if !ok{return fmt.Errorf("stuntgres: statistics namespace unavailable")}
+  active,err:=access.RowSecurityApplies(view.Roles,relation,view.State.CurrentUser);if err!=nil{return err};if active{continue}
+  metadata:=session.ResolveRelationMetadata(auth.PendingCatalog(),store.RelationMetadata,relation.Address())
+  facts:=session.ResolveStatistics(auth.PendingCatalog(),relation.Address(),metadata,relation,view.Catalog);if facts==nil{continue}
+  ns,ok:=view.Catalog.Namespace(relation.Namespace());if !ok{return fmt.Errorf("stuntgres: statistics namespace unavailable")}
   for key,fact:=range facts.Columns{
    if err:=ctx.Err();err!=nil{return err}
    slot:=-1;for i,attribute:=range relation.Attributes{if attribute==key.Attribute{slot=i;break}};if slot<0{continue}
-   allowed,err:=r.Auth.View.RelationPrivilege(ctx,r.Auth.State.CurrentUser.ID(),relation,key.Attribute,false,authorization.SelectPrivilege,0);if err!=nil{return err};if !allowed{continue}
+   allowed,err:=view.RelationPrivilege(ctx,view.State.CurrentUser.ID(),relation,key.Attribute,false,authorization.SelectPrivilege,0);if err!=nil{return err};if !allowed{continue}
    row:=make([]sqltype.Value,len(source.Columns));for i,column:=range source.Columns{row[i]=sqltype.ResultNull(column.Usage)}
    row[0]=sqltype.String(source.Columns[0].Usage.Type,ns.Name());row[1]=sqltype.String(source.Columns[1].Usage.Type,relation.Name());row[2]=sqltype.String(source.Columns[2].Usage.Type,relation.Columns[slot].Name)
    row[3]=sqltype.Boolean(source.Columns[3].Usage.Type,key.Inherited)
    row[4],_=sqltype.Float(source.Columns[4].Usage.Type,fact.NullFraction());row[5],_=sqltype.Integer(source.Columns[5].Usage.Type,int64(fact.AverageWidth));distinct,_:=fact.EncodedDistinct();row[6],_=sqltype.Float(source.Columns[6].Usage.Type,distinct)
-   if err:=attributeStatsRowKinds(r.Auth.Catalog,source,fact,row);err!=nil{return err}
+   if err:=attributeStatsRowKinds(view.Catalog,source,fact,row);err!=nil{return err}
    if err:=visit(row);err!=nil{return err}
   }
  }

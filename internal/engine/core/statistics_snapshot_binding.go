@@ -3,12 +3,48 @@ package core
 import (
 	"context"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
+
+// StatisticsSnapshotCodec borrows the captured catalog and ordinary control
+// constructor authority. The caller owns the engine lock; no live SQL executes.
+func StatisticsSnapshotCodec(ctx context.Context, e *Engine, read catalog.Read) storage.StatisticsSnapshotCodec {
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, read)
+	principal := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+	auth := e.AuthorityView(access.View{Owner: &e.Catalog.Owner, PairedCatalog: read, Catalog: read, Roles: roles, RoleRecord: e.RoleStore.Published, State: authorization.RoleState{CurrentUser: principal, Authenticated: principal}})
+	acl := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: roles, Lossless: true}
+	ctx = regobj.ACLItemOutputContext(regobj.Float4DumpContext(ctx), acl)
+	host := &statisticsSnapshotHost{engine: e, auth: auth}
+	host.SnapshotCodec = NewSnapshotCodec(ctx, read, host)
+	return host
+}
+
+// statisticsSnapshotHost is a snapshot codec's captured bootstrap authority.
+// It embeds the codec it serves, so a codec is one allocation.
+type statisticsSnapshotHost struct {
+	SnapshotCodec
+	engine *Engine
+	auth   AuthorizationView
+}
+
+var _ SnapshotHost = (*statisticsSnapshotHost)(nil)
+
+func (h *statisticsSnapshotHost) Authority() SnapshotAuthority {
+	auth := h.auth
+	return &auth
+}
+
+func (h *statisticsSnapshotHost) BindingHost(ctx context.Context) analyze.Host {
+	return &statisticsSnapshotBindingHost{BindingHost: h.engine.AnalysisHost(nil), context: ctx, auth: h.auth}
+}
 
 // statisticsSnapshotBindingHost supplies captured destination authority to the
 // ordinary binder's type, namespace and object-name resolution hooks, using the
