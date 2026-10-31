@@ -26,16 +26,16 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 		s             *parser.AlterDefaultPrivileges
 		code, message string
 	}{
-		{"late creator", defaultUnitStatement("tables", "select", []string{"default_owner", "missing"}, nil, []string{"default_reader"}), "42704", `role "missing" does not exist`},
-		{"late schema", defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader"}), "3F000", `schema "missing" does not exist`},
-		{"grantee before bit", defaultUnitStatement("tables", "bogus", []string{"default_owner"}, nil, []string{"default_reader", "missing"}), "42704", `role "missing" does not exist`},
-		{"columns", defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"}), "0LP01", "default privileges cannot be set for columns"},
-		{"schema class", defaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}), "0LP01", "cannot use IN SCHEMA clause when using GRANT/REVOKE ON SCHEMAS"},
-		{"PUBLIC options", defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader", "PUBLIC"}), "0LP01", "grant options can only be granted to roles"},
-		{"schema class before later missing", defaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader"}), "0LP01", "cannot use IN SCHEMA clause when using GRANT/REVOKE ON SCHEMAS"},
-		{"missing before schema class", defaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"missing", "default_schema"}, []string{"default_reader"}), "3F000", `schema "missing" does not exist`},
-		{"PUBLIC options before later missing", defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader", "PUBLIC"}), "0LP01", "grant options can only be granted to roles"},
-		{"missing before PUBLIC options", defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"missing", "default_schema"}, []string{"default_reader", "PUBLIC"}), "3F000", `schema "missing" does not exist`},
+		{"late creator", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner", "missing"}, nil, []string{"default_reader"}), "42704", `role "missing" does not exist`},
+		{"late schema", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader"}), "3F000", `schema "missing" does not exist`},
+		{"grantee before bit", enginetest.DefaultUnitStatement("tables", "bogus", []string{"default_owner"}, nil, []string{"default_reader", "missing"}), "42704", `role "missing" does not exist`},
+		{"columns", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"}), "0LP01", "default privileges cannot be set for columns"},
+		{"schema class", enginetest.DefaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}), "0LP01", "cannot use IN SCHEMA clause when using GRANT/REVOKE ON SCHEMAS"},
+		{"PUBLIC options", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader", "PUBLIC"}), "0LP01", "grant options can only be granted to roles"},
+		{"schema class before later missing", enginetest.DefaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader"}), "0LP01", "cannot use IN SCHEMA clause when using GRANT/REVOKE ON SCHEMAS"},
+		{"missing before schema class", enginetest.DefaultUnitStatement("schemas", "usage", []string{"default_owner"}, []string{"missing", "default_schema"}, []string{"default_reader"}), "3F000", `schema "missing" does not exist`},
+		{"PUBLIC options before later missing", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema", "missing"}, []string{"default_reader", "PUBLIC"}), "0LP01", "grant options can only be granted to roles"},
+		{"missing before PUBLIC options", enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"missing", "default_schema"}, []string{"default_reader", "PUBLIC"}), "3F000", `schema "missing" does not exist`},
 	}
 	cases[3].s.Privileges[0].Columns = []parser.Identifier{{Text: "x"}}
 	cases[5].s.GrantOption = true
@@ -54,7 +54,7 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 	}
 	f := newDefaultUnitFixture(t)
 	f.actor(f.reader)
-	s := defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"missing"}, []string{"default_reader"})
+	s := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"missing"}, []string{"default_reader"})
 	defaultUnitDiagnostic(t, f.apply(s), "42501", "permission denied to change default privileges")
 }
 
@@ -68,7 +68,7 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	state.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
 	f.e.Catalog.PublishLocked(state)
 	oldRevision := f.e.RoleStore.Published.Revision
-	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
+	s := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestDefaultPrivilegesCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	f.op.Ctx = ctx
-	err := f.apply(defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}))
+	err := f.apply(enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}))
 	if !errors.Is(err, context.Canceled) || f.e.Catalog.State != catalog || f.e.RoleStore.Published != roles {
 		t.Fatal("canceled utility publication", err)
 	}
@@ -140,7 +140,7 @@ func TestTransactionalPrivilegesCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			f.op.Ctx = ctx
-			statement := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+			statement := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
 			var err error
 			if message != nil {
 				_, err = message.step(statement)
@@ -247,7 +247,7 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	statement := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+	statement := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
 	if _, err := scope.Execute(statement, 0, nil); err != nil {
 		_ = scope.Finish(err)
 		t.Fatal(err)
@@ -317,7 +317,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	f.grant(t, "tables", "select", nil)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	table := defaultUnitTable(t, f, stage, "retired", f.owner)
-	roles := cloneRoleFixture(f.e.RoleStore.Published)
+	roles := enginetest.CloneRoleFixture(f.e.RoleStore.Published)
 	retireFixtureRole(roles, f.reader)
 	f.e.RoleStore.PublishLocked(roles)
 	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.Catalog.State.Get(table.Address()) != nil {
@@ -325,40 +325,18 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	}
 }
 
-func defaultUnitStatement(class, privilege string, creators, schemas, grantees []string) *parser.AlterDefaultPrivileges {
-	s := &parser.AlterDefaultPrivileges{Class: class, Privileges: []parser.GrantPrivilege{{Name: privilege, All: privilege == "all"}}}
-	if creators != nil {
-		option := parser.DefaultPrivilegesOption{Roles: make([]parser.RoleSpec, len(creators))}
-		for i, name := range creators {
-			option.Roles[i] = parser.RoleSpec{Name: name}
-		}
-		s.Options = append(s.Options, option)
-	}
-	if schemas != nil {
-		option := parser.DefaultPrivilegesOption{Schemas: make([]parser.Identifier, len(schemas))}
-		for i, name := range schemas {
-			option.Schemas[i] = parser.Identifier{Text: name}
-		}
-		s.Options = append(s.Options, option)
-	}
-	for _, name := range grantees {
-		s.Grantees = append(s.Grantees, parser.GrantGrantee{Public: name == "PUBLIC", Role: parser.RoleSpec{Name: name}})
-	}
-	return s
-}
-
 func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	t.Helper()
 	e := engine.New()
-	roles := cloneRoleFixture(e.RoleStore.Published)
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	refs := make([]authorization.PrincipalRef, 3)
 	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
 		ref := e.RoleStore.Domain.Principal(uint64(20001 + i))
 		refs[i] = ref
-		putFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
+		enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
 
 	}
-	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
+	enginetest.SetFixtureEdges(roles, append(append([]authorization.Membership(nil), enginetest.FixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
 	// Install a fully identified graph before transactions branch from this
 	// fixture. Candidate-only helpers intentionally leave new edge IDs at zero.
 	root, frontier, err := roles.Root.AssignMembershipOIDs(authorization.FirstMembershipOID)
@@ -426,7 +404,7 @@ func (f defaultUnitFixture) apply(s *parser.AlterDefaultPrivileges) error {
 
 func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas []string) *parser.AlterDefaultPrivileges {
 	t.Helper()
-	s := defaultUnitStatement(class, privilege, []string{"default_owner"}, schemas, []string{"default_reader"})
+	s := enginetest.DefaultUnitStatement(class, privilege, []string{"default_owner"}, schemas, []string{"default_reader"})
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}

@@ -47,7 +47,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	enginetest.Run(t, e, "DELETE FROM t WHERE k=1")
 	enginetest.Run(t, e, "INSERT INTO t VALUES(1,'again')")
-	if !reflect.DeepEqual(btreeKeys(t, old), []string{"1", "NULL", "NULL"}) {
+	if !reflect.DeepEqual(enginetest.BtreeKeys(t, old), []string{"1", "NULL", "NULL"}) {
 		t.Fatal("retained root mutated")
 	}
 	enginetest.Run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")

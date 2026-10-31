@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -18,11 +19,11 @@ import (
 
 func accessMethodClassUnit(t *testing.T, e *core.Engine, name string) (*catalog.AccessMethod, *catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
 	t.Helper()
-	method := accessMethodUnit(t, e, name, catalog.BtreeAccessMethod, 330)
+	method := enginetest.AccessMethodUnit(t, e, name, catalog.BtreeAccessMethod, 330)
 	family, class, member := operatorClassUnitDefinitions(t, e, name, 351)
 	family.Method, class.Method = method.Address().ObjectID, method.Address().ObjectID
 	class.Default = true
-	accessMethodPublish(t, e, method, family, class, member)
+	enginetest.AccessMethodPublish(t, e, method, family, class, member)
 	return method, family, class, member
 }
 func TestAccessMethodIndexRouting(t *testing.T) {
@@ -63,10 +64,10 @@ func TestAccessMethodIndexRouting(t *testing.T) {
 	if support.Routine != 351 || support.Member != uint32(member.Address().ObjectID) || support.Family != uint32(family.Address().ObjectID) {
 		t.Fatal("wrong support capture", support)
 	}
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
 	parent.TableMethod = 2
 	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: first.Address().ObjectID, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: selected}}, Ready: true, Valid: true, Live: true}
-	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, SQLIndex: definition}
+	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 1, SQLIndex: definition}
 	values := []sqltype.Value{val(2), val(1), val(2), sqltype.Null(typ)}
 	store := &storage.Relation{}
 	for i, v := range values {
@@ -112,7 +113,7 @@ func TestAccessMethodIndexRouting(t *testing.T) {
 		t.Fatal("crossed method/class accepted")
 	}
 	empty := *class
-	empty.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	empty.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	empty.ObjectName += "_empty"
 	empty.Family = secondFamily.Address().ObjectID
 	state := catalog.CloneState(view.State())

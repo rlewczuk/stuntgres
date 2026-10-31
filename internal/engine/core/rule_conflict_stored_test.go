@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -16,7 +17,7 @@ import (
 
 func TestRuleConflictAttributeRefresh(t *testing.T) {
 	e, auth, _, sink := ruleUnitCatalog(t)
-	b := ruleUnitInsert(e, sink, 1, 10).Binding()
+	b := enginetest.RuleUnitInsert(e, sink, 1, 10).Binding()
 	ref := b.Ref
 	ref.Address.SubID = sink.Attributes[1]
 	target := plan.ColumnExpr{Info: view.RuleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}

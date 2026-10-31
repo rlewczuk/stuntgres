@@ -22,7 +22,7 @@ func ndistinctCoreFixture(t *testing.T) (*core.Engine, *session.Session, ids.Obj
 	for _, q := range []string{"CREATE TABLE nd_owner(a INT,b INT,c INT)", "CREATE STATISTICS nd_a(ndistinct) ON a,b FROM nd_owner", "CREATE STATISTICS nd_b(ndistinct) ON a,c FROM nd_owner", "INSERT INTO nd_owner VALUES(1,1,1),(2,2,2)", "ANALYZE nd_owner"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, _ := vacuumStore(t, e, "nd_owner")
+	ref, _ := enginetest.VacuumStore(t, e, "nd_owner")
 	return e, s, ref
 }
 func ndistinctKey(t *testing.T, e *core.Engine, name string) storage.ExtendedStatisticsKey {
@@ -42,13 +42,13 @@ func TestStatisticsNDistinctJournal(t *testing.T) {
 			e, s, ref := ndistinctCoreFixture(t)
 			peer := enginetest.StartSession(t, e, nil)
 			a, b := ndistinctKey(t, e, "nd_a"), ndistinctKey(t, e, "nd_b")
-			baseline := analyzeFacts(e, ref.Address)
+			baseline := enginetest.AnalyzeFacts(e, ref.Address)
 			enginetest.SessionSQL(t, s, "INSERT INTO nd_owner VALUES(3,3,3)")
 			enginetest.SessionSQL(t, s, "BEGIN")
 			enginetest.SessionSQL(t, s, "ANALYZE nd_owner(a,b)")
 			first := s.Transactions.Catalog
 			selected := first.Statistics[ref.Address].Extended[a]
-			if selected == nil || selected.Items[0].Value != 3 || len(first.Statistics[ref.Address].Extended) != 1 || analyzeFacts(e, ref.Address) != baseline {
+			if selected == nil || selected.Items[0].Value != 3 || len(first.Statistics[ref.Address].Extended) != 1 || enginetest.AnalyzeFacts(e, ref.Address) != baseline {
 				t.Fatal("selected extended delta leaked or missing")
 			}
 			clone := first.Clone()
@@ -65,7 +65,7 @@ func TestStatisticsNDistinctJournal(t *testing.T) {
 				t.Fatal("savepoint lost backing")
 			}
 			enginetest.SessionSQL(t, peer, "ANALYZE nd_owner(a,c)")
-			newB := analyzeFacts(e, ref.Address).Extended[b]
+			newB := enginetest.AnalyzeFacts(e, ref.Address).Extended[b]
 			if strings.Contains(completion, "PREPARED") {
 				enginetest.SessionSQL(t, s, "PREPARE TRANSACTION 'nd_owner'")
 				entry := core.EnginePreparedRef(e).Lookup("nd_owner")
@@ -80,7 +80,7 @@ func TestStatisticsNDistinctJournal(t *testing.T) {
 			if strings.HasPrefix(completion, "COMMIT") {
 				want = selected
 			}
-			facts := analyzeFacts(e, ref.Address)
+			facts := enginetest.AnalyzeFacts(e, ref.Address)
 			if facts.Extended[a] != want || facts.Extended[b] != newB || baseline.Extended[a].Items[0].Value != 2 {
 				t.Fatal("completion changed unselected/old immutable backing")
 			}

@@ -10,10 +10,8 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -24,7 +22,7 @@ func statisticsUnitEngine(t *testing.T) (*core.Engine, *catalog.Relation) {
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	syntax := &parser.CreateTable{Name: configName("statistics_input")}
+	syntax := &parser.CreateTable{Name: enginetest.ConfigName("statistics_input")}
 	for _, name := range []string{"a", "b", "unselected", "c"} {
 		syntax.Elements = append(syntax.Elements, parser.TableElement{Column: &parser.Column{Name: name, TypeName: parser.TypeName{Name: "integer"}}})
 	}
@@ -48,47 +46,21 @@ func statisticsUnitEngine(t *testing.T) (*core.Engine, *catalog.Relation) {
 	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "statistics_input"})
 	return e, view.MustRelation(address)
 }
-func statisticsUnitCreate() *parser.CreateStatistics {
-	return &parser.CreateStatistics{Name: configName("statistics_definition"), Relation: configName("statistics_input"), Elements: []parser.Expr{parser.ColumnExpr{Name: configName("c")}, parser.ColumnExpr{Name: configName("a")}}, Kinds: []parser.Identifier{{Text: "mcv"}, {Text: "dependencies"}}}
-}
-func statisticsUnitStage(t *testing.T, e *core.Engine, op *session.Operation, s *parser.CreateStatistics) (*core.CatalogStage, error) {
-	t.Helper()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	auth, err := e.AuthorizationLocked(op)
-	if err != nil {
-		return nil, err
-	}
-	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.AuthorizeLocked(auth, op.Session)
-	err = ddl.StageCreateStatistics(core.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s, sqltype.InputEnvironment{})
-	return stage, err
-}
-func statisticsUnitDescriptor(t *testing.T, stage *core.CatalogStage) *catalog.Statistics {
-	t.Helper()
-	for _, d := range stage.Descriptors() {
-		if d, ok := d.(*catalog.Statistics); ok {
-			return d
-		}
-	}
-	t.Fatal("missing staged statistics")
-	return nil
-}
 func TestStatisticsObjectImmutableDefinition(t *testing.T) {
 	e, rel := statisticsUnitEngine(t)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	source := statisticsUnitCreate()
-	stage, err := statisticsUnitStage(t, e, op, source)
+	source := enginetest.StatisticsUnitCreate()
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	d := statisticsUnitDescriptor(t, stage)
+	d := enginetest.StatisticsUnitDescriptor(t, stage)
 	if d.Selection.Len() != 2 || d.Selection.Key(0) != 1 || d.Selection.Key(1) != 4 || d.Selection.Kinds() != "fm" || d.Relation.Address != rel.Address() || d.Owner != op.RoleState().CurrentUser {
 		t.Fatal("definition facts", d)
 	}
-	source.Elements[0] = parser.ColumnExpr{Name: configName("b")}
+	source.Elements[0] = parser.ColumnExpr{Name: enginetest.ConfigName("b")}
 	source.Kinds[0].Text = "bogus"
 	if d.Selection.Key(1) != 4 || d.Selection.Kinds() != "fm" {
 		t.Fatal("parser buffers retained")
@@ -139,7 +111,7 @@ func TestStatisticsObjectPublicationCancellation(t *testing.T) {
 	}
 	defer done()
 	before := e.CatalogRead()
-	stage, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +129,7 @@ func TestStatisticsObjectPublicationRevisionFence(t *testing.T) {
 	e, rel := statisticsUnitEngine(t)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	stage, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +164,7 @@ func TestStatisticsObjectPublicationConcurrentSource(t *testing.T) {
 	e, rel := statisticsUnitEngine(t)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	stage, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		t.Fatal(err)
 	}

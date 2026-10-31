@@ -113,11 +113,11 @@ func TestAnalyzeForeignJournalOwnership(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, s, "ROLLBACK TO kept")
 			own := session.ResolveStatistics(s.Transactions.Catalog, ref.Address, e.Storage.RelationMetadata[ref.Address], relation, e.CatalogRead())
-			if own.Columns[a] != selected.Columns[a] || own.Columns[b] != baseline.Statistics.Columns[b] || analyzeFacts(e, ref.Address) != baseline.Statistics {
+			if own.Columns[a] != selected.Columns[a] || own.Columns[b] != baseline.Statistics.Columns[b] || enginetest.AnalyzeFacts(e, ref.Address) != baseline.Statistics {
 				t.Fatal("private facts leaked or unselected backing copied")
 			}
 			enginetest.SessionSQL(t, peer, "ANALYZE foreign_analyze_owner(b)")
-			newB := analyzeFacts(e, ref.Address).Columns[b]
+			newB := enginetest.AnalyzeFacts(e, ref.Address).Columns[b]
 			maintenance := *e.Storage.RelationMetadata[ref.Address]
 			if strings.Contains(completion, "PREPARED") {
 				enginetest.SessionSQL(t, s, "PREPARE TRANSACTION 'foreign_analyze_owner'")

@@ -34,8 +34,8 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	// mocked lookup is involved. The statement keeps the original root frontier.
 	e.Mu.Lock()
 	ref := e.RoleStore.Domain.Principal(50000)
-	first := cloneRoleFixture(e.RoleStore.Published)
-	putFixtureRole(first, authorization.RoleDescriptor{Ref: ref, Name: "captured é\"role", ConnectionLimit: -1})
+	first := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	enginetest.PutFixtureRole(first, authorization.RoleDescriptor{Ref: ref, Name: "captured é\"role", ConnectionLimit: -1})
 	e.RoleStore.PublishLocked(first)
 	e.Mu.Unlock()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -53,10 +53,10 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	}
 	original := core.InquiryCommentRoles(&scope.Inquiry)
 	e.Mu.Lock()
-	next := cloneRoleFixture(e.RoleStore.Published)
+	next := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(next, ref)
 	replacement := e.RoleStore.Domain.Principal(50001)
-	putFixtureRole(next, authorization.RoleDescriptor{Ref: replacement, Name: "captured é\"role", ConnectionLimit: -1})
+	enginetest.PutFixtureRole(next, authorization.RoleDescriptor{Ref: replacement, Name: "captured é\"role", ConnectionLimit: -1})
 	e.RoleStore.PublishLocked(next)
 	e.Mu.Unlock()
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)

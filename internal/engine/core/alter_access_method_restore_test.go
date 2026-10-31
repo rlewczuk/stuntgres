@@ -23,7 +23,7 @@ func TestAlterAccessMethodRestoreRemap(t *testing.T) {
 	imported,_:=beforeSource.LookupAccessMethod("imported_heap")
 	retained,_:=beforeTarget.LookupAccessMethod("retained_heap")
 	if imported.Address()!=retained.Address() || imported.Name()==retained.Name() {t.Fatal("fixture lacks actual allocator collision",imported.Address(),retained.Address())}
-	original:=primaryKeyUnitRelation(t,source,"method_import");saved:=*original
+	original:=enginetest.PrimaryKeyUnitRelation(t,source,"method_import");saved:=*original
 	dst.Mu.Lock()
 	temporaryNamespace:=dst.TemporaryNamespace
 	dst.Mu.Unlock()
@@ -37,7 +37,7 @@ func TestAlterAccessMethodRestoreRemap(t *testing.T) {
 	after:=target.CatalogRead()
 	mapped,_:=after.LookupAccessMethod("imported_heap")
 	if mapped==nil || mapped.Address()==imported.Address() || mapped.Address()==retained.Address() {t.Fatal("colliding imported AM was not remapped")}
-	current:=primaryKeyUnitRelation(t,target,"method_import")
+	current:=enginetest.PrimaryKeyUnitRelation(t,target,"method_import")
 	if current.TableMethod!=mapped.Address().ObjectID || after.Get(retained.Address())!=retained || after.Get(kept.Address())!=kept || kept.TableMethod!=retained.Address().ObjectID || target.Storage.Relations[kept.Address()]!=store {t.Fatal("method mapping or retained TEMP authority lost")}
 	if source.CatalogRead().State()!=beforeSource.State() || !reflect.DeepEqual(*original,saved) || original.TableMethod!=imported.Address().ObjectID {t.Fatal("replacement mutated source")}
 	if err:=catalog.ValidateRelationTableMethod(after,current);err!=nil {t.Fatal(err)}

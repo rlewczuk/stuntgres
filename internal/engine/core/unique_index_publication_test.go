@@ -80,7 +80,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if attached {
 		table += ",CONSTRAINT ui_index UNIQUE" + policy + "(" + keys + ")"
 	}
-	withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "ui_owner", func() {
 		enginetest.RoleExecute(t, e, owner, table+")")
 		if !attached {
 			enginetest.RoleExecute(t, e, owner, "CREATE UNIQUE INDEX ui_index ON public.ui_t("+keys+")"+policy)

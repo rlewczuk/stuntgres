@@ -87,7 +87,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				uniqueKeyBucketsEmpty(t, f.e)
+				enginetest.UniqueKeyBucketsEmpty(t, f.e)
 			}
 			f.unchanged(t)
 		})
@@ -102,7 +102,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			if err := dml.ClaimUniqueRow(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), f.ref, row); err != nil {
 				t.Fatal(err)
 			}
-			uniqueKeyBucketsEmpty(t, f.e)
+			enginetest.UniqueKeyBucketsEmpty(t, f.e)
 		})
 	}
 }
@@ -162,7 +162,7 @@ func TestPartialIndexUniqueAdmissionNullPredicateError(t *testing.T) {
 				err = dml.CheckUniqueRow(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost(), f.ref, &index.WriteCandidate{Values: row.Values}, nil, index.WriteBatch{})
 			}
 			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
-			uniqueKeyBucketsEmpty(t, f.e)
+			enginetest.UniqueKeyBucketsEmpty(t, f.e)
 		})
 	}
 }

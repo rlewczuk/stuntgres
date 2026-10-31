@@ -142,7 +142,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(2)")
 	op := enginetest.TransactionOperation(t, s)
 	t.Cleanup(op.Done)
-	query, source, release := hashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
+	query, source, release := enginetest.HashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
 	if len(source.HashIndexes) != 0 {
 		t.Fatal("private/explicit view acquired current root")
 	}

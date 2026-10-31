@@ -29,8 +29,8 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	if identity.Row != want {
 		t.Fatal("wrong original RowID", identity.Row, want)
 	}
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	if c.CurrentSource != source || c.CurrentIndex != index || core.CursorRoot(c) != root || c.Place != exec.CursorOn || core.CursorAuthority(c).Host != nil || exec.CursorOccurrenceVersion(source, index, 0, core.CursorLocks(c)).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
@@ -39,7 +39,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	if c.Place != exec.CursorOn {
 		t.Fatal("bounded FETCH probed EOF")
 	}
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 13, 22)
 }
 
@@ -116,7 +116,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		t.Fatal("mutation cancellation invalidated healthy cursor")
 	}
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 4, 11)
 }
 
@@ -132,14 +132,14 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		c := core.PayloadOf(s).Cursors.Entries["c"]
 		identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, core.CursorLocks(c))
 		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "keyed")
-		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
+		enginetest.DeleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		ordinary := entry != nil && entry.Holders[s.Transactions.Ticket].Mode&lock.ForNoKeyUpdate != 0
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
-		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
+		enginetest.DeleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
 		lockState = e.Locks.Inspect()
 		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		escalated := entry != nil && entry.Holders[s.Transactions.Ticket].Mode&lock.ForUpdate != 0
@@ -159,7 +159,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	c := core.PayloadOf(worker).Cursors.Entries["c"]
 	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, core.CursorLocks(c))
 	tx := enginetest.TransactionBegin(t, holder)
-	deleteCount(t, holder, "UPDATE t SET v=8 WHERE v=7", 2)
+	enginetest.DeleteCount(t, holder, "UPDATE t SET v=8 WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	done := deleteAsync(t, worker, ctx, "UPDATE t SET v=v+1 WHERE CURRENT OF c")
@@ -197,12 +197,12 @@ func TestUpdateCurrentOfLifetime(t *testing.T) {
 	old := core.PayloadOf(s).Cursors.Entries["c"]
 	source, index := old.CurrentSource, old.CurrentIndex
 	enginetest.SessionSQL(t, s, "SAVEPOINT keep")
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	enginetest.SessionSQL(t, s, "ROLLBACK TO keep")
 	if core.PayloadOf(s).Cursors.Entries["c"] != old || old.CurrentSource != source || old.CurrentIndex != index {
 		t.Fatal("rollback rewound borrowed identity")
 	}
-	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 11)
 	enginetest.SessionSQL(t, s, "CLOSE c")
 	if old.CurrentSource != nil || old.Source != nil || core.CursorAuthority(old).Host != nil {

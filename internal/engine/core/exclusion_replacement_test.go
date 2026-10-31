@@ -34,7 +34,7 @@ func TestExclusionReplacement(t *testing.T) {
 				target, b = source, a
 			}
 			enginetest.SessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
-			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
+			enginetest.SequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := enginetest.PreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.Sequences.Constants[0].Ref
 			temp, generator, memory := target.Catalog.State.Get(tempRef.Address), target.Storage.Sequences[tempRef.Address], core.PayloadOf(b).Sequences.Memory(tempRef.Address)
@@ -64,11 +64,11 @@ func TestExclusionReplacement(t *testing.T) {
 			if result.Count != 0 {
 				t.Fatal("destination domain equality did not recognize its imported key")
 			}
-			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
+			enginetest.SequenceScalar(t, b, "SELECT nextval('kept')", 2)
 			if target.Exclusions.CountLocked() != 0 {
 				t.Fatal("replacement retained transient exclusion state")
 			}
-			uniqueClaimsEmpty(t, target)
+			enginetest.UniqueClaimsEmpty(t, target)
 		})
 	}
 }

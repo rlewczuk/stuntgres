@@ -85,7 +85,7 @@ func TestVersionInformationRemap(t *testing.T) {
 	ctx := context.Background()
 	source, target := engine.New(), engine.New()
 	b := enginetest.ExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(source, target)}
+	mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: enginetest.ReplacementProcedurePolicyFixture(source, target)}
 	for _, kind := range []functions.VersionInformationKind{functions.VersionInformationServer, functions.VersionInformationUnicode, functions.VersionInformationICU} {
 		leaf := versionInformationUnitLeaf(t, b, kind)
 		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), leaf, func(d *sqltype.Descriptor) *sqltype.Descriptor {

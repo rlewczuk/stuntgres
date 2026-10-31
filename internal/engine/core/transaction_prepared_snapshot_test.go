@@ -12,24 +12,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func preparedUnitStatement(t *testing.T, e *core.Engine, s *session.Session, stmt parser.Statement) {
-	t.Helper()
-	op := enginetest.TransactionOperation(t, s)
-	defer op.Done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := scope.Execute(stmt, 0, nil)
-	err = scope.Finish(err)
-	if result.Rows != nil {
-		result.Rows.Close()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
@@ -40,14 +22,14 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			literal := func(n int64) parser.Expr {
 				return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}}
 			}
-			preparedUnitStatement(t, e, writer, &parser.Insert{Name: name, Rows: [][]parser.Expr{{literal(0)}}})
+			enginetest.PreparedUnitStatement(t, e, writer, &parser.Insert{Name: name, Rows: [][]parser.Expr{{literal(0)}}})
 			op := enginetest.TransactionOperation(t, writer)
 			_, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 			op.Done()
 			if err != nil {
 				t.Fatal(err)
 			}
-			preparedUnitStatement(t, e, writer, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: literal(1)}}})
+			enginetest.PreparedUnitStatement(t, e, writer, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: literal(1)}}})
 			reader, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 			join := serializableUnitCaptureWorker(t, reader)
 			serializableUnitAwaitCandidate(t, e, node)
@@ -122,7 +104,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "semantic_temp"}}}
-	preparedUnitStatement(t, e, s, &parser.CreateSequence{Name: name, Persistence: "temporary"})
+	enginetest.PreparedUnitStatement(t, e, s, &parser.CreateSequence{Name: name, Persistence: "temporary"})
 	op := enginetest.TransactionOperation(t, s)
 	_, err := e.Begin(op, session.TxOptions{})
 	op.Done()

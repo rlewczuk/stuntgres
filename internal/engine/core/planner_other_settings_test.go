@@ -19,7 +19,7 @@ func TestPlannerOtherSettingsDefinitions(t *testing.T) {
 		provider.values[name] = "provider changed after creation"
 	}
 	for _, q := range []string{"SET default_statistics_target=3", "SET constraint_exclusion=off", "SET cursor_tuple_fraction='0.5'", "SET from_collapse_limit=3", "SET jit=on", "SET join_collapse_limit=3", "SET plan_cache_mode=force_custom_plan", "SET recursive_worktable_factor=3", "BEGIN", "SET LOCAL default_statistics_target=4", "ROLLBACK", "RESET ALL"} {
-		plannerCostCommand(t, s, q)
+		enginetest.PlannerCostCommand(t, s, q)
 	}
 	for name := range values {
 		if provider.calls[name] != 1 || !reflect.DeepEqual(s.Settings.TypedValue(name), captured[name]) {

@@ -29,7 +29,7 @@ func TestExclusionDisclosure(t *testing.T) {
 				if expression {
 					key = "lower(a)"
 				}
-				withPublicSchemaUnitOwner(t, e, "ex_owner", func() {
+				enginetest.WithPublicSchemaUnitOwner(t, e, "ex_owner", func() {
 					enginetest.RoleExecute(t, e, owner, "CREATE TABLE public.t(a TEXT,b INT,CONSTRAINT ex EXCLUDE("+key+" WITH =,b WITH =))")
 				})
 				enginetest.RoleExecute(t, e, owner, "INSERT INTO public.t VALUES('x',2)")

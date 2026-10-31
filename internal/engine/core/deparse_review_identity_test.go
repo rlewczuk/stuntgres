@@ -90,7 +90,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, target)}
+			mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: enginetest.ReplacementProcedurePolicyFixture(e, target)}
 			query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{retagged}}})
 			if err != nil {
 				t.Fatal(err)

@@ -2,10 +2,8 @@ package core_test
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -58,7 +56,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				r := enginetest.SessionSQL(t, holder, "SELECT * FROM q_id_seq")
 				r.Rows.Close()
 			} else {
-				sequenceScalar(t, holder, "SELECT nextval('q_id_seq')", 45)
+				enginetest.SequenceScalar(t, holder, "SELECT nextval('q_id_seq')", 45)
 			}
 			oldP, oldQ, oldPS, oldQS := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address], e.Storage.Sequences[ps.Address], e.Storage.Sequences[qs.Address]
 			done, cancel := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p", "q"))
@@ -99,7 +97,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				e, holder, _, _, ps, _ := truncateRestartUnitFixture(t)
 				waiter := enginetest.StartSession(t, e, nil)
 				enginetest.SessionSQL(t, holder, "ALTER SEQUENCE p_id_seq CACHE 4")
-				sequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", 3)
+				enginetest.SequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", 3)
 				tx := enginetest.TransactionBegin(t, holder)
 				truncateUnitExecute(t, e, holder, truncateRestartUnitAST("p"))
 				candidate := holder.Transactions.Catalog.Generators[ps.Address]
@@ -133,7 +131,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				if query == "SELECT setval('p_id_seq',80)" {
 					want = 80
 				}
-				sequenceScalar(t, waiter, "SELECT currval('p_id_seq')", want)
+				enginetest.SequenceScalar(t, waiter, "SELECT currval('p_id_seq')", want)
 				enginetest.LockEmpty(t, e)
 			})
 		}
@@ -287,7 +285,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				if control == "Restore" {
 					want = 2
 				}
-				sequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", want)
+				enginetest.SequenceScalar(t, waiter, "SELECT nextval('p_id_seq')", want)
 				truncateUnitExecute(t, e, waiter, truncateRestartUnitAST("p"))
 				enginetest.LockEmpty(t, e)
 			})
@@ -334,15 +332,6 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			}
 			enginetest.LockEmpty(t, e)
 		})
-	}
-}
-
-func sequenceScalar(t *testing.T, s *session.Session, q string, want int64) {
-	t.Helper()
-	r := enginetest.SessionSQL(t, s, q)
-	defer r.Rows.Close()
-	if got := enginetest.Tuples(r); !reflect.DeepEqual(got, [][]driver.Value{{want}}) {
-		t.Fatalf("%s got %v want %d", q, got, want)
 	}
 }
 

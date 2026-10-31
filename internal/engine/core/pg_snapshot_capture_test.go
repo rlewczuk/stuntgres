@@ -165,7 +165,7 @@ func TestSnapshotPartitionUtilityCapture(t *testing.T) {
 	for _, isolation := range []session.Isolation{session.RepeatableRead, session.Serializable} {
 		t.Run(isolationName(isolation), func(t *testing.T) {
 			e := engine.New()
-			parent := partitionAttachUnitRoot(t, e, "capture_parent", catalogUnitOID(t, e))
+			parent := partitionAttachUnitRoot(t, e, "capture_parent", enginetest.CatalogUnitOID(t, e))
 			partitionAttachUnitInstall(t, e, parent)
 			stage, relation := queryCreateStage(t, e, "partition_capture_rows", 1)
 			queryCreatePublish(t, e, stage)

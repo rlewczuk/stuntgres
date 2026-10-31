@@ -20,7 +20,7 @@ func TestTransactionalPrivilegesAllocatorRefresh(t *testing.T) {
 	journal := f.op.Session.Transactions.Catalog
 	peer, done := enginetest.RoleOperation(t, f.e, "postgres")
 	defer done()
-	if _, err := f.e.Execute(peer, defaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"}), 0, nil); err != nil {
+	if _, err := f.e.Execute(peer, enginetest.DefaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"}), 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()

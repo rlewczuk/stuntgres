@@ -19,7 +19,7 @@ func TestCommentInquiryAddressesAndAuthority(t *testing.T) {
 		enginetest.RoleExecute(t, e, op, q)
 	}
 	oid := enginetest.RoleTableRef(t, e, "private.t").Address.ObjectID
-	ns := schemaRef(t, e, "private").Address.ObjectID
+	ns := enginetest.SchemaRef(t, e, "private").Address.ObjectID
 	role, _ := e.Roles().Lookup("reader")
 	reader, closeReader := enginetest.RoleOperation(t, e, "reader")
 	defer closeReader()

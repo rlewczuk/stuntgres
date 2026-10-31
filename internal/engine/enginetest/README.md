@@ -68,6 +68,14 @@ it imports core and lower packages, and nothing imports it except tests.
 | `BindSelect`, `QueryProbe`, `QueryProbeExpression`, `EvalContext` | bind a SELECT; probe expressions over the engine evaluation context |
 | `FunctionCall`, `StringLiteral`, `TypedLiteral`, `HostOwnerDefinition` | parser expressions, and an hstore host language |
 | `Diagnostic(t, err, want)` | require an exact `sqlstate.Error` with both severities ERROR |
+| `FixtureRole`, `FixtureEdges`, `CloneRoleFixture`, `PutFixtureRole`, `SetFixtureEdges`, `AclUnitRoles`, `NamespaceCapturedAuthorization`, `DefaultUnitStatement` | role-graph fixtures on a private role record, login roles, a session's captured authorization, and ALTER DEFAULT PRIVILEGES statements |
+| `SchemaRef`, `CatalogUnitOID`, `CatalogStateFixture`, `ConfigName`, `SequenceScalar`, `RegisteredCatalogProducer` | schema references, fresh OIDs, an unpublished catalog state, names, a sequence value check and a registered catalog producer |
+| `AccessMethodUnit`, `AccessMethodPublish`, `InheritanceUnitRelation`, `PrimaryKeyUnitRelation`, `ReplacementProcedurePolicyFixture` | catalog descriptors and their publication, and the host procedure-remap policy |
+| `ExtensionUnitExecute`, `WithPublicSchemaUnitOwner`, `AssertTemporaryNamespacePair` | an admitted extension command, a temporary public-schema owner, and a session's temporary namespace pair |
+| `RuleUnitRef`, `RuleUnitInt`, `RuleUnitInsert` | rule references and stored rule actions |
+| `StatisticsUnitCreate`, `StatisticsUnitStage`, `StatisticsUnitDescriptor`, `AnalyzeFacts`, `VacuumStore` | extended statistics stages, relation statistics and a table's storage |
+| `DeleteCount`, `UniqueClaimsEmpty`, `UniqueKeyBucketsEmpty`, `BtreeKeys`, `HashCaptureQuery`, `PlannerCostCommand` | write counts, unique-claim and B-tree key inspection, a captured hash query, and an admitted planner command |
+| `PreparedUnitStatement`, `PreparedBoundaryName`, `PreparedBoundaryInteger`, `PreparedFoldProtocolTry`, `PreparedFoldProtocolRows`, `FoldRootsReusable` | prepared statements and boundaries, protocol fold commands and their rows, and fold-root reuse |
 
 ## Stages
 
@@ -86,6 +94,11 @@ fills the package in stages:
 4. **Item 208:** the prepared-fold, catalog-stage, dictionary, probe and
    expression helpers that its `core/enginetests` destinations share; core's
    copies were replaced, and its own users call them here.
+5. **Item 209:** the role-fixture, catalog, rule, statistics, write and
+   prepared helpers that its DDL-family destinations share. Helpers that
+   build the composed engine through the root or reach a `*cmds` family,
+   types whose callers use unexported fields, and grouped `var` blocks stay
+   copied.
 
 ## Testing
 

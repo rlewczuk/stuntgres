@@ -81,7 +81,7 @@ func TestExtensionOwnershipRelocation(t *testing.T) {
 				}}
 				defer func() { e.Catalog.Providers[ids.ExtensionClassID] = provider }()
 			}
-			err := extensionUnitExecute(t, e, op, enginetest.Statement(t, `ALTER EXTENSION unaccent SET SCHEMA eo_unit_destination`))
+			err := enginetest.ExtensionUnitExecute(t, e, op, enginetest.Statement(t, `ALTER EXTENSION unaccent SET SCHEMA eo_unit_destination`))
 			if err == nil {
 				t.Fatal("invalid predecessor/revision published relocation")
 			}

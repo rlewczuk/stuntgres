@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
@@ -20,8 +21,8 @@ import (
 
 func TestPGRulesProducer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	first := inheritanceUnitRelation(f.e, "rules_a", 23001, "id")
-	second := inheritanceUnitRelation(f.e, "rules_b", 23002, "id")
+	first := enginetest.InheritanceUnitRelation(f.e, "rules_a", 23001, "id")
+	second := enginetest.InheritanceUnitRelation(f.e, "rules_b", 23002, "id")
 	first.Owner, second.Owner = f.owner, f.owner
 	first.Security.ACL = authorization.ACLValue{Explicit: true}
 	first.Rules = stored.RulesPayload([]stored.Rule{

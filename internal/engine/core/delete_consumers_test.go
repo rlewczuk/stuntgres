@@ -29,13 +29,13 @@ func TestDeleteCoreControls(t *testing.T) {
 	defer retained.Rows.Close()
 	before := enginetest.Tuples(retained)
 	ref := enginetest.TransactionBegin(t, a)
-	deleteCount(t, a, "DELETE FROM t WHERE id=1", 1)
+	enginetest.DeleteCount(t, a, "DELETE FROM t WHERE id=1", 1)
 	var private bytes.Buffer
 	if err := engine.Dump(context.Background(), e, &private); err != nil || !strings.Contains(private.String(), "'gone'") {
 		t.Fatal("Dump exposed private deletion", err, private.String())
 	}
 	enginetest.TransactionEnd(t, a, ref, false)
-	deleteCount(t, b, "DELETE FROM t WHERE id=1", 1)
+	enginetest.DeleteCount(t, b, "DELETE FROM t WHERE id=1", 1)
 	var dump bytes.Buffer
 	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		old := e.Storage.Relations[ref.Address]
 		retained := enginetest.SessionSQL(t, s, "SELECT * FROM t")
 		defer retained.Rows.Close()
-		deleteCount(t, s, "DELETE FROM t WHERE b='gone'", 1)
+		enginetest.DeleteCount(t, s, "DELETE FROM t WHERE b='gone'", 1)
 		ends := old.Ends
 		enginetest.SessionSQL(t, s, "ALTER TABLE t ALTER a SET NOT NULL")
 		enginetest.SessionSQL(t, s, "ALTER TABLE t DROP COLUMN b")
@@ -118,11 +118,11 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		if err := engine.Restore(context.Background(), populatedTarget, bytes.NewReader(populated.Bytes())); err != nil || enginetest.Run(t, populatedTarget, "SELECT * FROM t").Count != 1 {
 			t.Fatal("zero-width live Restore", err)
 		}
-		deleteCount(t, s, "DELETE FROM t", 1)
+		enginetest.DeleteCount(t, s, "DELETE FROM t", 1)
 		if len(ends.Rows) != 1 || e.Storage.Relations[ref.Address].Ends == ends || len(e.Storage.Relations[ref.Address].Ends.Rows) != 2 {
 			t.Fatal("committed deletion root mutated/reused")
 		}
-		deleteCount(t, s, "DELETE FROM t", 0)
+		enginetest.DeleteCount(t, s, "DELETE FROM t", 0)
 		var dump bytes.Buffer
 		if err := engine.Dump(context.Background(), e, &dump); err != nil {
 			t.Fatal(err)
@@ -235,10 +235,10 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
 	old := enginetest.SessionSQL(t, b, "SELECT v FROM t ORDER BY v")
 	defer old.Rows.Close()
-	deleteCount(t, b, "DELETE FROM t WHERE v=1", 1)
+	enginetest.DeleteCount(t, b, "DELETE FROM t WHERE v=1", 1)
 	ref := enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7)")
-	deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
+	enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
 	target := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	epoch, frontier, ends := e.CatalogRead().Epoch(), e.Visibility.CommitSeq(), e.Storage.Relations[target.Address].Ends
 	own := a.Transactions.Deletes[target.Address]

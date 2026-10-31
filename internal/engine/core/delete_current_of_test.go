@@ -33,11 +33,11 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	if row.Row != want {
 		t.Fatal("last returned occurrence is not physical row2", row.Row, want)
 	}
-	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 	if exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, core.CursorLocks(c)).Row != want {
 		t.Fatal("DELETE moves or clears current identity")
 	}
-	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 0)
+	enginetest.DeleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 0)
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 	if c.Place != exec.CursorOn || c.CurrentSource == nil {
 		t.Fatal("bounded final row probed EOF")
@@ -141,7 +141,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
-	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 	enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 4)
 }
 
@@ -157,7 +157,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	cursor := core.PayloadOf(worker).Cursors.Entries["c"]
 	identity := exec.CursorOccurrenceVersion(cursor.CurrentSource, cursor.CurrentIndex, 0, core.CursorLocks(cursor))
 	tx := enginetest.TransactionBegin(t, holder)
-	deleteCount(t, holder, "DELETE FROM t WHERE v=7", 2)
+	enginetest.DeleteCount(t, holder, "DELETE FROM t WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	done := deleteAsync(t, worker, ctx, "DELETE FROM t WHERE CURRENT OF c")
@@ -197,7 +197,7 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 		t.Fatal("zero-width result lost identity")
 	}
 	enginetest.SessionSQL(t, s, "SAVEPOINT keep")
-	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
+	enginetest.DeleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 	enginetest.SessionSQL(t, s, "ROLLBACK TO keep")
 	if core.PayloadOf(s).Cursors.Entries["c"] != old || old.CurrentSource == nil {
 		t.Fatal("rollback rewinds or discards older current identity")
@@ -306,7 +306,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			if row.Row != want {
 				t.Fatal("retained lineage lost last-FETCH physical identity", row.Row, want)
 			}
-			deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
+			enginetest.DeleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 			enginetest.TransactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3)
 		})
 	}

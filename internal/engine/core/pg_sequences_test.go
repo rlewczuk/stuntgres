@@ -64,24 +64,24 @@ func TestPGSequencesProvider(t *testing.T) {
 	enginetest.SessionSQL(t, a, "CREATE TEMP SEQUENCE temp_s")
 	pgSequencesRows(t, a, "SELECT sequencename FROM pg_sequences ORDER BY sequencename", [][]driver.Value{{"s"}, {"temp_s"}})
 	pgSequencesRows(t, b, "SELECT sequencename FROM pg_sequences", [][]driver.Value{{"s"}})
-	sequenceScalar(t, a, "SELECT nextval('s')", 1)
-	sequenceScalar(t, b, "SELECT nextval('s')", 11)
+	enginetest.SequenceScalar(t, a, "SELECT nextval('s')", 1)
+	enginetest.SequenceScalar(t, b, "SELECT nextval('s')", 11)
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	before := *e.Storage.Sequences[ref.Address]
 	pgSequencesRows(t, a, "SELECT start_value,cache_size,last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{int64(1), int64(10), int64(20)}})
 	if *e.Storage.Sequences[ref.Address] != before {
 		t.Fatal("provider changed generator")
 	}
-	sequenceScalar(t, a, "SELECT nextval('s')", 2)
+	enginetest.SequenceScalar(t, a, "SELECT nextval('s')", 2)
 	tx := enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE own_s AS INTEGER START 15 MINVALUE -20 MAXVALUE 200 INCREMENT 7 CACHE 9 CYCLE")
 	pgSequencesRows(t, a, "SELECT start_value,min_value,max_value,increment_by,cycle,cache_size,last_value FROM pg_sequences WHERE sequencename='own_s'", [][]driver.Value{{int64(15), int64(-20), int64(200), int64(7), true, int64(9), nil}})
-	sequenceScalar(t, b, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 0)
+	enginetest.SequenceScalar(t, b, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 0)
 	enginetest.SessionSQL(t, a, "SAVEPOINT before_drop")
 	enginetest.SessionSQL(t, a, "DROP SEQUENCE own_s")
-	sequenceScalar(t, a, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 0)
+	enginetest.SequenceScalar(t, a, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 0)
 	enginetest.SessionSQL(t, a, "ROLLBACK TO before_drop")
-	sequenceScalar(t, a, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 1)
+	enginetest.SequenceScalar(t, a, "SELECT count(*) FROM pg_sequences WHERE sequencename='own_s'", 1)
 	enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RESTART 42")
 	pgSequencesRows(t, a, "SELECT last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{nil}})
 	enginetest.TransactionEnd(t, a, tx, false)
@@ -90,7 +90,7 @@ func TestPGSequencesProvider(t *testing.T) {
 	stale := enginetest.CatalogRef(t, e, e.CatalogRead(), "stale")
 	tx = enginetest.TransactionBegin(t, a)
 	enginetest.SessionSQL(t, a, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	sequenceScalar(t, a, "SELECT count(*) FROM pg_sequence", 3)
+	enginetest.SequenceScalar(t, a, "SELECT count(*) FROM pg_sequence", 3)
 	enginetest.SessionSQL(t, b, "DROP SEQUENCE stale")
 	enginetest.SessionSQL(t, b, "CREATE SEQUENCE stale START 99")
 	op, err := a.Acquire(context.Background())
@@ -111,7 +111,7 @@ func TestPGSequencesACL(t *testing.T) {
 	e := engine.New()
 	a := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, a, "CREATE SEQUENCE s")
-	sequenceScalar(t, a, "SELECT setval('s',42)", 42)
+	enginetest.SequenceScalar(t, a, "SELECT setval('s',42)", 42)
 	enginetest.SessionSQL(t, a, "CREATE ROLE reader")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	owner := e.Catalog.State.MustRelation(ref.Address).Owner
@@ -244,7 +244,7 @@ func TestPGSequencesConcurrency(t *testing.T) {
 	enginetest.LockAwait(t, done, nil)
 	<-finished
 	pgSequencesRows(t, b, "SELECT last_value FROM pg_sequences", [][]driver.Value{{nil}})
-	sequenceScalar(t, b, "SELECT nextval('s')", 19)
+	enginetest.SequenceScalar(t, b, "SELECT nextval('s')", 19)
 	enginetest.LockEmpty(t, e)
 }
 

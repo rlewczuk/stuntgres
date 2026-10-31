@@ -78,7 +78,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			deleteAwait(t, done, count, nil)
 			if kind == "prepare" {
 				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1)
-				deleteCount(t, b, "DELETE FROM t", 1)
+				enginetest.DeleteCount(t, b, "DELETE FROM t", 1)
 			} else {
 				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v")
 			}

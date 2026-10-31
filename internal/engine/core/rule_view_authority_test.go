@@ -37,7 +37,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			grant := func(role authorization.PrincipalRef) authorization.ACLValue {
 				return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: role}, Privileges: authorization.SelectPrivilege, Grantor: bootstrap}}}
 			}
-			baseRef := ruleUnitRef(e, base)
+			baseRef := enginetest.RuleUnitRef(e, base)
 			inner.Owner, inner.RelationKind = owner.Ref, catalog.ViewRelation
 			inner.Security.ACL = grant(actor.Ref)
 			inner.Security.ACL.Entries = append(inner.Security.ACL.Entries, grant(owner.Ref).Entries...)
@@ -52,9 +52,9 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				outer.ObjectAddress.ObjectID++
 				outer.ObjectName = "outer_view"
 				outer.View = stored.NewView(stored.ViewParts{
-					Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(inner.Columns), Ref: ruleUnitRef(e, inner)}},
+					Query:   &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(inner.Columns), Ref: enginetest.RuleUnitRef(e, inner)}},
 					Invoker: shape == "invoker_over_definer",
-					Sources: []stored.ViewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
+					Sources: []stored.ViewLeaf{{Ref: enginetest.RuleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
 				})
 				next := catalog.CloneState(e.Catalog.State)
 				next.SetDescriptor(outer.Address(), &outer)
@@ -71,7 +71,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			base.Security.ACL = grant(reader)
 			auth.Recapture(e.Catalog.Current())
 			auth.State.CurrentUser = owner.Ref
-			leaf := exec.Leaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
+			leaf := exec.Leaf{Ref: enginetest.RuleUnitRef(e, root), Relation: root, Principal: actor.Ref}
 			collect := func(view core.AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
 				t.Helper()
 				e.Mu.Lock()

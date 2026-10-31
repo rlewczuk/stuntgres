@@ -17,12 +17,12 @@ import (
 func TestStatisticsObjectControlRemap(t *testing.T) {
 	source, relation := statisticsUnitEngine(t)
 	op, done := enginetest.RoleOperation(t, source, "postgres")
-	stage, err := statisticsUnitStage(t, source, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, source, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		done()
 		t.Fatal(err)
 	}
-	definition := statisticsUnitDescriptor(t, stage)
+	definition := enginetest.StatisticsUnitDescriptor(t, stage)
 	enginetest.PublishOperationStage(t, source, op, stage)
 	source.DiscardCatalogStage(stage)
 	done()
@@ -66,14 +66,14 @@ func TestStatisticsObjectControlRemap(t *testing.T) {
 
 func TestStatisticsObjectControlOrdinaryOwnership(t *testing.T) {
 	e, _ := statisticsUnitEngine(t)
-	aclUnitRoles(e, "statistics_guard_owner")
+	enginetest.AclUnitRoles(e, "statistics_guard_owner")
 	op, done := enginetest.RoleOperation(t, e, "postgres")
-	stage, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		done()
 		t.Fatal(err)
 	}
-	original := statisticsUnitDescriptor(t, stage)
+	original := enginetest.StatisticsUnitDescriptor(t, stage)
 	enginetest.PublishOperationStage(t, e, op, stage)
 	e.DiscardCatalogStage(stage)
 	owner := e.Roles().LookupRef("statistics_guard_owner")

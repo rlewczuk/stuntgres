@@ -55,5 +55,5 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 		t.Fatal("resolved deadlock retained dirty owners")
 	}
 	btreeWantKeys(t, e, "ex", "1", "2")
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }

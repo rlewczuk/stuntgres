@@ -3,19 +3,17 @@ package core_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
-	"stuntgres/internal/engine/enginetest"
 	"testing"
 
+	"stuntgres/internal/engine/enginetest"
+
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -34,11 +32,11 @@ func (p *databaseAdmissionDefaults) SessionDefault(_ context.Context, d settings
 
 func databaseAdmissionFixture() (*core.Engine, authorization.PrincipalRef) {
 	e, _, _, _, reader := ownershipUnitRoles()
-	roles := cloneRoleFixture(e.RoleStore.Published)
-	login := fixtureRole(roles, reader)
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	login := enginetest.FixtureRole(roles, reader)
 	login.Login = true
 	login.ConnectionLimit = 1
-	putFixtureRole(roles, login)
+	enginetest.PutFixtureRole(roles, login)
 	e.RoleStore.PublishLocked(roles)
 	return e, reader
 }
@@ -153,19 +151,19 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 	for _, allowLogin := range []bool{false, true} {
 		e, owner, reset, _, login := ownershipUnitRoles()
-		roles := cloneRoleFixture(e.RoleStore.Published)
-		actor := fixtureRole(roles, login)
+		roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+		actor := enginetest.FixtureRole(roles, login)
 		actor.Login = true
 		actor.ConnectionLimit = -1
-		putFixtureRole(roles, actor)
-		setFixtureEdges(roles, []authorization.Membership{{Role: reset, Member: login, Grantor: owner, Set: true}})
+		enginetest.PutFixtureRole(roles, actor)
+		enginetest.SetFixtureEdges(roles, []authorization.Membership{{Role: reset, Member: login, Grantor: owner, Set: true}})
 		e.RoleStore.PublishLocked(roles)
 		grantee := reset
 		if allowLogin {
 			grantee = login
 		}
 		databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ConnectPrivilege}}})
-		start := session.SessionStart{ID: enginetest.NextSessionID(), Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
+		start := session.SessionStart{ID: enginetest.NextSessionID(), Defaults: roleSwitchDefaultProvider{value: enginetest.FixtureRole(roles, reset).Name}}
 		s, err := enginetest.OpenSession(context.Background(), e, start, login)
 		if !allowLogin {
 			if s != nil {
@@ -197,7 +195,7 @@ func ownershipUnitRoles() (e *core.Engine, owner, source, target, reader authori
 	owner = e.RoleStore.Domain.Principal(10)
 	refs := []*authorization.PrincipalRef{&source, &target, &reader}
 	names := []string{"ownership_source", "ownership_target", "ownership_reader"}
-	publication := cloneRoleFixture(e.RoleStore.Published)
+	publication := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	for i, destination := range refs {
 		e.RoleStore.InstallPrincipalFrontierLocked(uint64(100001 + i))
 		ref, err := e.RoleStore.PrincipalCandidateLocked()
@@ -206,58 +204,10 @@ func ownershipUnitRoles() (e *core.Engine, owner, source, target, reader authori
 		}
 		*destination = ref
 		e.RoleStore.InstallPrincipalFrontierLocked(ref.ID() + 1)
-		putFixtureRole(publication, authorization.RoleDescriptor{Ref: ref, Name: names[i], Inherit: true})
+		enginetest.PutFixtureRole(publication, authorization.RoleDescriptor{Ref: ref, Name: names[i], Inherit: true})
 	}
 	e.RoleStore.PublishLocked(publication)
 	return
-}
-
-// Build private graph fixtures through genuine storage and membership candidates.
-// Temporary descriptor names/flags exist only on unpublished roots and are restored.
-func setFixtureEdges(r *access.RoleRecord, edges []authorization.Membership) {
-	candidate := *r
-	destination := r
-	r = &candidate
-	read := r.Root.Read(authorization.PrincipalRef{})
-	origins := make(map[authorization.PrincipalRef]bool)
-	for edge := range read.Edges() {
-		origins[edge.Grantor] = true
-	}
-	if len(origins) != 0 {
-		root, err := authorization.OwnedMembershipCandidate(context.Background(), read, origins)
-		if err != nil {
-			panic(err)
-		}
-		r.Root = root
-	}
-	for _, edge := range edges {
-		original := fixtureRole(r, edge.Grantor)
-		oldBootstrap, hasBootstrap := r.Root.Read(authorization.PrincipalRef{}).Lookup("postgres")
-		if hasBootstrap && oldBootstrap.Ref != original.Ref {
-			temp := oldBootstrap
-			temp.Name = fmt.Sprintf("fixture_bootstrap_%d", temp.Ref.ID())
-			putFixtureRole(r, temp)
-		}
-		elevated := original
-		elevated.Name = "postgres"
-		elevated.Superuser = true
-		putFixtureRole(r, elevated)
-		target := fixtureRole(r, edge.Role)
-		member := fixtureRole(r, edge.Member)
-		request := &parser.RoleMembership{Targets: []parser.RoleSpec{{Name: target.Name}}, Members: []parser.RoleSpec{{Name: member.Name}}, Options: []parser.MembershipOption{{Name: "admin", Value: edge.Admin}, {Name: "inherit", Value: edge.Inherit}, {Name: "set", Value: edge.Set}}}
-		root, changed, _, err := authorization.MembershipCandidate(context.Background(), r.Root.Read(authorization.PrincipalRef{}), authorization.RoleState{CurrentUser: edge.Grantor, SessionUser: edge.Grantor}, request, nil, false, false)
-		if err != nil {
-			panic(err)
-		}
-		if changed {
-			r.Root = root
-		}
-		putFixtureRole(r, original)
-		if hasBootstrap && oldBootstrap.Ref != original.Ref {
-			putFixtureRole(r, oldBootstrap)
-		}
-	}
-	destination.Root = candidate.Root
 }
 
 type roleSwitchDefaultProvider struct {

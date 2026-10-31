@@ -75,7 +75,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				switch dependency {
 				case "schema":
 					enginetest.SessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
-					address = schemaRef(t, e, "retirement_peer").Address
+					address = enginetest.SchemaRef(t, e, "retirement_peer").Address
 					descriptor = e.Catalog.State.Get(address)
 					if descriptor.(*catalog.Namespace).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
@@ -175,7 +175,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	if current, ok := e.Roles().Lookup("restored"); !ok || current.Ref != role.Ref {
 		t.Fatal("candidate restoration deleted its still-dependent principal")
 	}
-	address := schemaRef(t, e, "restoration_peer").Address
+	address := enginetest.SchemaRef(t, e, "restoration_peer").Address
 	if e.Catalog.State.MustNamespace(address).Owner != role.Ref {
 		t.Fatal("candidate restoration changed the unrelated peer root")
 	}
@@ -220,12 +220,12 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, ok := e.Roles().Lookup("grantor"); ok {
 				t.Fatal("completed endpoint cleanup did not retire the principal")
 			}
-			for _, retained := range fixtureEdges(e.RoleStore.Published) {
+			for _, retained := range enginetest.FixtureEdges(e.RoleStore.Published) {
 				if retained == edge {
 					t.Fatal("retired endpoint retained its membership dependency")
 				}
 			}
-			if !reflect.DeepEqual(fixtureEdges(base), before) {
+			if !reflect.DeepEqual(enginetest.FixtureEdges(base), before) {
 				t.Fatal("publication mutated the immutable entry membership root")
 			}
 		})

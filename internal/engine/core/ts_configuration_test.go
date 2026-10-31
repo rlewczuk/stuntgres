@@ -8,12 +8,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 )
 
-func configName(name string) parser.ObjectName {
-	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
-}
 func TestTSConfigurationProvider(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()

@@ -21,7 +21,7 @@ import (
 func serializableUnitRelation(t *testing.T, e *core.Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
-	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}
 	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "ssi_unit", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "v", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	d.TableMethod = 2
 	stage := e.BeginCatalogStage(base)

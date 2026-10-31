@@ -160,7 +160,7 @@ func TestRIRoutinePublicationCurrentAuthority(t *testing.T) {
 					enginetest.RoleExecute(t, e, actor, "ROLLBACK")
 					transactionOpen = false
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 				current := e.CatalogRead().MustRelation(childRef.Address)
 				if !reflect.DeepEqual(current.ColumnMeta.Defaults[current.Attributes[1]], original) || !reflect.DeepEqual(current.ColumnMeta.Defaults[current.Attributes[1]].Dependencies, manifest) {
 					t.Fatal("RI publication mutated defining DEFAULT manifest")

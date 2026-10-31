@@ -18,7 +18,7 @@ import (
 
 func TestRelationSizeInvocationAuthority(t *testing.T) {
 	e, relation := relationSizeOwnerFixture(t)
-	aclUnitRoles(e, "rs_invoker", "rs_rule", "rs_ri", "rs_restricted")
+	enginetest.AclUnitRoles(e, "rs_invoker", "rs_rule", "rs_ri", "rs_restricted")
 	roles := e.Roles()
 	invoker, _ := roles.Lookup("rs_invoker")
 	rule, _ := roles.Lookup("rs_rule")

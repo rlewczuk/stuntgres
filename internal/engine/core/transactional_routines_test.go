@@ -99,7 +99,7 @@ func TestTransactionalRoutineDependencyPreflight(t *testing.T) {
 	t.Run("reciprocal-links-are-not-hard-edges", func(t *testing.T) {
 		ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		target := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 99001}, ObjectNamespace: ns, ObjectName: "#~#", Left: 23, Right: 23}
-		base := catalogStateFixture(1, map[ids.ObjectAddress]catalog.Descriptor{target.Address(): target}, nil)
+		base := enginetest.CatalogStateFixture(1, map[ids.ObjectAddress]catalog.Descriptor{target.Address(): target}, nil)
 		child := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 99002}, ObjectNamespace: ns, ObjectName: "#?#", Left: 23, Right: 23, Commutator: target.Address().ObjectID, Negator: target.Address().ObjectID}
 		current := catalog.CloneState(base)
 		current.SetDescriptor(child.Address(), child)

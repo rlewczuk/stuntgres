@@ -23,7 +23,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	family, class, member := operatorClassUnitDefinitions(t, e, "class_atomic", 351)
 	typ, _ := base.LookupType(sqltype.Int4)
 	loose := *member
-	loose.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	loose.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	loose.Number = 2
 	loose.Function = 3130
 	loose.InternalOwner = ids.ObjectAddress{}
@@ -56,10 +56,10 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	if !ok {
 		t.Fatal("private class authority missing")
 	}
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "class_atomic_table", Owner: class.Owner, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: class.Namespace(), ObjectRevision: 1, ObjectName: "class_atomic_table", Owner: class.Owner, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	parent.TableMethod = 2
 	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: classValue, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}
-	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: parent.Namespace(), ObjectRevision: 1, ObjectName: "class_atomic_index", Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Attributes: []int32{1}, Columns: parent.Columns, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: parent.Namespace(), ObjectRevision: 1, ObjectName: "class_atomic_index", Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Attributes: []int32{1}, Columns: parent.Columns, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	for _, d := range []catalog.Descriptor{parent, idx} {
 		if err := setup.Create(d); err != nil {
 			t.Fatal(err)

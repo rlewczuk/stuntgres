@@ -139,7 +139,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		admin, _ := engine.Roles().Lookup("postgres")
 		reader, _ := engine.Roles().Lookup("acl_reader")
 		usage := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.UsagePrivilege}}}
-		early, late := schemaRef(t, engine, "a"), schemaRef(t, engine, "b")
+		early, late := enginetest.SchemaRef(t, engine, "a"), enginetest.SchemaRef(t, engine, "b")
 		set := func(ref ids.ObjectRef, acl authorization.ACLValue) {
 			t.Helper()
 			if err := enginetest.SetObjectACL(engine, context.Background(), ref, acl); err != nil {

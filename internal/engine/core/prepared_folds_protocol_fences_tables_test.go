@@ -52,7 +52,7 @@ func TestPreparedFoldProtocolPrivateContext(t *testing.T) {
 				enginetest.SessionSQL(t, s, "ROLLBACK TO before_catalog")
 			}
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
-			err := preparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
+			err := enginetest.PreparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
 				_, err := scope.ExecuteProtocolPortal("private", 0, func([]session.ProtocolField) error { return nil }, nil, nil, core.CopyProtocolHooks{})
 				return err
 			})
@@ -61,12 +61,12 @@ func TestPreparedFoldProtocolPrivateContext(t *testing.T) {
 					t.Fatal("changed executable definition escaped portal fence", err)
 				}
 				enginetest.SessionSQL(t, s, "ROLLBACK")
-				preparedFoldProtocolRows(t, s, "0")
+				enginetest.PreparedFoldProtocolRows(t, s, "0")
 			} else {
 				if err != nil {
 					t.Fatal("same-transaction journal replaced accepted portal", err)
 				}
-				preparedFoldProtocolRows(t, s, "23")
+				enginetest.PreparedFoldProtocolRows(t, s, "23")
 			}
 			if portal.Entry.Description.Analysis != analysis || analysis.Private != nil || owner.Current().Generation != generation || &owner.Current().Entries[0] != &entries[0] {
 				t.Fatal("portal Execute published current context into Bind or definition")

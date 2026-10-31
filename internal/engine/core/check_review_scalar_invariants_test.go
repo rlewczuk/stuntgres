@@ -98,7 +98,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 					target, peer = source, s
 				}
 				enginetest.SessionSQL(t, peer, "CREATE TEMP SEQUENCE kept START 30")
-				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
+				enginetest.SequenceScalar(t, peer, "SELECT nextval('kept')", 30)
 				_, description := enginetest.PreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.Sequences.Constants[0].Ref
 				temp := target.Catalog.State.Get(tempRef.Address)
@@ -117,7 +117,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(0)")
-				sequenceScalar(t, peer, "SELECT nextval('kept')", 31)
+				enginetest.SequenceScalar(t, peer, "SELECT nextval('kept')", 31)
 			})
 		}
 	}

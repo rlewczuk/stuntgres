@@ -129,7 +129,7 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	healthy, root := concurrentUnitIndex(t, e, "ix", true, true)
-	if healthy == initial || initial.SQLIndex.Ready || initial.SQLIndex.Valid || root == nil || !reflect.DeepEqual(btreeKeys(t, root), []string{"4", "2"}) {
+	if healthy == initial || initial.SQLIndex.Ready || initial.SQLIndex.Valid || root == nil || !reflect.DeepEqual(enginetest.BtreeKeys(t, root), []string{"4", "2"}) {
 		t.Fatal("phase mutated predecessor or missed committed row versions")
 	}
 	concurrentUnitRootMatchesStorage(t, e, healthy)
@@ -139,7 +139,7 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 	concurrentUnitRootMatchesStorage(t, e, healthy)
 	// Replacement publishes current membership without mutating saved roots.
 	if root == beforeUpdate ||
-		!reflect.DeepEqual(btreeKeys(t, beforeUpdate), []string{"4", "2"}) || !reflect.DeepEqual(btreeKeys(t, root), []string{"5", "4"}) {
+		!reflect.DeepEqual(enginetest.BtreeKeys(t, beforeUpdate), []string{"4", "2"}) || !reflect.DeepEqual(enginetest.BtreeKeys(t, root), []string{"5", "4"}) {
 		t.Fatal("live lookup publication lost current membership or mutated old root")
 	}
 	enginetest.LockEmpty(t, e)
@@ -167,7 +167,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 	enginetest.SessionSQL(t, a, "COMMIT")
 	concurrentUnitCompletion(t, e, d.Transactions.Ticket, b)
 	ready, before := concurrentUnitIndex(t, e, "ui", true, false)
-	if !reflect.DeepEqual(btreeKeys(t, before), []string{"1", "2"}) || initial.SQLIndex.Ready {
+	if !reflect.DeepEqual(enginetest.BtreeKeys(t, before), []string{"1", "2"}) || initial.SQLIndex.Ready {
 		t.Fatal("first root/admission predecessor")
 	}
 	concurrentUnitError(t, c, "INSERT INTO t VALUES(1,'rejected')", "23505")

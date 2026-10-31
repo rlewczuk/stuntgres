@@ -28,13 +28,13 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	t.Helper()
 	e := engine.New()
 	parent := partitionAttachUnitRoot(t, e, "detach_unit_parent", 46500)
-	child := inheritanceUnitRelation(e, "detach_unit_child", 46501, "k")
+	child := enginetest.InheritanceUnitRelation(e, "detach_unit_child", 46501, "k")
 	child.RelationKind = catalog.TableRelation
 	if nested {
 		child = partitionAttachUnitRoot(t, e, child.Name(), child.Address().ObjectID)
 	}
 	child.Membership = partitionAttachUnitRange(t, parent, 1, 3)
-	def := inheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
+	def := enginetest.InheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
 	def.RelationKind = catalog.TableRelation
 	def.Membership = &catalog.PartitionMembership{Parent: parent.Address(), DefaultBound: true}
 	parent.Partition.Children = []ids.ObjectAddress{child.Address(), def.Address()}
@@ -42,7 +42,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	relations := []*catalog.Relation{parent, child, def}
 	leaf := child
 	if nested {
-		leaf = inheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
+		leaf = enginetest.InheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
 		leaf.RelationKind = catalog.TableRelation
 		leaf.Membership = &catalog.PartitionMembership{Parent: child.Address(), DefaultBound: true}
 		child.Partition.Children = []ids.ObjectAddress{leaf.Address()}

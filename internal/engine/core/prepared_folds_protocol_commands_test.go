@@ -1,55 +1,18 @@
 package core_test
 
 import (
-	rootengine "stuntgres/internal/engine"
-	"stuntgres/internal/engine/enginetest"
 	"context"
 	"errors"
 	"testing"
 
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"stuntgres/internal/engine/core"
 )
-
-func preparedFoldProtocolTry(t *testing.T, e *core.Engine, s *session.Session, cycle *session.ProtocolCycle, canceled bool, fn func(*core.StatementScope) error) error {
-	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	op, _, err := s.AcquireCommand(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	scope, err := e.StartProtocolCommand(op, cycle)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if canceled {
-		cancel()
-	}
-	err = fn(scope)
-	return scope.Finish(err)
-}
-
-func preparedFoldProtocolRows(t *testing.T, s *session.Session, want string) {
-	t.Helper()
-	result := enginetest.SessionSQL(t, s, "SELECT v FROM fold_commands ORDER BY id")
-	defer result.Rows.Close()
-	var row [1]sqltype.Value
-	more, err := result.Rows.Next(context.Background(), row[:])
-	if err != nil || !more {
-		t.Fatal("missing fixture row", err)
-	}
-	got, err := row[0].Type().Output(context.Background(), row[0])
-	if err != nil || got != want {
-		t.Fatalf("row=%q want=%q err=%v", got, want, err)
-	}
-	if more, err = result.Rows.Next(context.Background(), row[:]); more || err != nil {
-		t.Fatal("unexpected effect prefix", more, err)
-	}
-}
 
 func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 	expression := "length((point '0.10000000000000002,1')::text)"
@@ -98,7 +61,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			if &portal.Folds.Entries[0] != &entries[0] {
 				t.Fatal("Bind copied immutable backing")
 			}
-			preparedFoldProtocolRows(t, s, "0")
+			enginetest.PreparedFoldProtocolRows(t, s, "0")
 			enginetest.SessionSQL(t, s, "SET extra_float_digits=0")
 			command(func(scope *core.StatementScope) error { _, err := scope.DescribeProtocolStatement("command"); return err })
 			bind("again")
@@ -133,7 +96,7 @@ func TestPreparedFoldProtocolCommandOwnership(t *testing.T) {
 			if kind == "delete" {
 				want = "0"
 			}
-			preparedFoldProtocolRows(t, s, want)
+			enginetest.PreparedFoldProtocolRows(t, s, want)
 			if kind == "rule_update" {
 				result := enginetest.SessionSQL(t, s, "SELECT v FROM fold_rule")
 				var row [1]sqltype.Value
@@ -184,7 +147,7 @@ func TestPreparedFoldProtocolCommandFailure(t *testing.T) {
 				enginetest.SessionSQL(t, s, "REVOKE UPDATE ON fold_commands FROM fold_command_reader")
 				enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION fold_command_reader")
 			}
-			err := preparedFoldProtocolTry(t, e, s, cycle, phase == "cancel", func(scope *core.StatementScope) error {
+			err := enginetest.PreparedFoldProtocolTry(t, e, s, cycle, phase == "cancel", func(scope *core.StatementScope) error {
 				_, err := scope.BindProtocolPortal("failed", "failed", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 				return err
 			})
@@ -205,7 +168,7 @@ func TestPreparedFoldProtocolCommandFailure(t *testing.T) {
 			if phase == "authority" {
 				enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
 			}
-			preparedFoldProtocolRows(t, s, "0")
+			enginetest.PreparedFoldProtocolRows(t, s, "0")
 		})
 	}
 }

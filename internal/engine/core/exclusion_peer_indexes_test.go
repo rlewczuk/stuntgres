@@ -67,7 +67,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				if e.Exclusions.CountLocked() != 0 {
 					t.Fatal("peer outcome retained dirty membership")
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 			})
 		}
 	}
@@ -124,7 +124,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					if e.Exclusions.CountLocked() != 0 {
 						t.Fatal("provisional deletion retained a completed ticket")
 					}
-					uniqueClaimsEmpty(t, e)
+					enginetest.UniqueClaimsEmpty(t, e)
 				})
 			}
 		}

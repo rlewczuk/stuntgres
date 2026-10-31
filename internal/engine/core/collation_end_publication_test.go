@@ -250,7 +250,7 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 	if oldAE != nil || oldGE != nil || oldZE != nil || oldA != 7 || !oldG || oldZ != 9 {
 		t.Fatal("retained survivor payload is not (7,true,9)")
 	}
-	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for _, q := range []struct{ sql, value string }{
 		{`SELECT v FROM heap_end_peer`, "фоо"},
 		{`SELECT v FROM heap_end_peer_temp`, "peer-kept"},

@@ -33,7 +33,7 @@ func TestAlterAccessMethodPreparedOwnership(t *testing.T) {
 	oldPortal:=registry.Binding("before")
 	if oldPortal.Resource==nil || oldPortal.Resource.Root==nil || oldPortal.Folds==nil {t.Fatal("missing accepted graph/group")}
 	graph,portalGroup:=oldPortal.Resource.Root,*oldPortal.Folds
-	old:=primaryKeyUnitRelation(t,e,"method_owned")
+	old:=enginetest.PrimaryKeyUnitRelation(t,e,"method_owned")
 	capture:=func()(catalog.Read,core.PreparedEnvironment){
 		op,err:=s.Acquire(t.Context());if err!=nil {t.Fatal(err)};defer op.Done()
 		e.Mu.Lock();defer e.Mu.Unlock()

@@ -84,7 +84,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	if err := owner.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace {
 			if _, ok := e.CatalogRead().Descriptor(address); ok || e.Storage.Relations[address] != nil || e.Storage.Sequences[address] != nil || e.Storage.IndexRoots[address] != nil {
@@ -155,7 +155,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	if after.State() == before.State() || after.State().NamespaceGeneration() != ^uint64(0) || owner.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
-	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.Storage.Relations[address] != nil || e.Storage.Sequences[address] != nil || e.Storage.IndexRoots[address] != nil) {
 			t.Fatal("exhausted cleanup retained TEMP child", address)

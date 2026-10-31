@@ -16,13 +16,13 @@ func TestPlannerOtherCursorAdmissionCapture(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE other_cursor_rows(n integer)", "INSERT INTO other_cursor_rows VALUES(2),(1),(2),(NULL),(3)", "CREATE INDEX other_cursor_hash ON other_cursor_rows USING hash(n)"} {
-		plannerCostCommand(t, s, q)
+		enginetest.PlannerCostCommand(t, s, q)
 	}
 	for _, tc := range []struct {
 		fraction string
 		method   plan.ScanMethod
 	}{{"0", plan.FullScan}, {"0.0001", plan.FullScan}, {"1", plan.HashCandidates}} {
-		plannerCostCommand(t, s, "SET cursor_tuple_fraction='"+tc.fraction+"'")
+		enginetest.PlannerCostCommand(t, s, "SET cursor_tuple_fraction='"+tc.fraction+"'")
 		op, _, err := s.AcquireCommand(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -48,24 +48,24 @@ func TestPlannerOtherCursorAdmissionCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		op.Done()
-		plannerCostCommand(t, s, "SET cursor_tuple_fraction='0.7'")
-		plannerCostCommand(t, s, "FETCH ALL FROM other_choice")
-		plannerCostCommand(t, s, "CLOSE other_choice")
+		enginetest.PlannerCostCommand(t, s, "SET cursor_tuple_fraction='0.7'")
+		enginetest.PlannerCostCommand(t, s, "FETCH ALL FROM other_choice")
+		enginetest.PlannerCostCommand(t, s, "CLOSE other_choice")
 	}
 	// Explicit-transaction eligibility remains conservative. A live producer
 	// captures once and later SET/FETCH must not replace its source or decision.
-	plannerCostCommand(t, s, "BEGIN")
-	plannerCostCommand(t, s, "SET LOCAL cursor_tuple_fraction='0.0001'")
-	plannerCostCommand(t, s, "DECLARE other_live SCROLL CURSOR FOR SELECT n FROM other_cursor_rows WHERE n=2")
+	enginetest.PlannerCostCommand(t, s, "BEGIN")
+	enginetest.PlannerCostCommand(t, s, "SET LOCAL cursor_tuple_fraction='0.0001'")
+	enginetest.PlannerCostCommand(t, s, "DECLARE other_live SCROLL CURSOR FOR SELECT n FROM other_cursor_rows WHERE n=2")
 	cursor := core.PayloadOf(s).Cursors.Entries["other_live"]
 	source, decision := cursor.Source, cursor.Source.ScanDecision
-	plannerCostCommand(t, s, "SET LOCAL cursor_tuple_fraction=1")
-	plannerCostCommand(t, s, "FETCH 1 FROM other_live")
+	enginetest.PlannerCostCommand(t, s, "SET LOCAL cursor_tuple_fraction=1")
+	enginetest.PlannerCostCommand(t, s, "FETCH 1 FROM other_live")
 	if cursor.Source != source || source.ScanDecision != decision || source.ScanFraction != .0001 {
 		t.Fatal("FETCH replaced declaration admission")
 	}
-	plannerCostCommand(t, s, "CLOSE other_live")
-	plannerCostCommand(t, s, "ROLLBACK")
+	enginetest.PlannerCostCommand(t, s, "CLOSE other_live")
+	enginetest.PlannerCostCommand(t, s, "ROLLBACK")
 }
 
 func TestPlannerOtherRecursiveWorktableEstimate(t *testing.T) {
@@ -73,8 +73,8 @@ func TestPlannerOtherRecursiveWorktableEstimate(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	const query = "WITH RECURSIVE a(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM a WHERE n<3), b(n) AS (VALUES(1),(2) UNION ALL SELECT n+1 FROM b WHERE n<3) SELECT a.n FROM a JOIN b ON a.n=b.n"
 	for _, factor := range []int{1, 10, 100, 1000000} {
-		plannerCostCommand(t, s, fmt.Sprintf("SET recursive_worktable_factor='%d'", factor))
-		r := plannerCostCommand(t, s, "EXPLAIN "+query)
+		enginetest.PlannerCostCommand(t, s, fmt.Sprintf("SET recursive_worktable_factor='%d'", factor))
+		r := enginetest.PlannerCostCommand(t, s, "EXPLAIN "+query)
 		found := map[string]bool{}
 		for _, row := range enginetest.Tuples(r) {
 			line := row[0].(string)
@@ -99,8 +99,8 @@ func TestPlannerOtherRecursiveWorktableEstimate(t *testing.T) {
 	}
 	const nested = "WITH RECURSIVE outer_r(n) AS ((WITH RECURSIVE inner_r(n) AS (VALUES(1),(2) UNION ALL SELECT n+1 FROM inner_r WHERE n<2) SELECT n FROM inner_r) UNION ALL SELECT n+1 FROM outer_r WHERE n<3) SELECT n FROM outer_r"
 	for _, factor := range []int{1, 10, 1000000} {
-		plannerCostCommand(t, s, fmt.Sprintf("SET recursive_worktable_factor='%d'", factor))
-		r := plannerCostCommand(t, s, "EXPLAIN "+nested)
+		enginetest.PlannerCostCommand(t, s, fmt.Sprintf("SET recursive_worktable_factor='%d'", factor))
+		r := enginetest.PlannerCostCommand(t, s, "EXPLAIN "+nested)
 		want := map[string]float64{"inner_r": 2 * float64(factor), "outer_r": min(plan.ExplainEstimateLimit, float64(factor)*(2+10*float64(factor)))}
 		for _, row := range enginetest.Tuples(r) {
 			line := row[0].(string)

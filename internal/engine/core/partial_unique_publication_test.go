@@ -33,7 +33,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	owner, od := enginetest.RoleOperation(t, e, "ui_owner")
 	t.Cleanup(od)
 	keys, count := "a", 1
-	withPublicSchemaUnitOwner(t, e, "ui_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "ui_owner", func() {
 		enginetest.RoleExecute(t, e, owner, "CREATE TABLE public.ui_t(a DATE,b INT,p TEXT,active BOOL)")
 		if composite {
 			keys, count = "a,b", 2

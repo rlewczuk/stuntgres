@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -25,14 +26,14 @@ func TestTransactionalRulesDependencyPreflight(t *testing.T) {
 			t.Run(kind+"/"+control, func(t *testing.T) {
 				e, auth, src, sink := ruleUnitCatalog(t)
 				base := auth.Catalog.State()
-				action := ruleUnitInsert(e, sink, 1, 10)
+				action := enginetest.RuleUnitInsert(e, sink, 1, 10)
 				target := sink.Address()
 				switch kind {
 				case "column":
 					target.SubID = 2
 				case "nested-target":
 					inner := action.Binding()
-					action = ruleUnitInsert(e, src, 1, 10).With(func(p *stored.RuleActionParts) {
+					action = enginetest.RuleUnitInsert(e, src, 1, 10).With(func(p *stored.RuleActionParts) {
 						p.Binding.CTEs = []*plan.CTEDefinition{{Statement: action.Syntax(), Mutation: &inner, Owner: 1}}
 					})
 				case "constraint":
@@ -70,7 +71,7 @@ func TestTransactionalRulesDependencyPreflight(t *testing.T) {
 				}
 				switch control {
 				case "replace-away":
-					replacement := ruleUnitInsert(e, src, 1, 10)
+					replacement := enginetest.RuleUnitInsert(e, src, 1, 10)
 					rewired := rule.With(func(p *stored.RuleParts) {
 						p.Actions = []stored.RuleAction{replacement}
 						p.References = []ids.ObjectAddress{src.Address()}
@@ -123,15 +124,15 @@ func TestTransactionalRulesActionAdmission(t *testing.T) {
 	state := catalog.CloneState(auth.Catalog.State())
 	state.SetDescriptor(provider.Address(), &provider)
 	read := catalog.NewRead(auth.Catalog.Owner(), state)
-	outer := ruleUnitInsert(e, src, 1, 10)
-	nested := ruleUnitInsert(e, sink, 2, 20)
+	outer := enginetest.RuleUnitInsert(e, src, 1, 10)
+	nested := enginetest.RuleUnitInsert(e, sink, 2, 20)
 	binding := nested.Binding()
 	providerRef := e.Catalog.Domain.Ref(read.Epoch(), provider.Address())
 	outer = outer.With(func(p *stored.RuleActionParts) {
 		p.Binding.CTEs = []*plan.CTEDefinition{{Statement: nested.Syntax(), Mutation: &binding, Owner: 1}}
 		p.Binding.Query = &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(provider.Columns), Ref: providerRef}}
 	})
-	conditionRef := ruleUnitRef(e, src)
+	conditionRef := enginetest.RuleUnitRef(e, src)
 	conditionRef.Address.SubID = 2
 	rule := stored.NewRule(stored.RuleParts{Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{outer}, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[1]), Origin: conditionRef}})
 	refs, err := view.RuleReferences(context.Background(), read, rule)

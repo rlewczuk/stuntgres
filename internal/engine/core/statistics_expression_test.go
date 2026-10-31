@@ -18,12 +18,12 @@ func TestStatisticsExpressionBindingOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, err := statisticsUnitStage(t, e, op, parsed[0].(*parser.CreateStatistics))
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, parsed[0].(*parser.CreateStatistics))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	d := statisticsUnitDescriptor(t, stage)
+	d := enginetest.StatisticsUnitDescriptor(t, stage)
 	if d.Selection.Len() != 0 || d.Selection.ExpressionLen() != 1 || d.Selection.Dimension(0) != -1 || d.Selection.Kinds() != "e" || d.Expressions.Len() != 1 {
 		t.Fatal("expression dimension authority", d)
 	}
@@ -144,7 +144,7 @@ func TestStatisticsExpressionBindingDefinitionEquality(t *testing.T) {
 			done()
 			t.Fatal(err)
 		}
-		stage, err := statisticsUnitStage(t, e, op, parsed[0].(*parser.CreateStatistics))
+		stage, err := enginetest.StatisticsUnitStage(t, e, op, parsed[0].(*parser.CreateStatistics))
 		if stage != nil {
 			e.DiscardCatalogStage(stage)
 		}

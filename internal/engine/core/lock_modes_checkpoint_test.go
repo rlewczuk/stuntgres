@@ -16,7 +16,7 @@ func TestLockModesRevokedOwner(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, e, op, "CREATE USER lockowner")
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION lockowner")
-	withPublicSchemaUnitOwner(t, e, "lockowner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "lockowner", func() {
 		enginetest.RoleExecute(t, e, op, "CREATE TABLE owned(v INT)")
 	})
 	ref := enginetest.RoleTableRef(t, e, "owned")

@@ -247,12 +247,12 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				oldStorage := e.Storage.Relations[ref.Address]
 				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.Versions[1].Row}
 				hr := enginetest.TransactionBegin(t, holder)
-				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
+				enginetest.DeleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 				var wr ids.TxRef
 				if explicit {
 					wr = enginetest.TransactionBegin(t, waiter)
 					enginetest.SessionSQL(t, waiter, "INSERT INTO t VALUES(7)")
-					deleteCount(t, waiter, "DELETE FROM t WHERE v=3", 1)
+					enginetest.DeleteCount(t, waiter, "DELETE FROM t WHERE v=3", 1)
 				}
 				scope, ticket, done := deleteReplacementScope(t, e, waiter)
 				request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
@@ -317,7 +317,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	first, blocked := oldStorage.Versions[0].Row, oldStorage.Versions[1].Row
 	resource := lock.Resource{ObjectRef: ref, Row: blocked}
 	hr := enginetest.TransactionBegin(t, holder)
-	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
+	enginetest.DeleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 	scope, ticket, done := deleteReplacementScope(t, e, waiter)
 	request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
 	// Use the existing final-install seam with a genuine independently seeded

@@ -68,7 +68,7 @@ func TestAmcheckLogicalCorruption(t *testing.T) {
 	for _, damage := range []string{"order", "arity", "position", "identity", "duplicate", "membership", "ordinal"} {
 		t.Run(damage, func(t *testing.T) {
 			e, d, root := amcheckUnitRoot(t, false)
-			before := btreeKeys(t, root)
+			before := enginetest.BtreeKeys(t, root)
 			if err := amcheckUnitCall(t, e, "SELECT bt_index_parent_check('i',true,true,true)"); err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +91,7 @@ func TestAmcheckLogicalCorruption(t *testing.T) {
 			}
 			e.Storage.IndexRoots[d.Address()] = next
 			amcheckUnitDiagnostic(t, amcheckUnitCall(t, e, "SELECT bt_index_parent_check('i',false,true,true)"), sqlstate.Error{Code: "XX002", Message: `item order invariant violated for index "i"`})
-			if !reflect.DeepEqual(btreeKeys(t, root), before) {
+			if !reflect.DeepEqual(enginetest.BtreeKeys(t, root), before) {
 				t.Fatal("checker modified original root")
 			}
 			e.Storage.IndexRoots[d.Address()] = root
@@ -181,7 +181,7 @@ func TestAmcheckUniqueVisibility(t *testing.T) {
 	if err := amcheckUnitCall(t, e, "SELECT bt_index_check('i',false,true)"); err != nil {
 		t.Fatal("dead version uniqueness", err)
 	}
-	if got := btreeKeys(t, root); !reflect.DeepEqual(got, []string{"1", "2", "NULL"}) {
+	if got := enginetest.BtreeKeys(t, root); !reflect.DeepEqual(got, []string{"1", "2", "NULL"}) {
 		t.Fatal(got)
 	}
 	e.Storage.IndexRoots[d.Address()] = root
@@ -257,7 +257,7 @@ func TestAmcheckBaselineCorruptionWithPrivateRows(t *testing.T) {
 					beforeRows[i].IndexOutputs[address] = output
 				}
 			}
-			beforeKeys := btreeKeys(t, root)
+			beforeKeys := enginetest.BtreeKeys(t, root)
 			beforeDamaged := amcheckUnitClone(next)
 			beforeDamaged.Membership = maps.Clone(next.Membership)
 			beforeDamaged.RowEntries = maps.Clone(next.RowEntries)
@@ -281,7 +281,7 @@ func TestAmcheckBaselineCorruptionWithPrivateRows(t *testing.T) {
 			}
 			amcheckUnitDiagnostic(t, verifyErr, want)
 			// Verify immutability before ordinary failed-statement abort disposal.
-			if len(rows) != 2 || !reflect.DeepEqual(s.Transactions.Writes[d.SQLIndex.Parent], beforeRows) || !reflect.DeepEqual(btreeKeys(t, root), beforeKeys) || !reflect.DeepEqual(next, beforeDamaged) || e.Storage.IndexRoots[d.Address()] != next {
+			if len(rows) != 2 || !reflect.DeepEqual(s.Transactions.Writes[d.SQLIndex.Parent], beforeRows) || !reflect.DeepEqual(enginetest.BtreeKeys(t, root), beforeKeys) || !reflect.DeepEqual(next, beforeDamaged) || e.Storage.IndexRoots[d.Address()] != next {
 				t.Fatal("verification changed genuine private or baseline authority")
 			}
 			finishErr := scope.Finish(verifyErr)
@@ -290,7 +290,7 @@ func TestAmcheckBaselineCorruptionWithPrivateRows(t *testing.T) {
 			if s.TransactionState() != session.TxAborted || len(s.Transactions.Writes) != 0 || len(s.Transactions.Deletes) != 0 || len(s.Transactions.Roots) != 0 {
 				t.Fatal("failed statement did not dispose normal aborted transaction state")
 			}
-			if !reflect.DeepEqual(rows, beforeRows) || !reflect.DeepEqual(btreeKeys(t, root), beforeKeys) || !reflect.DeepEqual(next, beforeDamaged) {
+			if !reflect.DeepEqual(rows, beforeRows) || !reflect.DeepEqual(enginetest.BtreeKeys(t, root), beforeKeys) || !reflect.DeepEqual(next, beforeDamaged) {
 				t.Fatal("abort disposal mutated retained captures")
 			}
 		})

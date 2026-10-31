@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -302,14 +303,14 @@ func TestInfoSequencesCapture(t *testing.T) {
 	relation.Sequence = &options
 	relation.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 	next.SetDescriptor(relation.Address(), &relation)
-	roles := cloneRoleFixture(f.f.e.RoleStore.Published)
+	roles := enginetest.CloneRoleFixture(f.f.e.RoleStore.Published)
 	var edges []authorization.Membership
-	for _, edge := range fixtureEdges(roles) {
+	for _, edge := range enginetest.FixtureEdges(roles) {
 		if edge.Member != f.f.member || edge.Role != f.f.owner {
 			edges = append(edges, edge)
 		}
 	}
-	setFixtureEdges(roles, edges)
+	enginetest.SetFixtureEdges(roles, edges)
 	f.f.e.Catalog.PublishLocked(next)
 	f.f.e.RoleStore.PublishLocked(roles)
 	f.f.e.Mu.Lock()

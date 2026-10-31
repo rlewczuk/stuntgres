@@ -22,10 +22,10 @@ func TestAnalyzeJournalOwnership(t *testing.T) {
 			for _, q := range []string{"CREATE TABLE analyze_owner(a INT,b INT)", "INSERT INTO analyze_owner VALUES(1,10),(1,10),(2,20)", "ANALYZE analyze_owner"} {
 				enginetest.SessionSQL(t, s, q)
 			}
-			ref, store := vacuumStore(t, e, "analyze_owner")
+			ref, store := enginetest.VacuumStore(t, e, "analyze_owner")
 			relation := e.CatalogRead().MustRelation(ref.Address)
 			a, b := storage.StatisticsKey{Attribute: relation.Attributes[0]}, storage.StatisticsKey{Attribute: relation.Attributes[1]}
-			baseline := analyzeFacts(e, ref.Address)
+			baseline := enginetest.AnalyzeFacts(e, ref.Address)
 			if baseline == nil || baseline.Columns[a] == nil || baseline.Columns[b] == nil {
 				t.Fatal("actual ANALYZE omitted canonical baseline")
 			}
@@ -55,14 +55,14 @@ func TestAnalyzeJournalOwnership(t *testing.T) {
 				t.Fatal("savepoint failed to restore exact column backing")
 			}
 			own := session.ResolveStatistics(kept, ref.Address, e.Storage.RelationMetadata[ref.Address], relation, e.CatalogRead())
-			if own.Columns[a] != selected.Columns[a] || own.Columns[b] != baseline.Columns[b] || analyzeFacts(e, ref.Address) != baseline {
+			if own.Columns[a] != selected.Columns[a] || own.Columns[b] != baseline.Columns[b] || enginetest.AnalyzeFacts(e, ref.Address) != baseline {
 				t.Fatal("private resolver leaked or recopied unselected canonical facts")
 			}
 			// An unrelated column is refreshed after this transaction's capture.
 			// Commit must merge its selected delta into that newer canonical root.
 			enginetest.SessionSQL(t, peer, "ANALYZE analyze_owner(b)")
-			newB := analyzeFacts(e, ref.Address).Columns[b]
-			if newB == baseline.Columns[b] || analyzeFacts(e, ref.Address).Columns[a] != baseline.Columns[a] {
+			newB := enginetest.AnalyzeFacts(e, ref.Address).Columns[b]
+			if newB == baseline.Columns[b] || enginetest.AnalyzeFacts(e, ref.Address).Columns[a] != baseline.Columns[a] {
 				t.Fatal("peer selected refresh did not preserve the other column")
 			}
 			rows, ends, generation := store.Versions, store.Ends, store.Generation
@@ -86,7 +86,7 @@ func TestAnalyzeJournalOwnership(t *testing.T) {
 			if strings.HasPrefix(completion, "COMMIT") {
 				wantA = selected.Columns[a]
 			}
-			if analyzeFacts(e, ref.Address).Columns[a] != wantA || analyzeFacts(e, ref.Address).Columns[b] != newB {
+			if enginetest.AnalyzeFacts(e, ref.Address).Columns[a] != wantA || enginetest.AnalyzeFacts(e, ref.Address).Columns[b] != newB {
 				t.Fatal("completion lost selected owner or unrelated newer backing")
 			}
 			if e.Storage.Relations[ref.Address] != store || !storage.SameVersionRoot(rows, store.Versions) || store.Ends != ends || store.Generation != generation || e.Storage.RowFrontier() != rowFrontier || e.Storage.VersionFrontier() != versionFrontier || store.Maintenance != maintenance {
@@ -110,7 +110,7 @@ func TestAnalyzePrivateSchemaComposition(t *testing.T) {
 			for _, q := range []string{"CREATE TABLE analyze_schema(a INT,b INT)", "INSERT INTO analyze_schema VALUES(1,10),(2,10)", "ANALYZE analyze_schema", "BEGIN"} {
 				enginetest.SessionSQL(t, s, q)
 			}
-			ref, old := vacuumStore(t, e, "analyze_schema")
+			ref, old := enginetest.VacuumStore(t, e, "analyze_schema")
 			relation := e.CatalogRead().MustRelation(ref.Address)
 			key := storage.StatisticsKey{Attribute: relation.Attributes[1]}
 			beforeMetadata := e.Storage.RelationMetadata[ref.Address]
@@ -129,7 +129,7 @@ func TestAnalyzePrivateSchemaComposition(t *testing.T) {
 			enginetest.SessionSQL(t, s, "INSERT INTO analyze_schema(b) VALUES(20)")
 			enginetest.SessionSQL(t, s, "COMMIT")
 			fresh := e.Storage.Relations[ref.Address]
-			facts := analyzeFacts(e, ref.Address)
+			facts := enginetest.AnalyzeFacts(e, ref.Address)
 			if fresh == old || len(fresh.Versions) != 3 || facts == nil || facts.Columns[key] != selected || len(facts.Columns) != 1 {
 				t.Fatal("DDL projection/DML publication lost stable-attribute statistics ownership")
 			}
@@ -147,7 +147,7 @@ func TestAnalyzeNativeStorageRemint(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE analyze_native(a INT)", "INSERT INTO analyze_native VALUES(1),(1),(2)", "ANALYZE analyze_native"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, old := vacuumStore(t, e, "analyze_native")
+	ref, old := enginetest.VacuumStore(t, e, "analyze_native")
 	metadata := e.Storage.RelationMetadata[ref.Address]
 	facts, rows := metadata.Statistics, old.Versions
 	var dump strings.Builder
@@ -157,15 +157,15 @@ func TestAnalyzeNativeStorageRemint(t *testing.T) {
 	if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE broken(")); err == nil {
 		t.Fatal("invalid restore succeeded")
 	}
-	_, retained := vacuumStore(t, e, "analyze_native")
+	_, retained := enginetest.VacuumStore(t, e, "analyze_native")
 	if retained != old || e.Storage.RelationMetadata[ref.Address] != metadata {
 		t.Fatal("failed restore lost actual canonical publication")
 	}
 	if err := engine.Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	restoredRef, restored := vacuumStore(t, e, "analyze_native")
-	restoredFacts := analyzeFacts(e, restoredRef.Address)
+	restoredRef, restored := enginetest.VacuumStore(t, e, "analyze_native")
+	restoredFacts := enginetest.AnalyzeFacts(e, restoredRef.Address)
 	if restored == old || restoredFacts == nil || restoredFacts == facts || len(restoredFacts.Columns) != 1 || len(restored.Versions) != 3 {
 		t.Fatal("native restore failed to remint column statistics or lost data")
 	}
@@ -195,8 +195,8 @@ func TestAnalyzeNativeStorageRemint(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE analyze_native(a INT)", "INSERT INTO analyze_native VALUES(9)"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	resetRef, reset := vacuumStore(t, e, "analyze_native")
-	if reset == restored || analyzeFacts(e, resetRef.Address) != nil {
+	resetRef, reset := enginetest.VacuumStore(t, e, "analyze_native")
+	if reset == restored || enginetest.AnalyzeFacts(e, resetRef.Address) != nil {
 		t.Fatal("reset/recreate attached obsolete typed facts")
 	}
 }
@@ -208,7 +208,7 @@ func TestAnalyzePreparedAuthorityRejection(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE analyze_rejected(a INT)", "INSERT INTO analyze_rejected VALUES(1),(1),(2)", "ANALYZE analyze_rejected", "BEGIN", "ANALYZE analyze_rejected", "PREPARE TRANSACTION 'analyze_rejected'"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, old := vacuumStore(t, e, "analyze_rejected")
+	ref, old := enginetest.VacuumStore(t, e, "analyze_rejected")
 	entry := core.EnginePreparedRef(e).Lookup("analyze_rejected")
 	if entry == nil || entry.Catalog == nil || len(entry.Catalog.Statistics) != 1 {
 		t.Fatal("actual prepared statistics-only owner was discarded")
@@ -251,29 +251,29 @@ func TestAnalyzeStorageLifecycle(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE analyze_lifecycle(a INT,b INT)", "INSERT INTO analyze_lifecycle VALUES(1,10),(1,10),(2,20)", "ANALYZE analyze_lifecycle"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, original := vacuumStore(t, e, "analyze_lifecycle")
+	ref, original := enginetest.VacuumStore(t, e, "analyze_lifecycle")
 	relation := e.CatalogRead().MustRelation(ref.Address)
 	key := storage.StatisticsKey{Attribute: relation.Attributes[1]}
-	selected := analyzeFacts(e, ref.Address).Columns[key]
+	selected := enginetest.AnalyzeFacts(e, ref.Address).Columns[key]
 	for _, q := range []string{"ALTER TABLE analyze_lifecycle RENAME TO analyze_renamed", "INSERT INTO analyze_renamed VALUES(3,30)", "UPDATE analyze_renamed SET b=40 WHERE a=2", "DELETE FROM analyze_renamed WHERE a=3", "VACUUM analyze_renamed"} {
 		enginetest.SessionSQL(t, s, q)
-		if analyzeFacts(e, ref.Address).Columns[key] != selected {
+		if enginetest.AnalyzeFacts(e, ref.Address).Columns[key] != selected {
 			t.Fatal("compatible successor failed to retain stale typed backing", q)
 		}
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE analyze_renamed DROP COLUMN a")
-	projected := analyzeFacts(e, ref.Address)
+	projected := enginetest.AnalyzeFacts(e, ref.Address)
 	if projected == nil || projected.Columns[key] != selected || len(projected.Columns) != 1 {
 		t.Fatal("dropping first physical slot shifted or retained incompatible attribute facts")
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE analyze_renamed ALTER COLUMN b TYPE BIGINT")
-	if facts := analyzeFacts(e, ref.Address); facts != nil && facts.Columns[key] != nil {
+	if facts := enginetest.AnalyzeFacts(e, ref.Address); facts != nil && facts.Columns[key] != nil {
 		t.Fatal("incompatible type rewrite retained old concrete typed statistics")
 	}
 	enginetest.SessionSQL(t, s, "DROP TABLE analyze_renamed")
 	enginetest.SessionSQL(t, s, "CREATE TABLE analyze_renamed(b INT)")
-	freshRef, fresh := vacuumStore(t, e, "analyze_renamed")
-	if freshRef == ref || fresh == original || analyzeFacts(e, freshRef.Address) != nil {
+	freshRef, fresh := enginetest.VacuumStore(t, e, "analyze_renamed")
+	if freshRef == ref || fresh == original || enginetest.AnalyzeFacts(e, freshRef.Address) != nil {
 		t.Fatal("drop/recreate attached facts by display name")
 	}
 }
@@ -290,9 +290,9 @@ func TestAnalyzeTransactionVisiblePopulation(t *testing.T) {
 	} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	firstRef, _ := vacuumStore(t, e, "analyze_visible")
-	secondRef, _ := vacuumStore(t, e, "analyze_second")
-	firstBaseline, secondBaseline := analyzeFacts(e, firstRef.Address), analyzeFacts(e, secondRef.Address)
+	firstRef, _ := enginetest.VacuumStore(t, e, "analyze_visible")
+	secondRef, _ := enginetest.VacuumStore(t, e, "analyze_second")
+	firstBaseline, secondBaseline := enginetest.AnalyzeFacts(e, firstRef.Address), enginetest.AnalyzeFacts(e, secondRef.Address)
 	firstRelation := e.CatalogRead().MustRelation(firstRef.Address)
 	secondRelation := e.CatalogRead().MustRelation(secondRef.Address)
 	firstKey := storage.StatisticsKey{Attribute: firstRelation.Attributes[0]}
@@ -313,7 +313,7 @@ func TestAnalyzeTransactionVisiblePopulation(t *testing.T) {
 	if second == nil || second.Rows != 2 || second.DistinctCount != 1 || len(second.MCV) != 1 || second.MCV[0].Count != 2 {
 		t.Fatal("later target reused released or mismatched first-target data capture", second)
 	}
-	if analyzeFacts(e, firstRef.Address) != firstBaseline || analyzeFacts(e, secondRef.Address) != secondBaseline {
+	if enginetest.AnalyzeFacts(e, firstRef.Address) != firstBaseline || enginetest.AnalyzeFacts(e, secondRef.Address) != secondBaseline {
 		t.Fatal("multiple-target private statistics leaked canonical publication")
 	}
 	// Repeating the command traverses fresh target captures again, while exact
@@ -324,7 +324,7 @@ func TestAnalyzeTransactionVisiblePopulation(t *testing.T) {
 		t.Fatal("repeated target capture reused scratch or mutated retained facts")
 	}
 	enginetest.SessionSQL(t, s, "COMMIT")
-	if analyzeFacts(e, firstRef.Address).Columns[firstKey] != latest || analyzeFacts(e, secondRef.Address).Columns[secondKey].Rows != 2 {
+	if enginetest.AnalyzeFacts(e, firstRef.Address).Columns[firstKey] != latest || enginetest.AnalyzeFacts(e, secondRef.Address).Columns[secondKey].Rows != 2 {
 		t.Fatal("completion lost actual multi-target private publications")
 	}
 	enginetest.LockEmpty(t, e)
@@ -337,11 +337,11 @@ func TestAnalyzePartitionMetadataOwnership(t *testing.T) {
 	// a physical heap merely to retain its later ANALYZE publication.
 	enginetest.SessionSQL(t, s, "CREATE TABLE analyze_parent_owner(a INT) PARTITION BY RANGE(a)")
 	parentRef := enginetest.CatalogRef(t, e, e.CatalogRead(), "analyze_parent_owner")
-	if e.Storage.Relations[parentRef.Address] != nil || analyzeFacts(e, parentRef.Address) != nil {
+	if e.Storage.Relations[parentRef.Address] != nil || enginetest.AnalyzeFacts(e, parentRef.Address) != nil {
 		t.Fatal("partition parent creation fabricated a heap or planner facts")
 	}
 	enginetest.SessionSQL(t, s, "CREATE TABLE analyze_leaf_owner PARTITION OF analyze_parent_owner FOR VALUES FROM(0) TO(10)")
-	leafRef, leaf := vacuumStore(t, e, "analyze_leaf_owner")
+	leafRef, leaf := enginetest.VacuumStore(t, e, "analyze_leaf_owner")
 	if leafRef == parentRef || leaf.Maintenance.FrozenXID == 0 {
 		t.Fatal("partition leaf did not receive independent physical storage")
 	}
@@ -364,17 +364,10 @@ func TestAnalyzePartitionMetadataOwnership(t *testing.T) {
 	if e.Storage.Relations[parentRef.Address] != nil || parent.AnalyzeCount != 1 || !parent.InheritedScanned || parent.InheritedTuples != 4 {
 		t.Fatal("parent collection fabricated physical storage or omitted successful collection")
 	}
-	if analyzeFacts(e, leafRef.Address) != nil || leaf.Maintenance != leafMaintenance || leaf.Maintenance.Scanned {
+	if enginetest.AnalyzeFacts(e, leafRef.Address) != nil || leaf.Maintenance != leafMaintenance || leaf.Maintenance.Scanned {
 		t.Fatal("ONLY parent collection independently analyzed descendant storage")
 	}
 	enginetest.LockEmpty(t, e)
-}
-
-func analyzeFacts(e *core.Engine, address ids.ObjectAddress) *storage.RelationStatistics {
-	if metadata := e.Storage.RelationMetadata[address]; metadata != nil {
-		return metadata.Statistics
-	}
-	return nil
 }
 
 func TestAnalyzePrivateMetadataOwnership(t *testing.T) {

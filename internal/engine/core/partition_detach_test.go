@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -35,7 +34,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 
 func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.OID) *catalog.Relation {
 	t.Helper()
-	d := inheritanceUnitRelation(e, name, id, "k")
+	d := enginetest.InheritanceUnitRelation(e, name, id, "k")
 	d.RelationKind = catalog.PartitionedRelation
 	d.TableMethod = 0
 	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
@@ -44,18 +43,6 @@ func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.O
 		t.Fatal(err)
 	}
 	d.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
-	return d
-}
-
-func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
-	d.TableMethod = 2
-	for i, name := range names {
-		d.Index[name] = i
-		d.Attributes = append(d.Attributes, int32(i+1))
-		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
-	}
-	d.ColumnMeta.HighWater = int32(len(names))
 	return d
 }
 

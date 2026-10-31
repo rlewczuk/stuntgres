@@ -32,14 +32,14 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				if defaults {
 					f := newDefaultUnitFixture(t)
 					e, op, reader = f.e, f.op, f.reader
-					first = defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
-					second = defaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
+					first = enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+					second = enginetest.DefaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
 					firstKey = catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 					peerKey = catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}
 				} else {
 					e, op, reader, address = objectGrantUnitFixture(t)
 					first = objectGrantUnitRequest()
-					second = defaultUnitStatement("tables", "select", nil, nil, []string{"grant_reader"})
+					second = enginetest.DefaultUnitStatement("tables", "select", nil, nil, []string{"grant_reader"})
 					peerKey = catalog.DefaultACLKey{Creator: op.RoleState().CurrentUser, Class: authorization.DefaultTables}
 				}
 				peer, done := enginetest.RoleOperation(t, e, "postgres")
@@ -154,19 +154,19 @@ func TestTransactionalPrivilegesPendingPrivateAuthority(t *testing.T) {
 				if defaults {
 					f := newDefaultUnitFixture(t)
 					e, op, reader = f.e, f.op, f.reader
-					initial = defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
-					next := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+					initial = enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
+					next := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
 					next.GrantOption = true
 					pending = next
 					key = catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-					second = defaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
+					second = enginetest.DefaultUnitStatement("sequences", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
 				} else {
 					e, op, reader, address = objectGrantUnitFixture(t)
 					initial = objectGrantUnitRequest()
 					next := objectGrantUnitRequest()
 					next.GrantOption = true
 					pending = next
-					second = defaultUnitStatement("tables", "select", nil, nil, []string{"grant_reader"})
+					second = enginetest.DefaultUnitStatement("tables", "select", nil, nil, []string{"grant_reader"})
 				}
 				peer, done := enginetest.RoleOperation(t, e, "postgres")
 				defer done()

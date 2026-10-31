@@ -23,7 +23,7 @@ func pruningSelection(t *testing.T, e *core.Engine, query string, parameters []s
 	defer done()
 	// These preexisting proof cases exercise all constraint facts explicitly.
 	op.ConstraintExclusion = "on"
-	bound, source, release := hashCaptureQuery(t, e, op, query)
+	bound, source, release := enginetest.HashCaptureQuery(t, e, op, query)
 	defer release()
 	project := bound.Root.(*plan.ProjectNode)
 	filter := project.Child.(*plan.FilterNode)

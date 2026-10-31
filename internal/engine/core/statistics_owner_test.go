@@ -18,11 +18,11 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 	for _, expression := range []bool{false, true} {
 		t.Run(map[bool]string{false: "keys", true: "expression"}[expression], func(t *testing.T) {
 			e, rel := statisticsUnitEngine(t)
-			aclUnitRoles(e, "statistics_recipient")
+			enginetest.AclUnitRoles(e, "statistics_recipient")
 			recipient := e.Roles().LookupRef("statistics_recipient")
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			syntax := statisticsUnitCreate()
+			syntax := enginetest.StatisticsUnitCreate()
 			if expression {
 				parsed, err := parser.Parse("CREATE STATISTICS statistics_definition ON (a+1),c FROM statistics_input")
 				if err != nil {
@@ -30,11 +30,11 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 				}
 				syntax = parsed[0].(*parser.CreateStatistics)
 			}
-			stage, err := statisticsUnitStage(t, e, op, syntax)
+			stage, err := enginetest.StatisticsUnitStage(t, e, op, syntax)
 			if err != nil {
 				t.Fatal(err)
 			}
-			old := statisticsUnitDescriptor(t, stage)
+			old := enginetest.StatisticsUnitDescriptor(t, stage)
 			enginetest.PublishOperationStage(t, e, op, stage)
 			e.DiscardCatalogStage(stage)
 			captured := e.CatalogRead()
@@ -85,7 +85,7 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 			state.BindName(catalog.DescriptorNameKey(ns), ns.Address())
 			e.Catalog.PublishLocked(state)
 			e.Mu.Unlock()
-			name := configName(old.Name())
+			name := enginetest.ConfigName(old.Name())
 			for _, action := range []string{"rename", "schema", "owner", "target", "default"} {
 				before := e.CatalogRead()
 				previous, _ := before.Statistics(old.Address())
@@ -101,7 +101,7 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 				switch action {
 				case "rename":
 					err = ddl.StageRenameStatistics(host, auth, &parser.AlterStatisticsRename{Name: name, NewName: parser.Identifier{Text: "statistics_renamed"}})
-					name = configName("statistics_renamed")
+					name = enginetest.ConfigName("statistics_renamed")
 				case "schema":
 					err = ddl.StageStatisticsNamespace(host, auth, &parser.AlterStatisticsSchema{Name: name, Schema: parser.Identifier{Text: ns.Name()}})
 					name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: "statistics_renamed"}}}
@@ -116,7 +116,7 @@ func TestStatisticsAlterDescriptorPreservation(t *testing.T) {
 				if err != nil {
 					t.Fatal(action, err)
 				}
-				changed := statisticsUnitDescriptor(t, next)
+				changed := enginetest.StatisticsUnitDescriptor(t, next)
 				if changed.Address() != old.Address() || changed.Relation != old.Relation || changed.Selection != old.Selection || changed.Expressions != old.Expressions || changed.Revision() <= previous.Revision() {
 					t.Fatal("metadata COW replaced definition identity", action)
 				}

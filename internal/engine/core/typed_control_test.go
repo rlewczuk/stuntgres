@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -73,7 +74,7 @@ func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	next := catalog.CloneState(imported.Catalog.State)
 	relations := map[ids.ObjectAddress]*storage.Relation{}
 	e.Mu.Lock()
-	err := core.EnginePreserveTemporaryLocked(e, context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(imported, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	err := core.EnginePreserveTemporaryLocked(e, context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, enginetest.ReplacementProcedurePolicyFixture(imported, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

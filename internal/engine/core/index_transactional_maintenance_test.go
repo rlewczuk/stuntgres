@@ -268,7 +268,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			}
 			btreeWantKeys(t, e, "ix", "1", "2", "3")
 			btreeWantKeys(t, e, "sibling", "3", "2", "1")
-			if !reflect.DeepEqual(btreeKeys(t, newSibling), []string{"2", "1"}) {
+			if !reflect.DeepEqual(enginetest.BtreeKeys(t, newSibling), []string{"2", "1"}) {
 				t.Fatal("combined publication mutated newest retained peer root")
 			}
 			enginetest.LockEmpty(t, e)

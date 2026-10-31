@@ -13,13 +13,13 @@ func TestPlannerOtherStatisticsTarget(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE other_stats(n integer)", "CREATE TABLE other_stats_child() INHERITS(other_stats)", "INSERT INTO other_stats VALUES(1),(1),(1),(1),(2),(2),(2),(3),(3),(4)", "INSERT INTO other_stats_child VALUES(1),(1),(1),(1),(2),(2),(2),(3),(3),(4)", "SET default_statistics_target=1", "ANALYZE other_stats"} {
-		plannerCostCommand(t, s, q)
+		enginetest.PlannerCostCommand(t, s, q)
 	}
-	ref, _ := vacuumStore(t, e, "other_stats")
+	ref, _ := enginetest.VacuumStore(t, e, "other_stats")
 	relation := e.CatalogRead().MustRelation(ref.Address)
-	old := analyzeFacts(e, ref.Address)
+	old := enginetest.AnalyzeFacts(e, ref.Address)
 	check := func(want int) {
-		facts := analyzeFacts(e, ref.Address)
+		facts := enginetest.AnalyzeFacts(e, ref.Address)
 		for _, inherited := range []bool{false, true} {
 			key := storage.StatisticsKey{Attribute: relation.Attributes[0], Inherited: inherited}
 			fact := facts.Columns[key]
@@ -43,8 +43,8 @@ func TestPlannerOtherStatisticsTarget(t *testing.T) {
 		}
 	}
 	check(1)
-	plannerCostCommand(t, s, "SET default_statistics_target=3")
-	if analyzeFacts(e, ref.Address) != old {
+	enginetest.PlannerCostCommand(t, s, "SET default_statistics_target=3")
+	if enginetest.AnalyzeFacts(e, ref.Address) != old {
 		t.Fatal("SET rewrote collected facts")
 	}
 	// Capture target3, then mutate the live store to1 before executing ANALYZE.

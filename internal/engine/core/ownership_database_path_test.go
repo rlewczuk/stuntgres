@@ -22,12 +22,12 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := cloneRoleFixture(auth.RoleRecord)
-	bootstrap := fixtureRole(roles, auth.State.CurrentUser)
+	roles := enginetest.CloneRoleFixture(auth.RoleRecord)
+	bootstrap := enginetest.FixtureRole(roles, auth.State.CurrentUser)
 	bootstrap.Superuser = false
-	putFixtureRole(roles, bootstrap)
+	enginetest.PutFixtureRole(roles, bootstrap)
 	successor := e.RoleStore.Domain.Principal(100001)
-	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
+	enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
 	before := catalog.CloneState(auth.Catalog.State())
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)

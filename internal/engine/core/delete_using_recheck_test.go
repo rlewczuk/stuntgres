@@ -59,7 +59,7 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 		enginetest.SessionSQL(t, writer, q)
 	}
 	tx := enginetest.TransactionBegin(t, writer)
-	deleteCount(t, writer, "DELETE FROM t USING s WHERE t.id=s.k", 1)
+	enginetest.DeleteCount(t, writer, "DELETE FROM t USING s WHERE t.id=s.k", 1)
 	target := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 	source := enginetest.CatalogRef(t, e, e.CatalogRead(), "s")
 	lockState := e.Locks.Inspect()

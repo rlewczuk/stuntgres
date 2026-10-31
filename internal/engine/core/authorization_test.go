@@ -49,7 +49,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE USER owner")
 	enginetest.RoleExecute(t, e, op, "CREATE USER reader")
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	withPublicSchemaUnitOwner(t, e, "owner", func() { enginetest.RoleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT,c INT)") })
+	enginetest.WithPublicSchemaUnitOwner(t, e, "owner", func() { enginetest.RoleExecute(t, e, op, "CREATE TABLE secret(a INT,b INT,c INT)") })
 	enginetest.RoleExecute(t, e, op, "INSERT INTO secret VALUES(7,8,9)")
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
@@ -155,7 +155,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 		enginetest.RoleExecute(t, pair.e, pair.op, "CREATE USER reader")
 	}
 	enginetest.RoleExecute(t, source, a, "SET SESSION AUTHORIZATION owner")
-	withPublicSchemaUnitOwner(t, source, "owner", func() { enginetest.RoleExecute(t, source, a, "CREATE TABLE secret(id INT)") })
+	enginetest.WithPublicSchemaUnitOwner(t, source, "owner", func() { enginetest.RoleExecute(t, source, a, "CREATE TABLE secret(id INT)") })
 	enginetest.RoleExecute(t, source, a, "INSERT INTO secret VALUES(7)")
 	ref := roleTableRef(t, source, "secret")
 	owner := a.RoleState().CurrentUser
@@ -544,7 +544,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE USER owner")
 	enginetest.RoleExecute(t, e, op, "CREATE USER reader")
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-	withPublicSchemaUnitOwner(t, e, "owner", func() { enginetest.RoleExecute(t, e, op, "CREATE TABLE secret(id INT)") })
+	enginetest.WithPublicSchemaUnitOwner(t, e, "owner", func() { enginetest.RoleExecute(t, e, op, "CREATE TABLE secret(id INT)") })
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")

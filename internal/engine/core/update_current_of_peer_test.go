@@ -59,7 +59,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				}
 				return storage.RowVersion{}
 			}
-			deleteCount(t, owner, "UPDATE t SET v='owner' WHERE CURRENT OF c", 1)
+			enginetest.DeleteCount(t, owner, "UPDATE t SET v='owner' WHERE CURRENT OF c", 1)
 			if c.CurrentSource != source || c.CurrentIndex != index || core.CursorRoot(c) != root || c.Place != exec.CursorOn || core.CursorAuthority(c).Host != nil {
 				t.Fatal("positioned owner replaced or advanced borrowed cursor authority")
 			}
@@ -69,7 +69,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			if got := enginetest.Tuples(enginetest.SessionSQL(t, owner, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"owner"}}) {
 				t.Fatal("positioned owner's private value", got)
 			}
-			deleteCount(t, peer, "UPDATE t SET v='other' WHERE id=2", 1)
+			enginetest.DeleteCount(t, peer, "UPDATE t SET v='other' WHERE id=2", 1)
 			if got := enginetest.Tuples(enginetest.SessionSQL(t, peer, "SELECT v FROM t WHERE id=1")); !reflect.DeepEqual(got, [][]driver.Value{{"one"}}) {
 				t.Fatal("peer's precommit committed value", got)
 			}

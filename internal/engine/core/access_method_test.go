@@ -7,40 +7,16 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
 
-func accessMethodUnit(t *testing.T, e *core.Engine, name string, native catalog.NativeAccessMethod, handler ids.OID) *catalog.AccessMethod {
-	t.Helper()
-	return &catalog.AccessMethod{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, ObjectName: name, Native: native, Handler: handler}
-}
-func accessMethodPublish(t *testing.T, e *core.Engine, definitions ...catalog.Descriptor) catalog.Read {
-	t.Helper()
-	base := e.CatalogRead()
-	stage := e.BeginCatalogStage(base)
-	defer e.DiscardCatalogStage(stage)
-	for _, d := range definitions {
-		if err := stage.Create(d); err != nil {
-			t.Fatal(err)
-		}
-	}
-	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
-		t.Fatal(err)
-	}
-	return e.CatalogRead()
-}
 func TestAccessMethodDescriptor(t *testing.T) {
 	e := engine.New()
 	before := e.CatalogRead()
-	m := accessMethodUnit(t, e, "am_descriptor", catalog.BtreeAccessMethod, 330)
-	view := accessMethodPublish(t, e, m)
+	m := enginetest.AccessMethodUnit(t, e, "am_descriptor", catalog.BtreeAccessMethod, 330)
+	view := enginetest.AccessMethodPublish(t, e, m)
 	if _, exists := before.LookupAccessMethod(m.Name()); exists {
 		t.Fatal("old catalog changed")
 	}
@@ -53,7 +29,7 @@ func TestAccessMethodDescriptor(t *testing.T) {
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	duplicate := *m
-	duplicate.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	duplicate.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	if err := stage.Create(&duplicate); err == nil {
 		t.Fatal("global name collision admitted")
 	}
@@ -76,7 +52,7 @@ func TestAccessMethodDescriptor(t *testing.T) {
 	}
 	candidate := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(candidate)
-	canceled := accessMethodUnit(t, e, "am_canceled", catalog.BtreeAccessMethod, 330)
+	canceled := enginetest.AccessMethodUnit(t, e, "am_canceled", catalog.BtreeAccessMethod, 330)
 	if err := candidate.Create(canceled); err != nil {
 		t.Fatal(err)
 	}

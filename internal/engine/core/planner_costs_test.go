@@ -20,25 +20,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Unlike the generic internal SQL fixture this goes through command admission.
-// SQL results are reference-tested; these tests inspect retained runtime owners.
-func plannerCostCommand(t *testing.T,s *session.Session,q string) core.Result {
-	t.Helper()
-	op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer op.Done()
-	r,err:=core.EngineOf(s).Execute(op,enginetest.Statement(t,q),0,nil); if err!=nil { t.Fatal(q,err) }
-	if r.Rows!=nil { t.Cleanup(func(){r.Rows.Close()}) }
-	return r
-}
-
 func TestPlannerCostsHashExecution(t *testing.T) {
 	e:=engine.New(); s:=enginetest.StartSession(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE t(n INT,s TEXT)","INSERT INTO t VALUES(2,'b'),(1,'a'),(2,'b'),(NULL,NULL),(3,'c')","CREATE INDEX planner_cost_hash_z ON t USING hash(n)","CREATE INDEX planner_cost_hash_a ON t USING hash(n)"} { plannerCostCommand(t,s,q) }
+	for _,q:=range []string{"CREATE TABLE t(n INT,s TEXT)","INSERT INTO t VALUES(2,'b'),(1,'a'),(2,'b'),(NULL,NULL),(3,'c')","CREATE INDEX planner_cost_hash_z ON t USING hash(n)","CREATE INDEX planner_cost_hash_a ON t USING hash(n)"} { enginetest.PlannerCostCommand(t,s,q) }
 	selected,root:=hashRoot(t,e,"planner_cost_hash_z")
 	alternative,otherRoot:=hashRoot(t,e,"planner_cost_hash_a")
 	// Creation identity order deliberately opposes lexical name order.
 	if selected.Address().ObjectID>=alternative.Address().ObjectID || selected.Name()<=alternative.Name() || root==otherRoot { t.Fatal("competing-index fixture lacks distinguishing identities") }
 	for _,analyzed:=range []bool{false,true} {
-	if analyzed { plannerCostCommand(t,s,"ANALYZE t") }
+	if analyzed { enginetest.PlannerCostCommand(t,s,"ANALYZE t") }
 	for _,tc:=range []struct{value,label,seq,index string; hash bool}{
 		{"0.005","Hash Candidates","on","on",true},
 		{"1000000","Full Scan","on","on",false},
@@ -46,10 +36,10 @@ func TestPlannerCostsHashExecution(t *testing.T) {
 		{"1000000","Full Scan","off","off",false},
 		{"0.005","Hash Candidates","on","on",true},
 	} {
-		plannerCostCommand(t,s,"SET cpu_index_tuple_cost='"+tc.value+"'")
-		plannerCostCommand(t,s,"SET enable_seqscan="+tc.seq)
-		plannerCostCommand(t,s,"SET enable_indexscan="+tc.index)
-		r:=plannerCostCommand(t,s,"EXPLAIN SELECT n FROM t WHERE n=2")
+		enginetest.PlannerCostCommand(t,s,"SET cpu_index_tuple_cost='"+tc.value+"'")
+		enginetest.PlannerCostCommand(t,s,"SET enable_seqscan="+tc.seq)
+		enginetest.PlannerCostCommand(t,s,"SET enable_indexscan="+tc.index)
+		r:=enginetest.PlannerCostCommand(t,s,"EXPLAIN SELECT n FROM t WHERE n=2")
 		var text strings.Builder
 		for _,row:=range enginetest.Tuples(r) { text.WriteString(row[0].(string)); text.WriteByte('\n') }
 		if !strings.Contains(text.String(),"Access Method: "+tc.label) { t.Fatal(text.String()) }
@@ -70,7 +60,7 @@ func TestPlannerCostsHashExecution(t *testing.T) {
 			parent=cost
 		}
 		op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }
-		query,source,release:=hashCaptureQuery(t,e,op,"SELECT n FROM t WHERE n=2")
+		query,source,release:=enginetest.HashCaptureQuery(t,e,op,"SELECT n FROM t WHERE n=2")
 		if len(source.HashIndexes)!=2 || source.HashIndexes[0].Address!=selected.Address() || source.HashIndexes[0].Name!="planner_cost_hash_z" || source.HashIndexes[0].Root!=root || source.HashIndexes[1].Address!=alternative.Address() || source.HashIndexes[1].Name!="planner_cost_hash_a" || source.HashIndexes[1].Root!=otherRoot { t.Fatal("admitted competing indexes lost identity order",source.HashIndexes) }
 		stage:=hashFilterStage(t,query,source,nil)
 		if tc.hash {
@@ -97,9 +87,9 @@ func TestPlannerSeqscanRetainedAdmission(t *testing.T) {
 		"CREATE INDEX seqscan_retained_hash ON t USING hash(n)",
 		"SET cpu_index_tuple_cost=1000000",
 		"SET enable_seqscan=off",
-	} { plannerCostCommand(t,s,q) }
+	} { enginetest.PlannerCostCommand(t,s,q) }
 	op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer op.Done()
-	query,source,release:=hashCaptureQuery(t,e,op,"SELECT n FROM t WHERE n=2")
+	query,source,release:=enginetest.HashCaptureQuery(t,e,op,"SELECT n FROM t WHERE n=2")
 	exec.AdmitScan(query.Root,source)
 	state:=&exec.State{Source:source,HashFilter:exec.HashQueryFilter(query.Root),Frame:query.Root.(*plan.ProjectNode).Frame}
 	scope:=core.ScopeOf(source.LiveHost())
@@ -133,7 +123,7 @@ func TestPlannerSeqscanRetainedAdmission(t *testing.T) {
 	if source.ScanDecision!=decision || source.HashIndexes[0].Root!=root { t.Fatal("opening changed retained decision/root") }
 	release(); op.Done()
 	next,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer next.Done()
-	nextQuery,nextSource,nextRelease:=hashCaptureQuery(t,e,next,"SELECT n FROM t WHERE n=2")
+	nextQuery,nextSource,nextRelease:=enginetest.HashCaptureQuery(t,e,next,"SELECT n FROM t WHERE n=2")
 	nextStage:=hashFilterStage(t,nextQuery,nextSource,nil)
 	if nextSource.ScanDecision.Method!=plan.FullScan || nextStage.HashCandidates!=nil || !next.PlannerMethods.NoIndexScan || next.PlannerMethods.NoSeqScan || nextSource.PlannerCosts.IndexTuple!=.005 || len(nextSource.HashIndexes)!=1 || nextSource.HashIndexes[0].Root!=root {
 		t.Fatal("new implicit admission missed changed policy or lost safe root",nextSource.ScanDecision,next.PlannerMethods)
@@ -144,10 +134,10 @@ func TestPlannerSeqscanRetainedAdmission(t *testing.T) {
 
 func TestPlannerSeqscanRequiredFallback(t *testing.T) {
 	e:=engine.New(); s:=enginetest.StartSession(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE t(n INT,s TEXT)","INSERT INTO t VALUES(2,'b'),(2,'b'),(NULL,NULL)","CREATE INDEX seqscan_safe_hash ON t USING hash(n)","SET enable_seqscan=off","SET cpu_index_tuple_cost=1000000"} { plannerCostCommand(t,s,q) }
+	for _,q:=range []string{"CREATE TABLE t(n INT,s TEXT)","INSERT INTO t VALUES(2,'b'),(2,'b'),(NULL,NULL)","CREATE INDEX seqscan_safe_hash ON t USING hash(n)","SET enable_seqscan=off","SET cpu_index_tuple_cost=1000000"} { enginetest.PlannerCostCommand(t,s,q) }
 	for _,q:=range []string{"SELECT n FROM t WHERE s='b'","SELECT n FROM t WHERE n IS NULL"} {
 		op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }
-		query,source,release:=hashCaptureQuery(t,e,op,q)
+		query,source,release:=enginetest.HashCaptureQuery(t,e,op,q)
 		stage:=hashFilterStage(t,query,source,nil)
 		if len(source.HashIndexes)!=1 || source.ScanDecision.Method!=plan.FullScan || stage.HashCandidates!=nil { t.Fatal("seqscan off fabricated an eligible index",source.ScanDecision,stage.HashCandidates) }
 		if err:=stage.Drain(context.Background()); err!=nil { t.Fatal(err) }
@@ -157,13 +147,13 @@ func TestPlannerSeqscanRequiredFallback(t *testing.T) {
 
 func TestPlannerCostsAdmission(t *testing.T) {
 	e:=engine.New(); s:=enginetest.StartSession(t,e,nil)
-	plannerCostCommand(t,s,"SET cpu_tuple_cost='1.25'")
+	enginetest.PlannerCostCommand(t,s,"SET cpu_tuple_cost='1.25'")
 	op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }
 	admitted:=op.PlannerCosts
 	s.Settings.Mu.Lock(); s.Settings.Values["cpu_tuple_cost"]="2"; s.Settings.Typed["cpu_tuple_cost"]=settings.Value{Number:2}; s.Settings.Mu.Unlock()
 	if admitted.Tuple!=1.25 || op.PlannerCosts!=admitted { t.Fatal("mutable admission",admitted,op.PlannerCosts) }; op.Done()
 	next,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; if next.PlannerCosts.Tuple!=2 { t.Fatal(next.PlannerCosts) }; next.Done()
-	for _,q:=range []string{"CREATE TABLE t(n INT)","INSERT INTO t VALUES(1),(2)","SET cpu_tuple_cost='0.01'"} { plannerCostCommand(t,s,q) }
+	for _,q:=range []string{"CREATE TABLE t(n INT)","INSERT INTO t VALUES(1),(2)","SET cpu_tuple_cost='0.01'"} { enginetest.PlannerCostCommand(t,s,q) }
 	ast,d:=enginetest.PreparedDescription(t,e,s,"SELECT n FROM t")
 	execute:=func(want float64) {
 		op,_,err:=s.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }; defer op.Done()
@@ -172,34 +162,34 @@ func TestPlannerCostsAdmission(t *testing.T) {
 		rows:=r.Rows.(*exec.FinalRows)
 		if rows.Source==nil || rows.Source.PlannerCosts.Tuple!=want { t.Fatal("prepared retained old admission",rows.Source,want) }
 	}
-	execute(.01); plannerCostCommand(t,s,"SET cpu_tuple_cost='1.25'"); execute(1.25)
-	plannerCostCommand(t,s,"BEGIN"); plannerCostCommand(t,s,"SAVEPOINT costs")
-	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=3"); execute(3)
-	plannerCostCommand(t,s,"DECLARE costs_cursor NO SCROLL CURSOR FOR SELECT n FROM t")
+	execute(.01); enginetest.PlannerCostCommand(t,s,"SET cpu_tuple_cost='1.25'"); execute(1.25)
+	enginetest.PlannerCostCommand(t,s,"BEGIN"); enginetest.PlannerCostCommand(t,s,"SAVEPOINT costs")
+	enginetest.PlannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=3"); execute(3)
+	enginetest.PlannerCostCommand(t,s,"DECLARE costs_cursor NO SCROLL CURSOR FOR SELECT n FROM t")
 	cursor:=core.PayloadOf(s).Cursors.Entries["costs_cursor"]
 	costs,decision:=cursor.Source.PlannerCosts,cursor.Source.ScanDecision
-	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=4")
+	enginetest.PlannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=4")
 	if cursor.Source.PlannerCosts!=costs || cursor.Source.ScanDecision!=decision || costs.Tuple!=3 { t.Fatal("retained cursor borrowed settings") }
-	plannerCostCommand(t,s,"CLOSE costs_cursor"); plannerCostCommand(t,s,"ROLLBACK TO costs"); execute(1.25); plannerCostCommand(t,s,"ROLLBACK")
-	plannerCostCommand(t,s,"BEGIN")
+	enginetest.PlannerCostCommand(t,s,"CLOSE costs_cursor"); enginetest.PlannerCostCommand(t,s,"ROLLBACK TO costs"); execute(1.25); enginetest.PlannerCostCommand(t,s,"ROLLBACK")
+	enginetest.PlannerCostCommand(t,s,"BEGIN")
 	cycle:=s.NewProtocolCycle()
 	command:=func(fn func(*core.StatementScope)error){enginetest.PreparedFoldProtocolCommand(t,e,s,cycle,fn)}
 	command(func(scope *core.StatementScope)error{_,err:=scope.ParseProtocol("cost_definition","SELECT n FROM t",nil);return err})
-	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=5")
+	enginetest.PlannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=5")
 	command(func(scope *core.StatementScope)error{_,err:=scope.BindProtocolPortal("cost_portal","cost_definition",&enginetest.ProtocolReader{Data:[]byte{0,0,0,0,0,0}});return err})
 	portal:=core.ProtocolPortalOf(core.PayloadOf(s).PreparedSQL.Binding("cost_portal"))
 	producer:=core.PortalProducer(portal)
 	if producer==nil || producer.Source.PlannerCosts.Tuple!=5 {t.Fatal("portal missed opening admission")}
 	portalSource:=producer.Source
 	portalDecision:=portalSource.ScanDecision
-	plannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=6")
+	enginetest.PlannerCostCommand(t,s,"SET LOCAL cpu_tuple_cost=6")
 	command(func(scope *core.StatementScope)error{
 		_,err:=scope.ExecuteProtocolPortal("cost_portal",1,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{})
 		return err
 	})
 	if producer.Source!=portalSource || portalSource.PlannerCosts.Tuple!=5 || portalSource.ScanDecision!=portalDecision {t.Fatal("portal resume recaptured settings/source")}
 	command(func(scope *core.StatementScope)error{return scope.CloseProtocolPortal("cost_portal")})
-	plannerCostCommand(t,s,"ROLLBACK")
+	enginetest.PlannerCostCommand(t,s,"ROLLBACK")
 	// A retained decision cannot contain any source graph, store or owner pointer.
 	typ:=reflect.TypeFor[plan.ScanDecision]()
 	for i:=range typ.NumField() { k:=typ.Field(i).Type.Kind(); if k==reflect.Pointer || k==reflect.Interface || k==reflect.Map || k==reflect.Slice { t.Fatal("decision retains authority",typ.Field(i)) } }

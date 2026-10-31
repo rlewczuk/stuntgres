@@ -52,7 +52,7 @@ func TestDeferredUniqueEventOwnership(t *testing.T) {
 	if e.Exclusions.CountLocked() != 0 {
 		t.Fatal("completed unique projections retained")
 	}
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestDeferredForeignKeyEventOwnership(t *testing.T) {

@@ -95,7 +95,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 				}
 				var statement parser.Statement
 				if defaults {
-					statement = defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{granteeName})
+					statement = enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{granteeName})
 				} else {
 					request := objectGrantUnitRequest()
 					request.Grantees = []parser.GrantGrantee{{Role: parser.RoleSpec{Name: granteeName}}}

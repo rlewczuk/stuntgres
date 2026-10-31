@@ -18,9 +18,9 @@ func TestAlterAccessMethodProvider(t *testing.T) {
 	e:=engine.New();s:=enginetest.StartSession(t,e,nil)
 	enginetest.SessionSQL(t,s,"CREATE TABLE method_provider(id int)")
 	original:=e.CatalogRead()
-	relation:=primaryKeyUnitRelation(t,e,"method_provider")
-	method:=accessMethodUnit(t,e,"method_provider_heap",catalog.HeapAccessMethod,3)
-	read:=accessMethodPublish(t,e,method)
+	relation:=enginetest.PrimaryKeyUnitRelation(t,e,"method_provider")
+	method:=enginetest.AccessMethodUnit(t,e,"method_provider_heap",catalog.HeapAccessMethod,3)
+	read:=enginetest.AccessMethodPublish(t,e,method)
 	alias:=*relation;alias.TableMethod=method.Address().ObjectID
 	if err:=catalog.ValidateRelationTableMethod(read,&alias);err!=nil {t.Fatal(err)}
 	builtin,err:=visibility.ResolveHeapAccess(read,2);if err!=nil {t.Fatal(err)}
@@ -59,11 +59,11 @@ func TestAlterAccessMethodPublication(t *testing.T) {
 	t.Run("metadata-and-noop",func(t *testing.T) {
 		e:=engine.New();s:=enginetest.StartSession(t,e,nil)
 		for _,q:=range []string{"CREATE TABLE method_publish(id int PRIMARY KEY,note text)","CREATE ACCESS METHOD method_publish_heap TYPE TABLE HANDLER heap_tableam_handler","INSERT INTO method_publish VALUES(7,'keep')"} {enginetest.SessionSQL(t,s,q)}
-		read:=e.CatalogRead();old:=primaryKeyUnitRelation(t,e,"method_publish");saved:=*old
+		read:=e.CatalogRead();old:=enginetest.PrimaryKeyUnitRelation(t,e,"method_publish");saved:=*old
 		store:=e.Storage.Relations[old.Address()];versions,ends:=store.Versions,store.Ends
-		idx:=primaryKeyUnitRelation(t,e,"method_publish_pkey");root:=e.Storage.IndexRoots[idx.Address()]
+		idx:=enginetest.PrimaryKeyUnitRelation(t,e,"method_publish_pkey");root:=e.Storage.IndexRoots[idx.Address()]
 		enginetest.SessionSQL(t,s,"ALTER TABLE method_publish SET ACCESS METHOD method_publish_heap")
-		next:=primaryKeyUnitRelation(t,e,"method_publish")
+		next:=enginetest.PrimaryKeyUnitRelation(t,e,"method_publish")
 		if next==old || next.Revision()<=old.Revision() || next.TableMethod==old.TableMethod || !reflect.DeepEqual(*old,saved) || read.Get(old.Address())!=old {t.Fatal("immutable method revision transition")}
 		if next.RowType!=old.RowType || next.Owner!=old.Owner || &next.Columns[0]!=&old.Columns[0] || &next.Attributes[0]!=&old.Attributes[0] || !reflect.DeepEqual(next.ColumnMeta,old.ColumnMeta) || !reflect.DeepEqual(next.Security,old.Security) || !reflect.DeepEqual(next.Constraints,old.Constraints) {t.Fatal("unrelated definition changed")}
 		if e.Storage.Relations[old.Address()]!=store || &store.Versions[0]!=&versions[0] || store.Ends!=ends || e.Storage.IndexRoots[idx.Address()]!=root || e.CatalogRead().Get(idx.Address())!=idx {t.Fatal("logical method transition rewrote physical backing")}
@@ -79,7 +79,7 @@ func TestAlterAccessMethodPublication(t *testing.T) {
 	t.Run("cancel-before-finish",func(t *testing.T) {
 		e:=engine.New();s:=enginetest.StartSession(t,e,nil)
 		for _,q:=range []string{"CREATE TABLE method_cancel(id int)","CREATE ACCESS METHOD method_cancel_heap TYPE TABLE HANDLER heap_tableam_handler"} {enginetest.SessionSQL(t,s,q)}
-		before:=e.CatalogRead();old:=primaryKeyUnitRelation(t,e,"method_cancel");store:=e.Storage.Relations[old.Address()]
+		before:=e.CatalogRead();old:=enginetest.PrimaryKeyUnitRelation(t,e,"method_cancel");store:=e.Storage.Relations[old.Address()]
 		ctx,cancel:=context.WithCancel(t.Context());defer cancel()
 		op,err:=s.Acquire(ctx);if err!=nil {t.Fatal(err)};defer op.Done()
 		scope,err:=e.StartStatement(op);if err!=nil {t.Fatal(err)}
@@ -113,9 +113,9 @@ func TestAlterAccessMethodPublication(t *testing.T) {
 		for _,sameIdentity:=range []bool{false,true} {
 			e:=engine.New();s:=enginetest.StartSession(t,e,nil)
 			enginetest.SessionSQL(t,s,"CREATE TABLE method_original(id int)")
-			original:=primaryKeyUnitRelation(t,e,"method_original")
-			method:=accessMethodUnit(t,e,"method_original_heap",catalog.HeapAccessMethod,3)
-			read:=accessMethodPublish(t,e,method)
+			original:=enginetest.PrimaryKeyUnitRelation(t,e,"method_original")
+			method:=enginetest.AccessMethodUnit(t,e,"method_original_heap",catalog.HeapAccessMethod,3)
+			read:=enginetest.AccessMethodPublish(t,e,method)
 			stage:=e.BeginCatalogStage(read)
 			next:=*original;next.TableMethod=method.Address().ObjectID;next.ObjectRevision++
 			if err:=stage.Replace(&next);err!=nil {t.Fatal(err)}
@@ -148,7 +148,7 @@ func TestAlterAccessMethodAdmissionJournal(t *testing.T) {
 	defer scope.Finish(nil)
 	if err := scope.Gate(enginetest.Statement(t, "INSERT INTO method_admission VALUES(1)")); err != nil { t.Fatal(err) }
 	before := scope.PendingCatalog()
-	relation := primaryKeyUnitRelation(t, e, "method_admission")
+	relation := enginetest.PrimaryKeyUnitRelation(t, e, "method_admission")
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), relation.Address())
 	got, read, err := scope.WriteHost().UniqueParent(ref)
 	if err != nil || got != relation || scope.PendingCatalog() != before || scope.Catalog != nil {

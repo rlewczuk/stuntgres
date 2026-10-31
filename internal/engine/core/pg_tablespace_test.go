@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -115,10 +116,10 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	e := engine.New()
 	_, retained := pgTablespaceUnitCapture(t, e)
 	initial := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
-	roles := cloneRoleFixture(e.RoleStore.Published)
-	r := fixtureRole(roles, initial)
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	r := enginetest.FixtureRole(roles, initial)
 	r.Name = "renamed_initial"
-	putFixtureRole(roles, r)
+	enginetest.PutFixtureRole(roles, r)
 	e.RoleStore.PublishLocked(roles)
 	d, renamed := pgTablespaceUnitCapture(t, e)
 	if d.Owner != initial {
@@ -138,10 +139,10 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	// A source with matching renamed provenance can genuinely replace it.
 	source := engine.New()
 	sourceInitial := source.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
-	sourceRoles := cloneRoleFixture(source.RoleStore.Published)
-	sourceRole := fixtureRole(sourceRoles, sourceInitial)
+	sourceRoles := enginetest.CloneRoleFixture(source.RoleStore.Published)
+	sourceRole := enginetest.FixtureRole(sourceRoles, sourceInitial)
 	sourceRole.Name = r.Name
-	putFixtureRole(sourceRoles, sourceRole)
+	enginetest.PutFixtureRole(sourceRoles, sourceRole)
 	source.RoleStore.PublishLocked(sourceRoles)
 	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -152,10 +153,10 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Restore the target name required by Reset's fresh source provenance.
-	roles = cloneRoleFixture(e.RoleStore.Published)
-	r = fixtureRole(roles, initial)
+	roles = enginetest.CloneRoleFixture(e.RoleStore.Published)
+	r = enginetest.FixtureRole(roles, initial)
 	r.Name = "postgres"
-	putFixtureRole(roles, r)
+	enginetest.PutFixtureRole(roles, r)
 	e.RoleStore.PublishLocked(roles)
 	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)

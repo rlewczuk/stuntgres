@@ -116,7 +116,7 @@ func TestPartialIndexRootMembership(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	root := f.e.Storage.IndexRoots[f.index.Address()]
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-	if got := btreeKeys(t, root); !reflect.DeepEqual(got, []string{"10", "10", "NULL"}) {
+	if got := enginetest.BtreeKeys(t, root); !reflect.DeepEqual(got, []string{"10", "10", "NULL"}) {
 		t.Fatal(got)
 	}
 	if len(f.store.Versions) != 5 {
@@ -562,7 +562,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	target := engine.New()
 	next := catalog.CloneState(f.e.Catalog.State)
 	next.SetEpoch(target.Catalog.State.Epoch() + 1)
-	if err := stored.ReownExpressions(target.Catalog.Read(next), next, nil, false, stored.NewRoutineRemap(target.Catalog.Read(next), nil, nil, replacementProcedurePolicyFixture(f.e, target), false)); err != nil {
+	if err := stored.ReownExpressions(target.Catalog.Read(next), next, nil, false, stored.NewRoutineRemap(target.Catalog.Read(next), nil, nil, enginetest.ReplacementProcedurePolicyFixture(f.e, target), false)); err != nil {
 		t.Fatal(err)
 	}
 	remapped := next.MustRelation(f.index.Address()).SQLIndex.Predicate

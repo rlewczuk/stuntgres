@@ -10,17 +10,8 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
-
-func deleteCount(t *testing.T, s *session.Session, query string, want int64) {
-	t.Helper()
-	result := enginetest.SessionSQL(t, s, query)
-	if result.Count != want || result.Rows != nil {
-		t.Fatalf("%s: count=%d rows=%v, want %d/no relation", query, result.Count, result.Rows, want)
-	}
-}
 
 func TestDeleteCoreSelection(t *testing.T) {
 	for _, query := range []string{"DELETE FROM t WHERE v=10", "DELETE FROM t AS d WHERE d.v=10", "DELETE FROM t d WHERE d.v=10", `/*é*/ DELETE FROM public.t AS "d" WHERE "d"."v"=10`} {
@@ -32,7 +23,7 @@ func TestDeleteCoreSelection(t *testing.T) {
 			retained := enginetest.SessionSQL(t, s, "SELECT * FROM t ORDER BY id")
 			defer retained.Rows.Close()
 			before := enginetest.Tuples(retained)
-			deleteCount(t, s, query, 3)
+			enginetest.DeleteCount(t, s, query, 3)
 			got := enginetest.SessionSQL(t, s, "SELECT * FROM t ORDER BY id")
 			defer got.Rows.Close()
 			want := [][]driver.Value{{int64(2), nil, nil}, {int64(3), int64(20), false}}
@@ -42,11 +33,11 @@ func TestDeleteCoreSelection(t *testing.T) {
 			if !reflect.DeepEqual(enginetest.Tuples(retained), before) {
 				t.Fatal("retained membership changed")
 			}
-			deleteCount(t, s, query, 0)
-			deleteCount(t, s, "DELETE FROM t WHERE FALSE", 0)
-			deleteCount(t, s, "DELETE FROM t WHERE NULL", 0)
-			deleteCount(t, s, "DELETE FROM t WHERE TRUE", 2)
-			deleteCount(t, s, "DELETE FROM t", 0)
+			enginetest.DeleteCount(t, s, query, 0)
+			enginetest.DeleteCount(t, s, "DELETE FROM t WHERE FALSE", 0)
+			enginetest.DeleteCount(t, s, "DELETE FROM t WHERE NULL", 0)
+			enginetest.DeleteCount(t, s, "DELETE FROM t WHERE TRUE", 2)
+			enginetest.DeleteCount(t, s, "DELETE FROM t", 0)
 			enginetest.TransactionRows(t, s, "SELECT id FROM t ORDER BY id")
 			enginetest.LockEmpty(t, e)
 		})
@@ -63,14 +54,14 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(1),(2)")
 			ref := enginetest.TransactionBegin(t, a)
 			old := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 2)
-			deleteCount(t, a, "DELETE FROM t WHERE v=1", 2)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 2)
 			first := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 2)
 			target := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			firstRoot := first.Source.View.Data().Deleted[target.Address]
-			deleteCount(t, a, "DELETE FROM t WHERE v=1", 0)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 0)
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7),(7)")
 			private := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 7, 7)
-			deleteCount(t, a, "DELETE FROM t WHERE v=7", 2)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=7", 2)
 			if firstRoot == nil || len(firstRoot.Rows) != 2 || a.Transactions.Deletes[target.Address] == firstRoot || len(a.Transactions.Deletes[target.Address].Rows) != 4 {
 				t.Fatal("prior-own deletion root was mutated/reused")
 			}
@@ -142,11 +133,11 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
 	enginetest.SessionSQL(t, b, "INSERT INTO u VALUES(9)")
 	ref := enginetest.TransactionBegin(t, a)
-	deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+	enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(3),(7)")
-	deleteCount(t, a, "DELETE FROM t WHERE v=7", 1)
+	enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=7", 1)
 	enginetest.SessionSQL(t, a, "INSERT INTO u VALUES(8)")
-	deleteCount(t, a, "DELETE FROM u WHERE v=9", 1)
+	enginetest.DeleteCount(t, a, "DELETE FROM u WHERE v=9", 1)
 	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(4)")
 	enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 3, 4)
 	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2, 4)

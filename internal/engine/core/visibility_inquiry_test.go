@@ -157,7 +157,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 		enginetest.RoleExecute(t, e, op, q)
 	}
 	reader, _ := e.Roles().Lookup("visibility_reader")
-	ns := schemaRef(t, e, "visible")
+	ns := enginetest.SchemaRef(t, e, "visible")
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "t"})
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)

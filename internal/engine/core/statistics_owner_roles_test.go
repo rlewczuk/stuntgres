@@ -16,14 +16,14 @@ func TestStatisticsAlterOwnershipAdmission(t *testing.T) {
 	for _, mode := range []string{"current", "same_owner", "same_owner_recreated", "source_recreated", "namespace_recreated", "recipient_recreated", "authority_revoked", "epoch_replaced", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
 			e, _ := statisticsUnitEngine(t)
-			aclUnitRoles(e, "statistics_recipient")
+			enginetest.AclUnitRoles(e, "statistics_recipient")
 			recipient := e.Roles().LookupRef("statistics_recipient")
 			setup, setupDone := enginetest.RoleOperation(t, e, "postgres")
-			initial, err := statisticsUnitStage(t, e, setup, statisticsUnitCreate())
+			initial, err := enginetest.StatisticsUnitStage(t, e, setup, enginetest.StatisticsUnitCreate())
 			if err != nil {
 				t.Fatal(err)
 			}
-			old := statisticsUnitDescriptor(t, initial)
+			old := enginetest.StatisticsUnitDescriptor(t, initial)
 			enginetest.PublishOperationStage(t, e, setup, initial)
 			e.DiscardCatalogStage(initial)
 			setupDone()
@@ -38,7 +38,7 @@ func TestStatisticsAlterOwnershipAdmission(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			statement := &parser.AlterOwner{Kind: "statistics", Name: configName(old.Name()), Target: parser.RoleSpec{Name: "statistics_recipient"}}
+			statement := &parser.AlterOwner{Kind: "statistics", Name: enginetest.ConfigName(old.Name()), Target: parser.RoleSpec{Name: "statistics_recipient"}}
 			if mode == "same_owner" || mode == "same_owner_recreated" {
 				statement.Target = parser.RoleSpec{Identity: "current"}
 			}
@@ -112,20 +112,20 @@ func TestStatisticsAlterOwnershipAdmission(t *testing.T) {
 				state.BindName(catalog.DescriptorNameKey(&ns), ns.Address())
 				e.Catalog.PublishLocked(state)
 			case "recipient_recreated":
-				roles := cloneRoleFixture(e.RoleStore.Published)
-				d := fixtureRole(roles, recipient)
+				roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+				d := enginetest.FixtureRole(roles, recipient)
 				retireFixtureRole(roles, recipient)
 				d.Ref = e.RoleStore.Domain.Principal(recipient.ID() + 10000)
-				putFixtureRole(roles, d)
+				enginetest.PutFixtureRole(roles, d)
 				e.RoleStore.PublishLocked(roles)
 			case "epoch_replaced":
 				state.SetEpoch(state.Epoch() + 1)
 				e.Catalog.PublishLocked(state)
 			case "authority_revoked":
-				roles := cloneRoleFixture(e.RoleStore.Published)
-				actor := fixtureRole(roles, old.Owner)
+				roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
+				actor := enginetest.FixtureRole(roles, old.Owner)
 				actor.Superuser = false
-				putFixtureRole(roles, actor)
+				enginetest.PutFixtureRole(roles, actor)
 				e.RoleStore.PublishLocked(roles)
 			}
 			e.Mu.Unlock()

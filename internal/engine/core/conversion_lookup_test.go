@@ -118,7 +118,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	auth.State.CurrentUser = actor
 	var stage *core.CatalogStage
 	var err error
-	withPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
 		e.Mu.Lock()
 		auth, refreshErr = e.AuthorizationLocked(op)
 		e.Mu.Unlock()

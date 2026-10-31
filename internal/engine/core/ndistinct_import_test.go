@@ -70,7 +70,7 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 	source, s, ref := ndistinctCoreFixture(t)
 	enginetest.SessionSQL(t, s, "INSERT INTO nd_owner VALUES(3,3,3)")
 	enginetest.SessionSQL(t, s, "ALTER STATISTICS nd_a SET STATISTICS 0")
-	original := analyzeFacts(source, ref.Address)
+	original := enginetest.AnalyzeFacts(source, ref.Address)
 	a := ndistinctKey(t, source, "nd_a")
 	oldFact := original.Extended[a]
 	var dump strings.Builder
@@ -91,7 +91,7 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 	if tempRef.Address.ObjectID == 0 {
 		t.Fatal("missing TEMP relation")
 	}
-	tempBefore := analyzeFacts(target, tempRef.Address)
+	tempBefore := enginetest.AnalyzeFacts(target, tempRef.Address)
 	if tempBefore == nil || len(tempBefore.Extended) != 1 {
 		t.Fatal("missing genuine TEMP baseline")
 	}
@@ -118,8 +118,8 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 	if err := engine.Restore(context.Background(), target, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	importedRef, _ := vacuumStore(t, target, "nd_owner")
-	facts := analyzeFacts(target, importedRef.Address)
+	importedRef, _ := enginetest.VacuumStore(t, target, "nd_owner")
+	facts := enginetest.AnalyzeFacts(target, importedRef.Address)
 	key := ndistinctKey(t, target, "nd_a")
 	fact := facts.Extended[key]
 	if fact == nil || fact == oldFact || fact.Items[0].Value != 2 || fact.Value.Type() != target.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 3361}).SQLType || key.Definition.Domain() != target.Catalog.Domain || key.Definition.Epoch != target.CatalogRead().Epoch() {
@@ -155,7 +155,7 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 			}
 		}
 	}
-	retained := analyzeFacts(target, tempRef.Address)
+	retained := enginetest.AnalyzeFacts(target, tempRef.Address)
 	if retained == nil || len(retained.Extended) != 1 || retained.Columns[storage.StatisticsKey{Attribute: 1}] != tempBefore.Columns[storage.StatisticsKey{Attribute: 1}] {
 		t.Fatal("genuine destination TEMP facts lost")
 	}
@@ -180,17 +180,17 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 		}
 	}
 	enginetest.SessionSQL(t, owner, "ANALYZE nd_owner")
-	if analyzeFacts(target, importedRef.Address).Extended[key] != fact {
+	if enginetest.AnalyzeFacts(target, importedRef.Address).Extended[key] != fact {
 		t.Fatal("target zero rebuilt imported stale state")
 	}
 	enginetest.SessionSQL(t, owner, "ALTER STATISTICS nd_a SET STATISTICS DEFAULT")
 	enginetest.SessionSQL(t, owner, "ANALYZE nd_owner")
-	if analyzeFacts(target, importedRef.Address).Extended[key].Items[0].Value != 3 || oldFact.Items[0].Value != 2 {
+	if enginetest.AnalyzeFacts(target, importedRef.Address).Extended[key].Items[0].Value != 3 || oldFact.Items[0].Value != 2 {
 		t.Fatal("restore recomputed stale state or mutated old payload")
 	}
 	// Dropping a definition invalidates its own facts without touching its peer.
 	enginetest.SessionSQL(t, owner, "DROP STATISTICS nd_a")
-	current := analyzeFacts(target, importedRef.Address)
+	current := enginetest.AnalyzeFacts(target, importedRef.Address)
 	if current == nil || current.Extended[key] != nil || len(current.Extended) != 1 {
 		t.Fatal("definition lifecycle pruning")
 	}
@@ -203,7 +203,7 @@ func TestStatisticsNDistinctImport(t *testing.T) {
 	if err := engine.Reset(context.Background(), target); err != nil {
 		t.Fatal(err)
 	}
-	afterReset := analyzeFacts(target, tempRef.Address)
+	afterReset := enginetest.AnalyzeFacts(target, tempRef.Address)
 	if afterReset == nil || len(afterReset.Extended) != 1 {
 		t.Fatal("Reset lost retained TEMP facts")
 	}

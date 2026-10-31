@@ -18,11 +18,11 @@ func TestStatisticsAlterPublication(t *testing.T) {
 			e, _ := statisticsUnitEngine(t)
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			initial, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+			initial, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 			if err != nil {
 				t.Fatal(err)
 			}
-			old := statisticsUnitDescriptor(t, initial)
+			old := enginetest.StatisticsUnitDescriptor(t, initial)
 			enginetest.PublishOperationStage(t, e, op, initial)
 			e.DiscardCatalogStage(initial)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -40,7 +40,7 @@ func TestStatisticsAlterPublication(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(auth.Catalog)
 			stage.AuthorizeLocked(auth, mutation.Session)
-			err = ddl.StageRenameStatistics(core.DDLHost{E: e, Op: mutation, CatalogStage: stage}, auth, &parser.AlterStatisticsRename{Name: configName(old.Name()), NewName: parser.Identifier{Text: "statistics_new"}})
+			err = ddl.StageRenameStatistics(core.DDLHost{E: e, Op: mutation, CatalogStage: stage}, auth, &parser.AlterStatisticsRename{Name: enginetest.ConfigName(old.Name()), NewName: parser.Identifier{Text: "statistics_new"}})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

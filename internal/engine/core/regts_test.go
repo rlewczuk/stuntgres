@@ -338,7 +338,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	}
 	enginetest.PublishOperationStage(t, e, admin, stage)
 	install := &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}, Options: []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: "reg_ts_acl"}}}}
-	if err := extensionUnitExecute(t, e, admin, install); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, admin, install); err != nil {
 		t.Fatal(err)
 	}
 	op, actorDone := enginetest.RoleOperation(t, e, "reg_ts_acl_actor")

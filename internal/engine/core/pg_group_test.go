@@ -34,9 +34,9 @@ func pgGroupUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.Obj
 
 func pgGroupUnitRole(e *core.Engine, state *access.RoleRecord, id uint64, name string, login bool) authorization.PrincipalRef {
 	ref := pgRolesUnitRole(e, state, id, name)
-	role := fixtureRole(state, ref)
+	role := enginetest.FixtureRole(state, ref)
 	role.Login = login
-	putFixtureRole(state, role)
+	enginetest.PutFixtureRole(state, role)
 	return ref
 }
 
@@ -140,7 +140,7 @@ func TestPGGroupProjection(t *testing.T) {
 	max := pgGroupUnitRole(e, state, math.MaxUint32, "max", false)
 	high := pgGroupUnitRole(e, state, uint64(1)<<32|20000, "high", false)
 	highMember := pgGroupUnitRole(e, state, uint64(1)<<32|20002, "high-member", true)
-	setFixtureEdges(state, []authorization.Membership{
+	enginetest.SetFixtureEdges(state, []authorization.Membership{
 		{Role: parent, Member: middle, Grantor: parent},
 		{Role: middle, Member: leaf, Grantor: parent},
 		{Role: parent, Member: leaf, Grantor: parent},
@@ -149,10 +149,10 @@ func TestPGGroupProjection(t *testing.T) {
 		{Role: high, Member: middle, Grantor: parent},
 		{Role: parent, Member: highMember, Grantor: parent},
 	})
-	role := fixtureRole(state, parent)
+	role := enginetest.FixtureRole(state, parent)
 	role.Superuser, role.CreateRole, role.CreateDB, role.Replication, role.BypassRLS = true, true, true, true, true
 	role.Inherit, role.ConnectionLimit, role.HasValidUntil, role.ValidUntil = false, 0, true, sqltype.TimestampNegativeInfinity
-	putFixtureRole(state, role)
+	enginetest.PutFixtureRole(state, role)
 	capture := func(root *access.RoleRecord) map[uint32][]sqltype.Value {
 		t.Helper()
 		source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGGroup)
@@ -172,16 +172,16 @@ func TestPGGroupProjection(t *testing.T) {
 	if name, _ := bag[20000][0].Text(); name != "parent" {
 		t.Fatal("group name")
 	}
-	changed := cloneRoleFixture(state)
-	setFixtureEdges(changed, nil)
-	replacement := fixtureRole(changed, parent)
+	changed := enginetest.CloneRoleFixture(state)
+	enginetest.SetFixtureEdges(changed, nil)
+	replacement := enginetest.FixtureRole(changed, parent)
 	replacement.Login = true
-	putFixtureRole(changed, replacement)
+	enginetest.PutFixtureRole(changed, replacement)
 	if capture(changed)[20000] != nil {
 		t.Fatal("current LOGIN still projected")
 	}
 	pgGroupUnitMembers(t, bag[20000], 20001, 20002, 20002, math.MaxUint32)
-	setFixtureEdges(changed, fixtureEdges(state))
+	enginetest.SetFixtureEdges(changed, enginetest.FixtureEdges(state))
 	retireFixtureRole(changed, leaf)
 	pgGroupUnitMembers(t, capture(changed)[20001])
 	retireFixtureRole(changed, parent)
@@ -208,10 +208,10 @@ func TestPGGroupProjection(t *testing.T) {
 func TestPGGroupRoleRoot(t *testing.T) {
 	e := engine.New()
 	d, ref := pgGroupUnitSource(t, e)
-	old := cloneRoleFixture(e.RoleStore.Published)
+	old := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	group := pgGroupUnitRole(e, old, 20000, "snapshot", false)
 	member := pgGroupUnitRole(e, old, 20001, "member", true)
-	setFixtureEdges(old, append(fixtureEdges(old), authorization.Membership{Role: group, Member: member, Grantor: group}))
+	enginetest.SetFixtureEdges(old, append(enginetest.FixtureEdges(old), authorization.Membership{Role: group, Member: member, Grantor: group}))
 	e.RoleStore.PublishLocked(old)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
@@ -236,8 +236,8 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	}
 	capture(scope)
 	first := open(scope, ref)
-	updated := cloneRoleFixture(old)
-	setFixtureEdges(updated, nil)
+	updated := enginetest.CloneRoleFixture(old)
+	enginetest.SetFixtureEdges(updated, nil)
 	e.RoleStore.PublishLocked(updated)
 	second := open(scope, ref)
 	for _, source := range []*exec.Source{first, second} {
@@ -278,7 +278,7 @@ func TestPGGroupCancellation(t *testing.T) {
 	member := pgGroupUnitRole(e, state, 20001, "member", true)
 	for i := range 8 {
 		grantor := pgGroupUnitRole(e, state, uint64(20002+i), fmt.Sprintf("grantor_%d", i), true)
-		setFixtureEdges(state, append(fixtureEdges(state), authorization.Membership{Role: group, Member: member, Grantor: grantor}))
+		enginetest.SetFixtureEdges(state, append(enginetest.FixtureEdges(state), authorization.Membership{Role: group, Member: member, Grantor: grantor}))
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -294,7 +294,7 @@ func TestPGGroupCancellation(t *testing.T) {
 		if source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGGroup); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
-		if len(fixtureEdges(state)) != 8 || state.Root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
+		if len(enginetest.FixtureEdges(state)) != 8 || state.Root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}

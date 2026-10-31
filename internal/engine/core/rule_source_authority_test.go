@@ -55,8 +55,8 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.Catalog = e.Catalog.Read(next)
 					auth.PairedCatalog = auth.Catalog
 					auth.Roles = e.RoleStore.Read(&e.Catalog.Owner, auth.Catalog, auth.RoleRecord)
-					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
-					original := ruleUnitInsert(e, src, 1, 10).Binding()
+					inputRef, lookupRef := enginetest.RuleUnitRef(e, &input), enginetest.RuleUnitRef(e, sink)
+					original := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
 					// Unqualified event syntax reads no target column itself.
 					// The dependent action introduces the only OLD.id demand.
 					original.UsedColumns = []int{}
@@ -69,9 +69,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					original.Delete.Using = from
 					if event == "UPDATE" {
 						syntax = &parser.Update{}
-						original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, From: from}
+						original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{enginetest.RuleUnitInt(src, 1), enginetest.RuleUnitInt(src, 10)}, From: from}
 					}
-					action := ruleUnitInsert(e, sink, 7, 8)
+					action := enginetest.RuleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.Attributes[0]
 					value := expr.Expr(plan.ColumnExpr{Info: view.RuleColumnInfo(sink.Columns[0]), Origin: ref, Scope: 1, Frame: 1})
@@ -83,7 +83,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action = action.With(func(p *stored.RuleActionParts) {
 						p.Binding.Expressions = nil
 						p.Binding.CommandQuery = true
-						p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
+						p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, enginetest.RuleUnitInt(sink, 8)}, Frame: 1}}
 						p.Binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					})
 					src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: event, Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{action}})})

@@ -23,19 +23,19 @@ func replicaUnitFixture(t *testing.T) (*core.Engine, *session.Session, *catalog.
 	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
-	name := preparedBoundaryName("ri_unit")
-	preparedUnitStatement(t, e, s, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
+	name := enginetest.PreparedBoundaryName("ri_unit")
+	enginetest.PreparedUnitStatement(t, e, s, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "k", TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{NotNull: true}}}},
 		{Column: &parser.Column{Name: "p", TypeName: parser.TypeName{Name: "text"}}},
 	}})
 	for _, n := range []string{"ri_a", "ri_b", "ri_c"} {
-		preparedUnitStatement(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: n}, Table: name, Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "k"}}}, Include: []parser.IndexKey{{Column: parser.Identifier{Text: "p"}}}})
+		enginetest.PreparedUnitStatement(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: n}, Table: name, Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "k"}}}, Include: []parser.IndexKey{{Column: parser.Identifier{Text: "p"}}}})
 	}
-	preparedUnitStatement(t, e, s, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(1), parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "one"}}}}})
+	enginetest.PreparedUnitStatement(t, e, s, &parser.Insert{Name: name, Rows: [][]parser.Expr{{enginetest.PreparedBoundaryInteger(1), parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "one"}}}}})
 	return e, s, e.CatalogRead().MustRelation(enginetest.RoleTableRef(t, e, "ri_unit").Address)
 }
 func replicaUnitAlter(mode parser.ReplicaIdentityMode, index string) *parser.AlterTable {
-	return &parser.AlterTable{Name: preparedBoundaryName("ri_unit"), Actions: []parser.AlterTableAction{{Action: parser.SetReplicaIdentity, ReplicaIdentity: mode, ReplicaIndex: parser.Identifier{Text: index}}}}
+	return &parser.AlterTable{Name: enginetest.PreparedBoundaryName("ri_unit"), Actions: []parser.AlterTableAction{{Action: parser.SetReplicaIdentity, ReplicaIdentity: mode, ReplicaIndex: parser.Identifier{Text: index}}}}
 }
 func replicaUnitIndex(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
@@ -49,13 +49,13 @@ func replicaUnitIndex(t *testing.T, e *core.Engine, name string) *catalog.Relati
 func TestReplicaIdentityCandidate(t *testing.T) {
 	e, s, old := replicaUnitFixture(t)
 	a, b, c := replicaUnitIndex(t, e, "ri_a"), replicaUnitIndex(t, e, "ri_b"), replicaUnitIndex(t, e, "ri_c")
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
 	first := e.CatalogRead().MustRelation(old.Address())
 	firstA := replicaUnitIndex(t, e, "ri_a")
 	if old.ReplicaIdentity != 0 || a.SQLIndex.ReplicaIdentity || !firstA.SQLIndex.ReplicaIdentity || first.EffectiveReplicaIdentity() != parser.ReplicaIdentityIndex {
 		t.Fatal("selection mutated predecessor or omitted current bit")
 	}
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
 	current := e.CatalogRead().MustRelation(old.Address())
 	currentA, currentB := replicaUnitIndex(t, e, "ri_a"), replicaUnitIndex(t, e, "ri_b")
 	if current.Revision() <= first.Revision() || currentA.SQLIndex.ReplicaIdentity || !currentB.SQLIndex.ReplicaIdentity || !firstA.SQLIndex.ReplicaIdentity || b.SQLIndex.ReplicaIdentity {
@@ -64,9 +64,9 @@ func TestReplicaIdentityCandidate(t *testing.T) {
 	if &currentA.SQLIndex.Keys[0] != &a.SQLIndex.Keys[0] || &currentB.SQLIndex.Include[0] != &b.SQLIndex.Include[0] || replicaUnitIndex(t, e, "ri_c") != c {
 		t.Fatal("selection copied keys or replaced unrelated descriptor")
 	}
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
 	for _, mode := range []parser.ReplicaIdentityMode{parser.ReplicaIdentityFull, parser.ReplicaIdentityNothing, parser.ReplicaIdentityDefault} {
-		preparedUnitStatement(t, e, s, replicaUnitAlter(mode, ""))
+		enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(mode, ""))
 		if e.CatalogRead().MustRelation(old.Address()).EffectiveReplicaIdentity() != mode || replicaUnitIndex(t, e, "ri_b").SQLIndex.ReplicaIdentity {
 			t.Fatal("mode did not clear selection")
 		}
@@ -81,7 +81,7 @@ func TestReplicaIdentityCandidate(t *testing.T) {
 			Columns: []parser.Identifier{{Text: "k"}},
 		},
 	}}, alter.Actions...)
-	preparedUnitStatement(t, e, s, alter)
+	enginetest.PreparedUnitStatement(t, e, s, alter)
 	parent := e.CatalogRead().MustRelation(old.Address())
 	created := replicaUnitIndex(t, e, "ri_new")
 	if parent.EffectiveReplicaIdentity() != parser.ReplicaIdentityIndex || !created.SQLIndex.ReplicaIdentity || created.SQLIndex.Parent != parent.Address() || len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Index != created.Address() {
@@ -98,7 +98,7 @@ func TestReplicaIdentityCandidate(t *testing.T) {
 		Column:   parser.Identifier{Text: "k"},
 		TypeName: parser.TypeName{Name: "int8"},
 	}}, alter.Actions...)
-	preparedUnitStatement(t, e, s, alter)
+	enginetest.PreparedUnitStatement(t, e, s, alter)
 	reminted := replicaUnitIndex(t, e, "ri_new")
 	if reminted.Address() == created.Address() || !reminted.SQLIndex.ReplicaIdentity || reminted.Columns[0].Usage.Type.ID() != sqltype.Int8 || !created.SQLIndex.ReplicaIdentity || created.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("TYPE/MISC lost reminted selection or mutated its predecessor")
@@ -109,7 +109,7 @@ func TestReplicaIdentityPublication(t *testing.T) {
 	for _, cancelled := range []bool{false, true} {
 		t.Run(map[bool]string{false: "later_error", true: "cancelled_finish"}[cancelled], func(t *testing.T) {
 			e, s, old := replicaUnitFixture(t)
-			preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
+			enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
 			before := e.CatalogRead().MustRelation(old.Address())
 			a, b := replicaUnitIndex(t, e, "ri_a"), replicaUnitIndex(t, e, "ri_b")
 			heap := e.Storage.Relations[old.Address()]
@@ -161,7 +161,7 @@ func TestReplicaIdentityPublication(t *testing.T) {
 			if e.Storage.IndexRoots[a.Address()] != aRoot || e.Storage.IndexRoots[b.Address()] != bRoot || e.Storage.IndexRoots[c.Address()] != cRoot || &heap.Versions[0] != &root[0] {
 				t.Fatal("rejected publication changed immutable root backing")
 			}
-			preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
+			enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
 			if e.Storage.Relations[old.Address()] != heap || heap.Generation != generation {
 				t.Fatal("metadata selection rewrote heap")
 			}
@@ -174,22 +174,22 @@ func TestReplicaIdentityPublication(t *testing.T) {
 
 func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	e, s, old := replicaUnitFixture(t)
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
 	// Utility ALTER is deliberately not a retained preparable-body analysis.
 	// Use a real retained SELECT owner; public held ALTER coverage separately
 	// verifies execution-time index resolution and authorization.
 	ast := &parser.Select{
-		From: &parser.TableReference{Name: preparedBoundaryName("ri_unit")},
+		From: &parser.TableReference{Name: enginetest.PreparedBoundaryName("ri_unit")},
 		Targets: []parser.Expr{
-			parser.ColumnExpr{Name: preparedBoundaryName("k")},
+			parser.ColumnExpr{Name: enginetest.PreparedBoundaryName("k")},
 			// Match the demanded unary ownership fixture in
 			// TestPreparedFoldTypedOwnership. Bare arithmetic projections are
 			// execution-only; COALESCE demands this immutable operator result.
 			parser.ConditionalExpr{Kind: parser.Coalesce, Args: []parser.Expr{
-				parser.OperatorExpr{Name: preparedBoundaryName("-"), Args: []parser.Expr{
-					parser.CastExpr{Child: preparedBoundaryInteger(7), TypeName: parser.TypeName{Name: "int4"}, Syntax: parser.PostfixCast},
+				parser.OperatorExpr{Name: enginetest.PreparedBoundaryName("-"), Args: []parser.Expr{
+					parser.CastExpr{Child: enginetest.PreparedBoundaryInteger(7), TypeName: parser.TypeName{Name: "int4"}, Syntax: parser.PostfixCast},
 				}},
-				preparedBoundaryInteger(0),
+				enginetest.PreparedBoundaryInteger(0),
 			}},
 		},
 	}
@@ -325,7 +325,7 @@ func TestReplicaIdentityPreparedInvalidation(t *testing.T) {
 	if !enginetest.SamePublishedFold(entry, enginetest.PreparedFoldEntry(t, description, sqltype.Int4, "-7")) {
 		t.Fatal("reused unary fold changed its immutable provenance or inputs")
 	}
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
 	current := e.CatalogRead().MustRelation(old.Address())
 	if current.Revision() <= before.Revision() || valid(accepted) {
 		t.Fatal("same-mode switch retained the accepted parent stamp")
@@ -346,7 +346,7 @@ func TestReplicaIdentityCatalogMetadata(t *testing.T) {
 	if len(source.Columns) != 21 || source.Columns[14].Name != "indisreplident" || source.Columns[14].Usage.Type.ID() != sqltype.Bool || source.Attributes[14] != 15 || source.Columns[14].Nullable || pgcatalog.AttributeNumber(2610, "indisreplident", 15) != 15 {
 		t.Fatal("identity source contract", source.Columns)
 	}
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_a"))
 	view = e.CatalogRead()
 	for _, name := range []string{"ri_a", "ri_b", "ri_c"} {
 		idx := replicaUnitIndex(t, e, name)

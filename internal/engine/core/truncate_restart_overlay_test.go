@@ -21,12 +21,12 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	original, descriptor := e.Storage.Sequences[ps.Address], e.Catalog.State.Get(ps.Address)
 	tx := enginetest.TransactionBegin(t, s)
 	enginetest.SessionSQL(t, s, "INSERT INTO p VALUES(9)")
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	enginetest.SessionSQL(t, s, "SAVEPOINT before_reset")
 	writes, catalog := s.Transactions.Writes[p.Address], s.Transactions.Catalog
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 	first := s.Transactions.Catalog.Generators[ps.Address]
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	if first.Last != 1 || original.Last != 3 || e.Storage.Sequences[ps.Address] != original {
 		t.Fatal("replacement mutated original counter")
 	}
@@ -43,12 +43,12 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	if mode&lock.AccessExclusive != 0 {
 		t.Fatal("savepoint retained reset AX")
 	}
-	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
+	enginetest.SequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 	second := s.Transactions.Catalog.Generators[ps.Address]
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	enginetest.SessionSQL(t, s, "SAVEPOINT after_reset")
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 2)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 2)
 	enginetest.SessionSQL(t, s, "ROLLBACK TO after_reset")
 	if s.Transactions.Catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint copied/undid private generator counter")
@@ -62,7 +62,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	if s.Transactions.Catalog.Generators[ps.Address] != second || second.Last != 2 {
 		t.Fatal("savepoint did not restore prior private binding")
 	}
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	enginetest.TransactionEnd(t, s, tx, false)
 	if e.Storage.Sequences[ps.Address] != original || original.Last != 4 || !currvalIs(core.PayloadOf(s).Sequences.Memory(ps.Address), 3) {
 		t.Fatal("outer rollback undid ordinary allocation or local observation")
@@ -74,7 +74,7 @@ func TestTruncateRestartCache(t *testing.T) {
 	t.Run("DiscardWithoutDemand", func(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		enginetest.SessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
-		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
+		enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 		original := e.Storage.Sequences[ps.Address]
 		if original.Last != 6 || core.PayloadOf(s).Sequences.Memory(ps.Address).CachedTail() != 3 {
 			t.Fatal("cache fixture not primed")
@@ -88,19 +88,19 @@ func TestTruncateRestartCache(t *testing.T) {
 		if e.Storage.Sequences[ps.Address] != original || original.Last != 6 {
 			t.Fatal("rollback changed committed binding/highwater")
 		}
-		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 7)
+		enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 7)
 		enginetest.LockEmpty(t, e)
 	})
 	t.Run("PeerGeneration", func(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		peer := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
-		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 3)
+		enginetest.SequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 3)
 		original := e.Storage.Sequences[ps.Address]
 		tx := enginetest.TransactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 		enginetest.TransactionEnd(t, s, tx, false)
-		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
+		enginetest.SequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
 		if e.Storage.Sequences[ps.Address] != original || core.PayloadOf(peer).Sequences.Memory(ps.Address).CachedTail() != 2 {
 			t.Fatal("rollback invalidated untouched peer tail")
 		}
@@ -108,8 +108,8 @@ func TestTruncateRestartCache(t *testing.T) {
 		if e.Storage.Sequences[ps.Address] == original || !currvalIs(core.PayloadOf(peer).Sequences.Memory(ps.Address), 4) {
 			t.Fatal("commit did not replace binding/preserved local observation")
 		}
-		sequenceScalar(t, peer, "SELECT currval('p_id_seq')", 4)
-		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
+		enginetest.SequenceScalar(t, peer, "SELECT currval('p_id_seq')", 4)
+		enginetest.SequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
 		if core.PayloadOf(peer).Sequences.Memory(ps.Address).Generation() != e.Storage.Sequences[ps.Address].Generation {
 			t.Fatal("peer did not adopt committed generation")
 		}
@@ -259,7 +259,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		if e.Storage.Sequences[ps.Address] != replacement || e.Catalog.State.MustRelation(ps.Address).Sequence.Owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
-		sequenceScalar(t, s, "SELECT nextval('later')", 90)
+		enginetest.SequenceScalar(t, s, "SELECT nextval('later')", 90)
 		enginetest.LockEmpty(t, e)
 	})
 }

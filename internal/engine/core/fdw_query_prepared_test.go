@@ -133,7 +133,7 @@ func TestFDWQueryProtocolArtifactIsolation(t *testing.T) {
 		if name == "failed_query" {
 			provider.failure = failure
 		}
-		err := preparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
+		err := enginetest.PreparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
 			_, err := scope.ExecuteProtocolPortal(name, 0, func([]session.ProtocolField) error { return nil }, nil, nil, core.CopyProtocolHooks{})
 			return err
 		})

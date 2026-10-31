@@ -56,7 +56,7 @@ func TestDeleteCoreContention(t *testing.T) {
 			enginetest.SessionSQL(t, c, "CREATE TABLE t(v INT)")
 			enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1)")
 			ref := enginetest.TransactionBegin(t, a)
-			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v>=1")
@@ -90,7 +90,7 @@ func TestDeleteCoreContention(t *testing.T) {
 		enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
 		enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1),(2)")
 		ref := enginetest.TransactionBegin(t, a)
-		deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+		enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		deleteAwait(t, deleteAsync(t, b, ctx, "DELETE FROM t WHERE v=2"), 1, nil)
@@ -162,7 +162,7 @@ func TestDeleteCoreQueuedCancellation(t *testing.T) {
 			enginetest.SessionSQL(t, c, "CREATE TABLE t(v INT)")
 			enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1),(2)")
 			ar := enginetest.TransactionBegin(t, a)
-			deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
 			var br ids.TxRef
 			if explicit {
 				br = enginetest.TransactionBegin(t, b)

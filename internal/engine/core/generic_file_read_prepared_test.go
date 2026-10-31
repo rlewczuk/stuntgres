@@ -203,7 +203,7 @@ func TestGenericFileReadPreparedFrames(t *testing.T) {
 			} else if descriptor,err:=exec.ExpressionRoutineDescriptor(nullCall);err!=nil || descriptor==nil || expr.InfoOf(nullCall).RoutineReference==nil { t.Fatal("NULL RECORD/SRF frame lost invocation",err) }
 			if descriptor,err:=exec.ExpressionRoutineDescriptor(nonnullCall);err!=nil || descriptor==nil || expr.InfoOf(nonnullCall).RoutineReference==nil { t.Fatal("nonNULL frame lost EXECUTE invocation",err) }
 			command(func(scope *core.StatementScope) error{_,err:=scope.ExecuteProtocolPortal("null",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
-			err:=preparedFoldProtocolTry(t,e,s,cycle,false,func(scope *core.StatementScope)error{_,err:=scope.ExecuteProtocolPortal("nonnull",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
+			err:=enginetest.PreparedFoldProtocolTry(t,e,s,cycle,false,func(scope *core.StatementScope)error{_,err:=scope.ExecuteProtocolPortal("nonnull",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err,&diagnostic) || diagnostic.Code!="0A000" || diagnostic.Message!=name+" "+mechanism+" is unsupported in embedded mode" { t.Fatal("nonNULL frame did not reach physical boundary",err) }
 			if definition.Description.Folds != owner { t.Fatal("definition fold owner changed") }

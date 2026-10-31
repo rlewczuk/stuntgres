@@ -25,7 +25,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				enginetest.SessionSQL(t, c, "CREATE TABLE t(v INT)")
 				enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1)")
 				ar := enginetest.TransactionBegin(t, a)
-				deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+				enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 				br := enginetest.TransactionBegin(t, b)
 				enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(7)")
 				waiter := b.Transactions.Ticket
@@ -101,7 +101,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
 			ar := enginetest.TransactionBegin(t, a)
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7)")
-			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			e.Mu.Lock()
 			beforeDescriptor := e.Catalog.State.Get(ref.Address)
 			beforeStorage := e.Storage.Relations[ref.Address]
@@ -168,7 +168,7 @@ func TestDeleteCoreMetadataACLRevocationCommit(t *testing.T) {
 			}
 			enginetest.SessionSQL(t, a, "SET SESSION AUTHORIZATION deleter")
 			ar := enginetest.TransactionBegin(t, a)
-			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
+			enginetest.DeleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			if err := enginetest.SetObjectACL(e, context.Background(), aclRef, authorization.ACLValue{Explicit: true}); err != nil {
 				t.Fatal(err)
 			}

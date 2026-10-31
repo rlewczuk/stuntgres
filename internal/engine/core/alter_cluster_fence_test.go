@@ -18,9 +18,9 @@ func clusterExactProviderFence(t *testing.T) {
 		enginetest.SessionSQL(t, s, q)
 	}
 	read := e.CatalogRead()
-	parent := primaryKeyUnitRelation(t, e, "cluster_fence")
-	a := primaryKeyUnitRelation(t, e, "cluster_fence_a")
-	b := primaryKeyUnitRelation(t, e, "cluster_fence_b")
+	parent := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_fence")
+	a := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_fence_a")
+	b := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_fence_b")
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
 	_, err := table.ClusterCandidate(core.DDLHost{E: e, CatalogStage: stage}, parent, parent, parser.AlterTableAction{Action: parser.ClusterOn, ClusterIndex: parser.Identifier{Text: b.Name()}})
@@ -62,10 +62,10 @@ func clusterInheritedIdentity(t *testing.T) {
 	for _, q := range []string{"CREATE TABLE cluster_parent(id int)", "CREATE TABLE cluster_child() INHERITS(cluster_parent)", "CREATE INDEX cluster_pa ON cluster_parent(id)", "CREATE INDEX cluster_ch ON cluster_child(id)", "ALTER TABLE cluster_parent CLUSTER ON cluster_pa", "ALTER TABLE cluster_child CLUSTER ON cluster_ch"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	parent := primaryKeyUnitRelation(t, e, "cluster_parent")
-	child := primaryKeyUnitRelation(t, e, "cluster_child")
-	pa := primaryKeyUnitRelation(t, e, "cluster_pa")
-	ch := primaryKeyUnitRelation(t, e, "cluster_ch")
+	parent := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_parent")
+	child := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_child")
+	pa := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_pa")
+	ch := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_ch")
 	storeParent, storeChild := e.Storage.Relations[parent.Address()], e.Storage.Relations[child.Address()]
 	rootParent, rootChild := e.Storage.IndexRoots[pa.Address()], e.Storage.IndexRoots[ch.Address()]
 	before := e.CatalogRead()

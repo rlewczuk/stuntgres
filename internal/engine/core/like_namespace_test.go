@@ -23,7 +23,7 @@ func TestLikeNamespaceDiagnostics(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE USER like_reader")
 	enginetest.RoleExecute(t, e, op, "CREATE TABLE t(v TEXT)")
 	enginetest.RoleExecute(t, e, op, "CREATE SCHEMA like_denied")
-	if err := enginetest.SetObjectACL(e, context.Background(), schemaRef(t, e, "like_denied"), authorization.ACLValue{Explicit: true}); err != nil {
+	if err := enginetest.SetObjectACL(e, context.Background(), enginetest.SchemaRef(t, e, "like_denied"), authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ query, code, message string }{

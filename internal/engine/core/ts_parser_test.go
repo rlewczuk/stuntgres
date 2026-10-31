@@ -26,9 +26,9 @@ import (
 var parserSeedAddress = ids.ObjectAddress{ClassID: ids.TSParserClassID, ObjectID: 3722}
 
 func parserCreateNode(name string) *parser.CreateParser {
-	s := &parser.CreateParser{Name: configName(name)}
+	s := &parser.CreateParser{Name: enginetest.ConfigName(name)}
 	for _, method := range []struct{ name, routine string }{{"start", "prsd_start"}, {"gettoken", "prsd_nexttoken"}, {"end", "prsd_end"}, {"lextypes", "prsd_lextype"}} {
-		s.Options = append(s.Options, parser.ConfigurationOption{Name: parser.Identifier{Text: method.name}, Value: configName(method.routine), Supplied: true})
+		s.Options = append(s.Options, parser.ConfigurationOption{Name: parser.Identifier{Text: method.name}, Value: enginetest.ConfigName(method.routine), Supplied: true})
 	}
 	return s
 }
@@ -202,8 +202,8 @@ func TestTSParserStaging(t *testing.T) {
 	before := e.CatalogRead()
 	original := before.MustTSParser(d.Address())
 	for _, s := range []*parser.AlterParser{
-		{Name: configName("parser_unit"), Action: "rename", Target: parser.Identifier{Text: "parser_new"}},
-		{Name: configName("parser_new"), Action: "schema", Target: parser.Identifier{Text: "pg_catalog"}},
+		{Name: enginetest.ConfigName("parser_unit"), Action: "rename", Target: parser.Identifier{Text: "parser_new"}},
+		{Name: enginetest.ConfigName("parser_new"), Action: "schema", Target: parser.Identifier{Text: "pg_catalog"}},
 	} {
 		stage, err = parserStage(t, e, op, s)
 		if err != nil {
@@ -219,7 +219,7 @@ func TestTSParserStaging(t *testing.T) {
 	if before.NameAddress(key) != original.Address() || before.Get(original.Address()) != original || e.CatalogRead().NameAddress(key) != (ids.ObjectAddress{}) {
 		t.Fatal("name cutover mutated old snapshot")
 	}
-	bad, err := parserStage(t, e, op, &parser.DropParser{Names: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "parser_new"}}}, configName("parser_missing")}})
+	bad, err := parserStage(t, e, op, &parser.DropParser{Names: []parser.ObjectName{{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "parser_new"}}}, enginetest.ConfigName("parser_missing")}})
 	defer e.DiscardCatalogStage(bad)
 	enginetest.State(t, err, "42704")
 	if e.CatalogRead().Get(d.Address()) != d {
@@ -246,7 +246,7 @@ func TestTSParserStaging(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != incumbent.State() {
 		t.Fatal("canceled parser published", err)
 	}
-	seedStage, err := parserStage(t, e, op, &parser.AlterParser{Name: configName("default"), Action: "rename", Target: parser.Identifier{Text: "seed_current"}})
+	seedStage, err := parserStage(t, e, op, &parser.AlterParser{Name: enginetest.ConfigName("default"), Action: "rename", Target: parser.Identifier{Text: "seed_current"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestTSParserDependencies(t *testing.T) {
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	create := parserCreateNode("parser_dependencies")
-	create.Options[3].Value = configName("dsimple_init")
+	create.Options[3].Value = enginetest.ConfigName("dsimple_init")
 	stage, err := parserStage(t, e, op, create)
 	if err != nil {
 		t.Fatal(err)

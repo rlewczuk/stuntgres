@@ -102,21 +102,21 @@ func TestPGAuthIDTypedProjectionAndIdentityWidth(t *testing.T) {
 	max := pgUserUnitRole(e, state, math.MaxUint32, "max")
 	pgUserUnitRole(e, state, uint64(math.MaxUint32)+1, "overflow")
 	hidden := pgUserUnitRole(e, state, 20001, "hidden")
-	r := fixtureRole(state, hidden)
+	r := enginetest.FixtureRole(state, hidden)
 	r.Login = false
-	putFixtureRole(state, r)
-	r = fixtureRole(state, low)
+	enginetest.PutFixtureRole(state, r)
+	r = enginetest.FixtureRole(state, low)
 	r.Password = "arbitrary stored text, not a verifier validator"
 	r.CreateDB, r.Superuser, r.Replication, r.BypassRLS = true, true, true, true
 	r.Inherit, r.CreateRole = true, false
 	r.HasValidUntil, r.ValidUntil, r.ConnectionLimit = true, 0, -7
-	putFixtureRole(state, r)
-	r = fixtureRole(state, max)
+	enginetest.PutFixtureRole(state, r)
+	r = enginetest.FixtureRole(state, max)
 	r.Password = ""
-	putFixtureRole(state, r)
+	enginetest.PutFixtureRole(state, r)
 	capture := func(root *access.RoleRecord) *exec.Source {
 		t.Helper()
-		s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(ids.RoleClassID))
+		s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,19 +169,19 @@ func TestPGAuthIDTypedProjectionAndIdentityWidth(t *testing.T) {
 		t.Fatal("missing credentials not NULL")
 	}
 	for _, stamp := range []int64{123456789, math.MaxInt64, math.MinInt64} {
-		updated := cloneRoleFixture(state)
-		r = fixtureRole(updated, low)
+		updated := enginetest.CloneRoleFixture(state)
+		r = enginetest.FixtureRole(updated, low)
 		r.ValidUntil = stamp
-		putFixtureRole(updated, r)
+		enginetest.PutFixtureRole(updated, r)
 		if got, _ := pgAuthIDUnitRows(t, capture(updated))[20000][11].Timestamp(); got != stamp {
 			t.Fatal("timestamp/infinity changed")
 		}
 	}
-	updated := cloneRoleFixture(state)
-	r = fixtureRole(updated, low)
+	updated := enginetest.CloneRoleFixture(state)
+	r = enginetest.FixtureRole(updated, low)
 	r.Password = "replacement"
 	r.Name = "replacement"
-	putFixtureRole(updated, r)
+	enginetest.PutFixtureRole(updated, r)
 	e.RoleStore.PublishLocked(updated)
 	if text, _ := bag[20000][10].Text(); text != "arbitrary stored text, not a verifier validator" {
 		t.Fatal("retained password mutated")
@@ -195,7 +195,7 @@ func TestPGAuthIDTypedProjectionAndIdentityWidth(t *testing.T) {
 func TestPGAuthIDStatementAndNestedSnapshot(t *testing.T) {
 	e := engine.New()
 	d, ref := pgAuthIDUnitSource(t, e)
-	old := cloneRoleFixture(e.RoleStore.Published)
+	old := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	role := pgUserUnitRole(e, old, 20000, "snapshot")
 	e.RoleStore.PublishLocked(old)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -225,10 +225,10 @@ func TestPGAuthIDStatementAndNestedSnapshot(t *testing.T) {
 	if capturedRoles != old {
 		t.Fatal("capture did not retain published immutable role record")
 	}
-	updated := cloneRoleFixture(old)
-	r := fixtureRole(updated, role)
+	updated := enginetest.CloneRoleFixture(old)
+	r := enginetest.FixtureRole(updated, role)
 	r.Password = "new verifier"
-	putFixtureRole(updated, r)
+	enginetest.PutFixtureRole(updated, r)
 	e.RoleStore.PublishLocked(updated)
 	second := open(scope, ref)
 	if scope.Inquiry.CommentCatalog.State() != captured.State() {
@@ -282,7 +282,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	state := emptyRoleFixture(e)
 	pgUserUnitRole(e, state, 20000, "first")
 	pgUserUnitRole(e, state, 20001, "second")
-	empty, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), emptyRoleFixture(e)), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(ids.RoleClassID))
+	empty, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), emptyRoleFixture(e)), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 	if err != nil || empty == nil || empty.Anonymous == nil || len(empty.Anonymous) != 0 {
 		t.Fatal("empty anonymous source identity", err)
 	}
@@ -300,7 +300,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: phase.at}
-			source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(ids.RoleClassID))
+			source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 			if source != nil || !errors.Is(err, context.Canceled) || ctx.calls != phase.at {
 				t.Fatal("cancellation published credential prefix or missed check", phase.at, ctx.calls, err)
 			}
@@ -309,7 +309,7 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = enginetest.Usage(e, sqltype.Int4).Type
-	source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(ids.RoleClassID))
+	source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(ids.RoleClassID))
 	if err == nil || source != nil {
 		t.Fatal("invalid descriptor published rows")
 	}
@@ -318,13 +318,13 @@ func TestPGAuthIDCancellationAndEmptySource(t *testing.T) {
 func TestPGAuthIDAuthorizationPrincipals(t *testing.T) {
 	e := engine.New()
 	d, ref := pgAuthIDUnitSource(t, e)
-	state := cloneRoleFixture(e.RoleStore.Published)
+	state := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	reader := pgUserUnitRole(e, state, 20000, "authid_reader")
 	// MembershipCandidate defaults a new edge's INHERIT option from its member.
 	// Model an ordinary CREATE ROLE (INHERIT), not pgUserUnitRole's zero flags.
-	readerRole := fixtureRole(state, reader)
+	readerRole := enginetest.FixtureRole(state, reader)
 	readerRole.Inherit = true
-	putFixtureRole(state, readerRole)
+	enginetest.PutFixtureRole(state, readerRole)
 	admin := state.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	e.RoleStore.PublishLocked(state)
 	authority := func(principal authorization.PrincipalRef) core.AuthorizationView {
@@ -390,7 +390,7 @@ func TestPGAuthIDAuthorizationPrincipals(t *testing.T) {
 	}
 	membership := func(target string, revoke bool) {
 		t.Helper()
-		next := cloneRoleFixture(e.RoleStore.Published)
+		next := enginetest.CloneRoleFixture(e.RoleStore.Published)
 		root, changed, _, err := authorization.MembershipCandidate(context.Background(), next.Root.Read(authorization.PrincipalRef{}), authorization.RoleState{CurrentUser: admin}, &parser.RoleMembership{Targets: []parser.RoleSpec{{Name: target}}, Members: []parser.RoleSpec{{Name: "authid_reader"}}, Revoke: revoke}, nil, false, false)
 		if err != nil || !changed {
 			t.Fatal("membership publication", err)
@@ -430,7 +430,7 @@ func TestPGAuthIDAuthorizationPrincipals(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), name, acl); err != nil {
 		t.Fatal(err)
 	}
-	next := cloneRoleFixture(e.RoleStore.Published)
+	next := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(next, reader)
 	replacement := pgUserUnitRole(e, next, 30000, "authid_reader")
 	e.RoleStore.PublishLocked(next)

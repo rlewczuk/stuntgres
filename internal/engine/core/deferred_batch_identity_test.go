@@ -64,7 +64,7 @@ func TestDeferredUniqueBatchIdentity(t *testing.T) {
 				if e.Exclusions.CountLocked() != 0 {
 					t.Fatal("committed batch retained projection ownership")
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 			})
 		}
 	}

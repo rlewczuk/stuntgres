@@ -32,7 +32,7 @@ func TestPlannerSettingsAdmissionSnapshots(t *testing.T) {
 	e:=engine.New()
 	sess:=enginetest.StartSession(t,e,nil)
 	for _, q := range plannerAdmissionSentinelSQL {
-		plannerCostCommand(t, sess, q)
+		enginetest.PlannerCostCommand(t, sess, q)
 	}
 	op,_,err:=sess.AcquireCommand(context.Background()); if err!=nil { t.Fatal(err) }
 	defer op.Done()
@@ -187,7 +187,7 @@ func TestPlannerSettingsRoutineAdmission(t *testing.T) {
 		"CREATE FUNCTION pm_routine_sql() RETURNS bigint LANGUAGE SQL SET enable_hashagg=off AS $$ SELECT count(*) FROM (SELECT k,count(*) FROM pm_routine GROUP BY k) g $$",
 		"CREATE FUNCTION pm_routine_ok() RETURNS bigint LANGUAGE plpgsql SET enable_hashagg=off AS $$" + body + "RETURN a*10+b; END $$",
 		"CREATE FUNCTION pm_routine_fail() RETURNS bigint LANGUAGE plpgsql SET enable_hashagg=off AS $$" + body + "RAISE EXCEPTION 'planner grouped failure'; END $$",
-	}, plannerAdmissionSentinelSQL...) { plannerCostCommand(t, s, q) }
+	}, plannerAdmissionSentinelSQL...) { enginetest.PlannerCostCommand(t, s, q) }
 	for _, name := range []string{"pm_routine_sql", "pm_routine_ok", "pm_routine_fail"} {
 		t.Run(name, func(t *testing.T) {
 			op, _, err := s.AcquireCommand(context.Background())

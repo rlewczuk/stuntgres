@@ -27,7 +27,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				enginetest.SessionSQL(t, owner, "INSERT INTO heap_checked_tmp VALUES(99)")
 			} else {
 				enginetest.SessionSQL(t, owner, "CREATE TEMP SEQUENCE heap_checked_tmp")
-				sequenceScalar(t, owner, "SELECT nextval('heap_checked_tmp')", 1)
+				enginetest.SequenceScalar(t, owner, "SELECT nextval('heap_checked_tmp')", 1)
 			}
 			enginetest.SessionSQL(t, owner, "CREATE TEMP VIEW heap_wrong_tmp AS SELECT 1 AS v")
 			view := e.CatalogRead()

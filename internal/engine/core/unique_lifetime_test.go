@@ -48,20 +48,6 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	return done, cancel
 }
 
-func uniqueClaimsEmpty(t *testing.T, e *core.Engine) {
-	t.Helper()
-	enginetest.LockEmpty(t, e)
-	uniqueKeyBucketsEmpty(t, e)
-}
-
-func uniqueKeyBucketsEmpty(t *testing.T, e *core.Engine) {
-	t.Helper()
-	lockState := e.Locks.Inspect()
-	if lockState.KeyBuckets != 0 {
-		t.Fatal("retained unique key buckets", lockState.KeyBuckets)
-	}
-}
-
 func TestUniqueClaimSavepointCancellation(t *testing.T) {
 	e := engine.New()
 	a := enginetest.StartSession(t, e, nil)
@@ -90,7 +76,7 @@ func TestUniqueClaimSavepointCancellation(t *testing.T) {
 	enginetest.LockPending(t, e, 0)
 	enginetest.TransactionEnd(t, a, ar, true)
 	btreeWantKeys(t, e, "u", "1", "2")
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestUniqueClaimDeadlock(t *testing.T) {
@@ -142,7 +128,7 @@ func TestUniqueClaimDeadlock(t *testing.T) {
 	}
 	enginetest.TransactionEnd(t, a, ar, false)
 	enginetest.TransactionEnd(t, b, br, false)
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
@@ -169,7 +155,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 				target, b = source, a
 			}
 			enginetest.SessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
-			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
+			enginetest.SequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := enginetest.PreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.Sequences.Constants[0].Ref
 			temp := target.Catalog.State.Get(tempRef.Address)
@@ -195,7 +181,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			if !reflect.DeepEqual(original.Constraints.Unique[0], originalConstraint) {
 				t.Fatal("source definition mutated")
 			}
-			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
+			enginetest.SequenceScalar(t, b, "SELECT nextval('kept')", 2)
 			var again bytes.Buffer
 			if err := engine.Dump(ctx, target, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
 				t.Fatal("noncanonical remapped replay", err, again.String())
@@ -203,13 +189,13 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			if err := engine.Restore(ctx, target, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
-			sequenceScalar(t, b, "SELECT nextval('kept')", 3)
+			enginetest.SequenceScalar(t, b, "SELECT nextval('kept')", 3)
 			result, err := enginetest.Execute(target, ctx, enginetest.Statement(t, "INSERT INTO portable.t VALUES(7)"), nil)
 			if result.Count != 0 || result.Rows != nil {
 				t.Fatal(result)
 			}
 			enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(7) already exists.", Schema: "portable", Table: "t", Constraint: "u"})
-			uniqueClaimsEmpty(t, target)
+			enginetest.UniqueClaimsEmpty(t, target)
 		})
 	}
 }
@@ -273,7 +259,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	if index.JournalIndexesOrZero(a.Transactions.Catalog).UniqueRoots[rebuilt] != nil {
 		t.Fatal("removed backing retained private baseline")
 	}
-	if len(root.Entries) != 1 || btreeKeys(t, root)[0] != "1" {
+	if len(root.Entries) != 1 || enginetest.BtreeKeys(t, root)[0] != "1" {
 		t.Fatal("retained private root mutated")
 	}
 	enginetest.SessionSQL(t, a, "ROLLBACK TO after_type")
@@ -313,7 +299,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	if e.Catalog.State.Get(parentRef.Address) != original || e.Storage.IndexRoots[original.Constraints.Unique[0].Index] != originalRoot {
 		t.Fatal("rollback changed committed closure")
 	}
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestUniqueClaimStatementTimeout(t *testing.T) {
@@ -335,7 +321,7 @@ func TestUniqueClaimStatementTimeout(t *testing.T) {
 		t.Fatal("UNIQUE statement deadline did not terminate")
 	}
 	enginetest.TransactionEnd(t, a, ar, false)
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestUniqueClaimEpochFenceReadmission(t *testing.T) {
@@ -354,11 +340,11 @@ func TestUniqueClaimEpochFenceReadmission(t *testing.T) {
 	}
 	deleteAwait(t, done, 0, ids.ErrCatalogReplaced)
 	enginetest.TransactionEnd(t, a, ar, false)
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 	enginetest.SessionSQL(t, b, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	enginetest.SessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	btreeWantKeys(t, e, "u", "1")
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestUniqueKeyChangeTwoUpgradersEvaluateOnce(t *testing.T) {
@@ -415,15 +401,15 @@ func TestUniqueKeyChangeTwoUpgradersEvaluateOnce(t *testing.T) {
 	}
 	enginetest.TransactionEnd(t, a, ar, false)
 	enginetest.TransactionEnd(t, b, br, false)
-	sequenceScalar(t, observer, "SELECT last_value FROM draws", draws)
+	enginetest.SequenceScalar(t, observer, "SELECT last_value FROM draws", draws)
 	btreeWantKeys(t, e, "u", "1")
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func btreeWantKeys(t *testing.T, e *core.Engine, name string, want ...string) *storage.IndexRoot {
 	t.Helper()
 	_, root := btreeRoot(t, e, name)
-	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {
+	if got := enginetest.BtreeKeys(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(name, got, want)
 	}
 	return root

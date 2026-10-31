@@ -93,7 +93,7 @@ func temporaryCleanupConsumer(t *testing.T) (*core.Engine, *session.Operation, *
 	enginetest.RoleExecute(t, e, op, "CREATE TEMP TABLE cleanup_owner(v INT)")
 	enginetest.RoleExecute(t, e, op, "CREATE TEMP SEQUENCE cleanup_owned OWNED BY cleanup_owner.v")
 	namespace := op.Session.TemporaryNamespace
-	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
 	owner := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owner"}))
 	sequence := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owned"}))
 	enginetest.RoleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
@@ -170,7 +170,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		if err != nil || !installed || e.Storage.Relations[survivor.Address()] != currentStore || e.Storage.IndexRoots[index] != currentRoot || e.Storage.Sequences[unrelated] != currentGenerator || e.Catalog.State.Epoch() != epoch || e.Catalog.State.NamespaceGeneration() != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
-		assertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
+		enginetest.AssertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
 		if len(survivor.Constraints.Check) != 1 || len(e.Catalog.State.MustRelation(survivor.Address()).Constraints.Check) != 0 || e.Storage.Relations[owner.Address()] != nil || e.Storage.Sequences[sequence.Address()] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
@@ -237,7 +237,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	if replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1 || e.Catalog.NextRevision() != maximum.Revision() {
 		t.Fatal("saturated replacement identity/frontier")
 	}
-	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
+	enginetest.AssertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
 	if e.Storage.Relations[survivor.Address()] != store || e.Storage.IndexRoots[index] != root || e.Catalog.State.Epoch() != epoch || e.Catalog.State.NamespaceGeneration() != generation || e.Storage.Sequences[sequence.Address()] != nil {
 		t.Fatal("maximum cleanup changed rows/roots/peer analysis or kept provider")
 	}

@@ -2,8 +2,6 @@ package core_test
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -13,44 +11,9 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
-
-func assertTemporaryNamespacePair(t *testing.T, e *core.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
-	t.Helper()
-	ns, ok := e.Catalog.State.Namespace(table)
-	if !ok || ns.Temporary != token || ns.TemporaryToast || ns.Owner.ID() != 10 || ns.ACL.Explicit || len(ns.ACL.Entries) != 0 {
-		t.Fatal("real table TEMP authority", ns)
-	}
-	suffix, ok := strings.CutPrefix(ns.Name(), "pg_temp_")
-	if !ok {
-		t.Fatal(ns.Name())
-	}
-	var toast ids.ObjectAddress
-	count := 0
-	for a, d := range e.Catalog.State.Descriptors() {
-		other, ok := d.(*catalog.Namespace)
-		if !ok || other.Temporary != token {
-			continue
-		}
-		count++
-		if other.TemporaryToast {
-			if other.Name() != "pg_toast_temp_"+suffix || other.Owner != ns.Owner || other.ACL.Explicit || len(other.ACL.Entries) != 0 || other.Address() == table {
-				t.Fatal("real toast TEMP authority", other)
-			}
-			toast = a
-		}
-		if e.Catalog.State.NameAddress(catalog.DescriptorNameKey(other)) != a {
-			t.Fatal("TEMP name identity", other)
-		}
-	}
-	if count != 2 || toast == (ids.ObjectAddress{}) {
-		t.Fatal("TEMP pair cardinality", count, toast)
-	}
-	return toast
-}
 
 func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	e := engine.New()
@@ -60,7 +23,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	enginetest.SessionSQL(t, s, "SET ROLE namespace_actor")
 	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
 	table := s.TemporaryNamespace
-	toast := assertTemporaryNamespacePair(t, e, s.SessionToken, table)
+	toast := enginetest.AssertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	object := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}))
 	actor := e.Roles().LookupRef("namespace_actor")
 	if object.Owner != actor || object.Owner.ID() == 10 {
@@ -107,7 +70,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	if s.TemporaryNamespace != (ids.ObjectAddress{}) || e.Catalog.State.Get(object.Address()) != nil {
 		t.Fatal("physical cleanup left active object authority")
 	}
-	assertTemporaryNamespacePair(t, e, s.SessionToken, table)
+	enginetest.AssertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	for _, id := range []ids.ObjectAddress{table, toast} {
 		namespaceUnitRow(t, retained, uint32(id.ObjectID))
 		namespaceUnitRow(t, namespaceUnitCapture(t, e, e.CatalogRead()), uint32(id.ObjectID))
@@ -150,7 +113,7 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		op.Done()
 		if commit {
 			enginetest.SessionSQL(t, creator, "COMMIT")
-			assertTemporaryNamespacePair(t, e, creator.SessionToken, creator.TemporaryNamespace)
+			enginetest.AssertTemporaryNamespacePair(t, e, creator.SessionToken, creator.TemporaryNamespace)
 		} else {
 			enginetest.SessionSQL(t, creator, "ROLLBACK")
 			if namespaceUnitCapture(t, e, e.CatalogRead()).Count() != 4 {
@@ -168,7 +131,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE namespace_collation_table(i INT)")
 	table := s.TemporaryNamespace
-	toast := assertTemporaryNamespacePair(t, e, s.SessionToken, table)
+	toast := enginetest.AssertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	enginetest.SessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"})
 	s.RequestEnd(session.CleanClose)
@@ -178,7 +141,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	if err := core.EngineEndTemporaryCollations(e, s); err != nil {
 		t.Fatal(err)
 	}
-	assertTemporaryNamespacePair(t, e, s.SessionToken, table)
+	enginetest.AssertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	if e.Catalog.State.Get(address) != nil {
 		t.Fatal("alternate cleanup retained collation child")
 	}
@@ -231,7 +194,7 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "SET ROLE namespace_view_creator")
 	enginetest.RoleExecute(t, e, op, "CREATE TEMP VIEW owned_temp AS SELECT 1 AS v")
 	namespace := op.Session.TemporaryNamespace
-	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"})
 	view, ok := e.Catalog.State.Relation(address)
 	if !ok || view.Owner != e.Roles().LookupRef("namespace_view_creator") || view.Namespace() != namespace || view.RelationKind != catalog.ViewRelation || view.View == nil {
@@ -239,52 +202,44 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	}
 	enginetest.RoleExecute(t, e, op, "SELECT v FROM owned_temp")
 	enginetest.RoleExecute(t, e, op, "DROP VIEW owned_temp")
-	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
 }
 
 // Unit tests name producers by their former engine identifiers. Each one is
 // resolved through the real pgcatalog registry, so a missing registration
 // fails at package initialization instead of silently testing another path.
 var (
-	captureAvailableExtensions = registeredCatalogProducer(12081)
-	captureDataTypePrivileges  = registeredCatalogProducer(16201)
-	captureExtensionCatalog    = registeredCatalogProducer(1255)
-	capturePGAM                = registeredCatalogProducer(2601)
-	capturePGAggregate         = registeredCatalogProducer(2600)
-	capturePGAttribute         = registeredCatalogProducer(1249)
-	capturePGCast              = registeredCatalogProducer(2605)
-	capturePGCollation         = registeredCatalogProducer(3456)
-	capturePGConstraint        = registeredCatalogProducer(2606)
-	capturePGCursors           = registeredCatalogProducer(12077)
-	capturePGDatabase          = registeredCatalogProducer(1262)
-	capturePGDefaultACL        = registeredCatalogProducer(826)
-	capturePGDepend            = registeredCatalogProducer(2608)
-	capturePGDescription       = registeredCatalogProducer(2609)
-	capturePGEnum              = registeredCatalogProducer(3501)
-	capturePGGroup             = registeredCatalogProducer(12008)
-	capturePGIndexes           = registeredCatalogProducer(12002)
-	capturePGNamespace         = registeredCatalogProducer(2615)
-	capturePGOpclass           = registeredCatalogProducer(2616)
-	capturePGOperator          = registeredCatalogProducer(2617)
-	capturePGParameterACL      = registeredCatalogProducer(6243)
-	capturePGRange             = registeredCatalogProducer(3541)
-	capturePGRoles             = registeredCatalogProducer(12007)
-	capturePGSequence          = registeredCatalogProducer(2224)
-	capturePGSettings          = registeredCatalogProducer(16202)
-	capturePGShDescription     = registeredCatalogProducer(2396)
-	capturePGTablespace        = registeredCatalogProducer(1213)
-	capturePGType              = registeredCatalogProducer(1247)
-	capturePGUser              = registeredCatalogProducer(12014)
-	capturePreparedSource      = registeredCatalogProducer(12001)
-	captureTablePrivileges     = registeredCatalogProducer(16200)
-	captureTableViewSummary    = registeredCatalogProducer(12000)
-	captureTimezoneSource      = registeredCatalogProducer(12004)
+	captureAvailableExtensions = enginetest.RegisteredCatalogProducer(12081)
+	captureDataTypePrivileges  = enginetest.RegisteredCatalogProducer(16201)
+	captureExtensionCatalog    = enginetest.RegisteredCatalogProducer(1255)
+	capturePGAM                = enginetest.RegisteredCatalogProducer(2601)
+	capturePGAggregate         = enginetest.RegisteredCatalogProducer(2600)
+	capturePGAttribute         = enginetest.RegisteredCatalogProducer(1249)
+	capturePGCast              = enginetest.RegisteredCatalogProducer(2605)
+	capturePGCollation         = enginetest.RegisteredCatalogProducer(3456)
+	capturePGConstraint        = enginetest.RegisteredCatalogProducer(2606)
+	capturePGCursors           = enginetest.RegisteredCatalogProducer(12077)
+	capturePGDatabase          = enginetest.RegisteredCatalogProducer(1262)
+	capturePGDefaultACL        = enginetest.RegisteredCatalogProducer(826)
+	capturePGDepend            = enginetest.RegisteredCatalogProducer(2608)
+	capturePGDescription       = enginetest.RegisteredCatalogProducer(2609)
+	capturePGEnum              = enginetest.RegisteredCatalogProducer(3501)
+	capturePGGroup             = enginetest.RegisteredCatalogProducer(12008)
+	capturePGIndexes           = enginetest.RegisteredCatalogProducer(12002)
+	capturePGNamespace         = enginetest.RegisteredCatalogProducer(2615)
+	capturePGOpclass           = enginetest.RegisteredCatalogProducer(2616)
+	capturePGOperator          = enginetest.RegisteredCatalogProducer(2617)
+	capturePGParameterACL      = enginetest.RegisteredCatalogProducer(6243)
+	capturePGRange             = enginetest.RegisteredCatalogProducer(3541)
+	capturePGRoles             = enginetest.RegisteredCatalogProducer(12007)
+	capturePGSequence          = enginetest.RegisteredCatalogProducer(2224)
+	capturePGSettings          = enginetest.RegisteredCatalogProducer(16202)
+	capturePGShDescription     = enginetest.RegisteredCatalogProducer(2396)
+	capturePGTablespace        = enginetest.RegisteredCatalogProducer(1213)
+	capturePGType              = enginetest.RegisteredCatalogProducer(1247)
+	capturePGUser              = enginetest.RegisteredCatalogProducer(12014)
+	capturePreparedSource      = enginetest.RegisteredCatalogProducer(12001)
+	captureTablePrivileges     = enginetest.RegisteredCatalogProducer(16200)
+	captureTableViewSummary    = enginetest.RegisteredCatalogProducer(12000)
+	captureTimezoneSource      = enginetest.RegisteredCatalogProducer(12004)
 )
-
-func registeredCatalogProducer(oid ids.OID) pgcatalog.Producer {
-	produce, ok := pgcatalog.ProducerFor(oid)
-	if !ok {
-		panic(fmt.Sprintf("no catalog producer registered for OID %d", oid))
-	}
-	return produce
-}

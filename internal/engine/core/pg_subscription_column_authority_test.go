@@ -16,7 +16,7 @@ import (
 
 func TestPGSubscriptionColumnAuthority(t *testing.T) {
 	e := engine.New()
-	aclUnitRoles(e, "subscription_unit_reader")
+	enginetest.AclUnitRoles(e, "subscription_unit_reader")
 	v := e.CatalogRead()
 	roles := e.Roles()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 6100}

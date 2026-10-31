@@ -74,7 +74,7 @@ func TestStatisticsExpressionPublicationInheritedAuthority(t *testing.T) {
 	e, s, parent, child, localKey := expressionHierarchyFixture(t, false)
 	inheritedKey := localKey
 	inheritedKey.Inherited = true
-	baseline := analyzeFacts(e, parent.Address)
+	baseline := enginetest.AnalyzeFacts(e, parent.Address)
 	local := expressionHierarchyFact(t, baseline, localKey, 4, 2, 1, 2, map[int64]uint64{2: 2})
 	inherited := expressionHierarchyFact(t, baseline, inheritedKey, 8, 4, 2, 4, map[int64]uint64{2: 2, 3: 2})
 	read := e.CatalogRead()
@@ -83,7 +83,7 @@ func TestStatisticsExpressionPublicationInheritedAuthority(t *testing.T) {
 	if local == inherited || local.Expression(0) == inherited.Expression(0) || local.Hierarchy != nil || inherited.Hierarchy == nil || len(inherited.Hierarchy.Relations) != 2 || !storage.StatisticsHierarchyCurrent(inherited.Hierarchy, relation, read) {
 		t.Fatal("local/inherited ownership or hierarchy authority was shared incorrectly")
 	}
-	if local.Recipes != definition.Expressions || inherited.Recipes != definition.Expressions || analyzeFacts(e, child.Address) != nil {
+	if local.Recipes != definition.Expressions || inherited.Recipes != definition.Expressions || enginetest.AnalyzeFacts(e, child.Address) != nil {
 		t.Fatal("ONLY lost retained recipe backing or refreshed the child separately")
 	}
 	childDescriptor := read.MustRelation(child.Address)
@@ -91,7 +91,7 @@ func TestStatisticsExpressionPublicationInheritedAuthority(t *testing.T) {
 		t.Fatal("fixture does not distinguish child and parent layouts")
 	}
 	enginetest.SessionSQL(t, s, "INSERT INTO expr_hierarchy_child(noise,b,a) VALUES(777,90,9)")
-	stale := analyzeFacts(e, parent.Address)
+	stale := enginetest.AnalyzeFacts(e, parent.Address)
 	if stale.Extended[localKey] != local || stale.Extended[inheritedKey] != inherited {
 		t.Fatal("DML invalidated retained local/inherited expression backing")
 	}
@@ -109,7 +109,7 @@ func TestStatisticsExpressionPublicationInheritedAuthority(t *testing.T) {
 		t.Fatal("child provider/layout replacement did not isolate inherited invalidation")
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE expr_hierarchy_child NO INHERIT expr_hierarchy")
-	retired := analyzeFacts(e, parent.Address)
+	retired := enginetest.AnalyzeFacts(e, parent.Address)
 	if retired == nil || retired.Extended[localKey] != local || retired.Extended[inheritedKey] != nil || storage.StatisticsHierarchyCurrent(inherited.Hierarchy, e.CatalogRead().MustRelation(parent.Address), e.CatalogRead()) {
 		t.Fatal("retired child retained obsolete inherited authority or changed local backing")
 	}
@@ -128,7 +128,7 @@ func TestStatisticsExpressionSnapshotInheritedState(t *testing.T) {
 			source, s, parent, _, localKey := expressionHierarchyFixture(t, partitioned)
 			inheritedKey := localKey
 			inheritedKey.Inherited = true
-			before := analyzeFacts(source, parent.Address)
+			before := enginetest.AnalyzeFacts(source, parent.Address)
 			if before == nil {
 				t.Fatal("hierarchy collection did not publish canonical metadata")
 			}
@@ -152,7 +152,7 @@ func TestStatisticsExpressionSnapshotInheritedState(t *testing.T) {
 				enginetest.SessionSQL(t, s, "UPDATE expr_hierarchy SET a=9,b=90")
 				enginetest.SessionSQL(t, s, "UPDATE expr_hierarchy_child SET a=9,b=90")
 			}
-			if analyzeFacts(source, parent.Address).Extended[inheritedKey] != oldInherited {
+			if enginetest.AnalyzeFacts(source, parent.Address).Extended[inheritedKey] != oldInherited {
 				t.Fatal("current rows replaced stale inherited backing before ANALYZE")
 			}
 			var dump strings.Builder
@@ -168,7 +168,7 @@ func TestStatisticsExpressionSnapshotInheritedState(t *testing.T) {
 			restoredLocalKey := ndistinctKey(t, target, "expr_hierarchy_s")
 			restoredInheritedKey := restoredLocalKey
 			restoredInheritedKey.Inherited = true
-			restoredRoot := analyzeFacts(target, parentRef.Address)
+			restoredRoot := enginetest.AnalyzeFacts(target, parentRef.Address)
 			restored := expressionHierarchyFact(t, restoredRoot, restoredInheritedKey, rows, nulls, 2, groups, map[int64]uint64{2: 2, 3: 2})
 			if restored == oldInherited || restored.Expression(0) == oldInherited.Expression(0) || restored.Hierarchy == nil || restored.Hierarchy == oldInherited.Hierarchy || restored.Recipes == oldInherited.Recipes || !storage.StatisticsHierarchyCurrent(restored.Hierarchy, read.MustRelation(parentRef.Address), read) {
 				t.Fatal("stale inherited facts were recomputed or retained foreign generation authority")
@@ -194,7 +194,7 @@ func TestStatisticsExpressionSnapshotInheritedState(t *testing.T) {
 			}
 			targetSession := enginetest.StartSession(t, target, nil)
 			enginetest.SessionSQL(t, targetSession, "ANALYZE ONLY expr_hierarchy")
-			fresh := analyzeFacts(target, parentRef.Address).Extended[restoredInheritedKey]
+			fresh := enginetest.AnalyzeFacts(target, parentRef.Address).Extended[restoredInheritedKey]
 			if fresh == nil || fresh == restored || fresh.Hierarchy == restored.Hierarchy {
 				t.Fatal("fresh scan did not acquire independent hierarchy backing")
 			}

@@ -111,7 +111,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		if e.Catalog.State.MustRelation(ref.Address).SequencePlanStamp == stamp {
 			t.Fatal("unchanged START failed to invalidate")
 		}
-		sequenceScalar(t, s, "SELECT nextval('b.s')", 13)
+		enginetest.SequenceScalar(t, s, "SELECT nextval('b.s')", 13)
 	})
 	t.Run("StableTemporaryPayloadAndEnvironment", func(t *testing.T) {
 		e := engine.New()
@@ -155,7 +155,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		e := engine.New()
 		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, a, "CREATE SEQUENCE s START 10")
-		sequenceScalar(t, a, "SELECT nextval('s')", 10)
+		enginetest.SequenceScalar(t, a, "SELECT nextval('s')", 10)
 		ast, d := enginetest.PreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := enginetest.TransactionBegin(t, a)
 		enginetest.SessionSQL(t, a, "ALTER SEQUENCE s RENAME TO identity")
@@ -182,7 +182,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(*diagnostic, want) {
 			t.Fatalf("next execution error=%#v want=%#v", diagnostic, want)
 		}
-		sequenceScalar(t, a, "SELECT nextval('identity')", 12)
+		enginetest.SequenceScalar(t, a, "SELECT nextval('identity')", 12)
 		enginetest.LockEmpty(t, e)
 	})
 	t.Run("QueuedRollback", func(t *testing.T) {
@@ -378,7 +378,7 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	}
 	grant(authorization.UsagePrivilege | authorization.UpdatePrivilege | authorization.SelectPrivilege)
 	enginetest.SessionSQL(t, s, "SET SESSION AUTHORIZATION reader")
-	sequenceScalar(t, s, "SELECT nextval('s')", 1)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('s')", 1)
 	queries := []string{"SELECT nextval('s')", "SELECT currval('s')", "SELECT lastval()", "SELECT setval('s',40)"}
 	asts := make([]parser.Statement, len(queries))
 	descriptions := make([]core.Description, len(queries))
@@ -408,8 +408,8 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	if got[0][0] != int64(2) {
 		t.Fatal("denied call changed cache/generator", got)
 	}
-	sequenceScalar(t, s, "SELECT currval('s')", 2)
-	sequenceScalar(t, s, "SELECT lastval()", 2)
+	enginetest.SequenceScalar(t, s, "SELECT currval('s')", 2)
+	enginetest.SequenceScalar(t, s, "SELECT lastval()", 2)
 }
 
 func TestSequencePreparedReplacementProvenance(t *testing.T) {
@@ -478,7 +478,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE SCHEMA a")
-		ref := schemaRef(t, e, "a")
+		ref := enginetest.SchemaRef(t, e, "a")
 		// Namespace ACLs do not need a new descriptor definition token.
 		e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
 		if err := enginetest.SetObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
@@ -538,7 +538,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		if len(got) != 1 || got[0][0] != int64(10) {
 			t.Fatal("failed closure changed sequence state", got)
 		}
-		sequenceScalar(t, s, "SELECT v FROM a.t", 7)
+		enginetest.SequenceScalar(t, s, "SELECT v FROM a.t", 7)
 	})
 }
 
@@ -554,7 +554,7 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 				enginetest.SessionSQL(t, a, "INSERT INTO anchor VALUES(1)")
 			}
 			if query == `SELECT setval('s',nextval('t'),"flag") FROM runtime_null` {
-				sequenceScalar(t, a, "SELECT nextval('t')", 20)
+				enginetest.SequenceScalar(t, a, "SELECT nextval('t')", 20)
 			}
 			ast, d := enginetest.PreparedDescription(t, e, b, query)
 			tx := enginetest.TransactionBegin(t, b)
@@ -583,10 +583,10 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 				t.Fatal("undemanded target retained sequence RX and blocked peer ALTER", err)
 			}
 			enginetest.TransactionEnd(t, b, tx, false)
-			sequenceScalar(t, a, "SELECT nextval('s')", 10)
+			enginetest.SequenceScalar(t, a, "SELECT nextval('s')", 10)
 			if query == `SELECT setval('s',nextval('t'),"flag") FROM runtime_null` {
-				sequenceScalar(t, b, "SELECT currval('t')", 21)
-				sequenceScalar(t, a, "SELECT nextval('t')", 22)
+				enginetest.SequenceScalar(t, b, "SELECT currval('t')", 21)
+				enginetest.SequenceScalar(t, a, "SELECT nextval('t')", 22)
 			} else {
 				op, err := b.Acquire(context.Background())
 				if err != nil {
@@ -599,7 +599,7 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 				if !errors.As(err, &diagnostic) || *diagnostic != want {
 					t.Fatalf("eliminated argument got=%#v want=%#v", diagnostic, want)
 				}
-				sequenceScalar(t, a, "SELECT nextval('t')", 20)
+				enginetest.SequenceScalar(t, a, "SELECT nextval('t')", 20)
 			}
 		})
 	}
@@ -630,16 +630,16 @@ func TestSequencePreparedQueuedArguments(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	sequenceScalar(t, b, "SELECT currval('t')", 20)
-	sequenceScalar(t, b, "SELECT lastval()", 20)
+	enginetest.SequenceScalar(t, b, "SELECT currval('t')", 20)
+	enginetest.SequenceScalar(t, b, "SELECT lastval()", 20)
 	_, err := enginetest.PreparedExecute(e, b, ast, &d)
 	var diagnostic *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "s" does not exist`, Position: "15"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatalf("next execute got=%#v want=%#v", diagnostic, want)
 	}
-	sequenceScalar(t, a, "SELECT nextval('identity')", 21)
-	sequenceScalar(t, a, "SELECT nextval('t')", 21)
+	enginetest.SequenceScalar(t, a, "SELECT nextval('identity')", 21)
+	enginetest.SequenceScalar(t, a, "SELECT nextval('t')", 21)
 	enginetest.LockEmpty(t, e)
 }
 

@@ -125,7 +125,7 @@ func TestVisibilityExecutionCapturedFrontier(t *testing.T) {
 			view := e.CatalogRead()
 			var address ids.ObjectAddress
 			for _, d := range view.Descriptors() {
-				if d.Address().ClassID == tc.kind.Class() && d.Namespace() == schemaRef(t, e, "captured").Address { address = d.Address(); break }
+				if d.Address().ClassID == tc.kind.Class() && d.Namespace() == enginetest.SchemaRef(t, e, "captured").Address { address = d.Address(); break }
 			}
 			if address.ObjectID == 0 { t.Fatal("missing real target") }
 			op, err := s.Acquire(ctx); if err != nil { t.Fatal(err) }; defer op.Done()

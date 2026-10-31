@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -24,9 +25,9 @@ func operatorClassUnitDefinitions(t *testing.T, e *core.Engine, name string, fun
 	if !ok {
 		t.Fatal("missing bootstrap class authority")
 	}
-	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name + "_family", Method: 403, Owner: builtin.Owner}
-	class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name, Method: 403, Family: family.Address().ObjectID, InputType: 23, Owner: builtin.Owner}
-	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: function, InternalOwner: class.Address()}
+	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name + "_family", Method: 403, Owner: builtin.Owner}
+	class := &catalog.OperatorClass{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: builtin.Namespace(), ObjectRevision: 1, ObjectName: name, Method: 403, Family: family.Address().ObjectID, InputType: 23, Owner: builtin.Owner}
+	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 1, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: function, InternalOwner: class.Address()}
 	return family, class, member
 }
 
@@ -70,10 +71,10 @@ func TestOperatorClassSupportExecution(t *testing.T) {
 			if !ok {
 				t.Fatal("custom class unavailable")
 			}
-			parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
+			parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}}
 			parent.TableMethod = 2
 			definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: selected, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}
-			idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, SQLIndex: definition}
+			idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 1, SQLIndex: definition}
 			ordering, err := index.BindIndexOrdering(view, parent, definition)
 			if err != nil {
 				t.Fatal(err)
@@ -117,10 +118,10 @@ func TestOperatorClassSupportExecution(t *testing.T) {
 			missing := catalog.NewCandidate(view)
 			// A genuinely incomplete current family cannot select static int4 support.
 			empty := *family
-			empty.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+			empty.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 			empty.ObjectName += "_empty"
 			incomplete := *class
-			incomplete.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+			incomplete.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 			incomplete.ObjectName += "_empty"
 			incomplete.Family = empty.Address().ObjectID
 			for _, d := range []catalog.Descriptor{&empty, &incomplete} {

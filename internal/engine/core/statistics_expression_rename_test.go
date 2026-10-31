@@ -28,7 +28,7 @@ func TestStatisticsExpressionBindingRenameRetention(t *testing.T) {
 	if original == nil {
 		t.Fatal("missing retained definition")
 	}
-	facts := analyzeFacts(e, original.Relation.Address)
+	facts := enginetest.AnalyzeFacts(e, original.Relation.Address)
 	if facts == nil || len(facts.Extended) != 1 {
 		t.Fatal("missing collected baseline")
 	}
@@ -42,7 +42,7 @@ func TestStatisticsExpressionBindingRenameRetention(t *testing.T) {
 		if !ok || current.Expressions != original.Expressions {
 			t.Fatal("metadata-only publication replaced binding", sql)
 		}
-		retained := analyzeFacts(e, current.Relation.Address)
+		retained := enginetest.AnalyzeFacts(e, current.Relation.Address)
 		if retained == nil || len(retained.Extended) != 1 {
 			t.Fatal("metadata-only publication lost expression facts", sql)
 		}

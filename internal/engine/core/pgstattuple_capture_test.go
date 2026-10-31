@@ -219,8 +219,8 @@ func TestPgstattupleHeapTargetDispatch(t *testing.T) {
 			if nonheap {
 				// A distinct table-AM identity uses the existing genuine heap
 				// handler; pgstattuple still requires the released heap AM OID.
-				method := accessMethodUnit(t,e,"dispatch_table_am",catalog.HeapAccessMethod,3)
-				read := accessMethodPublish(t,e,method)
+				method := enginetest.AccessMethodUnit(t,e,"dispatch_table_am",catalog.HeapAccessMethod,3)
+				read := enginetest.AccessMethodPublish(t,e,method)
 				target = *capture.Parent
 				target.TableMethod = method.Address().ObjectID
 				if err := catalog.ValidateRelationTableMethod(read,&target); err != nil { t.Fatal(err) }

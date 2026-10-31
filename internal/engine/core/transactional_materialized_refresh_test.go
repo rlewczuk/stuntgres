@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
@@ -23,7 +21,7 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE txj_source(i INT)", "INSERT INTO txj_source VALUES(1)", "CREATE MATERIALIZED VIEW txj_mv AS SELECT i FROM txj_source", "CREATE UNIQUE INDEX txj_u ON txj_mv(i)", "CREATE INDEX txj_second ON txj_mv(i)", "CREATE TABLE txj_unrelated(i INT)", "VACUUM txj_mv"} {
 					enginetest.SessionSQL(t, s, q)
 				}
-				ref, old := vacuumStore(t, e, "txj_mv")
+				ref, old := enginetest.VacuumStore(t, e, "txj_mv")
 				source := enginetest.CatalogRef(t, e, e.CatalogRead(), "txj_source")
 				u := enginetest.CatalogRef(t, e, e.CatalogRead(), "txj_u")
 				second := enginetest.CatalogRef(t, e, e.CatalogRead(), "txj_second")
@@ -114,16 +112,4 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 			})
 		}
 	}
-}
-
-func vacuumStore(t *testing.T, e *core.Engine, name string) (ids.ObjectRef, *storage.Relation) {
-	t.Helper()
-	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	store := e.Storage.Relations[ref.Address]
-	if store == nil {
-		t.Fatal("missing store", name)
-	}
-	return ref, store
 }

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -45,11 +46,11 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 			})
 		}
 	})
-	original := ruleUnitInsert(e, src, 1, 10)
+	original := enginetest.RuleUnitInsert(e, src, 1, 10)
 	originalBinding := original.Binding()
 	definition := &plan.CTEDefinition{Statement: original.Syntax(), Mutation: &originalBinding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
-		action := ruleUnitInsert(e, sink, 1, 11)
+		action := enginetest.RuleUnitInsert(e, sink, 1, 11)
 		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "redirect", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
@@ -68,7 +69,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("protected_modifier_and_select", func(t *testing.T) {
-		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(src.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}}
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(src.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{enginetest.RuleUnitInt(src, 1), enginetest.RuleUnitInt(src, 10)}}}
 		selection := &plan.CTEDefinition{Query: provider, Owner: 1}
 		for _, protected := range []*plan.CTEDefinition{definition, selection} {
 			scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
@@ -84,7 +85,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	})
 	t.Run("action_owner_and_project_memo", func(t *testing.T) {
 		leaf := &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Occurrence: 1}
-		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{enginetest.RuleUnitInt(sink, 1), enginetest.RuleUnitInt(sink, 11)}}}
 		local := &plan.CTEDefinition{Query: provider, Owner: 1}
 		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
 		action := analyze.Binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}}}
@@ -147,16 +148,16 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	})
 	t.Run("semantic_provider_memo_and_finalization", func(t *testing.T) {
 		pseudo := plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Scope: analyze.RulePseudoScope, Frame: 2}
-		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{pseudo, enginetest.RuleUnitInt(sink, 10)}}}
 		local := &plan.CTEDefinition{Query: provider, Owner: 1}
 		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
-		root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}
+		root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{enginetest.RuleUnitInt(sink, 1), enginetest.RuleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}
 		finalized := make(map[plan.Node]bool)
 		finishCount := 0
 		mapper := stored.NewRuleTreeMapper(auth.Catalog, nil, 0, nil, stored.RuleTreeMapping{
 			Leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
-					return ruleUnitInt(sink, 11), true, nil
+					return enginetest.RuleUnitInt(sink, 11), true, nil
 				}
 				return expr, false, nil
 			},
@@ -195,7 +196,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("persistent_unused_modifier_remap", func(t *testing.T) {
-		auxiliary := ruleUnitInsert(e, sink, 7, 70)
+		auxiliary := enginetest.RuleUnitInsert(e, sink, 7, 70)
 		auxiliaryBinding := auxiliary.Binding()
 		owned := &plan.CTEDefinition{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1, Name: "ignored"}
 		b := original.Binding()
@@ -215,23 +216,23 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 
 func TestRuleCTEConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	original := ruleUnitInsert(e, src, 1, 10).Binding()
-	modifier := ruleUnitInsert(e, sink, 1, 10)
+	original := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
+	modifier := enginetest.RuleUnitInsert(e, sink, 1, 10)
 	recipe := &analyze.InsertConflict{
 		Targets: modifier.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}},
-		Update:        &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
+		Update:        &analyze.UpdateBinding{Assignments: []expr.Expr{enginetest.RuleUnitInt(sink, 11)}},
 		UpdateTargets: []int{1}, Width: 2,
 	}
 	modifier = modifier.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
 	modifierBinding := modifier.Binding()
 	definition := &plan.CTEDefinition{Statement: modifier.Syntax(), Mutation: &modifierBinding, Schema: plan.QuerySchema(sink.Columns), Owner: 3}
 	scan := &plan.DerivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
-	action := ruleUnitInsert(e, sink, 1, 10)
+	action := enginetest.RuleUnitInsert(e, sink, 1, 10)
 	action = action.With(func(p *stored.RuleActionParts) {
 		p.Binding.Expressions = nil
 		p.Binding.Query = &plan.Query{Root: &plan.ProjectNode{
 			QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan,
-			Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)},
+			Expressions: []expr.Expr{enginetest.RuleUnitInt(sink, 1), enginetest.RuleUnitInt(sink, 10)},
 		}}
 		p.Binding.CTEs = []*plan.CTEDefinition{definition}
 		p.Binding.Rule.Template = true
@@ -284,7 +285,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	// Mutate the actual normalized execution binding, not a stand-alone clone:
 	// execution replaces its normalized predicate through the command's state.
 	firstState := dml.NewInsertConflictState(firstConflict)
-	firstState.Predicate = ruleUnitInt(sink, 12)
+	firstState.Predicate = enginetest.RuleUnitInt(sink, 12)
 	firstState.MarkAffected(ids.RowID(42), 0)
 	second := compose()
 	secondDefinition, secondConflict := executable(second)

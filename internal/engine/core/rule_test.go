@@ -5,9 +5,10 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"stuntgres/internal/engine/core"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/core"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
@@ -47,30 +48,14 @@ func ruleUnitCatalog(t *testing.T) (*core.Engine, core.AuthorizationView, *catal
 	return e, e.AuthorityView(access.View{Owner: &e.Catalog.Owner, Catalog: e.Catalog.Read(next)}), src, sink
 }
 
-func ruleUnitRef(e *core.Engine, d *catalog.Relation) ids.ObjectRef {
-	return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
-}
-func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
-	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
-	if err != nil {
-		panic(err)
-	}
-	return plan.LiteralExpr{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, Value: value}
-}
-func ruleUnitInsert(e *core.Engine, d *catalog.Relation, id, v int64) stored.RuleAction {
-	binding := analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}
-	presentation := stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(d.Columns), Child: &plan.SingletonNode{}, Expressions: binding.Expressions[0]}}})
-	return stored.NewRuleAction(stored.RuleActionParts{Syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, Binding: binding, Presentation: presentation})
-}
-
 func TestRuleTemplateSubstitution(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	original := ruleUnitInsert(e, src, 1, 10).Binding()
-	original.Expressions = append(original.Expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
-	ref := ruleUnitRef(e, src)
+	original := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
+	original.Expressions = append(original.Expressions, []expr.Expr{enginetest.RuleUnitInt(src, 2), enginetest.RuleUnitInt(src, 20)})
+	ref := enginetest.RuleUnitRef(e, src)
 	ref.Address.SubID = 1
 	pseudo := plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2, Slot: 0}
-	action := ruleUnitInsert(e, sink, 0, 0)
+	action := enginetest.RuleUnitInsert(e, sink, 0, 0)
 	action.Binding().Expressions[0][0] = pseudo
 	composed, err := view.ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
@@ -113,13 +98,13 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output := plan.ArithmeticExpr{Info: view.RuleColumnInfo(src.Columns[1]), Left: pseudoV, Right: ruleUnitInt(src, 10), Provider: provider}
+		output := plan.ArithmeticExpr{Info: view.RuleColumnInfo(src.Columns[1]), Left: pseudoV, Right: enginetest.RuleUnitInt(src, 10), Provider: provider}
 		projection := []expr.Expr{pseudo, output}
 		order, err := (*analyze.Binder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
 		if err != nil {
 			t.Fatal(err)
 		}
-		template := ruleUnitInsert(e, sink, 0, 0)
+		template := enginetest.RuleUnitInsert(e, sink, 0, 0)
 		template = template.With(func(p *stored.RuleActionParts) {
 			p.Binding.Expressions = nil
 			p.Binding.CommandQuery = true
@@ -150,7 +135,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		schema := slices.Clone(src.Columns)
 		schema[1].Usage = random.ResultUsage()
-		source := &plan.ProjectNode{QuerySchema: plan.QuerySchema(schema), Child: &plan.SingletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), random}, Frame: 2}
+		source := &plan.ProjectNode{QuerySchema: plan.QuerySchema(schema), Child: &plan.SingletonNode{}, Expressions: []expr.Expr{enginetest.RuleUnitInt(src, 1), random}, Frame: 2}
 		selectBinding := original
 		selectBinding.Query, selectBinding.Expressions = &plan.Query{Root: source}, nil
 		selectBinding.Insert.SubquerySource = true
@@ -167,7 +152,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("NEW lost derived output identity")
 		}
 		pure := *source
-		pure.Expressions = []expr.Expr{source.Expressions[0], ruleUnitInt(src, 99)}
+		pure.Expressions = []expr.Expr{source.Expressions[0], enginetest.RuleUnitInt(src, 99)}
 		pure.QuerySchema = plan.QuerySchema(src.Columns)
 		selectBinding.Query = &plan.Query{Root: &pure}
 		producer, err = view.MakeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
@@ -178,7 +163,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if pruned == &pure || !pruned.Expressions[1].(plan.LiteralExpr).Value.IsNull() || pure.Expressions[1].(plan.LiteralExpr).Value.IsNull() {
 			t.Fatal("pure unused projection demand or template immutability lost")
 		}
-		template := ruleUnitInsert(e, sink, 0, 0)
+		template := enginetest.RuleUnitInsert(e, sink, 0, 0)
 		template.Binding().Expressions[0][0] = pseudo
 		rewritten, err := view.ComposeRuleAction(auth, selectBinding, "INSERT", stored.Rule{}, template)
 		if err != nil {
@@ -203,7 +188,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
 		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		binder.Query.Auth = &auth
-		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
+		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: enginetest.RuleUnitRef(e, src), Event: "INSERT"}
 		binder.Query.Frame, binder.Query.NextQueryFrame = 1, 1
 		statements, err := parser.Parse("SELECT NEW.id,NEW.v")
 		if err != nil {
@@ -248,7 +233,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("generic_function_properties", func(t *testing.T) {
 		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
+		binder.Target.RuleNamespace = &analyze.RuleNamespace{Relation: src, Ref: enginetest.RuleUnitRef(e, src), Event: "INSERT"}
 		statements, err := parser.Parse("SELECT abs(NEW.v),random(1,2),format('%s',NEW.v)")
 		if err != nil {
 			t.Fatal(err)
@@ -282,7 +267,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			if _, formatting := mapped.(functions.Format); formatting {
 				stable, _, err := stored.MapExpression(auth.Catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if _, random := expr.(functions.Random); random {
-						return ruleUnitInt(src, 11), true, nil
+						return enginetest.RuleUnitInt(src, 11), true, nil
 					}
 					return expr, false, nil
 				})
@@ -293,7 +278,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("single_values_macro", func(t *testing.T) {
-		single := ruleUnitInsert(e, src, 1, 10).Binding()
+		single := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
 		producer, err := view.MakeRuleProducer(auth.Catalog, single, "INSERT")
 		if err != nil {
 			t.Fatal(err)
@@ -335,8 +320,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 
 func TestRuleProgramOrdering(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 3, 30)}})})
-	original := ruleUnitInsert(e, src, 4, 40)
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 1, 10), enginetest.RuleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 3, 30)}})})
+	original := enginetest.RuleUnitInsert(e, src, 4, 40)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.Mu.Lock()
 	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -350,7 +335,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 	for i, want := range []int64{1, 2, 3} {
 		project := p.Commands[i+1].Binding.Query.Root.(*plan.ProjectNode)
 		literal, ok := project.Expressions[0].(plan.LiteralExpr)
-		if !ok || !sqltype.SameDatum(literal.Value, ruleUnitInt(src, want).(plan.LiteralExpr).Value) {
+		if !ok || !sqltype.SameDatum(literal.Value, enginetest.RuleUnitInt(src, want).(plan.LiteralExpr).Value) {
 			t.Fatalf("action order %d differs from %d", i, want)
 		}
 	}
@@ -358,8 +343,8 @@ func TestRuleProgramOrdering(t *testing.T) {
 
 func TestRuleProgramAuthority(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 2, 20)}})})
-	original := ruleUnitInsert(e, src, 9, 90)
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Mode: catalog.RuleOrigin, Instead: true, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 2, 20)}})})
+	original := enginetest.RuleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{Count: -1, Returning: -1}
 	e.Mu.Lock()
 	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -378,7 +363,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 	if err != nil || count != -1 || len(p.Commands) != 0 {
 		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.Commands), err)
 	}
-	if len(p.Events) != 1 || p.Events[0].Ref != ruleUnitRef(e, src) || p.Events[0].Revision != src.Revision() {
+	if len(p.Events) != 1 || p.Events[0].Ref != enginetest.RuleUnitRef(e, src) || p.Events[0].Revision != src.Revision() {
 		t.Fatal("NOTHING lost rule event locking/prepared dependency authority")
 	}
 	t.Run("layered_boundary", func(t *testing.T) {
@@ -418,9 +403,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 
 func TestRuleProgramRecursion(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
-	sink.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{ruleUnitInsert(e, src, 1, 10)}})})
-	original := ruleUnitInsert(e, src, 9, 90)
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 1, 10)}})})
+	sink.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, src, 1, 10)}})})
+	original := enginetest.RuleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{}
 	e.Mu.Lock()
 	_, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -429,7 +414,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 		t.Fatalf("recursion error=%v", err)
 	}
 	sink.Rules = nil
-	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
+	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, enginetest.RuleUnitInsert(e, sink, 2, 20)) })
 	p = view.RuleProgram{}
 	e.Mu.Lock()
 	_, err = view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
@@ -444,14 +429,14 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	start := time.Unix(10, 0)
 	expected := &core.Description{}
 	s := core.NewScope(core.ScopeFields{Op: &session.Operation{}, StatementStart: start, Expected: expected})
-	s.LockedRef, s.LockedDescriptor = ruleUnitRef(e, src), src
+	s.LockedRef, s.LockedDescriptor = enginetest.RuleUnitRef(e, src), src
 	core.SetScopeSelf(s, s)
 	core.SetWriteStageSelf(&s.Stage, &s.Stage)
 	core.SetWriteStageScope(&s.Stage, s)
 	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
 	before := core.ScopeRuleScratch(s)
 	stageRows := s.Stage.Rows
-	core.ScopeInstallRuleScratch(s, core.RuleCommandScratch{Ref: ruleUnitRef(e, sink), Descriptor: sink})
+	core.ScopeInstallRuleScratch(s, core.RuleCommandScratch{Ref: enginetest.RuleUnitRef(e, sink), Descriptor: sink})
 	if core.WriteStageSelf(&s.Stage) != &s.Stage || core.WriteStageScope(&s.Stage) != s || len(s.Stage.Rows[src.Address()]) != 1 || s.Expected != expected || core.ScopeStatementStart(s) != start {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
@@ -464,8 +449,8 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 func TestRuleDefinitionDependencies(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	t.Run("unused_owned_modifier", func(t *testing.T) {
-		outer := ruleUnitInsert(e, src, 1, 10)
-		auxiliary := ruleUnitInsert(e, sink, 7, 70)
+		outer := enginetest.RuleUnitInsert(e, src, 1, 10)
+		auxiliary := enginetest.RuleUnitInsert(e, sink, 7, 70)
 		auxiliaryBinding := auxiliary.Binding()
 		outer = outer.With(func(p *stored.RuleActionParts) {
 			p.Binding.CTEs = []*plan.CTEDefinition{{Statement: auxiliary.Syntax(), Mutation: &auxiliaryBinding, Owner: 1}}
@@ -482,10 +467,10 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 			}
 		}
 	})
-	ref := ruleUnitRef(e, src)
+	ref := enginetest.RuleUnitRef(e, src)
 	ref.Address.SubID = 1
 	condition := plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
-	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: condition, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})
+	r := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: condition, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 1, 10)}})
 	refs, err := view.RuleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
 		t.Fatal(err)
@@ -531,9 +516,9 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 
 func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	oldRef := ruleUnitRef(e, src)
+	oldRef := enginetest.RuleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}})})
+	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Condition: plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, References: []ids.ObjectAddress{oldRef.Address}, Actions: []stored.RuleAction{enginetest.RuleUnitInsert(e, sink, 1, 10)}})})
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10

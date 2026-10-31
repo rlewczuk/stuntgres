@@ -26,9 +26,9 @@ func familyPreflightCatalog(t *testing.T) (*core.Engine, *catalog.OperatorFamily
 	e := engine.New()
 	base := e.CatalogRead()
 	builtin, _ := base.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 1976})
-	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "family_preflight", ObjectRevision: 2, Owner: builtin.Owner, Method: 403}
-	operator := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Purpose: 's', Operator: 97, Method: 403}
-	support := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 4, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
+	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "family_preflight", ObjectRevision: 2, Owner: builtin.Owner, Method: 403}
+	operator := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Purpose: 's', Operator: 97, Method: 403}
+	support := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 4, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
 	setup := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(setup)
 	for _, descriptor := range []catalog.Descriptor{family, operator, support} {
@@ -155,9 +155,9 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 			// Explicit graph-boundary input, not an executable CHECK recipe or
 			// a public custom-class association. Never validate/publish this
 			// relation: SQL CHECK admission does not accept member references.
-			dependent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: family.Namespace(), ObjectName: "family_preflight_dependent", ObjectRevision: 7, Owner: family.Owner, RelationKind: catalog.TableRelation}
+			dependent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: family.Namespace(), ObjectName: "family_preflight_dependent", ObjectRevision: 7, Owner: family.Owner, RelationKind: catalog.TableRelation}
 			dependent.TableMethod = 2
-			dependent.Constraints.Check = []catalog.CheckConstraint{{OID: catalogUnitOID(t, e), Name: "member_guard", Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(stage.Base.Epoch(), target), Revision: stage.Base.Get(target).Revision()}}}}
+			dependent.Constraints.Check = []catalog.CheckConstraint{{OID: enginetest.CatalogUnitOID(t, e), Name: "member_guard", Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(stage.Base.Epoch(), target), Revision: stage.Base.Get(target).Revision()}}}}
 			if err := stage.Create(dependent); err != nil {
 				t.Fatal(err)
 			}

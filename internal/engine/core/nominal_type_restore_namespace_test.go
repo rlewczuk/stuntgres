@@ -16,7 +16,7 @@ func TestNominalTypeRestorePublicNamespaceAuthority(t *testing.T) {
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	enginetest.RoleExecute(t, e, op, "CREATE ROLE namespace_domain_owner")
-	withPublicSchemaUnitOwner(t, e, "namespace_domain_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "namespace_domain_owner", func() {
 		enginetest.RoleExecute(t, e, op, "SET ROLE namespace_domain_owner")
 		enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.namespace_domain AS INT")
 		enginetest.RoleExecute(t, e, op, "CREATE TYPE public.namespace_enum AS ENUM('ok')")

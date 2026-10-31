@@ -89,5 +89,5 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatalf("parameter got=%#v want=%#v", diagnostic, want)
 	}
-	sequenceScalar(t, s, "SELECT nextval('s')", 90)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('s')", 90)
 }

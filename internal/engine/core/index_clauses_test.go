@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -80,7 +81,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	definition.Keys = append([]catalog.IndexKey(nil), index.SQLIndex.Keys...)
 	definition.Keys[0].Attribute = 999
 	broken.SQLIndex = &definition
-	invalid := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
+	invalid := enginetest.CatalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
 	for _, materialize := range []bool{false, true} {
 		if _, err := core.EnginePrepareIndexRoots(e, &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, snapshot, invalid, relations, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
@@ -102,24 +103,11 @@ func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *c
 	}
 	def := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]catalog.Column(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
-	catalogSnapshot := operatorFamilyFixtureState(catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, idx.Address(): idx}, nil))
+	catalogSnapshot := operatorFamilyFixtureState(enginetest.CatalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, idx.Address(): idx}, nil))
 	if err := index.ValidateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), idx); err != nil {
 		t.Fatal(err)
 	}
 	return parent, idx, catalogSnapshot, types
-}
-
-// catalogStateFixture builds an unpublished state at epoch that holds
-// descriptors and names, through the state's write API.
-func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddress]catalog.Descriptor, names map[ids.NameKey]ids.ObjectAddress) *catalog.State {
-	s := catalog.NewState(epoch)
-	for a, d := range descriptors {
-		s.SetDescriptor(a, d)
-	}
-	for k, a := range names {
-		s.BindName(k, a)
-	}
-	return s
 }
 
 func indexClausesTypes() map[sqltype.ID]*sqltype.Descriptor {

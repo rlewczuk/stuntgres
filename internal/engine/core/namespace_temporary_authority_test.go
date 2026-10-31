@@ -21,7 +21,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	enginetest.RoleExecute(t, e, creator, "CREATE ROLE namespace_usage_reader")
 	enginetest.RoleExecute(t, e, creator, "CREATE TEMP TABLE namespace_usage_object(i INT)")
 	namespace, token := creator.Session.TemporaryNamespace, creator.Session.SessionToken
-	toast := assertTemporaryNamespacePair(t, e, token, namespace)
+	toast := enginetest.AssertTemporaryNamespacePair(t, e, token, namespace)
 	name := e.Catalog.State.Get(namespace).Name()
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "namespace_usage_object"}}}
 	peer, closePeer := enginetest.RoleOperation(t, e, "postgres")
@@ -88,7 +88,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	checkInput(ordinary, false)
 	enginetest.RoleErrorPosition(t, e, peer, "CREATE TABLE "+name+".foreign_create(i INT)", "42P16", "cannot create relations in temporary schemas of other sessions", "", "14")
 	closeCreator()
-	assertTemporaryNamespacePair(t, e, token, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, token, namespace)
 	retired, err := core.OperationAuthorization(peer)
 	if err != nil {
 		t.Fatal(err)

@@ -153,7 +153,7 @@ func TestTriggerInsteadPreparedOwnership(t *testing.T) {
 		t.Fatal("canceled candidate replaced registry publication", err)
 	}
 	enginetest.PreparedFoldEntry(t, originalDescriptionFolds, sqltype.Int4, "-7")
-	if foldRootsReusable(definition.Description.Folds) {
+	if enginetest.FoldRootsReusable(definition.Description.Folds) {
 		t.Fatal("canceled publication resurrected retired root folds")
 	}
 	for _, name := range []string{"insteadparams_old", "insteadparams_rollback", "insteadownership_portal"} {

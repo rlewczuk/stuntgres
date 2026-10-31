@@ -109,7 +109,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				if after != before {
 					t.Fatal("readmission replayed actual volatile CHECK truth", before, after)
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 				if outcome == "replacement" {
 					return
 				}
@@ -217,7 +217,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			if after != before {
 				t.Fatal("rebind/readmission replayed volatile CHECK truth", before, after)
 			}
-			uniqueClaimsEmpty(t, e)
+			enginetest.UniqueClaimsEmpty(t, e)
 			rows := enginetest.SessionSQL(t, firstHolder, "SELECT k FROM public.second_wait_rows")
 			var values [1]sqltype.Value
 			if more, err := rows.Rows.Next(context.Background(), values[:]); err != nil || more {

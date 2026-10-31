@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
@@ -53,9 +51,9 @@ func collationRenameBootstrapFixture(e *core.Engine, op *session.Operation, name
 	if e.RoleStore.Published.Revision == ^uint64(0) {
 		return fmt.Errorf("authorization revision exhausted")
 	}
-	n := cloneRoleFixture(e.RoleStore.Published)
+	n := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	d.Name = name
-	putFixtureRole(n, d)
+	enginetest.PutFixtureRole(n, d)
 
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
@@ -88,7 +86,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	want := beforeDescriptor
 	want.Name = "original_bootstrap"
-	if actual != want || e.RoleStore.Published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.RoleStore.Published), fixtureEdges(beforeRolesPublication)) {
+	if actual != want || e.RoleStore.Published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(enginetest.FixtureEdges(e.RoleStore.Published), enginetest.FixtureEdges(beforeRolesPublication)) {
 		t.Fatal("rename changed genuine role identity", actual, want)
 	}
 	old, err := beforeRoles.Descriptor(bootstrap)
@@ -171,10 +169,6 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	if live != 1 {
 		t.Fatal("private cleanup leaked genuine session", live)
 	}
-}
-
-func fixtureEdges(r *access.RoleRecord) []authorization.Membership {
-	return r.Root.Read(authorization.PrincipalRef{}).Memberships()
 }
 
 func roleIdentity(t *testing.T, e *core.Engine, op *session.Operation, want string) {

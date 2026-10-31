@@ -176,7 +176,7 @@ func TestPGPublicationRelCaptureOwnership(t *testing.T) {
 	var other pgcatalog.Input
 	publicationRelInput(t, foreign, func(in pgcatalog.Input, _ core.AuthorizationView) { other = in })
 	retainedRoles := e.Roles()
-	aclUnitRoles(e, "publication_rel_new_root")
+	enginetest.AclUnitRoles(e, "publication_rel_new_root")
 	publicationRelInput(t, e, func(in pgcatalog.Input, auth core.AuthorizationView) {
 		descriptors, names, roles := maps.Collect(in.Catalog.State().Descriptors()), maps.Collect(in.Catalog.State().Names()), e.RoleStore.Published
 		assertRoots := func(t *testing.T) {

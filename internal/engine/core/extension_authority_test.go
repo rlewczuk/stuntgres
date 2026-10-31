@@ -2,7 +2,6 @@ package core_test
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 
@@ -14,30 +13,10 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func extensionUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, stmt parser.Statement) error {
-	t.Helper()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		return err
-	}
-	finished := false
-	defer func() {
-		// A malformed unit AST or an unexpected engine panic must not leave
-		// statement admission held while roleOperation closes the session.
-		// Preserve the panic; this defer only performs the normal scope unwind.
-		if !finished {
-			_ = scope.Finish(errors.New("stuntgres: extension unit statement unwound"))
-		}
-	}()
-	_, err = scope.Execute(stmt, 0, nil)
-	finished = true
-	return scope.Finish(err)
-}
 func extensionUnitGrant(name string, role string) *parser.ObjectGrant {
 	return &parser.ObjectGrant{Kind: "database", Privileges: []parser.GrantPrivilege{{Name: "create"}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: name}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: role}}}}
 }
@@ -53,13 +32,13 @@ func TestExtensionSchemaACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	enginetest.PublishOperationStage(t, e, admin, stage)
-	if err := extensionUnitExecute(t, e, admin, extensionUnitGrant("ext_acl_db", "ext_acl_actor")); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, admin, extensionUnitGrant("ext_acl_db", "ext_acl_actor")); err != nil {
 		t.Fatal(err)
 	}
 	op, actorDone := enginetest.RoleOperation(t, e, "ext_acl_actor")
 	defer actorDone()
 	install := &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}, Options: []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: "ext_acl"}}}}
-	if err := extensionUnitExecute(t, e, op, install); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal("trusted explicit schema requires neither USAGE nor CREATE", err)
 	}
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
@@ -119,10 +98,10 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	op, actorDone := enginetest.RoleOperation(t, e, "ext_db_actor")
 	defer actorDone()
 	install := &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}
-	enginetest.State(t, extensionUnitExecute(t, e, op, install), "42501")
+	enginetest.State(t, enginetest.ExtensionUnitExecute(t, e, op, install), "42501")
 	grant := extensionUnitGrant("ext_authority", "ext_db_actor")
 	grant.GrantOption = true
-	if err := extensionUnitExecute(t, e, admin, grant); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, admin, grant); err != nil {
 		t.Fatal(err)
 	}
 	db := e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -131,7 +110,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	}
 	delegated := extensionUnitGrant("ext_authority", "")
 	delegated.Grantees = []parser.GrantGrantee{{Public: true}}
-	if err := extensionUnitExecute(t, e, op, delegated); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, op, delegated); err != nil {
 		t.Fatal(err)
 	}
 	db = e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -144,7 +123,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if !found {
 		t.Fatal("grantor provenance lost")
 	}
-	enginetest.State(t, extensionUnitExecute(t, e, admin, &parser.DropRole{Names: []string{actor.Name}}), "2BP01")
+	enginetest.State(t, enginetest.ExtensionUnitExecute(t, e, admin, &parser.DropRole{Names: []string{actor.Name}}), "2BP01")
 	references := descriptorReferences(db)
 	found = false
 	for _, ref := range references {
@@ -153,7 +132,7 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	if !found {
 		t.Fatal("database ACL DROP dependency missing")
 	}
-	if err := extensionUnitExecute(t, e, op, install); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, op, install); err != nil {
 		t.Fatal(err)
 	}
 	replacement := engine.NewWithSettings(nil, "different_attachment", false)
@@ -166,10 +145,10 @@ func TestExtensionDatabaseCreateAuthority(t *testing.T) {
 	}
 	revoke := extensionUnitGrant("ext_authority", "ext_db_actor")
 	revoke.Revoke = true
-	enginetest.State(t, extensionUnitExecute(t, e, admin, revoke), "2BP01")
+	enginetest.State(t, enginetest.ExtensionUnitExecute(t, e, admin, revoke), "2BP01")
 	revoke.Cascade = true
-	if err := extensionUnitExecute(t, e, admin, revoke); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, admin, revoke); err != nil {
 		t.Fatal(err)
 	}
-	enginetest.State(t, extensionUnitExecute(t, e, op, install), "42501")
+	enginetest.State(t, enginetest.ExtensionUnitExecute(t, e, op, install), "42501")
 }

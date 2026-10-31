@@ -101,10 +101,10 @@ func TestTruncateRestartPublication(t *testing.T) {
 	oldP, oldQ, oldPS, oldQS := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address], e.Storage.Sequences[ps.Address], e.Storage.Sequences[qs.Address]
 	oldD := e.Catalog.State.Get(ps.Address)
 	tx := enginetest.TransactionBegin(t, s)
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
 	first := s.Transactions.Catalog
-	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
+	enginetest.SequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
 	second := s.Transactions.Catalog
 	if first.Generators[ps.Address] == second.Generators[ps.Address] || second.Originals[ps.Address] != oldD || second.Storage[p.Address].Original != oldP || second.Storage[q.Address].Original != oldQ || e.Storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.Storage.Sequences[qs.Address] != oldQS {
@@ -115,8 +115,8 @@ func TestTruncateRestartPublication(t *testing.T) {
 	if e.Visibility.CommitSeq() != frontier+1 || e.Storage.Sequences[ps.Address] != second.Generators[ps.Address] || e.Storage.Sequences[qs.Address] != second.Generators[qs.Address] || e.Storage.Relations[p.Address] != second.Storage[p.Address].Replacement || e.Storage.Relations[q.Address] != second.Storage[q.Address].Replacement {
 		t.Fatal("explicit commit did not install combined candidate once")
 	}
-	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
-	sequenceScalar(t, peer, "SELECT nextval('q_id_seq')", 44)
+	enginetest.SequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
+	enginetest.SequenceScalar(t, peer, "SELECT nextval('q_id_seq')", 44)
 	enginetest.LockEmpty(t, e)
 }
 

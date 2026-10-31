@@ -436,9 +436,9 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 			if !ok {
 				return fmt.Errorf("prepared owner fixture role missing")
 			}
-			next := cloneRoleFixture(auth.RoleRecord)
+			next := enginetest.CloneRoleFixture(auth.RoleRecord)
 			owner.Name = "producer_runtime_renamed"
-			putFixtureRole(next, owner)
+			enginetest.PutFixtureRole(next, owner)
 			admin.Session.Mu.Lock()
 			defer admin.Session.Mu.Unlock()
 			if err := core.PublicationOperationLocked(e, admin); err != nil {

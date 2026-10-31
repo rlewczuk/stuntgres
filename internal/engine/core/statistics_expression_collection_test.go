@@ -30,7 +30,7 @@ func expressionCollectionFixture(t *testing.T) (*core.Engine, *session.Session, 
 	} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, _ := vacuumStore(t, e, "expr_owner")
+	ref, _ := enginetest.VacuumStore(t, e, "expr_owner")
 	return e, s, ref
 }
 
@@ -40,13 +40,13 @@ func TestStatisticsExpressionPublicationJournal(t *testing.T) {
 			e, s, ref := expressionCollectionFixture(t)
 			peer := enginetest.StartSession(t, e, nil)
 			a, b := ndistinctKey(t, e, "expr_a"), ndistinctKey(t, e, "expr_b")
-			baseline := analyzeFacts(e, ref.Address)
+			baseline := enginetest.AnalyzeFacts(e, ref.Address)
 			enginetest.SessionSQL(t, s, "INSERT INTO expr_owner VALUES(3,30,30)")
 			enginetest.SessionSQL(t, s, "BEGIN")
 			enginetest.SessionSQL(t, s, "ANALYZE expr_owner(a)")
 			first := s.Transactions.Catalog
 			selected := first.Statistics[ref.Address].Extended[a]
-			if selected == nil || selected.ExpressionLen() != 1 || selected.Expression(0).Rows != 5 || selected.Value.Type() != nil || analyzeFacts(e, ref.Address) != baseline || len(first.Statistics[ref.Address].Extended) != 1 {
+			if selected == nil || selected.ExpressionLen() != 1 || selected.Expression(0).Rows != 5 || selected.Value.Type() != nil || enginetest.AnalyzeFacts(e, ref.Address) != baseline || len(first.Statistics[ref.Address].Extended) != 1 {
 				t.Fatal("expression-only selected delta missing or leaked")
 			}
 			clone := first.Clone()
@@ -60,8 +60,8 @@ func TestStatisticsExpressionPublicationJournal(t *testing.T) {
 				t.Fatal("savepoint altered expression facts")
 			}
 			enginetest.SessionSQL(t, peer, "ANALYZE expr_owner(b,c)")
-			other := analyzeFacts(e, ref.Address).Extended[b]
-			otherA := analyzeFacts(e, ref.Address).Extended[a]
+			other := enginetest.AnalyzeFacts(e, ref.Address).Extended[b]
+			otherA := enginetest.AnalyzeFacts(e, ref.Address).Extended[a]
 			if otherA == baseline.Extended[a] || otherA == selected || otherA.Expression(0).Rows != 5 {
 				t.Fatal("expression-only peer refresh did not own independent backing")
 			}
@@ -78,7 +78,7 @@ func TestStatisticsExpressionPublicationJournal(t *testing.T) {
 			if strings.HasPrefix(completion, "COMMIT") {
 				want = selected
 			}
-			final := analyzeFacts(e, ref.Address)
+			final := enginetest.AnalyzeFacts(e, ref.Address)
 			if final.Extended[a] != want || final.Extended[b] != other || baseline.Extended[a].Expression(0).Rows != 4 {
 				t.Fatal("completion mutated old or unselected expression backing")
 			}
@@ -142,8 +142,8 @@ func TestStatisticsExpressionCollectionEvaluatesOnce(t *testing.T) {
 	for _, q := range []string{"CREATE SEQUENCE expr_seq", "CREATE TABLE expr_once(a INT,b INT)", "INSERT INTO expr_once VALUES(1,1),(1,1),(1,1),(1,1)", "CREATE STATISTICS expr_once_s(ndistinct) ON (nextval('expr_seq')),b FROM expr_once", "ANALYZE expr_once"} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, _ := vacuumStore(t, e, "expr_once")
-	fact := analyzeFacts(e, ref.Address).Extended[ndistinctKey(t, e, "expr_once_s")]
+	ref, _ := enginetest.VacuumStore(t, e, "expr_once")
+	fact := enginetest.AnalyzeFacts(e, ref.Address).Extended[ndistinctKey(t, e, "expr_once_s")]
 	if fact == nil || fact.Items[0].Value != 4 || fact.Expression(0).DistinctCount != 4 || len(fact.Expression(0).Histogram) != 4 {
 		t.Fatal("volatile result not shared by scalar/joint collectors", fact)
 	}
@@ -156,7 +156,7 @@ func TestStatisticsExpressionCollectionEvaluatesOnce(t *testing.T) {
 	// A second scan consumes the next four values, not an independently rebound or
 	// precomputed volatile definition and not a second joint evaluation stream.
 	enginetest.SessionSQL(t, s, "ANALYZE expr_once")
-	next := analyzeFacts(e, ref.Address).Extended[ndistinctKey(t, e, "expr_once_s")]
+	next := enginetest.AnalyzeFacts(e, ref.Address).Extended[ndistinctKey(t, e, "expr_once_s")]
 	for i, value := range next.Expression(0).Histogram {
 		n, err := value.Integer()
 		if err != nil || n != int64(i+5) {
@@ -172,7 +172,7 @@ func TestStatisticsExpressionSnapshotTypedValues(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE DOMAIN expr_domain AS INT CHECK(VALUE > 0)")
 	enginetest.SessionSQL(t, s, "CREATE STATISTICS expr_domain_array ON (ARRAY[NULL::expr_domain,1::expr_domain]) FROM expr_owner")
 	enginetest.SessionSQL(t, s, "ANALYZE expr_owner")
-	old := analyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_a")]
+	old := enginetest.AnalyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_a")]
 	enginetest.SessionSQL(t, s, "INSERT INTO expr_owner VALUES(99,99,99)")
 	enginetest.SessionSQL(t, s, "ALTER TABLE expr_owner RENAME a TO renamed")
 	var dump strings.Builder
@@ -198,22 +198,22 @@ func TestStatisticsExpressionSnapshotTypedValues(t *testing.T) {
 	if err := engine.Restore(context.Background(), target, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	importedRef, _ := vacuumStore(t, target, "expr_owner")
-	fact := analyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_a")]
+	importedRef, _ := enginetest.VacuumStore(t, target, "expr_owner")
+	fact := enginetest.AnalyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_a")]
 	if fact == nil || fact == old || fact.Expression(0).Rows != 4 || fact.Expression(0).NullCount != 1 || fact.Recipes == old.Recipes || fact.Expression(0).Usage.Type == old.Expression(0).Usage.Type {
 		t.Fatal("stale facts or destination typed recipe not reminted", fact)
 	}
-	object := analyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_object")]
+	object := enginetest.AnalyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_object")]
 	oid, err := object.Expression(0).MCV[0].Value.Text()
 	if err != nil || oid != strconv.FormatUint(uint64(importedRef.Address.ObjectID), 10) {
 		t.Fatal("source OID adopted as destination object authority", oid, importedRef, err)
 	}
-	text := analyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_text")]
+	text := enginetest.AnalyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_text")]
 	value, err := text.Expression(0).MCV[0].Value.Text()
 	if err != nil || value != "1" {
 		t.Fatal("typed text summary lost", value, err)
 	}
-	domainArray := analyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_domain_array")]
+	domainArray := enginetest.AnalyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_domain_array")]
 	array := domainArray.Expression(0).MCV[0].Value
 	if array.ArrayLen() != 2 || !array.ArrayElement(0).IsNull() || !array.ArrayElement(0).Type().IsDomain() || array.ArrayElement(0).Type() != array.Type().Element() {
 		t.Fatal("nested captured domain-NULL construction authority lost", array)
@@ -268,7 +268,7 @@ func TestStatisticsExpressionSnapshotTypedValues(t *testing.T) {
 		t.Fatal("TEMP reownership mutated the old captured fact")
 	}
 	enginetest.SessionSQL(t, targetSession, "ANALYZE expr_owner")
-	fresh := analyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_a")]
+	fresh := enginetest.AnalyzeFacts(target, importedRef.Address).Extended[ndistinctKey(t, target, "expr_a")]
 	if fresh.Expression(0).Rows != 5 || fact.Expression(0).Rows != 4 {
 		t.Fatal("refresh changed captured stale backing")
 	}
@@ -277,12 +277,12 @@ func TestStatisticsExpressionSnapshotTypedValues(t *testing.T) {
 func TestStatisticsExpressionPublicationCompatibility(t *testing.T) {
 	e, s, ref := expressionCollectionFixture(t)
 	key := ndistinctKey(t, e, "expr_a")
-	baseline := analyzeFacts(e, ref.Address)
+	baseline := enginetest.AnalyzeFacts(e, ref.Address)
 	fact := baseline.Extended[key]
 	enginetest.SessionSQL(t, s, "ALTER TABLE expr_owner RENAME a TO renamed")
 	enginetest.SessionSQL(t, s, "ALTER STATISTICS expr_a SET STATISTICS 0")
 	enginetest.SessionSQL(t, s, "INSERT INTO expr_owner VALUES(8,8,8)")
-	if got := analyzeFacts(e, ref.Address).Extended[key]; got != fact {
+	if got := enginetest.AnalyzeFacts(e, ref.Address).Extended[key]; got != fact {
 		t.Fatal("rename/target/DML lost retained stale backing")
 	}
 	current := e.CatalogRead()

@@ -69,7 +69,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		enginetest.RoleExecute(t, e, owner, "CREATE TEMP TABLE own_seed(id INT)")
 		namespace := e.Catalog.State.Get(owner.Session.TemporaryNamespace).Name()
 		before := e.Catalog.State
-		err := extensionUnitExecute(t, e, owner, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace))
+		err := enginetest.ExtensionUnitExecute(t, e, owner, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace))
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function unaccent_init(internal) does not exist", Context: extension.UnaccentTemplateContext}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.Catalog.State != before {
@@ -305,7 +305,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 			if reason == "recreated_role" {
 				grant.Grantees = []parser.GrantGrantee{{Public: true}}
 			}
-			if err := extensionUnitExecute(t, target, admin, grant); err != nil {
+			if err := enginetest.ExtensionUnitExecute(t, target, admin, grant); err != nil {
 				t.Fatal(err)
 			}
 			caller, _ := extensionTemporaryOperation(t, target, actor.Name)
@@ -327,7 +327,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 			switch reason {
 			case "revoke":
 				grant.Revoke = true
-				if err := extensionUnitExecute(t, target, admin, grant); err != nil {
+				if err := enginetest.ExtensionUnitExecute(t, target, admin, grant); err != nil {
 					t.Fatal(err)
 				}
 			case "inherit":
@@ -355,17 +355,17 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		enginetest.RoleExecute(t, target, owner, "CREATE TEMP TABLE retained_owner_seed(id INT)")
 		actor := roleAttributeCreate(t, target, admin, "retained_ext_owner", true, parser.RoleOptions{})
 		grant := extensionUnitGrant("ext_temp_owner_db", actor.Name)
-		if err := extensionUnitExecute(t, target, admin, grant); err != nil {
+		if err := enginetest.ExtensionUnitExecute(t, target, admin, grant); err != nil {
 			t.Fatal(err)
 		}
 		caller, _ := extensionTemporaryOperation(t, target, actor.Name)
 		namespace := target.Catalog.State.Get(owner.Session.TemporaryNamespace).Name()
-		if err := extensionUnitExecute(t, target, caller, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace)); err != nil {
+		if err := enginetest.ExtensionUnitExecute(t, target, caller, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace)); err != nil {
 			t.Fatal(err)
 		}
 		installed := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		grant.Revoke = true
-		if err := extensionUnitExecute(t, target, admin, grant); err != nil {
+		if err := enginetest.ExtensionUnitExecute(t, target, admin, grant); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := replaceWithFreshCatalog(context.Background(), target); err != nil {
@@ -497,7 +497,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if imported.ObjectID == collision.ObjectID || e.Catalog.State.Get(imported) == nil {
 		t.Fatal("imported namespace was not reminted around exact TEMP provider identity")
 	}
-	if err := extensionUnitExecute(t, source, sourceOp, enginetest.Statement(t, "CREATE EXTENSION unaccent")); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, source, sourceOp, enginetest.Statement(t, "CREATE EXTENSION unaccent")); err != nil {
 		t.Fatal(err)
 	}
 	before := e.Catalog.State
@@ -539,7 +539,7 @@ func extensionTemporaryInstalled(t *testing.T) (*core.Engine, *session.Operation
 	installer, _ := extensionTemporaryOperation(t, e, "postgres")
 	enginetest.RoleExecute(t, e, owner, "CREATE TEMP TABLE ext_seed(id INT)")
 	namespace := e.Catalog.State.MustNamespace(owner.Session.TemporaryNamespace)
-	if err := extensionUnitExecute(t, e, installer, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.Name())); err != nil {
+	if err := enginetest.ExtensionUnitExecute(t, e, installer, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.Name())); err != nil {
 		t.Fatal(err)
 	}
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
@@ -600,7 +600,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *core.Engine, ext *catalog.Exten
 	if !ok {
 		t.Fatal("physical end removed retained TEMP namespace metadata")
 	}
-	assertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.Address())
+	enginetest.AssertTemporaryNamespacePair(t, e, namespace.Temporary, namespace.Address())
 	for _, address := range append([]ids.ObjectAddress{ext.Address()}, ext.Members[:]...) {
 		if e.Catalog.State.Get(address) != nil {
 			t.Fatal("retired provider identity retained", address)
@@ -908,13 +908,13 @@ func extensionTemporaryLatePeer(t *testing.T, e *core.Engine, ext *catalog.Exten
 	stmt := enginetest.Statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
 	durable := func() {
 		for _, query := range []string{"CREATE TABLE public.ext_peer_durable(id INT)", "INSERT INTO public.ext_peer_durable VALUES(41)"} {
-			if err := extensionUnitExecute(t, e, op, enginetest.Statement(t, query)); err != nil {
+			if err := enginetest.ExtensionUnitExecute(t, e, op, enginetest.Statement(t, query)); err != nil {
 				t.Fatal("peer durable publication", err)
 			}
 		}
 	}
 	if !mixed {
-		if err := extensionUnitExecute(t, e, op, stmt); err != nil {
+		if err := enginetest.ExtensionUnitExecute(t, e, op, stmt); err != nil {
 			t.Fatal("peer late consumer publication", err)
 		}
 		durable()
@@ -944,7 +944,7 @@ func extensionTemporaryLatePeer(t *testing.T, e *core.Engine, ext *catalog.Exten
 			}
 		}
 	}()
-	go func() { result <- extensionUnitExecute(t, e, op, stmt) }()
+	go func() { result <- enginetest.ExtensionUnitExecute(t, e, op, stmt) }()
 	enginetest.LockPending(t, e, 1)
 	entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: read.Domain().Ref(read.Epoch(), target)}]
 	maintenanceAX := false

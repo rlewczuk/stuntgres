@@ -117,8 +117,8 @@ func TestAlterClusterPreparedOwnership(t *testing.T) {
 			return auth.Catalog, env
 		}
 		read, env := capture()
-		old := primaryKeyUnitRelation(t, e, "cluster_owned")
-		oldIndex := primaryKeyUnitRelation(t, e, "cluster_owned_a")
+		old := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_owned")
+		oldIndex := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_owned_a")
 		found := false
 		for _, dep := range analysis.Dependencies {
 			if dep.Ref.Address == old.Address() {
@@ -190,9 +190,9 @@ func TestAlterClusterPreparedOwnership(t *testing.T) {
 			enginetest.SessionSQL(t, s, q)
 		}
 		before := e.CatalogRead()
-		parent := primaryKeyUnitRelation(t, e, "cluster_cancel")
-		a := primaryKeyUnitRelation(t, e, "cluster_cancel_a")
-		b := primaryKeyUnitRelation(t, e, "cluster_cancel_b")
+		parent := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_cancel")
+		a := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_cancel_a")
+		b := enginetest.PrimaryKeyUnitRelation(t, e, "cluster_cancel_b")
 		store := e.Storage.Relations[parent.Address()]
 		ra, rb := e.Storage.IndexRoots[a.Address()], e.Storage.IndexRoots[b.Address()]
 		ctx, cancel := context.WithCancel(t.Context())

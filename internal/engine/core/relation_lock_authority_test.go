@@ -41,7 +41,7 @@ func TestRelationLockAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Default owner ACL supplies ordinary LOCK privileges.
-	withPublicSchemaUnitOwner(t, e, "lockreader", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "lockreader", func() {
 		enginetest.RoleExecute(t, e, op, "CREATE TABLE owned(v INT)")
 	})
 	tx, err = e.Begin(op, session.TxOptions{})

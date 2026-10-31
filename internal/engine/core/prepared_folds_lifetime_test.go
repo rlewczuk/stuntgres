@@ -72,7 +72,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	enginetest.PreparedFoldExecute(t, e, s, ast, &d)
 	original := enginetest.SnapshotFoldDescription(d)
 	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
-	table := primaryKeyUnitRelation(t, e, "fold_operand")
+	table := enginetest.PrimaryKeyUnitRelation(t, e, "fold_operand")
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), table.Address())
 	// One genuine catalog address has two possible purposes. The analysis
 	// manifest always retains it; only its executable projection differs.
@@ -91,7 +91,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 	enginetest.PreparedFoldEntry(t, d, sqltype.Text, "(0.10000000000000002,1)")
 	// A planning-only executable dependency at the exact same address retires
 	// folds independently, without making the ordinary analysis invalid.
-	table = primaryKeyUnitRelation(t, e, "fold_operand")
+	table = enginetest.PrimaryKeyUnitRelation(t, e, "fold_operand")
 	planning := d.Folds.Begin()
 	planning.Candidate.Dependencies = append(append([]exec.FoldDependency(nil), planning.Candidate.Dependencies...), exec.FoldDependency{Ref: ref, Descriptor: table, Stamp: table.Revision()})
 	planning.Candidate.DependenciesPrivate = true
@@ -122,7 +122,7 @@ func TestPreparedFoldInvalidation(t *testing.T) {
 		t.Fatal("missing signature failure")
 	}
 	d.Results = saved
-	if foldRootsReusable(d.Folds) || d.Folds.Current().Generation <= before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
+	if enginetest.FoldRootsReusable(d.Folds) || d.Folds.Current().Generation <= before.Accepted.Generation || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("failed refresh resurrected or changed old group")
 	}
 	assertFoldReuseRetirement(t, d.Folds, false)
@@ -472,7 +472,7 @@ func TestPreparedFoldPublication(t *testing.T) {
 		ast, d := enginetest.PreparedDescription(t, e, s, "SELECT (point '0.10000000000000002,1')::text AS p,1/v AS n FROM fold_runtime")
 		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || !foldRootsReusable(d.Folds) {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || !enginetest.FoldRootsReusable(d.Folds) {
 			t.Fatal("execution failure undid accepted fold planning", err)
 		}
 		before := enginetest.SnapshotFoldDescription(d)
@@ -498,7 +498,7 @@ func TestPreparedFoldPublication(t *testing.T) {
 		}
 		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || foldRootsReusable(d.Folds) || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || enginetest.FoldRootsReusable(d.Folds) || &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("final authority rejection published a private group", err)
 		}
 		assertFoldReuseRetirement(t, d.Folds, false)

@@ -126,7 +126,7 @@ func TestCheckProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				if after != before {
 					t.Fatal("readmission replayed volatile truth", before, after)
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 				checkProgramRows(t, e, "SELECT k FROM public.check_rows ORDER BY k", 99)
 				enginetest.RoleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.json_array_length(json) TO PUBLIC")
 				if r := enginetest.SessionSQL(t, reader.Session, "INSERT INTO public.check_rows VALUES(8,'[1]'),(7,'[1]')"); r.Count != 2 {

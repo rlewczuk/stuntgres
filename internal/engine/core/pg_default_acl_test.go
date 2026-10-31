@@ -46,7 +46,7 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	start := f.e.Catalog.NextOID()
-	noop := defaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_owner"})
+	noop := enginetest.DefaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_owner"})
 	if err := f.apply(noop); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 	if f.e.Catalog.State.DefaultACL(key).OID != original.OID {
 		t.Fatal("edit lost identity")
 	}
-	duplicates := defaultUnitStatement("sequences", "usage", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_schema"}, []string{"default_reader"})
+	duplicates := enginetest.DefaultUnitStatement("sequences", "usage", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_schema"}, []string{"default_reader"})
 	if err := f.apply(duplicates); err != nil {
 		t.Fatal(err)
 	}
@@ -77,14 +77,14 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 		t.Fatal("duplicate operands allocated intermediate identity")
 	}
 	state, roles, frontier := f.e.Catalog.State, f.e.RoleStore.Published, f.e.Catalog.NextOID()
-	late := defaultUnitStatement("types", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})
+	late := enginetest.DefaultUnitStatement("types", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})
 	if err := f.apply(late); err == nil {
 		t.Fatal("missing creator accepted")
 	}
 	if f.e.Catalog.State != state || f.e.RoleStore.Published != roles || f.e.Catalog.NextOID() != frontier {
 		t.Fatal("late failure published or reserved")
 	}
-	revoke := defaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_reader"})
+	revoke := enginetest.DefaultUnitStatement("tables", "all", []string{"default_owner"}, nil, []string{"default_reader"})
 	revoke.Revoke = true
 	if err := f.apply(revoke); err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestPGDefaultACLIdentity(t *testing.T) {
 	}
 	f.e.Catalog.InstallOIDFrontierLocked(0)
 	before := f.e.Catalog.State
-	fail := defaultUnitStatement("schemas", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
+	fail := enginetest.DefaultUnitStatement("schemas", "usage", []string{"default_owner"}, nil, []string{"default_reader"})
 	if err := f.apply(fail); err == nil || f.e.Catalog.State != before {
 		t.Fatal("exhaustion published candidate", err)
 	}
@@ -128,13 +128,13 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 	for _, class := range []string{"tables", "sequences", "functions", "types", "schemas", "large objects"} {
 		f.grant(t, class, "all", nil)
 	}
-	scoped := defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"})
+	scoped := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"})
 	scoped.GrantOption = true
 	if err := f.apply(scoped); err != nil {
 		t.Fatal(err)
 	}
 	// PUBLIC is inserted after named entries in authority, but sorts first in output.
-	public := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"PUBLIC"})
+	public := enginetest.DefaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"PUBLIC"})
 	if err := f.apply(public); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 		t.Fatal("saved capture changed")
 	}
 	// A real empty routine policy remains nonnull and has no array dimensions.
-	empty := defaultUnitStatement("functions", "all", []string{"default_owner"}, nil, []string{"default_owner", "default_reader", "PUBLIC"})
+	empty := enginetest.DefaultUnitStatement("functions", "all", []string{"default_owner"}, nil, []string{"default_owner", "default_reader", "PUBLIC"})
 	empty.Revoke = true
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)

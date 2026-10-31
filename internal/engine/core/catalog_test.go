@@ -18,19 +18,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Fixture identities use the real allocator: bootstrap definitions can occupy
-// user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
-	t.Helper()
-	e.Mu.Lock()
-	oid, err := e.Catalog.AllocateOIDLocked()
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return oid
-}
-
 func TestCatalogIdentityAndReplacement(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
@@ -106,10 +93,10 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 		return &catalog.Relation{TableMethod: 2, ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
-	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
+	if err := first.Create(makeDesc(enginetest.CatalogUnitOID(t, e), "first")); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.Create(makeDesc(catalogUnitOID(t, e), "second")); err != nil {
+	if err := second.Create(makeDesc(enginetest.CatalogUnitOID(t, e), "second")); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), first)
@@ -127,10 +114,10 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 		t.Fatalf("unrelated-key stage conflicted: %v", err)
 	}
 	conflictA, conflictB := e.BeginCatalogStage(e.CatalogRead()), e.BeginCatalogStage(e.CatalogRead())
-	if err = conflictA.Create(makeDesc(catalogUnitOID(t, e), "same")); err != nil {
+	if err = conflictA.Create(makeDesc(enginetest.CatalogUnitOID(t, e), "same")); err != nil {
 		t.Fatal(err)
 	}
-	if err = conflictB.Create(makeDesc(catalogUnitOID(t, e), "same")); err != nil {
+	if err = conflictB.Create(makeDesc(enginetest.CatalogUnitOID(t, e), "same")); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), conflictA)
@@ -182,7 +169,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := engine.New()
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: enginetest.Usage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.TableMethod = 2
 	d.ColumnMeta.HighWater = 1
 	stage := e.BeginCatalogStage(base)
@@ -260,7 +247,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	e := engine.New()
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}
 	prepare := func(name string) *core.PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)

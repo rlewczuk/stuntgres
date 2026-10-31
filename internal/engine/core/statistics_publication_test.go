@@ -24,9 +24,9 @@ func TestStatisticsObjectPublicationNamespaceRetirement(t *testing.T) {
 			next.BindName(catalog.DescriptorNameKey(ns), ns.Address())
 			e.Catalog.PublishLocked(next)
 			e.Mu.Unlock()
-			syntax := statisticsUnitCreate()
+			syntax := enginetest.StatisticsUnitCreate()
 			syntax.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: ns.Name()}, {Text: "s"}}}
-			stage, err := statisticsUnitStage(t, e, op, syntax)
+			stage, err := enginetest.StatisticsUnitStage(t, e, op, syntax)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -48,7 +48,7 @@ func TestStatisticsObjectPublicationNamespaceRetirement(t *testing.T) {
 				}
 			}()
 			enginetest.LockPending(t, e, 1)
-			if e.CatalogRead().NameAddress(catalog.DescriptorNameKey(statisticsUnitDescriptor(t, stage))) != (ids.ObjectAddress{}) {
+			if e.CatalogRead().NameAddress(catalog.DescriptorNameKey(enginetest.StatisticsUnitDescriptor(t, stage))) != (ids.ObjectAddress{}) {
 				t.Fatal("unadmitted stage visible")
 			}
 			e.Mu.Lock()
@@ -86,12 +86,12 @@ func TestStatisticsObjectPublicationNameLock(t *testing.T) {
 	e, _ := statisticsUnitEngine(t)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	stage, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	stage, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	definition := statisticsUnitDescriptor(t, stage)
+	definition := enginetest.StatisticsUnitDescriptor(t, stage)
 	key := catalog.DescriptorNameKey(definition)
 	namespace := e.Catalog.Domain.Ref(stage.Base.Epoch(), key.Namespace)
 	resource := lock.Resource{ObjectRef: namespace, Name: key}
@@ -117,12 +117,12 @@ func TestStatisticsObjectPublicationNameLock(t *testing.T) {
 	if err = e.Locks.Acquire(t.Context(), holder, distinct, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	winner, err := statisticsUnitStage(t, e, op, statisticsUnitCreate())
+	winner, err := enginetest.StatisticsUnitStage(t, e, op, enginetest.StatisticsUnitCreate())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(winner)
-	winning := statisticsUnitDescriptor(t, winner)
+	winning := enginetest.StatisticsUnitDescriptor(t, winner)
 	enginetest.PublishOperationStage(t, e, op, winner)
 	incumbent := e.CatalogRead()
 	e.EndLockOwner(holder)

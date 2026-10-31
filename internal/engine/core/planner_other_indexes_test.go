@@ -32,12 +32,12 @@ func TestPlannerOtherConstraintEligibility(t *testing.T) {
 		"CREATE TABLE other_positive PARTITION OF other_part FOR VALUES FROM(1) TO(10)",
 		"INSERT INTO other_part VALUES(1)",
 	} {
-		plannerCostCommand(t, s, q)
+		enginetest.PlannerCostCommand(t, s, q)
 	}
 	for _, membership := range []bool{true, false} {
-		plannerCostCommand(t, s, fmt.Sprintf("SET enable_partition_pruning=%t", membership))
+		enginetest.PlannerCostCommand(t, s, fmt.Sprintf("SET enable_partition_pruning=%t", membership))
 		for _, mode := range []string{"on", "partition", "off"} {
-			plannerCostCommand(t, s, "SET constraint_exclusion='"+mode+"'")
+			enginetest.PlannerCostCommand(t, s, "SET constraint_exclusion='"+mode+"'")
 			for _, tc := range []struct {
 				from, predicate string
 				excluded        bool
@@ -62,7 +62,7 @@ func TestPlannerOtherConstraintEligibility(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				query, source, release := hashCaptureQuery(t, e, op, "SELECT n FROM "+tc.from+" WHERE "+tc.predicate)
+				query, source, release := enginetest.HashCaptureQuery(t, e, op, "SELECT n FROM "+tc.from+" WHERE "+tc.predicate)
 				project := query.Root.(*plan.ProjectNode)
 				filter := project.Child.(*plan.FilterNode)
 				state := exec.State{Source: source, Frame: project.Frame}

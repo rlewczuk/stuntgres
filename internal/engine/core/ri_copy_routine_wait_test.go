@@ -130,7 +130,7 @@ func TestRIRoutineAuthorityAfterWait(t *testing.T) {
 				if after != before {
 					t.Fatal("RI readmission replayed volatile truth", before, after)
 				}
-				uniqueClaimsEmpty(t, e)
+				enginetest.UniqueClaimsEmpty(t, e)
 				if outcome == "replacement" {
 					routineWaitRows(t, replacement, "SELECT id FROM public.ri_wait_parent", [][]int64{{2}})
 					routineWaitRows(t, replacement, "SELECT id,pid FROM public.ri_wait_child", [][]int64{{10, 9}})
@@ -314,7 +314,7 @@ func TestCopyRoutineAuthorityAfterWait(t *testing.T) {
 			if before != after {
 				t.Fatal("COPY readmission replayed volatile truth", before, after)
 			}
-			uniqueClaimsEmpty(t, e)
+			enginetest.UniqueClaimsEmpty(t, e)
 			if outcome == "replacement" {
 				routineWaitRows(t, replacement, "SELECT k FROM public.copy_wait_rows", [][]int64{{9}})
 				return

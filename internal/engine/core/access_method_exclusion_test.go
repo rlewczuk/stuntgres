@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
@@ -22,7 +23,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			t.Run(name+"/"+kind, func(t *testing.T) {
 				e := engine.New()
 				if kind == "table" {
-					accessMethodPublish(t, e, accessMethodUnit(t, e, name, catalog.HeapAccessMethod, 3))
+					enginetest.AccessMethodPublish(t, e, enginetest.AccessMethodUnit(t, e, name, catalog.HeapAccessMethod, 3))
 				}
 				op, auth := conversionUnitAuth(t, e)
 				stage := e.BeginCatalogStage(auth.Catalog)
@@ -59,10 +60,10 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 				t.Fatal("missing actual int4 equality member")
 			}
 			member := *equality
-			member.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+			member.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 			member.ObjectRevision = 1
 			member.Method, member.Family, member.InternalOwner = method.Address().ObjectID, family.Address().ObjectID, class.Address()
-			accessMethodPublish(t, e, &member)
+			enginetest.AccessMethodPublish(t, e, &member)
 			op, auth := conversionUnitAuth(t, e)
 			before := e.CatalogRead()
 			if actual, ok := before.LookupAccessMethod(name); !ok || actual != method || actual.Handler != 330 {

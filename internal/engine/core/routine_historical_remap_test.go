@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -174,12 +173,4 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 	if _, err := mapper(&badACL); err == nil {
 		t.Fatal("mixed-domain TEMP ACL accepted")
 	}
-}
-
-// replacementProcedurePolicyFixture supplies the real host policy for private
-// address/type remap fixtures; it does not manufacture numeric principal links.
-func replacementProcedurePolicyFixture(source, target *core.Engine) catalog.ProcedureRemapper {
-	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, source.Catalog.Current())
-	targetRoles := target.RoleStore.PublishedRead(&target.Catalog.Owner, target.Catalog.Current())
-	return catalog.NewProcedureRemapper(target.RoleStore.PrincipalRemap(&target.Catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
 }

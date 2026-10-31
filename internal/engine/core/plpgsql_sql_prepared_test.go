@@ -165,7 +165,7 @@ func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *sessio
 	if err := publication.Accept(op.Ctx, presented, environment, e.Catalog.State.Epoch()); err != nil {
 		t.Fatal("unchanged codec rejected", err)
 	}
-	if description.Folds.Current().Generation != before.Accepted.Generation || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || !foldRootsReusable(description.Folds) {
+	if description.Folds.Current().Generation != before.Accepted.Generation || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || !enginetest.FoldRootsReusable(description.Folds) {
 		t.Fatal("presentation-only revision replaced executable backing")
 	}
 	// The same address/revision with a distinct executable codec must retire
@@ -186,7 +186,7 @@ func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *sessio
 		t.Fatal("codec invalidation publication", err)
 	}
 	retired := description.Folds.Current()
-	if retired.Generation <= before.Accepted.Generation || foldRootsReusable(description.Folds) || len(publication.Group.Entries) != 0 {
+	if retired.Generation <= before.Accepted.Generation || enginetest.FoldRootsReusable(description.Folds) || len(publication.Group.Entries) != 0 {
 		t.Fatal("codec replacement did not retire demanded root folds")
 	}
 	// Give the rejected attempt distinct candidate backing. A publisher that
@@ -201,7 +201,7 @@ func sqlExecutionPreparedGenerations(t *testing.T, e *core.Engine, owner *sessio
 	if registry := core.PayloadOf(owner).PreparedSQL; registry.Lookup(statementName) != definition || registry.Binding(portalName) != accepted {
 		t.Fatal("rejection replaced registry ownership")
 	}
-	if description.Analysis != before.Analysis || description.Folds != before.Folds || description.Folds.Analysis != before.Analysis || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || foldRootsReusable(description.Folds) {
+	if description.Analysis != before.Analysis || description.Folds != before.Folds || description.Folds.Analysis != before.Analysis || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || enginetest.FoldRootsReusable(description.Folds) {
 		t.Fatal("rejected publication changed its actual owner or resurrected backing")
 	}
 	if accepted.Folds.Generation != bindingFolds.Generation || &accepted.Folds.Entries[0] != &bindingFolds.Entries[0] || &accepted.Folds.Dependencies[0] != &bindingFolds.Dependencies[0] {

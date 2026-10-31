@@ -212,7 +212,7 @@ func TestAmcheckCallableAuthorityPrecedence(t *testing.T) {
 						if allowed {
 							want = 2
 						}
-						sequenceScalar(t, enginetest.StartSession(t, e, nil), "SELECT nextval('callable_seq')", want)
+						enginetest.SequenceScalar(t, enginetest.StartSession(t, e, nil), "SELECT nextval('callable_seq')", want)
 						if !allowed && core.PayloadOf(reader).Sequences.Last() != (ids.ObjectAddress{}) {
 							t.Fatal("denied sequence changed session memory")
 						}

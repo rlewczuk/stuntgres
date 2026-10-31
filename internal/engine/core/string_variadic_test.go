@@ -131,7 +131,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("nested row-dependent quotes lost column lowering or were retained", result.Count, err)
 		}
 		for _, name := range []string{"iv", "ov", "nv"} {
-			view := primaryKeyUnitRelation(t, engine, name)
+			view := enginetest.PrimaryKeyUnitRelation(t, engine, name)
 			_, _, predicates, reason := stored.ViewWriteShape(view)
 			if reason != "" {
 				t.Fatal(reason)
@@ -197,7 +197,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("missing initial quote/temporal/analysis publication")
 		}
 		source := append([]exec.FoldConstant(nil), before.Accepted.Entries...)
-		beforeRelation := primaryKeyUnitRelation(t, engine, "sv_retry")
+		beforeRelation := enginetest.PrimaryKeyUnitRelation(t, engine, "sv_retry")
 		aDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[2]].OID
 		bDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[3]].OID
 		initial := map[string]bool{"root": false, "stored": false, `E'\\x00015c'`: false}
@@ -243,7 +243,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if description.Folds.Environment.Discard != session.DiscardPlansGeneration || description.PlanGeneration != session.DiscardPlansGeneration || description.PlanOwner != session.SessionToken || len(description.Folds.Current().Entries) != 3 || &description.Folds.Current().Entries[0] == &before.Accepted.Entries[0] {
 			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
 		}
-		relation := primaryKeyUnitRelation(t, engine, "sv_retry")
+		relation := enginetest.PrimaryKeyUnitRelation(t, engine, "sv_retry")
 		if relation.ColumnMeta.Defaults[relation.Attributes[2]].OID != aDefinition || relation.ColumnMeta.Defaults[relation.Attributes[3]].OID == bDefinition {
 			t.Fatal("retry did not preserve a and replace b DEFAULT identity")
 		}
@@ -293,7 +293,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if err != nil || result.Count != 1 || len(description.Folds.Current().Entries) != 3 {
 			t.Fatal("MERGE did not execute demanded defaults", result.Count, description.Folds.Current().Entries, err)
 		}
-		relation := primaryKeyUnitRelation(t, engine, "sv_merge_origin")
+		relation := enginetest.PrimaryKeyUnitRelation(t, engine, "sv_merge_origin")
 		catalog := engine.CatalogRead()
 		ref := engine.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 		seen := map[string]bool{}
@@ -394,7 +394,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				if previous != nil && &previous[0] == &group.Entries[0] {
 					t.Fatal("parameterized execution borrowed prior backing")
 				}
-				relation := primaryKeyUnitRelation(t, engine, "sv_local_merge")
+				relation := enginetest.PrimaryKeyUnitRelation(t, engine, "sv_local_merge")
 				catalog := engine.CatalogRead()
 				ref := engine.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 				seen := map[string]bool{}
@@ -444,7 +444,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		enginetest.SessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
 		ast, description := enginetest.PreparedDescription(t, engine, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
 		stamp := description.Folds.Environment.Discard
-		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
+		view := enginetest.PrimaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
 		origin := exec.FoldOrigin{Owner: engine.Catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).DefinitionRevision()}
 		var previous []exec.FoldConstant

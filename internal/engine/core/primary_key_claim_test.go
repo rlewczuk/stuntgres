@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -19,7 +18,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	e, owner, parent, _ := primaryKeyUnitFixture(t)
 	ordinary := primaryKeyUnitCreate("ordinary", "ordinary_unique")
 	ordinary.Elements[3].Unique.Primary = false
-	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "pk_owner", func() {
 		if _, err := e.Execute(owner, ordinary, 0, nil); err != nil {
 			t.Fatal(err)
 		}
@@ -29,7 +28,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 		}
 	})
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
-		idx := primaryKeyUnitRelation(t, e, name)
+		idx := enginetest.PrimaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
 		metadata, _, err := index.ProjectIndexMetadata(context.Background(), view, e.Catalog.Domain.Ref(view.Epoch(), idx.Address()))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
@@ -47,12 +46,12 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	ddl.Elements[0].Column.TypeName = parser.TypeName{Name: "numeric"}
 	width := int32(4)
 	ddl.Elements[1].Column.TypeName = parser.TypeName{Name: "character", Modifiers: []parser.TypeModifier{{Integer: &width}}}
-	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "pk_owner", func() {
 		if _, err := e.Execute(owner, ddl, 0, nil); err != nil {
 			t.Fatal(err)
 		}
 	})
-	parent := primaryKeyUnitRelation(t, e, "typed")
+	parent := enginetest.PrimaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.Constraints.Unique[0]
 	idx := e.Catalog.State.MustRelation(constraint.Index)
 	if !constraint.Primary || !idx.SQLIndex.Constraint.Primary {
@@ -118,7 +117,7 @@ func primaryKeyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, *cat
 	}
 	owner, ownerDone := enginetest.RoleOperation(t, e, "pk_owner")
 	t.Cleanup(ownerDone)
-	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "pk_owner", func() {
 		if _, err := e.Execute(owner, primaryKeyUnitCreate("t", "pk"), 0, nil); err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +128,7 @@ func primaryKeyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, *cat
 			t.Fatal(result, err)
 		}
 	}
-	parent := primaryKeyUnitRelation(t, e, "t")
+	parent := enginetest.PrimaryKeyUnitRelation(t, e, "t")
 	index := e.Catalog.State.MustRelation(parent.Constraints.Unique[0].Index)
 	return e, owner, parent, index
 }
@@ -145,15 +144,6 @@ func primaryKeyUnitCreate(name, constraint string) *parser.CreateTable {
 
 func primaryKeyUnitName(name string) parser.ObjectName {
 	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
-}
-
-func primaryKeyUnitRelation(t *testing.T, e *core.Engine, name string) *catalog.Relation {
-	t.Helper()
-	address, ok := e.Catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
-	if !ok {
-		t.Fatal("missing relation", name)
-	}
-	return e.Catalog.State.MustRelation(address)
 }
 
 func primaryKeyUnitInsert(a int64) *parser.Insert {

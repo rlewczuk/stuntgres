@@ -66,11 +66,11 @@ func pgShDescriptionUnitBag(t *testing.T, source *exec.Source) map[uint32]string
 func TestPGShDescriptionEmptySource(t *testing.T) {
 	e := engine.New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	uncommented := cloneRoleFixture(e.RoleStore.Published)
+	uncommented := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	pgShDescriptionUnitRole(e, uncommented, 20000, "uncommented", "")
-	highOnly := cloneRoleFixture(e.RoleStore.Published)
+	highOnly := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	pgShDescriptionUnitRole(e, highOnly, uint64(math.MaxUint32)+1, "unrepresentable", "excluded")
-	deleted := cloneRoleFixture(e.RoleStore.Published)
+	deleted := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	removed := pgShDescriptionUnitRole(e, deleted, 20000, "removed", "old")
 	retireFixtureRole(deleted, removed)
 	root := &plan.ProjectNode{
@@ -126,7 +126,7 @@ func pgShDescriptionUnitRole(e *core.Engine, state *access.RoleRecord, id uint64
 		panic(err)
 	}
 	e.RoleStore.InstallPrincipalFrontierLocked(ref.ID() + 1)
-	putFixtureRole(state, authorization.RoleDescriptor{Ref: ref, Name: name, Comment: text})
+	enginetest.PutFixtureRole(state, authorization.RoleDescriptor{Ref: ref, Name: name, Comment: text})
 
 	return ref
 }
@@ -212,7 +212,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 func TestPGShDescriptionIdentityWidth(t *testing.T) {
 	e := engine.New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	state := cloneRoleFixture(e.RoleStore.Published)
+	state := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	low := pgShDescriptionUnitRole(e, state, 20000, "low", "low shared")
 	highID := uint64(1)<<32 | 20000
 	high := pgShDescriptionUnitRole(e, state, highID, "high", "high excluded")
@@ -228,7 +228,7 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 		t.Fatal("exact width projection", captured, err)
 	}
 	pgShDescriptionUnitInquiry(t, e, roles, e.CatalogRead(), 20000, new("low shared"))
-	removed := cloneRoleFixture(state)
+	removed := enginetest.CloneRoleFixture(state)
 	retireFixtureRole(removed, low)
 	captured, err = core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), removed), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGShDescription)
 	delete(want, 20000)
@@ -236,7 +236,7 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 		t.Fatal("high principal resurrected low", err)
 	}
 	pgShDescriptionUnitInquiry(t, e, e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), removed), e.CatalogRead(), 20000, nil)
-	if e.RoleStore.NextPrincipal() != highID+1 || fixtureRole(state, high).Ref.ID() != highID || fixtureRole(state, low).Comment != "low shared" {
+	if e.RoleStore.NextPrincipal() != highID+1 || enginetest.FixtureRole(state, high).Ref.ID() != highID || enginetest.FixtureRole(state, low).Comment != "low shared" {
 		t.Fatal("projection changed uint64 identities")
 	}
 }
@@ -244,7 +244,7 @@ func TestPGShDescriptionIdentityWidth(t *testing.T) {
 func TestPGShDescriptionCapturedRows(t *testing.T) {
 	e := engine.New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	old := cloneRoleFixture(e.RoleStore.Published)
+	old := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	role := pgShDescriptionUnitRole(e, old, 20000, "same_name", "old text")
 	snapshot := catalog.CloneState(e.Catalog.State)
 	local := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
@@ -254,10 +254,10 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := cloneRoleFixture(old)
-	replacement := fixtureRole(updated, role)
+	updated := enginetest.CloneRoleFixture(old)
+	replacement := enginetest.FixtureRole(updated, role)
 	replacement.Comment = "replacement"
-	putFixtureRole(updated, replacement)
+	enginetest.PutFixtureRole(updated, replacement)
 	e.RoleStore.PublishLocked(updated)
 	fresh, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.Roles(), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGShDescription)
 	if err != nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, fresh), map[uint32]string{20000: "replacement"}) {
@@ -265,7 +265,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 	}
 	pgShDescriptionUnitInquiry(t, e, e.RoleStore.Read(&e.Catalog.Owner, read, old), read, 20000, new("old text"))
 	pgShDescriptionUnitInquiry(t, e, e.RoleStore.PublishedRead(&e.Catalog.Owner, read), read, 20000, new("replacement"))
-	deleted := cloneRoleFixture(updated)
+	deleted := enginetest.CloneRoleFixture(updated)
 	retireFixtureRole(deleted, role)
 	pgShDescriptionUnitRole(e, deleted, 20001, "same_name", "")
 	e.RoleStore.PublishLocked(deleted)
@@ -280,7 +280,7 @@ func TestPGShDescriptionCapturedRows(t *testing.T) {
 func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	e := engine.New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	old := cloneRoleFixture(e.RoleStore.Published)
+	old := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	role := pgShDescriptionUnitRole(e, old, 20000, "snapshot", "old")
 	e.RoleStore.PublishLocked(old)
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -292,10 +292,10 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := cloneRoleFixture(old)
-	replacement := fixtureRole(updated, role)
+	updated := enginetest.CloneRoleFixture(old)
+	replacement := enginetest.FixtureRole(updated, role)
 	replacement.Comment = "new"
-	putFixtureRole(updated, replacement)
+	enginetest.PutFixtureRole(updated, replacement)
 	e.RoleStore.PublishLocked(updated)
 	open := func(scope *core.StatementScope, ref ids.ObjectRef) *exec.Source {
 		t.Helper()
@@ -356,7 +356,7 @@ func (c *pgShDescriptionCancelContext) Err() error {
 func TestPGShDescriptionCanceledCapture(t *testing.T) {
 	e := engine.New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	state := cloneRoleFixture(e.RoleStore.Published)
+	state := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	pgShDescriptionUnitRole(e, state, 20000, "first", "first")
 	pgShDescriptionUnitRole(e, state, 20001, "second", "second")
 	ctx, cancel := context.WithCancel(context.Background())

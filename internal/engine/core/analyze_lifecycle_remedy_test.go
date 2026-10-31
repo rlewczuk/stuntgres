@@ -55,8 +55,8 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 			} {
 				enginetest.SessionSQL(t, s, q)
 			}
-			persistentRef, persistentStore := vacuumStore(t, e, "analyze_persistent")
-			persistentFacts := analyzeFacts(e, persistentRef.Address)
+			persistentRef, persistentStore := enginetest.VacuumStore(t, e, "analyze_persistent")
+			persistentFacts := enginetest.AnalyzeFacts(e, persistentRef.Address)
 			persistentParent := enginetest.CatalogRef(t, e, e.CatalogRead(), "analyze_replaced_parent")
 			if metadata := e.Storage.RelationMetadata[persistentParent.Address]; metadata == nil || metadata.Statistics == nil || metadata.Tuples != 2 || e.Storage.Relations[persistentParent.Address] != nil {
 				t.Fatal("persistent partition fixture omitted real metadata-only authority")
@@ -115,7 +115,7 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 					enginetest.Run(t, source, q)
 				}
 				imported := enginetest.CatalogRef(t, source, source.CatalogRead(), "analyze_imported")
-				importedSourceFacts = analyzeFacts(source, imported.Address)
+				importedSourceFacts = enginetest.AnalyzeFacts(source, imported.Address)
 				importedAddress = imported.Address
 				if importedAddress != heap.Address() {
 					t.Fatal("fixture did not create an actual retained-TEMP address collision")
@@ -152,12 +152,12 @@ func TestAnalyzeRetainedTemporaryMetadata(t *testing.T) {
 				t.Fatal("retained TEMP physical roots or local cardinality changed")
 			}
 			if replacement == "self_import" {
-				if e.Storage.Relations[persistentRef.Address] == persistentStore || analyzeFacts(e, persistentRef.Address) != nil {
+				if e.Storage.Relations[persistentRef.Address] == persistentStore || enginetest.AnalyzeFacts(e, persistentRef.Address) != nil {
 					t.Fatal("persistent self-import reused old physical/statistics authority")
 				}
 			}
 			if replacement == "foreign_collision" {
-				imported := analyzeFacts(e, importedAddress)
+				imported := enginetest.AnalyzeFacts(e, importedAddress)
 				column := storage.StatisticsKey{Attribute: 1}
 				if imported == nil || importedSourceFacts == nil || imported == persistentFacts || imported == importedSourceFacts || len(imported.Columns) != 1 || imported.Columns[column] == nil || imported.Columns[column] == importedSourceFacts.Columns[column] {
 					t.Fatal("imported address collision failed to remint only source column facts")
@@ -190,7 +190,7 @@ func TestAnalyzeTruncateJournalOrdering(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE analyze_truncate(a INT)", "INSERT INTO analyze_truncate VALUES(1),(1),(2)", "ANALYZE analyze_truncate"} {
 					enginetest.SessionSQL(t, s, q)
 				}
-				ref, old := vacuumStore(t, e, "analyze_truncate")
+				ref, old := enginetest.VacuumStore(t, e, "analyze_truncate")
 				baseline := e.Storage.RelationMetadata[ref.Address]
 				key := storage.StatisticsKey{Attribute: e.CatalogRead().MustRelation(ref.Address).Attributes[0]}
 				enginetest.SessionSQL(t, s, "BEGIN")
@@ -289,7 +289,7 @@ func TestAnalyzeTruncateJournalOrdering(t *testing.T) {
 				if metadata != collected {
 					t.Fatal("completion changed successful collection count/time or scan metadata")
 				}
-				if analyzeFacts(e, ref.Address).Columns[key] != wantFact {
+				if enginetest.AnalyzeFacts(e, ref.Address).Columns[key] != wantFact {
 					t.Fatal("completion lost selected typed statistics backing")
 				}
 				catalogTuples, explainRows := wantTuples, wantTuples
@@ -331,9 +331,9 @@ func TestAnalyzeInheritedDeltaTombstones(t *testing.T) {
 	} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, _ := vacuumStore(t, e, "analyze_delta_parent")
+	ref, _ := enginetest.VacuumStore(t, e, "analyze_delta_parent")
 	relation := e.CatalogRead().MustRelation(ref.Address)
-	baseline := analyzeFacts(e, ref.Address)
+	baseline := enginetest.AnalyzeFacts(e, ref.Address)
 	inheritedA := storage.StatisticsKey{Attribute: relation.Attributes[0], Inherited: true}
 	inheritedB := storage.StatisticsKey{Attribute: relation.Attributes[1], Inherited: true}
 	if baseline.Columns[inheritedA] == nil || baseline.Columns[inheritedB] == nil {
@@ -358,11 +358,11 @@ func TestAnalyzeInheritedDeltaTombstones(t *testing.T) {
 	privateRelation, exists := view.Relation(ref.Address)
 	own := session.ResolveStatistics(journal, ref.Address, e.Storage.RelationMetadata[ref.Address], privateRelation, view)
 	e.Mu.Unlock()
-	if !exists || own == nil || own.Columns[inheritedA] != nil || own.Columns[inheritedB] != nil || analyzeFacts(e, ref.Address) != baseline {
+	if !exists || own == nil || own.Columns[inheritedA] != nil || own.Columns[inheritedB] != nil || enginetest.AnalyzeFacts(e, ref.Address) != baseline {
 		t.Fatal("own resolver ignored tombstones or leaked pending typed deletions")
 	}
 	enginetest.SessionSQL(t, s, "ROLLBACK")
-	if analyzeFacts(e, ref.Address) != baseline || baseline.Columns[inheritedA] == nil || baseline.Columns[inheritedB] == nil {
+	if enginetest.AnalyzeFacts(e, ref.Address) != baseline || baseline.Columns[inheritedA] == nil || baseline.Columns[inheritedB] == nil {
 		t.Fatal("rollback lost committed inherited backing")
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE analyze_delta_child NO INHERIT analyze_delta_parent")
@@ -385,7 +385,7 @@ func analyzePostTruncateRewrite(t *testing.T, sequence string, prepared bool) {
 	} {
 		enginetest.SessionSQL(t, s, q)
 	}
-	ref, committed := vacuumStore(t, e, "analyze_successor")
+	ref, committed := enginetest.VacuumStore(t, e, "analyze_successor")
 	baseline := e.Storage.RelationMetadata[ref.Address]
 	relation := e.CatalogRead().MustRelation(ref.Address)
 	key := storage.StatisticsKey{Attribute: relation.Attributes[0]}

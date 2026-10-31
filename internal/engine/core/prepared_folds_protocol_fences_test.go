@@ -61,7 +61,7 @@ func TestPreparedFoldProtocolCommandExecuteFences(t *testing.T) {
 				}
 				portal.Folds = &local
 			}
-			err := preparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
+			err := enginetest.PreparedFoldProtocolTry(t, e, s, cycle, false, func(scope *core.StatementScope) error {
 				_, err := scope.ExecuteProtocolPortal("fenced", 0, func([]session.ProtocolField) error { return nil }, nil, nil, core.CopyProtocolHooks{})
 				return err
 			})
@@ -81,7 +81,7 @@ func TestPreparedFoldProtocolCommandExecuteFences(t *testing.T) {
 			if phase == "authority" {
 				enginetest.SessionSQL(t, s, "RESET SESSION AUTHORIZATION")
 			}
-			preparedFoldProtocolRows(t, s, "0")
+			enginetest.PreparedFoldProtocolRows(t, s, "0")
 		})
 	}
 }

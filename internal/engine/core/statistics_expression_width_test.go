@@ -22,8 +22,8 @@ func TestStatisticsExpressionSnapshotAllNullWidth(t *testing.T) {
 		enginetest.SessionSQL(t, s, statement)
 	}
 	ref := enginetest.CatalogRef(t, source, source.CatalogRead(), "expr_width")
-	fixed := analyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_width_fixed")]
-	variable := analyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_width_variable")]
+	fixed := enginetest.AnalyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_width_fixed")]
+	variable := enginetest.AnalyzeFacts(source, ref.Address).Extended[ndistinctKey(t, source, "expr_width_variable")]
 	if fixed.Expression(0).AverageWidth != 4 || variable.Expression(0).AverageWidth != 0 || fixed.Expression(0).NullCount != 3 || variable.Expression(0).NullCount != 3 {
 		t.Fatal("all-NULL datum widths ignored actual fixed/unknown type facts")
 	}
@@ -37,7 +37,7 @@ func TestStatisticsExpressionSnapshotAllNullWidth(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetRef := enginetest.CatalogRef(t, target, target.CatalogRead(), "expr_width")
-	root := analyzeFacts(target, targetRef.Address)
+	root := enginetest.AnalyzeFacts(target, targetRef.Address)
 	fixedKey, variableKey := ndistinctKey(t, target, "expr_width_fixed"), ndistinctKey(t, target, "expr_width_variable")
 	restoredFixed, restoredVariable := root.Extended[fixedKey], root.Extended[variableKey]
 	if restoredFixed == nil || restoredVariable == nil || restoredFixed == fixed || restoredVariable == variable {
@@ -48,7 +48,7 @@ func TestStatisticsExpressionSnapshotAllNullWidth(t *testing.T) {
 	}
 	targetSession := enginetest.StartSession(t, target, nil)
 	enginetest.SessionSQL(t, targetSession, "ANALYZE expr_width")
-	fresh := analyzeFacts(target, targetRef.Address)
+	fresh := enginetest.AnalyzeFacts(target, targetRef.Address)
 	if fresh.Extended[fixedKey] == restoredFixed || fresh.Extended[fixedKey].Expression(0).AverageWidth != 4 || fresh.Extended[fixedKey].Expression(0).NullCount != 0 || fresh.Extended[variableKey].Expression(0).AverageWidth != 11 {
 		t.Fatal("fresh scan failed to distinguish current non-NULL datum widths")
 	}

@@ -58,7 +58,7 @@ func TestReplicationSlotPreparedOwnership(t *testing.T) {
  if publication==nil || !errors.Is(err,context.Canceled) || publication.Group.Sealed { t.Fatal("rejected publication",err) }
  current:=constantOwner.Current(); if current.Generation!=accepted.Generation || &current.Entries[0]!=&accepted.Entries[0] || !reflect.DeepEqual(current,accepted) { t.Fatal("rejected candidate replaced accepted owner") }
  command(func(scope *core.StatementScope)error{_,err:=scope.ExecuteProtocolPortal("slot_null",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
- err=preparedFoldProtocolTry(t,e,s,cycle,false,func(scope *core.StatementScope)error{_,err:=scope.ExecuteProtocolPortal("slot_value",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
+ err=enginetest.PreparedFoldProtocolTry(t,e,s,cycle,false,func(scope *core.StatementScope)error{_,err:=scope.ExecuteProtocolPortal("slot_value",0,func([]session.ProtocolField)error{return nil},nil,nil,core.CopyProtocolHooks{});return err})
  var diagnostic *sqlstate.Error; if !errors.As(err,&diagnostic) || diagnostic.Code!="0A000" || diagnostic.Message!="pg_create_physical_replication_slot physical replication slots and WAL reservation are unsupported in embedded mode" { t.Fatal("demanded boundary",err) }
  if a.Resource.Root!=rootA || a.Folds!=foldsA || b.Resource.Root!=nil || b.Folds!=nil { t.Fatal("live frame cleanup changed accepted artifacts") }
  if !reflect.DeepEqual(rootA.Expressions[1],callA) || !reflect.DeepEqual(rootB.Expressions[1],callB) || definition.Description.Folds!=owner || !reflect.DeepEqual(analysis.Dependencies,manifest) { t.Fatal("accepted graph/definition mutated") }

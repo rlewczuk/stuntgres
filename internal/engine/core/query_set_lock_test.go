@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -34,9 +33,9 @@ func querySetLockAuthorityFixture(t *testing.T) (*core.Engine, authorization.Pri
 	base := source.Ref
 	owner := e.RoleStore.Domain.Principal(1000000)
 	reader := e.RoleStore.Domain.Principal(1000001)
-	roles := cloneRoleFixture(e.RoleStore.Published)
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "set_owner"}, {Ref: reader, Name: "set_reader"}} {
-		putFixtureRole(roles, role)
+		enginetest.PutFixtureRole(roles, role)
 	}
 	e.RoleStore.PublishLocked(roles)
 	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
@@ -289,16 +288,4 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 	}
-}
-
-func cloneRoleFixture(r *access.RoleRecord) *access.RoleRecord {
-	return &access.RoleRecord{Root: r.Root, Revision: r.Revision + 1}
-}
-
-func putFixtureRole(r *access.RoleRecord, d authorization.RoleDescriptor) {
-	root, err := r.Root.PutDescriptor(d)
-	if err != nil {
-		panic(err)
-	}
-	r.Root = root
 }

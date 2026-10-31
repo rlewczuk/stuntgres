@@ -3,17 +3,11 @@ package core_test
 import (
 	"context"
 	"reflect"
-	"strings"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -37,8 +31,8 @@ func TestConcurrentIndexU5AbsentRootPrivateTypeAndOwnPrefix(t *testing.T) {
 	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(3)")
 	enginetest.SessionSQL(t, s, "COMMIT")
 	index, root := concurrentUnitIndex(t, e, "ui", true, true)
-	if !reflect.DeepEqual(btreeKeys(t, root), []string{"3", "4"}) {
-		t.Fatal("sanctioned reconstruction lost pre-TYPE accepted prefix", btreeKeys(t, root))
+	if !reflect.DeepEqual(enginetest.BtreeKeys(t, root), []string{"3", "4"}) {
+		t.Fatal("sanctioned reconstruction lost pre-TYPE accepted prefix", enginetest.BtreeKeys(t, root))
 	}
 	concurrentUnitRootMatchesStorage(t, e, index)
 	concurrentUnitError(t, s, "INSERT INTO t VALUES(2)", "23505")
@@ -77,7 +71,7 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 				enginetest.RoleExecute(t, e, admin, "CREATE ROLE index_owner LOGIN")
 				owner, ownerDone := enginetest.RoleOperation(t, e, "index_owner")
 				defer ownerDone()
-				withPublicSchemaUnitOwner(t, e, "index_owner", func() {
+				enginetest.WithPublicSchemaUnitOwner(t, e, "index_owner", func() {
 					enginetest.RoleExecute(t, e, owner, "CREATE TABLE t(v TEXT,n INT,payload TEXT)")
 				})
 				seed := "INSERT INTO t VALUES('A',1,'protected'),('a',1,'different')"
@@ -131,7 +125,7 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 					detail, typeDetail, writeDetail = "Duplicate keys exist.", "Duplicate keys exist.", ""
 				}
 				var err error
-				withPublicSchemaUnitOwner(t, e, "index_owner", func() {
+				enginetest.WithPublicSchemaUnitOwner(t, e, "index_owner", func() {
 					_, err = e.Execute(owner, enginetest.Statement(t, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t("+definition+") INCLUDE(payload)"), 0, nil)
 				})
 				enginetest.Diagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui"`, Detail: detail, Schema: "public", Table: "t", Constraint: "ui"})
@@ -160,70 +154,4 @@ func TestConcurrentIndexU5BuildRepairAndTypeDisclosure(t *testing.T) {
 			})
 		}
 	}
-}
-
-// withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
-// precondition. It leaves the tested operation's identity and object ACLs alone.
-func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
-	t.Helper()
-	view := e.CatalogRead()
-	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	if len(addresses) != 1 {
-		t.Fatal("public schema fixture requires one public namespace")
-	}
-	descriptor, ok := view.Descriptor(addresses[0])
-	if !ok {
-		t.Fatal("public schema fixture requires its namespace descriptor")
-	}
-	namespace, ok := descriptor.(*catalog.Namespace)
-	if !ok {
-		t.Fatal("public schema fixture has a non-namespace descriptor")
-	}
-	roles := e.Roles()
-	prior, err := roles.Descriptor(namespace.Owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bootstrap, err := roles.Descriptor(e.RoleStore.Domain.Principal(10))
-	if err != nil {
-		t.Fatal(err)
-	}
-	login, err := e.ResolveLogin(bootstrap.Name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sess, err := enginetest.OpenSession(context.Background(), e, session.SessionStart{ID: enginetest.NextSessionID()}, login)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		sess.RequestEnd(session.CleanClose)
-		if err := sess.WaitEnd(context.Background()); err != nil {
-			t.Error("closing public schema fixture session:", err)
-		}
-	}()
-	admin, err := sess.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer admin.Done()
-	quote := func(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }
-	// Restore while the borrowed operation and the prior owner are still live,
-	// including when the body terminates through testing.T.Fatal.
-	defer func() {
-		restore, err := parser.Parse("ALTER SCHEMA public OWNER TO " + quote(prior.Name))
-		if err != nil {
-			t.Error("parsing public schema owner restoration:", err)
-			return
-		}
-		if len(restore) != 1 {
-			t.Errorf("expected single public schema owner restoration statement, got %d", len(restore))
-			return
-		}
-		if _, err := e.Execute(admin, restore[0], 0, nil); err != nil {
-			t.Error("restoring public schema owner:", err)
-		}
-	}()
-	enginetest.RoleExecute(t, e, admin, "ALTER SCHEMA public OWNER TO "+quote(owner))
-	body()
 }

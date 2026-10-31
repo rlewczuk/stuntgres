@@ -23,11 +23,11 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	builtinFamily, _ := base.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 1976})
 	owner := builtinFamily.Owner
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_table", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_table", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "n", Usage: typ.Usage()}}, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	parent.TableMethod = 2
 	class, _ := sqltype.DefaultIndexClass(typ)
 	definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Ready: true, Valid: true, Live: true}
-	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_index", ObjectRevision: 1, Owner: owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Attributes: []int32{1}, Columns: parent.Columns, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication_index", ObjectRevision: 1, Owner: owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Attributes: []int32{1}, Columns: parent.Columns, Index: map[string]int{"n": 0}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	one, err := sqltype.Integer(typ, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +60,8 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	support := ordering.Comparisons[0].Support()
 	// Ordinary catalog publication installs the descriptor, initial rows and
 	// genuine released int4 support root together before the failure trials.
-	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication", ObjectRevision: 2, Owner: owner, Method: 403}
-	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
+	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication", ObjectRevision: 2, Owner: owner, Method: 403}
+	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Create(family); err != nil {
@@ -115,7 +115,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	invalid := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(invalid)
 	bad := *member
-	bad.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	bad.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	bad.Number = 7
 	if err := invalid.Create(&bad); err != nil {
 		t.Fatal(err)
@@ -152,9 +152,9 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		t.Fatal("support DROP mutated retained catalog")
 	}
 	readded := *member
-	readded.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	readded.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	readded.ObjectRevision++
-	operator := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 4, Family: member.Family, Left: 23, Right: 23, Number: 1, Purpose: 's', Operator: 97, Method: 403}
+	operator := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: enginetest.CatalogUnitOID(t, e)}, ObjectRevision: 4, Family: member.Family, Left: 23, Right: 23, Number: 1, Purpose: 's', Operator: 97, Method: 403}
 	add := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(add)
 	for _, d := range []catalog.Descriptor{&readded, operator} {
@@ -179,7 +179,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	// The secondary key must retire with the member, so the same operator
 	// can be added again under a fresh identity before family AUTO closure.
 	readdedOperator := *operator
-	readdedOperator.ObjectAddress.ObjectID = catalogUnitOID(t, e)
+	readdedOperator.ObjectAddress.ObjectID = enginetest.CatalogUnitOID(t, e)
 	addOperator := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(addOperator)
 	if err := addOperator.Create(&readdedOperator); err != nil {

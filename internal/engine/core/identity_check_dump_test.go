@@ -57,10 +57,10 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 		t.Fatal("Dump evaluated CHECK")
 	}
 	enginetest.SessionSQL(t, s, `INSERT INTO portable.i DEFAULT VALUES`)
-	sequenceScalar(t, s, `SELECT id FROM portable.i`, 1)
-	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 2)
+	enginetest.SequenceScalar(t, s, `SELECT id FROM portable.i`, 1)
+	enginetest.SequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 2)
 	enginetest.SessionSQL(t, s, `INSERT INTO portable.c VALUES(10)`)
-	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 3)
+	enginetest.SequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 3)
 	enginetest.SessionSQL(t, s, `DROP TABLE portable.c`)
 	enginetest.SessionSQL(t, s, `DROP TABLE portable.i`)
 	if e.Catalog.State.Get(identity.Sequence) != nil || e.Storage.Sequences[identity.Sequence] != nil {
@@ -84,7 +84,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			// The real table/toast namespace pair consumes two schema addresses;
 			// kept then consumes the padded source owner's table address.
 			enginetest.SessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
-			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
+			enginetest.SequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := enginetest.PreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			temp := description.Sequences.Constants[0].Ref.Address
 			owner := roleTableRef(t, source, "portable.i").Address
@@ -148,19 +148,19 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if dest.Catalog.State.Get(temp) != definition || dest.Storage.Sequences[temp] != generator || core.PayloadOf(b).Sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
 				t.Fatal("retained TEMP state changed")
 			}
-			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)
+			enginetest.SequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)
 			enginetest.SessionSQL(t, b, `INSERT INTO portable.c VALUES(7)`)
-			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 2)
+			enginetest.SequenceScalar(t, b, `SELECT last_value FROM portable.v`, 2)
 			enginetest.SessionSQL(t, b, `INSERT INTO portable.i DEFAULT VALUES`)
-			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.i`, 2)
-			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 3)
+			enginetest.SequenceScalar(t, b, `SELECT COUNT(*) FROM portable.i`, 2)
+			enginetest.SequenceScalar(t, b, `SELECT last_value FROM portable.v`, 3)
 			enginetest.SessionSQL(t, b, `DROP TABLE portable.i CASCADE`)
-			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.c`, 1)
+			enginetest.SequenceScalar(t, b, `SELECT COUNT(*) FROM portable.c`, 1)
 			enginetest.SessionSQL(t, b, `INSERT INTO portable.c VALUES(9)`)
 			if dest.Catalog.State.Get(identity.Sequence) != nil || dest.Storage.Sequences[identity.Sequence] != nil {
 				t.Fatal("linked sequence survived owner cleanup")
 			}
-			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
+			enginetest.SequenceScalar(t, b, `SELECT nextval('kept')`, 31)
 		})
 	}
 }
@@ -195,9 +195,9 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	enginetest.TransactionEnd(t, a, tx, false)
 	enginetest.SessionSQL(t, b, create)
 	enginetest.SessionSQL(t, b, `INSERT INTO i DEFAULT VALUES`)
-	sequenceScalar(t, b, `SELECT id FROM i`, 1)
-	sequenceScalar(t, b, `SELECT last_value FROM i_id_seq`, 2)
-	sequenceScalar(t, b, `SELECT last_value FROM incumbent`, 1)
+	enginetest.SequenceScalar(t, b, `SELECT id FROM i`, 1)
+	enginetest.SequenceScalar(t, b, `SELECT last_value FROM i_id_seq`, 2)
+	enginetest.SequenceScalar(t, b, `SELECT last_value FROM incumbent`, 1)
 	checkReviewDependencyValid(t, e)
 	enginetest.LockEmpty(t, e)
 }
@@ -249,5 +249,5 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	sequenceScalar(t, s, `SELECT n FROM v`, 1)
+	enginetest.SequenceScalar(t, s, `SELECT n FROM v`, 1)
 }

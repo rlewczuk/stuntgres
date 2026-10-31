@@ -11,7 +11,7 @@ import (
 
 func TestReplicaIdentityNativeReplay(t *testing.T) {
 	e, s, parent := replicaUnitFixture(t)
-	preparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
+	enginetest.PreparedUnitStatement(t, e, s, replicaUnitAlter(parser.ReplicaIdentityIndex, "ri_b"))
 	retained := e.CatalogRead()
 	original := retained.MustRelation(parent.Address())
 	selected := replicaUnitIndex(t, e, "ri_b")

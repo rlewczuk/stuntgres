@@ -117,7 +117,7 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	if e.Exclusions.CountLocked() != 0 {
 		t.Fatal("completed owners retained dirty projections")
 	}
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestExclusionPendingLifecycle(t *testing.T) {
@@ -153,7 +153,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	if e.Exclusions.CountLocked() != 0 || core.EnginePreparedRef(e).Len() != 0 {
 		t.Fatal("prepared completion retained exclusion ownership")
 	}
-	uniqueClaimsEmpty(t, e)
+	enginetest.UniqueClaimsEmpty(t, e)
 }
 
 func TestExclusionEagerClaims(t *testing.T) {
@@ -183,7 +183,7 @@ func TestExclusionEagerClaims(t *testing.T) {
 			if e.Exclusions.CountLocked() != 0 {
 				t.Fatal("cancelled eager admission retained dirty projection")
 			}
-			uniqueClaimsEmpty(t, e)
+			enginetest.UniqueClaimsEmpty(t, e)
 		})
 	}
 }

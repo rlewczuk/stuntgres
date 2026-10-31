@@ -86,7 +86,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	})
 	t.Run("creation_default_normalization", func(t *testing.T) {
 		f := newDefaultUnitFixture(t)
-		revoke := defaultUnitStatement("types", "usage", []string{"default_owner"}, nil, []string{"PUBLIC"})
+		revoke := enginetest.DefaultUnitStatement("types", "usage", []string{"default_owner"}, nil, []string{"PUBLIC"})
 		revoke.Revoke = true
 		if err := f.apply(revoke); err != nil {
 			t.Fatal(err)

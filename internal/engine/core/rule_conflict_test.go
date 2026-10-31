@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -15,9 +16,9 @@ import (
 
 func TestRuleConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	original := ruleUnitInsert(e, src, 1, 10).Binding()
-	action := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
+	original := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
+	action := enginetest.RuleUnitInsert(e, sink, 1, 10)
+	recipe := &analyze.InsertConflict{Targets: action.Binding().Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{enginetest.RuleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
 	action = action.With(func(p *stored.RuleActionParts) { p.Binding.Insert.Conflict = recipe })
 	first, err := view.ComposeRuleAction(auth, original, "INSERT", stored.Rule{}, action)
 	if err != nil {
@@ -25,7 +26,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	}
 	// Execution replaces the command's normalized predicate through its state.
 	state := dml.NewInsertConflictState(first.Insert.Conflict)
-	state.Predicate = ruleUnitInt(sink, 30)
+	state.Predicate = enginetest.RuleUnitInt(sink, 30)
 	state.MarkAffected(ids.RowID(42), 0)
 	if first.Insert.Conflict.Predicate == nil {
 		t.Fatal("conflict state does not execute the command's clause")
@@ -51,11 +52,11 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	for _, event := range []string{"UPDATE", "DELETE"} {
 		t.Run(event, func(t *testing.T) {
-			original := ruleUnitInsert(e, src, 1, 10).Binding()
+			original := enginetest.RuleUnitInsert(e, src, 1, 10).Binding()
 			if event == "UPDATE" {
-				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
+				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{enginetest.RuleUnitInt(src, 1), enginetest.RuleUnitInt(src, 10)}}
 			}
-			action := ruleUnitInsert(e, sink, 7, 8)
+			action := enginetest.RuleUnitInsert(e, sink, 7, 8)
 			composed, err := view.ComposeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -67,7 +68,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
 			action = action.With(func(p *stored.RuleActionParts) {
-				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+				p.Binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: view.RuleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, enginetest.RuleUnitInt(sink, 8)}}
 			})
 			dependent, err := view.ComposeRuleAction(auth, original, event, stored.Rule{}, action)
 			if err != nil {

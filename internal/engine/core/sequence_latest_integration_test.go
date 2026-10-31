@@ -39,5 +39,5 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 	}
 	peer := enginetest.StartSession(t, e, nil)
 	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY v", 7, 100)
-	sequenceScalar(t, peer, "SELECT nextval('s')", 101)
+	enginetest.SequenceScalar(t, peer, "SELECT nextval('s')", 101)
 }

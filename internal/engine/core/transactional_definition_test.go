@@ -232,7 +232,7 @@ func definitionUnitResolution(t *testing.T, e *core.Engine, owner *session.Sessi
 	for i := range sqltype.CastMetadataCount() {
 		fact, _ := sqltype.CastMetadataAt(i)
 		if fact.Source == sqltype.Int4 && fact.Target == sqltype.Int8 {
-			original = catalog.Cast{OID: catalogUnitOID(t, e), ObjectRevision: 1, Source: fact.Source, Target: fact.Target, Context: string(fact.Context), Method: string(fact.Method), Function: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(fact.Function)}}
+			original = catalog.Cast{OID: enginetest.CatalogUnitOID(t, e), ObjectRevision: 1, Source: fact.Source, Target: fact.Target, Context: string(fact.Context), Method: string(fact.Method), Function: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(fact.Function)}}
 			break
 		}
 	}

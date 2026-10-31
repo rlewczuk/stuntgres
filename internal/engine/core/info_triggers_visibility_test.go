@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 )
@@ -16,7 +17,7 @@ func infoTriggersACLVisibility(t *testing.T) {
 	definition := triggerUnitDefinition(t, read, relation, function, "grant_unit", stored.TriggerUpdate)
 	definition = infoTriggersWhen(t, e, scope, read, relation, definition)
 	relation = triggerUnitInstall(t, e, relation, definition)
-	roles := cloneRoleFixture(e.RoleStore.Published)
+	roles := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	reader := e.RoleStore.Domain.Principal(20001)
 	member := e.RoleStore.Domain.Principal(20002)
 	for _, actor := range []authorization.PrincipalRef{reader, member} {
@@ -24,9 +25,9 @@ func infoTriggersACLVisibility(t *testing.T) {
 		if actor == member {
 			name = "trigger_member"
 		}
-		putFixtureRole(roles, authorization.RoleDescriptor{Ref: actor, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
+		enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: actor, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
 	}
-	setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: relation.Owner, Member: member, Grantor: relation.Owner, Inherit: true, Set: true}))
+	enginetest.SetFixtureEdges(roles, append(enginetest.FixtureEdges(roles), authorization.Membership{Role: relation.Owner, Member: member, Grantor: relation.Owner, Inherit: true, Set: true}))
 	e.RoleStore.PublishLocked(roles)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoTriggersOID)
 	check := func(table *catalog.Relation, actor authorization.PrincipalRef, want int, condition bool) {
@@ -84,8 +85,8 @@ func infoTriggersACLVisibility(t *testing.T) {
 		t.Fatal("old role capture", retained, err)
 	}
 	oldRoles := oldRuntime.Auth.RoleRecord
-	successor := cloneRoleFixture(e.RoleStore.Published)
-	setFixtureEdges(successor, nil)
+	successor := enginetest.CloneRoleFixture(e.RoleStore.Published)
+	enginetest.SetFixtureEdges(successor, nil)
 	e.RoleStore.PublishLocked(successor)
 	if oldRoles == e.RoleStore.Published {
 		t.Fatal("role root did not advance")

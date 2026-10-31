@@ -37,7 +37,7 @@ func TestLockModesViews(t *testing.T) {
 		enginetest.RoleExecute(t, e, op, q)
 	}
 	enginetest.RoleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	grant(schemaRef(t, e, "s"), entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
+	grant(enginetest.SchemaRef(t, e, "s"), entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
 	table := enginetest.RoleTableRef(t, e, "t")
 	grant(table, entry(owner.Ref, authorization.UpdatePrivilege))
 	for _, name := range []string{"s.owned", "s.invoker", "s.nested"} {

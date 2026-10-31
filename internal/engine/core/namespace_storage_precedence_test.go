@@ -86,8 +86,8 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 		t.Fatal("own read-only COPY", count, err)
 	}
 	enginetest.SessionSQL(t, owner, "COMMIT")
-	sequenceScalar(t, owner, "SELECT sum(v)::bigint FROM storage_foreign", 199)
-	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
+	enginetest.SequenceScalar(t, owner, "SELECT sum(v)::bigint FROM storage_foreign", 199)
+	enginetest.SequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
 }
 
 func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
@@ -109,7 +109,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	for _, name := range append(append([]string(nil), definers...), invokers...) {
 		enginetest.SessionSQL(t, owner, "GRANT SELECT ON "+name+" TO PUBLIC")
 	}
-	allowed := namespaceCapturedAuthorization(t, peer)
+	allowed := enginetest.NamespaceCapturedAuthorization(t, peer)
 	catalog := e.CatalogRead()
 	namespace := owner.TemporaryNamespace
 	name := catalog.MustNamespace(namespace).Name()
@@ -117,7 +117,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	store := e.Storage.Relations[base]
 	root, ends := store.Versions, store.Ends
 	enginetest.SessionSQL(t, owner, "REVOKE SELECT ON storage_acl_source FROM storage_view_creator")
-	denied := namespaceCapturedAuthorization(t, peer)
+	denied := enginetest.NamespaceCapturedAuthorization(t, peer)
 	collect := func(auth core.AuthorizationView, viewName, code, message string) {
 		t.Helper()
 		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
@@ -164,13 +164,13 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		collect(denied, view, "0A000", "cannot access temporary tables of other sessions")
 	}
 	enginetest.SessionSQL(t, owner, "GRANT SELECT ON storage_acl_source TO storage_view_creator")
-	restored := namespaceCapturedAuthorization(t, peer)
+	restored := enginetest.NamespaceCapturedAuthorization(t, peer)
 	for _, view := range definers {
 		collect(restored, view, "0A000", "cannot access temporary tables of other sessions")
-		sequenceScalar(t, owner, "SELECT v FROM "+view, 99)
+		enginetest.SequenceScalar(t, owner, "SELECT v FROM "+view, 99)
 	}
-	sequenceScalar(t, owner, "SELECT v FROM storage_acl_source", 99)
-	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
+	enginetest.SequenceScalar(t, owner, "SELECT v FROM storage_acl_source", 99)
+	enginetest.AssertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 }
 
 func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {

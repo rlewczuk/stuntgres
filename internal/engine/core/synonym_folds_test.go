@@ -251,7 +251,7 @@ func TestSynonymPreparedOwnership(t *testing.T) {
 		}
 		_, err := enginetest.PreparedExecute(e, s, ast, &d)
 		enginetest.State(t, err, "42501")
-		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || foldRootsReusable(d.Folds) {
+		if &d.Folds.Current().Entries[0] != &before.Accepted.Entries[0] || enginetest.FoldRootsReusable(d.Folds) {
 			t.Fatal("authority rejection accepted synonym candidate")
 		}
 		enginetest.PreparedFoldEntry(t, before, 1009, "{pgsql}")

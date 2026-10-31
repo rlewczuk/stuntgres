@@ -33,11 +33,11 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 		t.Run(fence, func(t *testing.T) {
 			e := engine.New()
 			parent := partitionAttachUnitRoot(t, e, "routing_growth_parent", 46200)
-			old := inheritanceUnitRelation(e, "routing_growth_old", 46201, "k")
+			old := enginetest.InheritanceUnitRelation(e, "routing_growth_old", 46201, "k")
 			old.RelationKind = catalog.TableRelation
 			old.Membership = partitionAttachUnitRange(t, parent, 20, 30)
 			parent.Partition.Children = []ids.ObjectAddress{old.Address()}
-			candidate := inheritanceUnitRelation(e, "routing_growth_candidate", 46202, "k")
+			candidate := enginetest.InheritanceUnitRelation(e, "routing_growth_candidate", 46202, "k")
 			candidate.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
 			parent = e.Catalog.State.MustRelation(parent.Address())

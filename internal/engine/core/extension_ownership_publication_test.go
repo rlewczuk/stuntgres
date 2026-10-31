@@ -25,7 +25,7 @@ func TestExtensionOwnershipPublication(t *testing.T) {
 			// that principal before relocation so inherited ordinary ownership, not
 			// superuser authority or bootstrap-owned unaccent, reaches validation.
 			grant := extensionUnitGrant(e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress).Name(), "eo_unit_owner")
-			if err := extensionUnitExecute(t, e, admin, grant); err != nil {
+			if err := enginetest.ExtensionUnitExecute(t, e, admin, grant); err != nil {
 				t.Fatal(err)
 			}
 			actor, actorDone := enginetest.RoleOperation(t, e, "eo_unit_actor")
@@ -67,7 +67,7 @@ func TestExtensionOwnershipPublication(t *testing.T) {
 				}
 			}}
 			defer func() { e.Catalog.Providers[ids.ExtensionClassID] = provider }()
-			err := extensionUnitExecute(t, e, actor, enginetest.Statement(t, `ALTER EXTENSION fuzzystrmatch SET SCHEMA eo_unit_new`))
+			err := enginetest.ExtensionUnitExecute(t, e, actor, enginetest.Statement(t, `ALTER EXTENSION fuzzystrmatch SET SCHEMA eo_unit_new`))
 			if !fired.Load() {
 				t.Fatal("utility never reached outside-lock provider validation")
 			}

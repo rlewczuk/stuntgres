@@ -46,11 +46,11 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
 		candidate := catalog.CloneState(retained.State())
 		snapshot := target.e.Roles()
-		roles := cloneRoleFixture(target.e.RoleStore.Published)
+		roles := enginetest.CloneRoleFixture(target.e.RoleStore.Published)
 		replacement := target.reader
 		replacement = target.e.RoleStore.Domain.Principal(replacement.ID() + 100)
 		retireFixtureRole(roles, target.reader)
-		putFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
+		enginetest.PutFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
 
 		target.e.RoleStore.PublishLocked(roles)
 		if _, _, err := core.EngineRemapPreparedCatalog(target.e, candidate, source.e.Roles(), snapshot, nil); err == nil {
@@ -63,7 +63,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		enginetest.RoleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_projection_seed(v INT)")
 		f.schema = f.op.Session.TemporaryNamespace
 		namespace := f.e.Catalog.State.MustNamespace(f.schema)
-		assertTemporaryNamespacePair(t, f.e, f.op.Session.SessionToken, f.schema)
+		enginetest.AssertTemporaryNamespacePair(t, f.e, f.op.Session.SessionToken, f.schema)
 		f.grant(t, "tables", "insert", []string{namespace.Name()})
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 		table := defaultUnitTable(t, f, stage, "temporary_survivor", f.owner)
@@ -88,7 +88,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 			t.Fatal("self replacement confused materialized TEMP ACL with directive")
 		}
 		// Physical end removes directives tied to the retired namespace too.
-		grant := defaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{namespace.Name()}, []string{"default_reader"})
+		grant := enginetest.DefaultUnitStatement("sequences", "usage", []string{"default_owner"}, []string{namespace.Name()}, []string{"default_reader"})
 		if err = f.apply(grant); err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +99,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		if err = f.op.Session.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		assertTemporaryNamespacePair(t, f.e, f.op.Session.SessionToken, f.schema)
+		enginetest.AssertTemporaryNamespacePair(t, f.e, f.op.Session.SessionToken, f.schema)
 		if f.e.Catalog.State.Get(table.Address()) != nil {
 			t.Fatal("physical end retained TEMP child")
 		}
@@ -162,7 +162,7 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 		})
 	}
 	f := newDefaultUnitFixture(t)
-	empty := defaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})
+	empty := enginetest.DefaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})
 	empty.Revoke = true
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)

@@ -79,16 +79,16 @@ func TestPGShadowTypedProjectionAndIdentityWidth(t *testing.T) {
 	max := pgUserUnitRole(e, state, math.MaxUint32, "max")
 	pgUserUnitRole(e, state, uint64(math.MaxUint32)+1, "overflow")
 	hidden := pgUserUnitRole(e, state, 20001, "hidden")
-	r := fixtureRole(state, hidden); r.Login = false; putFixtureRole(state, r)
-	r = fixtureRole(state, low)
+	r := enginetest.FixtureRole(state, hidden); r.Login = false; enginetest.PutFixtureRole(state, r)
+	r = enginetest.FixtureRole(state, low)
 	r.Password = "arbitrary stored text, not a verifier validator"
 	r.CreateDB, r.Superuser, r.Replication, r.BypassRLS = true, true, true, true
 	r.HasValidUntil, r.ValidUntil, r.ConnectionLimit = true, 0, 0
-	putFixtureRole(state, r)
-	r = fixtureRole(state, max); r.Password = ""; putFixtureRole(state, r)
+	enginetest.PutFixtureRole(state, r)
+	r = enginetest.FixtureRole(state, max); r.Password = ""; enginetest.PutFixtureRole(state, r)
 	capture := func(root *access.RoleRecord) *exec.Source {
 		t.Helper()
-		s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(pgcatalog.ShadowOID))
+		s, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), root), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 		if err != nil { t.Fatal(err) }; return s
 	}
 	if empty := capture(emptyRoleFixture(e)); empty == nil || empty.Anonymous == nil || len(empty.Anonymous) != 0 { t.Fatal("empty capture lost anonymous source identity") }
@@ -104,10 +104,10 @@ func TestPGShadowTypedProjectionAndIdentityWidth(t *testing.T) {
 	if stamp, _ := bag[20000][7].Timestamp(); stamp != 0 { t.Fatal("zero timestamp") }
 	if !bag[math.MaxUint32][6].IsNull() || !bag[math.MaxUint32][7].IsNull() { t.Fatal("missing credentials not NULL") }
 	for _, stamp := range []int64{123456789, math.MaxInt64, math.MinInt64} {
-		updated := cloneRoleFixture(state); r = fixtureRole(updated, low); r.ValidUntil = stamp; putFixtureRole(updated, r)
+		updated := enginetest.CloneRoleFixture(state); r = enginetest.FixtureRole(updated, low); r.ValidUntil = stamp; enginetest.PutFixtureRole(updated, r)
 		if got, _ := pgShadowUnitRows(t, capture(updated))[20000][7].Timestamp(); got != stamp { t.Fatal("timestamp/infinity changed") }
 	}
-	updated := cloneRoleFixture(state); r = fixtureRole(updated, low); r.Password = "replacement"; r.Name = "replacement"; putFixtureRole(updated, r); e.RoleStore.PublishLocked(updated)
+	updated := enginetest.CloneRoleFixture(state); r = enginetest.FixtureRole(updated, low); r.Password = "replacement"; r.Name = "replacement"; enginetest.PutFixtureRole(updated, r); e.RoleStore.PublishLocked(updated)
 	if text, _ := bag[20000][6].Text(); text != "arbitrary stored text, not a verifier validator" { t.Fatal("retained password mutated") }
 	retireFixtureRole(updated, low)
 	if pgShadowUnitRows(t, capture(updated))[20000] != nil { t.Fatal("high identity resurrected low") }
@@ -176,7 +176,7 @@ func TestPGShadowAuthorizationPrincipals(t *testing.T) {
 	// Real catalog ACLs retain exact principal references. Deliberately retire
 	// the fixture principal without SQL dependency cleanup to exercise stale
 	// references, not DROP ROLE's separate dependency admission.
-	state := cloneRoleFixture(e.RoleStore.Published)
+	state := enginetest.CloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(state, reader.Ref)
 	replacement := pgUserUnitRole(e, state, 30000, "shadow_reader")
 	e.RoleStore.PublishLocked(state)
@@ -191,7 +191,7 @@ func TestPGShadowAuthorizationPrincipals(t *testing.T) {
 
 func TestPGShadowStatementAndNestedSnapshot(t *testing.T) {
 	e := engine.New(); d, ref := pgShadowUnitSource(t, e)
-	old := cloneRoleFixture(e.RoleStore.Published); role := pgUserUnitRole(e, old, 20000, "snapshot"); e.RoleStore.PublishLocked(old)
+	old := enginetest.CloneRoleFixture(e.RoleStore.Published); role := pgUserUnitRole(e, old, 20000, "snapshot"); e.RoleStore.PublishLocked(old)
 	op, done := enginetest.RoleOperation(t, e, "postgres"); defer done()
 	scope := &core.StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock(); err := e.CaptureCommentSnapshotLocked(scope); e.Mu.Unlock(); if err != nil { t.Fatal(err) }
@@ -201,7 +201,7 @@ func TestPGShadowStatementAndNestedSnapshot(t *testing.T) {
 		if err != nil { t.Fatal(err) }; return s
 	}
 	first := open(scope, ref)
-	updated := cloneRoleFixture(old); r := fixtureRole(updated, role); r.Password = "new verifier"; putFixtureRole(updated, r); e.RoleStore.PublishLocked(updated)
+	updated := enginetest.CloneRoleFixture(old); r := enginetest.FixtureRole(updated, role); r.Password = "new verifier"; enginetest.PutFixtureRole(updated, r); e.RoleStore.PublishLocked(updated)
 	second := open(scope, ref)
 	addView := func(id ids.OID, name string, leaf ids.ObjectRef) ids.ObjectRef {
 		v := *d; v.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}; v.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}; v.ObjectName = name; v.RelationKind = catalog.ViewRelation; v.VirtualView = false
@@ -234,13 +234,13 @@ func TestPGShadowCancellation(t *testing.T) {
 	} {
 		t.Run(phase.name, func(t *testing.T) {
 			ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: phase.at}
-			source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(pgcatalog.ShadowOID))
+			source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 			if source != nil || !errors.Is(err, context.Canceled) || ctx.calls != phase.at {
 				t.Fatal("cancellation published credential prefix or missed check", phase.at, ctx.calls, err)
 			}
 		})
 	}
 	invalid := *d; invalid.Columns = append([]catalog.Column(nil), d.Columns...); invalid.Columns[1].Usage.Type = enginetest.Usage(e, sqltype.Int4).Type
-	source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.EngineCatalogRuntime{}}, registeredCatalogProducer(pgcatalog.ShadowOID))
+	source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.EngineCatalogRuntime{}}, enginetest.RegisteredCatalogProducer(pgcatalog.ShadowOID))
 	if err == nil || source != nil { t.Fatal("invalid descriptor published rows") }
 }

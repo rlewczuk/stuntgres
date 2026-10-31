@@ -49,7 +49,7 @@ func TestVisibilityInquirySearchKindsAndPaths(t *testing.T) {
 	for _, query := range searchInquiryDefinitions("search_owner") {
 		enginetest.SessionSQL(t, s, query)
 	}
-	ns := schemaRef(t, e, "search_owner")
+	ns := enginetest.SchemaRef(t, e, "search_owner")
 	enginetest.SessionSQL(t, s, "CREATE TEMP TABLE search_temp_seed(x integer)")
 	view := e.CatalogRead()
 	temporary := s.TemporaryNamespace
@@ -254,7 +254,7 @@ func TestVisibilityInquirySearchCapturedFrontier(t *testing.T) {
 	if len(recaptured) != len(path) || &recaptured[0] != &path[0] {
 		t.Fatal("repeated demand replaced owned immutable backing")
 	}
-	ns := schemaRef(t, e, "search_frontier")
+	ns := enginetest.SchemaRef(t, e, "search_frontier")
 	addresses := make([]ids.ObjectAddress, len(searchInquiryKinds))
 	for i, tc := range searchInquiryKinds {
 		addresses[i] = captured.NameAddress(ids.NameKey{ClassID: tc.class, Namespace: ns.Address, Name: "v"})

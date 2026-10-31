@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
@@ -14,7 +15,7 @@ import (
 
 func TestRuleModeCandidate(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
-	action := ruleUnitInsert(e, sink, 1, 10)
+	action := enginetest.RuleUnitInsert(e, sink, 1, 10)
 	rule := stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: "INSERT", Mode: catalog.RuleOrigin, Actions: []stored.RuleAction{action}, References: []ids.ObjectAddress{sink.Address()}})
 	src.Rules = stored.RulesPayload([]stored.Rule{rule})
 	before := rule.Parts()

@@ -39,7 +39,7 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*core.Engine, *session.Sess
 	}
 	view := e.CatalogRead()
 	namespace := owner.TemporaryNamespace
-	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
+	enginetest.AssertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	lookup := func(namespace ids.ObjectAddress, name string) *catalog.Relation {
 		address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 		return view.MustRelation(address)
@@ -47,24 +47,10 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*core.Engine, *session.Sess
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
 
-func namespaceCapturedAuthorization(t *testing.T, s *session.Session) core.AuthorizationView {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	auth, err := core.OperationAuthorization(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return auth
-}
-
 func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 	e, owner, peer, foreign, chain, persistent := namespaceTemporaryStorageFixture(t)
 	catalogView := e.CatalogRead()
-	ownerAuth, peerAuth := namespaceCapturedAuthorization(t, owner), namespaceCapturedAuthorization(t, peer)
+	ownerAuth, peerAuth := enginetest.NamespaceCapturedAuthorization(t, owner), enginetest.NamespaceCapturedAuthorization(t, peer)
 	collect := func(view catalog.Read, relation *catalog.Relation, only, analysis bool, token ids.SessionToken) ([]ids.ObjectRef, error) {
 		t.Helper()
 		leaf := exec.Leaf{Ref: e.Catalog.Domain.Ref(view.Epoch(), relation.Address()), Relation: relation, Only: only, AnalysisOnly: analysis}
@@ -123,10 +109,10 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 	e, owner, peer, foreign, chain, _ := namespaceTemporaryStorageFixture(t)
 	name := e.CatalogRead().Get(foreign.Namespace()).Name()
-	sequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
-	sequenceScalar(t, owner, "SELECT v FROM storage_chain", 99)
-	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
-	sequenceScalar(t, peer, "SELECT '"+name+".storage_foreign'::regclass::oid::bigint", int64(foreign.Address().ObjectID))
+	enginetest.SequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
+	enginetest.SequenceScalar(t, owner, "SELECT v FROM storage_chain", 99)
+	enginetest.SequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
+	enginetest.SequenceScalar(t, peer, "SELECT '"+name+".storage_foreign'::regclass::oid::bigint", int64(foreign.Address().ObjectID))
 	for _, query := range []string{"SELECT v FROM " + name + ".storage_foreign", "SELECT v FROM ONLY " + name + ".storage_foreign", "SELECT v FROM " + name + "." + chain.Name()} {
 		ast, description := enginetest.PreparedDescription(t, e, peer, query)
 		before, sequence, oid, revision := e.Catalog.State, e.Visibility.CommitSeq(), e.Catalog.NextOID(), e.Catalog.NextRevision()
@@ -149,8 +135,8 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 			}
 		}
 	}
-	sequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
-	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
+	enginetest.SequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
+	enginetest.SequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
 }
 
 func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
@@ -213,8 +199,8 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}
-	sequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
-	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
+	enginetest.SequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
+	enginetest.SequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
 }
 
 func TestPGNamespaceOwnAndPersistentStorageTargets(t *testing.T) {
@@ -246,8 +232,8 @@ func TestPGNamespaceOwnAndPersistentStorageTargets(t *testing.T) {
 		if err != nil || count != 1 {
 			t.Fatal("own/persistent COPY FROM", tc.table, count, err)
 		}
-		sequenceScalar(t, tc.session, "SELECT v FROM "+tc.table, 7)
+		enginetest.SequenceScalar(t, tc.session, "SELECT v FROM "+tc.table, 7)
 		enginetest.SessionSQL(t, tc.session, "TRUNCATE "+tc.table)
-		sequenceScalar(t, tc.session, "SELECT count(*) FROM "+tc.table, 0)
+		enginetest.SequenceScalar(t, tc.session, "SELECT count(*) FROM "+tc.table, 0)
 	}
 }

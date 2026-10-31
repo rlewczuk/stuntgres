@@ -169,7 +169,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
 	roles := e.RoleStore.Published
-	sourceEdges := append([]authorization.Membership(nil), fixtureEdges(roles)...)
+	sourceEdges := append([]authorization.Membership(nil), enginetest.FixtureEdges(roles)...)
 	stage := e.RestoreStage()
 	expectedEdges := append([]authorization.Membership(nil), sourceEdges...)
 	for i := range expectedEdges {
@@ -180,7 +180,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 	if !reflect.DeepEqual(stage.Roles().Memberships(), expectedEdges) {
 		t.Fatal("import lost captured target graph/options/provenance")
 	}
-	if e.RoleStore.Published != roles || !reflect.DeepEqual(sourceEdges, fixtureEdges(roles)) {
+	if e.RoleStore.Published != roles || !reflect.DeepEqual(sourceEdges, enginetest.FixtureEdges(roles)) {
 		t.Fatal("import mutated retained target graph")
 	}
 	closure, err := stage.Roles().RoleClosure(context.Background(), stage.RoleStore.Domain.Principal(10), true)

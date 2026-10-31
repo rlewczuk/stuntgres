@@ -143,7 +143,7 @@ func TestPLpgSQLDiagnosticsPreparedOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		retired := definition.Description.Folds.Current()
-		if retired.Generation <= before.Accepted.Generation || foldRootsReusable(definition.Description.Folds) || len(publication.Group.Entries) != 0 {
+		if retired.Generation <= before.Accepted.Generation || enginetest.FoldRootsReusable(definition.Description.Folds) || len(publication.Group.Entries) != 0 {
 			t.Fatal("codec change failed to retire this definition generation")
 		}
 		publication.Group.Entries = append([]exec.FoldConstant(nil), before.Accepted.Entries...)
@@ -153,7 +153,7 @@ func TestPLpgSQLDiagnosticsPreparedOwnership(t *testing.T) {
 			t.Fatal("stale candidate published", err)
 		}
 		current := definition.Description.Folds.Current()
-		if registry.Lookup("diagnostics_owner") != definition || registry.Binding("diagnostics_portal") != accepted || definition.Description.Analysis != before.Analysis || definition.Description.Folds != before.Folds || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || foldRootsReusable(definition.Description.Folds) {
+		if registry.Lookup("diagnostics_owner") != definition || registry.Binding("diagnostics_portal") != accepted || definition.Description.Analysis != before.Analysis || definition.Description.Folds != before.Folds || current.Generation != retired.Generation || &current.Entries[0] != &before.Accepted.Entries[0] || &current.Dependencies[0] != &before.Accepted.Dependencies[0] || enginetest.FoldRootsReusable(definition.Description.Folds) {
 			t.Fatal("rejected publication changed original owner/backing/generation")
 		}
 		if accepted.Folds.Generation != bindingFolds.Generation || &accepted.Folds.Entries[0] != &bindingFolds.Entries[0] || &accepted.Folds.Dependencies[0] != &bindingFolds.Dependencies[0] {

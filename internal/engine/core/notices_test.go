@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
@@ -322,7 +321,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "CREATE USER notice_owner")
 	enginetest.RoleExecute(t, e, op, "CREATE USER notice_reader")
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_owner")
-	withPublicSchemaUnitOwner(t, e, "notice_owner", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "notice_owner", func() {
 		enginetest.RoleExecute(t, e, op, "CREATE TABLE notice_secret(id INT)")
 	})
 	enginetest.RoleExecute(t, e, op, "INSERT INTO notice_secret VALUES(7)")
@@ -330,7 +329,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_reader")
 	skip := enginetest.Statement(t, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
 	var before catalog.Read
-	withPublicSchemaUnitOwner(t, e, "notice_reader", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "notice_reader", func() {
 		if _, err := e.Describe(op, skip); err != nil {
 			t.Fatal("CREATE preparation", err)
 		}
@@ -345,7 +344,7 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "SET client_min_messages TO notice")
 	enginetest.RoleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION notice_reader")
-	withPublicSchemaUnitOwner(t, e, "notice_reader", func() {
+	enginetest.WithPublicSchemaUnitOwner(t, e, "notice_reader", func() {
 		enginetest.RoleExecute(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)")
 	})
 	want := []sqlstate.Error{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "notice_secret" already exists, skipping`}}
@@ -389,7 +388,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			enginetest.RoleExecute(t, e, admin, "CREATE USER losing_creator")
 			loser, loserDone := enginetest.RoleOperation(t, e, "losing_creator")
 			defer loserDone()
-			public := schemaRef(t, e, "public")
+			public := enginetest.SchemaRef(t, e, "public")
 			descriptor, ok := e.CatalogRead().Descriptor(public.Address)
 			if !ok {
 				t.Fatal("public namespace missing")
@@ -421,7 +420,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			if usage {
 				code, message = "42501", "permission denied for schema public"
 			}
-			withPublicSchemaUnitOwner(t, e, "losing_creator", func() {
+			enginetest.WithPublicSchemaUnitOwner(t, e, "losing_creator", func() {
 				enginetest.RoleErrorPosition(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", code, message, "", "28")
 				if loser.DetachNotices() != nil || e.CatalogRead().State() != winner.State() {
 					t.Fatal("unauthorized conflict became skip or changed winner")
@@ -433,14 +432,4 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 			}
 		})
 	}
-}
-
-func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
-	t.Helper()
-	v := e.CatalogRead()
-	a := v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
-	if a == (ids.ObjectAddress{}) {
-		t.Fatal("missing namespace", name)
-	}
-	return e.Catalog.Domain.Ref(v.Epoch(), a)
 }

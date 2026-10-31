@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -71,7 +70,7 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	index, root := concurrentUnitIndex(t, e, "ix", true, true)
-	if !reflect.DeepEqual(btreeKeys(t, root), []string{"1", "3"}) {
+	if !reflect.DeepEqual(enginetest.BtreeKeys(t, root), []string{"1", "3"}) {
 		t.Fatal("queued ordinary consumers lost effects")
 	}
 	concurrentUnitRootMatchesStorage(t, e, index)
@@ -200,27 +199,4 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			}
 		})
 	}
-}
-
-func btreeKeys(t *testing.T, root *storage.IndexRoot) []string {
-	t.Helper()
-	keys := make([]string, len(root.Entries))
-	identities := make(map[ids.VersionID]bool)
-	for i, entry := range root.Entries {
-		if entry.Row == 0 || entry.Version == 0 || identities[entry.Version] {
-			t.Fatal("collapsed/invalid identity", entry)
-		}
-		identities[entry.Version] = true
-		value := entry.Keys[0]
-		if value.IsNull() {
-			keys[i] = "NULL"
-		} else {
-			var err error
-			keys[i], err = value.Type().Output(context.Background(), value)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	return keys
 }

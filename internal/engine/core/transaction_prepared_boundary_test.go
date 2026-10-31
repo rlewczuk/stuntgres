@@ -29,13 +29,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func preparedBoundaryName(name string) parser.ObjectName {
-	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
-}
-func preparedBoundaryInteger(value int64) parser.Expr {
-	return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: value}}
-}
-
 const preparedBoundaryDeadline = 5 * time.Second
 
 func preparedBoundaryReceive[T any](t *testing.T, channel <-chan T, description string) T {
@@ -75,14 +68,14 @@ func preparedBoundaryFixture(t *testing.T) (*core.Engine, *session.Session, *ses
 	t.Helper()
 	e := engine.New()
 	origin := enginetest.StartSession(t, e, nil)
-	name := preparedBoundaryName("prepared_boundary")
-	preparedUnitStatement(t, e, origin, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
+	name := enginetest.PreparedBoundaryName("prepared_boundary")
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.CreateTable{Name: name, Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "v", TypeName: parser.TypeName{Name: "int4"}}},
 		{Column: &parser.Column{Name: "spare", TypeName: parser.TypeName{Name: "int4"}}},
 	}})
-	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{
-		{preparedBoundaryInteger(1), preparedBoundaryInteger(10)},
-		{preparedBoundaryInteger(2), preparedBoundaryInteger(20)},
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{
+		{enginetest.PreparedBoundaryInteger(1), enginetest.PreparedBoundaryInteger(10)},
+		{enginetest.PreparedBoundaryInteger(2), enginetest.PreparedBoundaryInteger(20)},
 	}})
 	// Keep a genuine row-dependent derived key without a callable routine:
 	// callable index outputs are already produced before PREPARE and completion
@@ -91,25 +84,25 @@ func preparedBoundaryFixture(t *testing.T) (*core.Engine, *session.Session, *ses
 	// with the same integer/null key values as the former v+0 fixture.
 	key := parser.CaseExpr{
 		Arms: []parser.CaseArm{{
-			Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: parser.ColumnExpr{Name: preparedBoundaryName("v")}},
-			Result:    parser.ColumnExpr{Name: preparedBoundaryName("v")},
+			Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: parser.ColumnExpr{Name: enginetest.PreparedBoundaryName("v")}},
+			Result:    parser.ColumnExpr{Name: enginetest.PreparedBoundaryName("v")},
 		}},
 		Else: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}},
 	}
-	preparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: key}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: key}}})
 	op := enginetest.TransactionOperation(t, origin)
 	_, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
 	}
-	preparedUnitStatement(t, e, origin, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{"prepared-boundary"}})
-	preparedUnitStatement(t, e, origin, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Local: true, Values: []string{"local-boundary"}})
-	preparedUnitStatement(t, e, origin, &parser.Delete{Name: name, Where: parser.OperatorExpr{Name: preparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: preparedBoundaryName("v")}, preparedBoundaryInteger(2)}}})
-	preparedUnitStatement(t, e, origin, &parser.AlterTable{Name: name, Actions: []parser.AlterTableAction{{Column: parser.Identifier{Text: "spare"}, Action: parser.DropColumn}}})
-	preparedUnitStatement(t, e, origin, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: preparedBoundaryInteger(3)}}, Where: parser.OperatorExpr{Name: preparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: preparedBoundaryName("v")}, preparedBoundaryInteger(1)}}})
-	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
-	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{"prepared-boundary"}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Local: true, Values: []string{"local-boundary"}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Delete{Name: name, Where: parser.OperatorExpr{Name: enginetest.PreparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: enginetest.PreparedBoundaryName("v")}, enginetest.PreparedBoundaryInteger(2)}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.AlterTable{Name: name, Actions: []parser.AlterTableAction{{Column: parser.Identifier{Text: "spare"}, Action: parser.DropColumn}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: enginetest.PreparedBoundaryInteger(3)}}, Where: parser.OperatorExpr{Name: enginetest.PreparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: enginetest.PreparedBoundaryName("v")}, enginetest.PreparedBoundaryInteger(1)}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{enginetest.PreparedBoundaryInteger(7)}}})
+	enginetest.PreparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: enginetest.PreparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
 	e.Mu.Lock()
 	beforeVisibility := e.Visibility.Entries[origin.Transactions.Ref]
 	e.Mu.Unlock()
@@ -487,10 +480,10 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 			t.Fatal(err)
 		}
 		tickets[i] = owner.Transactions.Ticket
-		preparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{"winner-setting"}})
-		preparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Local: true, Values: []string{"local-setting"}})
-		preparedUnitStatement(t, e, owner, &parser.Insert{Name: preparedBoundaryName("ssi_unit"), Rows: [][]parser.Expr{{preparedBoundaryInteger(int64(i + 1))}}})
-		preparedUnitStatement(t, e, owner, &parser.CreateSequence{Name: preparedBoundaryName([]string{"gid_first", "gid_second"}[i])})
+		enginetest.PreparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{"winner-setting"}})
+		enginetest.PreparedUnitStatement(t, e, owner, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Local: true, Values: []string{"local-setting"}})
+		enginetest.PreparedUnitStatement(t, e, owner, &parser.Insert{Name: enginetest.PreparedBoundaryName("ssi_unit"), Rows: [][]parser.Expr{{enginetest.PreparedBoundaryInteger(int64(i + 1))}}})
+		enginetest.PreparedUnitStatement(t, e, owner, &parser.CreateSequence{Name: enginetest.PreparedBoundaryName([]string{"gid_first", "gid_second"}[i])})
 	}
 	start := make(chan struct{})
 	ready := make(chan struct{}, 2)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
@@ -76,7 +77,7 @@ func TestUserOperatorIndexCopyOnWrite(t *testing.T) {
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}
 	first := indexUnitOperator(90001, namespace, "#~#")
 	other := indexUnitOperator(90002, namespace, "#?#")
-	base := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
+	base := enginetest.CatalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{first.Address(): first, other.Address(): other}, map[ids.NameKey]ids.ObjectAddress{catalog.DescriptorNameKey(first): first.Address(), catalog.DescriptorNameKey(other): other.Address()})
 	base.SetOperatorNames(catalog.RebuildOperatorNames(base.Descriptors()))
 	key := catalog.OperatorNameKey{namespace, first.Name()}
 	// This unpublished fixture deliberately retains capacity and a sentinel
@@ -339,7 +340,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	next := catalog.CloneState(source.Catalog.State)
 	target.Catalog.InstallOIDFrontierLocked(100000)
 	target.Mu.Lock()
-	err = core.EnginePreserveTemporaryLocked(target, context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.Catalog.NextOID(), Next: target.Catalog.NextOID()})
+	err = core.EnginePreserveTemporaryLocked(target, context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, enginetest.ReplacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.Catalog.NextOID(), Next: target.Catalog.NextOID()})
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

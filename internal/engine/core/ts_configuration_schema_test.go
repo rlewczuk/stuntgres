@@ -18,7 +18,7 @@ import (
 )
 
 func configCreate(name string) *parser.CreateConfiguration {
-	return &parser.CreateConfiguration{Name: configName(name), Options: []parser.ConfigurationOption{{Name: parser.Identifier{Text: "copy"}, Value: configName("simple"), Supplied: true}}}
+	return &parser.CreateConfiguration{Name: enginetest.ConfigName(name), Options: []parser.ConfigurationOption{{Name: parser.Identifier{Text: "copy"}, Value: enginetest.ConfigName("simple"), Supplied: true}}}
 }
 
 func configStage(t *testing.T, e *core.Engine, op *session.Operation, stmt parser.Statement) (*core.CatalogStage, error) {
@@ -79,7 +79,7 @@ func TestTSConfigurationMappingActions(t *testing.T) {
 	before := e.CatalogRead()
 	address := before.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "mapping_actions"})
 	original := before.MustTSConfiguration(address)
-	alter := &parser.AlterConfiguration{Name: configName("mapping_actions"), Action: "mapping", MappingAction: parser.ConfigurationAlterMapping, Tokens: []parser.Identifier{{Text: "asciiword"}, {Text: "asciiword"}}, Dictionaries: []parser.ObjectName{configName("simple"), configName("simple")}}
+	alter := &parser.AlterConfiguration{Name: enginetest.ConfigName("mapping_actions"), Action: "mapping", MappingAction: parser.ConfigurationAlterMapping, Tokens: []parser.Identifier{{Text: "asciiword"}, {Text: "asciiword"}}, Dictionaries: []parser.ObjectName{enginetest.ConfigName("simple"), enginetest.ConfigName("simple")}}
 	stage, err = configStage(t, e, op, alter)
 	if err != nil {
 		t.Fatal(err)
