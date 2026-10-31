@@ -58,6 +58,7 @@ const (
 	romanianSnowballSeed
 	spanishSnowballSeed
 	swedishSnowballSeed
+	tamilSnowballSeed
 )
 
 func (s snowballSeed) language() string {
@@ -106,6 +107,8 @@ func (s snowballSeed) language() string {
 		return "spanish"
 	case swedishSnowballSeed:
 		return "swedish"
+	case tamilSnowballSeed:
+		return "tamil"
 	}
 	return ""
 }
@@ -207,7 +210,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime, indonesianRuntime, nepaliRuntime, romanianRuntime, spanishRuntime, swedishRuntime, tamilRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -244,7 +247,7 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 	for _, entry := range []struct {
 		seed    snowballSeed
 		runtime DictionaryRuntime
-	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}, {hungarianSnowballSeed, hungarianRuntime}, {irishSnowballSeed, irishRuntime}, {italianSnowballSeed, italianRuntime}, {lithuanianSnowballSeed, lithuanianRuntime}, {norwegianSnowballSeed, norwegianRuntime}, {portugueseSnowballSeed, portugueseRuntime}, {yiddishSnowballSeed, yiddishRuntime}, {indonesianSnowballSeed, indonesianRuntime}, {nepaliSnowballSeed, nepaliRuntime}, {romanianSnowballSeed, romanianRuntime}, {spanishSnowballSeed, spanishRuntime}, {swedishSnowballSeed, swedishRuntime}} {
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}, {hungarianSnowballSeed, hungarianRuntime}, {irishSnowballSeed, irishRuntime}, {italianSnowballSeed, italianRuntime}, {lithuanianSnowballSeed, lithuanianRuntime}, {norwegianSnowballSeed, norwegianRuntime}, {portugueseSnowballSeed, portugueseRuntime}, {yiddishSnowballSeed, yiddishRuntime}, {indonesianSnowballSeed, indonesianRuntime}, {nepaliSnowballSeed, nepaliRuntime}, {romanianSnowballSeed, romanianRuntime}, {spanishSnowballSeed, spanishRuntime}, {swedishSnowballSeed, swedishRuntime}, {tamilSnowballSeed, tamilRuntime}} {
 		address, err := allocate(ids.TSDictionaryClassID)
 		if err != nil {
 			return err

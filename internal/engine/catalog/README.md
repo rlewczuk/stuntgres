@@ -378,7 +378,7 @@ neither owns catalog authority.
   extension, its global language and three allocated C handlers with creation-owned
   display sources, canonical strictness and genuine language-to-handler dependencies),
   `Store.InstallSnowballLocked` (one allocated C helper pair/template and distinct
-  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Spanish/Swedish/Yiddish dictionary/configuration seeds, twenty-two core-supplied
+  English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Spanish/Swedish/Tamil/Yiddish dictionary/configuration seeds, twenty-three core-supplied
   compiled runtimes and real nineteen-token mappings),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
   `InstallBuiltinOperators`, `InstallBuiltinFamilies`, `InstallBuiltinClasses`
@@ -424,7 +424,7 @@ neither owns catalog authority.
   distinguishes unrecognized tokens from recognized-empty stopwords and retains
   prefix/variant metadata without SQL descriptors. Runtime authority is separate
   from genuine extension membership; bootstrap simple and Snowball are not extensions.
-  Allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Spanish/Swedish/Yiddish Snowball seeds retain finite private seed identities
+  Allocated English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Spanish/Swedish/Tamil/Yiddish Snowball seeds retain finite private seed identities
   across ordinary copies/remapping; canonical replay names/default options do not
   derive from mutable labels. Helpers, template, dictionary and configuration may
   have distinct current extension receivers or be detached; reciprocal membership
@@ -437,13 +437,13 @@ neither owns catalog authority.
   dictionary/configuration descriptors, including absent seeds and their original
   mapping edges; it never infers defaults from current names or options.
   English, Danish, Dutch, German, Hungarian, Italian, Nepali, Norwegian, Portuguese, Spanish and Swedish defaults include their respective stoplists; Arabic,
-  Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian and Yiddish defaults contain only Language.
-  Together with simple these are twenty-three dictionary/configuration seeds with
-  437 mapping rows; all Snowball seeds share one helper pair/template.
+  Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Tamil and Yiddish defaults contain only Language.
+  Together with simple these are twenty-four dictionary/configuration seeds with
+  456 mapping rows; all Snowball seeds share one helper pair/template.
   Hindi's three ASCII mappings retain the actual allocated English dictionary
   address, its three non-ASCII word mappings select Hindi, and thirteen others
   select simple. These are real dependency edges, preserved across seed renames.
-  Hungarian's, Indonesian's, Irish's, Italian's, Lithuanian's, Nepali's, Norwegian's, Portuguese's, Romanian's, Spanish's, Swedish's and Yiddish's six word mappings select their own allocated dictionary;
+  Hungarian's, Indonesian's, Irish's, Italian's, Lithuanian's, Nepali's, Norwegian's, Portuguese's, Romanian's, Spanish's, Swedish's, Tamil's and Yiddish's six word mappings select their own allocated dictionary;
   the other thirteen select simple. None delegates ASCII words to English.
   This follows [REL_18_6 initdb setup_depend](https://github.com/postgres/postgres/blob/REL_18_6/src/bin/initdb/initdb.c):
   `pg_stop_making_pinned_objects()` precedes loading `snowball_create.sql`.

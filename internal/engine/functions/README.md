@@ -994,11 +994,11 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Swedish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Danish, historical Dutch Porter, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Swedish, Tamil, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
-  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian and Yiddish have no stock
+  is empty retains its lowercased input. Arabic, Armenian, Basque, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Tamil and Yiddish have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian, Italian, Nepali and Norwegian stock lists contain 127, 94, 101, 231, 199, 279, 304 and 176 entries (Hungarian and Norwegian retain released duplicates);
   any resource can be explicitly configured with any supported provider.
   Swedish's stock list contains all 114 released entries, including `sitta`;
@@ -1080,6 +1080,13 @@ publication and lock-manager tickets stay in the engine.
   once, selecting the longest candidate wholly inside R1. Conditional `s` and
   `öst` inspect the preceding character; every edit retains an existing input
   prefix. No normalization, generalized undoubling or English backup is used.
+  Tamil performs one initial ending repair before its >4-codepoint gate, then
+  question/pronoun prefixes, question endings, um, common endings, case, plural,
+  command and repeated tense phases. Per-routine length gates count codepoints;
+  repeated ending repair is distinct from the single initial repair. The local
+  case-removal flag controls thth-to-m repair and its preceding-sign rejection.
+  Longest-match rejection retains generated cursor/test semantics; no stock
+  stoplist, Unicode normalization or English ASCII backup is introduced.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

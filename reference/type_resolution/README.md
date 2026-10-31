@@ -332,6 +332,13 @@ complete diagnostics, atomic changes and output-gated cancellation share
 dictionary/configuration SQL, preserving removed and explicit-empty resources.
 Private rules/resources and canonical seed replay use `RUN='^TestSnowballSwedish'`;
 accepted-fold backing and publication fences share `RUN='^TestSnowball(PreparedOwnership|Publication)$'`.
+Tamil's full released prefix/ending/common/case/plural/command/tense phases,
+codepoint gates, independent historical morphology and original-byte boundaries,
+language-only stock defaults, explicit English stops, typed prepared values and
+admitted output-gated cancellation share `RUN='^TestReferenceTamilSnowball'`.
+Native seed/carrier replay consumes actual emitted SQL on PostgreSQL, including
+absent versus explicit-empty options. Private stage literals, resource backing,
+seed authority, publication fences and accepted folds use `RUN='^TestSnowballTamil'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
