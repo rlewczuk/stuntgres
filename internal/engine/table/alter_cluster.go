@@ -38,28 +38,11 @@ func ClusterCandidate(stage ClusterStage, original, parent *catalog.Relation, ac
 	view := stage.StageRead()
 	var selected ids.ObjectAddress
 	if action.Action == parser.ClusterOn {
-		name := action.ClusterIndex.Text
-		address, exists := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
-		if !exists {
-			return nil, sqlError("42704", fmt.Sprintf(`index "%s" for table "%s" does not exist`, name, parent.Name()))
+		relation, err := ClusterIndex(view, parent, action.ClusterIndex.Text)
+		if err != nil {
+			return nil, err
 		}
-		relation, ok := view.Relation(address)
-		if !ok || relation.SQLIndex == nil {
-			return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, name))
-		}
-		def := relation.SQLIndex
-		if def.Parent != parent.Address() {
-			return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index for table "%s"`, name, parent.Name()))
-		}
-		if capable, _ := index.Property(view, def, true, 0, "clusterable"); !capable {
-			return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on index "%s" because access method does not support clustering`, name))
-		}
-		if def.Predicate != nil {
-			return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on partial index "%s"`, name))
-		}
-		if !def.Valid {
-			return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on invalid index "%s"`, name))
-		}
+		address := relation.Address()
 		selected = address
 		if base := stage.StageBase().Get(address); base != nil {
 			stage.AddDomainBase(base)
@@ -105,4 +88,31 @@ func ClusterCandidate(stage ClusterStage, original, parent *catalog.Relation, ac
 		return nil, err
 	}
 	return &next, nil
+}
+
+// ClusterIndex resolves in the parent namespace and shares released eligibility
+// precedence between ALTER's preference and actual CLUSTER execution.
+func ClusterIndex(view catalog.Read, parent *catalog.Relation, name string) (*catalog.Relation, error) {
+	address, exists := view.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
+	if !exists {
+		return nil, sqlError("42704", fmt.Sprintf(`index "%s" for table "%s" does not exist`, name, parent.Name()))
+	}
+	relation, ok := view.Relation(address)
+	if !ok || relation.SQLIndex == nil {
+		return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index`, name))
+	}
+	def := relation.SQLIndex
+	if def.Parent != parent.Address() {
+		return nil, sqlError("42809", fmt.Sprintf(`"%s" is not an index for table "%s"`, name, parent.Name()))
+	}
+	if capable, _ := index.Property(view, def, true, 0, "clusterable"); !capable {
+		return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on index "%s" because access method does not support clustering`, name))
+	}
+	if def.Predicate != nil {
+		return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on partial index "%s"`, name))
+	}
+	if !def.Valid {
+		return nil, sqlError("0A000", fmt.Sprintf(`cannot cluster on invalid index "%s"`, name))
+	}
+	return relation, nil
 }

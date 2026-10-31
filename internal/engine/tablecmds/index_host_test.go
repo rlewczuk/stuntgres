@@ -102,6 +102,8 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	predicate := &catalog.IndexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
 	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, MethodOID: 403, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
+	parent.Owner = e.RoleStore.Domain.Principal(10)
+	idx.Owner = parent.Owner
 	store := &storage.Relation{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)

@@ -21,6 +21,7 @@ func predefinedMaintain(s *fixture.RoleMembershipScenario, db *sql.DB) {
 	s.Actor("pdef_actor")
 	predefinedDenied(s, "REINDEX INDEX ix", "permission denied for index ix", false)
 	predefinedDenied(s, "REINDEX TABLE t", "permission denied for table t", false)
+	predefinedDenied(s, "CLUSTER t USING ix", "permission denied for table t", false)
 	s.ClearNotices()
 	s.Exec("ANALYZE t")
 	s.Notice("WARNING", "01000", `permission denied to analyze "t", skipping it`)
@@ -31,6 +32,8 @@ func predefinedMaintain(s *fixture.RoleMembershipScenario, db *sql.DB) {
 	s.Actor("pdef_actor")
 	s.Exec("REINDEX INDEX ix")
 	s.Exec("REINDEX TABLE t")
+	s.Exec("CLUSTER t USING ix")
+	predefinedSelect(s, "SELECT indisclustered FROM pg_index WHERE indexrelid='ix'::regclass", []string{"indisclustered"}, []string{"BOOL"}, [][]any{{true}})
 	s.ClearNotices()
 	s.Exec("ANALYZE t")
 	if len(*s.Notices) != 0 {
@@ -62,10 +65,12 @@ func predefinedMaintain(s *fixture.RoleMembershipScenario, db *sql.DB) {
 	fixture.RunStep(s.T, s.P.Ctx, peer, s.Record, fixture.Exec("ROLLBACK", 0))
 	held := predefinedHeld(s, "REINDEX INDEX ix")
 	analyzeHeld := predefinedHeld(s, "ANALYZE t")
+	clusterHeld := predefinedHeld(s, "CLUSTER t")
 	s.Actor("")
 	s.Exec("REVOKE pg_maintain FROM pdef_actor")
 	s.Actor("pdef_actor")
 	fixture.RunStep(s.T, s.P.Ctx, held, s.Record, fixture.RoleReferenceError(held.SQL, "42501", "permission denied for index ix", "", false, "execute"))
+	fixture.RunStep(s.T, s.P.Ctx, clusterHeld, s.Record, fixture.RoleReferenceError(clusterHeld.SQL, "42501", "permission denied for table t", "", false, "execute"))
 	s.ClearNotices()
 	fixture.RunStep(s.T, s.P.Ctx, analyzeHeld, s.Record, fixture.Exec(analyzeHeld.SQL, 0))
 	s.Notice("WARNING", "01000", `permission denied to analyze "t", skipping it`)
@@ -86,6 +91,7 @@ func TestReferencePredefinedMaintain(t *testing.T) {
 		s.Actor("pdef_actor")
 		predefinedFailure(s, "REINDEX TABLE pdef_private.t", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pdef_private"}, false, "execute")
 		predefinedFailure(s, "ANALYZE pdef_private.t", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pdef_private"}, false, "execute")
+		predefinedFailure(s, "CLUSTER pdef_private.t USING ix", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pdef_private"}, false, "execute")
 		s.Actor("")
 		// No native schema-GRANT grammar: read-all's actual schema USAGE
 		// consumer removes lookup denial without inventing that adjacent grammar.
@@ -100,9 +106,9 @@ func TestReferencePredefinedMaintain(t *testing.T) {
 			s.T.Fatalf("schema-authorized pg_maintain ANALYZE notices %#v", *s.Notices)
 		}
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='pdef_private.t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(3)}})
-		if !s.Backend.PG {
-			predefinedFailure(s, "CLUSTER pdef_private.t USING ix", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
-		}
+		s.Exec("CLUSTER pdef_private.t USING ix")
+		predefinedSelect(s, "SELECT indisclustered FROM pg_index WHERE indexrelid='pdef_private.ix'::regclass", []string{"indisclustered"}, []string{"BOOL"}, [][]any{{true}})
+		predefinedSelect(s, "SELECT n FROM pdef_private.t ORDER BY n", []string{"n"}, []string{"INT4"}, [][]any{{int64(9)}, {int64(9)}, {int64(10)}})
 		s.Actor("")
 	})
 }

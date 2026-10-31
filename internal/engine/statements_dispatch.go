@@ -58,6 +58,8 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(schemacmds.ExecuteCheckpoint(e, op, stmt.(*parser.Checkpoint), count))
 	case *parser.Vacuum:
 		return dispatched(tablecmds.ExecuteVacuum(e, scope, stmt.(*parser.Vacuum), count))
+	case *parser.Cluster:
+		return dispatched(tablecmds.ExecuteCluster(e, scope, stmt.(*parser.Cluster), count))
 	case *parser.Analyze:
 		return dispatched(tablecmds.ExecuteAnalyze(e, scope, stmt.(*parser.Analyze), count))
 	case *parser.CreateExtension:

@@ -52,6 +52,11 @@ call live here.
   Identity sequences default to the destination identity only when the
   declaration omits LOGGED/UNLOGGED. Explicit nontemporary choices win for
   CREATE and ADD IDENTITY; lower staging receives the resolved identity.
+  LIKE index copies are new declarations, not maintenance of their sources:
+  remapped cooked keys and predicates must pass IMMUTABLE admission before
+  staging, even when CLUSTER has refreshed the source to a current compatible
+  STABLE or VOLATILE routine. Original provider and stored-program checks remain
+  strict; failed copying publishes neither the destination nor partial indexes.
 
   Inherited CHECK expressions remap parent columns to the child without
   recapturing external providers. Their original dependency revisions and
@@ -95,7 +100,11 @@ call live here.
   Selection/clearing are root-only
   ShareUpdateExclusive metadata actions; `SET WITHOUT OIDS` is an AccessExclusive
   compatibility no-op, including phase-zero inheritance prefix preparation.
-  Neither operation performs physical heap clustering or promises unordered query order.
+  These ALTER preference actions do not reorganize storage.
+  `ClusterIndex` shares table-local method/partial/validity admission with CLUSTER.
+  CLUSTER reuses `ClusterCandidate` for real immutable preference publication,
+  without heap reordering or a persistent ordering policy. Necessary changed
+  routine recipes use ordinary targeted index rebuilding; unchanged roots remain.
   `EnforceConstraintCandidate` changes only an owned FK slice, retaining constraint
   identity and returning transition-time historical work. Already-enforced
   invalid facts remain invalid on an ENFORCED no-op; VALIDATE rejects unenforced

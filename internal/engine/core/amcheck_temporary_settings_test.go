@@ -95,7 +95,7 @@ func TestAmcheckTemporarySettingsAuthority(t *testing.T) {
 				}
 			}
 			frozen := 3072
-			err = scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+			err = scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 				setting("16MB")
 				switch mode {
 				case "initialized-before-entry":
@@ -108,7 +108,7 @@ func TestAmcheckTemporarySettingsAuthority(t *testing.T) {
 				case "nested-first-access":
 					frozen = 4096
 					must("SET temp_buffers=3072")
-					if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+					if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 						setting("24MB")
 						must("SET temp_buffers=4096")
 						must("SELECT n FROM am_temp_data")
@@ -127,7 +127,7 @@ func TestAmcheckTemporarySettingsAuthority(t *testing.T) {
 					must("SET temp_buffers=3072")
 					// Initialize in a nested frame after the outer exception mark:
 					// neither frame return nor rollback may restore the old zero.
-					if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+					if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 						must("SELECT n FROM am_temp_data")
 						return nil
 					}); err != nil {
@@ -151,7 +151,7 @@ func TestAmcheckTemporarySettingsAuthority(t *testing.T) {
 			}
 			// A fresh invocation must use the same physical authority, not a
 			// stale count from its caller's unchanged effective setting.
-			if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+			if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 				rejected := 2048
 				if frozen == rejected {
 					rejected = 3072

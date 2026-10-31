@@ -721,6 +721,12 @@ host methods.
   Boolean/null-test/coercion wrappers while keeping ordinary row-origin checks.
   A genuine split in one branch cannot authorize unrelated stage dependence in
   another; neither validator changes executable properties.
+  `ValidateIndexMetadataExpression` is a separate error-only structural entry:
+  original dependency lifetimes, typed arguments, providers and routine-owner
+  provenance remain checked. Its private renderer mode allows a compatible
+  current SQL routine identity without demanding equality with its historical
+  body or traversing body execution links. It returns no SQL or replacement
+  expression; ordinary exported rendering and execution remain strict.
   Public expression deparse presents adjacent AND/OR nodes with the same
   connective as a flat PostgreSQL boolean chain, retaining operand grouping and
   mixed-connective precedence without changing the binary executable tree.

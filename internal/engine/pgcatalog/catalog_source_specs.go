@@ -196,6 +196,7 @@ var Specs = [...]Spec{
 	{ProgressBasebackupOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_basebackup", progressBasebackupColumns, true, false, false, false, "stuntgres: missing maintenance source type"},
 	{ProgressCopyOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_copy", progressCopyColumns, true, false, false, false, "stuntgres: missing COPY progress source type"},
 	{ProgressCreateIndexOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_create_index", progressCreateIndexColumns, true, false, false, false, "stuntgres: missing index progress source type"},
+	{ProgressClusterOID, ids.PGCatalogNamespaceOID, "pg_stat_progress_cluster", progressClusterColumns, true, false, false, false, "stuntgres: missing CLUSTER progress source type"},
 	{2613, ids.PGCatalogNamespaceOID, "pg_largeobject", []ColumnSpec{
 		{"loid", sqltype.Oid, false, 0, 0, -1},
 		{"pageno", sqltype.Int4, false, 0, 0, -1},

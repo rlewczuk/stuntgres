@@ -139,7 +139,7 @@ func routineTriggerAttributeEnvironment(t *testing.T, event bool) {
 			}
 			var failure error
 			if outcome == "restricted" {
-				failure = scope.WithAmcheckOwner(e.Catalog.State.MustRelation(data.Address), func(*exec.Context) error { return invoke() })
+				failure = scope.WithMaintenanceOwner(e.Catalog.State.MustRelation(data.Address), func(*exec.Context) error { return invoke() })
 			} else {
 				failure = invoke()
 			}

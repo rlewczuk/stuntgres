@@ -139,6 +139,10 @@ builds a binder.
   an explicit same-type key preserves the copied pair.
   Later ALTER policy changes intentionally update only the first simple match,
   without rebuilding executable roots.
+  CLUSTER preference changes reuse unchanged roots on the same storage. Only
+  genuinely changed compatible routine recipes require ordinary overlay builds,
+  uniqueness validation and retained candidates. Baseline private-write/domain
+  outputs remain authoritative; no CLUSTER-specific heap/output transport exists.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
   fence of catalog publication and of overlay capture; the caller picks each
@@ -159,6 +163,23 @@ builds a binder.
   (`pg_get_indexdef` and Dump), `Metadata`/`IndexesMetadata`, the
   `MaintenanceGrant` lock plan, SET CONSTRAINTS name selection and the
   `USING INDEX` records.
+  `ProjectIndexFacts` serves `pg_index` without demanding `DefinitionSQL`.
+  Shape/provider ownership, original dependency lifetimes and frozen node
+  structure remain validated, but a compatible routine body replacement does
+  not invalidate catalog flags or substitute newer body nodes. The combined
+  `ProjectIndexMetadata` projection retains strict SQL deparse validation for
+  callers that actually request it; executable validation is unchanged.
+  Both metadata projections require a nonzero index owner from the captured
+  engine's principal domain and matching parent ownership. Reduced fixtures
+  injected directly into catalog state must supply that genuine ownership too;
+  matching zero owners are not valid metadata identities.
+  Existing-descriptor validation does not reapply CREATE's volatility policy:
+  maintenance may reconstruct a compatible current STABLE or VOLATILE routine.
+  `ValidateIndexDeclaration` applies IMMUTABLE admission only to newly cloned
+  keys/predicates, including LIKE-backed UNIQUE/PK and synthesized partition
+  children. Partition mapping, existing-child reuse and explicit ATTACH are
+  compatibility operations, not new declarations. Strict stored-program,
+  identity, type and provider validation remains required in both cases.
   `Metadata.IndIsClustered` projects the single persisted
   `catalog.IndexDefinition.Clustered` scalar. Preference changes do not replace
   keys, executable providers or storage roots; table ALTER owns their atomic

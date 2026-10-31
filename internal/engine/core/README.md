@@ -1986,6 +1986,38 @@ Reset retain it explicitly; destination Restore never borrows source bytes.
   locking and snapshot admission before their read-only execution check. WITH
   NO DATA resolves source names and output types but does not demand the skipped
   SELECT executor's privileges.
+- Named CLUSTER is a read-only-eligible transactional maintenance utility.
+  Its real catalog preference is published under ordinary heap AX admission,
+  without heap replacement, physical index locks or forced all-index rebuilding.
+  Unchanged recipes preserve every heap/root identity. `WithMaintenanceOwner`,
+  also used by amcheck, surrounds necessary targeted recipe/overlay evaluation
+  with the restricted table-owner frame,
+  initial `pg_catalog, pg_temp` lookup path and detached command-local settings.
+  Input/output and callable presentation follow that frame; every exit restores
+  the caller's identity, settings policy and presentation without canceled
+  recapture. Later unrelated DML does not inherit maintenance authority.
+  Private command regressions compare the complete settings/identity/timer image
+  after transaction admission and before `Finish`, then check publication or
+  rollback after completion. Ordinary admission and completion legitimately
+  advance timer generations and retire setting journals; maintenance restoration
+  must not rewind that transaction lifecycle.
+  Existing-index reconstruction preserves compatible current routine volatility,
+  including STABLE/VOLATILE changes under the same identity. CREATE admission
+  remains separate and strict, including LIKE and newly synthesized partition
+  indexes; structural publication does not relabel routines or waive current
+  stored-program validation.
+  Compatible routine substitutions trigger only the baseline affected-index
+  overlay build; partial membership and later DML therefore use current recipes.
+  Original expression trees and retained roots remain immutable.
+  `CompleteClusterTarget` publishes and retires each bare target's ordinary
+  transaction/ticket; earlier targets survive a later failure. Named CLUSTER
+  retains its ordinary transaction/savepoint lifetime.
+  Validated unpopulated materialized views skip before changing descriptors,
+  preference, population or storage, and restore the pretarget lock checkpoint
+  outside metadata locks. Earlier ordinary/scoped holdings survive.
+  Simulation starts no physical progress worker: the twelve-column
+  `pg_stat_progress_cluster` view is typed and honestly empty. There is no
+  unordered SELECT ordering promise or physical file/counter simulation.
 - `session.TransactionalSchemaUtility` selects the table, schema, rule, trigger,
   view and materialized-view DDL (including ordinary/concurrent REFRESH), policy
   definitions, domain/composite creation and alterations, type/domain identity/drop,

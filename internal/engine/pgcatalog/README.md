@@ -172,6 +172,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   effective nullability follow this complete schema. `indisexclusion` projects
   the actual index definition's exclusion capability as a non-null BOOL at
   PostgreSQL attribute 8; `indisclustered` retains attribute 10.
+  The runtime uses `ProjectIndexFacts`, not the combined SQL-deparse projection.
+  Facts remain readable before CLUSTER and after failed/canceled maintenance
+  even when its private current-body recipe refresh was correctly discarded.
+  Original expression nodes stay frozen; no callable or body is executed.
   Exclusion `pg_constraint.connoinherit` projects explicit declaration provenance,
   not an inference from the current parent edge.
 - `pg_attribute` composes effective stable-attribute storage/compression with
@@ -921,6 +925,13 @@ Ordinary CREATE reports index OID zero; concurrent CREATE reports its published
 index, and REINDEX its current existing target. Idle, finished, failed and
 canceled commands have no progress row. Concurrent cancellation can retain the
 ordinary PostgreSQL invalid-index artifact without retaining progress.
+
+`pg_stat_progress_cluster` retains its exact twelve typed columns and view/
+`_RETURN` metadata, with native identities independent of initdb allocation.
+Simulated CLUSTER starts no physical worker, so the validated, cancellation-aware
+producer is honestly empty, including during heap admission and targeted recipe
+maintenance. No runtime registry, fabricated phases or counters are exposed.
+
 
 Build callbacks describe actual scan/sort work; frozen transaction cohorts
 describe actual writer/snapshot waits. Native B-tree vector wrapping is not a

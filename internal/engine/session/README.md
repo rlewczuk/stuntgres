@@ -58,6 +58,14 @@ provenance. Successful maintenance survives savepoint rollback, so old saved
 tuple writes (also foreign pages) are ignored when that baseline has changed.
 Actual restore/reset filters old writes before refreshing its baseline, including
 unrelated page/visibility updates. No new canonical counter is introduced.
+CLUSTER stages real catalog preferences, not heap replacements or ordering.
+Unchanged recipes retain the heap and every index root. Compatible changed
+routine recipes use baseline targeted index publication and private-write output
+machinery; ordinary journal rollback/savepoints preserve immutable predecessors.
+Named CLUSTER uses the transactional utility journal and remains read-only
+eligible; bare CLUSTER has no all-target snapshot or journal. Both describe
+without target lookup and report the CLUSTER utility tag with zero affected rows.
+
 
 
 ## What it owns

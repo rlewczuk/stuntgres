@@ -168,7 +168,7 @@ func TestRoutineEffectiveUserEnvironment(t *testing.T) {
 			}
 			// A maintenance frame nested inside a definer still owns its stronger
 			// local settings and restrictions, and returns to the definer frame.
-			if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+			if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 				if op.Restricted == nil || op.EffectiveSettings() == sess.Settings {
 					t.Fatal("maintenance semantics were weakened")
 				}

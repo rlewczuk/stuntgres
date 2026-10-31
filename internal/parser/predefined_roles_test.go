@@ -10,7 +10,6 @@ import (
 
 func TestPredefinedUnavailableSyntax(t *testing.T) {
 	for _, tc := range []struct{ query, message, position, code string }{
-		{"CLUSTER t", "statement is unsupported", "1", "0A000"},
 		{"CREATE VACUUM", `syntax error at or near "VACUUM"`, "8", "42601"},
 	} {
 		statements, err := Parse(tc.query)
@@ -18,6 +17,20 @@ func TestPredefinedUnavailableSyntax(t *testing.T) {
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
 		if statements != nil || !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 			t.Fatalf("%s: %#v / %v want %#v", tc.query, diagnostic, err, want)
+		}
+	}
+	// These utilities are supported; neither may regress to the obsolete
+	// capability-boundary diagnostic while parser changes are combined.
+	for _, tc := range []struct {
+		query string
+		want  Statement
+	}{
+		{"CHECKPOINT", &Checkpoint{}},
+		{"CLUSTER t", &Cluster{}},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 || reflect.TypeOf(statements[0]) != reflect.TypeOf(tc.want) {
+			t.Fatalf("supported utility %s: %#v / %v", tc.query, statements, err)
 		}
 	}
 	// The predefined-role consumer is parsed normally; privileges and the

@@ -5,7 +5,8 @@ replacement and mixed RESTRICT/CASCADE drops), SET/DROP DEFAULT (with inheritanc
 recursion), SET/DROP NOT NULL, VALIDATE CONSTRAINT, identity column options, column TYPE changes
 (including identity columns under savepoints), RENAME, SET SCHEMA, SET TABLESPACE,
 SET ACCESS METHOD, clustering preferences, OID-removal compatibility syntax and
-constraint rename, plus foreign-key callers of DROP COLUMN and SET SCHEMA.
+constraint rename, plus standalone query-compatible CLUSTER simulation and
+foreign-key callers of DROP COLUMN and SET SCHEMA.
 CHECK/FK declaration enforcement, FK enforcement toggles and atomic CHECK
 replacement share exact flags, diagnostics, historical scans, logical trigger
 lifecycle, dependencies, locking and native persistence scenarios. Physical
@@ -97,6 +98,22 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   Native Restore rejects unqualified, conditional, ONLY, multi-action, clear and
   OID preference replay forms, preserving the destination dump preimage,
   sentinel, temporary rows and held permanent/temporary row snapshots per case.
+- Standalone clustering uses shared public direct/fresh/held scenarios and
+  deterministic real heap-lock/routine gates. Real remembered preferences,
+  ordered values and necessary targeted rebuilding of changed index recipes
+  supplement private unchanged-heap/root and atomicity witnesses; SQL never
+  assumes unordered heap traversal or physical reorganization. Native control
+  phases retain eager rows and replay the remembered ALTER preference rather
+  than maintenance execution history.
+  Unpopulated materialized views validate the selected index but skip maintenance:
+  direct/fresh/held commands preserve population and preference, including after
+  REFRESH WITH NO DATA. Supported hash and partial B-tree diagnostics precede
+  that skip. Exact heap-lock inventories cover named release, bare retirement,
+  preservation of earlier heap grants and absence of sibling waits, with full
+  diagnostic fields. PostgreSQL's physical selected-index retention/planner
+  waits are outside the native simulation contract, not shared test assertions.
+  Combined method-before-predicate eligibility is an owning private-stage check
+  over genuine descriptor facts, not a claim of partial-hash CREATE support.
 
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
@@ -126,6 +143,31 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Logged/unlogged identity: `RUN='^TestReferenceAlterPersistence'`
 - Relation access methods: `RUN='^TestReferenceAlterAccessMethod'`
 - Clustering preferences: `RUN='^TestReferenceAlterCluster'`
+- Heap clustering: `RUN='^TestReferenceCluster'`
+  The maintenance-environment family also reads full `pg_index` structural
+  flags and expression presence before execution and after success, failure and
+  cancellation, without committing a failed operation's recipe refresh.
+  `TestReferenceClusterMaintenanceEnvironment` exercises actual selected/sibling
+  routine work under MAINTAIN-only ownership, conflicting caller search paths,
+  security restrictions, and setting/identity restoration on success, error and
+  cancellation. `TestReferenceClusterPrivateDeletions` composes SQL/driver
+  transactions and direct/held CLUSTER with inserted/deleted/reinserted unique
+  keys, updated/deleted replacements and deleted pre-capture own rows. Routine
+  B-tree/hash/BRIN/partial siblings, rollback, exact rows/counts and explicit
+  native control roundtrips remain part of the shared scenarios.
+  Existing-index volatility scenarios distinguish new-index IMMUTABLE admission
+  from rebuilding selected expression, sibling expression and partial-predicate
+  indexes after same-identity STABLE/VOLATILE changes. They cover held metadata,
+  SQL/driver commit and rollback, exact rows/flags, later DML and native controls.
+  Declaration scenarios retain strict CREATE and refreshed-source LIKE
+  expression and plain-key UNIQUE/nonunique predicate admission with full
+  diagnostics and no leaked destination descriptors. Repeated volatility changes
+  retain routine identity and exact typed values, including return to IMMUTABLE
+  before successful copying. Plain-key partition UNIQUE synthesis, compatible
+  existing-child reuse, explicit UNIQUE index ATTACH and LIKE UNIQUE/PK are
+  positive controls. Virtual-parent current-program constructor coverage is
+  private: a partition root has no heap for CLUSTER to refresh, and tests do not
+  waive stale stored-program validation.
 - Column TYPE: `RUN='^TestReference(Smoke)?AlterType'`
 - Constraint rename: `RUN='^TestReferenceConstraintRename'`
 - Foreign-key callers: `RUN='^TestReferenceForeignKey[A-Za-z]*Caller$'`

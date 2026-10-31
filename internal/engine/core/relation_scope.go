@@ -82,6 +82,9 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 		}
 	}
 	switch stmt.(type) {
+	case *parser.Cluster:
+		// The executor owns MAINTAIN-before-wait and per-target admission.
+		return nil
 	case *parser.Truncate:
 		if !execute {
 			return nil

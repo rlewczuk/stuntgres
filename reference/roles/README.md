@@ -46,6 +46,11 @@ the predefined-role scenario checks unknown-PID false/warning results and negati
 timeout diagnostics before and after capability grants, in both prepared modes.
 Actual live-target authority and teardown belong to `reference/sessions`.
 Remaining unavailable functions retain their binding-time boundaries.
+CLUSTER is an admitted MAINTAIN consumer on both backends: predefined-role
+scenarios assert full table/schema denial diagnostics, actual index selection
+after `pg_maintain`, preserved rows, and held-statement denial after revocation.
+It is not part of the remaining native unsupported-command inventory.
+
 
 WAL summary scenarios own default PUBLIC execution, live held-statement ACL
 reauthorization and actual native control replay of typed views and raw routine

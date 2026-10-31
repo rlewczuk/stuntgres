@@ -18,9 +18,10 @@ type OverlayCapture struct {
 // SelectOverlayCapturesLocked selects the indexes of view that a staged
 // catalog change makes the overlay rebuild, in view order: those whose own or
 // parent descriptor changed, whose rebuild is staged or whose parent heap c
-// replaced. Unready indexes are forgotten in c, virtual (partitioned) ones
-// are skipped, and staged or transported candidates that still match their
-// store are kept. Each capture adds a committed storage read fence to c.
+// replaced. Unready indexes are forgotten in c;
+// virtual (partitioned) indexes are skipped, and staged or transported candidates
+// that still match their store are kept. Each capture adds a committed storage
+// read fence to c.
 // owner is the transaction's journal before this statement. The caller holds
 // Engine.mu; this takes no lock and returns catalog.Conflict for a missing
 // parent or store, or a candidate that no longer matches.

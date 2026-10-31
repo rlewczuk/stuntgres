@@ -32,7 +32,7 @@ type lexer struct {
 	extensionDDL bool
 	// SECURITY LABEL accepts type syntax without declaration-time type policy.
 	// This per-statement flag grants no provider or execution authority.
-	securityLabelSyntax bool
+	securityLabelSyntax    bool
 	securityLabelModifiers bool // Pending syntax-only generic modifier entry.
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
@@ -1618,7 +1618,11 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	case "nchar", "national":
 		if l.securityLabelSyntax && token.lexeme.keyword != nil {
-			if token.lexeme.text == "nchar" { token.code = NCHAR_TYPE } else { token.code = NATIONAL_TYPE }
+			if token.lexeme.text == "nchar" {
+				token.code = NCHAR_TYPE
+			} else {
+				token.code = NATIONAL_TYPE
+			}
 		}
 	case "setof":
 		if token.lexeme.keyword != nil && l.previousToken != int('.') &&
@@ -2088,7 +2092,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if l.plMode && l.plAfterForeach && token.code != ';' {
 		l.plAfterForeach = false
-		if token.code == IDENT || token.code == KW_U || token.code == KW_C || token.code == KW_T {
+		if token.code == IDENT || token.code == KW_U || token.code == CLUSTER || token.code == KW_C || token.code == KW_T {
 			l.plAssignmentHead = token.lexeme
 		}
 	}
@@ -2099,7 +2103,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if l.plStatementBoundaryPending {
 			l.plStatementBoundaryPending = false
 			l.plUnknownHead = lexeme{}
-			if token.code == IDENT || token.code == KW_U || token.code == KW_C || token.code == KW_T {
+			if token.code == IDENT || token.code == KW_U || token.code == CLUSTER || token.code == KW_C || token.code == KW_T {
 				l.plUnknownHead = token.lexeme
 			}
 		}

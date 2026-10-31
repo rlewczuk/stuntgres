@@ -370,7 +370,7 @@ func (r EngineCatalogRuntime) IndexMetadata(ctx context.Context, view catalog.Re
 	if view.Owner() == nil || relation == nil || view.Get(relation.Address()) != relation {
 		return values, ids.ErrCatalogReplaced
 	}
-	facts, _, err := index.ProjectIndexMetadata(ctx, view, view.Owner().Domain.Ref(view.Epoch(), relation.Address()))
+	facts, err := index.ProjectIndexFacts(ctx, view, view.Owner().Domain.Ref(view.Epoch(), relation.Address()))
 	if err != nil {
 		return values, err
 	}

@@ -161,7 +161,7 @@ var keywords = [...]keyword{
 	{"checkpoint", Unreserved, true, CHECKPOINT},
 	{"class", Unreserved, true, 0},
 	{"close", Unreserved, true, CLOSE},
-	{"cluster", Unreserved, true, 0},
+	{"cluster", Unreserved, true, CLUSTER},
 	{"coalesce", ColumnName, true, COALESCE},
 	{"collate", Reserved, true, COLLATE},
 	{"collation", TypeFunctionName, true, COLLATION},

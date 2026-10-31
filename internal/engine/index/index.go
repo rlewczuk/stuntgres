@@ -135,62 +135,79 @@ func groupingCompatible(view catalog.Read, method ids.OID, usage sqltype.Usage, 
 }
 
 func ValidateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
-	d := index.SQLIndex
-	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
-		return fmt.Errorf("stuntgres: invalid index definition")
-	}
-	if d.Valid && (!d.Ready || !d.Live) || d.Ready && !d.Live {
-		return fmt.Errorf("stuntgres: invalid index publication state")
-	}
-	parent, ok := view.Relation(d.Parent)
-	if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
-		return fmt.Errorf("stuntgres: invalid index parent")
-	}
-	if d.Constraint != nil {
-		if !BackingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == catalog.UniqueBackingKind) {
-			return fmt.Errorf("stuntgres: orphan constraint backing index")
-		}
-	}
-	if err := ValidatePartitionIndex(view, index, parent); err != nil {
-		return err
-	}
-	err := bindIndexProvider(view, parent, d)
+	parent, err := validateIndexStructure(view, index)
 	if err != nil {
 		return err
 	}
-	if p := d.Predicate; p != nil {
-		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || exec.PlannedVolatility(p.Execution) != expr.Immutable || !slices.Equal(p.Attributes, parent.Attributes) {
-			return fmt.Errorf("stuntgres: invalid index predicate")
-		}
-		if _, err := (stored.ScalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, p.Definition); err != nil {
+	if predicate := index.SQLIndex.Predicate; predicate != nil {
+		if _, err := (stored.ScalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, predicate.Definition); err != nil {
 			return err
+		}
+	}
+	for _, key := range index.SQLIndex.Keys {
+		if key.Derived != nil {
+			if _, err := (stored.ScalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, key.Derived.Definition); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Catalog facts share the shape/provider checks, but not executable SQL-body
+// equivalence or SQL deparsing. Their original expression nodes remain frozen.
+// Immutability is new-declaration admission, not an existing descriptor's shape:
+// its current routine declaration may legitimately be STABLE or VOLATILE.
+func validateIndexStructure(view catalog.Read, index *catalog.Relation) (*catalog.Relation, error) {
+	d := index.SQLIndex
+	if d == nil || len(d.Keys) == 0 || len(d.Keys)+len(d.Include) > 32 || len(index.Columns) != len(d.Keys)+len(d.Include) || d.Parent.SubID != 0 || index.Sequence != nil || index.View != nil {
+		return nil, fmt.Errorf("stuntgres: invalid index definition")
+	}
+	if d.Valid && (!d.Ready || !d.Live) || d.Ready && !d.Live {
+		return nil, fmt.Errorf("stuntgres: invalid index publication state")
+	}
+	parent, ok := view.Relation(d.Parent)
+	if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) || parent.Owner != index.Owner || parent.Namespace() != index.Namespace() {
+		return nil, fmt.Errorf("stuntgres: invalid index parent")
+	}
+	if d.Constraint != nil {
+		if !BackingConstraintPresent(parent, index) || d.Unique != (d.Constraint.Kind == catalog.UniqueBackingKind) {
+			return nil, fmt.Errorf("stuntgres: orphan constraint backing index")
+		}
+	}
+	if err := ValidatePartitionIndex(view, index, parent); err != nil {
+		return nil, err
+	}
+	if err := bindIndexProvider(view, parent, d); err != nil {
+		return nil, err
+	}
+	if p := d.Predicate; p != nil {
+		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || !slices.Equal(p.Attributes, parent.Attributes) {
+			return nil, fmt.Errorf("stuntgres: invalid index predicate")
 		}
 	}
 	for i, key := range d.Keys {
 		if key.Derived != nil {
 			derived := key.Derived
-			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() || exec.PlannedVolatility(derived.Execution) != expr.Immutable {
-				return fmt.Errorf("stuntgres: invalid derived index key")
-			}
-			if _, err := (stored.ScalarRenderer{Validation: true, Owner: parent}).SQL(context.Background(), view, derived.Definition); err != nil {
-				return err
+			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() {
+				return nil, fmt.Errorf("stuntgres: invalid derived index key")
 			}
 		}
 		usage, err := KeyUsage(parent, key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if index.Columns[i].Usage != usage {
-			return fmt.Errorf("stuntgres: invalid index key usage")
+			return nil, fmt.Errorf("stuntgres: invalid index key usage")
 		}
 	}
 	for i, attribute := range d.Include {
 		slot := slices.Index(parent.Attributes, attribute)
 		if slot < 0 || index.Columns[len(d.Keys)+i].Usage != parent.Columns[slot].Usage {
-			return fmt.Errorf("stuntgres: invalid included attribute usage")
+			return nil, fmt.Errorf("stuntgres: invalid included attribute usage")
 		}
 	}
-	return nil
+	return parent, nil
 }
 
 func (o Ordering) CompareKeys(ctx context.Context, a, b storage.IndexEntry) (int, error) {

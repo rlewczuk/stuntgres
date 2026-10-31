@@ -35,12 +35,20 @@ func TestRelationSizeInvocationAuthority(t *testing.T) {
 	e.Mu.Unlock()
 	scope := tablespaceInfoUnitScope(t, e)
 	leave, err := core.ScopeEnterRoutineEnvironment(scope, &catalog.Procedure{Owner: invoker.Ref, SecurityDefiner: true})
-	if err != nil { t.Fatal(err) }
-	defer func() { if err := leave(nil); err != nil { t.Error(err) } }()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := leave(nil); err != nil {
+			t.Error(err)
+		}
+	}()
 	e.Mu.Lock()
 	caller, err := scope.RoutineAuthorizationLocked()
 	e.Mu.Unlock()
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	ruleAuth := core.AuthorizationActingAs(caller, rule.Ref)
 	riAuth := core.AuthorizationActingAs(caller, ri.Ref)
 	scratch := core.ScopeRuleScratch(scope)
@@ -52,9 +60,9 @@ func TestRelationSizeInvocationAuthority(t *testing.T) {
 	resultType := enginetest.Usage(e, sqltype.Int8).Type
 	database := e.CatalogRead().MustDatabase(e.Catalog.DatabaseAddress())
 	for _, target := range []struct {
-		kind functions.SizeKind
-		address ids.ObjectAddress
-		privilege authorization.Privileges
+		kind        functions.SizeKind
+		address     ids.ObjectAddress
+		privilege   authorization.Privileges
 		name, label string
 	}{
 		{functions.DatabaseSize, database.Address(), authorization.ConnectPrivilege, database.Name(), "database"},
@@ -63,17 +71,23 @@ func TestRelationSizeInvocationAuthority(t *testing.T) {
 		for _, grant := range []authorization.PrincipalRef{invoker.Ref, rule.Ref, ri.Ref, restricted.Ref} {
 			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Role: grant}, Privileges: target.privilege}}}
 			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), target.address)
-			if err := enginetest.SetObjectACL(e, context.Background(), ref, acl); err != nil { t.Fatal(err) }
+			if err := enginetest.SetObjectACL(e, context.Background(), ref, acl); err != nil {
+				t.Fatal(err)
+			}
 			check := func(want bool) {
 				t.Helper()
 				value, err := host.SizeInquiry(target.kind, sqltype.String(nameType, target.name), "main", resultType)
 				if want {
-					if err != nil { t.Fatal("invocation actor refused", target.name, grant, err) }
-					if n, err := value.Integer(); err != nil || n < 0 { t.Fatal(value, err) }
+					if err != nil {
+						t.Fatal("invocation actor refused", target.name, grant, err)
+					}
+					if n, err := value.Integer(); err != nil || n < 0 {
+						t.Fatal(value, err)
+					}
 					return
 				}
 				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for " + target.label + " " + target.name {
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for "+target.label+" "+target.name {
 					t.Fatal("enclosing action substituted for invocation actor", target.name, grant, err)
 				}
 			}
@@ -86,10 +100,12 @@ func TestRelationSizeInvocationAuthority(t *testing.T) {
 			check(grant == ri.Ref)
 			// Enter the actual restricted-owner boundary with both enclosing
 			// action actors installed; only the restricted owner may authorize.
-			if err := scope.WithAmcheckOwner(&parent, func(*exec.Context) error {
+			if err := scope.WithMaintenanceOwner(&parent, func(*exec.Context) error {
 				check(grant == restricted.Ref)
 				return nil
-			}); err != nil { t.Fatal(err) }
+			}); err != nil {
+				t.Fatal(err)
+			}
 			if scope.Op.Restricted != nil || scope.Op.RoleState() != beforeRole || scope.ForeignActionAuth != &riAuth || core.ScopeRuleScratch(scope).RuleAction.Auth != &ruleAuth {
 				t.Fatal("size inquiry changed enclosing authority lifetime")
 			}

@@ -50,7 +50,7 @@ func TestAmcheckRestrictedContext(t *testing.T) {
 			beforeTimers, beforeRoleAction := sess.Timeouts, sess.Settings.RoleAction
 			outerInput, outerOutput, outerIdentity := scope.Input, scope.Output, scope.Identity
 			primary := errors.New("recipe failure")
-			err = scope.WithAmcheckOwner(parent, func(evaluation *exec.Context) error {
+			err = scope.WithMaintenanceOwner(parent, func(evaluation *exec.Context) error {
 				e.Mu.Lock()
 				auth, err := scope.RoutineAuthorizationLocked()
 				e.Mu.Unlock()
@@ -106,7 +106,7 @@ func TestAmcheckRestrictedContext(t *testing.T) {
 				if err := restore(nil); err != nil {
 					t.Fatal(err)
 				}
-				if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+				if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 					if value, _ := op.Setting("demo.amcheck"); value != "local" {
 						t.Fatal("nested image lost parent", value)
 					}

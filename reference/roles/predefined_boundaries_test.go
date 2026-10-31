@@ -27,9 +27,6 @@ func predefinedSessionSignals(s *fixture.RoleMembershipScenario) {
 
 func predefinedNativeBoundaries(s *fixture.RoleMembershipScenario) {
 	s.T.Helper()
-	for _, q := range []string{"CLUSTER t"} {
-		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"}, false, "prepare")
-	}
 	for _, q := range []string{"COPY t FROM '/nonexistent'", "COPY t TO '/nonexistent'"} {
 		predefinedFailure(s, q, fixture.Diagnostic{Code: "0A000", Message: "COPY server files are unsupported"}, false, "prepare")
 	}
@@ -57,6 +54,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		predefinedSubscriptionAbsent(s)
 		predefinedFailure(s, "CHECKPOINT", checkpointDenied, false, "execute")
 		predefinedSessionSignals(s)
+		predefinedDenied(s, "CLUSTER t", "permission denied for table t", false)
 		if !s.Backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
@@ -77,6 +75,7 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 			}
 		}
 		s.Actor("")
+		s.Exec("CREATE INDEX pdef_cluster_idx ON t(id)")
 		for _, role := range []string{"pg_checkpoint", "pg_create_subscription", "pg_read_server_files", "pg_write_server_files", "pg_execute_server_program", "pg_signal_autovacuum_worker", "pg_signal_backend", "pg_use_reserved_connections", "pg_maintain", "pg_monitor"} {
 			s.Exec("GRANT " + role + " TO pdef_actor")
 		}
@@ -91,6 +90,8 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 			s.T.Fatalf("pg_maintain ANALYZE notices %#v", *s.Notices)
 		}
 		predefinedSelect(s, "SELECT reltuples FROM pg_class WHERE oid='t'::regclass", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}})
+		s.Exec("CLUSTER t USING pdef_cluster_idx")
+		predefinedSelect(s, "SELECT indisclustered FROM pg_index WHERE indexrelid='pdef_cluster_idx'::regclass", []string{"indisclustered"}, []string{"BOOL"}, [][]any{{true}})
 		predefinedSubscriptionCapability(s)
 		checkpointRun(s, true)
 		predefinedSessionSignals(s)

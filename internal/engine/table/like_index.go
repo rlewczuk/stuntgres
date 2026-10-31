@@ -104,6 +104,9 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 				}
 				definition.Predicate = predicate
 			}
+			if err := index.ValidateIndexDeclaration(&definition); err != nil {
+				return err
+			}
 			labels := make([]string, len(source.Columns))
 			for i, column := range source.Columns {
 				labels[i] = column.Name

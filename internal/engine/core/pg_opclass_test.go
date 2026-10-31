@@ -189,6 +189,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
 		idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: catalog.IndexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: tc.method, MethodOID: tc.method.OID(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
+		parent.Owner = e.RoleStore.Domain.Principal(10)
+		idx.Owner = parent.Owner
 		e.Catalog.State.SetDescriptor(parent.Address(), parent)
 		e.Catalog.State.SetDescriptor(idx.Address(), idx)
 		value, err := typ.Input(context.Background(), tc.input, -1)

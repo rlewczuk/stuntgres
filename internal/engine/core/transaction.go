@@ -526,6 +526,17 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if _, ok := stmt.(*parser.Vacuum); ok {
 		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
+	if cluster, ok := stmt.(*parser.Cluster); ok {
+		if err := s.parallelExecutionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+		if len(cluster.Table.Parts) == 0 && s.Owner.InBlock() {
+			return Result{}, SQLError("25001", "CLUSTER cannot run inside a transaction block")
+		}
+		// Target work chooses its grant-time frontier; bare CLUSTER must not
+		// retain one database-wide statement snapshot or journal.
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
+	}
 	if _, ok := stmt.(*parser.AlterSystem); ok {
 		return s.executeAlterSystem()
 	}

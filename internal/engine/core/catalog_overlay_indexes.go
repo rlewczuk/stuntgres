@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/util"
 )
 
 // Ordinary key providers run only on detached storage captures, never under
@@ -20,7 +21,13 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		return ids.ErrCatalogReplaced
 	}
 	view := e.PrivateCatalogLocked(c)
-	auth, err := e.AuthorizationLocked(scope.Op)
+	var auth AuthorizationView
+	var err error
+	if scope.Op.Restricted != nil {
+		auth, err = scope.RoutineAuthorizationLocked()
+	} else {
+		auth, err = e.AuthorizationLocked(scope.Op)
+	}
 	if err != nil {
 		e.Mu.Unlock()
 		return err
@@ -48,8 +55,11 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 				return err
 			}
 		}
+		if err := util.ExecutionCheckpoint(ctx, "index.overlay.build"); err != nil {
+			return err
+		}
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		evaluation.RoutineAuthority = &auth
+		evaluation.RoutineAuthority = &indexAuth
 		if idx.SQLIndex.HasRuntimeDomainConversion() {
 			var err error
 			evaluation.Input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(indexAuth)

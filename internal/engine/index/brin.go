@@ -139,9 +139,18 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			}
 			continue
 		}
-		matches, err := preparation.PredicateMatches(evaluation, parent, index.SQLIndex, row.Values, &o, nil)
-		if err != nil {
-			return nil, err
+		output, exists := row.IndexOutputs[index.Address()]
+		produced := exists && OutputMatches(output, index)
+		if exists && !produced && evaluation.LiveHost() == nil {
+			return nil, ids.ErrCatalogReplaced
+		}
+		matches := output.Member
+		if !produced {
+			var err error
+			matches, err = preparation.PredicateMatches(evaluation, parent, index.SQLIndex, row.Values, &o, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if capture != nil && capture.Outputs != nil {
 			capture.Outputs[position] = storage.IndexOutput{Index: capture.Index, Member: matches}
@@ -152,8 +161,10 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			}
 			continue
 		}
-		if err := preparation.PrepareKeys(evaluation, parent, index.SQLIndex, &o, nil); err != nil {
-			return nil, err
+		if !produced {
+			if err := preparation.PrepareKeys(evaluation, parent, index.SQLIndex, &o, nil); err != nil {
+				return nil, err
+			}
 		}
 		var keys []sqltype.Value
 		if capture != nil && capture.Outputs != nil {
@@ -161,13 +172,19 @@ func BuildBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 			capture.Outputs[position].Keys = keys
 		}
 		for i, b := range bindings {
-			var program expr.Expr
-			if o.Derived != nil {
-				program = o.Derived[i]
-			}
-			value, err := extractIndexKey(b.Slot, program, row.Values, evaluation)
-			if err != nil {
-				return nil, err
+			var value sqltype.Value
+			if produced {
+				value = output.Keys[i]
+			} else {
+				var program expr.Expr
+				if o.Derived != nil {
+					program = o.Derived[i]
+				}
+				var err error
+				value, err = extractIndexKey(b.Slot, program, row.Values, evaluation)
+				if err != nil {
+					return nil, err
+				}
 			}
 			if capture != nil && capture.Outputs != nil {
 				keys[i] = value

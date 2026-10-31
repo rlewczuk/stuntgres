@@ -18,6 +18,10 @@ func (r ScalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) e
 		// actual provider owns the selected routine and immutable body.
 		return r.recordStoredRoutine(view, selected.Provider)
 	}
+	if call, ok := node.(plan.SQLRoutineExpr); ok && r.indexMetadata {
+		_, err := r.indexMetadataRoutine(view, call)
+		return err
+	}
 	if expression, ok := node.(plan.ArrayCastExpr); ok {
 		// The element template is executed but is not emitted as standalone
 		// SQL. Its lexical input belongs to the enclosing array conversion;

@@ -88,7 +88,7 @@ func TestAmcheckRestrictedAuthorityPrecedence(t *testing.T) {
 			defer cancel()
 			scope.Op.Ctx = ctx
 			invoke := func() error {
-				return scope.WithAmcheckOwner(parent, func(evaluation *exec.Context) error {
+				return scope.WithMaintenanceOwner(parent, func(evaluation *exec.Context) error {
 					e.Mu.Lock()
 					routine, err := scope.RoutineAuthorizationLocked()
 					e.Mu.Unlock()

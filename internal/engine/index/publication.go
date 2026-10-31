@@ -468,7 +468,8 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				if err := ValidateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
-				root, err = BuildBrinIndexRoot(evaluation, parent, index, relations[parent.Address()], materialize, progress.Capture(a))
+				capture := BuildCapture{Index: index, Progress: progress.ObserverFor(a)}
+				root, err = BuildBrinIndexRoot(evaluation, parent, index, relations[parent.Address()], materialize, &capture)
 				if err != nil {
 					return nil, err
 				}
@@ -496,7 +497,8 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				if err := ValidateIndexDefinition(view, index); err != nil {
 					return nil, err
 				}
-				root, err = BuildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), progress.Capture(a))
+				capture := BuildCapture{Index: index, Progress: progress.ObserverFor(a)}
+				root, err = BuildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), &capture)
 				if err != nil {
 					return nil, err
 				}
@@ -531,7 +533,8 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 			// Required ordering/uniqueness scratch is not an installation
 			// root. PREPARE returns neither a root wrapper nor a root map.
 			var err error
-			entries, err = BuildIndexEntries(evaluation, parent, index.SQLIndex, relations[parent.Address()], progress.Capture(a))
+			capture := BuildCapture{Index: index, Progress: progress.ObserverFor(a)}
+			entries, err = BuildIndexEntries(evaluation, parent, index.SQLIndex, relations[parent.Address()], &capture)
 			if err != nil {
 				return nil, err
 			}

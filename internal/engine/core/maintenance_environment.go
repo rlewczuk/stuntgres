@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// WithAmcheckOwner keeps the invocation environment outside the lexical scratch
-// SQL/PL activation replaces. No session identity/settings are changed.
-func (s *StatementScope) WithAmcheckOwner(parent *catalog.Relation, work func(*exec.Context) error) error {
+// WithMaintenanceOwner keeps the restricted owner environment outside lexical
+// SQL/PL scratch. Its settings image and presentation are local to this work.
+func (s *StatementScope) WithMaintenanceOwner(parent *catalog.Relation, work func(*exec.Context) error) error {
 	op, e := s.Op, s.Engine()
 	previous := op.Restricted
 	identity, inquiry, input, output, RoutineAuth := s.Identity, s.Inquiry, s.Input, s.Output, s.RoutineAuth

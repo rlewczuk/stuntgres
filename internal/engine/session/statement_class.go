@@ -13,6 +13,8 @@ func ModifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.SecurityLabel:
 		return "SECURITY LABEL"
+	case *parser.Cluster:
+		return "CLUSTER"
 	case *parser.Publication:
 		switch stmt.(*parser.Publication).Action {
 		case "create":
@@ -352,6 +354,8 @@ func ExplicitUtility(stmt parser.Statement) bool {
 // source.
 func TransactionalSchemaUtility(stmt parser.Statement) bool {
 	switch s := stmt.(type) {
+	case *parser.Cluster:
+		return len(s.Table.Parts) != 0
 	case *parser.Subscription, *parser.Publication:
 		return true
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
@@ -414,6 +418,8 @@ func EarlyStandaloneUtility(stmt parser.Statement) bool {
 // refusal for stmt; data statements check their own targets.
 func ReadOnlyExempt(stmt parser.Statement) bool {
 	switch stmt.(type) {
+	case *parser.Cluster:
+		return true
 	case *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}

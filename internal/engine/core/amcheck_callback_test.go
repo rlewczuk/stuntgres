@@ -72,7 +72,7 @@ func TestAmcheckRestrictedCallbacks(t *testing.T) {
 			if err := scope.Gate(enginetest.Statement(t, "SELECT 1")); err != nil {
 				t.Fatal(err)
 			}
-			err = scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+			err = scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 				result, err := core.EngineExecuteStatement(e, scope, enginetest.Statement(t, "SET demo.amcheck_callback=transient"), 0, nil)
 				if result.Rows != nil {
 					result.Rows.Close()

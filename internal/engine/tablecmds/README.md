@@ -7,7 +7,7 @@ types, identity, foreign keys, NOT NULL, INHERIT and NO INHERIT), ALTER
 TABLE ... ALTER COLUMN DEFAULT, CREATE TABLE (LIKE, typed, PARTITION OF),
 DROP TABLE, RENAME of relations, columns and constraints, and SET SCHEMA;
 CREATE, ALTER and DROP SEQUENCE with OWNED BY, and COMMENT ON SEQUENCE;
-VACUUM; the table Restore repairs and the Restore identity check; and the
+VACUUM and CLUSTER; the table Restore repairs and the Restore identity check; and the
 `TableHost`, `AlterHost` and `TypeHost` family hosts. The decisions are
 [`table`](../table/README.md)'s, [`sequence`](../sequence/README.md)'s,
 `index`'s and `partition`'s; this package orchestrates them over core's
@@ -38,6 +38,33 @@ predicate and partition-bound binders remain dormant, including nested binding.
 Explicit row-generation context and evaluator context must agree.
 
 ## Entry points
+- `ExecuteCluster` validates current kind/MAINTAIN before ordinary heap ACCESS
+  EXCLUSIVE, then resolves an eligible index in the parent namespace. It simulates
+  clustering by atomically recording the real preference; no selected/sibling
+  index grants, heap ordering, replacement or forced all-index rebuild occurs.
+  Unpopulated materialized views skip before changing preference or recipes,
+  restoring the pretarget lock checkpoint and preserving all prior contributions.
+  Named execution uses the normal transactional catalog journal, including
+  read-only transactions, rollback and savepoints. Only genuinely changed stored
+  recipes require baseline targeted overlay rebuilding under the restricted
+  table-owner environment, safe initial path and detached command-local settings.
+  Every exit restores the caller's identity and presentation.
+  `cluster_recipes.go` follows original validated stored call identities to
+  current compatible routine declarations, privately refreshes both definition
+  and execution trees, and captures exact procedure read fences before cooking.
+  It preserves unrelated operator/type/provider carriers and does not weaken
+  ordinary stored-program or replacement lifetime checks. Existing-index
+  maintenance retains the current routine's actual volatility, recomputing exact
+  call properties even when an attribute transition lowers it back to IMMUTABLE.
+  IMMUTABLE admission belongs to new CREATE/ALTER expressions and predicates,
+  including cloned declarations, not an eligibility rule reapplied during CLUSTER.
+  Bare execution selects remembered identities and warns for denied MAINTAIN
+  before acquiring target locks. Authorized foreign TEMP targets acquire heap
+  ACCESS EXCLUSIVE before being excluded, without selected-index locks or work.
+  Completed targets release one normal transaction each; earlier target commits
+  survive a later failure. Neither path creates physical files or assumes a
+  portable unordered result order.
+
 
 - Dispatch (`core.Statements.ExecuteLocked`): `AlterTableLocked`,
   `AlterDefaultLocked`, `CreateTableLocked`, `DropTableLocked`,

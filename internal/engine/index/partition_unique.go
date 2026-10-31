@@ -432,6 +432,9 @@ func StagePartitionIndexChild(h Host, auth ddl.Authority, table, parentIndex, ch
 		}
 		return &next, nil
 	}
+	if err := ValidateIndexDeclaration(mapped); err != nil {
+		return nil, err
+	}
 	// Reusing an equivalent child above performs no creation. Only synthesis
 	// consults the current default; PostgreSQL skips CREATE ACL checks here.
 	if err := h.CheckClonedIndexTablespaceCreation(auth, view, child.Persistence, child.Partition != nil); err != nil {

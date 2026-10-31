@@ -105,7 +105,7 @@ func TestPGRewriteBuiltinDeclarations(t *testing.T) {
 			t.Fatal("declaration gained stored-view authority")
 		}
 	}
-	if seen != 2 {
+	if seen != 3 {
 		t.Fatal("update explicit inventory expectations", seen)
 	}
 }

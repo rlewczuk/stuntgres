@@ -54,6 +54,8 @@ type ScalarRenderer struct {
 	// The selected UUID shift's formal interval type must survive all-NULL
 	// compositions. This context belongs only to its rendered child subtree.
 	uuidShiftIntervalNulls bool
+	// Selected only by the error-only index metadata validation entry.
+	indexMetadata bool
 }
 
 func DefaultSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {

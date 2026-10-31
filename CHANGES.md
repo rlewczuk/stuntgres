@@ -1,5 +1,15 @@
 # Changes
 
+- Add query-compatible CLUSTER simulation for explicit, remembered and whole-
+  database selection, with real atomic catalog preferences, eligibility/MAINTAIN
+  diagnostics, heap-lock cancellation and native control replay. Unpopulated
+  materialized views skip without preference or population effects. Unchanged
+  recipes retain heap/index storage; compatible current routine changes use only
+  necessary baseline targeted index rebuilding for query and later DML correctness.
+  Physical heap ordering/all-index rewrites and physical index-lock parity are
+  not simulated. `pg_stat_progress_cluster` retains twelve typed columns but no
+  fabricated physical workers or counters.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

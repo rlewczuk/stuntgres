@@ -190,6 +190,9 @@ func StageUniqueDefinitions(h Host, auth ddl.Authority, d *catalog.Relation, dec
 				idx.Attributes[j] = int32(j + 1)
 			}
 		}
+		if err := ValidateIndexDeclaration(definition); err != nil {
+			return err
+		}
 		if err := CopyColumnStorage(h.StageRead(), d, idx); err != nil {
 			return err
 		}

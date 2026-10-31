@@ -168,7 +168,7 @@ func (h *statementHost) Amcheck(n plan.InstalledAmcheckExpr, oid uint32, flags [
 	} else {
 		options.CheckUnique = flags[1]
 	}
-	if err := s.WithAmcheckOwner(parent, func(evaluation *exec.Context) error { return index.CheckBtree(evaluation, capture, options) }); err != nil {
+	if err := s.WithMaintenanceOwner(parent, func(evaluation *exec.Context) error { return index.CheckBtree(evaluation, capture, options) }); err != nil {
 		return err
 	}
 	e.Mu.Lock()

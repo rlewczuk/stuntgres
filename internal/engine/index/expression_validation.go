@@ -13,9 +13,10 @@ import (
 
 // ValidatePrivateExpressions evaluates the derived keys and predicates of
 // view's ready, live indexes over the staged private rows, so derived-key
-// errors surface before the rows are installed rather than at COMMIT. An
-// index with a runtime domain conversion materializes its outputs instead;
-// the rows that gain one are cloned and written back into staged. Admission
+// errors surface before the rows are installed rather than at COMMIT. Indexes
+// with runtime domain conversions retain their actual outputs for publication
+// without a host.
+// The rows that gain outputs are cloned and written back into staged. Admission
 // owns the rows; view and the execution trees are immutable.
 func ValidatePrivateExpressions(evaluation *exec.Context, view catalog.Read, staged map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
 	for _, descriptor := range view.Descriptors() {

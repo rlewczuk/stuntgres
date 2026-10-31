@@ -113,11 +113,11 @@ func TestAmcheckInquiryEffectiveSettings(t *testing.T) {
 					local = "off"
 				}
 				caught := errors.New("caught inquiry recipe exception")
-				err = scope.WithAmcheckOwner(parent, func(c *exec.Context) error {
+				err = scope.WithMaintenanceOwner(parent, func(c *exec.Context) error {
 					check(c, caller)
 					set(local)
 					check(c, local)
-					if err := scope.WithAmcheckOwner(parent, func(nested *exec.Context) error {
+					if err := scope.WithMaintenanceOwner(parent, func(nested *exec.Context) error {
 						check(nested, local) // Inherit the outer effective image.
 						set(caller)
 						check(nested, caller)

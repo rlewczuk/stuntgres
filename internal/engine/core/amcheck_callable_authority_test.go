@@ -91,7 +91,7 @@ func TestAmcheckCallableAuthorityPrecedence(t *testing.T) {
 					var object functions.LargeObjectResult
 					var rows []sqltype.Value
 					invoke := func() error {
-						return scope.WithAmcheckOwner(parent, func(_ *exec.Context) error {
+						return scope.WithMaintenanceOwner(parent, func(_ *exec.Context) error {
 							var callErr error
 							switch host {
 							case "sequence":

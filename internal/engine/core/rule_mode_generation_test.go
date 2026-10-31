@@ -146,7 +146,7 @@ func TestRuleModePlanGenerationHeadroom(t *testing.T) {
 		}
 		s.DiscardPlansGeneration = ^uint64(0) - 6
 		before := s.DiscardPlansGeneration
-		if err := scope.WithAmcheckOwner(parent, func(*exec.Context) error {
+		if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
 			_, err := core.EngineExecuteStatement(e, scope, enginetest.Statement(t, "SET session_replication_role=replica"), 0, nil)
 			return err
 		}); err != nil {

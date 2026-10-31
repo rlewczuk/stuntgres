@@ -386,7 +386,7 @@ package parser
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 %token <tok> ROLE_PASSWORD ROLE_CONNECTION ROLE_VALID ROLE_ENCRYPTED ROLE_UNENCRYPTED
 %token <tok> INDEX REINDEX
-%token <tok> VACUUM FREEZE VERBOSE ANALYZE
+%token <tok> VACUUM FREEZE VERBOSE ANALYZE CLUSTER
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
 %token <tok> EXCLUDE
@@ -442,7 +442,7 @@ package parser
 /* CONVERSION formerly used KW_U; preserve its type-tail decisions too. */
 /* RECURSIVE/XML likewise retain KW_U's contextual identifier/type-tail precedence. */
 /* LISTEN/UNLISTEN/LOAD/CHECKPOINT retain their former KW_U type-tail precedence. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION TS_TEMPLATE TS_PARSER RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD CHECKPOINT '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN COPY INSERT UPDATE DELETE VALUES BY KW_U TS_CONFIGURATION TS_TEMPLATE TS_PARSER RECURSIVE XML KW_C CONVERSION STATISTICS FDW_SERVER FDW_MAPPING FDW_HANDLER FDW_VALIDATOR FDW_IMPORT LANGUAGE_TRUSTED LANGUAGE_PROCEDURAL LANGUAGE_INLINE ZONE SET SHOW RESET SESSION LOCAL IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX VACUUM CLUSTER MATERIALIZED ADMIN INHERIT OPTION GRANTED REVOKE REFRESH VERSION DISCARD LISTEN UNLISTEN LOAD CHECKPOINT '.'
 %nonassoc EXPLAIN
 /* These words previously used KW_U. Preserve its type-tail and COPY-WITH
  * decisions rather than adding implicit zero-precedence conflicts. */
@@ -764,7 +764,7 @@ package parser
 %type <indexOption> maintenance_index_option reindex_option
 %type <tok> index_option_name reindex_kind maintenance_concurrent
 %type <indexValue> maintenance_index_option_value
-%type <stmt> vacuum analyze
+%type <stmt> vacuum analyze cluster
 %type <vacuumOptions> vacuum_options vacuum_option_list vacuum_legacy
 %type <vacuumOptions> analyze_options
 %type <vacuumOption> vacuum_option
@@ -1090,6 +1090,7 @@ embedded_sql_statement: create | create_sequence | alter_sequence | drop_sequenc
  | do_statement
  | CALL relation_name '(' function_args ')' {call:=$4;call.Name=$2;call.Pos=$2.Parts[0].Pos;call.ProcedureCall=true;$$=&Call{Function:call,Pos:$1.pos}}
  | vacuum
+ | cluster
  | analyze
  | truncate_table
  | alter_default_privileges
@@ -2327,7 +2328,7 @@ pl_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.te
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
  | pl_target '.' col_label {$$=FieldExpr{Base:$1,Field:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.SourcePosition()}}
  | pl_target array_subscript {if base,ok:=$1.(SubscriptExpr);ok {base.Subscripts=append(base.Subscripts,$2);$$=base} else {$$=SubscriptExpr{Base:$1,Subscripts:[]ArraySubscript{$2},Pos:$1.SourcePosition()}}} ;
-pl_name: IDENT | SELECTED_FUNC | KW_U | XML | KW_C | KW_T | RETURN_BODY | PL_SLICE | FIRST | SECOND
+pl_name: IDENT | SELECTED_FUNC | KW_U | CLUSTER | XML | KW_C | KW_T | RETURN_BODY | PL_SLICE | FIRST | SECOND
  | ROUTINE_CALLED | ROUTINE_COST | ROUTINE_SUPPORT | ROUTINE_PARALLEL | ROUTINE_SECURITY | ROUTINE_EXTERNAL | ROUTINE_TRANSFORM ;
 pl_foreach_target: pl_name {$$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos}}
  | PARAM {$$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos}}
@@ -2556,6 +2557,10 @@ reindex_option: col_label {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.p
  | col_label maintenance_index_option_value {$$=&IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
 reindex_kind: name | TABLE ;
 reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_name {if $3.text!="index"&&$3.text!="table"&&$3.text!="schema"&&$3.text!="database"&&$3.text!="system"{sqllex.(*lexer).syntax($3);return 1};$$=&Reindex{Name:$5,Kind:Identifier{Text:$3.text,Pos:$3.pos},Options:$2,Concurrent:$4.pos,Pos:$1.pos}} ;
+
+cluster: CLUSTER {$$=&Cluster{Pos:$1.pos}}
+ | CLUSTER relation_name {$$=&Cluster{Table:$2,Pos:$1.pos}}
+ | CLUSTER relation_name USING name {$$=&Cluster{Table:$2,Index:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}} ;
 
 vacuum: VACUUM vacuum_options vacuum_targets {$$=&Vacuum{Options:$2,Targets:$3,Pos:$1.pos}} ;
 vacuum_options: '(' vacuum_option_list ')' {$$=$2} | vacuum_legacy ;
@@ -2800,9 +2805,11 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=&AlterTab
  | SET UNLOGGED { $$=&AlterTableAction{Action:SetUnlogged,Pos:$1.pos} }
  | SET ACCESS method_word name {$$=&AlterTableAction{Action:SetAccessMethod,Method:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}}
  | SET ACCESS method_word DEFAULT {$$=&AlterTableAction{Action:SetAccessMethod,MethodDefault:true,Pos:$1.pos}}
- | KW_U ON name {if $1.keyword==nil || $1.text!="cluster" {sqllex.(*lexer).syntax($1);return 1};$$=&AlterTableAction{Action:ClusterOn,ClusterIndex:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
- | SET WITHOUT KW_U {kind:=SetWithoutCluster;if $3.keyword==nil {sqllex.(*lexer).syntax($3);return 1};switch $3.text {case "cluster":case "oids":kind=SetWithoutOIDs;default:sqllex.(*lexer).syntax($3);return 1};$$=&AlterTableAction{Action:kind,Pos:$1.pos}}
+ | CLUSTER ON name {$$=&AlterTableAction{Action:ClusterOn,ClusterIndex:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}}
+ | SET WITHOUT CLUSTER {$$=&AlterTableAction{Action:SetWithoutCluster,Pos:$1.pos}}
+ | SET WITHOUT KW_U {if $3.keyword==nil || $3.text!="oids" {sqllex.(*lexer).syntax($3);return 1};$$=&AlterTableAction{Action:SetWithoutOIDs,Pos:$1.pos}}
  | SET WITH KW_U {sqllex.(*lexer).syntax($2);return 1}
+ | SET WITH CLUSTER {sqllex.(*lexer).syntax($2);return 1}
  | SET '(' maintenance_index_option_list ')' { $$=&AlterTableAction{Action:SetRelationOptions,Options:$3,Pos:$1.pos} }
  | RESET '(' maintenance_index_option_list ')' { $$=&AlterTableAction{Action:ResetRelationOptions,Options:$3,Pos:$1.pos} }
  | INHERIT relation_name { $$=&AlterTableAction{Action:InheritTable,Parent:$2,Pos:$1.pos} }
@@ -3217,6 +3224,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING {if len($1.raw)==1 && ($1.text=="e" || $1.text=="b" || $1.text=="x") {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};requiresDomain:=$1.text!="box" && $1.text!="point" && $1.text!="circle" && $1.text!="line" && $1.text!="lseg" && $1.text!="path" && $1.text!="polygon" && $1.text!="tsvector" && $1.text!="tsquery" && $1.text!="tid" && $1.text!="macaddr" && $1.text!="macaddr8" && $1.text!="inet" && $1.text!="cidr" && $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" && $1.text!="json" && $1.text!="jsonb" && $1.text!="jsonpath" && $1.text!="money" && $1.text!="pg_lsn";$$=TypedLiteralExpr{TypeName:securityLabelLiteralType(sqllex,$1),Text:$2.text,Pos:$2.pos,RequiresDomain:requiresDomain} }
  | KW_U STRING { $$=TypedLiteralExpr{TypeName:securityLabelLiteralType(sqllex,$1),Text:$2.text,Pos:$2.pos,RequiresDomain:$1.text!="path"} }
+ | CLUSTER STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
  | XML STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
  | TEXT STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | EXPLAIN STRING { $$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos,RequiresDomain:true} }
@@ -3941,7 +3949,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
- | ENFORCED
+ | ENFORCED | CLUSTER
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
@@ -4015,7 +4023,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | CONVERSION | STATISTICS
  | RECURSIVE | XML
  | PUBLICATION_TABLES
- | VACUUM
+ | VACUUM | CLUSTER
  | routine_name_word
  | grant_external_name_word
  | DOUBLE_TYPE | PRECISION_TYPE | CHARACTER_TYPE | NCHAR_TYPE | BIT_TYPE | VARYING_TYPE
@@ -4045,14 +4053,14 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 /* A dedicated declaration head must not reduce to the unsupported CREATE
  * fallback at EOF. STATISTICS remains an ordinary unreserved word elsewhere. */
-generic_create_word: generic_word_base_without_vacuum_frame | FRAME_UNIT | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
+generic_create_word: generic_word_base_without_vacuum_frame | FRAME_UNIT | VACUUM | EXPLAIN | ANALYZE | CLUSTER | WITH | EXISTS ;
 /* Bare maintenance commands are complete native statements. Preserve their
  * generic-word uses elsewhere without competing with empty legacy options. */
 generic_statement_word: generic_word_base_without_vacuum | WITH | EXISTS ;
-generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE | ENFORCED ;
+generic_word_base: generic_word_base_without_vacuum | VACUUM | EXPLAIN | ANALYZE | CLUSTER | ENFORCED ;
 /* The RANGE declaration has its own frame-unit token frontier; ENUM keeps
  * generic unsupported-word diagnostics without accepting a range body. */
-generic_word_without_frame: generic_word_base_without_vacuum_frame | STATISTICS | VACUUM | EXPLAIN | ANALYZE | WITH | EXISTS ;
+generic_word_without_frame: generic_word_base_without_vacuum_frame | STATISTICS | VACUUM | EXPLAIN | ANALYZE | CLUSTER | WITH | EXISTS ;
 generic_word_base_without_vacuum: generic_word_base_without_vacuum_frame | STATISTICS | FRAME_UNIT ;
 generic_word_base_without_vacuum_frame: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | ASYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
@@ -4299,7 +4307,7 @@ role_limit: NUMBER { var ok bool; $$,ok=roleLimit(sqllex,$1,""); if !ok{return 1
 /* Attribute words are contextual identifiers. Do not include the membership
  * introducers ADMIN/IN/ROLE/USER in this alternative: their list productions
  * must consume those tokens rather than competing with an option-word loop. */
-role_option_word: IDENT | KW_U | XML | INHERIT | GROUP | GRANTED | BY ;
+role_option_word: IDENT | KW_U | CLUSTER | XML | INHERIT | GROUP | GRANTED | BY ;
 role_name: name {
  if $1.text=="public" || $1.text=="none" { sqllex.(*lexer).failAt("42939","role name \""+$1.text+"\" is reserved",$1.pos.Offset); return 1 }; $$=$1
  }

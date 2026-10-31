@@ -125,6 +125,12 @@ ordinary assignments to an unreserved `security` variable.
   absent versus explicit column lists, normal filter syntax, ordered options
   and multi-object drops. Grammar owns full-input consumption; current
   membership, option interpretation and authorization belong to execution.
+- `Cluster` retains an optional qualified heap name and optional table-local
+  unqualified index, with character positions. Bare, explicit USING and remembered
+  index forms share full-input validation. CLUSTER has a dedicated unreserved
+  token while retaining ordinary name, setting, type, typed-literal and PL-name
+  uses; unrelated unsupported commands keep their existing fallback diagnostics.
+  ALTER preference actions retain their existing execution identity.
 - Text-search template utilities retain qualified names and ordered positioned
   callback options, including repeated and bare values. CREATE, identity ALTER
   and list DROP have distinct nodes; callback signatures and privileges belong

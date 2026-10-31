@@ -285,6 +285,16 @@ identity. Rows end with their target, including cancellation and failure.
 See [VACUUM progress](docs/DRIVER.md#vacuum-progress) for estimate formulas,
 phase-local reset rules, visibility and lifetime.
 
+`CLUSTER table USING index`, remembered `CLUSTER table`, and bare `CLUSTER`
+simulate clustering with real eligible catalog preferences, MAINTAIN checks,
+heap-lock cancellation and ordinary transaction/savepoint atomicity. Unchanged
+recipes preserve heap and index storage; compatible changed SQL routine recipes
+use only necessary targeted index rebuilding for correct queries and later DML.
+Unpopulated materialized views skip without changing preference or population.
+No physical layout or unordered SELECT ordering is promised. The twelve-column
+`pg_stat_progress_cluster` view remains typed and empty: no physical worker,
+phase or counter is fabricated.
+
 The six-column read-only `pg_stat_progress_basebackup` view is genuinely empty:
 there are no physical base-backup workers, and native logical Dump never
 fabricates a progress row, even during blocked output. Ordinary SQL

@@ -27,8 +27,9 @@ Journaled concurrent materialized refresh is covered; independently published
 concurrent index creation is outside this one-journal callback boundary.
 Its concurrent-refresh witness filters TAG to REFRESH MATERIALIZED VIEW and
 requires the exact outer start/end pair on both backends; the other relation
-commands retain unrestricted callbacks. Maintenance exclusions exercise shipped
-VACUUM; standalone ANALYZE is not an admitted native statement.
+commands retain unrestricted callbacks. Maintenance rewrite exclusions execute
+actual CLUSTER through direct and prepared routes alongside VACUUM and REINDEX,
+requiring an empty rewrite audit and preserved rows on both backends.
 Standalone-only procedure/language creation retains its existing admission.
 Inherited and typed-table ALTERs expose all new declared shapes before any
 per-relation rewrite callback. Callback-created objects and unrelated ALTERs

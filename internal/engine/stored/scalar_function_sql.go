@@ -109,7 +109,13 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
 		procedure, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
-		if !ok || !exec.SameRoutineDeclaration(procedure, n.Procedure) {
+		if r.indexMetadata {
+			var err error
+			procedure, err = r.indexMetadataRoutine(view, n)
+			if err != nil {
+				return "", err
+			}
+		} else if !ok || !exec.SameRoutineDeclaration(procedure, n.Procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine declaration")
 		}
 		namespace, ok := r.descriptor(view, procedure.Namespace()).(*catalog.Namespace)
