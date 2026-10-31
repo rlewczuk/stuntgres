@@ -184,6 +184,10 @@ func NestedTupleStatement(stmt parser.Statement) bool { return nestedTupleStatem
 
 func NestedReadOnlyViolation(stmt parser.Statement) string { return nestedReadOnlyViolation(stmt) }
 
+func ActivateNestedSource(s *StatementScope, read catalog.Read) func(error) error {
+	return s.activateNestedSource(read)
+}
+
 func RoutineDemandNestedCursor(x *sqlRoutineDemand) bool { return x.nestedCursor }
 
 func SetRoutineDemandScalar(x *sqlRoutineDemand, v bool) { x.scalar = v }

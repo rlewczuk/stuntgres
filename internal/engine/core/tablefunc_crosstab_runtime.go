@@ -1,10 +1,7 @@
 package core
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -32,136 +29,111 @@ func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrossta
 	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Catalog)
 }
 
-func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) (values []sqltype.Value, err error) {
-	s := h.scope()
-	if err := s.enterSQLRoutine(); err != nil {
+func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	spi := h.nestedSQL()
+	if err := spi.EnterNestedSQL(); err != nil {
 		return nil, err
 	}
-	defer s.leaveSQLRoutine()
-	e := s.Engine()
-	e.Mu.Lock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
-	e.Mu.Unlock()
-	settings := s.Op.EffectiveSettings()
-	settings.Mu.Lock()
-	standard := settings.Value("standard_conforming_strings") == "on"
-	settings.Mu.Unlock()
-	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice, ClosedRoutineFormals: true})
+	defer spi.LeaveNestedSQL()
+	read, statements, err := spi.ParseNestedSQL(h.scope().Op.Context(), text)
 	if err != nil {
 		return nil, exec.RewriteSQLDiagnostic(err, text)
 	}
 	// SPI prepares the entire string before executing any of its plans.
 	for _, statement := range statements {
-		if err := s.prepareNestedStatement(statement, read); err != nil {
+		if err := spi.PrepareNestedSQL(statement, read); err != nil {
 			return nil, exec.RewriteSQLDiagnostic(err, text)
 		}
 	}
-	for i, statement := range statements {
-		values, err = h.tablefuncCrosstabStatement(statement, read, result, text, i == len(statements)-1)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return values, nil
-}
-
-func (h *contribHost) tablefuncCrosstabStatement(statement parser.Statement, read catalog.Read, result *sqltype.Descriptor, text string, last bool) (values []sqltype.Value, err error) {
-	s, e := h.scope(), h.scope().Engine()
-	view, refs := s.View, s.rlsDataRefs
 	// Admission, expected analysis and source authority belong to one command,
 	// not the entire SPI string. In particular, the next SELECT must not reuse
 	// the preceding SELECT's prepared/source captures.
-	restore := s.ActivateSQLRoutine(nil, read)
-	defer func() {
-		err = restore(err)
-		if err != nil {
-			values = nil
+	command := &crosstabCommand{host: h, spi: spi, text: text, result: result}
+	request := exec.NestedRequest{Text: text, Diagnose: true, Caller: "crosstab"}
+	for i, statement := range statements {
+		command.last = i == len(statements)-1
+		if err := spi.ExecuteNestedSQL(statement, read, request, command); err != nil {
+			return nil, err
 		}
-	}()
-	s.View, s.rlsDataRefs = view, refs
-	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor = false, true
-	if err := s.AcquireRelation(statement, true); err != nil {
-		return nil, exec.RewriteSQLDiagnostic(err, text)
 	}
-	description, e2 := e.describeOperation(s, statement)
-	if e2 != nil {
-		return nil, exec.RewriteSQLDiagnostic(e2, text)
-	}
-	s.Expected = &description
-	tag := nestedReadOnlyViolation(statement)
+	return command.values, nil
+}
+
+func (h *contribHost) nestedSQL() exec.NestedSQL { return (*statementHost)(h) }
+
+// crosstabCommand is one command of the crosstab source SQL. Only the last
+// command's rows become the pivot.
+type crosstabCommand struct {
+	host   *contribHost
+	spi    exec.NestedSQL
+	text   string
+	result *sqltype.Descriptor
+	last   bool
+	values []sqltype.Value
+}
+
+func (c *crosstabCommand) NestedCommand(parser.Statement) (bool, error) { return false, nil }
+
+func (c *crosstabCommand) NestedAnalyzed(statement parser.Statement) error {
+	tag := c.spi.NestedReadOnlyViolation(statement)
 	if tag == "" {
 		if _, ok := statement.(*parser.Select); !ok {
-			tag = RoutineCommandTag(statement)
+			tag = c.spi.NestedCommandTag(statement)
 		}
 	}
 	if tag != "" {
-		return nil, exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), text)
+		return exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), c.text)
 	}
-	execution, e2 := e.executeStatement(s, statement, 0, func(_ context.Context, info analyze.ParameterInfo, _ []sqltype.Value, _ sqltype.InputEnvironment) error {
-		if info.Count != 0 {
-			return fmt.Errorf("stuntgres: crosstab SQL parameter frame is not empty")
-		}
+	return nil
+}
+
+func (c *crosstabCommand) NestedRows(_ parser.Statement, rows exec.RowResult) error {
+	if rows == nil {
 		return nil
-	})
-	if e2 != nil {
-		return nil, exec.RewriteSQLDiagnostic(e2, text)
 	}
-	if execution.Rows != nil {
-		if last {
-			input, output := h.host().Environments()
-			// Match the shared routine-result diagnostic path: successful pivots
-			// never capture a catalog/path display snapshot.
-			var name func(sqltype.ID) string
-			var namingErr error
-			display := func(id sqltype.ID) string {
-				if name == nil && namingErr == nil {
-					e.Mu.Lock()
-					auth, captureErr := s.RoutineAuthorizationLocked()
-					if captureErr == nil {
-						name, captureErr = CaptureTypeDiagnosticName(auth)
-					}
-					e.Mu.Unlock()
-					namingErr = captureErr
+	h := c.host
+	s, e := h.scope(), h.scope().Engine()
+	var err error
+	if c.last {
+		input, output := h.host().Environments()
+		// Match the shared routine-result diagnostic path: successful pivots
+		// never capture a catalog/path display snapshot.
+		var name func(sqltype.ID) string
+		var namingErr error
+		display := func(id sqltype.ID) string {
+			if name == nil && namingErr == nil {
+				e.Mu.Lock()
+				auth, captureErr := s.RoutineAuthorizationLocked()
+				if captureErr == nil {
+					name, captureErr = CaptureTypeDiagnosticName(auth)
 				}
-				if name != nil {
-					return name(id)
-				}
-				return ""
+				e.Mu.Unlock()
+				namingErr = captureErr
 			}
-			values, e2 = exec.ConsumeCrosstab(s.Op.Context(), execution.Rows, result, input, output, text, display)
-			if namingErr != nil {
-				e2 = namingErr
+			if name != nil {
+				return name(id)
 			}
-		} else {
-			scratch := make([]sqltype.Value, len(execution.Rows.Schema()))
-			for {
-				present, nextErr := execution.Rows.Next(s.Op.Context(), scratch)
-				if nextErr != nil {
-					e2 = exec.RewriteSQLDiagnostic(nextErr, text)
-					break
-				}
-				if !present {
-					break
-				}
-			}
+			return ""
 		}
-		if !last {
-			if closeErr := execution.Rows.Close(); e2 == nil {
-				e2 = closeErr
-			}
+		c.values, err = exec.ConsumeCrosstab(s.Op.Context(), rows, c.result, input, output, c.text, display)
+		if namingErr != nil {
+			err = namingErr
+		}
+		return err
+	}
+	scratch := make([]sqltype.Value, len(rows.Schema()))
+	for {
+		present, nextErr := rows.Next(s.Op.Context(), scratch)
+		if nextErr != nil {
+			err = exec.RewriteSQLDiagnostic(nextErr, c.text)
+			break
+		}
+		if !present {
+			break
 		}
 	}
-	for _, rows := range execution.RowSets {
-		if closeErr := rows.Close(); e2 == nil {
-			e2 = closeErr
-		}
+	if closeErr := rows.Close(); err == nil {
+		err = closeErr
 	}
-	if e2 != nil {
-		return nil, e2
-	}
-	return values, nil
+	return err
 }

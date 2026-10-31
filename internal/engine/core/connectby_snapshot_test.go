@@ -92,7 +92,7 @@ func TestConnectbyNestedSourceSnapshotOwnership(t *testing.T) {
 			replacement.Born = e.Visibility.CommitSeq()
 			e.Storage.Relations[target.Address()].Versions = []storage.RowVersion{replacement}
 			e.Mu.Unlock()
-			restore := core.ActivateConnectbySource(scope, e.CatalogRead())
+			restore := core.ActivateNestedSource(scope, e.CatalogRead())
 			restored := false
 			defer func() {
 				if !restored {
@@ -137,7 +137,7 @@ func TestConnectbyNestedSourceSnapshotOwnership(t *testing.T) {
 			}
 			// Explicit-base and latest captures must not be redirected through
 			// the borrowed sourceBase, even while connectby activation is live.
-			restoreVariants := core.ActivateConnectbySource(scope, e.CatalogRead())
+			restoreVariants := core.ActivateNestedSource(scope, e.CatalogRead())
 			scope.Owner.Mu.Lock()
 			e.Mu.Lock()
 			explicit, explicitErr := scope.CaptureDataViewsAtLocked(e, []ids.ObjectRef{targetRef}, false, base)
@@ -160,7 +160,7 @@ func TestConnectbyNestedSourceSnapshotOwnership(t *testing.T) {
 			}
 			// A normal nested SQL activation inside connectby must start with
 			// default demand, not inherit the runtime-named sourceBase.
-			restoreConnectby := core.ActivateConnectbySource(scope, e.CatalogRead())
+			restoreConnectby := core.ActivateNestedSource(scope, e.CatalogRead())
 			restoreOrdinary := scope.ActivateSQLRoutine(nil, e.CatalogRead())
 			scope.Owner.Mu.Lock()
 			e.Mu.Lock()

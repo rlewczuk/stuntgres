@@ -2,19 +2,33 @@ package core
 
 import (
 	"context"
+
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func (h *textSearchHost) StatTextSearch(ctx context.Context, text, weights string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	var values []sqltype.Value
-	err := h.scope().consumeTextSearchSQL(text, true, func(rows exec.RowCursor) error {
-		var err error
-		values, err = exec.ConsumeFTSStatistics(ctx, rows, weights, result)
-		return err
-	})
-	if err != nil {
+	stat := &textSearchStat{textSearchQuery: textSearchQuery{host: h, spi: h.nestedSQL(), text: text}, ctx: ctx, weights: weights, result: result}
+	if err := h.textSearchSQL(text, true, stat); err != nil {
 		return nil, err
 	}
-	return values, nil
+	return stat.values, nil
+}
+
+// textSearchStat consumes ts_stat's document rows.
+type textSearchStat struct {
+	textSearchQuery
+	ctx     context.Context
+	weights string
+	result  *sqltype.Descriptor
+	values  []sqltype.Value
+}
+
+func (t *textSearchStat) NestedRows(_ parser.Statement, rows exec.RowResult) (err error) {
+	if err := textSearchRows(rows); err != nil {
+		return err
+	}
+	t.values, err = exec.ConsumeFTSStatistics(t.ctx, rows, t.weights, t.result)
+	return err
 }

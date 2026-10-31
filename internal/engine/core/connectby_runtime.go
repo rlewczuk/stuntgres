@@ -1,11 +1,9 @@
 package core
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
@@ -146,6 +144,8 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 	if err := emit(&r.Start, nil, 0, r.Start); err != nil {
 		return nil, err
 	}
+	// One SPI consumer serves every child query of this call.
+	command := &connectbyCommand{host: h, spi: h.nestedSQL()}
 	queryChildren := func(key string) (connectbyChildren, error) {
 		var value [1]sqltype.Value
 		value[0] = sqltype.String(r.Text, key)
@@ -157,7 +157,7 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 		if r.Ordered {
 			text += " ORDER BY " + r.Order
 		}
-		children, err := h.scope().connectbyQuery(text)
+		children, err := h.connectbyQuery(command, text)
 		if err != nil {
 			return connectbyChildren{}, err
 		}
@@ -224,69 +224,59 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 
 // Each nested statement uses the real binder/executor, the current private
 // catalog and the outer coherent data view. Only the last SELECT supplies rows.
-func (s *StatementScope) connectbyQuery(text string) (children connectbyChildren, err error) {
-	if err = s.enterSQLRoutine(); err != nil {
+func (h *contribHost) connectbyQuery(command *connectbyCommand, text string) (children connectbyChildren, err error) {
+	spi := command.spi
+	if err = spi.EnterNestedSQL(); err != nil {
 		return children, err
 	}
-	defer s.leaveSQLRoutine()
+	defer spi.LeaveNestedSQL()
 	defer func() {
 		err = exec.RewriteSQLDiagnostic(err, text)
 		if err != nil {
 			children = connectbyChildren{}
 		}
 	}()
-	e := s.Engine()
-	e.Mu.Lock()
-	changes := s.Catalog
-	if changes == nil {
-		changes = s.Owner.Catalog
-	}
-	read := e.PrivateCatalogLocked(changes)
-	e.Mu.Unlock()
-	s.Op.EffectiveSettings().Mu.Lock()
-	standard := s.Op.EffectiveSettings().Value("standard_conforming_strings") == "on"
-	s.Op.EffectiveSettings().Mu.Unlock()
-	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.executionContext(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice, ClosedRoutineFormals: true})
+	read, statements, err := spi.ParseNestedSQL(h.host().Context(), text)
 	if err != nil {
 		return children, err
 	}
+	// Nested sources borrow the saved outer frontier, not its fixed set of
+	// admitted source members.
+	request := exec.NestedRequest{Caller: "connectby", ReadOnly: true, BorrowSource: true, CloseFailed: true}
 	for _, statement := range statements {
-		part, stop, partErr := s.connectbyStatement(statement, read)
-		if partErr != nil {
-			return children, partErr
+		command.children, command.stop = connectbyChildren{}, false
+		if err := spi.ExecuteNestedSQL(statement, read, request, command); err != nil {
+			return children, err
 		}
-		children = part
-		if stop {
+		children = command.children
+		if command.stop {
 			break
 		}
 	}
 	return children, nil
 }
 
-// activateConnectbySource borrows the saved outer frontier, not its fixed set
-// of admitted source members. Activation's restoration owns the local View.
-func (s *StatementScope) activateConnectbySource(read catalog.Read) func(error) error {
-	outer := s.View
-	restore := s.ActivateSQLRoutine(nil, read)
-	if outer != nil {
-		s.sqlRoutine.sourceBase = outer.Load()
-	}
-	return restore
+// connectbyCommand is one command of connectby's source SQL, run as
+// read-only SPI.
+type connectbyCommand struct {
+	host     *contribHost
+	spi      exec.NestedSQL
+	children connectbyChildren
+	stop     bool
 }
 
-func (s *StatementScope) connectbyStatement(statement parser.Statement, read catalog.Read) (children connectbyChildren, stop bool, err error) {
-	restore := s.activateConnectbySource(read)
-	defer func() { err = restore(err) }()
-	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor, s.sqlRoutine.readOnlySPI = false, true, true
+func (c *connectbyCommand) NestedCommand(statement parser.Statement) (bool, error) {
 	// SPI rejects transaction commands and frontend COPY with a negative
 	// result, terminating the list without throwing an SQL error. connectby
 	// consumes only SPI_OK_SELECT, so that outcome supplies no children.
 	switch command := statement.(type) {
 	case *parser.TransactionControl, *parser.SavepointControl:
-		return children, true, nil
+		c.stop = true
+		return true, nil
 	case *parser.Copy:
 		if command.Endpoint != parser.CopyFile && command.Endpoint != parser.CopyProgram {
-			return children, true, nil
+			c.stop = true
+			return true, nil
 		}
 	}
 	// Utility plans are not executed (or execution-validated) in read-only
@@ -294,66 +284,51 @@ func (s *StatementScope) connectbyStatement(statement parser.Statement, read cat
 	switch statement.(type) {
 	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 	default:
-		return children, false, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in a non-volatile function")
+		return false, SQLError("0A000", c.spi.NestedCommandTag(statement)+" is not allowed in a non-volatile function")
 	}
-	if err = s.AcquireRelation(statement, true); err != nil {
-		return children, false, err
-	}
-	description, err := s.Engine().describeOperation(s, statement)
-	if err != nil {
-		return children, false, err
-	}
-	s.Expected = &description
-	result, err := s.Engine().executeStatement(s, statement, 0, func(_ context.Context, info analyze.ParameterInfo, _ []sqltype.Value, _ sqltype.InputEnvironment) error {
-		if info.Count != 0 {
-			return fmt.Errorf("stuntgres: connectby SQL parameter frame is not empty")
-		}
-		return nil
-	})
-	defer func() {
-		if result.Rows != nil {
-			if closeErr := result.Rows.Close(); err == nil {
-				err = closeErr
-			}
-		}
-		for _, rows := range result.RowSets {
+	return false, nil
+}
+
+func (c *connectbyCommand) NestedAnalyzed(parser.Statement) error { return nil }
+
+func (c *connectbyCommand) NestedRows(statement parser.Statement, rows exec.RowResult) (err error) {
+	if rows != nil {
+		defer func() {
 			if closeErr := rows.Close(); err == nil {
 				err = closeErr
 			}
-		}
-	}()
-	if err != nil {
-		return children, false, err
+		}()
 	}
 	selecting := false
 	switch command := statement.(type) {
 	case *parser.Select:
 		selecting = command.Into == nil
 	}
-	if !selecting || result.Rows == nil {
-		return children, false, nil
+	if !selecting || rows == nil {
+		return nil
 	}
-	schema := result.Rows.Schema()
+	schema := rows.Schema()
 	kept := len(schema)
 	if kept > 2 {
 		kept = 2
 	}
-	children.schema = append([]catalog.Column(nil), schema[:kept]...)
+	c.children.schema = append([]catalog.Column(nil), schema[:kept]...)
 	buffer := make([]sqltype.Value, len(schema))
+	host := c.host.host()
 	for {
-		if err = s.executionContext().Err(); err != nil {
-			return children, false, err
+		if err = host.Context().Err(); err != nil {
+			return err
 		}
-		present, nextErr := result.Rows.Next(s.executionContext(), buffer)
+		present, nextErr := rows.Next(host.Context(), buffer)
 		if nextErr != nil {
-			return children, false, nextErr
+			return nextErr
 		}
 		if !present {
 			break
 		}
 		var row [2]sqltype.Value
 		copy(row[:], buffer)
-		children.rows = append(children.rows, row)
+		c.children.rows = append(c.children.rows, row)
 	}
-	return children, false, nil
+	return nil
 }

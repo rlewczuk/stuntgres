@@ -53,7 +53,7 @@ func (c *connectbyOwnershipContext) Err() error {
 }
 
 // Phase evidence counts actual child-query entries, not general Err polls.
-// The second connectbyQuery parse and connectbyStatement activation can only
+// The second connectbyQuery parse and nested statement execution can only
 // occur after emit has completed a non-root row. Cancellation then waits for
 // the exact traversal frame, excluding Connectby's emit/query closures.
 type connectbyPhaseContext struct {
@@ -69,7 +69,7 @@ func (c *connectbyPhaseContext) Err() error {
 	}
 	var pcs [64]uintptr
 	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
-	direct, caller := "", ""
+	direct, caller, grand := "", "", ""
 	statement, sorting := false, false
 	for i := 0; ; i++ {
 		frame, more := frames.Next()
@@ -77,14 +77,16 @@ func (c *connectbyPhaseContext) Err() error {
 			direct = frame.Function
 		} else if i == 1 {
 			caller = frame.Function
+		} else if i == 2 {
+			grand = frame.Function
 		}
-		statement = statement || strings.HasSuffix(frame.Function, ".(*StatementScope).connectbyStatement")
+		statement = statement || strings.HasSuffix(frame.Function, ".(*statementHost).ExecuteNestedSQL")
 		sorting = sorting || strings.HasSuffix(frame.Function, ".CompareQueryOrder")
 		if !more {
 			break
 		}
 	}
-	if strings.HasSuffix(direct, "/parser.ParseWithOptions") && strings.HasSuffix(caller, ".(*StatementScope).connectbyQuery") {
+	if strings.HasSuffix(direct, "/parser.ParseWithOptions") && strings.HasSuffix(caller, ".(*statementHost).ParseNestedSQL") && strings.HasSuffix(grand, ".(*contribHost).connectbyQuery") {
 		c.queries++
 	}
 	if statement {
