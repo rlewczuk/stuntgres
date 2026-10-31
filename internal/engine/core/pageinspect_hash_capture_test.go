@@ -19,7 +19,7 @@ func TestPageinspectHashLiveCaptureAuthority(t *testing.T){
   e.Mu.Lock();auth,err:=core.ScopeWriteAuthorizationLocked(scope,e);var bound expr.Expr
   if err==nil{b:=core.NewExpressionBinder(scope.Op.Context(),e,scope.Input,scope.Op,nil);b.Query.Auth=&auth;b.Clause.AggregateClause="SELECT";bound,err=b.BindFunctionProvider(raw);if err==nil{scope.RoutineAuth,scope.RoutineDependencies=auth,b.Dependencies}}
   e.Mu.Unlock();if err!=nil{t.Fatal(err)};call:=bound.(plan.InstalledPageinspectExpr)
-  if _,err:=scope.WriteHost().Pageinspect(call,0);err!=nil{t.Fatal("hash live capture",err)}
+  if _,err:=scope.WriteHost().Contrib().Pageinspect(call,0);err!=nil{t.Fatal("hash live capture",err)}
   evaluation:=&exec.Context{EvalStatement:exec.EvalStatement{Context:scope.Op.Context(),Catalog:auth.Catalog,Host:core.HostOf(scope),Input:scope.Input,Output:scope.Output}}
   page:=make([]byte,8192);binary.LittleEndian.PutUint16(page[12:],28);binary.LittleEndian.PutUint16(page[14:],8160);binary.LittleEndian.PutUint16(page[16:],8176);binary.LittleEndian.PutUint16(page[18:],0x2004);binary.LittleEndian.PutUint16(page[8188:],2);binary.LittleEndian.PutUint16(page[8190:],0xff80)
   binary.LittleEndian.PutUint32(page[24:],8160|1<<15|16<<17);binary.LittleEndian.PutUint16(page[8160:],1);binary.LittleEndian.PutUint16(page[8162:],2);binary.LittleEndian.PutUint16(page[8164:],513);binary.LittleEndian.PutUint16(page[8166:],16);binary.LittleEndian.PutUint32(page[8168:],0xffffffff)

@@ -58,7 +58,7 @@ func amcheckTargetCheckable(auth AuthorizationView, d, parent *catalog.Relation,
 	return nil
 }
 
-func (h *statementHost) Amcheck(n plan.InstalledAmcheckExpr, oid uint32, flags [3]bool) (err error) {
+func (h *contribHost) Amcheck(n plan.InstalledAmcheckExpr, oid uint32, flags [3]bool) (err error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return err

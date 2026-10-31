@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
+func (h *transactionInquiryHost) TransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -18,12 +18,12 @@ func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
 	return e.transactionAgeLocked(scope.TxRef, xid)
 }
 
-func (h *statementHost) MultiTransactionAge(xid uint32) (int32, error) {
+func (h *transactionInquiryHost) MultiTransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
 	return scope.Engine().Locks.MultiAge(scope.LockTicket, xid)
 }
 
-func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
+func (h *transactionInquiryHost) CurrentTransactionID(assign bool) (uint64, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -39,7 +39,7 @@ func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 	return e.Visibility.FullXIDLocked(scope.TxRef), nil
 }
 
-func (h *statementHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
+func (h *transactionInquiryHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -58,7 +58,7 @@ func (h *statementHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	return scope.currentSnapshot, nil
 }
 
-func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
+func (h *transactionInquiryHost) TransactionStatus(full uint64) (string, bool, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -69,7 +69,7 @@ func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 	return e.Visibility.TransactionStatusLocked(full)
 }
 
-func (h *statementHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (h *transactionInquiryHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
 	members, err := scope.Engine().Locks.MultiXactMembers(scope.Engine().Catalog.Domain, scope.LockTicket, xid)
 	if err != nil {
@@ -95,7 +95,7 @@ func commitTimestampDisabled() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 }
 
-func (h *statementHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
+func (h *transactionInquiryHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -108,7 +108,7 @@ func (h *statementHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, er
 	return entry.Stamp, entry.Origin, entry.Present, nil
 }
 
-func (h *statementHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
+func (h *transactionInquiryHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()

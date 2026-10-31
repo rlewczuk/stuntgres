@@ -90,7 +90,7 @@ func (c *connectbyPhaseContext) Err() error {
 	if statement {
 		c.admitted = c.queries
 	}
-	if c.cancel != nil && (c.sort && sorting || c.traversal && c.admitted >= 2 && strings.HasSuffix(direct, ".(*statementHost).Connectby")) {
+	if c.cancel != nil && (c.sort && sorting || c.traversal && c.admitted >= 2 && strings.HasSuffix(direct, ".(*contribHost).Connectby")) {
 		c.entered = true
 		c.cancel()
 	}

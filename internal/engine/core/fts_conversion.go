@@ -18,7 +18,7 @@ import (
 // when omitted. Engine.Mu precedes the effective settings mutex. Parser,
 // dictionary and notice callbacks run detached; runtime demand follows the
 // actual ordered chain, never every mapping or a category prewarm.
-func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *textSearchHost) ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	captured, err := h.captureTextSearchInput(ctx, explicit, value, false)
 	if err != nil {
@@ -53,7 +53,7 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := capture.accept(ctx, h); err != nil {
+		if err := capture.accept(ctx, h.host()); err != nil {
 			return sqltype.Value{}, err
 		}
 		return value, nil
@@ -73,7 +73,7 @@ func (h *statementHost) ConvertTextSearch(ctx context.Context, kind fts.Conversi
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if err := capture.accept(ctx, h); err != nil {
+	if err := capture.accept(ctx, h.host()); err != nil {
 		return sqltype.Value{}, err
 	}
 	return value, nil

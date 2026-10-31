@@ -92,7 +92,7 @@ func (c *Context) pageinspectInput(n plan.InstalledPageinspectExpr) (input pagei
 	if host == nil {
 		return input, fmt.Errorf("stuntgres: missing pageinspect statement runtime")
 	}
-	input.columns, err = host.Pageinspect(n, oid)
+	input.columns, err = host.Contrib().Pageinspect(n, oid)
 	if err != nil {
 		return input, err
 	}
@@ -302,7 +302,7 @@ func (c *Context) openBtreePageinspect(n plan.InstalledPageinspectExpr) (expr.So
 	}
 	if page.IsDeleted() {
 		for _, message := range []string{"page is deleted", "page from block is deleted"} {
-			c.LiveHost().PageinspectNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
+			c.LiveHost().Contrib().PageinspectNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 		}
 	}
 	items, err := page.Items(c.Context)

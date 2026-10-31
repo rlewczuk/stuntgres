@@ -34,7 +34,7 @@ func (s *StatementScope) insertTriggerUsername(relation *catalog.Relation, p sto
 	if text.ID() != sqltype.Text {
 		return SQLError("09000", `attribute "`+name+`" of "`+relation.Name()+`" must be type TEXT`)
 	}
-	identity, err := s.WriteHost().IdentityValue(&exec.Context{}, functions.IdentityCurrentUser, text)
+	identity, err := (*sessionInquiryHost)(s).IdentityValue(&exec.Context{}, functions.IdentityCurrentUser, text)
 	if err != nil { return err }
 	username, err := identity.Text()
 	if err != nil { return err }

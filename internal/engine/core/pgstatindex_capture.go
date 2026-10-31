@@ -20,7 +20,7 @@ import (
 
 // Only the supplied index is locked. Parent storage is borrowed coherently
 // under Owner.Mu then Engine.Mu, without owner switching or recipe callbacks.
-func (h *statementHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
+func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err = s.Active(); err != nil {
 		return

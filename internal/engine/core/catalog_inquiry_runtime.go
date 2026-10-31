@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
@@ -42,16 +42,16 @@ func (h *statementHost) catalogInquiryCatalog() (catalog.Read, error) {
 	return view, nil
 }
 
-func (h *statementHost) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	view, err := h.catalogInquiryCatalog()
+func (h *catalogInquiryHost) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	view, err := h.host().catalogInquiryCatalog()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	return ddl.TablespaceLocation(view, oid, result)
 }
 
-func (h *statementHost) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
-	view, err := h.catalogInquiryCatalog()
+func (h *catalogInquiryHost) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
+	view, err := h.host().catalogInquiryCatalog()
 	if err != nil {
 		return sqltype.Value{}, false, err
 	}

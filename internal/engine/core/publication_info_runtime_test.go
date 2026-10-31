@@ -46,11 +46,11 @@ func TestPublicationInquiryCaptureAuthority(t *testing.T) {
 	array, _ := view.LookupType(1009)
 	scope := tablespaceInfoUnitScope(t, e)
 	host := core.HostOf(scope)
-	value, err := host.RelationIsPublishable(4294967295, boolean)
+	value, err := host.CatalogInquiry().RelationIsPublishable(4294967295, boolean)
 	if err != nil || !value.IsNull() {
 		t.Fatal("missing relation", value, err)
 	}
-	value, err = host.RelationIsPublishable(1259, boolean)
+	value, err = host.CatalogInquiry().RelationIsPublishable(1259, boolean)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestPublicationInquiryCaptureAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cursor, err := host.PublicationTables(empty, shape)
+	cursor, err := host.CatalogInquiry().PublicationTables(empty, shape)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,10 +72,10 @@ func TestPublicationInquiryCaptureAuthority(t *testing.T) {
 	}
 	for _, bad := range []catalog.Read{{}, engine.New().CatalogRead()} {
 		scope.Inquiry.CommentCatalog = bad
-		if _, err := host.RelationIsPublishable(1259, boolean); err == nil {
+		if _, err := host.CatalogInquiry().RelationIsPublishable(1259, boolean); err == nil {
 			t.Fatal("accepted foreign scalar capture")
 		}
-		if _, err := host.PublicationTables(empty, shape); err == nil {
+		if _, err := host.CatalogInquiry().PublicationTables(empty, shape); err == nil {
 			t.Fatal("accepted foreign SRF capture")
 		}
 	}
@@ -95,7 +95,7 @@ func TestPublicationInquiryNameDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = host.PublicationTables(names, shape)
+		_, err = host.CatalogInquiry().PublicationTables(names, shape)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Severity != "ERROR" || diagnostic.SeverityUnlocalized != "ERROR" {
 			t.Fatal(tc.input, err)
@@ -115,7 +115,7 @@ func TestPublicationInquiryUsesCapturedRelationFacts(t *testing.T) {
 	scope := tablespaceInfoUnitScope(t, e)
 	scope.Inquiry.CommentCatalog = view
 	host := core.HostOf(scope)
-	value, err := host.RelationIsPublishable(49001, boolean)
+	value, err := host.CatalogInquiry().RelationIsPublishable(49001, boolean)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestPublicationInquiryUsesCapturedRelationFacts(t *testing.T) {
 		t.Fatal("captured ordinary relation", value, err)
 	}
 	scope.Inquiry.CommentCatalog = base
-	missing, err := host.RelationIsPublishable(49001, boolean)
+	missing, err := host.CatalogInquiry().RelationIsPublishable(49001, boolean)
 	if err != nil || !missing.IsNull() {
 		t.Fatal("fresh capture", missing, err)
 	}
@@ -215,7 +215,7 @@ func TestPublicationEmptyProjectionCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			host := core.HostOf(tablespaceInfoUnitScope(t, e))
-			old, err := host.PublicationTables(names, shape)
+			old, err := host.CatalogInquiry().PublicationTables(names, shape)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -263,7 +263,7 @@ func TestPublicationEmptyProjectionCapture(t *testing.T) {
 				t.Fatal("unexpected captured inquiry row", ok, err)
 			}
 			freshHost := core.HostOf(tablespaceInfoUnitScope(t, e))
-			fresh, err := freshHost.PublicationTables(names, shape)
+			fresh, err := freshHost.CatalogInquiry().PublicationTables(names, shape)
 			if err != nil {
 				t.Fatal(err)
 			}

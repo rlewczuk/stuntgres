@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) DeparseInquiry(c *exec.Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")

@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func (h *statementHost) ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error {
+func (h *contribHost) ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return err

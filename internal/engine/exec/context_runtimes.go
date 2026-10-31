@@ -194,7 +194,7 @@ func (c *Context) FormatType(oid uint32, typmod int32, specified bool, result *s
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")
 	}
-	return host.FormatType(oid, typmod, specified, result)
+	return host.CatalogInquiry().FormatType(oid, typmod, specified, result)
 }
 
 func (c *Context) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -202,7 +202,7 @@ func (c *Context) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Valu
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")
 	}
-	return host.BaseType(oid, result)
+	return host.CatalogInquiry().BaseType(oid, result)
 }
 
 func (c *Context) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -210,7 +210,7 @@ func (c *Context) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqlty
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
-	return host.CatalogUserName(oid, result)
+	return host.CatalogInquiry().CatalogUserName(oid, result)
 }
 
 func (c *Context) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -218,7 +218,7 @@ func (c *Context) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sq
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing tablespace inquiry snapshot")
 	}
-	return host.TablespaceLocation(oid, result)
+	return host.CatalogInquiry().TablespaceLocation(oid, result)
 }
 
 func (c *Context) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
@@ -226,7 +226,7 @@ func (c *Context) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sq
 	if host == nil {
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: missing tablespace inquiry snapshot")
 	}
-	return host.TablespaceDatabase(oid, result)
+	return host.CatalogInquiry().TablespaceDatabase(oid, result)
 }
 
 func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -234,7 +234,7 @@ func (c *Context) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork s
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing size inquiry snapshot")
 	}
-	return host.SizeInquiry(kind, arg, fork, result)
+	return host.CatalogInquiry().SizeInquiry(kind, arg, fork, result)
 }
 
 func (c *Context) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -242,7 +242,7 @@ func (c *Context) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, se
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing database files inquiry snapshot")
 	}
-	return host.DatabaseFilesInquiry(kind, arg, second, result)
+	return host.CatalogInquiry().DatabaseFilesInquiry(kind, arg, second, result)
 }
 
 func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
@@ -250,7 +250,7 @@ func (c *Context) GenericFileList(kind functions.GenericFileListKind, dirname st
 	if host == nil {
 		return fmt.Errorf("stuntgres: missing generic file listing host")
 	}
-	return host.GenericFileList(kind, dirname)
+	return host.Contrib().GenericFileList(kind, dirname)
 }
 
 func (c *Context) LogicalDecoding(slot, options sqltype.Value) error {
@@ -266,7 +266,7 @@ func (c *Context) GenericFileRead(kind functions.GenericFileReadKind, filename s
 	if host == nil {
 		return fmt.Errorf("stuntgres: missing generic file read host")
 	}
-	return host.GenericFileRead(kind, filename, length, hasLength)
+	return host.Contrib().GenericFileRead(kind, filename, length, hasLength)
 }
 
 func (c *Context) GenericFileTmpdir(oid uint32) error {
@@ -274,7 +274,7 @@ func (c *Context) GenericFileTmpdir(oid uint32) error {
 	if host == nil {
 		return fmt.Errorf("stuntgres: missing temporary file listing host")
 	}
-	return host.GenericFileTmpdir(oid)
+	return host.Contrib().GenericFileTmpdir(oid)
 }
 
 func (c *Context) PartitionTree(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
@@ -282,7 +282,7 @@ func (c *Context) PartitionTree(oid uint32, result *sqltype.Descriptor) (expr.So
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing partition inquiry snapshot")
 	}
-	return host.PartitionTree(oid, result)
+	return host.CatalogInquiry().PartitionTree(oid, result)
 }
 
 func (c *Context) PartitionAncestors(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
@@ -290,7 +290,7 @@ func (c *Context) PartitionAncestors(oid uint32, result *sqltype.Descriptor) (ex
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing partition inquiry snapshot")
 	}
-	return host.PartitionAncestors(oid, result)
+	return host.CatalogInquiry().PartitionAncestors(oid, result)
 }
 
 func (c *Context) PartitionRoot(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -298,7 +298,7 @@ func (c *Context) PartitionRoot(oid uint32, result *sqltype.Descriptor) (sqltype
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing partition inquiry snapshot")
 	}
-	return host.PartitionRoot(oid, result)
+	return host.CatalogInquiry().PartitionRoot(oid, result)
 }
 
 func (c *Context) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -306,7 +306,7 @@ func (c *Context) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) 
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing publication inquiry snapshot")
 	}
-	return host.RelationIsPublishable(oid, result)
+	return host.CatalogInquiry().RelationIsPublishable(oid, result)
 }
 
 func (c *Context) PublicationTables(names sqltype.Value, result *sqltype.Descriptor) (expr.SourceCursor, error) {
@@ -314,7 +314,7 @@ func (c *Context) PublicationTables(names sqltype.Value, result *sqltype.Descrip
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing publication inquiry snapshot")
 	}
-	return host.PublicationTables(names, result)
+	return host.CatalogInquiry().PublicationTables(names, result)
 }
 
 func (c *Context) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -322,7 +322,7 @@ func (c *Context) CommentInquiry(kind functions.CommentInquiryKind, values [2]sq
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
-	return host.CommentInquiry(c, kind, values, provenance, result)
+	return host.CatalogInquiry().CommentInquiry(c, kind, values, provenance, result)
 }
 
 // Imported parameters remain Execute-owned. This predicate inspects structure
@@ -349,7 +349,7 @@ func (c *Context) DeparseInquiry(signature functions.DeparseSignature, values [3
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
-	return host.DeparseInquiry(c, signature, values, result)
+	return host.CatalogInquiry().DeparseInquiry(c, signature, values, result)
 }
 
 // PlannedVolatility inspects the physical surviving tree. Analysis properties
@@ -526,7 +526,7 @@ func (c *Context) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, er
 		if host == nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unaccent lacks statement authority")
 		}
-		return host.UnaccentText(n.Ref, input, n.Usage.Type)
+		return host.TextSearch().UnaccentText(n.Ref, input, n.Usage.Type)
 	}
 	return n.InstalledText.Eval(c)
 }
@@ -566,7 +566,7 @@ func (c *Context) IndexProperty(kind functions.IndexPropertyKind, oid uint32, or
 	if host == nil {
 		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 	}
-	return host.IndexProperty(kind, oid, ordinalValue, property)
+	return host.CatalogInquiry().IndexProperty(kind, oid, ordinalValue, property)
 }
 
 func (c *Context) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAddress, error) {
@@ -574,7 +574,7 @@ func (c *Context) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAddres
 	if host == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return host.LookupObjectAddress(c, values)
+	return host.CatalogInquiry().LookupObjectAddress(c, values)
 }
 
 func (c *Context) IdentifyObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -582,7 +582,7 @@ func (c *Context) IdentifyObject(values [3]sqltype.Value, result *sqltype.Descri
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return host.IdentifyObject(c, values, result)
+	return host.CatalogInquiry().IdentifyObject(c, values, result)
 }
 
 func (c *Context) IdentifyObjectAddress(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -590,7 +590,7 @@ func (c *Context) IdentifyObjectAddress(values [3]sqltype.Value, result *sqltype
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return host.IdentifyObjectAddress(c, values, result)
+	return host.CatalogInquiry().IdentifyObjectAddress(c, values, result)
 }
 
 var _ functions.EventTriggerDroppedRuntime = (*Context)(nil)
@@ -622,7 +622,7 @@ func (c *Context) DescribeObject(values [3]sqltype.Value, result *sqltype.Descri
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return host.DescribeObject(c, values, result)
+	return host.CatalogInquiry().DescribeObject(c, values, result)
 }
 
 func (c *Context) FunctionPgcryptoEntropy(bytes []byte) error {
@@ -713,7 +713,7 @@ func (c *Context) IdentityValue(kind functions.IdentityKind, result *sqltype.Des
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: identity lacks statement authority")
 	}
-	return host.IdentityValue(c, kind, result)
+	return host.SessionInquiry().IdentityValue(c, kind, result)
 }
 
 var _ functions.SessionInquiryRuntime = (*Context)(nil)
@@ -723,7 +723,7 @@ func (c *Context) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sql
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}
-	return host.CurrentSchemas(implicit, result)
+	return host.SessionInquiry().CurrentSchemas(implicit, result)
 }
 
 func (c *Context) MyTempNamespace() (uint32, error) {
@@ -731,7 +731,7 @@ func (c *Context) MyTempNamespace() (uint32, error) {
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
-	return host.MyTempNamespace()
+	return host.SessionInquiry().MyTempNamespace()
 }
 
 func (c *Context) OtherTempNamespace(oid uint32) (bool, error) {
@@ -739,7 +739,7 @@ func (c *Context) OtherTempNamespace(oid uint32) (bool, error) {
 	if host == nil {
 		return false, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
-	return host.OtherTempNamespace(oid)
+	return host.SessionInquiry().OtherTempNamespace(oid)
 }
 
 func (c *Context) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
@@ -747,7 +747,7 @@ func (c *Context) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: notification inquiry lacks statement authority")
 	}
-	return host.ListeningChannels(result)
+	return host.SessionInquiry().ListeningChannels(result)
 }
 
 func (c *Context) NotificationQueueUsage() (float64, error) {
@@ -755,7 +755,7 @@ func (c *Context) NotificationQueueUsage() (float64, error) {
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: notification inquiry lacks statement authority")
 	}
-	return host.NotificationQueueUsage()
+	return host.SessionInquiry().NotificationQueueUsage()
 }
 
 var _ functions.TransactionInquiryRuntime = (*Context)(nil)
@@ -774,7 +774,7 @@ func (c *Context) TransactionAge(xid uint32) (int32, error) {
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
-	return host.TransactionAge(xid)
+	return host.TransactionInquiry().TransactionAge(xid)
 }
 
 func (c *Context) MultiTransactionAge(xid uint32) (int32, error) {
@@ -782,7 +782,7 @@ func (c *Context) MultiTransactionAge(xid uint32) (int32, error) {
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
-	return host.MultiTransactionAge(xid)
+	return host.TransactionInquiry().MultiTransactionAge(xid)
 }
 
 func (c *Context) CurrentTransactionID(assign bool) (uint64, error) {
@@ -790,7 +790,7 @@ func (c *Context) CurrentTransactionID(assign bool) (uint64, error) {
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
-	return host.CurrentTransactionID(assign)
+	return host.TransactionInquiry().CurrentTransactionID(assign)
 }
 
 func (c *Context) CurrentSnapshot() (*sqltype.Snapshot, error) {
@@ -798,7 +798,7 @@ func (c *Context) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: snapshot inquiry lacks statement scope")
 	}
-	return host.CurrentSnapshot()
+	return host.TransactionInquiry().CurrentSnapshot()
 }
 
 func (c *Context) TransactionStatus(full uint64) (string, bool, error) {
@@ -806,7 +806,7 @@ func (c *Context) TransactionStatus(full uint64) (string, bool, error) {
 	if host == nil {
 		return "", false, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
-	return host.TransactionStatus(full)
+	return host.TransactionInquiry().TransactionStatus(full)
 }
 
 func (c *Context) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
@@ -814,7 +814,7 @@ func (c *Context) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: MultiXact lacks statement scope")
 	}
-	return host.TransactionMembers(xid, result)
+	return host.TransactionInquiry().TransactionMembers(xid, result)
 }
 
 func (c *Context) Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
@@ -825,7 +825,7 @@ func (c *Context) Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: pgrowlocks lacks statement scope")
 	}
-	return host.Pgrowlocks(name, result)
+	return host.Contrib().Pgrowlocks(name, result)
 }
 
 func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCursor, error) {
@@ -836,7 +836,7 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: pgrowlocks lacks statement scope")
 	}
-	if err := host.ValidatePgrowlocks(n); err != nil {
+	if err := host.Contrib().ValidatePgrowlocks(n); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return n.Pgrowlocks.OpenSource(c)
@@ -850,7 +850,7 @@ func (c *Context) OpenTablefuncNormal(n plan.InstalledTablefuncNormalExpr) (expr
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: normal_rand lacks statement scope")
 	}
-	if err := host.ValidateTablefuncNormal(n); err != nil {
+	if err := host.Contrib().ValidateTablefuncNormal(n); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return n.TablefuncNormal.OpenSource(c)
@@ -864,7 +864,7 @@ func (c *Context) OpenConnectby(n plan.InstalledConnectbyExpr) (expr.SourceCurso
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: connectby lacks statement scope")
 	}
-	if err := host.ValidateConnectby(n); err != nil {
+	if err := host.Contrib().ValidateConnectby(n); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return n.Connectby.OpenSource(c)
@@ -878,7 +878,7 @@ func (c *Context) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value
 		return nil, fmt.Errorf("stuntgres: connectby lacks statement scope")
 	}
 	request.Input, request.Output = c.FunctionJSONBRecordInput(), c.Output
-	return host.Connectby(request)
+	return host.Contrib().Connectby(request)
 }
 
 func (c *Context) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
@@ -889,7 +889,7 @@ func (c *Context) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: crosstab lacks statement scope")
 	}
-	return host.TablefuncCrosstab(text, result)
+	return host.Contrib().TablefuncCrosstab(text, result)
 }
 
 func (c *Context) OpenTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) (expr.SourceCursor, error) {
@@ -900,7 +900,7 @@ func (c *Context) OpenTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) (
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: crosstab lacks statement scope")
 	}
-	if err := host.ValidateTablefuncCrosstab(n); err != nil {
+	if err := host.Contrib().ValidateTablefuncCrosstab(n); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return n.TablefuncCrosstab.OpenSource(c)
@@ -914,7 +914,7 @@ func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: verify_heapam lacks statement scope")
 	}
-	return host.VerifyHeapam(args, result)
+	return host.Contrib().VerifyHeapam(args, result)
 }
 
 func (c *Context) OpenVerifyHeapam(n plan.InstalledVerifyHeapamExpr) (expr.SourceCursor, error) {
@@ -925,7 +925,7 @@ func (c *Context) OpenVerifyHeapam(n plan.InstalledVerifyHeapamExpr) (expr.Sourc
 	if host == nil {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: verify_heapam lacks statement scope")
 	}
-	if err := host.ValidateVerifyHeapam(n); err != nil {
+	if err := host.Contrib().ValidateVerifyHeapam(n); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return n.VerifyHeapam.OpenSource(c)
@@ -936,7 +936,7 @@ func (c *Context) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	if host == nil {
 		return time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
-	return host.CommitTimestamp(xid)
+	return host.TransactionInquiry().CommitTimestamp(xid)
 }
 
 func (c *Context) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
@@ -944,7 +944,7 @@ func (c *Context) LastCommittedTransaction() (uint32, time.Time, uint32, bool, e
 	if host == nil {
 		return 0, time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
-	return host.LastCommittedTransaction()
+	return host.TransactionInquiry().LastCommittedTransaction()
 }
 
 func (c *Context) FunctionStatementTime() (time.Time, error) {
@@ -995,7 +995,7 @@ func (c *Context) VisibilityInquiry(kind functions.VisibilityInquiryKind, value 
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement authority")
 	}
-	return host.VisibilityInquiry(kind, value, result)
+	return host.CatalogInquiry().VisibilityInquiry(kind, value, result)
 }
 
 var _ functions.FTSQueryRuntime = (*Context)(nil)
@@ -1005,7 +1005,7 @@ func (c *Context) RewriteQuerySQL(query sqltype.Value, text string, result *sqlt
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: ts_rewrite lacks statement authority")
 	}
-	return host.RewriteQuerySQL(query, text, result)
+	return host.TextSearch().RewriteQuerySQL(query, text, result)
 }
 
 var _ functions.XMLMappingRuntime = (*Context)(nil)
@@ -1025,7 +1025,7 @@ func (c *Context) LexizeDictionary(dictionary sqltype.Value, text string, result
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: ts_lexize lacks statement authority")
 	}
-	return host.LexizeDictionary(dictionary, text, result)
+	return host.TextSearch().LexizeDictionary(dictionary, text, result)
 }
 
 var _ functions.FTSConversionRuntime = (*Context)(nil)
@@ -1035,7 +1035,7 @@ func (c *Context) ConvertTextSearch(kind fts.ConversionKind, explicit bool, conf
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: text search conversion lacks statement authority")
 	}
-	return host.ConvertTextSearch(c.Context, kind, explicit, configuration, text, result)
+	return host.TextSearch().ConvertTextSearch(c.Context, kind, explicit, configuration, text, result)
 }
 
 func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
@@ -1043,7 +1043,7 @@ func (c *Context) ConvertJSONTextSearch(explicit bool, configuration, document, 
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: JSON text search conversion lacks statement authority")
 	}
-	return host.ConvertJSONTextSearch(c.Context, explicit, configuration, document, filter, filtered, result)
+	return host.TextSearch().ConvertJSONTextSearch(c.Context, explicit, configuration, document, filter, filtered, result)
 }
 
 func (c *Context) ReplicationSlot(kind functions.ReplicationSlotKind, arity uint8, values [5]sqltype.Value) error {

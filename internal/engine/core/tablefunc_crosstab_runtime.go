@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error {
+func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return err
@@ -32,7 +32,7 @@ func (h *statementHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCross
 	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Catalog)
 }
 
-func (h *statementHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) (values []sqltype.Value, err error) {
+func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) (values []sqltype.Value, err error) {
 	s := h.scope()
 	if err := s.enterSQLRoutine(); err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (h *statementHost) TablefuncCrosstab(text string, result *sqltype.Descripto
 	return values, nil
 }
 
-func (h *statementHost) tablefuncCrosstabStatement(statement parser.Statement, read catalog.Read, result *sqltype.Descriptor, text string, last bool) (values []sqltype.Value, err error) {
+func (h *contribHost) tablefuncCrosstabStatement(statement parser.Statement, read catalog.Read, result *sqltype.Descriptor, text string, last bool) (values []sqltype.Value, err error) {
 	s, e := h.scope(), h.scope().Engine()
 	view, refs := s.View, s.rlsDataRefs
 	// Admission, expected analysis and source authority belong to one command,
@@ -112,7 +112,7 @@ func (h *statementHost) tablefuncCrosstabStatement(statement parser.Statement, r
 	}
 	if execution.Rows != nil {
 		if last {
-			input, output := h.Environments()
+			input, output := h.host().Environments()
 			// Match the shared routine-result diagnostic path: successful pivots
 			// never capture a catalog/path display snapshot.
 			var name func(sqltype.ID) string

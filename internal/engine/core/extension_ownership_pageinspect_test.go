@@ -180,7 +180,7 @@ func TestPageinspectLiveCaptureAuthority(t *testing.T) {
 	}
 	call := node.(plan.InstalledPageinspectExpr)
 	scope := pgrowlocksUnitScope(t, e, s)
-	if _, err := scope.WriteHost().Pageinspect(call, 0); err != nil {
+	if _, err := scope.WriteHost().Contrib().Pageinspect(call, 0); err != nil {
 		t.Fatal("genuine live pageinspect capture rejected", err)
 	}
 	foreign, ext := ownershipUnitInstall(t, "pageinspect")
@@ -203,7 +203,7 @@ func TestPageinspectLiveCaptureAuthority(t *testing.T) {
 	} {
 		bad := call
 		mutate(&bad)
-		if _, err := scope.WriteHost().Pageinspect(bad, 0); err == nil {
+		if _, err := scope.WriteHost().Contrib().Pageinspect(bad, 0); err == nil {
 			t.Fatal("forged live pageinspect capture accepted")
 		}
 	}

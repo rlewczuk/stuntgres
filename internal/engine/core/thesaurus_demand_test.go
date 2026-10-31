@@ -67,7 +67,7 @@ func thesaurusUnitConvert(t *testing.T, e *core.Engine, s *session.Session, ctx 
 			return gate(class)
 		}))
 	}
-	return core.HostOf(scope).ConvertTextSearch(ctx, fts.VectorConversion, true, config, input, vectorType)
+	return core.HostOf(scope).TextSearch().ConvertTextSearch(ctx, fts.VectorConversion, true, config, input, vectorType)
 }
 
 func thesaurusUnitVector(t *testing.T, value sqltype.Value, err error, want string) {
@@ -299,7 +299,7 @@ func TestFTSConvertNormalizationOwner(t *testing.T) {
 	for _, tc := range []struct{ input, want string }{
 		{"indices", "'index':*"}, {"indices:AB", "'index':*AB"}, {"indices:*AB", "'index':*AB"},
 	} {
-		value, err := core.HostOf(scope).ConvertTextSearch(context.Background(), fts.StrictConversion, true, config, tc.input, queryType)
+		value, err := core.HostOf(scope).TextSearch().ConvertTextSearch(context.Background(), fts.StrictConversion, true, config, tc.input, queryType)
 		if err != nil {
 			t.Fatal(err)
 		}

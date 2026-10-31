@@ -113,7 +113,7 @@ func TestAmcheckScopedOrdinaryDuringRecipe(t *testing.T) {
 						t.Fatal("nested ordinary acquisition", err)
 					}
 					if strings.HasPrefix(outcome, "nested") {
-						if err := core.HostOf(scope).Amcheck(n, uint32(target.Address().ObjectID), [3]bool{true}); err != nil {
+						if err := core.HostOf(scope).Contrib().Amcheck(n, uint32(target.Address().ObjectID), [3]bool{true}); err != nil {
 							t.Fatal("nested installed checker", err)
 						}
 						if !e.Locks.HasRelationMode(ticket, index, mode) {

@@ -9,7 +9,7 @@ import (
 
 // Type inquiries borrow the execution frontier's coherent catalog and authorized
 // relation/type path, including TEMP. Evaluation never consults live settings.
-func (h *statementHost) FormatType(oid uint32, typmod int32, specified bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) FormatType(oid uint32, typmod int32, specified bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	in := &h.scope().Inquiry
 	if in.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")
@@ -21,7 +21,7 @@ func (h *statementHost) FormatType(oid uint32, typmod int32, specified bool, res
 	return sqltype.String(result, text), nil
 }
 
-func (h *statementHost) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	in := &h.scope().Inquiry
 	if in.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing type inquiry snapshot")

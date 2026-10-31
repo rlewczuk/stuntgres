@@ -78,7 +78,7 @@ func TestAmcheckScopedLocks(t *testing.T) {
 				}
 				amcheckUnitGrant(t, e, ticket, heap, lock.RowExclusive)
 				before := e.Locks.Inspect(ticket)
-				if err := core.HostOf(scope).Amcheck(n, uint32(d.Address().ObjectID), [3]bool{true, true, true}); err != nil {
+				if err := core.HostOf(scope).Contrib().Amcheck(n, uint32(d.Address().ObjectID), [3]bool{true, true, true}); err != nil {
 					t.Fatal(err)
 				}
 				after := e.Locks.Inspect(ticket)
@@ -112,7 +112,9 @@ func TestAmcheckCaptureReadmission(t *testing.T) {
 			defer cancel()
 			scope.Op.Ctx = ctx
 			done := make(chan error, 1)
-			go func() { done <- core.HostOf(scope).Amcheck(n, uint32(d.Address().ObjectID), [3]bool{true, true, true}) }()
+			go func() {
+				done <- core.HostOf(scope).Contrib().Amcheck(n, uint32(d.Address().ObjectID), [3]bool{true, true, true})
+			}()
 			joined := false
 			defer func() {
 				cancel()

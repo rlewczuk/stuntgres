@@ -54,7 +54,7 @@ func heapUnitScopeCapture(e *core.Engine,scope *core.StatementScope,n plan.Insta
 	if n.Input==sqltype.Regclass {text=strconv.FormatUint(uint64(oid),10)}
 	value,err:=typ.Input(scope.Op.Context(),text,-1)
 	if err!=nil {return storage.HeapStatistics{},err}
-	return core.HostOf(scope).Pgstattuple(n,value)
+	return core.HostOf(scope).Contrib().Pgstattuple(n,value)
 }
 
 func TestPgstattupleHeapCapture(t *testing.T) {

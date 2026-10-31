@@ -85,7 +85,7 @@ func TestDatabaseFilesRuntimeBoundary(t *testing.T) {
   e.Mu.Unlock()
   for _,kind:=range []functions.DatabaseFilesKind{functions.RelationFilenode,functions.RelationFilepath} {
    result:=oid;if kind==functions.RelationFilepath {result=text}
-   got,err:=host.DatabaseFilesInquiry(kind,arg,unused,result)
+   got,err:=host.CatalogInquiry().DatabaseFilesInquiry(kind,arg,unused,result)
    if tc.stored {
     var state interface{SQLState()string}
     message:="pg_relation_filenode is not supported: the embedded engine has no physical PostgreSQL relation filenode mapping"
@@ -96,12 +96,12 @@ func TestDatabaseFilesRuntimeBoundary(t *testing.T) {
   }
  }
  missing:=sqltype.String(regclass,"0")
- got,err:=host.DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid)
+ got,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid)
  if err!=nil||!got.IsNull()||got.Type()!=oid{t.Fatal(got,err)}
  for _,pair:=range [][2]uint32{{0,0},{1663,0},{4294967295,123},{0,20000}} {
   space,_:=sqltype.OIDValue(oid,pair[0])
   node,_:=sqltype.OIDValue(oid,pair[1])
-  got,err:=host.DatabaseFilesInquiry(functions.FilenodeRelation,space,node,regclass)
+  got,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.FilenodeRelation,space,node,regclass)
   if err!=nil||!got.IsNull()||got.Type()!=regclass{t.Fatal(got,err)}
  }
  // A pending-created descriptor is visible only through the statement journal.
@@ -111,9 +111,9 @@ func TestDatabaseFilesRuntimeBoundary(t *testing.T) {
  private.RelationKind=catalog.TableRelation
  privateArg:=sqltype.String(regclass,"20001")
  s.Catalog=&session.Journal{Descriptors:map[ids.ObjectAddress]catalog.Descriptor{private.Address():&private}}
- if _,err:=host.DatabaseFilesInquiry(functions.RelationFilenode,privateArg,unused,oid);err==nil{t.Fatal("private stored descriptor was missed")}
+ if _,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,privateArg,unused,oid);err==nil{t.Fatal("private stored descriptor was missed")}
  s.Catalog=nil
- got,err=host.DatabaseFilesInquiry(functions.RelationFilenode,privateArg,unused,oid)
+ got,err=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,privateArg,unused,oid)
  if err!=nil||!got.IsNull(){t.Fatal("rollback published private descriptor",got,err)}
  // Partitioned indexes are storage-less even though ordinary indexes have storage.
  parent:=*r
@@ -123,7 +123,7 @@ func TestDatabaseFilesRuntimeBoundary(t *testing.T) {
  idx.RelationKind=catalog.IndexRelation
  idx.SQLIndex=&catalog.IndexDefinition{Parent:parent.Address()}
  s.Catalog=&session.Journal{Descriptors:map[ids.ObjectAddress]catalog.Descriptor{parent.Address():&parent,idx.Address():&idx}}
- got,err=host.DatabaseFilesInquiry(functions.RelationFilenode,arg,unused,oid)
+ got,err=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,arg,unused,oid)
  if err!=nil||!got.IsNull(){t.Fatal("partitioned index has no storage",got,err)}
  s.Catalog=nil
  for _,persistence:=range []string{"temporary","unlogged"} {
@@ -131,23 +131,23 @@ func TestDatabaseFilesRuntimeBoundary(t *testing.T) {
   temporary.Persistence=persistence
   temporary.RelationKind=catalog.TableRelation
   s.Catalog=&session.Journal{Descriptors:map[ids.ObjectAddress]catalog.Descriptor{temporary.Address():&temporary}}
-  if _,err:=host.DatabaseFilesInquiry(functions.RelationFilepath,arg,unused,text);err==nil{t.Fatal("persistence hid stored class",persistence)}
+  if _,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilepath,arg,unused,text);err==nil{t.Fatal("persistence hid stored class",persistence)}
  }
  s.Catalog=nil
  canceledRuntime,cancelRuntime:=context.WithCancel(context.Background())
  cancelRuntime()
  originalContext:=s.Op.Ctx
  s.Op.Ctx=canceledRuntime
- if _,err:=host.DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);!errors.Is(err,context.Canceled){t.Fatal("runtime cancellation",err)}
+ if _,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);!errors.Is(err,context.Canceled){t.Fatal("runtime cancellation",err)}
  s.Op.Ctx=originalContext
  retained:=s.Inquiry.CommentCatalog
  for _,foreign:=range []catalog.Read{{},engine.New().CatalogRead()} {
   s.Inquiry.CommentCatalog=foreign
-  if _,err:=host.DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);err==nil{t.Fatal("invalid authority")}
+  if _,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);err==nil{t.Fatal("invalid authority")}
  }
  s.Inquiry.CommentCatalog=retained
  e.Mu.Lock();replacement:=catalog.CloneState(e.Catalog.State);replacement.SetEpoch(retained.Epoch()+1);e.Catalog.PublishLocked(replacement);e.Mu.Unlock()
- if _,err:=host.DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);!errors.Is(err,ids.ErrCatalogReplaced){t.Fatal(err)}
+ if _,err:=host.CatalogInquiry().DatabaseFilesInquiry(functions.RelationFilenode,missing,unused,oid);!errors.Is(err,ids.ErrCatalogReplaced){t.Fatal(err)}
  c:=&exec.Context{EvalStatement:exec.EvalStatement{Context:context.Background()}}
  null:=plan.LiteralExpr{Info:expr.Info{Usage:oid.Usage()},Value:sqltype.Null(oid)}
  value,_:=sqltype.OIDValue(oid,0)

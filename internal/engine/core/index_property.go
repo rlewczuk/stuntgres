@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
+func (h *catalogInquiryHost) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
 	scope := h.scope()
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")

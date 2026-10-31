@@ -14,7 +14,7 @@ import (
 // UnaccentText follows the installed function's current schema, not the original
 // member dictionary address. PostgreSQL's wrapper returns the first recognized
 // lexeme, or the original token when the selected dictionary returns none.
-func (h *statementHost) UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *textSearchHost) UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	ctx := h.scope().Op.Context()
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
@@ -35,7 +35,7 @@ func (h *statementHost) UnaccentText(procedure ids.ObjectRef, input string, resu
 
 // Capture immutable runtime authority under the ordinary current statement view;
 // normalization/resource execution happens only after releasing Engine.mu.
-func (h *statementHost) defaultUnaccentDictionary(reference ids.ObjectRef) (catalog.DictionaryRuntime, error) {
+func (h *textSearchHost) defaultUnaccentDictionary(reference ids.ObjectRef) (catalog.DictionaryRuntime, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()

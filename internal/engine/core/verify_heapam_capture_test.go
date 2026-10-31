@@ -107,7 +107,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		resource := lock.Resource{ObjectRef: ref}
 		want := [][]any{{nil, nil, int64(7), "logical row 11 version 101: attribute 7 has an invalid typed value"}, {nil, nil, nil, "logical row 12 version 102: row has 1 values but relation has 2 columns"}}
 		for _, stop := range []bool{false, true} {
-			rows, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, d, stop), n.Usage.Type)
+			rows, err := scope.WriteHost().Contrib().VerifyHeapam(heapUnitArgs(t, e, d, stop), n.Usage.Type)
 			expected := want
 			if stop {
 				expected = want[:1]
@@ -145,7 +145,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		}
 		args := heapUnitArgs(t, e, d, false)
 		args[2] = sqltype.Boolean(enginetest.Usage(e, sqltype.Bool).Type, true)
-		_, err = scope.WriteHost().VerifyHeapam(args, n.Usage.Type)
+		_, err = scope.WriteHost().Contrib().VerifyHeapam(args, n.Usage.Type)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.Locks.HasRelationMode(ticket, resource, lock.AccessShare) {
 			t.Fatal("prior contribution/error release", err)
@@ -207,7 +207,7 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			}()
 			args := heapUnitArgs(t, e, d, false)
 			done := make(chan error, 1)
-			go func() { _, err := scope.WriteHost().VerifyHeapam(args, n.Usage.Type); done <- err }()
+			go func() { _, err := scope.WriteHost().Contrib().VerifyHeapam(args, n.Usage.Type); done <- err }()
 			joined := false
 			defer func() {
 				if !joined {

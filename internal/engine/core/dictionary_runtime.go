@@ -5,7 +5,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) LexizeDictionary(value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *textSearchHost) LexizeDictionary(value sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	if err := s.Op.Context().Err(); err != nil {
 		return sqltype.Value{}, err
@@ -14,7 +14,7 @@ func (h *statementHost) LexizeDictionary(value sqltype.Value, text string, resul
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	runtime, err := h.acquireDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)})
+	runtime, err := h.host().acquireDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(oid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}

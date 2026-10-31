@@ -6,7 +6,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -75,48 +74,17 @@ type Host interface {
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.InputValidityRuntime
 	CheckTypeInput(c *Context, value, typeName string) (*sqlstate.Error, error)
-	// functions.CatalogInquiryRuntime
-	FormatType(uint32, int32, bool, *sqltype.Descriptor) (sqltype.Value, error)
-	BaseType(uint32, *sqltype.Descriptor) (sqltype.Value, error)
-	CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
-	TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error)
-	TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error)
-	SizeInquiry(functions.SizeKind, sqltype.Value, string, *sqltype.Descriptor) (sqltype.Value, error)
-	DatabaseFilesInquiry(functions.DatabaseFilesKind, sqltype.Value, sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
-	// functions.GenericFileListRuntime
-	GenericFileList(functions.GenericFileListKind, string) error
+	// Replication and statistics functions
 	LogicalDecoding(sqltype.Value, sqltype.Value) error
 	ReplicationSlot(functions.ReplicationSlotKind, uint8, [5]sqltype.Value) error
 	SyncReplicationSlots() error
 	ReplicationOrigin(functions.ReplicationOriginKind, [2]sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
 	AttributeStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
 	RelationStatistics(clear, variadic bool, values []sqltype.Value) (bool, error)
-	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
-	GenericFileTmpdir(uint32) error
-	PartitionTree(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
-	PartitionAncestors(uint32, *sqltype.Descriptor) (expr.SourceCursor, error)
-	PartitionRoot(uint32, *sqltype.Descriptor) (sqltype.Value, error)
-	RelationIsPublishable(uint32, *sqltype.Descriptor) (sqltype.Value, error)
-	PublicationTables(sqltype.Value, *sqltype.Descriptor) (expr.SourceCursor, error)
-	CommentInquiry(c *Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error)
-	DeparseInquiry(c *Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
-	DescribeObject(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
-	IdentifyObject(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
-	IdentifyObjectAddress(c *Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
-	IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error)
-	LookupObjectAddress(c *Context, values [3]sqltype.Value) (ids.ObjectAddress, error)
 	// functions.EventTriggerDroppedRuntime
 	EventTriggerDroppedObjects() ([][]sqltype.Value, error)
 	EventTriggerDDLCommands() ([][]sqltype.Value, error)
 	EventTriggerRewriteValue(bool, *sqltype.Descriptor) (sqltype.Value, error)
-	VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error)
-	// functions.SessionInquiryRuntime
-	CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error)
-	IdentityValue(c *Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error)
-	MyTempNamespace() (uint32, error)
-	OtherTempNamespace(oid uint32) (bool, error)
-	ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error)
-	NotificationQueueUsage() (float64, error)
 	// functions.SessionActivityRuntime
 	SessionActivityValue(functions.SessionActivityKind, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.ServerSignalRuntime
@@ -126,31 +94,14 @@ type Host interface {
 	StatsSnapshotValue(bool, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.TriggerDepthRuntime
 	TriggerDepthValue(*sqltype.Descriptor) (sqltype.Value, error)
-	// functions.TransactionInquiryRuntime
-	CommitTimestamp(xid uint32) (time.Time, uint32, bool, error)
-	CurrentTransactionID(assign bool) (uint64, error)
-	CurrentSnapshot() (*sqltype.Snapshot, error)
-	LastCommittedTransaction() (uint32, time.Time, uint32, bool, error)
-	MultiTransactionAge(xid uint32) (int32, error)
-	TransactionAge(xid uint32) (int32, error)
-	TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error)
-	TransactionStatus(full uint64) (string, bool, error)
-	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
-	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
-	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
-	ValidateConnectby(n plan.InstalledConnectbyExpr) error
-	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
-	TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error)
-	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
-	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
-	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
-	UnaccentText(procedure ids.ObjectRef, input string, result *sqltype.Descriptor) (sqltype.Value, error)
-	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
-	PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) ([8]int64, [2]float64, error)
-	Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error)
-	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
-	PageinspectHeap(n plan.InstalledPageinspectExpr, relation uint32) ([]sqltype.HeapStoredColumn, error)
-	PageinspectNotice(notice sqlstate.Error)
+	// Capability groups (host_capabilities.go). Each accessor converts the
+	// host to the group's own type: a pointer conversion, never an
+	// allocation.
+	Contrib() ContribRuntime
+	TextSearch() TextSearchRuntime
+	CatalogInquiry() CatalogInquiryRuntime
+	SessionInquiry() SessionInquiryRuntime
+	TransactionInquiry() TransactionInquiryRuntime
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime
@@ -166,11 +117,7 @@ type Host interface {
 	// plan.Runtime
 	InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) (sqltype.Value, error)
 	InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error)
-	RewriteQuerySQL(query sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
 	MapXMLRows(functions.XMLMappingOperation, [5]sqltype.Value, *sqltype.Descriptor, sqltype.OutputEnvironment) (sqltype.Value, error)
-	LexizeDictionary(dictionary sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
-	ConvertTextSearch(ctx context.Context, kind fts.ConversionKind, explicit bool, configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error)
-	ConvertJSONTextSearch(ctx context.Context, explicit bool, configuration, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	OpenExtensionPaths(c *Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error)
 
 	PresentationFormatters

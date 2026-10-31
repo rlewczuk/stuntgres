@@ -216,7 +216,7 @@ func TestTablefuncCrosstabActivationCleanup(t *testing.T) {
 		"SELECT 1; SELECT k,category,v FROM ct_activation",
 		"SELECT k,category,v FROM ct_activation; SELECT 1; SELECT k,category,v FROM ct_activation",
 	} {
-		values, err := scope.WriteHost().TablefuncCrosstab(source, n.Usage.Type)
+		values, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, n.Usage.Type)
 		if err != nil || len(values) != 1 {
 			t.Fatal("multiple command source failed", source, len(values), err)
 		}
@@ -229,7 +229,7 @@ func TestTablefuncCrosstabActivationCleanup(t *testing.T) {
 		}
 	}
 	for _, source := range []string{"SELECT missing_ct", "SELECT )", "SHOW work_mem", "DELETE FROM missing_ct", "SELECT k,category,v FROM ct_activation; SHOW work_mem"} {
-		if _, err := scope.WriteHost().TablefuncCrosstab(source, n.Usage.Type); err == nil {
+		if _, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, n.Usage.Type); err == nil {
 			t.Fatal("invalid source succeeded", source)
 		}
 		if !unchanged() {
@@ -352,12 +352,12 @@ func TestTablefuncCrosstabMutableMembershipIdentity(t *testing.T) {
 			}
 			reader, _ := blockingUnitOwner(t, e)
 			scope := pgrowlocksUnitScope(t, e, reader)
-			if err := scope.WriteHost().ValidateTablefuncCrosstab(n); err != nil {
+			if err := scope.WriteHost().Contrib().ValidateTablefuncCrosstab(n); err != nil {
 				t.Fatal("live host rejected genuine absent-origin capture", err)
 			}
 			bad := n
 			bad.Ref.Epoch++
-			if err := scope.WriteHost().ValidateTablefuncCrosstab(bad); err == nil {
+			if err := scope.WriteHost().Contrib().ValidateTablefuncCrosstab(bad); err == nil {
 				t.Fatal("live host accepted stale epoch")
 			}
 		})

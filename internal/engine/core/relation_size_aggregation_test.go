@@ -22,7 +22,7 @@ func TestRelationSizeRuntimeAggregation(t *testing.T) {
 	name:=enginetest.Usage(e,sqltype.Name).Type
 	database:=e.CatalogRead().MustDatabase(e.Catalog.DatabaseAddress())
 	measure:=func(kind functions.SizeKind,target string) int64 {
-		t.Helper();value,err:=host.SizeInquiry(kind,sqltype.String(name,target),"main",int8)
+		t.Helper();value,err:=host.CatalogInquiry().SizeInquiry(kind,sqltype.String(name,target),"main",int8)
 		if err!=nil{t.Fatal(err)};n,err:=value.Integer();if err!=nil{t.Fatal(err)};return n
 	}
 	dbBefore:=measure(functions.DatabaseSize,database.Name())
@@ -59,7 +59,7 @@ func TestRelationSizeConcurrentCapture(t *testing.T) {
 	go func(){defer wg.Done();<-start;for j:=range 128{e.Mu.Lock();if j%2==0{root.Versions=two}else{root.Versions=one};e.Mu.Unlock()}}()
 	close(start)
 	for range 128 {
-		got,err:=host.SizeInquiry(functions.TableSize,arg,"main",int8)
+		got,err:=host.CatalogInquiry().SizeInquiry(functions.TableSize,arg,"main",int8)
 		if err!=nil{wg.Wait();t.Fatal(err)}
 		n,err:=got.Integer()
 		if err!=nil||n!=113&&n!=153{wg.Wait();t.Fatal("incoherent root capture",n,err)}

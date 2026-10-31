@@ -75,13 +75,13 @@ func TestPageinspectHeapAttrsCapture(t *testing.T) {
 	}
 	resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), target)}
 	priorAccessShare := e.Locks.HasRelationMode(scope.LockTicket, resource, lock.AccessShare)
-	columns, err := scope.WriteHost().PageinspectHeap(call, uint32(target.ObjectID))
+	columns, err := scope.WriteHost().Contrib().PageinspectHeap(call, uint32(target.ObjectID))
 	want := []sqltype.HeapStoredColumn{{Length: 4, Alignment: 4}, {Length: 8, Alignment: 8}, {Length: 4, Alignment: 4}}
 	if err != nil || !reflect.DeepEqual(columns, want) {
 		t.Fatal("dropped physical descriptor", columns, err)
 	}
 	columns[1].Length = 1
-	again, err := scope.WriteHost().PageinspectHeap(call, uint32(target.ObjectID))
+	again, err := scope.WriteHost().Contrib().PageinspectHeap(call, uint32(target.ObjectID))
 	if err != nil || !reflect.DeepEqual(again, want) {
 		t.Fatal("capture leaked mutable backing", again, err)
 	}
@@ -90,7 +90,7 @@ func TestPageinspectHeapAttrsCapture(t *testing.T) {
 	}
 	bad := call
 	bad.Ref.Epoch++
-	if _, err := scope.WriteHost().PageinspectHeap(bad, uint32(target.ObjectID)); err == nil {
+	if _, err := scope.WriteHost().Contrib().PageinspectHeap(bad, uint32(target.ObjectID)); err == nil {
 		t.Fatal("stale identity admitted")
 	}
 	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Catalog: auth.Catalog, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}

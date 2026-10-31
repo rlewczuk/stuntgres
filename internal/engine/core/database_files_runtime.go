@@ -9,13 +9,13 @@ import (
 )
 
 // DatabaseFilesInquiry answers catalog-only absence, never inventing physical storage.
-func (h *statementHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
  s := h.scope()
  if err := s.Op.Context().Err(); err != nil { return sqltype.Value{}, err }
  e := s.Engine()
  e.Mu.Lock()
  defer e.Mu.Unlock()
- retained, err := h.catalogInquiryCatalog()
+ retained, err := h.host().catalogInquiryCatalog()
  if err != nil { return sqltype.Value{}, err }
  if retained.Epoch() != e.Catalog.State.Epoch() { return sqltype.Value{}, ids.ErrCatalogReplaced }
  if kind == functions.FilenodeRelation {

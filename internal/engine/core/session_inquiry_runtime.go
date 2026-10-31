@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *sessionInquiryHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
 	results := scope.Inquiry.searchPathResults
 	if scope.Inquiry.searchPathResults[0].Type() == nil || scope.ForeignActionAuth != nil || scope.ruleAction.Auth != nil {
@@ -39,7 +39,7 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 	return results[0], nil
 }
 
-func (h *statementHost) MyTempNamespace() (uint32, error) {
+func (h *sessionInquiryHost) MyTempNamespace() (uint32, error) {
 	scope := h.scope()
 	engine := scope.Engine()
 	engine.Mu.Lock()
@@ -51,7 +51,7 @@ func (h *statementHost) MyTempNamespace() (uint32, error) {
 	return uint32(temporaryNamespace(auth).ObjectID), nil
 }
 
-func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
+func (h *sessionInquiryHost) OtherTempNamespace(oid uint32) (bool, error) {
 	scope := h.scope()
 	engine := scope.Engine()
 	engine.Mu.Lock()
@@ -64,7 +64,7 @@ func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
 	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.Session.SessionToken, nil
 }
 
-func (h *statementHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (h *sessionInquiryHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()
@@ -89,7 +89,7 @@ func (h *statementHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype
 	return values, nil
 }
 
-func (h *statementHost) NotificationQueueUsage() (float64, error) {
+func (h *sessionInquiryHost) NotificationQueueUsage() (float64, error) {
 	scope := h.scope()
 	e := scope.Engine()
 	e.Mu.Lock()

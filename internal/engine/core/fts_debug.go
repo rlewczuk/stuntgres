@@ -19,7 +19,7 @@ type textSearchInput struct {
 
 // Engine.Mu precedes effective settings capture. The returned input retains no
 // mutable session state; runtime acquisition and callbacks use its generation.
-func (h *statementHost) resolveTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value) (textSearchInput, error) {
+func (h *textSearchHost) resolveTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value) (textSearchInput, error) {
 	if err := ctx.Err(); err != nil {
 		return textSearchInput{}, err
 	}
@@ -54,7 +54,7 @@ func (h *statementHost) resolveTextSearchInput(ctx context.Context, explicit boo
 	return textSearchInput{read: read, oid: oid}, nil
 }
 
-func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (textSearchCapture, error) {
+func (h *textSearchHost) captureTextSearchInput(ctx context.Context, explicit bool, value sqltype.Value, missingEmpty bool) (textSearchCapture, error) {
 	input, err := h.resolveTextSearchInput(ctx, explicit, value)
 	if err != nil {
 		return textSearchCapture{}, err
@@ -66,7 +66,7 @@ func (h *statementHost) captureTextSearchInput(ctx context.Context, explicit boo
 	}
 	return captureTextSearch(ctx, input.read, input.oid)
 }
-func (h *statementHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (rows []sqltype.Value, err error) {
+func (h *textSearchHost) DebugTextSearch(ctx context.Context, explicit bool, value sqltype.Value, text string, result *sqltype.Descriptor) (rows []sqltype.Value, err error) {
 	// Provider failures arise inside the actual SQL-standard debug statement,
 	// after caller argument evaluation. Preserve its frame without mutating errors.
 	defer func() { err = exec.SQLRoutineStatementContext(err, "ts_debug", 1) }()
@@ -119,7 +119,7 @@ func (h *statementHost) DebugTextSearch(ctx context.Context, explicit bool, valu
 		lexemes := sqltype.Null(result.CompositeMember(5).Usage.Type)
 		recognized := false
 		for i, address := range mapping {
-			runtime, err := captured.acquisition.dictionary(h, address)
+			runtime, err := captured.acquisition.dictionary(h.host(), address)
 			if err != nil {
 				return nil, err
 			}
@@ -146,7 +146,7 @@ func (h *statementHost) DebugTextSearch(ctx context.Context, explicit bool, valu
 		}
 		rows = append(rows, row)
 	}
-	if err := captured.acquisition.accept(ctx, h); err != nil {
+	if err := captured.acquisition.accept(ctx, h.host()); err != nil {
 		return nil, err
 	}
 	return rows, nil

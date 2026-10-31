@@ -101,7 +101,7 @@ func TestAmcheckCallableAuthorityPrecedence(t *testing.T) {
 							case "lo_put":
 								object, callErr = scope.WriteHost().LargeObject(functions.LargeObjectRequest{Name: "lo_put", OID: 920191, Data: "changed"})
 							case "pgrowlocks":
-								rows, callErr = scope.WriteHost().Pgrowlocks("public.callable_rows", pg.Usage.Type)
+								rows, callErr = scope.WriteHost().Contrib().Pgrowlocks("public.callable_rows", pg.Usage.Type)
 							}
 							return callErr
 						})

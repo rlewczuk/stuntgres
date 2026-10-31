@@ -15,17 +15,17 @@ import (
 
 // Pageinspect captures only immutable catalog descriptors. No physical state or
 // table rows are consulted. Engine.Mu protects admission, never byte decoding.
-func (h *statementHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
+func (h *contribHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
 	return h.capturePageinspect(n, oid, nil)
 }
 
-func (h *statementHost) PageinspectHeap(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.HeapStoredColumn, error) {
+func (h *contribHost) PageinspectHeap(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.HeapStoredColumn, error) {
 	var columns []sqltype.HeapStoredColumn
 	_, err := h.capturePageinspect(n, oid, &columns)
 	return columns, err
 }
 
-func (h *statementHost) capturePageinspect(n plan.InstalledPageinspectExpr, oid uint32, heap *[]sqltype.HeapStoredColumn) ([]sqltype.BrinStoredColumn, error) {
+func (h *contribHost) capturePageinspect(n plan.InstalledPageinspectExpr, oid uint32, heap *[]sqltype.HeapStoredColumn) ([]sqltype.BrinStoredColumn, error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return nil, err

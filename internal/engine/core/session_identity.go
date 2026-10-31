@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *sessionInquiryHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	identity := s.Identity
 	if s.Op.EffectiveUser == nil && c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {

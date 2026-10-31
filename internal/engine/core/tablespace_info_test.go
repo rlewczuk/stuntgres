@@ -147,20 +147,20 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 		t.Fatal("missing real pg_class logical storage witness")
 	}
 	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
-	value, present, err := host.TablespaceDatabase(uint32(catalog.DefaultTablespaceOID), oidType)
+	value, present, err := host.CatalogInquiry().TablespaceDatabase(uint32(catalog.DefaultTablespaceOID), oidType)
 	got, conversion := value.OID()
 	db, ok := view.Database(catalog.CurrentDatabaseAddress)
 	if err != nil || conversion != nil || !present || !ok || got != uint32(db.Address().ObjectID) {
 		t.Fatal("retained attachment", got, present, err, conversion)
 	}
 	for _, id := range []uint32{0, uint32(catalog.DefaultTablespaceOID), uint32(catalog.GlobalTablespaceOID)} {
-		value, err := host.TablespaceLocation(id, textType)
+		value, err := host.CatalogInquiry().TablespaceLocation(id, textType)
 		text, conversion := value.Text()
 		if err != nil || conversion != nil || text != "" {
 			t.Fatal("builtin/default logical location", text, err, conversion)
 		}
 	}
-	if _, err := host.TablespaceLocation(^uint32(0), textType); err == nil {
+	if _, err := host.CatalogInquiry().TablespaceLocation(^uint32(0), textType); err == nil {
 		t.Fatal("physical namespace fabricated")
 	}
 	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Catalog.State.Epoch() != view.Epoch() {
@@ -168,10 +168,10 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 	}
 	for _, bad := range []catalog.Read{{}, engine.New().CatalogRead(), view.WithState(catalog.NewState(view.Epoch()))} {
 		scope.Inquiry.CommentCatalog = bad
-		if _, err := host.TablespaceLocation(1663, textType); err == nil {
+		if _, err := host.CatalogInquiry().TablespaceLocation(1663, textType); err == nil {
 			t.Fatal("invalid retained tablespace authority accepted")
 		}
-		if _, _, err := host.TablespaceDatabase(1663, oidType); err == nil {
+		if _, _, err := host.CatalogInquiry().TablespaceDatabase(1663, oidType); err == nil {
 			t.Fatal("invalid retained database authority accepted")
 		}
 	}
@@ -179,7 +179,7 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 	missingDatabase := catalog.CloneState(view.State())
 	missingDatabase.RemoveDescriptor(catalog.CurrentDatabaseAddress)
 	scope.Inquiry.CommentCatalog = view.WithState(missingDatabase)
-	if _, _, err := host.TablespaceDatabase(1663, oidType); err == nil {
+	if _, _, err := host.CatalogInquiry().TablespaceDatabase(1663, oidType); err == nil {
 		t.Fatal("missing attachment silently treated as empty")
 	}
 	scope.Inquiry.CommentCatalog = view

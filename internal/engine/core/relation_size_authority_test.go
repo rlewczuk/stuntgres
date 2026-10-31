@@ -76,7 +76,7 @@ func TestRelationSizeInvocationAuthority(t *testing.T) {
 			}
 			check := func(want bool) {
 				t.Helper()
-				value, err := host.SizeInquiry(target.kind, sqltype.String(nameType, target.name), "main", resultType)
+				value, err := host.CatalogInquiry().SizeInquiry(target.kind, sqltype.String(nameType, target.name), "main", resultType)
 				if want {
 					if err != nil {
 						t.Fatal("invocation actor refused", target.name, grant, err)

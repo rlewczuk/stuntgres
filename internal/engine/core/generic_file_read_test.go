@@ -58,13 +58,13 @@ func TestGenericFileReadRuntime(t *testing.T) {
 		} {
 			if kind == functions.GenericFileStat && tc.explicit { continue }
 			var d *sqlstate.Error
-			err := host.GenericFileRead(kind,"PG_VERSION",tc.length,tc.explicit)
+			err := host.Contrib().GenericFileRead(kind,"PG_VERSION",tc.length,tc.explicit)
 			if !errors.As(err,&d) || d.Code != tc.code || tc.message != "" && d.Message != tc.message { t.Fatal(kind,tc,err) }
 		}
 	}
 	for _,tc := range []struct{oid uint32; code string}{{0,"42704"},{4294967295,"42704"},{1663,"0A000"},{1664,"0A000"}} {
 		var d *sqlstate.Error
-		if err := host.GenericFileTmpdir(tc.oid); !errors.As(err,&d) || d.Code != tc.code { t.Fatal(tc,err) }
+		if err := host.Contrib().GenericFileTmpdir(tc.oid); !errors.As(err,&d) || d.Code != tc.code { t.Fatal(tc,err) }
 	}
 	if before != e.CatalogRead().State() { t.Fatal("physical rejection published state") }
 }
@@ -95,7 +95,7 @@ func TestGenericFileReadOwnership(t *testing.T) {
 	if _,err := n.Eval(ctx); !errors.Is(err,context.Canceled) { t.Fatal("pre-cancellation",err) }
 	foreign := tablespaceInfoUnitScope(t,e)
 	foreign.Inquiry.CommentCatalog = engine.New().CatalogRead()
-	if err := core.HostOf(foreign).GenericFileTmpdir(1663); err == nil { t.Fatal("foreign catalog snapshot admitted") }
+	if err := core.HostOf(foreign).Contrib().GenericFileTmpdir(1663); err == nil { t.Fatal("foreign catalog snapshot admitted") }
 }
 
 func TestGenericFileReadACLControls(t *testing.T) {

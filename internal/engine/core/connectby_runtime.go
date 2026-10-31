@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) ValidateConnectby(n plan.InstalledConnectbyExpr) error {
+func (h *contribHost) ValidateConnectby(n plan.InstalledConnectbyExpr) error {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return err
@@ -87,8 +87,8 @@ type connectbyFrame struct {
 	branch   string
 }
 
-func (h *statementHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, error) {
-	ctx := h.Context()
+func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, error) {
+	ctx := h.host().Context()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

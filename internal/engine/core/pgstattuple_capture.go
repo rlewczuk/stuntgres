@@ -76,7 +76,7 @@ func PgstattupleTargetCheckable(v catalog.Read, target *catalog.Relation, token 
 	return nil
 }
 
-func (h *statementHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
+func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil { return storage.HeapStatistics{}, err }
 	e.Mu.Lock()

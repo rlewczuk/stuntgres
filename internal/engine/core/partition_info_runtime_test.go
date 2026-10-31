@@ -82,7 +82,7 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	scope := tablespaceInfoUnitScope(t, e)
 	scope.Inquiry.CommentCatalog = view
 	host := core.HostOf(scope)
-	old, err := host.PartitionTree(41011, shape)
+	old, err := host.CatalogInquiry().PartitionTree(41011, shape)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	detached.Membership = nil
 	state.SetDescriptor(mid.Address(), &detached)
 	scope.Inquiry.CommentCatalog = view.WithState(state)
-	root, err := host.PartitionRoot(41012, regclass)
+	root, err := host.CatalogInquiry().PartitionRoot(41012, regclass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,10 +118,10 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	}
 	for _, bad := range []catalog.Read{{}, engine.New().CatalogRead()} {
 		scope.Inquiry.CommentCatalog = bad
-		if _, err := host.PartitionRoot(41012, regclass); err == nil {
+		if _, err := host.CatalogInquiry().PartitionRoot(41012, regclass); err == nil {
 			t.Fatal("invalid captured authority")
 		}
-		if _, err := host.PartitionTree(41011, shape); err == nil {
+		if _, err := host.CatalogInquiry().PartitionTree(41011, shape); err == nil {
 			t.Fatal("invalid captured source authority")
 		}
 	}

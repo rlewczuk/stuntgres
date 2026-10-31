@@ -8,7 +8,7 @@ import (
 
 // GenericFileList uses the executing expression principal, not the preparing
 // session. Lock order is Engine -> Settings -> Session, matching setting reads.
-func (h *statementHost) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
+func (h *contribHost) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
 	if kind.Name() == "" {
 		return fmt.Errorf("stuntgres: invalid generic file listing kind")
 	}
@@ -22,7 +22,7 @@ func (h *statementHost) GenericFileList(kind functions.GenericFileListKind, dirn
 }
 
 // checkGenericFilePath borrows current authority in Engine -> Settings -> Session order.
-func (h *statementHost) checkGenericFilePath(dirname string) error {
+func (h *contribHost) checkGenericFilePath(dirname string) error {
 	s := h.scope()
 	e := s.Engine()
 	e.Mu.Lock()

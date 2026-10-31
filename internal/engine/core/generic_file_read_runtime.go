@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func (h *statementHost) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
+func (h *contribHost) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
 	if kind.Name() == "" || kind == functions.GenericFileStat && hasLength {
 		return fmt.Errorf("stuntgres: invalid generic file read request")
 	}
@@ -28,8 +28,8 @@ func (h *statementHost) GenericFileRead(kind functions.GenericFileReadKind, file
 	return SQLError("0A000", kind.Name()+" "+mechanism+" is unsupported in embedded mode")
 }
 
-func (h *statementHost) GenericFileTmpdir(oid uint32) error {
-	view, err := h.catalogInquiryCatalog()
+func (h *contribHost) GenericFileTmpdir(oid uint32) error {
+	view, err := h.host().catalogInquiryCatalog()
 	if err != nil {
 		return err
 	}

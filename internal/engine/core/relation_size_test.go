@@ -131,7 +131,7 @@ func TestRelationSizeRuntimeOwnership(t *testing.T) {
 	value, _ := sqltype.Integer(enginetest.Usage(e, sqltype.Int4).Type, 1)
 	read := func(want int64) {
 		t.Helper()
-		got, err := host.SizeInquiry(functions.TableSize, arg, "main", int8)
+		got, err := host.CatalogInquiry().SizeInquiry(functions.TableSize, arg, "main", int8)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -186,16 +186,16 @@ func TestRelationSizeRuntimeOwnership(t *testing.T) {
 	s.Catalog = nil
 	read(64)
 	missing := sqltype.String(regclass, "0")
-	got, err := host.SizeInquiry(functions.RelationSize, missing, "INVALID", int8)
+	got, err := host.CatalogInquiry().SizeInquiry(functions.RelationSize, missing, "INVALID", int8)
 	if err != nil || !got.IsNull() || got.Type() != int8 {
 		t.Fatal(got, err)
 	}
-	if _, err := host.SizeInquiry(functions.RelationSize, arg, "INVALID", int8); err == nil {
+	if _, err := host.CatalogInquiry().SizeInquiry(functions.RelationSize, arg, "INVALID", int8); err == nil {
 		t.Fatal("invalid fork admitted")
 	}
 	retained := s.Inquiry.CommentCatalog
 	s.Inquiry.CommentCatalog = engine.New().CatalogRead()
-	if _, err := host.SizeInquiry(functions.TableSize, arg, "main", int8); err == nil {
+	if _, err := host.CatalogInquiry().SizeInquiry(functions.TableSize, arg, "main", int8); err == nil {
 		t.Fatal("foreign owner accepted")
 	}
 	s.Inquiry.CommentCatalog = retained
@@ -205,7 +205,7 @@ func TestRelationSizeRuntimeOwnership(t *testing.T) {
 	replacement.SetEpoch(retained.Epoch() + 1)
 	e.Catalog.PublishLocked(replacement)
 	e.Mu.Unlock()
-	if _, err := host.SizeInquiry(functions.TableSize, arg, "main", int8); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := host.CatalogInquiry().SizeInquiry(functions.TableSize, arg, "main", int8); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("replacement fence", err)
 	}
 }

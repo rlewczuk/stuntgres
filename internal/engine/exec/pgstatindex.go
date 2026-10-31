@@ -55,7 +55,7 @@ func (c *Context) EvalPgstattupleStats(n plan.InstalledPgstattupleStatsExpr) (sq
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing pgstatindex statement runtime")
 	}
-	integers, floats, err := host.PgstattupleStats(n, value)
+	integers, floats, err := host.Contrib().PgstattupleStats(n, value)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

@@ -97,7 +97,7 @@ func TestFTSStatLifecycle(t *testing.T) {
 	scope.Expected = expected
 	view := scope.View
 	demand := core.ScopeSQLRoutine(scope)
-	first, err := scope.WriteHost().StatTextSearch(t.Context(), "SELECT 'x:1'::tsvector", "", shape)
+	first, err := scope.WriteHost().TextSearch().StatTextSearch(t.Context(), "SELECT 'x:1'::tsvector", "", shape)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestFTSStatLifecycle(t *testing.T) {
 		t.Fatal("success retained nested scratch")
 	}
 	saved := append([]sqltype.Value(nil), first...)
-	second, err := scope.WriteHost().StatTextSearch(t.Context(), "SELECT 'x:1'::tsvector", "", shape)
+	second, err := scope.WriteHost().TextSearch().StatTextSearch(t.Context(), "SELECT 'x:1'::tsvector", "", shape)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,13 +115,13 @@ func TestFTSStatLifecycle(t *testing.T) {
 			t.Fatal("statistics invocations share mutable rows")
 		}
 	}
-	failed, err := scope.WriteHost().StatTextSearch(t.Context(), "SELECT missing::tsvector", "", shape)
+	failed, err := scope.WriteHost().TextSearch().StatTextSearch(t.Context(), "SELECT missing::tsvector", "", shape)
 	if failed != nil || err == nil || scope.Expected != expected || scope.View != view || !reflect.DeepEqual(core.ScopeSQLRoutine(scope), demand) {
 		t.Fatal("failure retained nested scratch", err)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	failed, err = scope.WriteHost().StatTextSearch(canceled, "SELECT 'x:1'::tsvector", "", shape)
+	failed, err = scope.WriteHost().TextSearch().StatTextSearch(canceled, "SELECT 'x:1'::tsvector", "", shape)
 	if failed != nil || !errors.Is(err, context.Canceled) || scope.Expected != expected || scope.View != view || !reflect.DeepEqual(core.ScopeSQLRoutine(scope), demand) {
 		t.Fatal("cancellation retained nested scratch", err)
 	}
@@ -143,11 +143,11 @@ func TestFTSDebugCaptureOwnership(t *testing.T) {
 	defer scope.Finish(nil)
 	n := inspectionBound(t, false, e)
 	shape := n.ResultUsage().Type
-	first, err := scope.WriteHost().DebugTextSearch(t.Context(), false, sqltype.Value{}, "The Rats", shape)
+	first, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), false, sqltype.Value{}, "The Rats", shape)
 	if err != nil || len(first) != 3 {
 		t.Fatal("first acquisition", len(first), err)
 	}
-	second, err := scope.WriteHost().DebugTextSearch(t.Context(), false, sqltype.Value{}, "Rats", shape)
+	second, err := scope.WriteHost().TextSearch().DebugTextSearch(t.Context(), false, sqltype.Value{}, "Rats", shape)
 	if err != nil || len(second) != 1 {
 		t.Fatal("second acquisition", len(second), err)
 	}
@@ -158,7 +158,7 @@ func TestFTSDebugCaptureOwnership(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	rows, err := scope.WriteHost().DebugTextSearch(canceled, false, sqltype.Value{}, "Rats", shape)
+	rows, err := scope.WriteHost().TextSearch().DebugTextSearch(canceled, false, sqltype.Value{}, "Rats", shape)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("partial acquisition escaped", rows, err)
 	}

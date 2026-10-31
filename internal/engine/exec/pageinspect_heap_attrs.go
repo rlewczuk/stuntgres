@@ -63,7 +63,7 @@ func (c *Context) evalHeapTupleSplit(n plan.InstalledPageinspectExpr) (sqltype.V
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	columns, err := c.LiveHost().PageinspectHeap(n, oid)
+	columns, err := c.LiveHost().Contrib().PageinspectHeap(n, oid)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -74,7 +74,7 @@ func (c *Context) splitHeapLayout(n plan.InstalledPageinspectExpr, layout sqltyp
 	value, err := layout.Split(c.Context, raw, detoast, columns, array)
 	var reference *sqltype.HeapToastReference
 	if errors.As(err, &reference) {
-		if _, failure := c.LiveHost().PageinspectHeap(n, reference.Relation); failure != nil {
+		if _, failure := c.LiveHost().Contrib().PageinspectHeap(n, reference.Relation); failure != nil {
 			return sqltype.Value{}, failure
 		}
 		// A real descriptor is not the physical chunks named by the supplied
@@ -157,7 +157,7 @@ func (c *Context) openHeapAttrs(n plan.InstalledPageinspectExpr) (cursor expr.So
 				return cursor, failure
 			}
 			if !captured {
-				columns, failure = c.LiveHost().PageinspectHeap(n, oid)
+				columns, failure = c.LiveHost().Contrib().PageinspectHeap(n, oid)
 				if failure != nil {
 					return cursor, failure
 				}

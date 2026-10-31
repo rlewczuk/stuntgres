@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func (h *statementHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
+func (h *contribHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return err

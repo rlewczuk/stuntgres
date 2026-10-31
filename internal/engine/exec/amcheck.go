@@ -71,7 +71,7 @@ func (c *Context) EvalAmcheck(n plan.InstalledAmcheckExpr) (sqltype.Value, error
 		return sqltype.Value{}, err
 	}
 	n.Procedure, n.RoutineReference = current, current
-	if err := host.Amcheck(n, oid, options); err != nil {
+	if err := host.Contrib().Amcheck(n, oid, options); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.VoidValue(n.Usage.Type), nil

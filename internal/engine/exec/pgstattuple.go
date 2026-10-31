@@ -34,7 +34,7 @@ func (c *Context) EvalPgstattuple(n plan.InstalledPgstattupleExpr) (sqltype.Valu
 	if value.IsNull() { return sqltype.Null(n.Usage.Type), nil }
 	host := c.LiveHost()
 	if host == nil { return sqltype.Value{}, fmt.Errorf("stuntgres: missing pgstattuple statement runtime") }
-	stats, err := host.Pgstattuple(n, value)
+	stats, err := host.Contrib().Pgstattuple(n, value)
 	if err != nil { return sqltype.Value{}, err }
 	d := n.Usage.Type
 	if n.Kind == functions.HeapStatisticsPages { return sqltype.Integer(d, stats.TableLen/8192) }

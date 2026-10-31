@@ -206,7 +206,7 @@ func TestAmcheckPrivateCancellation(t *testing.T) {
 			}
 			scope.Op.Ctx = active
 			beforeLocks := e.Locks.Inspect(ticket)
-			err := core.HostOf(scope).Amcheck(n, uint32(d.Address().ObjectID), flags)
+			err := core.HostOf(scope).Contrib().Amcheck(n, uint32(d.Address().ObjectID), flags)
 			if !active.entered || active.skip != 0 || err != context.Canceled {
 				t.Fatal("private lane exact cancellation", lane, active.entered, active.skip, err)
 			}

@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func (h *statementHost) ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error {
+func (h *contribHost) ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil { return err }
 	e.Mu.Lock()

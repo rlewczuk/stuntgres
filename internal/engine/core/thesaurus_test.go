@@ -195,7 +195,7 @@ func TestThesaurusChain(t *testing.T) {
 	runtime := core.HostOf(scope)
 	for range 2 {
 		for _, tc := range []struct{ input, want string }{{"one two three", "'123':1"}, {"one two extra", "'12':1 'extra':2"}, {"one 7 two", "'2':3 '7':2 'one':1"}, {"booking the tickets", "'cards':3 'invitation':2 'order':1"}, {"booking", "'booking':1"}} {
-			vector, err := runtime.ConvertTextSearch(context.Background(), fts.VectorConversion, true, value, tc.input, vectorType)
+			vector, err := runtime.TextSearch().ConvertTextSearch(context.Background(), fts.VectorConversion, true, value, tc.input, vectorType)
 			if err != nil {
 				t.Fatal(err)
 			}

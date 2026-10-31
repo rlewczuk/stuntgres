@@ -153,7 +153,7 @@ func TestGenericFileListPaths(t *testing.T) {
 	host := core.HostOf(scope)
 	for _, tc := range []struct{ dirname, code string }{{"/logs/server", "0A000"}, {"/logs/server/a/../b", "0A000"}, {"/logs/server-old", "42501"}, {"/tmp/../etc", "42501"}} {
 		var diagnostic *sqlstate.Error
-		if err := host.GenericFileList(functions.GenericFileDir, tc.dirname); !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
+		if err := host.Contrib().GenericFileList(functions.GenericFileDir, tc.dirname); !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal("live absolute log root", tc, err)
 		}
 	}
@@ -170,7 +170,7 @@ func TestGenericFileListPaths(t *testing.T) {
 	}
 	defer relativeScope.Finish(context.Canceled)
 	var diagnostic *sqlstate.Error
-	if err := core.HostOf(relativeScope).GenericFileList(functions.GenericFileDir, "/logs/server"); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" {
+	if err := core.HostOf(relativeScope).Contrib().GenericFileList(functions.GenericFileDir, "/logs/server"); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" {
 		t.Fatal("relative log root whitelisted absolute path", err)
 	}
 }
@@ -215,7 +215,7 @@ func TestGenericFileListOwnership(t *testing.T) {
 		t.Fatal("argument order", order)
 	}
 	before := e.CatalogRead().State()
-	err := core.HostOf(scope).GenericFileList(functions.GenericFileDir, "/etc")
+	err := core.HostOf(scope).Contrib().GenericFileList(functions.GenericFileDir, "/etc")
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "pg_ls_dir physical directory listing is unsupported in embedded mode" || before != e.CatalogRead().State() {
 		t.Fatal("physical boundary", err)

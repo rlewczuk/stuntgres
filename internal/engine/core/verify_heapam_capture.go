@@ -16,7 +16,7 @@ import (
 
 // VerifyHeapam pins exact regclass/storage authority, borrows a temporary
 // AccessShare contribution, and scans retained unfiltered roots outside locks.
-func (h *statementHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (h *contribHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	s, e := h.scope(), h.scope().Engine()
 	if err := s.Active(); err != nil {
 		return nil, err

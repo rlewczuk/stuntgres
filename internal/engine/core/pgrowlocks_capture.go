@@ -17,7 +17,7 @@ import (
 // Pgrowlocks materializes once, with no manager calls under Engine.mu. The
 // relation lock is an exact, temporary contribution rather than SELECT's normal
 // transaction-lifetime AccessShare grant.
-func (h *statementHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ []sqltype.Value, err error) {
+func (h *contribHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ []sqltype.Value, err error) {
 	// These are runtime extension diagnostics, not SQL argument occurrences.
 	defer func() {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Position != "" {

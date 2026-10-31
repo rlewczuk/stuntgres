@@ -145,7 +145,7 @@ func TestFTSJSONCancellation(t *testing.T) {
 			}
 			return nil
 		}))
-		value, err := core.HostOf(scope).ConvertJSONTextSearch(ctx, true, config, document, sqltype.Value{}, false, vectorType)
+		value, err := core.HostOf(scope).TextSearch().ConvertJSONTextSearch(ctx, true, config, document, sqltype.Value{}, false, vectorType)
 		cancel()
 		want := refusal
 		if cancelMode {
@@ -162,7 +162,7 @@ func TestFTSJSONCancellation(t *testing.T) {
 			t.Fatal("failed conversion mutated accepted fold")
 		}
 	}
-	value, err := core.HostOf(scope).ConvertJSONTextSearch(context.Background(), true, config, document, sqltype.Value{}, false, vectorType)
+	value, err := core.HostOf(scope).TextSearch().ConvertJSONTextSearch(context.Background(), true, config, document, sqltype.Value{}, false, vectorType)
 	// The shipped thesaurus maps each item independently (one:*1, two:*2);
 	// its "one two":*12 phrase must not cross the JSON item boundary.
 	thesaurusUnitVector(t, value, err, "'1':1 '2':3")

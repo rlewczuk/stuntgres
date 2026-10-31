@@ -8,7 +8,7 @@ import (
 
 // ConvertJSONTextSearch resolves an omitted default after flag validation and
 // before traversal. Parser/dictionary acquisition remains lazy for both forms.
-func (h *statementHost) ConvertJSONTextSearch(ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *textSearchHost) ConvertJSONTextSearch(ctx context.Context, explicit bool, config, document, filter sqltype.Value, filtered bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	flags := sqltype.JSONTextSearchString
 	if filtered {
 		var err error
@@ -67,7 +67,7 @@ func (h *statementHost) ConvertJSONTextSearch(ctx context.Context, explicit bool
 		return sqltype.Value{}, err
 	}
 	if captured.acquisition != nil {
-		if err := captured.acquisition.accept(ctx, h); err != nil {
+		if err := captured.acquisition.accept(ctx, h.host()); err != nil {
 			return sqltype.Value{}, err
 		}
 	} else if err := ctx.Err(); err != nil {

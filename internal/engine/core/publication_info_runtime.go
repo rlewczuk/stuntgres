@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	_, view, err := h.partitionInquiry()
 	if err != nil {
 		return sqltype.Value{}, err
@@ -34,7 +34,7 @@ type publicationTableInfo struct {
 	relation    *catalog.Relation
 }
 
-func (h *statementHost) PublicationTables(names sqltype.Value, result *sqltype.Descriptor) (expr.SourceCursor, error) {
+func (h *catalogInquiryHost) PublicationTables(names sqltype.Value, result *sqltype.Descriptor) (expr.SourceCursor, error) {
 	ctx, view, err := h.partitionInquiry()
 	if err != nil {
 		return expr.SourceCursor{}, err

@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
+func (h *catalogInquiryHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	ctx := s.Op.Context()
 	if err := ctx.Err(); err != nil { return sqltype.Value{}, err }
@@ -44,9 +44,9 @@ func (h *statementHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, 
 
 // captureSizeLocked captures only headers, descriptors and immutable roots. The
 // shared cluster mutex owns all runtime maps; arithmetic runs after its release.
-func (h *statementHost) captureSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, fork string) ([]storage.Allocation, bool, error) {
+func (h *catalogInquiryHost) captureSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, fork string) ([]storage.Allocation, bool, error) {
 	s, e := h.scope(), h.scope().Engine()
-	retained, err := h.catalogInquiryCatalog()
+	retained, err := h.host().catalogInquiryCatalog()
 	if err != nil { return nil, false, err }
 	if retained.Epoch() != e.Catalog.State.Epoch() { return nil, false, ids.ErrCatalogReplaced }
 	view := e.PrivateCatalogLocked(s.PendingCatalog())
@@ -112,7 +112,7 @@ func captureAllocationLocked(e *Engine, scope *StatementScope, view catalog.Read
 	return a
 }
 
-func (h *statementHost) captureAggregateSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, view catalog.Read) ([]storage.Allocation, bool, error) {
+func (h *catalogInquiryHost) captureAggregateSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, view catalog.Read) ([]storage.Allocation, bool, error) {
 	s, e := h.scope(), h.scope().Engine()
 	class, label, privilege := ids.DatabaseClassID, "database", authorization.ConnectPrivilege
 	if kind == functions.TablespaceSize { class, label, privilege = ids.TablespaceClassID, "tablespace", authorization.CreatePrivilege }

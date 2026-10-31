@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *statementHost) ResolveFTSParser(value sqltype.Value) (fts.ParserRuntime, error) {
+func (h *textSearchHost) ResolveFTSParser(value sqltype.Value) (fts.ParserRuntime, error) {
 	s := h.scope()
 	if value.Type().ID() != sqltype.Oid {
 		text, err := value.Text()
