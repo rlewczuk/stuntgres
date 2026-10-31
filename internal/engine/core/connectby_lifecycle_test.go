@@ -86,13 +86,13 @@ func (c *connectbyPhaseContext) Err() error {
 			break
 		}
 	}
-	if strings.HasSuffix(direct, "/parser.ParseWithOptions") && strings.HasSuffix(caller, ".(*statementHost).ParseNestedSQL") && strings.HasSuffix(grand, ".(*contribHost).connectbyQuery") {
+	if strings.HasSuffix(direct, "/parser.ParseWithOptions") && strings.HasSuffix(caller, ".(*statementHost).ParseNestedSQL") && strings.HasSuffix(grand, ".connectbyQuery[...]") {
 		c.queries++
 	}
 	if statement {
 		c.admitted = c.queries
 	}
-	if c.cancel != nil && (c.sort && sorting || c.traversal && c.admitted >= 2 && strings.HasSuffix(direct, ".(*contribHost).Connectby")) {
+	if c.cancel != nil && (c.sort && sorting || c.traversal && c.admitted >= 2 && strings.HasSuffix(direct, ".Connectby[...]")) {
 		c.entered = true
 		c.cancel()
 	}

@@ -11,7 +11,7 @@ import (
 // physical descriptor facts escape that lock; no rows or type codecs escape.
 func pageinspectHeapColumns(relation *catalog.Relation) ([]sqltype.HeapStoredColumn, error) {
 	if relation.RelationKind != catalog.SequenceRelation && relation.TableMethod != 2 && !(relation.RelationKind == catalog.CatalogRelation && !relation.CatalogView) {
-		return nil, SQLError("0A000", "only heap AM is supported")
+		return nil, sqlError("0A000", "only heap AM is supported")
 	}
 	count := int(relation.ColumnMeta.HighWater)
 	if count < len(relation.Columns) {

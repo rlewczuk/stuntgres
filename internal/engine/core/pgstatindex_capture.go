@@ -12,30 +12,28 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-// Only the supplied index is locked. Parent storage is borrowed coherently
-// under Owner.Mu then Engine.Mu, without owner switching or recipe callbacks.
-func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
-	s, e := h.scope(), h.scope().Engine()
-	if err = s.Active(); err != nil {
+// PgstattupleStats is pgstatindex and pgstathashindex. Only the supplied
+// index is locked. Parent storage is borrowed coherently under Owner.Mu then
+// Engine.Mu, without owner switching or recipe callbacks.
+func PgstattupleStats[A Authority](h Host[A], n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) (integers [8]int64, floats [2]float64, err error) {
+	if err = h.Active(); err != nil {
 		return
 	}
-	e.Mu.Lock()
-	auth, failure := s.RoutineAuthorizationLocked()
+	h.ReacquireEngine()
+	auth, failure := h.RoutineAuthorizationLocked()
 	err = failure
 	if err == nil {
 		err = pgstattupleStatsAuthority(auth, n)
 	}
 	var path []ids.ObjectAddress
 	if err == nil && n.Input == sqltype.Text {
-		path, err = ReferencePath(auth)
+		path, err = auth.ReferencePath()
 	}
-	e.Mu.Unlock()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return
 	}
@@ -44,7 +42,7 @@ func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, inp
 		var text string
 		text, err = input.Text()
 		if err == nil {
-			oid, err = regobj.NewClassInput(inputCapture(auth, path)).ResolveRelationName(s.Op.Context(), text)
+			oid, err = h.ClassInput(auth, path).ResolveRelationName(h.Operation().Context(), text)
 		}
 	} else {
 		oid, err = input.ClassOID()
@@ -52,10 +50,10 @@ func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, inp
 	if err != nil {
 		return
 	}
-	resolvedEpoch := auth.Catalog.Epoch()
-	e.Mu.Lock()
-	auth, err = s.RoutineAuthorizationLocked()
-	if err == nil && auth.Catalog.Epoch() != resolvedEpoch {
+	resolvedEpoch := auth.Access().Catalog.Epoch()
+	h.ReacquireEngine()
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil && auth.Access().Catalog.Epoch() != resolvedEpoch {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
@@ -64,94 +62,74 @@ func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, inp
 	var target, parent *catalog.Relation
 	var store *storage.Relation
 	if err == nil {
-		target, parent, err = amcheckTargetIdentity(auth, oid)
+		target, parent, err = amcheckTargetIdentity(auth.Access().Catalog, oid)
 	}
 	if err == nil && parent != nil {
-		store = e.PrivateStorageLocked(s.PendingCatalog(), parent.Address())
+		store = h.PrivateStorageLocked(parent.Address())
 	}
-	e.Mu.Unlock()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return
 	}
-	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), target.Address())
+	ref := h.CatalogDomain().Ref(auth.Access().Catalog.Epoch(), target.Address())
 	var contribution lock.RelationContribution
-	defer e.Locks.ReleaseRelation(&contribution)
-	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
-	request, failure := e.Locks.StartAcquireRelation(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy, &contribution)
-	err = failure
-	if request != nil {
-		s.admissionWaited = true
-		if s.ReplacementRead {
-			e.ReplacementMu.RUnlock()
-			s.ReplacementRead = false
-		}
-		err = request.Wait()
-	}
-	if err != nil {
+	defer h.LockManager().ReleaseRelation(&contribution)
+	if err = h.AcquireRelationContribution(ref, lock.AccessShare, &contribution); err != nil {
 		return
 	}
-	s.Owner.Mu.Lock()
-	implicit := s.Owner.State == session.TxImplicit
-	s.Owner.Mu.Unlock()
-	if implicit && !s.ReplacementRead {
-		e.ReplacementMu.RLock()
-		s.ReplacementRead = true
-	}
-	s.Owner.Mu.Lock()
-	e.Mu.Lock()
-	auth, err = s.RoutineAuthorizationLocked()
-	if err == nil && auth.Catalog.Epoch() != resolvedEpoch {
+	h.ReacquireOwnerEngine()
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil && auth.Access().Catalog.Epoch() != resolvedEpoch {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
 		err = pgstattupleStatsAuthority(auth, n)
 	}
-	if err == nil && (ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || auth.Catalog.Get(target.Address()) != target) {
+	if err == nil && (ref.Domain() != h.CatalogDomain() || ref.Epoch != auth.Access().Catalog.Epoch() || auth.Access().Catalog.Get(target.Address()) != target) {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && parent != nil && (auth.Catalog.Get(parent.Address()) != parent || e.PrivateStorageLocked(s.PendingCatalog(), parent.Address()) != store) {
+	if err == nil && parent != nil && (auth.Access().Catalog.Get(parent.Address()) != parent || h.PrivateStorageLocked(parent.Address()) != store) {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		e.markTemporaryAccessLocked(s, ref, temporaryTargetAttempt)
-		err = pgstattupleStatsTargetCheckable(auth.Catalog, target, s.Op.Session.SessionToken, n.Operation)
+		h.MarkTemporaryTargetLocked(ref)
+		err = pgstattupleStatsTargetCheckable(auth.Access().Catalog, target, h.Operation().Session.SessionToken, n.Operation)
 	}
 	var capture index.PgstattupleStatsCapture
 	if err == nil && store == nil {
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), target.Address())
-		if s.PendingCatalog() != nil {
-			if candidate, ok := index.JournalIndexesOrZero(s.PendingCatalog()).Candidates[target.Address()]; ok && (!candidate.MatchesIndex(target, store) || candidate.Root != root) {
+		root := index.EffectiveRoot(h.EngineStorageLocked().IndexRoots, h.PendingCatalog(), target.Address())
+		if h.PendingCatalog() != nil {
+			if candidate, ok := index.JournalIndexesOrZero(h.PendingCatalog()).Candidates[target.Address()]; ok && (!candidate.MatchesIndex(target, store) || candidate.Root != root) {
 				err = ids.ErrCatalogReplaced
 			}
 		}
 		capture = index.PgstattupleStatsCapture{Index: target, Parent: parent, Root: root}
 		if n.Operation != functions.HashStats {
-			writes, deletes := s.ColumnProjectionRoots(parent.Address())
-			capture.Store, capture.Writes, capture.Deletes, capture.Frontier = *store, writes, deletes, e.Visibility.CommitSeq()
+			writes, deletes := h.ColumnProjectionRoots(parent.Address())
+			capture.Store, capture.Writes, capture.Deletes, capture.Frontier = *store, writes, deletes, h.CommitSequenceLocked()
 			capture.Store.IndexSource = store.IndexIdentity()
 		}
 	}
-	e.Mu.Unlock()
-	s.Owner.Mu.Unlock()
+	h.ReleaseOwnerEngineLocked()
 	if err != nil {
 		return
 	}
 	var stats index.PgstattupleStatsResult
-	stats, err = index.CapturePgstattupleStats(s.Op.Context(), capture)
+	stats, err = index.CapturePgstattupleStats(h.Operation().Context(), capture)
 	if err != nil {
 		return
 	}
-	e.Mu.Lock()
-	valid := e.Catalog.State.Epoch() == ref.Epoch && e.PrivateCatalogLocked(s.PendingCatalog()).Get(target.Address()) == target && e.PrivateCatalogLocked(s.PendingCatalog()).Get(parent.Address()) == parent && e.PrivateStorageLocked(s.PendingCatalog(), parent.Address()) == store
-	e.Mu.Unlock()
+	h.ReacquireEngine()
+	valid := h.CatalogEpochLocked() == ref.Epoch && h.PrivateCatalogLocked(h.PendingCatalog()).Get(target.Address()) == target && h.PrivateCatalogLocked(h.PendingCatalog()).Get(parent.Address()) == parent && h.PrivateStorageLocked(parent.Address()) == store
+	h.ReleaseEngineLocked()
 	if !valid {
 		err = ids.ErrCatalogReplaced
 		return
 	}
-	if err = s.Op.Context().Err(); err != nil {
+	if err = h.Operation().Context().Err(); err != nil {
 		return
 	}
 	if n.Operation == functions.HashStats {
@@ -176,33 +154,34 @@ func pgstattupleStatsTargetCheckable(v catalog.Read, target *catalog.Relation, t
 		parentPartitioned = false
 	}
 	if target.RelationKind != catalog.IndexRelation || target.SQLIndex == nil || target.SQLIndex.MethodIdentity() != method || parentPartitioned {
-		return SQLError("42809", fmt.Sprintf("relation \"%s\" is not a %s index", target.Name(), kind))
+		return sqlError("42809", fmt.Sprintf("relation \"%s\" is not a %s index", target.Name(), kind))
 	}
 	if ns, ok := v.Namespace(target.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token {
-		return SQLError("0A000", "cannot access temporary "+temporary+" of other sessions")
+		return sqlError("0A000", "cannot access temporary "+temporary+" of other sessions")
 	}
 	if !target.SQLIndex.Valid {
-		return SQLError("55000", fmt.Sprintf("index \"%s\" is not valid", target.Name()))
+		return sqlError("55000", fmt.Sprintf("index \"%s\" is not valid", target.Name()))
 	}
 	return nil
 }
-func pgstattupleStatsAuthority(auth AuthorizationView, n plan.InstalledPgstattupleStatsExpr) error {
-	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != auth.Catalog.Owner().Domain || n.Ref.Epoch != auth.Catalog.Epoch() {
+func pgstattupleStatsAuthority[A Authority](auth A, n plan.InstalledPgstattupleStatsExpr) error {
+	view := auth.Access()
+	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != view.Catalog.Owner().Domain || n.Ref.Epoch != view.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := auth.Catalog.Procedure(n.Ref.Address)
+	current, ok := view.Catalog.Procedure(n.Ref.Address)
 	if !ok || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return ids.ErrCatalogReplaced
 	}
-	if err := extension.ValidatePgstattupleIdentity(auth.Catalog, current, n.Ref); err != nil {
+	if err := extension.ValidatePgstattupleIdentity(view.Catalog, current, n.Ref); err != nil {
 		return err
 	}
 	boundary := n.PgstattupleStats
 	boundary.RoutineReference = current
-	if err := extension.ValidatePgstattupleStatsCall(auth.Catalog, current, boundary); err != nil {
+	if err := extension.ValidatePgstattupleStatsCall(view.Catalog, current, boundary); err != nil {
 		return err
 	}
-	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: view.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil {
 		return err
 	}
 	return auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege})

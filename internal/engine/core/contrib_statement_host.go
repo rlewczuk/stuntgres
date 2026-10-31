@@ -5,9 +5,11 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -224,3 +226,74 @@ func (h *statementHost) GenericFileAuthority() (dataDirectory, logDirectory stri
 }
 
 func (h *statementHost) InquiryCatalog() (catalog.Read, error) { return h.catalogInquiryCatalog() }
+
+// contribHost serves exec.ContribRuntime over the statement host. Contrib
+// keeps no state of its own, so each method enters the runtime with the host.
+
+func (h *contribHost) GenericFileList(kind functions.GenericFileListKind, dirname string) error {
+	return GenericFileList[AuthorizationView](h.host(), kind, dirname)
+}
+
+func (h *contribHost) GenericFileRead(kind functions.GenericFileReadKind, filename string, length int64, hasLength bool) error {
+	return GenericFileRead[AuthorizationView](h.host(), kind, filename, length, hasLength)
+}
+
+func (h *contribHost) GenericFileTmpdir(oid uint32) error {
+	return GenericFileTmpdir[AuthorizationView](h.host(), oid)
+}
+
+func (h *contribHost) Pgrowlocks(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return Pgrowlocks[AuthorizationView](h.host(), text, result)
+}
+
+func (h *contribHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
+	return ValidatePgrowlocks[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error {
+	return ValidateTablefuncNormal[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) ValidateConnectby(n plan.InstalledConnectbyExpr) error {
+	return ValidateConnectby[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error) {
+	return Connectby[AuthorizationView](h.host(), request)
+}
+
+func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return TablefuncCrosstab[AuthorizationView](h.host(), text, result)
+}
+
+func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error {
+	return ValidateTablefuncCrosstab[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return VerifyHeapam[AuthorizationView](h.host(), args, result)
+}
+
+func (h *contribHost) ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error {
+	return ValidateVerifyHeapam[AuthorizationView](h.host(), n)
+}
+
+func (h *contribHost) Amcheck(n plan.InstalledAmcheckExpr, oid uint32, flags [3]bool) error {
+	return Amcheck[AuthorizationView](h.host(), n, oid, flags)
+}
+
+func (h *contribHost) PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) ([8]int64, [2]float64, error) {
+	return PgstattupleStats[AuthorizationView](h.host(), n, input)
+}
+
+func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
+	return Pgstattuple[AuthorizationView](h.host(), n, input)
+}
+
+func (h *contribHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
+	return Pageinspect[AuthorizationView](h.host(), n, oid)
+}
+
+func (h *contribHost) PageinspectHeap(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.HeapStoredColumn, error) {
+	return PageinspectHeap[AuthorizationView](h.host(), n, oid)
+}

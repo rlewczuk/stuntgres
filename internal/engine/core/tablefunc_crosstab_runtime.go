@@ -9,33 +9,36 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error {
-	s, e := h.scope(), h.scope().Engine()
-	if err := s.Active(); err != nil {
+// ValidateTablefuncCrosstab checks the installed crosstab declaration against
+// current authority.
+func ValidateTablefuncCrosstab[A Authority](h Host[A], n plan.InstalledTablefuncCrosstabExpr) error {
+	if err := h.Active(); err != nil {
 		return err
 	}
-	e.Mu.Lock()
-	auth, err := s.writeAuthorizationLocked(e)
-	e.Mu.Unlock()
+	h.ReacquireEngine()
+	auth, err := h.WriteAuthorizationLocked()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return err
 	}
-	current, ok := auth.Catalog.Procedure(n.Ref.Address)
+	current, ok := auth.Access().Catalog.Procedure(n.Ref.Address)
 	if !ok || n.RoutineReference != n.Procedure || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return fmt.Errorf("stuntgres: stale installed crosstab declaration")
 	}
 	// Validate the retained capture as well as the current declaration. Replacing
 	// it here would erase its principal and sealed-origin provenance fences.
-	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Catalog)
+	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Access().Catalog)
 }
 
-func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	spi := h.nestedSQL()
+// TablefuncCrosstab runs crosstab's source SQL and pivots the last command's
+// rows.
+func TablefuncCrosstab[A Authority](h Host[A], text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	spi := exec.NestedSQL(h)
 	if err := spi.EnterNestedSQL(); err != nil {
 		return nil, err
 	}
 	defer spi.LeaveNestedSQL()
-	read, statements, err := spi.ParseNestedSQL(h.scope().Op.Context(), text)
+	read, statements, err := spi.ParseNestedSQL(h.Operation().Context(), text)
 	if err != nil {
 		return nil, exec.RewriteSQLDiagnostic(err, text)
 	}
@@ -48,7 +51,7 @@ func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor)
 	// Admission, expected analysis and source authority belong to one command,
 	// not the entire SPI string. In particular, the next SELECT must not reuse
 	// the preceding SELECT's prepared/source captures.
-	command := &crosstabCommand{host: h, spi: spi, text: text, result: result}
+	command := &crosstabCommand[A]{host: h, spi: spi, text: text, result: result}
 	request := exec.NestedRequest{Text: text, Diagnose: true, Caller: "crosstab"}
 	for i, statement := range statements {
 		command.last = i == len(statements)-1
@@ -59,12 +62,10 @@ func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor)
 	return command.values, nil
 }
 
-func (h *contribHost) nestedSQL() exec.NestedSQL { return (*statementHost)(h) }
-
 // crosstabCommand is one command of the crosstab source SQL. Only the last
 // command's rows become the pivot.
-type crosstabCommand struct {
-	host   *contribHost
+type crosstabCommand[A Authority] struct {
+	host   Host[A]
 	spi    exec.NestedSQL
 	text   string
 	result *sqltype.Descriptor
@@ -72,9 +73,9 @@ type crosstabCommand struct {
 	values []sqltype.Value
 }
 
-func (c *crosstabCommand) NestedCommand(parser.Statement) (bool, error) { return false, nil }
+func (c *crosstabCommand[A]) NestedCommand(parser.Statement) (bool, error) { return false, nil }
 
-func (c *crosstabCommand) NestedAnalyzed(statement parser.Statement) error {
+func (c *crosstabCommand[A]) NestedAnalyzed(statement parser.Statement) error {
 	tag := c.spi.NestedReadOnlyViolation(statement)
 	if tag == "" {
 		if _, ok := statement.(*parser.Select); !ok {
@@ -82,32 +83,31 @@ func (c *crosstabCommand) NestedAnalyzed(statement parser.Statement) error {
 		}
 	}
 	if tag != "" {
-		return exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), c.text)
+		return exec.RewriteSQLDiagnostic(sqlError("0A000", tag+" is not allowed in a non-volatile function"), c.text)
 	}
 	return nil
 }
 
-func (c *crosstabCommand) NestedRows(_ parser.Statement, rows exec.RowResult) error {
+func (c *crosstabCommand[A]) NestedRows(_ parser.Statement, rows exec.RowResult) error {
 	if rows == nil {
 		return nil
 	}
 	h := c.host
-	s, e := h.scope(), h.scope().Engine()
 	var err error
 	if c.last {
-		input, output := h.host().Environments()
+		input, output := h.Environments()
 		// Match the shared routine-result diagnostic path: successful pivots
 		// never capture a catalog/path display snapshot.
 		var name func(sqltype.ID) string
 		var namingErr error
 		display := func(id sqltype.ID) string {
 			if name == nil && namingErr == nil {
-				e.Mu.Lock()
-				auth, captureErr := s.RoutineAuthorizationLocked()
+				h.ReacquireEngine()
+				auth, captureErr := h.RoutineAuthorizationLocked()
 				if captureErr == nil {
-					name, captureErr = CaptureTypeDiagnosticName(auth)
+					name, captureErr = h.TypeDiagnosticName(auth)
 				}
-				e.Mu.Unlock()
+				h.ReleaseEngineLocked()
 				namingErr = captureErr
 			}
 			if name != nil {
@@ -115,7 +115,7 @@ func (c *crosstabCommand) NestedRows(_ parser.Statement, rows exec.RowResult) er
 			}
 			return ""
 		}
-		c.values, err = exec.ConsumeCrosstab(s.Op.Context(), rows, c.result, input, output, c.text, display)
+		c.values, err = exec.ConsumeCrosstab(h.Operation().Context(), rows, c.result, input, output, c.text, display)
 		if namingErr != nil {
 			err = namingErr
 		}
@@ -123,7 +123,7 @@ func (c *crosstabCommand) NestedRows(_ parser.Statement, rows exec.RowResult) er
 	}
 	scratch := make([]sqltype.Value, len(rows.Schema()))
 	for {
-		present, nextErr := rows.Next(s.Op.Context(), scratch)
+		present, nextErr := rows.Next(h.Operation().Context(), scratch)
 		if nextErr != nil {
 			err = exec.RewriteSQLDiagnostic(nextErr, c.text)
 			break

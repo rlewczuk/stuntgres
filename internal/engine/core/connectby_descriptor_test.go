@@ -1,14 +1,11 @@
-package core_test
+package core
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,9 +18,20 @@ func connectbyUnitDiagnostic(t *testing.T, err error, code, message, detail stri
 		t.Fatal("connectby descriptor diagnostic", err, detail)
 	}
 }
+
+// connectbyUnitUsage is the builtin type id's usage, as the catalog seed
+// declares it.
+func connectbyUnitUsage(id sqltype.ID) sqltype.Usage {
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == id {
+			return d.Usage()
+		}
+	}
+	panic("missing type")
+}
+
 func TestConnectbyReturnDescriptorOrder(t *testing.T) {
-	e := engine.New()
-	text, int4 := enginetest.Usage(e, sqltype.Text), enginetest.Usage(e, sqltype.Int4)
+	text, int4 := connectbyUnitUsage(sqltype.Text), connectbyUnitUsage(sqltype.Int4)
 	shape := func(usages []sqltype.Usage) *sqltype.Descriptor {
 		members := make([]sqltype.CompositeMember, len(usages))
 		for i, u := range usages {
@@ -45,12 +53,12 @@ func TestConnectbyReturnDescriptorOrder(t *testing.T) {
 				usages = append(usages, int4)
 			}
 			r := functions.ConnectbyRequest{Ordered: ordered, Branch: branch, Result: shape(usages)}
-			if err := core.ValidateConnectbyReturn(r); err != nil {
+			if err := validateConnectbyReturn(r); err != nil {
 				t.Fatal(err)
 			}
 			bad := r
 			bad.Result = shape([]sqltype.Usage{text, text, text, text, text, text})
-			connectbyUnitDiagnostic(t, core.ValidateConnectbyReturn(bad), "42804", "invalid connectby return type", fmt.Sprintf("Return row must have %d columns, not 6.", len(usages)))
+			connectbyUnitDiagnostic(t, validateConnectbyReturn(bad), "42804", "invalid connectby return type", fmt.Sprintf("Return row must have %d columns, not 6.", len(usages)))
 			badUsages := append([]sqltype.Usage{}, usages...)
 			badUsages[2] = text
 			if branch {
@@ -60,11 +68,11 @@ func TestConnectbyReturnDescriptorOrder(t *testing.T) {
 				badUsages[len(badUsages)-1] = text
 			}
 			bad.Result = shape(badUsages)
-			connectbyUnitDiagnostic(t, core.ValidateConnectbyReturn(bad), "42804", "invalid connectby return type", "Third return column (depth) must be type integer.")
+			connectbyUnitDiagnostic(t, validateConnectbyReturn(bad), "42804", "invalid connectby return type", "Third return column (depth) must be type integer.")
 			if branch {
 				badUsages[2] = int4
 				bad.Result = shape(badUsages)
-				connectbyUnitDiagnostic(t, core.ValidateConnectbyReturn(bad), "42804", "invalid connectby return type", "Fourth return column (branch) must be type text.")
+				connectbyUnitDiagnostic(t, validateConnectbyReturn(bad), "42804", "invalid connectby return type", "Fourth return column (branch) must be type text.")
 				badUsages[3] = text
 			}
 			if ordered {
@@ -74,14 +82,13 @@ func TestConnectbyReturnDescriptorOrder(t *testing.T) {
 				if branch {
 					ordinal = "Fifth"
 				}
-				connectbyUnitDiagnostic(t, core.ValidateConnectbyReturn(bad), "42804", "invalid connectby return type", ordinal+" return column (serial) must be type integer.")
+				connectbyUnitDiagnostic(t, validateConnectbyReturn(bad), "42804", "invalid connectby return type", ordinal+" return column (serial) must be type integer.")
 			}
 		}
 	}
 }
 func TestConnectbySourceDescriptorCompatibility(t *testing.T) {
-	e := engine.New()
-	text, int4 := enginetest.Usage(e, sqltype.Text), enginetest.Usage(e, sqltype.Int4)
+	text, int4 := connectbyUnitUsage(sqltype.Text), connectbyUnitUsage(sqltype.Int4)
 	shape := func(key, parent sqltype.Usage) *sqltype.Descriptor {
 		d, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "key", Usage: key}, {Attribute: 2, Name: "parent", Usage: parent}, {Attribute: 3, Name: "level", Usage: int4}})
 		if err != nil {
@@ -90,19 +97,19 @@ func TestConnectbySourceDescriptorCompatibility(t *testing.T) {
 		return d
 	}
 	result := shape(int4, text)
-	if err := core.ValidateConnectbySource(result, []catalog.Column{{Usage: int4}, {Usage: text}, {Usage: int4}}); err != nil {
+	if err := validateConnectbySource(result, []catalog.Column{{Usage: int4}, {Usage: text}, {Usage: int4}}); err != nil {
 		t.Fatal("independent key/parent types and ignored extra source column", err)
 	}
-	connectbyUnitDiagnostic(t, core.ValidateConnectbySource(result, []catalog.Column{{Usage: int4}}), "22023", "invalid connectby source data query", "The query must return at least two columns.")
-	connectbyUnitDiagnostic(t, core.ValidateConnectbySource(result, []catalog.Column{{Usage: text}, {Usage: int4}}), "42804", "invalid connectby return type", "Source key type text does not match return key type integer.")
-	connectbyUnitDiagnostic(t, core.ValidateConnectbySource(result, []catalog.Column{{Usage: int4}, {Usage: int4}}), "42804", "invalid connectby return type", "Source parent key type integer does not match return parent key type text.")
-	varchar := enginetest.Usage(e, sqltype.VarChar)
+	connectbyUnitDiagnostic(t, validateConnectbySource(result, []catalog.Column{{Usage: int4}}), "22023", "invalid connectby source data query", "The query must return at least two columns.")
+	connectbyUnitDiagnostic(t, validateConnectbySource(result, []catalog.Column{{Usage: text}, {Usage: int4}}), "42804", "invalid connectby return type", "Source key type text does not match return key type integer.")
+	connectbyUnitDiagnostic(t, validateConnectbySource(result, []catalog.Column{{Usage: int4}, {Usage: int4}}), "42804", "invalid connectby return type", "Source parent key type integer does not match return parent key type text.")
+	varchar := connectbyUnitUsage(sqltype.VarChar)
 	source := varchar
 	source.Typmod = 9
-	if err := core.ValidateConnectbySource(shape(varchar, varchar), []catalog.Column{{Usage: source}, {Usage: source}}); err != nil {
+	if err := validateConnectbySource(shape(varchar, varchar), []catalog.Column{{Usage: source}, {Usage: source}}); err != nil {
 		t.Fatal("unconstrained typmod", err)
 	}
 	target := varchar
 	target.Typmod = 10
-	connectbyUnitDiagnostic(t, core.ValidateConnectbySource(shape(target, varchar), []catalog.Column{{Usage: source}, {Usage: source}}), "42804", "invalid connectby return type", "Source key type character varying(5) does not match return key type character varying(6).")
+	connectbyUnitDiagnostic(t, validateConnectbySource(shape(target, varchar), []catalog.Column{{Usage: source}, {Usage: source}}), "42804", "invalid connectby return type", "Source key type character varying(5) does not match return key type character varying(6).")
 }

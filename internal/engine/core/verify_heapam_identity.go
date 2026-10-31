@@ -9,24 +9,25 @@ import (
 	"stuntgres/internal/engine/stored"
 )
 
-func (h *contribHost) ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error {
-	s, e := h.scope(), h.scope().Engine()
-	if err := s.Active(); err != nil {
+// ValidateVerifyHeapam checks the installed verify_heapam declaration against
+// current authority.
+func ValidateVerifyHeapam[A Authority](h Host[A], n plan.InstalledVerifyHeapamExpr) error {
+	if err := h.Active(); err != nil {
 		return err
 	}
-	e.Mu.Lock()
-	auth, err := s.writeAuthorizationLocked(e)
-	e.Mu.Unlock()
+	h.ReacquireEngine()
+	auth, err := h.WriteAuthorizationLocked()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return err
 	}
-	current, ok := auth.Catalog.Procedure(n.Ref.Address)
+	current, ok := auth.Access().Catalog.Procedure(n.Ref.Address)
 	if !ok || n.RoutineReference != n.Procedure || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return fmt.Errorf("stuntgres: stale installed verify_heapam declaration")
 	}
 	n.Procedure, n.RoutineReference = current, current
-	if err := stored.ValidateInstalledVerifyHeapam(n, auth.Catalog); err != nil {
+	if err := stored.ValidateInstalledVerifyHeapam(n, auth.Access().Catalog); err != nil {
 		return err
 	}
-	return auth.View.Check(auth, access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege})
+	return auth.Access().Check(auth, access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege})
 }

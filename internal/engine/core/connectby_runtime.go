@@ -14,23 +14,24 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *contribHost) ValidateConnectby(n plan.InstalledConnectbyExpr) error {
-	s, e := h.scope(), h.scope().Engine()
-	if err := s.Active(); err != nil {
+// ValidateConnectby checks the installed connectby declaration against
+// current authority.
+func ValidateConnectby[A Authority](h Host[A], n plan.InstalledConnectbyExpr) error {
+	if err := h.Active(); err != nil {
 		return err
 	}
-	e.Mu.Lock()
-	auth, err := s.writeAuthorizationLocked(e)
-	e.Mu.Unlock()
+	h.ReacquireEngine()
+	auth, err := h.WriteAuthorizationLocked()
+	h.ReleaseEngineLocked()
 	if err != nil {
 		return err
 	}
-	current, ok := auth.Catalog.Procedure(n.Ref.Address)
+	current, ok := auth.Access().Catalog.Procedure(n.Ref.Address)
 	if !ok || n.RoutineReference != n.Procedure || !exec.SameRoutineDeclaration(current, n.Procedure) {
 		return fmt.Errorf("stuntgres: stale installed connectby declaration")
 	}
 	n.Procedure, n.RoutineReference = current, current
-	return stored.ValidateInstalledConnectby(n, auth.Catalog)
+	return stored.ValidateInstalledConnectby(n, auth.Access().Catalog)
 }
 func connectbyReturnError(detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "invalid connectby return type", Detail: detail}
@@ -85,8 +86,9 @@ type connectbyFrame struct {
 	branch   string
 }
 
-func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, error) {
-	ctx := h.host().Context()
+// Connectby walks the hierarchy depth first, one nested child query per key.
+func Connectby[A Authority](h Host[A], r functions.ConnectbyRequest) ([]sqltype.Value, error) {
+	ctx := h.Context()
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 		return nil, err
 	}
 	// One SPI consumer serves every child query of this call.
-	command := &connectbyCommand{host: h, spi: h.nestedSQL()}
+	command := &connectbyCommand[A]{host: h, spi: h}
 	queryChildren := func(key string) (connectbyChildren, error) {
 		var value [1]sqltype.Value
 		value[0] = sqltype.String(r.Text, key)
@@ -157,7 +159,7 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 		if r.Ordered {
 			text += " ORDER BY " + r.Order
 		}
-		children, err := h.connectbyQuery(command, text)
+		children, err := connectbyQuery(command, text)
 		if err != nil {
 			return connectbyChildren{}, err
 		}
@@ -202,7 +204,7 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 		branch := frame.branch
 		if key != nil {
 			if strings.Contains(r.Delimiter+branch+r.Delimiter, r.Delimiter+*key+r.Delimiter) {
-				return nil, SQLError("42P19", "infinite recursion detected")
+				return nil, sqlError("42P19", "infinite recursion detected")
 			}
 			branch += r.Delimiter + *key
 		}
@@ -224,7 +226,7 @@ func (h *contribHost) Connectby(r functions.ConnectbyRequest) ([]sqltype.Value, 
 
 // Each nested statement uses the real binder/executor, the current private
 // catalog and the outer coherent data view. Only the last SELECT supplies rows.
-func (h *contribHost) connectbyQuery(command *connectbyCommand, text string) (children connectbyChildren, err error) {
+func connectbyQuery[A Authority](command *connectbyCommand[A], text string) (children connectbyChildren, err error) {
 	spi := command.spi
 	if err = spi.EnterNestedSQL(); err != nil {
 		return children, err
@@ -236,7 +238,7 @@ func (h *contribHost) connectbyQuery(command *connectbyCommand, text string) (ch
 			children = connectbyChildren{}
 		}
 	}()
-	read, statements, err := spi.ParseNestedSQL(h.host().Context(), text)
+	read, statements, err := spi.ParseNestedSQL(command.host.Context(), text)
 	if err != nil {
 		return children, err
 	}
@@ -258,14 +260,14 @@ func (h *contribHost) connectbyQuery(command *connectbyCommand, text string) (ch
 
 // connectbyCommand is one command of connectby's source SQL, run as
 // read-only SPI.
-type connectbyCommand struct {
-	host     *contribHost
+type connectbyCommand[A Authority] struct {
+	host     Host[A]
 	spi      exec.NestedSQL
 	children connectbyChildren
 	stop     bool
 }
 
-func (c *connectbyCommand) NestedCommand(statement parser.Statement) (bool, error) {
+func (c *connectbyCommand[A]) NestedCommand(statement parser.Statement) (bool, error) {
 	// SPI rejects transaction commands and frontend COPY with a negative
 	// result, terminating the list without throwing an SQL error. connectby
 	// consumes only SPI_OK_SELECT, so that outcome supplies no children.
@@ -284,14 +286,14 @@ func (c *connectbyCommand) NestedCommand(statement parser.Statement) (bool, erro
 	switch statement.(type) {
 	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 	default:
-		return false, SQLError("0A000", c.spi.NestedCommandTag(statement)+" is not allowed in a non-volatile function")
+		return false, sqlError("0A000", c.spi.NestedCommandTag(statement)+" is not allowed in a non-volatile function")
 	}
 	return false, nil
 }
 
-func (c *connectbyCommand) NestedAnalyzed(parser.Statement) error { return nil }
+func (c *connectbyCommand[A]) NestedAnalyzed(parser.Statement) error { return nil }
 
-func (c *connectbyCommand) NestedRows(statement parser.Statement, rows exec.RowResult) (err error) {
+func (c *connectbyCommand[A]) NestedRows(statement parser.Statement, rows exec.RowResult) (err error) {
 	if rows != nil {
 		defer func() {
 			if closeErr := rows.Close(); err == nil {
@@ -314,7 +316,7 @@ func (c *connectbyCommand) NestedRows(statement parser.Statement, rows exec.RowR
 	}
 	c.children.schema = append([]catalog.Column(nil), schema[:kept]...)
 	buffer := make([]sqltype.Value, len(schema))
-	host := c.host.host()
+	host := c.host
 	for {
 		if err = host.Context().Err(); err != nil {
 			return err

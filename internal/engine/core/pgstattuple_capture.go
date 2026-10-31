@@ -12,24 +12,23 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func pgstattupleAuthority(auth AuthorizationView, n plan.InstalledPgstattupleExpr) error {
-	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != auth.Catalog.Owner().Domain || n.Ref.Epoch != auth.Catalog.Epoch() {
+func pgstattupleAuthority[A Authority](auth A, n plan.InstalledPgstattupleExpr) error {
+	view := auth.Access()
+	if n.Procedure == nil || n.CallRoutineReference() != n.Procedure || n.Ref.Domain() != view.Catalog.Owner().Domain || n.Ref.Epoch != view.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := auth.Catalog.Procedure(n.Ref.Address)
+	current, ok := view.Catalog.Procedure(n.Ref.Address)
 	if !ok || !exec.SameRoutineDeclaration(current, n.Procedure) { return ids.ErrCatalogReplaced }
-	if err := extension.ValidatePgstattupleIdentity(auth.Catalog, current, n.Ref); err != nil { return err }
+	if err := extension.ValidatePgstattupleIdentity(view.Catalog, current, n.Ref); err != nil { return err }
 	boundary := n.Pgstattuple
 	boundary.RoutineReference = current
-	if err := extension.ValidatePgstattupleCall(auth.Catalog, current, boundary); err != nil { return err }
-	if err := auth.Check(access.Requirement{Object: auth.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil { return err }
+	if err := extension.ValidatePgstattupleCall(view.Catalog, current, boundary); err != nil { return err }
+	if err := auth.Check(access.Requirement{Object: view.Ref(current.Namespace()), Privileges: authorization.UsagePrivilege}); err != nil { return err }
 	return auth.Check(access.Requirement{Object: n.Ref, Privileges: authorization.ExecutePrivilege})
 }
 
@@ -59,131 +58,168 @@ func PgstattupleTargetCheckable(v catalog.Read, target *catalog.Relation, token 
 		return &sqlstate.Error{Severity:"ERROR", SeverityUnlocalized:"ERROR", Code:code, Message:message, Detail:"This operation is not supported for "+label+"."}
 	}
 	if kind != functions.HeapStatisticsPages {
-		if ns, ok := v.Namespace(target.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token { return SQLError("0A000", "cannot access temporary tables of other sessions") }
+		if ns, ok := v.Namespace(target.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != token { return sqlError("0A000", "cannot access temporary tables of other sessions") }
 	}
 	if target.SQLIndex != nil && kind == functions.HeapStatisticsExact {
-		if !target.SQLIndex.Valid { return SQLError("55000", fmt.Sprintf("index %q is not valid", target.Name())) }
+		if !target.SQLIndex.Valid { return sqlError("55000", fmt.Sprintf("index %q is not valid", target.Name())) }
 		method := target.SQLIndex.MethodIdentity()
 		if method != 403 && method != 405 && method != 783 {
 			name := "unknown"
 			if am, ok := v.AccessMethod(method); ok { name = am.Name() }
-			return SQLError("0A000", fmt.Sprintf("index %q (%s index) is not supported", target.Name(), name))
+			return sqlError("0A000", fmt.Sprintf("index %q (%s index) is not supported", target.Name(), name))
 		}
 	}
-	if target.SQLIndex == nil && target.Sequence == nil && kind != functions.HeapStatisticsPages && target.TableMethod != 0 && target.TableMethod != 2 { return SQLError("0A000", "only heap AM is supported") }
+	if target.SQLIndex == nil && target.Sequence == nil && kind != functions.HeapStatisticsPages && target.TableMethod != 0 && target.TableMethod != 2 { return sqlError("0A000", "only heap AM is supported") }
 	return nil
 }
 
-func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
-	s, e := h.scope(), h.scope().Engine()
-	if err := s.Active(); err != nil { return storage.HeapStatistics{}, err }
-	e.Mu.Lock()
-	auth, err := s.RoutineAuthorizationLocked()
-	if err == nil { err = pgstattupleAuthority(auth, n) }
+// Pgstattuple is the exact and approximate tuple and page inquiries.
+func Pgstattuple[A Authority](h Host[A], n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error) {
+	if err := h.Active(); err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	h.ReacquireEngine()
+	auth, err := h.RoutineAuthorizationLocked()
+	if err == nil {
+		err = pgstattupleAuthority(auth, n)
+	}
 	var path []ids.ObjectAddress
-	if err == nil && n.Input == sqltype.Text { path, err = ReferencePath(auth) }
-	e.Mu.Unlock()
-	if err != nil { return storage.HeapStatistics{}, err }
+	if err == nil && n.Input == sqltype.Text {
+		path, err = auth.ReferencePath()
+	}
+	h.ReleaseEngineLocked()
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
 	var oid uint32
 	if n.Input == sqltype.Text {
 		text, failure := input.Text()
 		err = failure
-		if err == nil { oid, err = regobj.NewClassInput(inputCapture(auth, path)).ResolveRelationName(s.Op.Context(), text) }
-	} else { oid, err = input.ClassOID() }
-	if err != nil { return storage.HeapStatistics{}, err }
-	epoch := auth.Catalog.Epoch()
-	e.Mu.Lock()
-	auth, err = s.RoutineAuthorizationLocked()
-	if err == nil && auth.Catalog.Epoch() != epoch { err = ids.ErrCatalogReplaced }
-	if err == nil { err = pgstattupleAuthority(auth, n) }
+		if err == nil {
+			oid, err = h.ClassInput(auth, path).ResolveRelationName(h.Operation().Context(), text)
+		}
+	} else {
+		oid, err = input.ClassOID()
+	}
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	epoch := auth.Access().Catalog.Epoch()
+	h.ReacquireEngine()
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil && auth.Access().Catalog.Epoch() != epoch {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil {
+		err = pgstattupleAuthority(auth, n)
+	}
 	var target, parent *catalog.Relation
 	var store *storage.Relation
-	if err == nil { target, parent, err = amcheckTargetIdentity(auth, oid) }
+	if err == nil {
+		target, parent, err = amcheckTargetIdentity(auth.Access().Catalog, oid)
+	}
 	if err == nil {
 		address := target.Address()
-		if parent != nil { address = parent.Address() }
-		store = e.PrivateStorageLocked(s.PendingCatalog(), address)
+		if parent != nil {
+			address = parent.Address()
+		}
+		store = h.PrivateStorageLocked(address)
 	}
-	e.Mu.Unlock()
-	if err != nil { return storage.HeapStatistics{}, err }
-	ref := e.Catalog.Domain.Ref(epoch, target.Address())
+	h.ReleaseEngineLocked()
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	ref := h.CatalogDomain().Ref(epoch, target.Address())
 	var contribution lock.RelationContribution
-	defer e.Locks.ReleaseRelation(&contribution)
-	policy := lock.Policy{TimeoutSlot:&s.Op.LockWait, Timeout:s.Op.LockTimeout, StatementDeadline:s.Op.StatementDeadline, Source:s.Op.SourceContext}
-	request, err := e.Locks.StartAcquireRelation(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef:ref}, lock.AccessShare, policy, &contribution)
-	if request != nil {
-		s.admissionWaited = true
-		if s.ReplacementRead { e.ReplacementMu.RUnlock(); s.ReplacementRead = false }
-		err = request.Wait()
+	defer h.LockManager().ReleaseRelation(&contribution)
+	if err := h.AcquireRelationContribution(ref, lock.AccessShare, &contribution); err != nil {
+		return storage.HeapStatistics{}, err
 	}
-	if err != nil { return storage.HeapStatistics{}, err }
-	s.Owner.Mu.Lock()
-	implicit := s.Owner.State == session.TxImplicit
-	s.Owner.Mu.Unlock()
-	if implicit && !s.ReplacementRead { e.ReplacementMu.RLock(); s.ReplacementRead = true }
 	// Only the caller's stage is reachable here. No peer Admission is taken.
 	address := target.Address()
-	if parent != nil { address = parent.Address() }
-	writes, deletes := s.ColumnProjectionRoots(address)
-	for {
-		if err := s.Op.Context().Err(); err != nil { return storage.HeapStatistics{}, err }
-		owners := e.heapStatisticsOwners(s.Owner)
-		for _, owner := range owners { owner.Mu.Lock() }
-		e.Mu.Lock()
-		if !e.heapStatisticsCohortCurrent(owners, s.Owner) {
-			e.Mu.Unlock()
-			for i:=len(owners)-1; i>=0; i-- { owners[i].Mu.Unlock() }
-			continue
-		}
-		auth, err = s.RoutineAuthorizationLocked()
-		if err == nil && auth.Catalog.Epoch() != epoch { err = ids.ErrCatalogReplaced }
-		if err == nil { err = pgstattupleAuthority(auth, n) }
-		if err == nil && (auth.Catalog.Get(target.Address()) != target || e.PrivateStorageLocked(s.PendingCatalog(), address) != store || parent != nil && auth.Catalog.Get(parent.Address()) != parent) { err = ids.ErrCatalogReplaced }
-		if err == nil {
-			e.markTemporaryAccessLocked(s, ref, temporaryTargetAttempt)
-			err = PgstattupleTargetCheckable(auth.Catalog, target, s.Op.Session.SessionToken, n.Kind)
-		}
-		var facts []storage.HeapTupleFact
-		var indexCapture index.PgstattupleStatsCapture
-		if err == nil {
-			switch {
-			case target.Sequence != nil:
-				generator := e.Storage.Sequences[target.Address()]
-				if pending := s.PendingCatalog(); pending != nil && pending.Generators[target.Address()] != nil { generator = pending.Generators[target.Address()] }
-				if generator == nil { err = ids.ErrCatalogReplaced }
-			case target.SQLIndex != nil:
-				if store == nil { err = ids.ErrCatalogReplaced; break }
-				root := index.EffectiveRoot(e.Storage.IndexRoots, s.PendingCatalog(), target.Address())
-				physicalWrites := e.heapStatisticsPrivateWritesLocked(s, owners, store, address, writes)
-				indexCapture = index.PgstattupleStatsCapture{Index:target, Parent:parent, Root:root, Store:*store, Writes:physicalWrites, Deletes:deletes, Frontier:e.Visibility.CommitSeq()}
-			default:
-				if store == nil { err = ids.ErrCatalogReplaced; break }
-				facts = e.heapStatisticsFactsLocked(s, owners, store, address, writes, deletes)
-			}
-		}
-		e.Mu.Unlock()
-		for i:=len(owners)-1; i>=0; i-- { owners[i].Mu.Unlock() }
-		if err != nil { return storage.HeapStatistics{}, err }
-		var stats storage.HeapStatistics
+	if parent != nil {
+		address = parent.Address()
+	}
+	writes, deletes := h.ColumnProjectionRoots(address)
+	owners, err := h.LockHeapStatisticsCohort()
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil && auth.Access().Catalog.Epoch() != epoch {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil {
+		err = pgstattupleAuthority(auth, n)
+	}
+	if err == nil && (auth.Access().Catalog.Get(target.Address()) != target || h.PrivateStorageLocked(address) != store || parent != nil && auth.Access().Catalog.Get(parent.Address()) != parent) {
+		err = ids.ErrCatalogReplaced
+	}
+	if err == nil {
+		h.MarkTemporaryTargetLocked(ref)
+		err = PgstattupleTargetCheckable(auth.Access().Catalog, target, h.Operation().Session.SessionToken, n.Kind)
+	}
+	var facts []storage.HeapTupleFact
+	var indexCapture index.PgstattupleStatsCapture
+	if err == nil {
 		switch {
 		case target.Sequence != nil:
-			// One genuine generator has one fixed-shape physical state tuple:
-			// header, null bitmap, aligned Last and Called datum slots.
-			stats, err = storage.HeapStatisticsLayout(s.Op.Context(), 1, 0, 48, 0, false)
+			generator := h.EngineStorageLocked().Sequences[target.Address()]
+			if pending := h.PendingCatalog(); pending != nil && pending.Generators[target.Address()] != nil {
+				generator = pending.Generators[target.Address()]
+			}
+			if generator == nil {
+				err = ids.ErrCatalogReplaced
+			}
 		case target.SQLIndex != nil:
-			stats, err = index.CaptureTupleStatistics(s.Op.Context(), indexCapture, n.Kind == functions.HeapStatisticsPages)
+			if store == nil {
+				err = ids.ErrCatalogReplaced
+				break
+			}
+			root := index.EffectiveRoot(h.EngineStorageLocked().IndexRoots, h.PendingCatalog(), target.Address())
+			physicalWrites := h.HeapStatisticsPrivateWritesLocked(owners, store, address, writes)
+			indexCapture = index.PgstattupleStatsCapture{Index: target, Parent: parent, Root: root, Store: *store, Writes: physicalWrites, Deletes: deletes, Frontier: h.CommitSequenceLocked()}
 		default:
-			stats, err = storage.CaptureHeapStatistics(s.Op.Context(), facts, s.TxRef, n.Kind == functions.HeapStatisticsApprox)
+			if store == nil {
+				err = ids.ErrCatalogReplaced
+				break
+			}
+			facts = h.HeapStatisticsFactsLocked(owners, store, address, writes, deletes)
 		}
-		if err != nil { return stats, err }
-		e.Mu.Lock()
-		auth, err = s.RoutineAuthorizationLocked()
-		if err == nil { err = pgstattupleAuthority(auth, n) }
-		valid := err == nil && e.Catalog.State.Epoch() == epoch && auth.Catalog.Get(target.Address()) == target && (parent == nil || auth.Catalog.Get(parent.Address()) == parent) && e.PrivateStorageLocked(s.PendingCatalog(), address) == store
-		e.Mu.Unlock()
-		if err != nil { return storage.HeapStatistics{}, err }
-		if !valid { return storage.HeapStatistics{}, ids.ErrCatalogReplaced }
-		if err := s.Op.Context().Err(); err != nil { return storage.HeapStatistics{}, err }
-		return stats, nil
 	}
+	h.UnlockHeapStatisticsCohortLocked(owners)
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	var stats storage.HeapStatistics
+	switch {
+	case target.Sequence != nil:
+		// One genuine generator has one fixed-shape physical state tuple:
+		// header, null bitmap, aligned Last and Called datum slots.
+		stats, err = storage.HeapStatisticsLayout(h.Operation().Context(), 1, 0, 48, 0, false)
+	case target.SQLIndex != nil:
+		stats, err = index.CaptureTupleStatistics(h.Operation().Context(), indexCapture, n.Kind == functions.HeapStatisticsPages)
+	default:
+		stats, err = storage.CaptureHeapStatistics(h.Operation().Context(), facts, h.TransactionRef(), n.Kind == functions.HeapStatisticsApprox)
+	}
+	if err != nil {
+		return stats, err
+	}
+	h.ReacquireEngine()
+	auth, err = h.RoutineAuthorizationLocked()
+	if err == nil {
+		err = pgstattupleAuthority(auth, n)
+	}
+	valid := err == nil && h.CatalogEpochLocked() == epoch && auth.Access().Catalog.Get(target.Address()) == target && (parent == nil || auth.Access().Catalog.Get(parent.Address()) == parent) && h.PrivateStorageLocked(address) == store
+	h.ReleaseEngineLocked()
+	if err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	if !valid {
+		return storage.HeapStatistics{}, ids.ErrCatalogReplaced
+	}
+	if err := h.Operation().Context().Err(); err != nil {
+		return storage.HeapStatistics{}, err
+	}
+	return stats, nil
 }
