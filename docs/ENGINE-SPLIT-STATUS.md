@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `ea9ed53c8` (item 215 rebased on it).
+Last verified against `master` at `3175b2b35` (item 211 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 209, 211, 214, 216, 217, 218.
+- 209, 214, 216, 217, 218.
 
 ## Linear plan
 
@@ -77,9 +77,20 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      56 helper copies proven identical), `layers.py`, deps, quickcheck (three
      reference tests failed under load average 200 and passed alone). Racecheck
      and finalcheck skipped at user request.
-211. [ ] Query and DML feature tests —
+211. [x] Query and DML feature tests —
      [core](ENGINE-SPLIT-core.md#item-211--query-and-dml-feature-tests) · needs
-     207 · P · core after 7.8
+     207 · P · core after 7.8 (`10ed29283`, `2ad5a7ec7`, `89320ee08`,
+     `048d4b69d`, `9317d50f6`, `93d756868`, `5201e030e`, `698588293`, docs
+     commit) · test files only: 33 mixed files split by test function (35
+     parts), then 201 accessor-free files with 441 tests move to
+     `core/enginetests/binder` (0.54 MiB), `executor` (0.41), `writes` (0.16),
+     `locking` (0.09) and `sessions` (0.03), by the re-run census; four lock and
+     DML helpers that two or more of them share move to `enginetest`. Core 10.31
+     → 9.21 MiB (at `3175b2b35`). Passed: per-commit compile, the five packages
+     (each test alone too), `-race` over them, `revcheck.py` (test names
+     unchanged; only gained literals, from 154 helper copies checked identical),
+     `layers.py`, library deps, quickcheck. Racecheck and finalcheck skipped at
+     user request.
 212. [x] Explain pilot — [core](ENGINE-SPLIT-core.md#item-212--explain-pilot) ·
      needs 206 · P, bench · core after 7.7 (`11b535b5d`, `e87134e1a`,
      `9fa0e76ca`, `f60d36322`, `27aff0554`, docs commit) · the EXPLAIN renderer

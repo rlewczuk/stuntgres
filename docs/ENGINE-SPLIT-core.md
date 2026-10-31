@@ -846,7 +846,57 @@ Needs 228. Mode S. Gated.
   `pg_opclass`, `pg_largeobject`, `info_key_column_usage`, `info_sequences`,
   `info_triggers`, …), as do the accessor-blocked ones. 218 can re-run the
   census from this item's scripts.
-- 211: not started.
+- 211: - 211: done, `10ed29283`, `2ad5a7ec7`, `89320ee08`, `048d4b69d`,
+  `9317d50f6`, `93d756868`, `5201e030e`, `698588293`. **Census** re-run locally
+  at `fa09d53a5`
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-211-QUERY-DML-FEATURE-TESTS/census/`): 2,533
+  core, 361 functions and 165 pgcatalog tests, all passing alone; 113,818
+  blocks; `groups.json` from `mkgroups.py` with `maintenance_environment.go` in
+  B contrib (as item 210). Calibration: functions 100% leave core (73.4% own
+  area); pgcatalog 98.2% leave core, but own-area agreement fell to 43.6% (was
+  65%; label noise, the gate is leaving core). **Areas** (`areas.json`):
+  `binder` (analyze), `executor` (exec, plan, expr), `writes` (dml, storage),
+  `locking` (lock, visibility), `sessions` (session, settings, workadmission).
+  `table` sums into the `tables` area with `tablecmds`, which item 209 owns, so
+  table-owned tests are left to it. **Split** (`split211.py`, adapted from
+  `split208.py`; it reads each file's current tests): 33 mixed files give 35
+  `<base>_<area>_test.go` parts, which move under their original basename; 18
+  files whose groups are all 211 areas keep the largest group and move whole. 25
+  split files that still hold a test of an item-209 area were skipped (209 runs
+  in parallel); they are listed in `split-w.log`. **Moved** (`move.sh AREA`,
+  cmdmv `-testonly`; 0 VIOLATION, 0 SEAM, 0 T6): 201 files, 441 tests; binder 82
+  files (548 KiB), executor 66 (416), writes 26 (165), locking 21 (90), sessions
+  6 (30). No accessor entry moved, no export, no frame string changed, no test
+  deleted. **Helpers (T4).** `promote211.py` moved the helpers two or more
+  destinations reach to `enginetest/locks.go`: `updateDeleteAsync` →
+  `ExecuteAsync`, `mergeUpdatePendingRow` → `RowLockPending`, `waitsDiagnostic`
+  → `WaitDiagnostic`; exact duplicates mapped: `mustLockStatement` →
+  `LockStatement` (enginetest's `lockStatement`, now exported) and `catalogRef`
+  → `CatalogRef`. Core's users call them there. Copied rather than promoted (two
+  destinations each): `windowCancelContext`, `aggregateCancelContext` and
+  `deleteOutcome` (types with unexported fields; the cancel contexts match
+  frames), `insertSelectEvaluationFixture`, `strictNullUnitFixture` and
+  `strictNullUnitBind` (they call `engine.New()`, which enginetest cannot
+  import). Other single-destination helpers are copied by cmdmv (154
+  declarations, checked identical to their core originals by `copycheck.py`);
+  `dropdead.sh` deleted six core helper copies whose last users moved, and the
+  four files left holding only them. **Measured:** core 10.31 → 9.21 MiB (at
+  `3175b2b35`); enginetest 46.7 → 49.4 KiB. The five packages run in 0.1–2 s
+  each alone (10–15 s with `-race`). Quickcheck (load average about 100 on 32
+  cores): core 186.6 s elapsed; binder 16.2 s, executor 18.0, writes 5.4,
+  locking 2.8, sessions 0.6. Their tests left core, so the added CPU is about 3
+  s of link per binary, well under 2% each (T7). **Verified:** compile check per
+  commit; the five packages, and each of the 441 tests alone; `-race` over the
+  five packages (every moved lock, session, advisory, synctest and concurrency
+  test); `revcheck.py` (test names 2,971 unchanged; literals: 0 lost, 421
+  gained, all from the copies); `layers.py` 0; `frames.py list` (only gained,
+  resolving strings from the copies); library deps; quickcheck. Racecheck and
+  finalcheck skipped (user decision); no `REFERENCE=1` (test files only).
+  **Notes for later items.** 209: the 25 skipped files keep their 211-area tests
+  in core; a replay of `split211.py` after 209 picks them up, else 229.
+  `table`-owned tests are in 209's `tables` area. 229:
+  `insert_username_expression_binder_test.go` keeps its source file's non-gofmt
+  formatting (pure move).
 - 212: done (`11b535b5d`, `e87134e1a`, `9fa0e76ca`, `f60d36322`, `27aff0554`),
   at `7731d0abf`. - **Moved** to `internal/engine/core/explain`:
   `explain_command`, `explain_expression`, `explain_foreign`,
