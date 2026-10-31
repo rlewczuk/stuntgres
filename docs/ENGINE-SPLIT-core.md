@@ -1085,7 +1085,84 @@ Needs 228. Mode S. Gated.
   `functions.{Catalog,Session,Transaction}InquiryRuntime`. - Finding:
   ts_rewrite, ts_stat and crosstab do not close a failed execution's rows; only
   connectby does (`CloseFailed`). Kept for byte-identical behaviour.
-- 214: not started.
+- 214: - 214: done (`0b5cb58a9`, `3d8bb9743`, `ec2988fd6`, `46f898f64`), at
+  `d57b7b53e`. - **Moved** to `internal/engine/core/contrib` (replay `move.sh`,
+  cmdmv 0 VIOLATION/SEAM/T6; token-equal to the cut modulo qualifiers):
+  `amcheck_capture`, `verify_heapam_capture`, `verify_heapam_identity`,
+  `pageinspect_capture`, `pageinspect_heap_capture` (inflow),
+  `pgrowlocks_capture`, `pgrowlocks_identity`, `pgstatindex_capture`,
+  `pgstattuple_capture` (inflow; in `exec.ContribRuntime` since 213),
+  `tablefunc_crosstab_runtime`, `tablefunc_normal_identity`,
+  `connectby_runtime`, `generic_file_lists_runtime`,
+  `generic_file_read_runtime`, plus the seam file `host.go`. `resultUsageName`
+  moved first to `exec.ResultUsageName` (connectby and core's PL/pgSQL dynamic
+  result checks share it). - **Deviations (what stays in core).**
+  `maintenance_environment.go` (the spec's `amcheck_environment`):
+  `WithMaintenanceOwner` rewrites scope slots and is shared with CLUSTER
+  (`tablecmds/cluster.go`) and 11 core tests; contrib reaches it through
+  `CheckBtreeAsOwner`, which keeps amcheck's work closure in core (through the
+  host interface it would escape). `pgrowlocksReadmitLocked` and
+  `verifyHeapamReadmitLocked` (`contrib_readmission.go`): core readmission
+  fences, so their accessors in `export_funcglue_test.go` stay as they are.
+  pgstattuple's owner cohort (`heap_statistics_cohort.go`: sessions map,
+  `sessionMu`, prepared transactions). The generic file path authority (Engine →
+  Settings → Session locks) is `GenericFileAuthority`; the pure lexical check
+  runs in contrib after the locks. - **Host.** `contrib.Host[A]` on
+  `statementHost` (`core/contrib_statement_host.go`). Reused: `exec.NestedSQL`
+  (embedded), `Context`, `Operation`, `Environments`, `Active`, `Ticket`,
+  `PendingCatalog`, `CatalogDomain`, `PrivateCatalogLocked`,
+  `PrivateStorageLocked`, `EngineStorageLocked`, `ReacquireEngine`/
+  `ReleaseEngineLocked`. New (28): the routine, write and callable
+  authorizations, `ReacquireOwnerEngine`/`ReleaseOwnerEngineLocked` (Owner.Mu
+  then Engine.Mu), `OwnerCatalog`, `JournalStorageLocked`, `CatalogEpochLocked`,
+  `SequenceGeneratorLocked`, `CommitSequenceLocked`, `ColumnProjectionRoots`,
+  `TransactionRef`, `MarkTemporaryTargetLocked`, `RelationDataViewLocked`,
+  `LockManager`, `AcquireRelationContribution` (the six identical copies of the
+  contribution wait and replacement-read readmission), the two readmission
+  fences, `ResolveRelationName`, `ClassInput`, `TypeDiagnosticName`, the four
+  cohort methods, `CheckBtreeAsOwner`, `GenericFileAuthority`, `InquiryCatalog`.
+  `contrib.Authority` = `access.Environment` + `Access()` + `Check`; the package
+  is generic over it like `core/tsearch`. - **Not an embedded state (§2.1).**
+  Contrib keeps no state, so `Contrib()` still returns `(*contribHost)(h)`,
+  whose 17 methods call the entry functions (215 precedent); `PageinspectNotice`
+  stays on `contribHost`. - **Exported:** `Host`, `Authority`, `Amcheck`,
+  `VerifyHeapam`, `ValidateVerifyHeapam`, `Pageinspect`, `PageinspectHeap`,
+  `Pgrowlocks`, `ValidatePgrowlocks`, `PgstattupleStats`, `Pgstattuple`,
+  `PgstattupleTargetCheckable` (already exported; `pgstattuple_capture_test.go`
+  requalified), `TablefuncCrosstab`, `ValidateTablefuncCrosstab`,
+  `ValidateTablefuncNormal`, `Connectby`, `ValidateConnectby`,
+  `GenericFileList`, `GenericFileRead`, `GenericFileTmpdir`. - **Tests
+  (T5–T7).** Census: item 209's re-run at `e6e052a5f` (no contrib inflow since).
+  The two connectby descriptor tests (pure units of the validators; rule 1 and
+  rule 3 only through `resultUsageName`) are internal tests of `core/contrib`,
+  with builtin types from `sqltype.Builtins` instead of an engine; the accessors
+  `ValidateConnectbyReturn`/`ValidateConnectbySource` are deleted (T6).
+  `TestGenericFileReadRuntime` (the other rule-1 test) stays in core: one test
+  with a shared helper is not worth a `core/contrib/enginetests` binary (209/210
+  precedent). Every other contrib test file is rule 3, accessor-blocked or has
+  no 70% agreement, and stays. No test deleted. Frames:
+  `connectby_lifecycle_test.go` now matches `.Connectby[...]` and
+  `.connectbyQuery[...]` (generic functions; changed in the cut commit and
+  package-independent); `frames.py` does not resolve `[...]` names, the test
+  itself proves them. - **Measured.** Core 7.85 → 7.80 MiB (8,233,915 →
+  8,178,688 bytes); `core/contrib` 66.5 KiB (81.7 KiB with the README); exec
+  +1.2 KiB. Interleaved binaries (`bench.txt`): `BenchmarkOpenDatabase`
+  3,405–3,636 vs 3,408–3,645 allocs/op; the 21-case contrib probe (amcheck,
+  `verify_heapam`, pgrowlocks, pgstattuple/index/hash/approx/relpages,
+  pageinspect, crosstab, connectby, normal_rand, generic files) has identical
+  allocs/op in every case. `escdiff` over the moved and host files: no new heap
+  object (the five `AuthorizationView.Check` boxings are no longer inlined into
+  the callers). `revcheck.py`: move commit 15/15 token-equal; against master
+  test names unchanged, literals +8 `""`, +2 `"ERROR"` (contrib's `sqlError`),
+  +1 `"missing type"`. - **Docs.** New `core/contrib/README.md`; the core
+  README's pgstattuple, pageinspect, crosstab, amcheck/connectby, `VerifyHeapam`
+  and generic-file paragraphs moved there; core keeps a "Contrib runtimes"
+  pointer and its Testing selectors. - **Notes for later items.** 216–219:
+  `AcquireRelationContribution` and the owner pair are reusable host methods.
+  229: `TestGenericFileReadRuntime`, and the rule-2 phase-A tests left in
+  contrib-named core files (`pgstatindex_capture`, `pgstattuple_retention`,
+  `generic_file_*`, `tablefunc_crosstab`, `amcheck_corruption`) wait for the
+  core test packages.
 - 215: done (`fb8b37d36`, `700f75839`, `43cb74a34`), at `ea9ed53c8`. - **Moved**
   to `internal/engine/core/tsearch` (replay `move.sh`, cmdmv, 0
   VIOLATION/SEAM/T6; token-equal to the cut modulo qualifiers):

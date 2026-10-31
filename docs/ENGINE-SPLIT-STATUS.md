@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `e6e052a5f` (item 209 rebased on it).
+Last verified against `master` at `d57b7b53e` (item 214 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 214, 216, 217, 218.
+- 216, 217, 218.
 
 ## Linear plan
 
@@ -131,9 +131,25 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      `^TestReference(Amcheck|Tablefunc|Connectby|FTS|Thesaurus|Size)`,
      `layers.py`, `frames.py check`, `lits.py`, deps. Racecheck and finalcheck
      skipped at user request.
-214. [ ] Contrib runtimes —
+214. [x] Contrib runtimes —
      [core](ENGINE-SPLIT-core.md#item-214--contrib-runtimes) · needs 207, 212,
-     213 · P, bench · core after 7.6
+     213 · P, bench · core after 7.6 (`0b5cb58a9`, `3d8bb9743`, `ec2988fd6`,
+     `46f898f64`, docs commit) · the contrib runtimes (14 files plus the new
+     `host.go`, 66.5 KiB: amcheck, `verify_heapam`, pageinspect, pgrowlocks,
+     pgstattuple, tablefunc, connectby, generic files) move to the leaf
+     `core/contrib` (L14.5) over `contrib.Host[A]` (shared method set on
+     `statementHost`, 28 new methods) and `contrib.Authority` (implemented by
+     `AuthorizationView`), generic over the authorization value; core keeps
+     `contribHost`'s `exec.ContribRuntime` adapters, `WithMaintenanceOwner`
+     (shared with CLUSTER), the pgrowlocks/`verify_heapam` readmission fences
+     and pgstattuple's owner cohort as host methods; `resultUsageName` becomes
+     `exec.ResultUsageName`. The connectby descriptor units move as internal
+     tests (two accessors deleted); no other test moves. Core 7.85 → 7.80 MiB.
+     Bench: startup and 21 contrib probe allocations unchanged; `escdiff` shows
+     no new heap object. Passed: quickcheck, REFERENCE=1
+     `^TestReference(Amcheck|Pageinspect|Pgrowlocks|Pgstatindex|Tablefunc|Connectby|GenericFile)`,
+     `layers.py` 0, `frames.py check`, `revcheck.py`, deps. Racecheck and
+     finalcheck skipped at user request.
 215. [x] Text-search runtime —
      [core](ENGINE-SPLIT-core.md#item-215--text-search-runtime) · needs 207,
      212, 213 · P, bench · core after 7.6 (`fb8b37d36`, `700f75839`,
