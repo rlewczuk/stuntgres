@@ -19,7 +19,7 @@ const ClassOID ids.OID = 1259
 // the bounded pg_tables summary-inclusion predicate.
 func CatalogHasIndexes(oid ids.OID) bool {
 	switch oid {
-	case TypeOID, 1213, 1249, 1255, 1259, ids.RoleClassID, AuthMembersOID, 1262, 2224, 2396, 2600, AMOID, 2602, 2604, 2605, 2606, 2607,
+	case TypeOID, 1213, ShdependOID, 1249, 1255, 1259, ids.RoleClassID, AuthMembersOID, 1262, 2224, 2396, 2600, AMOID, 2602, 2604, 2605, 2606, 2607,
 		ids.PolicyClassID, ids.TriggerClassID,
 		2608, 2609, 2610, 2611, 2612, 2613, 2615, 2616, 2617, 2618, 2964, 3079, 3456, 3501, pgRangeOID, TransformOID, 3600, TSParserOID, TSConfigOID, 3764, ids.ParameterClassID, 826:
 		return true
@@ -141,10 +141,18 @@ func classRow(in Input, relation *catalog.Relation, hasTriggers bool) ([]sqltype
 			}
 			frozenXID = uint32(fact.FrozenXID)
 			imported := fact.Imported
-			if imported.Mask & storage.RelationPages != 0 { pages = int64(imported.Pages) }
-			if imported.Mask & storage.RelationTuples != 0 { tuples = float64(imported.Tuples) }
-			if imported.Mask & storage.RelationAllVisible != 0 { allVisible = int64(imported.AllVisible) }
-			if imported.Mask & storage.RelationAllFrozen != 0 { allFrozen = int64(imported.AllFrozen) }
+			if imported.Mask&storage.RelationPages != 0 {
+				pages = int64(imported.Pages)
+			}
+			if imported.Mask&storage.RelationTuples != 0 {
+				tuples = float64(imported.Tuples)
+			}
+			if imported.Mask&storage.RelationAllVisible != 0 {
+				allVisible = int64(imported.AllVisible)
+			}
+			if imported.Mask&storage.RelationAllFrozen != 0 {
+				allFrozen = int64(imported.AllFrozen)
+			}
 		}
 	}
 	replica := string(byte(relation.EffectiveReplicaIdentity()))

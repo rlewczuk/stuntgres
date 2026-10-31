@@ -16,6 +16,7 @@ type Registration struct {
 var producers = [...]Registration{
 	{826, capturePGDefaultACL},
 	{1213, capturePGTablespace},
+	{ShdependOID, capturePGShdepend},
 	{1247, capturePGType},
 	{1249, capturePGAttribute},
 	{1255, captureExtensionCatalog},

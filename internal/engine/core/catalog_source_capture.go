@@ -38,6 +38,19 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
+	case pgcatalog.ShdependOID:
+		in.Catalog, in.Roles = scope.Inquiry.CommentCatalog, scope.Inquiry.deparseAuth.Roles
+		databases := scope.Inquiry.sharedDependencyDatabases
+		if databases == nil {
+			databases = scope.Inquiry.sharedDependencySingle[:]
+		}
+		e.Mu.Unlock()
+		var err error
+		in.SharedDependencies, err = classifySharedDependencies(in.Context, in.Catalog, in.Roles, databases)
+		if err != nil {
+			return nil, err
+		}
+		return CaptureCatalogSourceRows(in, produce)
 	case pgcatalog.ClassOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

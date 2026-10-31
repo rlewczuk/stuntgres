@@ -1,7 +1,7 @@
 # reference/catalog_privileges
 
 Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles`, `pg_user`, `pg_shadow`, `pg_group`,
-`pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`, `pg_init_privs`,
+`pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`, `pg_init_privs`, `pg_shdepend`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
@@ -61,6 +61,30 @@ defaults, not to installations with configured named grantees.
 Run each selected group in native mode and with `REFERENCE=1`, for example
 `make check RUN='^TestReferencePGInitPrivs(Shape|Bootstrap|Diagnostics)$'`.
 The permanent feature smoke is `make check RUN='^TestReferencePGInitPrivsSmoke$'`.
+
+The `TestReferencePGShdepend` family independently specifies seven-field bags
+for owners/current and column ACLs/default and historical ACLs/policies/membership
+grantors, cluster-wide database identities, authentic pins, retained captures,
+transactions, native controls and full diagnostics. No unrepresented physical
+cluster inventory or nonpinned custom-tablespace authority is fabricated.
+Select the family with `make check RUN='^TestReferencePGShdepend'`, also with
+`REFERENCE=1`; native controls remain explicitly native-only phases.
+Database registration and its dependencies survive native pool close/reopen.
+Native `DROP DATABASE` is not implemented; only the real-backend phase exercises
+database removal. Native lifecycle witnesses retain peer state across selected
+database Reset/Restore, without substituting Reset for database removal.
+Actual native Dump SQL replay on PostgreSQL independently checks exact table and
+column ACL item bags. Its raw catalog UPDATE repairs do not invoke PostgreSQL
+GRANT dependency maintenance, so that phase asserts owner-only bookkeeping before
+real REVOKE/GRANT commands rebuild the full dependency bag. Native Restore derives
+the complete bag directly from restored authority. Both adapters' bad OID bind
+diagnostics include the existing unnamed-portal parameter Context.
+Historical object/column ACLs and duplicate policy targets have independent native
+round-trip and failed/canceled Restore witnesses. Default-ACL control coverage
+keeps the existing ordinary prewriter Dump rejection and unsupported Restore
+command boundary: failures retain exact edges, Reset clears local defaults, old
+rows remain readable, and peer defaults survive successful target replacement.
+Database owner transfers and ACL revocation are checked from both targets.
 
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example

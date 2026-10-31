@@ -247,6 +247,41 @@ historical role references and deleted bootstrap records, remapping both object
 and role identities into the destination. Reset restores the fresh bootstrap
 inventory. Existing exported rows retain their captured values.
 
+`pg_catalog.pg_shdepend` is the cluster-wide seven-column inventory
+`(dbid, classid, objid, objsubid, refclassid, refobjid, deptype)`.
+OID columns use the ordinary unsigned OID carrier, `objsubid` is INT4 and
+`deptype` is internal CHAR. Owner (`o`), current object/column/default ACL (`a`),
+historical initial ACL (`i`), and policy-target (`r`) rows use real object
+addresses. Membership rows depend on their grantor, not their member or role
+endpoints. Database and other shared dependent classes use dbid zero and appear
+once; local identities include their registered database OID.
+
+An admitted SELECT sees supported dependencies in every registered database,
+without filtering by privileges on dependent objects. Current transaction-private
+authority is visible locally; peers contribute only committed persistent roots.
+All occurrences in a statement share the same catalog/role/registered-database
+inquiry frontier; later peer publication is visible only to a fresh execution.
+Authentic bootstrap/predefined referenced roles are pinned and omitted; PUBLIC
+is not a role dependency. Current ACLs exclude the current owner, whereas initial
+ACLs retain historical owners. Source-backed ACL grants on system relations
+remain visible when they reference nonpinned roles. Repeated explicit non-PUBLIC
+policy targets keep their multiplicity. A target list containing PUBLIC is
+normalized by policy commands to PUBLIC alone and has no role dependency.
+ACL mentions deduplicate per full address and role.
+
+Role/database/DDL commands own mutations; no dependency rows are serialized.
+Reset/Restore rebuild the selected database's derived inventory while preserving
+peer/shared authority. Returned Rows and metadata retain their original capture.
+Native default-ACL records retain the existing control boundary: Dump rejects
+them before writing and Restore does not admit ALTER DEFAULT PRIVILEGES.
+Failures preserve their dependency rows; Reset and pristine replacement clear
+selected-database defaults while preserving defaults in peer databases.
+Tablespace flavor `t` requires actual non-storage placement on a nonpinned
+tablespace; builtin/default logical placement supplies no such authority.
+No physical cluster files, custom nonpinned tablespaces, unregistered/external
+databases, backend-internal objects or unrepresented extension declarations are
+invented by this inventory.
+
 Logged and unlogged tables retain their SQL identity in `pg_class` and native
 Dump/Restore. Table persistence changes publish transactionally with all surviving
 owned sequences; failed action lists, cancellation and rollback publish none.

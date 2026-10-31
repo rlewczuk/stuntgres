@@ -28,6 +28,8 @@ Protected role catalogs retain exact real-table or view classification;
 authority filters role-catalog metadata on direct and retained consumers.
 The inventory also includes PUBLIC-readable `pg_auth_members` as a real catalog
 table with its exact seven ordered membership columns.
+The shared, PUBLIC-readable `pg_shdepend` catalog contributes its seven ordered
+real-table columns, with no synthetic row OID.
 The PUBLIC-readable `pg_policy` entry retains all eight ordered physical columns
 and real-table classification; its definitions are not filtered by RLS applicability.
 The PUBLIC-readable `pg_trigger` entry contributes nineteen ordered real-table

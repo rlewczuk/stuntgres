@@ -711,6 +711,15 @@ var Specs = [...]Spec{
 		{"objsubid", sqltype.Int4, false, 0, 0, -1},
 		{"description", sqltype.Text, false, 950, 0, -1},
 	}, false, CatalogHasIndexes(2609), false, false, "stuntgres: missing catalog source type"},
+	{ShdependOID, ids.PGCatalogNamespaceOID, "pg_shdepend", []ColumnSpec{
+		{"dbid", sqltype.Oid, false, 0, 0, -1},
+		{"classid", sqltype.Oid, false, 0, 0, -1},
+		{"objid", sqltype.Oid, false, 0, 0, -1},
+		{"objsubid", sqltype.Int4, false, 0, 0, -1},
+		{"refclassid", sqltype.Oid, false, 0, 0, -1},
+		{"refobjid", sqltype.Oid, false, 0, 0, -1},
+		{"deptype", sqltype.Char, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(ShdependOID), false, false, "stuntgres: missing catalog source type"},
 	{2396, ids.PGCatalogNamespaceOID, "pg_shdescription", []ColumnSpec{
 		{"objoid", sqltype.Oid, false, 0, 0, -1},
 		{"classoid", sqltype.Oid, false, 0, 0, -1},

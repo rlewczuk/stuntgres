@@ -154,6 +154,11 @@ No parallel language-permission table or cached grant decision exists.
   ACL collector's owner exclusion must not be applied to historical snapshots.
   Replacement ACL validation includes this inventory against destination role
   authority, independently of current descriptor ACLs.
+  `VisitDescriptorRoleDependencies` and `VisitDefaultRoleDependencies` expose
+  the same classification to core's shared-dependency capture without building
+  retirement descriptions. Default records carry their real class826/OID
+  address. Visitors retain policy occurrences; consumers deduplicate ACLs per
+  address/principal/flavor, not across distinct columns or databases.
 - **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
   `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
   (`database_connect.go`) is the CONNECT check of physical session start.
@@ -234,6 +239,8 @@ the checks through `AuthorizationView`.
 System-read versus ordinary-column authority uses `RUN='^TestQueryTableOIDAdmission'`.
 Publication mapping versus owning-definition ACL classification uses
 `RUN='^TestPublicationMappingOwnerlessACL$'`.
+Canonical role-dependency visitor and default-address invariants use
+`RUN='^Test(RoleDependencyVisitor|DefaultACLDependencyAddress)'`.
 
 
 ```sh

@@ -1472,6 +1472,18 @@ include other targets' persistent objects/default ACLs; external role-reference
 labels remain scoped to their owning database. Native controls capture the
 selected runtime and preserve registry/roles/other targets during replacement.
 
+`pg_shdepend` retains immutable per-target roots with the current catalog and role
+pair at initial statement inquiry capture under the shared mutex. Every source
+occurrence reuses that frontier, even if peers publish new roles/objects or register
+databases before source opening. Classification runs after unlocking through
+canonical access visitors. Current inquiry authority includes private definitions;
+other targets contribute only their captured published persistent roots. The
+single-database inventory uses inline backing. Class-based sharedness
+selects one copy of replicated database/subscription/parameter descriptors with
+dbid zero; local addresses retain database OIDs even when object OIDs collide.
+Only narrow immutable dependency facts cross into pgcatalog for typed encoding.
+The capture neither mutates source catalogs nor retains live runtime callbacks.
+
 Notification accounting shares this mutex and one immutable cluster head.
 The existing transaction publisher captures every exact target/registry/listener
 root, prepares replacements unlocked, and validates them alongside row/catalog
@@ -2454,6 +2466,10 @@ changes only that cell. Current-user capture occurs inside the routine
 environment; no PL frame, target-slot cache or retained borrowed row is created.
 
 ## Testing
+
+Shared-dependency immutable-root, local-OID collision and referenced-pin units
+use `RUN='^TestPGShdepend'`; public SQL acceptance stays in
+`reference/catalog_privileges`.
 
 Installed compact B-tree statistics provider, expression and capture ownership
 units use `RUN='^TestPgstatindex'`.

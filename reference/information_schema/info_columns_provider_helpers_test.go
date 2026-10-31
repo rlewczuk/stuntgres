@@ -28,6 +28,7 @@ func icProviderInventory(c *icCase) {
 		"pg_language": fixture.PGLanguageColumns, "pg_parameter_acl": fixture.PGParameterACLColumns,
 		"pg_sequence": fixture.PGSequenceColumns, "pg_sequences": fixture.PGSequencesColumns,
 		"pg_shdescription": fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
+		"pg_shdepend":  strings.Fields("dbid classid objid objsubid refclassid refobjid deptype"),
 		"pg_ts_config": fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
 		"pg_ts_config_map":                  strings.Fields("mapcfg maptokentype mapseqno mapdict"),
 		"pg_shadow":                         strings.Fields("usename usesysid usecreatedb usesuper userepl usebypassrls passwd valuntil useconfig"),

@@ -1,5 +1,11 @@
 # Changes
 
+- Add derived `pg_shdepend` inventory with typed shared/local identities across
+  registered databases, owner/current/column/default/initial ACL dependencies,
+  policy multiplicity, membership grantors and authentic referenced-role pins.
+  Statement capture preserves immutable rows without a dependency store or
+  fabricated physical/tablespace edges.
+
 - Add release-matched Irish Snowball morphology, genuine `irish_stem`/`irish`
   seeds and nineteen token mappings, with optional configured stoplists, typed
   prepared ownership, atomic publication and native edited-stock replay.

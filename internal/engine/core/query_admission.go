@@ -166,6 +166,9 @@ func (e *Engine) CaptureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		scope.Inquiry.CommentCatalog = e.PrivateCatalogLocked(scope.PendingCatalog())
 		scope.Inquiry.commentRoles = e.RoleStore.Read(&e.Catalog.Owner, scope.Inquiry.CommentCatalog, e.OperationRolesLocked(scope.Op))
+		if err := e.captureSharedDependencyRootsLocked(scope.Op.Context(), &scope.Inquiry); err != nil {
+			return err
+		}
 	}
 	scope.Output.ACLItem = scope
 	scope.Output.Regrole = scope
@@ -455,20 +458,24 @@ func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *exec.Sour
 }
 
 // inquirySnapshot is the statement's catalog-inquiry snapshot: comment, deparse,
-// visibility and namespace reads captured once per statement. It is a value
-// group, not a pointer slot, so capturing it allocates nothing.
+// visibility, namespace and shared-dependency roots captured at one frontier.
+// It is a value group; only multi-database root inventories need separate backing.
 type inquirySnapshot struct {
-	CommentCatalog         catalog.Read
-	commentRoles           authorization.Read
-	deparseAuth            AuthorizationView
-	DeparsePath            []ids.ObjectAddress
-	collationPath          []ids.ObjectAddress
-	visibilityCatalog      catalog.Read
-	visibilityRelationPath []ids.ObjectAddress
-	visibilityOtherPath    []ids.ObjectAddress
-	visibilityDemand       bool
-	CurrentSchemaResult    sqltype.Value
-	searchPathResults      [2]sqltype.Value
+	CommentCatalog catalog.Read
+	commentRoles   authorization.Read
+	deparseAuth    AuthorizationView
+	// Retained with the catalog/role pair, never refreshed by source opening.
+	// The common single-database case needs no separate slice allocation.
+	sharedDependencySingle    [1]sharedDependencyDatabase
+	sharedDependencyDatabases []sharedDependencyDatabase
+	DeparsePath               []ids.ObjectAddress
+	collationPath             []ids.ObjectAddress
+	visibilityCatalog         catalog.Read
+	visibilityRelationPath    []ids.ObjectAddress
+	visibilityOtherPath       []ids.ObjectAddress
+	visibilityDemand          bool
+	CurrentSchemaResult       sqltype.Value
+	searchPathResults         [2]sqltype.Value
 }
 
 // captureHashIndexesLocked fills index.HashCapture from the published engine

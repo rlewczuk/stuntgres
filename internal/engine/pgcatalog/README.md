@@ -44,6 +44,7 @@ type Input struct {
     TypeNamePath []ids.ObjectAddress
     Keep    Keep // {Column int; Test func(sqltype.Value) bool}
     RoleSettings RoleSettingsProjection
+    SharedDependencies []SharedDependency // core-classified immutable facts
 }
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
@@ -94,6 +95,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   arrays and captured type generation across later definition replacement.
   Metadata neither invokes registered providers nor attempts foreign connections;
   valid no-handler definitions remain catalog-visible.
+- `pg_shdepend` (1214) encodes core-classified immutable shared-dependency facts
+  into seven nonnullable OID/OID/OID/INT4/OID/OID/internal-CHAR columns. It validates
+  source/type/fact authority and cancellation without importing access or live
+  cluster state. Core owns canonical owner/current/column/default/initial ACL,
+  policy and membership-grantor classification, referenced pins, cluster scope
+  and shared-copy selection. There is no persisted dependency row store,
+  fabricated membership endpoint or default-placement tablespace dependency.
 - `pg_init_privs` (3394) projects immutable historical records by full object
   address with no allocated row OID. Its five nonnullable columns retain exact
   source-owned OID/INT4/internal CHAR/ACLITEM[] carriers and ordered ACL entries.
@@ -1309,6 +1317,9 @@ through the shared usage-origin projector.
 
 Rewrite schema, sealed builtin declaration and atomic-capture units use
 `make check RUN='^TestPGRewrite'`.
+Shared-dependency producer authority, unsigned encoding and canonical visitor
+units in `enginetests/` use
+`RUN='^Test(PGShdepend|RoleDependencyVisitor|DefaultACLDependencyAddress)'`.
 
 Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`

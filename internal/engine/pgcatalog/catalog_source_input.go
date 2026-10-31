@@ -22,6 +22,9 @@ type Input struct {
 	Source       *catalog.Relation
 	Runtime      Runtime
 	RoleSettings RoleSettingsProjection
+	// SharedDependencies contains immutable facts classified after core releases
+	// the cluster mutex. Producers never inspect live runtimes.
+	SharedDependencies []SharedDependency
 	// TypeNamePath is the immutable effective lookup path paired with this
 	// statement capture. Domains requires it for format_type-compatible names.
 	TypeNamePath []ids.ObjectAddress
@@ -29,6 +32,15 @@ type Input struct {
 	// producer omits the rows it rejects (see KeyColumns). Rows it rejects
 	// are ones the statement's filter rejects.
 	Keep Keep
+}
+
+// SharedDependency is one source-backed shared-object dependency fact.
+type SharedDependency struct {
+	Database       ids.OID
+	Address        ids.ObjectAddress
+	ReferenceClass ids.OID
+	Reference      ids.OID
+	Kind           byte
 }
 
 // Keep is a producer row test of one key column. The zero Keep keeps every row.

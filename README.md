@@ -103,6 +103,12 @@ replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
 Registration follows the subscription's transactional lifetime; it does not
 start workers, contact a publisher or track replay progress.
 
+`pg_catalog.pg_shdepend` exposes shared-object dependencies across this Driver's
+registered databases: owners, current object and column ACLs, default and initial
+ACLs, policy targets and membership grantors. Queries retain their captured rows;
+held statements refresh on execution. The inventory is derived from logical
+catalog authority, not physical cluster files or external database connections.
+
 `CREATE EXTENSION tablefunc` provides `normal_rand` and the four documented
 `connectby` hierarchy-source overloads. A connectby call in `FROM` supplies its
 anonymous record columns: key, parent, integer depth, optional text branch,

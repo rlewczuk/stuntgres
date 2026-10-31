@@ -23,7 +23,7 @@ type RoleDependency struct {
 func DescriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
 	var lastACL ids.ObjectAddress
 	aclSeen := false
-	return descriptorRoleDependencies(d, func(principal authorization.PrincipalRef, dependency RoleDependency) bool {
+	return VisitDescriptorRoleDependencies(d, func(principal authorization.PrincipalRef, dependency RoleDependency) bool {
 		if principal != ref {
 			return true
 		}
@@ -42,12 +42,14 @@ func DescriptorRoleDependencies(d catalog.Descriptor, ref authorization.Principa
 // DescriptorRoleReferences uses the same dependency classification as retirement.
 func DescriptorRoleReferences(d catalog.Descriptor) iter.Seq[authorization.PrincipalRef] {
 	return func(yield func(authorization.PrincipalRef) bool) {
-		descriptorRoleDependencies(d, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
+		VisitDescriptorRoleDependencies(d, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
 	}
 }
 
-// The return value reports early termination by the visitor.
-func descriptorRoleDependencies(d catalog.Descriptor, yield func(authorization.PrincipalRef, RoleDependency) bool) bool {
+// VisitDescriptorRoleDependencies visits canonical role dependencies without
+// allocating diagnostics. ACL occurrences may repeat; policy occurrences must
+// retain their multiplicity. The return value reports early termination.
+func VisitDescriptorRoleDependencies(d catalog.Descriptor, yield func(authorization.PrincipalRef, RoleDependency) bool) bool {
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Security.Policies {
 			for _, principal := range policy.Roles {
@@ -102,11 +104,20 @@ func aclRoleReferences(address ids.ObjectAddress, owner authorization.PrincipalR
 
 func DefaultACLRoleReferences(key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) iter.Seq[authorization.PrincipalRef] {
 	return func(yield func(authorization.PrincipalRef) bool) {
-		if record == nil || !yield(key.Creator) {
-			return
-		}
-		aclRoleReferences(ids.ObjectAddress{}, key.Creator, record.ACL, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
+		VisitDefaultRoleDependencies(key, record, func(ref authorization.PrincipalRef, _ RoleDependency) bool { return yield(ref) })
 	}
+}
+
+// VisitDefaultRoleDependencies uses the record's real catalog address.
+func VisitDefaultRoleDependencies(key catalog.DefaultACLKey, record *catalog.DefaultACLRecord, yield func(authorization.PrincipalRef, RoleDependency) bool) bool {
+	if record == nil {
+		return false
+	}
+	address := ids.ObjectAddress{ClassID: 826, ObjectID: record.OID}
+	if !yield(key.Creator, RoleDependency{Address: address, Kind: 'o'}) {
+		return true
+	}
+	return aclRoleReferences(address, key.Creator, record.ACL, yield)
 }
 
 func recordRoleDependency(deps *[]RoleDependency, dependency RoleDependency) bool {
@@ -121,18 +132,14 @@ func recordRoleDependency(deps *[]RoleDependency, dependency RoleDependency) boo
 // ref. With a nil collector it stops at the first one.
 func DefaultRoleDependencies(view catalog.Read, roles authorization.Read, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
 	for key, record := range view.State().DefaultACLs() {
-		kind := byte('a')
-		dependent := key.Creator == ref
-		if dependent {
-			kind = 'o'
-		} else {
-			for _, entry := range record.ACL.Entries {
-				if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-					dependent = true
-					break
-				}
+		var dependency RoleDependency
+		dependent := VisitDefaultRoleDependencies(key, record, func(principal authorization.PrincipalRef, candidate RoleDependency) bool {
+			if principal != ref {
+				return true
 			}
-		}
+			dependency = candidate
+			return false
+		})
 		if !dependent {
 			continue
 		}
@@ -146,10 +153,11 @@ func DefaultRoleDependencies(view catalog.Read, roles authorization.Read, ref au
 			description += " in schema " + view.Get(key.Schema).Name()
 		}
 		prefix := "privileges for "
-		if kind == 'o' {
+		if dependency.Kind == 'o' {
 			prefix = "owner of "
 		}
-		*deps = append(*deps, RoleDependency{Kind: kind, Description: prefix + description})
+		dependency.Description = prefix + description
+		*deps = append(*deps, dependency)
 	}
 	return false
 }
