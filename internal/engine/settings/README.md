@@ -387,7 +387,7 @@ defaults, overrides and transaction/savepoint restoration use the shared store.
 The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `extension_control_path`,
 `gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
-`session_preload_libraries`, `xmlbinary` and `xmloption`.
+`session_preload_libraries`.
 `default_table_access_method` instead selects a genuine installed table-method
 identity at execution for ordinary and query-derived creation and stored-relation
 ALTER DEFAULT. Preparing a command does not capture the default; changing it does
@@ -431,11 +431,20 @@ configuration of the explicit two-argument conversion.
 Missing configurations, including names qualified by a nonexistent schema, use
 the setting's invalid-value diagnostic (22023); namespace permission failures
 retain their authority diagnostic instead of being hidden as invalid values.
-No compressors, GIN truncation/pending lists, physical placement, relation
-restrictions or XML execution are implied.
+No compressors, GIN truncation/pending lists, physical placement or relation
+restrictions are implied.
 `session_replication_role` instead controls real user
 and per-event foreign-key trigger execution through their stored O/D/R/A modes;
 effective changes use the shared prepared-plan discard generation.
+`xmlbinary` controls typed BYTEA mapping in XML element content, attributes and
+forests: the default `base64` uses XML Schema BASE64, while `hex` uses uppercase
+hexadecimal without a prefix. `xmloption` defaults implicit XML input to `content`;
+`document` requires a document. Runtime text casts and XML parameters consume the
+effective input mode; accepted XML literals retain their accepted value. Explicit
+XMLPARSE and XMLSERIALIZE modes override the default. Ordinary XML casts to
+TEXT/VARCHAR/BPCHAR preserve raw spelling even under DOCUMENT, unlike explicit
+XMLSERIALIZE DOCUMENT qualification. Both settings use shared session, LOCAL,
+transaction/savepoint restoration and DEFAULT/RESET/RESET ALL handling.
 `SET XML OPTION DOCUMENT/CONTENT` (including SESSION/LOCAL) is syntax for the
 same xmloption value.
 

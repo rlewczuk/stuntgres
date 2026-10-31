@@ -51,6 +51,8 @@ Add `REFERENCE=1` for the oracle.
 - `ascii`, `chr`, `unistr`, `to_ascii`: `RUN='^TestReferenceStringEncoding'`
 - `string_agg`: `RUN='^TestReferenceStringAgg'`
 - XML scalar acceptance: `RUN='^TestReferenceXML'`
+- XML conversion settings, session restoration, explicit modes and binary
+  NULL/empty mapping: `RUN='^TestReferenceXMLSettings'`.
 - XML predicate cast-bearing held/view/deparse/control lifetimes and deterministic
   late INSERT/UPDATE failures: `RUN='^(TestReferenceXMLPredicateLifecycle|TestReferenceXMLPredicateDiagnostics)$'`
   in both native and real-reference modes.

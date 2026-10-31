@@ -696,9 +696,17 @@ execution and are not binary protocol parameters. XML nil/typed-nil bytes are
 SQL NULL, distinct from empty CONTENT. Session `xmloption` is captured for each
 execution's XML parameters and concrete text casts. Accepted typed XML literals
 retain their prepare-time value without reparsing or replaying input warnings.
-XMLPARSE has its own explicit mode. Character casts and XMLSERIALIZE CONTENT
-NO INDENT preserve original spelling; typed output and binary send apply their
-transport declaration and encoding rules.
+XMLPARSE and XMLSERIALIZE have their own explicit modes. Ordinary XML casts to
+TEXT/VARCHAR/BPCHAR preserve raw spelling even under `xmloption=document`;
+XMLSERIALIZE DOCUMENT instead requires document qualification. XMLSERIALIZE
+CONTENT NO INDENT also preserves original spelling; typed output and binary send
+apply their transport declaration and encoding rules.
+
+Typed BYTEA values in XML element content, attributes and forests use `xmlbinary`:
+the default `base64` or uppercase, unprefixed `hex`, independently of ordinary
+`bytea_output`. NULL content and attributes are omitted, and an all-NULL forest
+is SQL NULL. Non-NULL empty BYTEA instead supplies present empty content, an
+empty attribute or an empty forest element.
 
 Vector columns report `INT2VECTOR`/`OIDVECTOR` and string scan types. Text or
 non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-nil

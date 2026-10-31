@@ -150,9 +150,10 @@ still refuse live mutation; SET grants and restricted reads are independent.
 See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
 
 XML values use native document/content validation, XMLPARSE and XMLSERIALIZE,
-with session `xmloption` controlling casts and parameter input. XML results scan
-as strings; use character serialization when original declaration spelling is
-needed instead of transport-normalized typed XML output.
+with session `xmloption` controlling casts and parameter input. Binary values in
+XML element content, attributes and forests honor `xmlbinary`'s base64 or hex
+encoding. XML results scan as strings; use character serialization when original
+declaration spelling is needed instead of transport-normalized typed XML output.
 
 All 20 [preset options](internal/engine/settings/README.md#preset-options) are
 universally readable and immutable (`55P02` on individual SET/RESET, even for
