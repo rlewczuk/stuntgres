@@ -13,17 +13,17 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func (r *explainRenderer) foreignOptions() catalog.ForeignExplainOptions {
-	return catalog.ForeignExplainOptions{Verbose: r.options.verbose, Costs: r.options.costs}
+func (r *Renderer) foreignOptions() catalog.ForeignExplainOptions {
+	return catalog.ForeignExplainOptions{Verbose: r.options.Verbose, Costs: r.options.Costs}
 }
 
-func (r *explainRenderer) foreignProperties(tree *explainTree, properties []catalog.ForeignExplainProperty) error {
+func (r *Renderer) foreignProperties(tree *Tree, properties []catalog.ForeignExplainProperty) error {
 	for _, property := range properties {
 		if strings.TrimSpace(property.Name) == "" || strings.ContainsAny(property.Name, "\r\n:") || strings.ContainsAny(property.Value, "\r\n") {
 			return fmt.Errorf("stuntgres: invalid foreign EXPLAIN property")
 		}
 		tree.details = append(tree.details, property.Name+": "+property.Value)
-		if r.options.format == "json" {
+		if r.options.Format == "json" {
 			r.repeated(tree, "Provider Properties", map[string]any{"Name": property.Name, "Value": property.Value})
 		}
 	}
@@ -32,7 +32,7 @@ func (r *explainRenderer) foreignProperties(tree *explainTree, properties []cata
 
 // Entered with Mu; callbacks run with neither engine nor replacement locks.
 // Every occurrence captures its own principal and actual provider plan.
-func (r *explainRenderer) foreignScan(tree *explainTree, node *plan.SourceNode, relation *catalog.Relation) (float64, error) {
+func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *catalog.Relation) (float64, error) {
 	if err := CheckRestoreEffect(r.scope.Op); err != nil {
 		return 0, err
 	}
@@ -92,22 +92,22 @@ func (r *explainRenderer) foreignScan(tree *explainTree, node *plan.SourceNode, 
 	if err != nil {
 		return 0, err
 	}
-	if err = r.foreignFence(captured); err != nil {
+	if err = r.ForeignFence(captured); err != nil {
 		return 0, err
 	}
 	if err = r.foreignProperties(tree, properties); err != nil {
 		return 0, err
 	}
-	if r.options.costs {
+	if r.options.Costs {
 		tree.details = append(tree.details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f rows=%.0f width=%.0f", execution.Path.StartupCost, execution.Path.TotalCost, execution.Size.Rows, execution.Size.Width))
-		if r.options.format == "json" {
+		if r.options.Format == "json" {
 			r.property(tree, "Provider Estimates", map[string]float64{"Startup Cost": execution.Path.StartupCost, "Total Cost": execution.Path.TotalCost, "Plan Rows": execution.Size.Rows, "Plan Width": execution.Size.Width})
 		}
 	}
 	return execution.Size.Rows, nil
 }
 
-func (r *explainRenderer) foreignFence(captured *catalog.State) error {
+func (r *Renderer) ForeignFence(captured *catalog.State) error {
 	if err := r.scope.executionContext().Err(); err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (r *explainRenderer) foreignFence(captured *catalog.State) error {
 	return nil
 }
 
-func (r *explainRenderer) foreignModify(tree *explainTree, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
+func (r *Renderer) foreignModify(tree *Tree, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
 	if err := CheckRestoreEffect(r.scope.Op); err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (r *explainRenderer) foreignModify(tree *explainTree, relation *catalog.Rel
 	if err != nil {
 		return err
 	}
-	if err = r.foreignFence(captured); err != nil {
+	if err = r.ForeignFence(captured); err != nil {
 		return err
 	}
 	targets := modification.Request.Targets

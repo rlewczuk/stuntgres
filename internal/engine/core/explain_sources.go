@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNode, relation *catalog.Relation) error {
+func (r *Renderer) sourceDetails(tree *Tree, source *plan.SourceNode, relation *catalog.Relation) error {
 	var leaf exec.Leaf
 	if source.Occurrence >= 0 && source.Occurrence < len(r.leaves) && r.leaves[source.Occurrence].Ref.Address == source.Ref.Address {
 		leaf = r.leaves[source.Occurrence]
@@ -80,7 +80,7 @@ func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNo
 		}
 		tree.children = append(tree.children, child)
 	}
-	if r.options.verbose {
+	if r.options.Verbose {
 		outputs := make([]string, len(source.Schema()))
 		for i := range outputs {
 			text, _, err := r.slot(source, i)
@@ -121,7 +121,7 @@ func (r *explainRenderer) sourceDetails(tree *explainTree, source *plan.SourceNo
 
 // Import the selected immutable policy recipes without runtime preflight or
 // materialization. AND/OR reproduce the existing RLS selection's actual groups.
-func (r *explainRenderer) rowSecurity(relation *catalog.Relation, command catalog.PolicyCommand, proposed, reads bool, principal authorization.PrincipalRef) (expr.Expr, error) {
+func (r *Renderer) rowSecurity(relation *catalog.Relation, command catalog.PolicyCommand, proposed, reads bool, principal authorization.PrincipalRef) (expr.Expr, error) {
 	if !relation.Security.RLSEnabled {
 		return nil, nil
 	}
@@ -172,12 +172,12 @@ func (r *explainRenderer) rowSecurity(relation *catalog.Relation, command catalo
 	return result, nil
 }
 
-func (r *explainRenderer) sortKeys(root plan.Node, keys []plan.SortKey) (string, error) {
+func (r *Renderer) sortKeys(root plan.Node, keys []plan.SortKey) (string, error) {
 	parts, err := r.sortKeyParts(root, keys)
 	return strings.Join(parts, ", "), err
 }
 
-func (r *explainRenderer) sortKeyParts(root plan.Node, keys []plan.SortKey) ([]string, error) {
+func (r *Renderer) sortKeyParts(root plan.Node, keys []plan.SortKey) ([]string, error) {
 	parts := make([]string, len(keys))
 	for i, key := range keys {
 		text, err := r.expression(root, key.Expression)
@@ -199,7 +199,7 @@ func (r *explainRenderer) sortKeyParts(root plan.Node, keys []plan.SortKey) ([]s
 	return parts, nil
 }
 
-func (r *explainRenderer) windowCall(node *plan.WindowNode, index int) (string, error) {
+func (r *Renderer) windowCall(node *plan.WindowNode, index int) (string, error) {
 	if index < 0 || index >= len(node.Calls) || index >= len(node.SpecIndices) {
 		return "", fmt.Errorf("stuntgres: missing EXPLAIN window specification")
 	}

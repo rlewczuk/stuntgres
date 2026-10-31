@@ -16,7 +16,7 @@ import (
 // Source statistics use only metadata in the admitted catalog window. Hierarchy
 // identities follow the same metadata closure as query admission; no source is
 // opened, counted, captured or sampled.
-func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.SourceNode, relation *catalog.Relation) (float64, error) {
+func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relation *catalog.Relation) (float64, error) {
 	only := r.targetOnly && relation.Address() == r.policyTarget
 	if source.Occurrence >= 0 && source.Occurrence < len(r.leaves) {
 		leaf := r.leaves[source.Occurrence]
@@ -34,12 +34,12 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 			physicals = append(physicals, physical)
 		}
 		names = append(names, r.objectName(physical.Namespace(), physical.Name()))
-		if r.options.format == "json" {
-			identity := &explainTree{}
+		if r.options.Format == "json" {
+			identity := &Tree{}
 			r.relationProperties(identity, physical, physical.Name())
 			identities = append(identities, identity.properties)
 		}
-		estimate := plannerSourceRows(r.statisticsStorage(physical.Address()))
+		estimate := PlannerSourceRows(r.statisticsStorage(physical.Address()))
 		if metadata := r.statisticsMetadata(physical.Address()); metadata != nil && metadata.ForeignAnalyze != nil {
 			estimate = metadata.ForeignAnalyze.TotalRows
 		}
@@ -94,7 +94,7 @@ func (r *explainRenderer) sourceStatistics(tree *explainTree, source *plan.Sourc
 
 // filterEstimate captures only immutable column metadata. Comparisons are
 // detached from Engine.Mu just like collection; no expression is executed.
-func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr, estimate plan.ExplainEstimate, inputRows float64) (plan.ExplainEstimate, error) {
+func (r *Renderer) filterEstimate(context plan.Node, predicate expr.Expr, estimate plan.ExplainEstimate, inputRows float64) (plan.ExplainEstimate, error) {
 	var inputs []plan.ColumnStatisticInput
 	imported := false
 	plan.WalkExpression(predicate, func(expression expr.Expr) {
@@ -130,7 +130,7 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 		if facts != nil {
 			if fact := facts.Columns[storage.StatisticsKey{Attribute: attribute, Inherited: inherited}]; fact != nil {
 				imported = imported || fact.Imported != nil
-				population := plannerSourceRows(r.statisticsStorage(address))
+				population := PlannerSourceRows(r.statisticsStorage(address))
 				if metadata != nil && metadata.ForeignAnalyze != nil {
 					population = metadata.ForeignAnalyze.TotalRows
 				}
@@ -162,7 +162,7 @@ func (r *explainRenderer) filterEstimate(context plan.Node, predicate expr.Expr,
 
 // Existing committed maintenance is nontransactional, even when this statement
 // sees a private DDL row projection. New objects have only their private owner.
-func (r *explainRenderer) statisticsStorage(address ids.ObjectAddress) *storage.Relation {
+func (r *Renderer) statisticsStorage(address ids.ObjectAddress) *storage.Relation {
 	e := r.scope.Engine()
 	if store := e.Storage.Relations[address]; store != nil {
 		return store
@@ -170,7 +170,7 @@ func (r *explainRenderer) statisticsStorage(address ids.ObjectAddress) *storage.
 	return e.PrivateStorageLocked(r.scope.PendingCatalog(), address)
 }
 
-func (r *explainRenderer) statisticsMetadata(address ids.ObjectAddress) *storage.RelationMetadata {
+func (r *Renderer) statisticsMetadata(address ids.ObjectAddress) *storage.RelationMetadata {
 	return session.ResolveRelationMetadata(r.scope.PendingCatalog(), r.scope.Engine().Storage.RelationMetadata, address)
 }
 

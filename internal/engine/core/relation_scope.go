@@ -31,9 +31,9 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 		// remain after child semantic analysis at the normal Execute boundary.
 		childExecute := false
 		if execute {
-			options, optionErr := validateExplainOptions(explanation)
+			options, optionErr := ValidateOptions(explanation)
 			s.explainAdmission = &explainAdmission{options: options, err: optionErr}
-			childExecute = optionErr == nil && options.analyze
+			childExecute = optionErr == nil && options.Analyze
 		}
 		return s.AcquireRelation(explanation.Statement, childExecute)
 	}

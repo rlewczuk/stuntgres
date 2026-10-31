@@ -13,7 +13,7 @@ import (
 
 // sourcePruning captures metadata only. The same bounded proof as execution
 // runs unlocked; neither an execution source nor row populations are opened.
-func (r *explainRenderer) sourcePruning(tree *explainTree, source *plan.SourceNode, relation *catalog.Relation, read catalog.Read, physicals []*catalog.Relation, inherited bool) error {
+func (r *Renderer) sourcePruning(tree *Tree, source *plan.SourceNode, relation *catalog.Relation, read catalog.Read, physicals []*catalog.Relation, inherited bool) error {
 	filter := r.scanFilter
 	if !inherited && relation.Membership == nil && len(relation.Constraints.Check) == 0 && len(relation.Constraints.NotNull) == 0 {
 		return nil
@@ -78,8 +78,8 @@ func (r *explainRenderer) sourcePruning(tree *explainTree, source *plan.SourceNo
 		var identities []map[string]any
 		for i, physical := range excluded {
 			names[i] = r.objectName(physical.Namespace(), physical.Name())
-			if r.options.format == "json" {
-				identity := &explainTree{}
+			if r.options.Format == "json" {
+				identity := &Tree{}
 				r.relationProperties(identity, physical, physical.Name())
 				identities = append(identities, identity.properties)
 			}

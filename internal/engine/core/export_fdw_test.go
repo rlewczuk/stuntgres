@@ -101,8 +101,8 @@ func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
 // ExplainBoundForTest renders the actual retained binding under the ordinary
 // renderer. Enter and leave with Mu held, as at the production command boundary.
 func ExplainBoundForTest(scope *StatementScope, auth AuthorizationView, statement parser.Statement, binding analyze.Binding) ([]string, error) {
-	r, err := newExplainRenderer(scope, auth, explainOptions{verbose: true})
+	r, err := newExplainRenderer(scope, auth, Options{Verbose: true})
 	if err != nil { return nil, err }
 	_, r.exportValue, _ = scope.Engine().Foreign.Codecs()
-	return r.command(statement, explainBound{Binding: binding})
+	return r.Command(statement, Bound{Binding: binding})
 }

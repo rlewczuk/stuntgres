@@ -418,7 +418,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		if plannerStore == nil {
 			plannerStore = e.PrivateStorageLocked(scope.PendingCatalog(), leaf.Ref.Address)
 		}
-		source.PlannerRows = plannerSourceRows(plannerStore)
+		source.PlannerRows = PlannerSourceRows(plannerStore)
 		source.PlannerColumns = len(leaf.Relation.Columns)
 		borrowQueryAuthority(source, scope)
 		source.Occurrence = i

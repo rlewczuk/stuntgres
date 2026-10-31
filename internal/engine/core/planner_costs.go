@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-func plannerSourceRows(store *storage.Relation) float64 {
+func PlannerSourceRows(store *storage.Relation) float64 {
 	if store != nil && store.Maintenance.Scanned {
 		return max(0, float64(store.Maintenance.Tuples))
 	}
@@ -22,7 +22,7 @@ func plannerSourceRows(store *storage.Relation) float64 {
 
 // explainScan uses only the admitted catalog and published maintenance/root
 // metadata. It never opens a source, reads rows/buckets, or evaluates a probe.
-func (r *explainRenderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanDecision {
+func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanDecision {
 	s := r.scope
 	costs := s.Op.PlannerCosts
 	leaf, ok := filter.Child.(*plan.SourceNode)
@@ -31,7 +31,7 @@ func (r *explainRenderer) explainScan(filter *plan.FilterNode, frame uint32) pla
 	}
 	e := s.Engine()
 	store := r.statisticsStorage(leaf.Ref.Address)
-	rows := plannerSourceRows(store)
+	rows := PlannerSourceRows(store)
 	full := costs.Scan(rows, 1, ids.ObjectAddress{}, "")
 	if !s.implicit || s.Catalog != nil || len(r.leaves) != 1 || r.leaves[0].Mark.Mode != 0 {
 		return full

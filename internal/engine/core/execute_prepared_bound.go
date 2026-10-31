@@ -19,8 +19,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	var observation *exec.Observation
 	if owner := scope.explain; owner != nil {
 		previous := scope.invocationContext
-		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.timing)
-		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.verbose, Costs: owner.options.costs}, owner.options.format == "json")
+		scope.invocationContext, observation = exec.Observe(scope.executionContext(), owner.options.Timing)
+		observation.SetForeignOptions(catalog.ForeignExplainOptions{Verbose: owner.options.Verbose, Costs: owner.options.Costs}, owner.options.Format == "json")
 		defer func() { scope.invocationContext = previous }()
 		evaluationContext := execution.evaluation.Context
 		previousEvaluationContext := evaluationContext
@@ -36,19 +36,19 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		return Result{}, captureErr
 	}
 	var actualStart time.Time
-	if actualTree != nil && scope.explain.options.timing {
+	if actualTree != nil && scope.explain.options.Timing {
 		actualStart = time.Now()
 	}
 	if actualTree != nil {
 		defer func() {
 			if failure == nil {
-				actual := actualTree.actual
+				actual := actualTree.Actual
 				if rows, ok := result.Rows.(*exec.FinalRows); ok {
 					actual.Rows = int64(rows.Count)
 				} else if _, selectStatement := stmt.(*parser.Select); selectStatement {
 					// Streaming nested commands retain their genuine stage
 					// frontiers until the existing owner consumes/closes them.
-					actualTree.actual = nil
+					actualTree.Actual = nil
 				}
 				if !actualStart.IsZero() {
 					actual.Elapsed = time.Since(actualStart)

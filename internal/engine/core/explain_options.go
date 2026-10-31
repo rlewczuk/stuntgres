@@ -9,12 +9,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type explainOptions struct {
-	costs, verbose, analyze, timing, summary bool
-	format                                   string
+type Options struct {
+	Costs, Verbose, Analyze, Timing, Summary bool
+	Format                                   string
 }
 
-func explainError(code, message string, pos parser.Position) error {
+func Error(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: explainPosition(pos)}
 }
 
@@ -28,7 +28,7 @@ func explainPosition(pos parser.Position) string {
 func explainOptionString(option parser.ExplainOption) (string, error) {
 	switch value := option.Value.(type) {
 	case nil:
-		return "", explainError("42601", option.Name+" requires a parameter", parser.Position{})
+		return "", Error("42601", option.Name+" requires a parameter", parser.Position{})
 	case parser.ColumnExpr:
 		return value.Name.Parts[0].Text, nil
 	case parser.LiteralExpr:
@@ -46,7 +46,7 @@ func explainOptionString(option parser.ExplainOption) (string, error) {
 
 // Describe only consults FORMAT to determine the result descriptor. Execution
 // validates all entries, including invalid entries overridden by later ones.
-func explainDescribeFormat(statement *parser.Explain) (string, error) {
+func DescribeFormat(statement *parser.Explain) (string, error) {
 	format := "text"
 	for _, option := range statement.Options {
 		if option.Name == "format" {
@@ -70,9 +70,9 @@ func explainBoolean(option parser.ExplainOption) (bool, error) {
 			if literal.Value.Integer == 0 || literal.Value.Integer == 1 {
 				return literal.Value.Integer == 1, nil
 			}
-			return false, explainError("42601", option.Name+" requires a Boolean value", parser.Position{})
+			return false, Error("42601", option.Name+" requires a Boolean value", parser.Position{})
 		case parser.NumericValue:
-			return false, explainError("42601", option.Name+" requires a Boolean value", parser.Position{})
+			return false, Error("42601", option.Name+" requires a Boolean value", parser.Position{})
 		}
 	}
 	text, err := explainOptionString(option)
@@ -85,7 +85,7 @@ func explainBoolean(option parser.ExplainOption) (bool, error) {
 	case "false", "off":
 		return false, nil
 	}
-	return false, explainError("42601", strings.ToLower(option.Name)+" requires a Boolean value", parser.Position{})
+	return false, Error("42601", strings.ToLower(option.Name)+" requires a Boolean value", parser.Position{})
 }
 
 const (
@@ -104,8 +104,8 @@ const (
 
 var explainBooleanNames = [explainBooleanCount]string{"analyze", "verbose", "costs", "settings", "generic_plan", "buffers", "wal", "timing", "summary", "memory"}
 
-func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
-	options := explainOptions{costs: true, format: "text"}
+func ValidateOptions(statement *parser.Explain) (Options, error) {
+	options := Options{Costs: true, Format: "text"}
 	booleans := [explainBooleanCount]bool{explainCosts: true}
 	var positions [explainBooleanCount]parser.Position
 	var formatPosition, serializePosition parser.Position
@@ -145,7 +145,7 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 			}
 			valid := name == "format" && (lower == "text" || lower == "json" || lower == "xml" || lower == "yaml") || name == "serialize" && (lower == "none" || lower == "text" || lower == "binary")
 			if !valid {
-				return options, explainError("22023", fmt.Sprintf("unrecognized value for EXPLAIN option %q: %q", name, value), option.Pos)
+				return options, Error("22023", fmt.Sprintf("unrecognized value for EXPLAIN option %q: %q", name, value), option.Pos)
 			}
 			if name == "format" {
 				format, formatPosition = lower, option.Pos
@@ -153,41 +153,41 @@ func validateExplainOptions(statement *parser.Explain) (explainOptions, error) {
 				serialize, serializePosition = lower, option.Pos
 			}
 		default:
-			return options, explainError("42601", fmt.Sprintf("unrecognized EXPLAIN option %q", option.Name), option.Pos)
+			return options, Error("42601", fmt.Sprintf("unrecognized EXPLAIN option %q", option.Name), option.Pos)
 		}
 	}
 	if booleans[explainWAL] && !booleans[explainAnalyze] {
-		return options, explainError("22023", "EXPLAIN option WAL requires ANALYZE", parser.Position{})
+		return options, Error("22023", "EXPLAIN option WAL requires ANALYZE", parser.Position{})
 	}
 	if booleans[explainTiming] && !booleans[explainAnalyze] {
-		return options, explainError("22023", "EXPLAIN option TIMING requires ANALYZE", parser.Position{})
+		return options, Error("22023", "EXPLAIN option TIMING requires ANALYZE", parser.Position{})
 	}
 	if serialize != "none" && !booleans[explainAnalyze] {
-		return options, explainError("22023", "EXPLAIN option SERIALIZE requires ANALYZE", parser.Position{})
+		return options, Error("22023", "EXPLAIN option SERIALIZE requires ANALYZE", parser.Position{})
 	}
 	if booleans[explainAnalyze] && booleans[explainGenericPlan] {
-		return options, explainError("22023", "EXPLAIN options ANALYZE and GENERIC_PLAN cannot be used together", parser.Position{})
+		return options, Error("22023", "EXPLAIN options ANALYZE and GENERIC_PLAN cannot be used together", parser.Position{})
 	}
 	for _, index := range [...]int{explainSettings, explainGenericPlan, explainBuffers, explainWAL, explainMemory} {
 		if booleans[index] {
-			return options, explainError("0A000", "EXPLAIN option "+strings.ToUpper(explainBooleanNames[index])+" is not supported", positions[index])
+			return options, Error("0A000", "EXPLAIN option "+strings.ToUpper(explainBooleanNames[index])+" is not supported", positions[index])
 		}
 	}
 	if serialize != "none" {
-		return options, explainError("0A000", "EXPLAIN option SERIALIZE is not supported", serializePosition)
+		return options, Error("0A000", "EXPLAIN option SERIALIZE is not supported", serializePosition)
 	}
 	if format != "text" && format != "json" {
-		return options, explainError("0A000", "EXPLAIN format "+strings.ToUpper(format)+" is not supported", formatPosition)
+		return options, Error("0A000", "EXPLAIN format "+strings.ToUpper(format)+" is not supported", formatPosition)
 	}
-	options.costs, options.verbose = booleans[explainCosts], booleans[explainVerbose]
-	options.format = format
-	options.analyze = booleans[explainAnalyze]
-	options.timing, options.summary = options.analyze, options.analyze
+	options.Costs, options.Verbose = booleans[explainCosts], booleans[explainVerbose]
+	options.Format = format
+	options.Analyze = booleans[explainAnalyze]
+	options.Timing, options.Summary = options.Analyze, options.Analyze
 	if specified[explainTiming] {
-		options.timing = booleans[explainTiming]
+		options.Timing = booleans[explainTiming]
 	}
 	if specified[explainSummary] {
-		options.summary = booleans[explainSummary]
+		options.Summary = booleans[explainSummary]
 	}
 	return options, nil
 }

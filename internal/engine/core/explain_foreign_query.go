@@ -14,7 +14,7 @@ import (
 
 // foreignQuery captures occurrence authority under Mu, then shares execution's
 // translator and path selection without constructing live sources or owners.
-func (r *explainRenderer) foreignQuery(root plan.Node) (*explainTree, bool, error) {
+func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 	switch root.(type) {
 	case *plan.JoinNode, *plan.AggregateNode, *plan.SortNode, *plan.LimitNode, *plan.EvaluationNode:
 	default:
@@ -102,27 +102,27 @@ func (r *explainRenderer) foreignQuery(root plan.Node) (*explainTree, bool, erro
 	if err != nil {
 		return nil, false, err
 	}
-	if err := r.foreignFence(captured); err != nil {
+	if err := r.ForeignFence(captured); err != nil {
 		return nil, false, err
 	}
 	if !ok {
 		return nil, false, nil
 	}
-	tree := &explainTree{label: "Foreign Scan", nodeType: "Foreign Scan", unknownEstimate: true}
+	tree := &Tree{label: "Foreign Scan", nodeType: "Foreign Scan", unknownEstimate: true}
 	tree.details = append(tree.details, "Foreign operation: "+selected.Request.Stage.Kind)
 	r.property(tree, "Foreign Operation", selected.Request.Stage.Kind)
 	for _, source := range selected.Request.Sources {
 		tree.details = append(tree.details, fmt.Sprintf("Foreign source %d: %s.%s", source.Occurrence+1, catalog.Identifier(source.Request.Schema), catalog.Identifier(source.Request.Table)))
-		if r.options.format == "json" {
+		if r.options.Format == "json" {
 			r.repeated(tree, "Foreign Sources", exec.ForeignObservedSource{Occurrence: source.Occurrence + 1, Schema: source.Request.Schema, Relation: source.Request.Table})
 		}
 	}
 	if err := r.foreignProperties(tree, properties); err != nil {
 		return nil, false, err
 	}
-	if r.options.costs {
+	if r.options.Costs {
 		tree.details = append(tree.details, fmt.Sprintf("Provider estimates: startup cost=%.2f total cost=%.2f", selected.Path.StartupCost, selected.Path.TotalCost))
-		if r.options.format == "json" {
+		if r.options.Format == "json" {
 			r.property(tree, "Provider Estimates", map[string]float64{"Startup Cost": selected.Path.StartupCost, "Total Cost": selected.Path.TotalCost})
 		}
 	}

@@ -5,19 +5,10 @@ import (
 	"slices"
 	"time"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// Bound graphs are borrowed only by this Describe/Execute activation. They are
-// deliberately not part of Description, a portal, or the prepared fold owner.
-type explainBound struct {
-	Binding analyze.Binding
-	Rules   *view.RuleProgram
-}
 
 func explainChild(statement *parser.Explain) parser.Statement {
 	return statement.Statement
@@ -55,7 +46,7 @@ func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
 func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explain) (Description, error) {
 	child := explainChild(statement)
 	if !explainSupportedChild(child) {
-		return Description{}, explainError("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
+		return Description{}, Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -66,17 +57,17 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 	if err != nil {
 		return Description{}, err
 	}
-	var bound explainBound
+	var bound Bound
 	description, err := e.describeBoundOperationLocked(scope, child, auth, &bound)
 	if err != nil {
 		return Description{}, err
 	}
-	format, err := explainDescribeFormat(statement)
+	format, err := DescribeFormat(statement)
 	if err != nil {
 		return Description{}, err
 	}
 	if format == "xml" || format == "yaml" {
-		_, err := validateExplainOptions(statement)
+		_, err := ValidateOptions(statement)
 		return Description{}, err
 	}
 	description.Results = e.explainSchemaLocked(format)
@@ -86,19 +77,19 @@ func (e *Engine) describeExplain(scope *StatementScope, statement *parser.Explai
 func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter) (Result, error) {
 	child := explainChild(statement)
 	if !explainSupportedChild(child) {
-		return Result{}, explainError("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
+		return Result{}, Error("0A000", "EXPLAIN for this statement is not supported", explainChildPosition(child))
 	}
-	options, optionErr := explainOptions{}, error(nil)
+	options, optionErr := Options{}, error(nil)
 	if admission := scope.explainAdmission; admission != nil {
 		options, optionErr = admission.options, admission.err
 	} else {
-		options, optionErr = validateExplainOptions(statement)
+		options, optionErr = ValidateOptions(statement)
 	}
-	if optionErr == nil && options.analyze {
+	if optionErr == nil && options.Analyze {
 		return e.executeExplainAnalyze(scope, statement, count, importFrame, options)
 	}
 	var planningStart time.Time
-	if options.summary {
+	if options.Summary {
 		planningStart = time.Now()
 	}
 	e.Mu.Lock()
@@ -111,7 +102,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	var bound explainBound
+	var bound Bound
 	description, err := e.describeBoundOperationLocked(scope, child, auth, &bound)
 	if err != nil {
 		e.Mu.Unlock()
@@ -125,7 +116,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, description.Parameters.Count)
 	}
-	schema := e.explainSchemaLocked(options.format)
+	schema := e.explainSchemaLocked(options.Format)
 	// Rendering holds the catalog ownership window, but never captures rows or
 	// invokes expression providers, defaults, triggers, or fold publication.
 	renderer, err := newExplainRenderer(scope, auth, options)
@@ -159,13 +150,13 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		}
 	}
 	e.Mu.Lock()
-	if err := renderer.foreignFence(captured); err != nil {
+	if err := renderer.ForeignFence(captured); err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	lines, err := renderer.command(child, bound)
+	lines, err := renderer.Command(child, bound)
 	if err == nil {
-		err = renderer.foreignFence(captured)
+		err = renderer.ForeignFence(captured)
 	}
 	if err == nil {
 		err = scope.RefreshRelationGrantsLocked(e)
@@ -174,7 +165,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		current, authorityErr := scope.statementAuthorizationLocked(child)
 		err = authorityErr
 		if err == nil {
-			var finalBound explainBound
+			var finalBound Bound
 			_, err = e.describeBoundOperationLocked(scope, child, current, &finalBound)
 		}
 	}
@@ -182,17 +173,17 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	var summaries explainSummaries
-	if options.summary {
+	var summaries Summaries
+	if options.Summary {
 		planning := time.Since(planningStart)
-		summaries.planning = &planning
+		summaries.Planning = &planning
 	}
-	rows, err := explainOutput(scope, schema, options, []*explainRenderer{renderer}, lines, summaries)
+	rows, err := Output(scope, schema, options, []*Renderer{renderer}, lines, summaries)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := renderer.foreignFence(captured); err != nil {
+	if err := renderer.ForeignFence(captured); err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}

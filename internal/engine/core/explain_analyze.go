@@ -10,13 +10,13 @@ import (
 )
 
 type explainAdmission struct {
-	options explainOptions
+	options Options
 	err     error
 }
 
 type explainExecution struct {
-	options   explainOptions
-	renderers []*explainRenderer
+	options   Options
+	renderers []*Renderer
 	started   time.Time
 	planning  time.Duration
 	executing time.Time
@@ -27,7 +27,7 @@ type explainExecution struct {
 // captureExplainCommandLocked borrows the real prepared execution graph, after
 // canonical binding and preflight and before any executor startup. Presentation
 // is frozen now; rendering after execution only reads scalar measurements.
-func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation) (*explainTree, error) {
+func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement parser.Statement, execution *preparedCommandExecution, observation *exec.Observation) (*Tree, error) {
 	owner := scope.explain
 	if owner == nil {
 		return nil, nil
@@ -51,8 +51,8 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 	if err != nil {
 		return nil, err
 	}
-	renderer.observation = observation
-	if _, err = renderer.command(statement, explainBound{Binding: binding}); err != nil {
+	renderer.Observation = observation
+	if _, err = renderer.Command(statement, Bound{Binding: binding}); err != nil {
 		return nil, err
 	}
 	if scope.ruleAction.Auth != nil && len(renderer.trees) != 0 {
@@ -64,7 +64,7 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 		copy(owner.renderers[1:], owner.renderers[:len(owner.renderers)-1])
 		owner.renderers[0] = renderer
 	}
-	if owner.executing.IsZero() && owner.options.summary {
+	if owner.executing.IsZero() && owner.options.Summary {
 		owner.planning = time.Since(owner.started)
 		owner.executing = time.Now()
 	}
@@ -72,14 +72,14 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 		return nil, nil
 	}
 	tree := renderer.trees[0]
-	tree.actual = &exec.Actual{Loops: 1}
+	tree.Actual = &exec.Actual{Loops: 1}
 	return tree, nil
 }
 
-func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options explainOptions) (Result, error) {
+func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options Options) (Result, error) {
 	owner := &explainExecution{options: options}
 	owner.statement, owner.expected = statement.Statement, scope.Expected
-	if options.summary {
+	if options.Summary {
 		owner.started = time.Now()
 	}
 	ctx := scope.executionContext()
@@ -99,26 +99,26 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 		}
 	}
 	var execution time.Duration
-	if options.summary && !owner.executing.IsZero() {
+	if options.Summary && !owner.executing.IsZero() {
 		execution = time.Since(owner.executing)
 	}
 	var lines []string
-	if options.format != "json" {
+	if options.Format != "json" {
 		for _, renderer := range owner.renderers {
-			lines = append(lines, renderer.render()...)
+			lines = append(lines, renderer.Render()...)
 		}
 	}
-	var summaries explainSummaries
-	if options.summary && (options.format != "json" || !owner.executing.IsZero()) {
-		summaries.planning, summaries.execution = &owner.planning, &execution
+	var summaries Summaries
+	if options.Summary && (options.Format != "json" || !owner.executing.IsZero()) {
+		summaries.Planning, summaries.Execution = &owner.planning, &execution
 	}
 	e.Mu.Lock()
-	schema := e.explainSchemaLocked(options.format)
+	schema := e.explainSchemaLocked(options.Format)
 	e.Mu.Unlock()
 	if len(lines) == 0 {
 		lines = append(lines, "Rewrite: nothing")
 	}
-	rows, err := explainOutput(scope, schema, options, owner.renderers, lines, summaries)
+	rows, err := Output(scope, schema, options, owner.renderers, lines, summaries)
 	if err != nil {
 		return Result{}, err
 	}

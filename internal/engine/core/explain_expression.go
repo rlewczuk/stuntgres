@@ -14,9 +14,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (r *explainRenderer) expression(root plan.Node, expression expr.Expr) (string, error) {
+func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, error) {
 	deparser := stored.Deparser{View: r.auth.Catalog, Pretty: true, Output: r.scope.Output}
-	if !r.options.verbose {
+	if !r.options.Verbose {
 		deparser.Path = r.path
 	}
 	deparser.Output.Regclass = regobj.ClassOutput{View: r.auth.Catalog, Path: deparser.Path}
@@ -187,19 +187,19 @@ func (r *explainRenderer) expression(root plan.Node, expression expr.Expr) (stri
 	return deparser.SQL(r.scope.executionContext(), expression, stored.DeparseParent{})
 }
 
-func (r *explainRenderer) frameRoot(root plan.Node, frame uint32) plan.Node {
+func (r *Renderer) frameRoot(root plan.Node, frame uint32) plan.Node {
 	if owner := r.frames[frame]; owner != nil {
 		return owner
 	}
 	return root
 }
 
-func (r *explainRenderer) expressions(root plan.Node, expressions []expr.Expr) (string, error) {
+func (r *Renderer) expressions(root plan.Node, expressions []expr.Expr) (string, error) {
 	parts, err := r.expressionParts(root, expressions)
 	return strings.Join(parts, ", "), err
 }
 
-func (r *explainRenderer) expressionParts(root plan.Node, expressions []expr.Expr) ([]string, error) {
+func (r *Renderer) expressionParts(root plan.Node, expressions []expr.Expr) ([]string, error) {
 	parts := make([]string, len(expressions))
 	for i, expression := range expressions {
 		text, err := r.expression(root, expression)
@@ -213,7 +213,7 @@ func (r *explainRenderer) expressionParts(root plan.Node, expressions []expr.Exp
 
 // Slot presentation follows the bound stage's actual output layout. It never
 // uses runtime values or invents a literal for an intermediate slot.
-func (r *explainRenderer) slot(root plan.Node, slot int) (string, bool, error) {
+func (r *Renderer) slot(root plan.Node, slot int) (string, bool, error) {
 	if root == nil || slot < 0 {
 		return "", false, nil
 	}
@@ -387,7 +387,7 @@ func explainWindow(root plan.Node) *plan.WindowNode {
 	return nil
 }
 
-func (r *explainRenderer) groupExpression(root plan.Node, frame uint32, slot int) (string, error) {
+func (r *Renderer) groupExpression(root plan.Node, frame uint32, slot int) (string, error) {
 	aggregate := explainAggregate(r.frameRoot(root, frame))
 	if aggregate == nil {
 		return "", fmt.Errorf("stuntgres: missing EXPLAIN group owner")
@@ -395,7 +395,7 @@ func (r *explainRenderer) groupExpression(root plan.Node, frame uint32, slot int
 	return r.aggregateSlot(aggregate, slot)
 }
 
-func (r *explainRenderer) aggregateSlot(aggregate *plan.AggregateNode, slot int) (string, error) {
+func (r *Renderer) aggregateSlot(aggregate *plan.AggregateNode, slot int) (string, error) {
 	if slot < len(aggregate.Keys) {
 		return r.expression(aggregate.Child, aggregate.Keys[slot])
 	}
@@ -406,7 +406,7 @@ func (r *explainRenderer) aggregateSlot(aggregate *plan.AggregateNode, slot int)
 	return r.aggregateCall(aggregate.Child, aggregate.Calls[slot])
 }
 
-func (r *explainRenderer) aggregateCall(root plan.Node, call plan.AggregateCall) (string, error) {
+func (r *Renderer) aggregateCall(root plan.Node, call plan.AggregateCall) (string, error) {
 	if call.Procedure == nil {
 		return "", fmt.Errorf("stuntgres: missing EXPLAIN aggregate declaration")
 	}
@@ -457,7 +457,7 @@ func (r *explainRenderer) aggregateCall(root plan.Node, call plan.AggregateCall)
 	return text, nil
 }
 
-func (r *explainRenderer) cachedExpression(root plan.Node, slot int) (string, error) {
+func (r *Renderer) cachedExpression(root plan.Node, slot int) (string, error) {
 	for root != nil {
 		switch n := root.(type) {
 		case *plan.EvaluationNode:
@@ -496,12 +496,12 @@ func explainContains(root, candidate plan.Node) bool {
 
 // A nil INSERT/MERGE bound cell is the command binder's DEFAULT request,
 // not a folded NULL or an expression to evaluate.
-func (r *explainRenderer) valueRow(root plan.Node, row []expr.Expr) (string, error) {
+func (r *Renderer) valueRow(root plan.Node, row []expr.Expr) (string, error) {
 	parts, err := r.valueParts(root, row)
 	return strings.Join(parts, ", "), err
 }
 
-func (r *explainRenderer) valueParts(root plan.Node, row []expr.Expr) ([]string, error) {
+func (r *Renderer) valueParts(root plan.Node, row []expr.Expr) ([]string, error) {
 	parts := make([]string, len(row))
 	for i, expression := range row {
 		if expression == nil {

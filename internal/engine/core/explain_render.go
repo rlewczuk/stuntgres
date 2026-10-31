@@ -17,17 +17,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type explainTree struct {
+type Tree struct {
 	label           string
 	nodeType        string
 	properties      map[string]any
 	details         []string
-	children        []*explainTree
+	children        []*Tree
 	estimate        plan.ExplainEstimate
 	restriction     expr.Expr
 	unknownEstimate bool
 	node            plan.Node
-	actual          *exec.Actual
+	Actual          *exec.Actual
 }
 
 // These are execution's metadata-only composite eligibility facts. They do not
@@ -51,17 +51,17 @@ type explainSubplan struct {
 	foreignOwners map[uint32]explainForeignContext
 }
 
-type explainRenderer struct {
+type Renderer struct {
 	scope                        *StatementScope
 	auth                         AuthorizationView
-	options                      explainOptions
+	options                      Options
 	path                         []ids.ObjectAddress
 	frames                       map[uint32]plan.Node
 	occurrences                  map[int]*plan.SourceNode
-	ctes                         map[*plan.CTEDefinition]*explainTree
+	ctes                         map[*plan.CTEDefinition]*Tree
 	worktables                   map[*plan.CTEDefinition]float64
 	subplans                     []explainSubplan
-	producers                    []*explainTree
+	producers                    []*Tree
 	viewActive                   map[ids.ObjectAddress]bool
 	policyTarget                 ids.ObjectAddress
 	policyCommand                catalog.PolicyCommand
@@ -83,21 +83,21 @@ type explainRenderer struct {
 	inheritedMark                plan.RowMark
 	foreign                      explainForeignContext
 	foreignOwners                map[uint32]explainForeignContext
-	observation                  *exec.Observation
-	trees                        []*explainTree
+	Observation                  *exec.Observation
+	trees                        []*Tree
 }
 
-func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options explainOptions) (*explainRenderer, error) {
+func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options Options) (*Renderer, error) {
 	path, err := ReferencePath(auth)
 	if err != nil {
 		return nil, err
 	}
-	return &explainRenderer{scope: scope, auth: auth, options: options, path: path, frame: 1, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*explainTree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
+	return &Renderer{scope: scope, auth: auth, options: options, path: path, frame: 1, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*Tree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
 }
 
-func (r *explainRenderer) objectName(namespace ids.ObjectAddress, name string) string {
+func (r *Renderer) objectName(namespace ids.ObjectAddress, name string) string {
 	text := catalog.Identifier(name)
-	if r.options.verbose {
+	if r.options.Verbose {
 		if ns, ok := r.auth.Catalog.Namespace(namespace); ok {
 			text = catalog.Identifier(ns.Name()) + "." + text
 		}
@@ -105,7 +105,7 @@ func (r *explainRenderer) objectName(namespace ids.ObjectAddress, name string) s
 	return text
 }
 
-func (r *explainRenderer) register(root plan.Node) {
+func (r *Renderer) register(root plan.Node) {
 	if root == nil {
 		return
 	}
@@ -123,7 +123,7 @@ func (r *explainRenderer) register(root plan.Node) {
 	}
 }
 
-func (r *explainRenderer) subplan(query *plan.Query) string {
+func (r *Renderer) subplan(query *plan.Query) string {
 	foreign := explainForeignContext{outer: true} // Scalar/initplan creates a fresh State with Outer.
 	for _, subplan := range r.subplans {
 		if subplan.query == query && subplan.image == r.image && subplan.policyTarget == r.policyTarget && subplan.foreign == foreign && subplan.rowMarked == r.rowMarked && subplan.inheritedMark == r.inheritedMark {
@@ -135,7 +135,7 @@ func (r *explainRenderer) subplan(query *plan.Query) string {
 	return label
 }
 
-func (r *explainRenderer) query(query *plan.Query) (*explainTree, error) {
+func (r *Renderer) query(query *plan.Query) (*Tree, error) {
 	if query == nil || query.Root == nil {
 		return nil, fmt.Errorf("stuntgres: missing logical EXPLAIN query")
 	}
@@ -160,7 +160,7 @@ func (r *explainRenderer) query(query *plan.Query) (*explainTree, error) {
 	return r.node(query.Root)
 }
 
-func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
+func (r *Renderer) node(root plan.Node) (*Tree, error) {
 	if err := r.scope.executionContext().Err(); err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		}
 		defer func() { r.frame, r.foreign = saved, foreign }()
 	}
-	if r.observation == nil {
+	if r.Observation == nil {
 		if tree, selected, err := r.foreignQuery(root); selected || err != nil {
 			return tree, err
 		}
@@ -209,7 +209,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	if plan.ExplainInactive(root) {
 		return r.node(left)
 	}
-	tree := &explainTree{}
+	tree := &Tree{}
 	tree.node = root
 	var childEstimates [2]plan.ExplainEstimate
 	estimates := childEstimates[:0]
@@ -299,7 +299,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			if n.RangeName != "" && n.RangeName != relation.Name() {
 				tree.label += " AS " + catalog.Identifier(n.RangeName)
 			}
-			if r.observation == nil {
+			if r.Observation == nil {
 				sourceRows, err = r.foreignScan(tree, n, relation)
 				if err != nil {
 					return nil, err
@@ -318,7 +318,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	case *plan.ValuesNode:
 		tree.label = "Values"
 		tree.nodeType = "Values"
-		if r.options.verbose {
+		if r.options.Verbose {
 			for _, row := range n.Rows {
 				parts, err := r.valueParts(root, row)
 				if err != nil {
@@ -346,7 +346,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 	case *plan.ProjectNode:
 		tree.label = "Project"
 		tree.nodeType = "Project"
-		if r.options.verbose {
+		if r.options.Verbose {
 			if err := list("Output", n.Expressions, n.Child); err != nil {
 				return nil, err
 			}
@@ -495,7 +495,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				direction = "BREADTH FIRST"
 			}
 			tree.details = append(tree.details, "SEARCH: "+direction+" BY "+explainIdentifiers(n.Search.Syntax.Keys)+" SET "+catalog.Identifier(n.Search.Syntax.Sequence.Text))
-			if r.options.format == "json" {
+			if r.options.Format == "json" {
 				keys := make([]string, len(n.Search.Syntax.Keys))
 				for i, key := range n.Search.Syntax.Keys {
 					keys[i] = key.Text
@@ -516,7 +516,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				return nil, err
 			}
 			tree.details = append(tree.details, "CYCLE: "+explainIdentifiers(n.Cycle.Syntax.Keys)+" SET "+catalog.Identifier(n.Cycle.Syntax.Mark.Text)+" TO "+mark+" DEFAULT "+fallback+" USING "+catalog.Identifier(n.Cycle.Syntax.Path.Text))
-			if r.options.format == "json" {
+			if r.options.Format == "json" {
 				keys := make([]string, len(n.Cycle.Syntax.Keys))
 				for i, key := range n.Cycle.Syntax.Keys {
 					keys[i] = key.Text
@@ -556,7 +556,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 				target = catalog.Identifier(source.RangeName)
 			}
 			tree.details = append(tree.details, mode+" OF "+target+" "+wait)
-			if r.options.format == "json" {
+			if r.options.Format == "json" {
 				rawTarget := ""
 				if source := r.occurrences[i]; source != nil {
 					rawTarget = source.RangeName
@@ -606,7 +606,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 		return nil, fmt.Errorf("stuntgres: invalid logical EXPLAIN node")
 	}
 	r.discoverSubplans(root)
-	if r.options.verbose {
+	if r.options.Verbose {
 		switch root.(type) {
 		case *plan.ProjectNode, *plan.ValuesNode, *plan.SourceNode:
 		default:
@@ -658,7 +658,7 @@ func (r *explainRenderer) node(root plan.Node) (*explainTree, error) {
 			tree.details = append(tree.details, "Access Method: Full Scan")
 			r.property(tree, "Access Method", "Full Scan")
 		}
-		if r.options.costs {
+		if r.options.Costs {
 			tree.details = append(tree.details, fmt.Sprintf("CPU Cost: %.6g", r.scanDecision.Cost()))
 			r.property(tree, "CPU Cost", r.scanDecision.Cost())
 		}
@@ -683,25 +683,25 @@ func explainDerivedAlias(node *plan.DerivedNode) string {
 	return ""
 }
 
-func (r *explainRenderer) lines(tree *explainTree, depth int, lines *[]string) {
+func (r *Renderer) lines(tree *Tree, depth int, lines *[]string) {
 	tree = r.effective(tree)
 	indent := strings.Repeat("  ", depth)
 	line := indent + tree.label
-	if r.options.costs && !tree.unknownEstimate {
+	if r.options.Costs && !tree.unknownEstimate {
 		line += fmt.Sprintf(" (estimated rows=%.0f logical cost=%.2f)", tree.estimate.RoundedRows(), tree.estimate.Cost)
 	}
-	if r.observation != nil && (r.observation.Known(tree.node) || tree.actual != nil) {
+	if r.Observation != nil && (r.Observation.Known(tree.node) || tree.Actual != nil) {
 		actual := exec.Actual{}
-		if tree.actual != nil {
-			actual = *tree.actual
+		if tree.Actual != nil {
+			actual = *tree.Actual
 		} else {
-			actual = r.observation.Actual(tree.node)
+			actual = r.Observation.Actual(tree.node)
 		}
 		if actual.Loops == 0 {
 			line += " (never executed)"
 		} else {
 			rows := float64(actual.Rows) / float64(actual.Loops)
-			if r.options.timing {
+			if r.options.Timing {
 				milliseconds := float64(actual.Elapsed) / 1e6 / float64(actual.Loops)
 				line += fmt.Sprintf(" (actual time=%.3f ms rows=%.2f loops=%d)", milliseconds, rows, actual.Loops)
 			} else {
@@ -718,7 +718,7 @@ func (r *explainRenderer) lines(tree *explainTree, depth int, lines *[]string) {
 	}
 }
 
-func (r *explainRenderer) discoverSubplans(root plan.Node) {
+func (r *Renderer) discoverSubplans(root plan.Node) {
 	visit := func(expression expr.Expr) {
 		plan.WalkDemandedExpression(expression, func(node expr.Expr) {
 			if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {

@@ -523,7 +523,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 // The same description-only binding and rewrite admission serves Prepare and
 // EXPLAIN. Its capture marks an EXPLAIN activation: the graph is borrowed only
 // here, and its description has no child fold-publication rights.
-func (e *Engine) describeBoundOperationLocked(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, capture *explainBound) (Description, error) {
+func (e *Engine) describeBoundOperationLocked(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, capture *Bound) (Description, error) {
 	op := scope.Op
 	b, err := e.describeScoped(scope, stmt, auth, nil)
 	if err != nil {

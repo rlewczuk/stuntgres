@@ -20,7 +20,7 @@ func (c *explainRenderCancelContext) Err() error {
 		frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
 		for {
 			frame, more := frames.Next()
-			if strings.HasSuffix(frame.Function, ".(*explainRenderer).node") {
+			if strings.HasSuffix(frame.Function, ".(*Renderer).node") {
 				c.observed = true
 				c.cancel()
 				break
