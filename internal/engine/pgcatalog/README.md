@@ -187,8 +187,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - Text-search rows project actual descriptor ownership, namespace, template
   helpers and ordered options. Empty dictionary options are typed SQL NULL;
   numeric nodes remain unquoted and strings use canonical SQL escaping. Builtin
-  dictionary/template identities are pinned; standalone dependencies follow their
-  actual namespace/template rather than extension-name conventions.
+  simple dictionary/template identities are pinned; allocated Snowball and
+  standalone dependencies follow their actual namespace/template, not labels.
   `pg_ts_config` projects real configuration owner/parser/namespace identities;
   `pg_ts_config_map` derives ordered one-based dictionary rows from those same
   immutable descriptors. It has no separately mutable map-row store. Both
@@ -199,8 +199,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   occurrences, including repeats, retain their one-based list positions and
   actual dictionary references. Sequence order is semantic, not a guarantee of
   SQL row order without `ORDER BY`.
-  Capture contracts include simple, English, Arabic and Armenian configurations,
-  their full 76 mapping rows, and simple/Snowball template and dictionary seeds.
+  Capture contracts include simple and all twenty-four Snowball configurations,
+  their full 475 mapping rows, and simple/Snowball template and dictionary seeds.
   Allocated seed identities are checked through actual catalog relationships;
   retained captures keep their original source-owned types across replacement.
 - `pg_event_trigger` projects actual database-local definitions from the immutable

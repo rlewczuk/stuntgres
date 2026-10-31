@@ -79,7 +79,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					}
 				}
 			}
-			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish", "swedish", "tamil"}
+			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish", "swedish", "tamil", "turkish"}
 			for _, language := range languages {
 				wantDictionary, wantConfiguration := true, true
 				if language == "yiddish" {
@@ -98,7 +98,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					defaultConfigurations[d.SeedName()] = true
 				}
 			}
-			if len(defaultDictionaries) != 23 || len(defaultConfigurations) != 23 {
+			if len(defaultDictionaries) != 24 || len(defaultConfigurations) != 24 {
 				t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations)
 			}
 			for _, language := range languages {

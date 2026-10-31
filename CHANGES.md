@@ -23,6 +23,11 @@
   Independent companion rewrites still demand runtime domain conversions per
   live row and rebuild indexes after the initial missing-value capture.
 
+- Add the complete REL_18_6 Turkish Snowball kernel and exact 53-word stoplist,
+  allocated `turkish_stem`/`turkish` seeds and nineteen genuine token mappings.
+  Turkish uses its own dictionary for ASCII and non-ASCII words, with immutable
+  prepared results, atomic runtime publication and edited-stock Dump/Restore.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

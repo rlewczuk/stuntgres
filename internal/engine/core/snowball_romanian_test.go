@@ -458,7 +458,7 @@ func TestSnowballRomanianSeedDefaults(t *testing.T) {
 				t.Fatal("unrelated bootstrap descriptor exposed", descriptor)
 			}
 		}
-		if dictionaries != 23 || configurations != 23 || !foundDictionary || !foundConfiguration {
+		if dictionaries != 24 || configurations != 24 || !foundDictionary || !foundConfiguration {
 			t.Fatal("finite complete retained Snowball defaults", dictionaries, configurations)
 		}
 	}

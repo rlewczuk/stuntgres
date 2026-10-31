@@ -26,14 +26,14 @@ func TestSnowballSwedishSeedReplay(t *testing.T) {
 	{
 		script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 		dictionaries, err := script.dictionaryProviderReplays()
-		if err != nil || len(dictionaries) != 24 {
+		if err != nil || len(dictionaries) != 25 {
 			t.Fatal("unchanged dictionary replay inventory", dictionaries, err)
 		}
 		if lines, err := planProviderReplay(dictionaries); err != nil || len(lines) != 0 {
 			t.Fatal("unchanged Swedish seed emitted duplicate declarations", lines, err)
 		}
 		configurations, err := script.configurationProviderReplays()
-		if err != nil || len(configurations) != 24 {
+		if err != nil || len(configurations) != 25 {
 			t.Fatal("unchanged configuration replay inventory", configurations, err)
 		}
 		if lines, err := planProviderReplay(configurations); err != nil || len(lines) != 0 {
@@ -81,7 +81,7 @@ func TestSnowballSwedishSeedReplay(t *testing.T) {
 	source.State.BindName(catalog.DescriptorNameKey(&changed), changed.Address())
 	script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 	providers, err := script.dictionaryProviderReplays()
-	if err != nil || len(providers) != 24 {
+	if err != nil || len(providers) != 25 {
 		t.Fatal("actual dictionary replay inventory", providers, err)
 	}
 	lines, err := planProviderReplay(providers)
@@ -111,7 +111,7 @@ func TestSnowballSwedishSeedReplay(t *testing.T) {
 	source.State.SetDescriptor(address, &moved)
 	source.State.BindName(catalog.DescriptorNameKey(&moved), address)
 	providers, err = script.configurationProviderReplays()
-	if err != nil || len(providers) != 24 {
+	if err != nil || len(providers) != 25 {
 		t.Fatal("configuration replay inventory", providers, err)
 	}
 	lines, err = planProviderReplay(providers)
