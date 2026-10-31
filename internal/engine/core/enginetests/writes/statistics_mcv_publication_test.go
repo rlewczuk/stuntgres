@@ -1,4 +1,4 @@
-package core_test
+package writes_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/session"
 )
 
 func TestStatisticsMCVPublication(t *testing.T) {
@@ -214,4 +215,23 @@ func TestStatisticsMCVJournalOwnership(t *testing.T) {
 			enginetest.LockEmpty(t, e)
 		})
 	}
+}
+
+// Unlike the generic internal SQL fixture this goes through command admission.
+// SQL results are reference-tested; these tests inspect retained runtime owners.
+func plannerCostCommand(t *testing.T, s *session.Session, q string) core.Result {
+	t.Helper()
+	op, _, err := s.AcquireCommand(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	r, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	if r.Rows != nil {
+		t.Cleanup(func() { r.Rows.Close() })
+	}
+	return r
 }

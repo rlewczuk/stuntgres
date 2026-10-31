@@ -1,11 +1,13 @@
-package core_test
+package writes_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
@@ -64,4 +66,22 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 			})
 		}
 	}
+}
+
+func foreignActionUnitScope(t *testing.T, e *core.Engine, session *session.Session, q string) *core.StatementScope {
+	t.Helper()
+	op, err := session.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { scope.Finish(context.Canceled); op.Done() })
+	if _, err = scope.Execute(enginetest.Statement(t, q), 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	return scope
 }

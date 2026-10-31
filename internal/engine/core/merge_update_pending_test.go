@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -68,106 +66,6 @@ func mergeUpdatePendingOutcome(t *testing.T, done <-chan deleteOutcome, count in
 	case <-time.After(5 * time.Second):
 		t.Fatal("MERGE did not finish")
 	}
-}
-
-func TestMergeUpdateReadCommittedPending(t *testing.T) {
-	for _, lane := range []string{"restart", "keyChange", "keyChangeNoInsert", "delete", "deleteNoInsert", "fixedSource", "noWiden"} {
-		for _, commit := range []bool{false, true} {
-			t.Run(lane+map[bool]string{false: "Rollback", true: "Commit"}[commit], func(t *testing.T) {
-				e := engine.New()
-				holder := enginetest.StartSession(t, e, nil)
-				worker := enginetest.StartSession(t, e, nil)
-				peer := enginetest.StartSession(t, e, nil)
-				enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
-				enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(3,30)")
-				enginetest.SessionSQL(t, peer, "CREATE TABLE source(id INT,x INT)")
-				enginetest.SessionSQL(t, peer, "INSERT INTO source VALUES(1,7)")
-				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
-				row := e.Storage.Relations[ref.Address].Versions[0].Row
-				tx := enginetest.TransactionBegin(t, holder)
-				hold := "UPDATE t SET v=20 WHERE id=1"
-				if lane == "keyChange" || lane == "keyChangeNoInsert" {
-					hold = "UPDATE t SET id=2 WHERE id=1"
-				}
-				if lane == "delete" || lane == "deleteNoInsert" {
-					hold = "DELETE FROM t WHERE id=1"
-				}
-				enginetest.SessionSQL(t, holder, hold)
-				q := "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED AND t.v>=20 THEN UPDATE SET v=100 WHEN MATCHED THEN UPDATE SET v=200"
-				if lane == "fixedSource" {
-					q = "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=s.x"
-				}
-				if lane == "noWiden" {
-					q = "MERGE INTO t USING source s ON t.v=10 WHEN MATCHED THEN UPDATE SET v=100"
-				}
-				if lane == "keyChange" || lane == "delete" {
-					q += " WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
-				}
-				done := mergeUpdatePendingExecute(t, worker, q)
-				enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, 0)
-				enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 30)
-				if lane == "fixedSource" {
-					enginetest.SessionSQL(t, peer, "UPDATE source SET x=8")
-				}
-				if lane == "noWiden" {
-					enginetest.SessionSQL(t, peer, "UPDATE t SET v=10 WHERE id=3")
-				}
-				enginetest.TransactionEnd(t, holder, tx, commit)
-				n := int64(1)
-				if commit && (lane == "deleteNoInsert" || lane == "keyChangeNoInsert" || lane == "noWiden") {
-					n = 0
-				}
-				mergeUpdatePendingOutcome(t, done, n, nil)
-				switch lane {
-				case "restart":
-					v := int64(200)
-					if commit {
-						v = 100
-					}
-					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", v, 30)
-				case "keyChange":
-					if commit {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 99, 10, 30)
-					} else {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 200, 30)
-					}
-				case "keyChangeNoInsert":
-					if commit {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 30)
-					} else {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 200, 30)
-					}
-				case "delete":
-					v := int64(200)
-					if commit {
-						v = 99
-					}
-					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", v, 30)
-				case "deleteNoInsert":
-					if commit {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 30)
-					} else {
-						enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 200, 30)
-					}
-				case "fixedSource":
-					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 7, 30)
-					enginetest.TransactionRows(t, peer, "SELECT x FROM source", 8)
-				case "noWiden":
-					v := int64(100)
-					if commit {
-						v = 20
-					}
-					enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", v, 10)
-				}
-				enginetest.LockEmpty(t, e)
-				enginetest.SessionSQL(t, peer, "UPDATE t SET v=v+1") // released holds/claims permit healthy peer reuse
-			})
-		}
-	}
-}
-
-func TestMergeUpdateRepeatableReadPending(t *testing.T) {
-	mergeUpdateRepeatableReadPending(t, false)
 }
 
 func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
@@ -287,61 +185,5 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				enginetest.SessionSQL(t, peer, "UPDATE t SET v=v+1")
 			})
 		}
-	}
-}
-
-func TestMergeUpdateFollowChainPending(t *testing.T) {
-	mergeUpdateFollowChainPending(t, false)
-}
-
-func mergeSourceFollowChainRowModes(t *testing.T) {
-	mergeUpdateFollowChainPending(t, true)
-}
-
-func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
-	for _, tc := range []struct {
-		name, arms string
-		strong     bool
-		v          int64
-	}{
-		{"nonkey", "WHEN MATCHED THEN UPDATE SET v=t.v+1", false, 21},
-		{"sameKey", "WHEN MATCHED THEN UPDATE SET id=t.id", true, 20},
-		{"unselectedKeyArm", "WHEN MATCHED AND FALSE THEN UPDATE SET id=t.id WHEN MATCHED THEN UPDATE SET v=t.v+1", true, 21},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			e := engine.New()
-			holder := enginetest.StartSession(t, e, nil)
-			writer := enginetest.StartSession(t, e, nil)
-			worker := enginetest.StartSession(t, e, nil)
-			peer := enginetest.StartSession(t, e, nil)
-			enginetest.SessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
-			enginetest.SessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
-			ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
-			row := e.Storage.Relations[ref.Address].Versions[0].Row
-			a := enginetest.TransactionBegin(t, holder)
-			r := enginetest.SessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
-			r.Rows.Close()
-			b := enginetest.TransactionBegin(t, writer)
-			enginetest.SessionSQL(t, writer, "UPDATE t SET v=20")
-			q := "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id " + tc.arms
-			if targetOnly {
-				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
-			}
-			done := mergeUpdatePendingExecute(t, worker, q)
-			enginetest.RowLockPending(t, e, ref, row, worker, writer.Transactions.Ticket, lock.ForNoKeyUpdate)
-			enginetest.TransactionEnd(t, writer, b, true)
-			if tc.strong {
-				enginetest.RowLockPending(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForUpdate)
-				enginetest.TransactionRows(t, peer, "SELECT v FROM t", 20)
-				enginetest.TransactionEnd(t, holder, a, false)
-			}
-			mergeUpdatePendingOutcome(t, done, 1, nil)
-			if !tc.strong {
-				enginetest.TransactionEnd(t, holder, a, false)
-			}
-			enginetest.TransactionRows(t, peer, "SELECT v FROM t", tc.v)
-			enginetest.LockEmpty(t, e)
-			enginetest.SessionSQL(t, peer, "UPDATE t SET v=v+1")
-		})
 	}
 }

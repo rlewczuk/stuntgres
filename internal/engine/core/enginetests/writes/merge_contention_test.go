@@ -1,4 +1,4 @@
-package core_test
+package writes_test
 
 import (
 	"context"
@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/session"
 )
 
 func TestMergeInsertContention(t *testing.T) {
@@ -94,5 +96,27 @@ func TestMergeInsertIsolation(t *testing.T) {
 			}
 			enginetest.LockEmpty(t, e)
 		})
+	}
+}
+
+func updateDeleteExecute(t *testing.T, e *core.Engine, s *session.Session, q string, n int64) {
+	t.Helper()
+	result, err := enginetest.ExecuteAsync(t, e, s, context.Background(), q)()
+	if err != nil || result.Count != n || result.Rows != nil {
+		t.Fatal(q, result, err, n)
+	}
+}
+
+func uniqueClaimsEmpty(t *testing.T, e *core.Engine) {
+	t.Helper()
+	enginetest.LockEmpty(t, e)
+	uniqueKeyBucketsEmpty(t, e)
+}
+
+func uniqueKeyBucketsEmpty(t *testing.T, e *core.Engine) {
+	t.Helper()
+	lockState := e.Locks.Inspect()
+	if lockState.KeyBuckets != 0 {
+		t.Fatal("retained unique key buckets", lockState.KeyBuckets)
 	}
 }

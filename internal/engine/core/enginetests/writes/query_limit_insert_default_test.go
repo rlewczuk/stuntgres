@@ -1,4 +1,4 @@
-package core_test
+package writes_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -73,4 +74,14 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	if rows.Values != nil || err != failure || calls != 2 || source.View != nil || source.Committed != nil || source.Own != nil {
 		t.Fatal(rows, err, calls, source.View, source.Committed, source.Own)
 	}
+}
+
+func queryLimitBound(t *testing.T, e *core.Engine, value int64) expr.Expr {
+	t.Helper()
+	typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
+	v, err := sqltype.Integer(typ, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return enginetest.QueryProbe(typ.Usage(), func(*exec.Context) (sqltype.Value, error) { return v, nil })
 }

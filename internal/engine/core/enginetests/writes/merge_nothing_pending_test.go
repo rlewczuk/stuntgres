@@ -1,4 +1,4 @@
-package core_test
+package writes_test
 
 import (
 	"context"
@@ -180,4 +180,9 @@ func TestMergeNothingCancellation(t *testing.T) {
 	enginetest.SessionSQL(t, peer, "UPDATE t SET v=v+1")
 	enginetest.TransactionRows(t, peer, "SELECT v FROM t ORDER BY id", 11, 21, 31)
 	enginetest.LockEmpty(t, e)
+}
+
+type deleteOutcome struct {
+	result core.Result
+	err    error
 }

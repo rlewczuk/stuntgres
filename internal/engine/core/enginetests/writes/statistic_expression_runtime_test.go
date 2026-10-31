@@ -1,13 +1,17 @@
-package core_test
+package writes_test
 
 import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -92,4 +96,69 @@ func TestStatisticsExpressionCollectionEqualityOnlyProjection(t *testing.T) {
 	if analyzeFacts(e, ref.Address).Extended[key] == fact || facts.Extended[key] != fact || values.ArrayLen() != 2 || row.CompositeField(26).Type().ID() != 2277 {
 		t.Fatal("refresh mutated retained projection or source backing")
 	}
+}
+
+func expressionCollectionFixture(t *testing.T) (*core.Engine, *session.Session, ids.ObjectRef) {
+	t.Helper()
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, q := range []string{
+		"CREATE TABLE expr_owner(a INT,b INT,c INT)",
+		"CREATE STATISTICS expr_a ON (a+1) FROM expr_owner",
+		"CREATE STATISTICS expr_b(ndistinct) ON (b+1),c FROM expr_owner",
+		"INSERT INTO expr_owner VALUES(1,10,10),(1,10,10),(2,20,20),(NULL,NULL,NULL)",
+		"ANALYZE expr_owner",
+	} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	ref, _ := vacuumStore(t, e, "expr_owner")
+	return e, s, ref
+}
+
+func vacuumStore(t *testing.T, e *core.Engine, name string) (ids.ObjectRef, *storage.Relation) {
+	t.Helper()
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	store := e.Storage.Relations[ref.Address]
+	if store == nil {
+		t.Fatal("missing store", name)
+	}
+	return ref, store
+}
+
+func ndistinctKey(t *testing.T, e *core.Engine, name string) storage.ExtendedStatisticsKey {
+	t.Helper()
+	for _, raw := range e.CatalogRead().Descriptors() {
+		if d, ok := raw.(*catalog.Statistics); ok && d.Name() == name {
+			return storage.ExtendedStatisticsKey{Definition: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())}
+		}
+	}
+	t.Fatal("missing definition", name)
+	return storage.ExtendedStatisticsKey{}
+}
+
+func analyzeFacts(e *core.Engine, address ids.ObjectAddress) *storage.RelationStatistics {
+	if metadata := e.Storage.RelationMetadata[address]; metadata != nil {
+		return metadata.Statistics
+	}
+	return nil
+}
+
+func statisticExtDataInput(t *testing.T, e *core.Engine, body func(pgcatalog.Input, core.AuthorizationView)) {
+	t.Helper()
+	op, done, err := enginetest.Operation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.StatisticExtDataOID}
+	d := auth.Catalog.MustRelation(address)
+	body(pgcatalog.Input{Context: op.Context(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: auth.Owner, Ref: auth.Ref(address), Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})}, auth)
 }

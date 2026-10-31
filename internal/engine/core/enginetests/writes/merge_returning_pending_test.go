@@ -1,4 +1,4 @@
-package core_test
+package writes_test
 
 import (
 	"database/sql/driver"

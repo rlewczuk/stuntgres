@@ -1,11 +1,18 @@
-package core_test
+package writes_test
 
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/enginetest"
+	"runtime"
+	"strings"
 	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestStatisticsDependenciesPublication(t *testing.T) {
@@ -117,4 +124,40 @@ func TestStatisticsDependenciesPublication(t *testing.T) {
 			enginetest.LockEmpty(t, e)
 		})
 	}
+}
+
+func ndistinctCoreFixture(t *testing.T) (*core.Engine, *session.Session, ids.ObjectRef) {
+	t.Helper()
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, q := range []string{"CREATE TABLE nd_owner(a INT,b INT,c INT)", "CREATE STATISTICS nd_a(ndistinct) ON a,b FROM nd_owner", "CREATE STATISTICS nd_b(ndistinct) ON a,c FROM nd_owner", "INSERT INTO nd_owner VALUES(1,1,1),(2,2,2)", "ANALYZE nd_owner"} {
+		enginetest.SessionSQL(t, s, q)
+	}
+	ref, _ := vacuumStore(t, e, "nd_owner")
+	return e, s, ref
+}
+
+type ndistinctBoundaryContext struct {
+	context.Context
+	entered bool
+	action  func()
+}
+
+func (c *ndistinctBoundaryContext) Err() error {
+	if !c.entered {
+		var pcs [48]uintptr
+		frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs[:])])
+		for {
+			frame, more := frames.Next()
+			if strings.HasSuffix(frame.Function, ".(*NDistinctCollector).prepare") {
+				c.entered = true
+				c.action()
+				break
+			}
+			if !more {
+				break
+			}
+		}
+	}
+	return c.Context.Err()
 }
