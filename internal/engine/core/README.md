@@ -1820,7 +1820,7 @@ Dictionary execution captures and validates the current private descriptor under
 `unaccent(text)` resolves the dictionary named `unaccent` in the function's current
 schema; mutable member names are not a replacement for that lookup. Dictionary
 DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
-Core supplies fourteen shared compiled English, Arabic, Armenian, Basque, Danish, Dutch, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian and Lithuanian Snowball runtimes to the catalog's
+Core supplies fifteen shared compiled English, Arabic, Armenian, Basque, Danish, Dutch, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian, Lithuanian and Norwegian Snowball runtimes to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
 `Engine.TextSearchFiles` is immutable Driver startup authority, not catalog state.

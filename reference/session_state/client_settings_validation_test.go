@@ -142,13 +142,17 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 	t.Run("released-fts-inventory", func(t *testing.T) {
 		physicalCases(t, nil, func(s *physicalCase) {
 			for _, name := range []string{"simple", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "english", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "indonesian", "irish", "italian", "lithuanian", "nepali", "norwegian", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "tamil", "turkish", "yiddish"} {
-				if !s.pg && name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "irish" && name != "italian" && name != "lithuanian" {
+				if !s.pg && name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" {
 					s.run(physicalError("SET default_text_search_config="+physicalLiteral(name), clientInvalid("default_text_search_config", name, "", ""), false, false))
 					continue
 				}
-				for _, input := range []string{name, strings.ToUpper(name), `pg_catalog."` + name + `"`} {
+				inputs := []string{name, strings.ToUpper(name), `pg_catalog."` + name + `"`}
+				if name == "norwegian" {
+					inputs = append(inputs, "pg_catalog.norwegian")
+				}
+				for _, input := range inputs {
 					s.run(clientText("SELECT set_config('default_text_search_config',"+physicalLiteral(input)+",false)", "set_config", "pg_catalog."+name))
-					if name == "hungarian" || name == "irish" || name == "italian" || name == "lithuanian" {
+					if name == "hungarian" || name == "irish" || name == "italian" || name == "lithuanian" || name == "norwegian" {
 						for _, prepared := range []bool{false, true} {
 							step := fixture.Exec("SET default_text_search_config="+physicalLiteral(input), 0)
 							step.Prepared = prepared
@@ -159,6 +163,18 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 							set := clientText("SELECT set_config('default_text_search_config',"+physicalLiteral(input)+",false)", "set_config", "pg_catalog."+name)
 							set.Prepared = prepared
 							s.run(set)
+						}
+					}
+				}
+				if name == "norwegian" {
+					for _, input := range []string{`pg_catalog."Norwegian"`, "missing.norwegian", "a..b", `"unclosed`, "missing"} {
+						for _, prepared := range []bool{false, true} {
+							d := clientInvalid("default_text_search_config", input, "", "")
+							s.run(physicalError("SET default_text_search_config="+physicalLiteral(input), d, prepared, false))
+							s.run(physicalError("SELECT set_config('default_text_search_config',"+physicalLiteral(input)+",false)", d, prepared, true))
+							read := clientText("SELECT current_setting('default_text_search_config')", "current_setting", "pg_catalog.norwegian")
+							read.Prepared = prepared
+							s.run(read)
 						}
 					}
 				}

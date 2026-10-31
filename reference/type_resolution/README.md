@@ -273,6 +273,12 @@ stock identities/maps, output-gated cancellation and actual native-emitted
 dictionary/configuration replay. Private kernel/resources, seed authority,
 publication fences, accepted-fold ownership and seed replay use
 `RUN='^TestSnowballItalian'`.
+Norwegian released morphology, original-region and once-only phase boundaries,
+176 independently specified stopwords, ASCII-only case and byte limits, typed
+direct/held inputs, complete diagnostics and actual seed/carrier replay share
+`RUN='^TestReferenceNorwegianSnowball'`. Admitted direct/prepared cancellation
+is gated by parameterized Norwegian output on both backends. Private rules,
+immutable resource backing and canonical seed replay use `RUN='^TestSnowballNorwegian'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:
