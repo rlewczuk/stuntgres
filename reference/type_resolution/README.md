@@ -286,6 +286,13 @@ share `RUN='^TestReferencePortugueseSnowball'`. Output-gated cancellation requir
 actual Portuguese lexization on both backends. Dictionary/configuration and
 edited-stock lifecycle scenarios replay actual native-emitted SQL. Private rules,
 immutable resource backing and canonical seed replay use `RUN='^TestSnowballPortuguese'`.
+Yiddish released ligature/final-letter/niked normalization, fixed byte regions,
+all finite suffix actions, no-stock-list behavior, typed direct/held results,
+stock identities/mappings, option diagnostics and atomic lifecycle scenarios
+share `RUN='^TestReferenceYiddishSnowball'`. Output-gated cancellation depends
+on actual Yiddish lexization; replay checks execute actual native-emitted SQL.
+Private byte-rule boundaries, resource backing, seed authority, publication,
+prepared ownership and canonical replay use `RUN='^TestSnowballYiddish'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

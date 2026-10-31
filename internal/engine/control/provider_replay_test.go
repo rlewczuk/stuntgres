@@ -473,7 +473,10 @@ func TestProviderReplayPLHandlerMetadata(t *testing.T) {
 }
 
 func TestProviderReplayConstructorDeclarationBoundary(t *testing.T) {
-	source, _, _, _ := fdwUnitSource()
+	// Use the genuine initialized inventory: an intentionally empty Snowball
+	// catalog legitimately emits seed retirements before ordinary providers.
+	// This witness isolates constructor metadata's declaration boundary.
+	source := snowballUnitSource(t)
 	p := replayProvider("public", "custom_range", "public", "custom_range")
 	p.cost, p.parallel, p.readyAfter = 9, 'r', 99000
 	s := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, OriginalCatalog: source.OriginalCatalog, DomainRoles: source.DomainRoles, Providers: []providerReplay{p},

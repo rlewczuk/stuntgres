@@ -371,6 +371,8 @@ func providerConfigurationSQL(entry string) (string, error) {
 }
 
 func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
+	seedDrops, err := s.snowballDropReplay(ctx)
+	if err != nil { return err }
 	var early []providerReplay
 	var hostProviders []providerReplay
 	byEvent := make(map[ids.OID][]providerReplay)
@@ -409,7 +411,7 @@ func (s *dumpScript) prepareProviderReplay(ctx context.Context) error {
 		return err
 	}
 	statements = append(statements, configurationStatements...)
-	s.providerStatements = statements
+	s.providerStatements = append(seedDrops, statements...)
 	s.hostProviderStatements, err = planProviderReplay(hostProviders)
 	if err != nil {
 		return err

@@ -1,6 +1,7 @@
 package control
 
 import (
+	"context"
 	"slices"
 	"strings"
 
@@ -59,4 +60,38 @@ func (s *dumpScript) configurationProviderReplays() ([]providerReplay, error) {
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+// The restore destination starts with the finite initialized inventory. Remove
+// absent intrinsic identities before any name collision planner reuses their
+// canonical names. Never infer absence from a public label: a different seed or
+// an ordinary declaration can currently occupy that spelling.
+func (s *dumpScript) snowballDropReplay(ctx context.Context) ([]string, error) {
+	var configurations, mappings, dictionaries []string
+	var englishMissing, hindiPresent bool
+	namespace := s.CatalogView.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}).Name()
+	qualified := func(name string) string { return catalog.QuoteIdentifier(namespace)+"."+catalog.QuoteIdentifier(name) }
+	for seed := range s.CatalogView.SnowballSeeds() {
+		if err := ctx.Err(); err != nil { return nil, err }
+		if !seed.Configuration {
+			configurations = append(configurations, "DROP TEXT SEARCH CONFIGURATION "+qualified(seed.Language)+" RESTRICT;\n")
+		}
+		if seed.Language == "hindi" { hindiPresent = seed.Configuration }
+		if seed.Dictionary { continue }
+		if seed.Language == "english" { englishMissing = true }
+		if seed.Configuration {
+			// Clear only initialized edges, before dictionary retirement.
+			// The ordinary configuration declaration later restores the
+			// complete captured mapping, including renamed/replaced targets.
+			tokens := "asciiword, word, hword_part, hword_asciipart, asciihword, hword"
+			if seed.Language == "hindi" { tokens = "word, hword_part, hword" }
+			mappings = append(mappings, "ALTER TEXT SEARCH CONFIGURATION "+qualified(seed.Language)+" DROP MAPPING IF EXISTS FOR "+tokens+";\n")
+		}
+		dictionaries = append(dictionaries, "DROP TEXT SEARCH DICTIONARY "+qualified(seed.Language+"_stem")+" RESTRICT;\n")
+	}
+	if englishMissing && hindiPresent {
+		mappings = append(mappings, "ALTER TEXT SEARCH CONFIGURATION "+qualified("hindi")+" DROP MAPPING IF EXISTS FOR asciiword, hword_asciipart, asciihword;\n")
+	}
+	configurations = append(configurations, mappings...)
+	return append(configurations, dictionaries...), nil
 }

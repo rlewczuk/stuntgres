@@ -14,161 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.Relation, rows [][]sqltype.Value) {
-	t.Helper()
-	if len(rows) != 17 {
-		t.Fatal("exact simple/English/Arabic/Armenian/Basque/Danish/Dutch/Estonian/German/Greek/Hindi/Hungarian/Irish/Italian/Lithuanian/Norwegian/Portuguese configuration inventory", rows)
-	}
-	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
-	if english.ObjectID == 0 || english.ObjectID == 3748 {
-		t.Fatal("actual allocated English configuration", english)
-	}
-	arabic := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "arabic"})
-	if arabic.ObjectID == 0 || arabic.ObjectID == 3748 || arabic == english {
-		t.Fatal("actual allocated Arabic configuration", arabic)
-	}
-	armenian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "armenian"})
-	if armenian.ObjectID == 0 || armenian.ObjectID == 3748 || armenian == english || armenian == arabic {
-		t.Fatal("actual allocated Armenian configuration", armenian)
-	}
-	basque := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "basque"})
-	if basque.ObjectID == 0 || basque.ObjectID == 3748 || basque == english || basque == arabic || basque == armenian {
-		t.Fatal("actual allocated Basque configuration", basque)
-	}
-	danish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "danish"})
-	if danish.ObjectID == 0 || danish.ObjectID == 3748 || danish == english || danish == arabic || danish == armenian || danish == basque {
-		t.Fatal("actual allocated Danish configuration", danish)
-	}
-	dutch := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "dutch"})
-	if dutch.ObjectID == 0 || dutch.ObjectID == 3748 || dutch == english || dutch == arabic || dutch == armenian || dutch == basque || dutch == danish {
-		t.Fatal("actual allocated Dutch configuration", dutch)
-	}
-	estonian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "estonian"})
-	if estonian.ObjectID == 0 || estonian.ObjectID == 3748 || estonian == english || estonian == arabic || estonian == armenian || estonian == basque || estonian == danish || estonian == dutch {
-		t.Fatal("actual allocated Estonian configuration", estonian)
-	}
-	german := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "german"})
-	if german.ObjectID == 0 || german.ObjectID == 3748 || german == english || german == arabic || german == armenian || german == basque || german == danish || german == dutch || german == estonian {
-		t.Fatal("actual allocated German configuration", german)
-	}
-	greek := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "greek"})
-	if greek.ObjectID == 0 || greek.ObjectID == 3748 || greek == english || greek == arabic || greek == armenian || greek == basque || greek == danish || greek == dutch || greek == estonian || greek == german {
-		t.Fatal("actual allocated Greek configuration", greek)
-	}
-	hindi := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "hindi"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if hindi.ObjectID == 0 || hindi == earlier {
-			t.Fatal("actual distinct Hindi configuration", hindi)
-		}
-	}
-	hungarian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "hungarian"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if hungarian.ObjectID == 0 || hungarian == earlier {
-			t.Fatal("actual distinct Hungarian configuration", hungarian)
-		}
-	}
-	irish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "irish"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if irish.ObjectID == 0 || irish == earlier {
-			t.Fatal("actual distinct Irish configuration", irish)
-		}
-	}
-	italian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "italian"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if italian.ObjectID == 0 || italian == earlier {
-			t.Fatal("actual distinct Italian configuration", italian)
-		}
-	}
-	lithuanian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "lithuanian"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if lithuanian.ObjectID == 0 || lithuanian == earlier {
-			t.Fatal("actual distinct Lithuanian configuration", lithuanian)
-		}
-	}
-	norwegian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "norwegian"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if norwegian.ObjectID == 0 || norwegian == earlier {
-			t.Fatal("actual distinct Norwegian configuration", norwegian)
-		}
-	}
-	portuguese := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "portuguese"})
-	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if portuguese.ClassID != ids.TSConfigurationClassID || portuguese.ObjectID == 0 || portuguese == earlier {
-			t.Fatal("actual distinct Portuguese configuration", portuguese)
-		}
-	}
-	seen := map[string]bool{}
-	for _, row := range rows {
-		if len(row) != 5 {
-			t.Fatal("configuration row width", row)
-		}
-		for i, value := range row {
-			if value.IsNull() || value.Type() != source.Columns[i].Usage.Type {
-				t.Fatal("source-owned configuration cell", i, value)
-			}
-		}
-		name, err := row[1].Text()
-		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" && name != "portuguese" {
-			t.Fatal("configuration identity", name, err)
-		}
-		seen[name] = true
-		want := uint32(3748)
-		if name == "english" {
-			want = uint32(english.ObjectID)
-		}
-		if name == "arabic" {
-			want = uint32(arabic.ObjectID)
-		}
-		if name == "armenian" {
-			want = uint32(armenian.ObjectID)
-		}
-		if name == "basque" {
-			want = uint32(basque.ObjectID)
-		}
-		if name == "danish" {
-			want = uint32(danish.ObjectID)
-		}
-		if name == "dutch" {
-			want = uint32(dutch.ObjectID)
-		}
-		if name == "estonian" {
-			want = uint32(estonian.ObjectID)
-		}
-		if name == "german" {
-			want = uint32(german.ObjectID)
-		}
-		if name == "greek" {
-			want = uint32(greek.ObjectID)
-		}
-		if name == "hindi" {
-			want = uint32(hindi.ObjectID)
-		}
-		if name == "hungarian" {
-			want = uint32(hungarian.ObjectID)
-		}
-		if name == "irish" {
-			want = uint32(irish.ObjectID)
-		}
-		if name == "italian" {
-			want = uint32(italian.ObjectID)
-		}
-		if name == "lithuanian" {
-			want = uint32(lithuanian.ObjectID)
-		}
-		if name == "norwegian" {
-			want = uint32(norwegian.ObjectID)
-		}
-		if name == "portuguese" {
-			want = uint32(portuguese.ObjectID)
-		}
-		for i, expected := range map[int]uint32{0: want, 2: 11, 3: 10, 4: 3722} {
-			got, err := row[i].OID()
-			if err != nil || got != expected {
-				t.Fatal("configuration seed relationship", name, i, got, expected, err)
-			}
-		}
-	}
-}
 
 func TestPGTSConfigCapture(t *testing.T) {
 	e := engine.New()
@@ -188,7 +33,7 @@ func TestPGTSConfigCapture(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
 	captured, err := core.CaptureCatalogSourceRows(input, produce)
-	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 17 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 18 {
 		t.Fatal("configuration capture lost source identity", captured, err)
 	}
 	assertSeedConfigurations(t, view, source, captured.Anonymous)
@@ -301,8 +146,8 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 323 {
-		t.Fatal("actual simple, English, Arabic, Armenian, Basque, Danish, Dutch, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian, Lithuanian, Norwegian and Portuguese mappings", rows, err)
+	if err != nil || len(rows) != 342 {
+		t.Fatal("actual simple, English, Arabic, Armenian, Basque, Danish, Dutch, Estonian, German, Greek, Hindi, Hungarian, Irish, Italian, Lithuanian, Norwegian, Portuguese and Yiddish mappings", rows, err)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	stem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english_stem"})
@@ -440,6 +285,14 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			t.Fatal("missing distinct Portuguese dictionary", portugueseStem)
 		}
 	}
+	yiddish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "yiddish"})
+	yiddishStem := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "yiddish_stem"})
+	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
+		if yiddish.ClassID != ids.TSConfigurationClassID || yiddish.ObjectID == 0 || yiddish == earlier { t.Fatal("missing distinct Yiddish configuration", yiddish) }
+	}
+	for _, earlier := range []ids.ObjectAddress{stem, arabicStem, armenianStem, basqueStem, danishStem, dutchStem, estonianStem, germanStem, greekStem, hindiStem, hungarianStem, irishStem, italianStem, lithuanianStem, norwegianStem, portugueseStem, {ClassID: ids.TSDictionaryClassID, ObjectID: 3765}} {
+		if yiddishStem.ClassID != ids.TSDictionaryClassID || yiddishStem.ObjectID == 0 || yiddishStem == earlier { t.Fatal("missing distinct Yiddish dictionary", yiddishStem) }
+	}
 	tokens := map[[2]int64]bool{}
 	for _, row := range rows {
 		if len(row) != 4 {
@@ -545,6 +398,11 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			case 1, 2, 10, 11, 16, 17:
 				wantDictionary = int64(portugueseStem.ObjectID)
 			}
+		} else if values[0] == int64(yiddish.ObjectID) {
+			switch values[1] {
+			case 1, 2, 10, 11, 16, 17:
+				wantDictionary = int64(yiddishStem.ObjectID)
+			}
 		} else if values[0] != 3748 {
 			t.Fatal("unexpected configuration mapping", values)
 		}
@@ -553,7 +411,7 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		}
 		tokens[key] = true
 	}
-	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID)} {
+	for _, config := range []int64{3748, int64(english.ObjectID), int64(arabic.ObjectID), int64(armenian.ObjectID), int64(basque.ObjectID), int64(danish.ObjectID), int64(dutch.ObjectID), int64(estonian.ObjectID), int64(german.ObjectID), int64(greek.ObjectID), int64(hindi.ObjectID), int64(hungarian.ObjectID), int64(irish.ObjectID), int64(italian.ObjectID), int64(lithuanian.ObjectID), int64(norwegian.ObjectID), int64(portuguese.ObjectID), int64(yiddish.ObjectID)} {
 		for _, token := range []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22} {
 			if !tokens[[2]int64{config, token}] {
 				t.Fatal("missing stock token", config, token)
@@ -639,6 +497,10 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 	nextPortuguese.Mappings = nil
 	nextPortuguese.ObjectRevision++
 	state.SetDescriptor(portuguese, &nextPortuguese)
+	nextYiddish := *view.MustTSConfiguration(yiddish)
+	nextYiddish.Mappings = nil
+	nextYiddish.ObjectRevision++
+	state.SetDescriptor(yiddish, &nextYiddish)
 	input.Catalog = view.WithState(state)
 	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
 		t.Fatal("capture retained exact mapping rows", fresh, err)
@@ -724,7 +586,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 323 {
+	if err != nil || len(rows) != 342 {
 		t.Fatal("old generation mapping rows", rows, err)
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -755,7 +617,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 		t.Fatal("replacement changed retained mapping generation")
 	}
 	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 323 {
+	if got, err := produce(input); err != nil || got == nil || len(got) != 342 {
 		t.Fatal("fresh mapping producer", got, err)
 	}
 	input.Source = old
@@ -768,6 +630,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 }
 
 func TestPGTSConfigSeedDependencies(t *testing.T) {
+	t.Run("yiddish-frontier", yiddishSeedDependencies)
 	e := engine.New()
 	original := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748}

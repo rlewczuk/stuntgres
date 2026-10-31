@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"fmt"
+	"iter"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
@@ -51,6 +52,8 @@ const (
 	lithuanianSnowballSeed
 	norwegianSnowballSeed
 	portugueseSnowballSeed
+	yiddishSnowballSeed
+	snowballSeedLimit
 )
 
 func (s snowballSeed) language() string {
@@ -87,8 +90,35 @@ func (s snowballSeed) language() string {
 		return "norwegian"
 	case portugueseSnowballSeed:
 		return "portuguese"
+	case yiddishSnowballSeed:
+		return "yiddish"
 	}
 	return ""
+}
+
+// SnowballSeedPresence describes the finite initialized inventory, independently
+// for each object class. Presence follows intrinsic creation identity, not a
+// current public name, namespace, options, or an allocator-specific OID.
+type SnowballSeedPresence struct {
+	Language string
+	Dictionary, Configuration bool
+}
+
+func (r Read) SnowballSeeds() iter.Seq[SnowballSeedPresence] {
+	return func(yield func(SnowballSeedPresence) bool) {
+		var dictionaries, configurations [snowballSeedLimit]bool
+		for _, descriptor := range r.Descriptors() {
+			switch d := descriptor.(type) {
+			case *TSDictionary:
+				if d.seed > noSnowballSeed && d.seed < snowballSeedLimit { dictionaries[d.seed] = true }
+			case *TSConfiguration:
+				if d.seed > noSnowballSeed && d.seed < snowballSeedLimit { configurations[d.seed] = true }
+			}
+		}
+		for seed := englishSnowballSeed; seed < snowballSeedLimit; seed++ {
+			if !yield(SnowballSeedPresence{Language: seed.language(), Dictionary: dictionaries[seed], Configuration: configurations[seed]}) { return }
+		}
+	}
 }
 
 // SeedName is creation identity, independent of a seed's mutable public label.
@@ -165,7 +195,7 @@ func ValidateSnowballTemplate(v Read, d *TSTemplate) error {
 
 // InstallSnowballLocked runs only inside the private bulk seed. The caller
 // supplies compiled execution state to keep catalog independent of functions.
-func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime DictionaryRuntime) error {
+func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishRuntime, arabicRuntime, armenianRuntime, basqueRuntime, danishRuntime, dutchRuntime, estonianRuntime, germanRuntime, greekRuntime, hindiRuntime, hungarianRuntime, irishRuntime, italianRuntime, lithuanianRuntime, norwegianRuntime, portugueseRuntime, yiddishRuntime DictionaryRuntime) error {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	allocate := func(class ids.OID) (ids.ObjectAddress, error) {
 		oid, err := s.AllocateOIDLocked()
@@ -202,7 +232,7 @@ func (s *Store) InstallSnowballLocked(owner authorization.PrincipalRef, englishR
 	for _, entry := range []struct {
 		seed    snowballSeed
 		runtime DictionaryRuntime
-	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}, {hungarianSnowballSeed, hungarianRuntime}, {irishSnowballSeed, irishRuntime}, {italianSnowballSeed, italianRuntime}, {lithuanianSnowballSeed, lithuanianRuntime}, {norwegianSnowballSeed, norwegianRuntime}, {portugueseSnowballSeed, portugueseRuntime}} {
+	}{{englishSnowballSeed, englishRuntime}, {arabicSnowballSeed, arabicRuntime}, {armenianSnowballSeed, armenianRuntime}, {basqueSnowballSeed, basqueRuntime}, {danishSnowballSeed, danishRuntime}, {dutchSnowballSeed, dutchRuntime}, {estonianSnowballSeed, estonianRuntime}, {germanSnowballSeed, germanRuntime}, {greekSnowballSeed, greekRuntime}, {hindiSnowballSeed, hindiRuntime}, {hungarianSnowballSeed, hungarianRuntime}, {irishSnowballSeed, irishRuntime}, {italianSnowballSeed, italianRuntime}, {lithuanianSnowballSeed, lithuanianRuntime}, {norwegianSnowballSeed, norwegianRuntime}, {portugueseSnowballSeed, portugueseRuntime}, {yiddishSnowballSeed, yiddishRuntime}} {
 		address, err := allocate(ids.TSDictionaryClassID)
 		if err != nil {
 			return err
