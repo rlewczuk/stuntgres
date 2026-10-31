@@ -104,6 +104,16 @@ no postmaster/configuration-file or logging-collector lifecycle. No logs, files,
 successful signals or configuration-load timestamp changes are fabricated.
 Routine ACL edits, not signal requests, survive native Dump/Restore.
 
+`pg_ident_file_mappings` inspects actual current identity mapping files when a
+native Driver explicitly attaches an absolute path with `ConfigureIdentFile`
+before its first connector. Rules, include provenance and English parse errors
+are materialized per authorized query, with independent owner-only view/routine
+ACLs and explicit grants. Unattached sources are empty; explicitly missing
+attached files fail with `58P01`. This trusted filesystem capability includes
+arbitrary PostgreSQL includes (not a directory sandbox), does not change the
+simulated `SHOW ident_file` label and never authenticates or matches identities.
+See [native configuration](docs/DRIVER.md#native-identity-file-inspection).
+
 Foreign-table inquiry through `information_schema.foreign_tables` returns each
 accessible table's database, schema, name and actual server association through
 ordinary direct and prepared queries. Table or column privileges govern

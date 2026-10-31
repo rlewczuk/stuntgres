@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -68,6 +69,7 @@ type Engine struct {
 	importOriginProgressPredecessor *originProgressPredecessor
 	Foreign                         fdw.Registry
 	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
+	IdentFile                       *identfile.Source          // Immutable destination startup filesystem authority.
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 	Statistics                      statistics.Provider

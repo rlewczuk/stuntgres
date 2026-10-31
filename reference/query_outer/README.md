@@ -63,6 +63,11 @@ including tmpdir's explicit cost 10 and row estimate 20.
 The metadata-only file-settings backing routine (OID 3329) contributes its seven
 released OUT fields, strict VOLATILE/parallel-safe declaration, row estimate 1000 and exact
 internal source `show_all_file_settings`, without acquiring a callable provider.
+The identity-file backing routine (OID 6250) contributes its seven named OUT
+fields, strict VOLATILE/parallel-safe SETOF record declaration, row estimate
+1000 and internal source `pg_ident_file_mappings`. It remains metadata-only;
+the complete membership and 28-field direct/prepared inventory include it,
+as does the shared builtin routine-deparse inventory.
 The eight XML row/schema mapping declarations (2923–2930) retain explicit cost
 100, strict XML results and named all-IN formals. Table functions are STABLE/
 parallel-restricted; query and cursor functions are VOLATILE/parallel-unsafe.

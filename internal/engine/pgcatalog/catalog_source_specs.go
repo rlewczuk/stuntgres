@@ -84,6 +84,7 @@ var Specs = [...]Spec{
 	{AIOSOID, ids.PGCatalogNamespaceOID, "pg_aios", aiosColumns, true, false, true, true, "stuntgres: missing AIO source type"},
 	{ConfigOID, ids.PGCatalogNamespaceOID, "pg_config", configColumns, true, false, true, true, "stuntgres: missing configuration source type"},
 	{FileSettingsOID, ids.PGCatalogNamespaceOID, "pg_file_settings", fileSettingsColumns, true, false, true, true, "stuntgres: missing file settings source type"},
+	{IdentFileMappingsOID, ids.PGCatalogNamespaceOID, "pg_ident_file_mappings", identFileMappingsColumns, true, false, true, true, "stuntgres: missing identity mappings source type"},
 	{ids.EventTriggerClassID, ids.PGCatalogNamespaceOID, "pg_event_trigger", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
 		{"evtname", sqltype.Name, false, 0, 0, -1},

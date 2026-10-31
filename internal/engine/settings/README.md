@@ -329,6 +329,13 @@ but a different startup value is rejected. Neither the registry nor its consumer
 load configuration/authentication files, select disk storage, create PID files,
 or restart processes. The labels need not exist on the host.
 
+`Driver.ConfigureIdentFile` is a separate explicit startup filesystem capability
+for `pg_ident_file_mappings`, not a registry/provider value. It does not change
+`SHOW ident_file`; the simulated label never authorizes a filesystem read.
+The attachment inspects current files and includes without authentication or
+reload. It neither adds real GUC-file sources to `pg_file_settings` nor gives
+the other simulated file settings physical effects.
+
 ## Client connection defaults
 
 The PostgreSQL 18 client family shares this registry and the existing typed

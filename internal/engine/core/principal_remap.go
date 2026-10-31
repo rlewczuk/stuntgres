@@ -97,6 +97,7 @@ func (e *Engine) RestoreStage() *Engine {
 		panic(err)
 	}
 	stage.TextSearchFiles = e.TextSearchFiles
+	stage.IdentFile = e.IdentFile
 	stage.ImportTargets = stage.RoleStore.InstallCapture(sourceRoles)
 	stage.ImportParameterPredecessor = parameterPredecessor
 	stage.importOriginProgressPredecessor = &originPredecessor

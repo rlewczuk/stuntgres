@@ -59,7 +59,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 		runtime.Auth = auth
-	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID:
+	case pgcatalog.ShmemAllocationsOID, pgcatalog.ShmemAllocationsNUMAOID, pgcatalog.AIOSOID, pgcatalog.ConfigOID, pgcatalog.FileSettingsOID, pgcatalog.IdentFileMappingsOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			e.Mu.Unlock()
@@ -74,6 +74,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			procedure = 3400
 		} else if oid == pgcatalog.FileSettingsOID {
 			procedure = 3329
+		} else if oid == pgcatalog.IdentFileMappingsOID {
+			procedure = 6250
 		}
 		// The common query manifest has already admitted view SELECT. Its
 		// backing routine has independent current EXECUTE authority; no
@@ -83,6 +85,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			return nil, err
 		}
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
+		if oid == pgcatalog.IdentFileMappingsOID {
+			in.IdentFile = e.IdentFile
+			unlockBefore = true
+		}
 	case pgcatalog.PublicationRelationOID, pgcatalog.PublicationTablesOID, pgcatalog.ReplicationOriginOID, pgcatalog.PublicationOID, pgcatalog.PublicationNamespaceOID, pgcatalog.SubscriptionOID, pgcatalog.SubscriptionRelOID, pgcatalog.StatisticExtDataOID, pgcatalog.StatsOID, pgcatalog.ProgressVacuumOID, pgcatalog.ProgressCopyOID, pgcatalog.ProgressCreateIndexOID, pgcatalog.ProgressClusterOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {

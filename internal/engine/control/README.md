@@ -615,9 +615,9 @@ No physical WAL position or flush guarantee is serialized.
   Restricted statistics-view and backing-routine ACLs omit only the exact destination
   seed baseline: bootstrap owner, namespace/identity and ordered explicit
   bootstrap/pg_read_all_stats entries, without grant options or column ACLs.
-  The `pg_config` and `pg_file_settings` views and their noncallable backing
-  routines use the same exact comparison with their owner-only table/EXECUTE
-  baseline, not a statistics-role grant. Relation, column and routine deviations
+  The `pg_config`, `pg_file_settings` and `pg_ident_file_mappings` views and their
+  noncallable backing routines use the same exact comparison with their owner-only
+  table/EXECUTE baseline, not a statistics-role grant. Relation, column and routine deviations
   retain symbolic ACL repairs.
   Changed raw authority uses the existing repairs; reordering, duplicates and
   explicit absence/emptiness are not effective-rights normalization. Defaults

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/host"
+	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -44,6 +45,7 @@ type Driver struct {
 	hostLanguages       []*host.Runtime
 	textSearchFiles     map[string]string
 	textSearchResources *functions.DictionaryFiles
+	identFile           *identfile.Source
 }
 
 func NewDriver() *Driver { return NewDriverWithConfig(DriverConfig{}) }
@@ -86,6 +88,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 			d.textSearchResources = functions.NewDictionaryFiles(d.textSearchFiles)
 		}
 		e.TextSearchFiles = d.textSearchResources
+		e.IdentFile = d.identFile
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}

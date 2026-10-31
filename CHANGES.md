@@ -1,5 +1,19 @@
 # Changes
 
+- Expose current real `pg_ident_file_mappings` rules and parse diagnostics through
+  explicit frozen `Driver.ConfigureIdentFile` attachment, including PostgreSQL
+  quoting, continuations, includes/@ expansion, regex validation and provenance.
+  Absolute include paths preserve OS symlink/`..` traversal and provenance;
+  accumulated logical lines strip all trailing CR/LF like PostgreSQL.
+  Unquoted CR separates auth fields; quoted CR remains literal. Directory
+  diagnostics preserve PostgreSQL's retained-error repetition across later
+  successful selected-file opens rather than deduplicating failure messages.
+  Independent current view/routine ACLs precede file reads; materialized results
+  survive file edits and native controls. Reset/Restore retain destination
+  filesystem authority, while Dump replays symbolic ACLs without file contents.
+  Unattached sources are empty; explicitly missing attached files raise 58P01.
+  This inspects configuration only and never simulates authentication.
+
 - Support the request-scoped `query.aggregate.sort` execution pause after a
   successful real aggregate ordered-input comparison. The hold retains the live
   sort until Resume or operation cancellation, without suspending preparation

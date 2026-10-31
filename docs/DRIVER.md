@@ -32,7 +32,8 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   limits remain cluster-wide. Stored passwords and `VALID UNTIL` do not affect
   native admission.
 - Configuration (`RegisterSetting`, `RegisterForeignDataWrapper`,
-  `RegisterForeignValidator`, `RegisterHostLanguage`, `RegisterTextSearchFile`)
+  `RegisterForeignValidator`, `RegisterHostLanguage`, `RegisterTextSearchFile`,
+  `ConfigureIdentFile`)
   must happen before the Driver's first successful connector construction; the
   registry then freezes.
   `RegisterTextSearchFile(TextSearchFile{Name: "words.dict", Data: data})`
@@ -50,6 +51,70 @@ later catalog replacement. Typed NULL operands still carry logical identity.
   destination resources and fails atomically when they are missing or malformed.
   Missing names fail; no filesystem paths, loader callbacks or sample language
   data are synthesized.
+
+### Native identity-file inspection
+
+```go
+d := stuntgres.NewDriver()
+if err := d.ConfigureIdentFile("/absolute/path/pg_ident.conf"); err != nil {
+    return err
+}
+connector, err := d.OpenConnector("application")
+if err != nil {
+    return err
+}
+db := sql.OpenDB(connector)
+defer db.Close()
+```
+
+`ConfigureIdentFile` attaches exactly one cleaned absolute path before the first
+successful connector. Empty, relative, NUL-containing, duplicate and late
+registrations return ordinary host errors, without SQLSTATE. Registration,
+connector construction, Prepare and metadata inquiry do not open the file.
+
+**Security boundary:** this trusted native capability reads the file and its
+entire PostgreSQL include graph under the process's OS permissions. It is not a
+directory sandbox: absolute paths, `..` and symlinks may escape its directory.
+Do not attach untrusted files to a process with broader filesystem authority.
+The attachment is independent of the simulated `SHOW ident_file` label; it does
+not configure or simulate authentication.
+Absolute include and `@file` spellings are preserved, including `.`/`..` and
+symlink traversal, unlike the separately cleaned startup attachment. Relative
+include names are resolved and canonicalized against their containing file.
+
+Authorized `pg_catalog.pg_ident_file_mappings` queries read current bytes,
+including `include`, `include_if_exists`, sorted `.conf` directory inclusion and
+`@file` field expansion. Quotes, comments, physical-line continuations and
+PostgreSQL ARE validation preserve actual filename/starting-line provenance.
+Valid mappings receive consecutive numbers; invalid rows have NULL mapping
+fields and an English `error` cell. Patterns and role/backreference text are
+validated where appropriate but never matched, substituted or resolved.
+Every physical append strips all trailing CR/LF from the accumulated logical
+line before continuation processing. Outside quotes, CR separates authentication
+fields like space/tab; inside quotes it remains literal. Directory inclusion
+retains successful rows and accumulates the last file-open diagnostic after each
+selected file, including successful opens, matching PostgreSQL's retained error
+state. Consequently its newline-separated directive diagnostic may repeat an
+earlier failure. `include_if_exists` suppresses ENOENT only, not permission or
+nesting depth failures.
+
+Without an attachment the view returns zero rows. An attached empty file or
+missing optional include likewise produces no rules. An explicitly attached
+missing top file fails with `58P01`, not a fabricated empty result. View SELECT
+and independent backing-function EXECUTE are checked before file access on
+every execution, including retained statements. Both are owner-only initially;
+`pg_read_all_stats`/`pg_monitor` membership alone is insufficient. Explicit table,
+column and routine grants retain ordinary SQL meaning. The routine descriptor
+supplies view metadata/ACL authority, not a separate native callable SRF.
+
+Each execution materializes owned rows: file edits/removal, Reset and Restore do
+not change already-open results. New executions reread current files without
+reload. All exact-DSN engines, logical databases and template seeds on one Driver
+share its immutable attachment; independent Drivers remain isolated. Pool return,
+reconnection and closing pools do not clear it. Reset retains the attachment and
+reinstalls default ACLs. Restore retains the **destination** attachment and
+replays symbolic view/column/routine grants; failure preserves destination state.
+Dump never reads or serializes file paths, bytes or parsed rules.
 
 ### Application-supplied routine languages and SQL transforms
 
@@ -1067,9 +1132,9 @@ SHOW/current_setting require the effective superuser or INHERIT-effective
 otherwise. Held prepared readers recheck current privileges. Every individual
 SET/RESET/set_config assignment fails with startup-context SQLSTATE `55P02`,
 including same values and DEFAULT. RESET ALL leaves their values unchanged.
-There is no configuration/HBA/ident file loading, data-directory selection,
-PID-file creation, reload or restart effect. These strings neither change
-logical database contents nor configure authentication or persistence.
+These settings do not load configuration/HBA/ident files, select a data directory,
+create PID files, reload or restart. The separate explicit native identity-file
+attachment above does not change these labels or configure authentication.
 
 `pg_catalog.pg_file_settings` is a read-only, seven-column diagnostic view
 (`sourcefile`, `sourceline`, `seqno`, `name`, `setting`, `applied`, `error`).

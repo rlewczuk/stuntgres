@@ -49,6 +49,14 @@ func TestRestrictedStatsACLReplayBaseline(t *testing.T) {
 			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
 		}}},
 	})
+	descriptors = append(descriptors, &catalog.Relation{
+		ObjectAddress:   ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12118},
+		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11},
+		ObjectName:      "pg_ident_file_mappings", Owner: owner, RelationKind: catalog.CatalogRelation, VirtualView: true,
+		Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+			{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.TableGrantPrivileges},
+		}}},
+	})
 	for _, descriptor := range descriptors {
 		t.Run(descriptor.Name(), func(t *testing.T) {
 			if !restrictedStatsACLReconstructed(descriptor, owner, stats) {

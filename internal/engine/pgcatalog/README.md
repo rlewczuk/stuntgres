@@ -75,6 +75,22 @@ type Producer func(Input) ([][]sqltype.Value, error)
   supplies metadata and ACL authority only, not a callable provider. Initial ACLs
   remain immutable; native controls reuse bootstrap and symbolic ACL replay.
 
+- `pg_ident_file_mappings` (12118) captures current actual files only through the
+  immutable Driver `ConfigureIdentFile` capability. The `identfile` package owns
+  lexing, shared-depth includes/@ expansion, provenance, PostgreSQL ARE validation
+  and diagnostics; the catalog producer owns seven nullable typed SQL fields.
+  No native attachment means no rows; explicit top-file ENOENT raises 58P01.
+  Current view/column SELECT and independent routine 6250 EXECUTE admission occur
+  before filesystem access. Parsing runs outside `Engine.Mu`, without producer
+  filter pushdown, and materializes owned rows before query projection/sorting.
+  File edits do not mutate retained results. Both ACLs start owner-only, without
+  implicit statistics/monitor access; initial privilege records remain historical.
+  The volatile, parallel-safe backing OUT declaration matches the pinned 18.6
+  oracle; its declaration/deparse metadata grants no callable provider authority.
+  Reset/Restore retain destination startup authority and replay symbolic ACLs;
+  Dump neither reads nor serializes filesystem authority. No authentication,
+  identity matching, role lookup or backreference substitution is performed.
+
 - `pg_rewrite` (2618) projects all eight nonnullable attributes from actual
   immutable view/materialized-view and ordinary-rule owners. `VisitRewriteCatalog`
   bridges checked definitions without importing `stored`; the producer supplies
@@ -1409,6 +1425,13 @@ Build-configuration capture/ownership units in `enginetests/` use
 `make check RUN='^TestPGConfig'`. They retain real catalog/type generations,
 reject forged capture authority and verify the noncallable backing declaration
 and immutable owner-only initial privileges.
+
+Identity-file producer authority/ownership units use
+`make check RUN='^(TestPGIdentFileMappingsCapture|TestPGIdentFileMappingsOwnership)$'`.
+Parser lexical/include/depth/cancellation/large-line units use
+`make check RUN='^TestIdentFileParser'`. SQL acceptance and feature smoke live in
+`reference/catalogs` under `TestReferencePGIdentFileMappings`, in both selected
+native and pinned-reference modes.
 
 Rewrite schema, sealed builtin declaration and atomic-capture units use
 `make check RUN='^TestPGRewrite'`.

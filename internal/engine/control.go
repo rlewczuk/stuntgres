@@ -22,6 +22,7 @@ func Reset(ctx context.Context, e *core.Engine) error {
 		return err
 	}
 	fresh.TextSearchFiles = e.TextSearchFiles
+	fresh.IdentFile = e.IdentFile
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }

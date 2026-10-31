@@ -24,6 +24,13 @@ name. Owner-only EXECUTE is separate from view SELECT. It acquires no callable
 provider or formal selector; the view's source remains empty without parsed GUC
 file input.
 
+`pg_ident_file_mappings` (6250) uses the same zero-provider authority seam, with
+seven named OUT fields, strict volatile/parallel-safe SETOF record, cost 1 and
+rows 1000. Its internal source matches its SQL name. Explicit owner-only EXECUTE
+is independent of view SELECT; catalog ownership/completeness and the reference
+routine inventories include the declaration without making it a callable SRF.
+The view captures actual explicitly attached files through its own admitted source.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

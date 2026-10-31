@@ -31,6 +31,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_config", 1
 		case 3329:
 			name, entries = "pg_show_all_file_settings", 1
+		case 6250:
+			name, entries = "pg_ident_file_mappings", 1
 		default:
 			return false
 		}
@@ -49,6 +51,8 @@ func restrictedStatsACLReconstructed(d catalog.Descriptor, bootstrap, stats auth
 			name, entries = "pg_config", 1
 		case pgcatalog.FileSettingsOID:
 			name, entries = "pg_file_settings", 1
+		case pgcatalog.IdentFileMappingsOID:
+			name, entries = "pg_ident_file_mappings", 1
 		default:
 			return false
 		}

@@ -138,6 +138,24 @@ engines inherit the same mode.
   for exact oracle resource diagnostics, not a guessed installation prefix.
   Native scenarios register those same bytes with `NewScenarioWithDriverConfig`;
   the startup option does not change the runner, reset or pool behavior.
+- `NewIdentFileScenario(t, contents, manifest)` configures the private native
+  Driver with an actual temporary identity file before its first connector.
+  Real mode discovers the oracle's actual `SHOW ident_file`, saves its genuine
+  bytes, owner/group and permissions with `cp -p`, writes the same literal
+  scenario bytes and isolated include manifest, and restores the original on
+  cleanup (including assertion failure). Each write restores original top-file
+  ownership/permissions. No reload or authentication operation is involved.
+  `{ROOT}` resolves to each backend's isolated include directory; `IdentFiles`
+  provides independently constructed exact paths, edits, deletion and directories.
+  Tests compare provenance/error paths explicitly, never discard them for parity.
+  No second container, mock file source or skipped oracle is permitted.
+  `IdentFiles.Chmod` changes only scenario-owned real file permissions for
+  include-open failure witnesses. Those tests require the native process to lack
+  discretionary-access bypass (for example, run as an ordinary non-root user);
+  the genuine oracle backend also reads the mode-000 files without bypass.
+  No permission error is synthesized and no privileged-run skip is used.
+  Permission changes save the actual prior mode and register restoration before
+  mutation; subtest cleanup restores modes before scenario-owned trees are removed.
 
 ### Test-only legacy crypto oracle
 
@@ -419,6 +437,12 @@ reset isolation, session-authorization reset, notice and byte ownership:
 make check RUN='^TestReferenceFixture'
 make check REFERENCE=1 RUN='^TestReferenceFixture'
 ```
+
+Identity-file mutation controls are exercised by every
+`TestReferencePGIdentFileMappings` scenario in `reference/catalogs`; run
+`make check RUN='^TestReferencePGIdentFileMappings'` and the same command with
+`REFERENCE=1`. This includes real file restoration/ownership and exact backend
+paths, not a mock or a view-derived expectation.
 
 A change to central fixture code (step runner, `HeldStatement`, reset, pool
 ownership) affects every package: run `make check RUN='^TestReference'` and the

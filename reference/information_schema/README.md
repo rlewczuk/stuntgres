@@ -58,6 +58,9 @@ native provider-name bag.
 It also classifies `pg_file_settings` as a view with all seven release-ordered
 columns (`sourcefile`, `sourceline`, `seqno`, `name`, `setting`, `applied`, `error`),
 even though the native runtime has no parsed file assignments.
+The same inventory includes `pg_ident_file_mappings` as a view with its seven
+release-ordered mapping/provenance/error columns, independently checking both
+the complete native provider-name bag and direct/prepared attribute metadata.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/identfile"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
@@ -22,6 +23,7 @@ type Input struct {
 	Source       *catalog.Relation
 	Runtime      Runtime
 	RoleSettings RoleSettingsProjection
+	IdentFile    *identfile.Source
 	// SharedDependencies contains immutable facts classified after core releases
 	// the cluster mutex. Producers never inspect live runtimes.
 	SharedDependencies []SharedDependency

@@ -24,7 +24,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 		}
 		seen[p.Address().ObjectID] = true
 	}
-	for _, oid := range []ids.OID{3329, 3400, 4100, 5052, 6399} {
+	for _, oid := range []ids.OID{3329, 3400, 4100, 5052, 6250, 6399} {
 		p := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
 		if seen[oid] || p.Builtin == nil || p.Builtin != routine.BuiltinRoutine(oid) || p.Builtin.Providers != 0 || !p.Builtin.ReturnsSet || !p.Display.Valid() || p.SecurityDefiner {
 			t.Fatal("incomplete metadata-only backing declaration", p)
@@ -52,6 +52,7 @@ func TestInfoRoutinesBuiltinCompleteness(t *testing.T) {
 	}
 	for oid, want := range map[ids.OID]catalog.RoutineDisplay{
 		3329: {Language: catalog.InternalRoutineLanguage, Source: "show_all_file_settings"},
+		6250: {Language: catalog.InternalRoutineLanguage, Source: "pg_ident_file_mappings"},
 		1397: {Language: catalog.InternalRoutineLanguage, Source: "int4abs"},
 		3100: {Language: catalog.InternalRoutineLanguage, Source: "window_row_number", Support: 6233},
 		2147: {Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy", Support: 6236},

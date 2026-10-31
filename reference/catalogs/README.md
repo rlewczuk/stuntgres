@@ -34,6 +34,30 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Identity-file scenarios use `make check RUN='^TestReferencePGIdentFileMappings'`
+and the same selector with `REFERENCE=1`: Rows, Includes, Privileges, Diagnostics,
+Freshness, StartupSQL, Lifecycle, Controls, Smoke, PathResolution, PhysicalLines
+and IncludeFailures. They read literal actual
+files in both modes, assert independently constructed provenance/diagnostics and
+preserve held results across file edits. The shared fixture saves/restores real
+oracle bytes/owner/mode. Native-only phases cover destination startup authority,
+symbolic table/column/routine ACL replay, Reset and failed/canceled Restore.
+Includes separately witnesses advancing backslash continuations and the
+last-backslash progress guard: a following blank physical line preserves the
+remaining backslash, while a new backslash advances the buffer and is removed.
+PathResolution preserves absolute noncanonical provenance and checks actual
+symlink-plus-`..` file selection for include and `@` expansion. PhysicalLines
+checks repeated trailing CR, CR exposed in an accumulated continuation, unquoted
+CR field separation and quoted CR preservation. IncludeFailures uses actual
+mode-000 files to distinguish directory discovery from multiple open failures,
+retains successful numbered rows, and tests optional EACCES and depth-ten/eleven
+behavior without mocking or skipping. Its independently expected directory
+diagnostic follows PostgreSQL's retained error state: A_bad/B_good/C_bad emits
+A, A, C, not a deduplicated failure list.
+`TestReferencePGIdentFileMappingsSmoke` is the feature smoke (not `smoke/`).
+API-only registration uses `make check RUN='^TestIdentFileStartupAPI$'`; selected
+Lifecycle/Controls plus that API test may add `RACE=1`.
+
 File-settings scenarios use `make check RUN='^TestReferencePGFileSettings'`
 (also with `REFERENCE=1`). Native-control lifecycle proof retains empty-result
 descriptors while separately exercising unpruned direct, new-prepared and held
