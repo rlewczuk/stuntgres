@@ -17,6 +17,13 @@ row estimate describe the backing view routine, not a callable SRF. Its explicit
 owner-only EXECUTE seed is independent of the statistics routines' role grants;
 current authority and symbolic ACL replay use the ordinary descriptor.
 
+`pg_show_all_file_settings` (3329) follows the same metadata-only authority seam:
+seven named OUT fields, strict volatile/parallel-safe SETOF record, cost 1 and
+rows 1000. Its internal source is exactly `show_all_file_settings`, not its SQL
+name. Owner-only EXECUTE is separate from view SELECT. It acquires no callable
+provider or formal selector; the view's source remains empty without parsed GUC
+file input.
+
 The executable `xmlagg` declaration uses fixed OID 2901, XML formal/result 142
 and ordinary aggregate provider membership. Its `aggregate_dummy` display entry
 is metadata, not a scalar transition implementation; identity-only `xmlconcat2`

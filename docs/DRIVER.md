@@ -1071,6 +1071,28 @@ There is no configuration/HBA/ident file loading, data-directory selection,
 PID-file creation, reload or restart effect. These strings neither change
 logical database contents nor configure authentication or persistence.
 
+`pg_catalog.pg_file_settings` is a read-only, seven-column diagnostic view
+(`sourcefile`, `sourceline`, `seqno`, `name`, `setting`, `applied`, `error`).
+Because this runtime has no parsed GUC-file source, it returns zero rows, not a
+simulated path, default, assignment or error row. Registered settings, native
+session-default providers, SET/RESET and CLI Viper option files are not GUC-file
+input. SELECT on the view and EXECUTE on its metadata-only backing function
+`pg_catalog.pg_show_all_file_settings()` are independently required, even for
+empty results. Both are owner-only initially; `pg_read_all_stats`/`pg_monitor`
+membership does not grant access. Explicit GRANT/REVOKE is honored on every
+execution, including held prepared statements.
+
+For a real file source, [PostgreSQL's file-settings contract](https://www.postgresql.org/docs/18/view-pg-file-settings.html)
+reports current file contents without applying them. File/line provenance and
+sequence identify assignments; a later duplicate can supersede an earlier row
+with `applied=false,error=NULL`. Syntax/unknown-parameter failures prevent all
+entries from applying; other value failures can affect individual entries.
+Syntax diagnostics can have NULL name/setting and `error='syntax error'`;
+unknown ordinary parameters use `unrecognized configuration parameter`, and
+failed value application can use `setting could not be applied`. These are row
+strings, not full server log diagnostics or query SQLSTATE errors. No native
+invalid-file diagnostics are claimed without an actual file source.
+
 `ALTER SYSTEM SET name TO/= value` (including lists and DEFAULT), `RESET name`
 and `RESET ALL` prepare without effects, then fail at execution with SQLSTATE
 `0A000`, `ALTER SYSTEM is not allowed in this environment`. Transaction blocks

@@ -63,6 +63,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
   display metadata confer no callable provider capability. Reset/Restore rebuild
   the identity through the common catalog bootstrap and symbolic ACL replay.
 
+- `pg_file_settings` (12110) exposes seven nullable attributes: `sourcefile`,
+  `sourceline`, `seqno`, `name`, `setting`, `applied`, `error`. The runtime has no
+  parsed GUC-file source, so its owned, typed capture is honestly empty. CLI
+  option files, simulated `config_file`, registered/default/provider values and
+  SET/RESET are not file assignments. Registered descriptors, type generations
+  and cancellation are validated even with no rows. Normal view SELECT precedes
+  current routine 3329 EXECUTE; both ACLs are owner-only by default, without
+  `pg_read_all_stats`/`pg_monitor` access. Explicit grants may authorize readers.
+  The exact `pg_show_all_file_settings` declaration (`prosrc=show_all_file_settings`)
+  supplies metadata and ACL authority only, not a callable provider. Initial ACLs
+  remain immutable; native controls reuse bootstrap and symbolic ACL replay.
+
 - `pg_rewrite` (2618) projects all eight nonnullable attributes from actual
   immutable view/materialized-view and ordinary-rule owners. `VisitRewriteCatalog`
   bridges checked definitions without importing `stored`; the producer supplies

@@ -6,7 +6,7 @@ database-local `pg_subscription_rel` shape, stored owner/PUBLIC ACL and capture 
 `pg_type`, `pg_enum`, `pg_range`, `pg_constraint`, partition-navigation
 inquiry functions, `pg_indexes`, `pg_tables`/`pg_views`/`pg_matviews`, `pg_rules`,
 `pg_depend`, `pg_sequence`/`pg_sequences`, shared-memory allocation/NUMA views,
-`pg_wait_events`, `pg_config`, `pg_proc`, catalog foreign keys, and catalog controls migrated
+`pg_wait_events`, `pg_config`, `pg_file_settings`, `pg_proc`, catalog foreign keys, and catalog controls migrated
 from the root package. The other catalog packages:
 namespaces, schemas, `search_path`, visibility inquiries, operator, cast,
 aggregate, access-method, collation, language, transform, text-search,
@@ -33,6 +33,14 @@ catalog packages listed above are the only ones whose oracle loads the legacy
 OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
+
+File-settings scenarios use `make check RUN='^TestReferencePGFileSettings'`
+(also with `REFERENCE=1`). Native-control lifecycle proof retains empty-result
+descriptors while separately exercising unpruned direct, new-prepared and held
+reads after Restore, with independent view/function revocation. Column-only
+SELECT plus EXECUTE is dumped, reset and restored without whole-view SELECT;
+exact `attacl`, projected/predicate/order admission and later revocation are
+checked alongside immutable initial ACL history.
 
 Build-configuration scenarios use `make check RUN='^TestReferencePGConfig'`
 (add `REFERENCE=1` for pinned PostgreSQL). Independent backend-specific inventories

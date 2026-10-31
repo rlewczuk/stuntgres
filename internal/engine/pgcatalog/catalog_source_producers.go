@@ -100,6 +100,7 @@ var producers = [...]Registration{
 	{12081, captureAvailableExtensions},
 	{12085, captureAvailableExtensions},
 	{12095, captureForeignCatalog},
+	{FileSettingsOID, capturePGFileSettings},
 	{ConfigOID, capturePGConfig},
 	{ShmemAllocationsOID, capturePGShmemAllocations},
 	{ShmemAllocationsNUMAOID, capturePGShmemAllocations},

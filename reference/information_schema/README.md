@@ -55,6 +55,9 @@ information-schema consumers alongside the other progress sources.
 The administrator provider inventory classifies `pg_config` as a view with its
 two ordered TEXT columns, `name` and `setting`, without weakening the complete
 native provider-name bag.
+It also classifies `pg_file_settings` as a view with all seven release-ordered
+columns (`sourcefile`, `sourceline`, `seqno`, `name`, `setting`, `applied`, `error`),
+even though the native runtime has no parsed file assignments.
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

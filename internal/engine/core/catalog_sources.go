@@ -28,7 +28,7 @@ func (e *Engine) initializeCatalogSources() error {
 		if spec.NoPublic {
 			d.Security.ACL = authorization.ACLValue{}
 		}
-		if spec.OID == pgcatalog.ConfigOID {
+		if spec.OID == pgcatalog.ConfigOID || spec.OID == pgcatalog.FileSettingsOID {
 			d.Security.ACL = authorization.MaterializeRelationACL(d.Security.ACL, d.Owner)
 			if err := authorization.ValidateACL(roles, d.Security.ACL, authorization.TableGrantPrivileges); err != nil {
 				return err
