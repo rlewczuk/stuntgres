@@ -245,7 +245,7 @@ extension constructors for declaration completeness, independent source
 bags, redaction, empty/canceled results and generation fences.
 Dependency-bag units resolve the English, Arabic, Armenian, Basque, Danish,
 Dutch, Estonian, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian,
-Lithuanian, Norwegian, Portuguese and Yiddish Snowball seed pairs by
+Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Spanish, Swedish and Yiddish Snowball seed pairs by
 declaration, retaining each pair's normal dependencies and the shared
 template-to-helper edges once, without pinning allocated identities. Hindi also
 retains its English ASCII-mapping dependency; the other languages map words

@@ -152,6 +152,7 @@ func TestSnowballPublication(t *testing.T) {
 	t.Run("english", func(t *testing.T) { snowballPublication(t, "english", "RATS", "rat") })
 	t.Run("danish", func(t *testing.T) { snowballPublication(t, "danish", "HUNDENE", "hund") })
 	t.Run("dutch", func(t *testing.T) { snowballPublication(t, "dutch", "HONDEN", "hond") })
+	t.Run("swedish", func(t *testing.T) { snowballPublication(t, "swedish", "HUNDAR", "hund") })
 }
 
 func snowballPublication(t *testing.T, language, input, want string) {
@@ -256,6 +257,7 @@ func TestSnowballPreparedOwnership(t *testing.T) {
 	t.Run("english", func(t *testing.T) { snowballPreparedOwnership(t, "english", "ONLY", "onli") })
 	t.Run("danish", func(t *testing.T) { snowballPreparedOwnership(t, "danish", "OG", "og") })
 	t.Run("dutch", func(t *testing.T) { snowballPreparedOwnership(t, "dutch", "DE", "de") })
+	t.Run("swedish", func(t *testing.T) { snowballPreparedOwnership(t, "swedish", "SITTA", "sitt") })
 }
 
 func snowballPreparedOwnership(t *testing.T, language, input, want string) {

@@ -162,6 +162,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   reads, catalog validation, LOCAL/savepoint/pool/native-control behavior and
   the explicit setting-only safety boundary for external mechanisms, not a claim
   that session_replication_role is inert. Run both native and REFERENCE=1.
+  Released FTS inventory validation includes Swedish configuration spellings,
+  direct/prepared SET and set_config, and rejected names preserving the last
+  accepted configuration.
   SimulationSmoke is the new-feature smoke (8MB SHOW versus raw8192, XML alias,
   native FK/routine safety and unchanged logical rows), not a physical-effect
   claim. Native initialization is UTF8/C/UTC/simple FTS; the pinned 18.6

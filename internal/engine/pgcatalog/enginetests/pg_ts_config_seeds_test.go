@@ -10,8 +10,8 @@ import (
 
 func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.Relation, rows [][]sqltype.Value) {
 	t.Helper()
-	if len(rows) != 22 {
-		t.Fatal("exact simple and twenty-one released Snowball configuration inventory", rows)
+	if len(rows) != 23 {
+		t.Fatal("exact simple and twenty-two released Snowball configuration inventory", rows)
 	}
 	english := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "english"})
 	if english.ObjectID == 0 || english.ObjectID == 3748 {
@@ -93,7 +93,9 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 	}
 	yiddish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "yiddish"})
 	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
-		if yiddish.ClassID != ids.TSConfigurationClassID || yiddish.ObjectID == 0 || yiddish == earlier { t.Fatal("actual distinct Yiddish configuration", yiddish) }
+		if yiddish.ClassID != ids.TSConfigurationClassID || yiddish.ObjectID == 0 || yiddish == earlier {
+			t.Fatal("actual distinct Yiddish configuration", yiddish)
+		}
 	}
 	indonesian := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "indonesian"})
 	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
@@ -119,6 +121,12 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 			t.Fatal("actual distinct Spanish configuration", spanish)
 		}
 	}
+	swedish := view.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}, Name: "swedish"})
+	for _, earlier := range []ids.ObjectAddress{english, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, spanish, {ClassID: ids.TSConfigurationClassID, ObjectID: 3748}} {
+		if swedish.ClassID != ids.TSConfigurationClassID || swedish.ObjectID == 0 || swedish == earlier {
+			t.Fatal("actual distinct Swedish configuration", swedish)
+		}
+	}
 	seen := map[string]bool{}
 	for _, row := range rows {
 		if len(row) != 5 {
@@ -130,7 +138,7 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 			}
 		}
 		name, err := row[1].Text()
-		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "indonesian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" && name != "portuguese" && name != "yiddish" && name != "nepali" && name != "romanian" && name != "spanish" {
+		if err != nil || seen[name] || name != "simple" && name != "english" && name != "arabic" && name != "armenian" && name != "basque" && name != "danish" && name != "dutch" && name != "estonian" && name != "german" && name != "greek" && name != "hindi" && name != "hungarian" && name != "indonesian" && name != "irish" && name != "italian" && name != "lithuanian" && name != "norwegian" && name != "portuguese" && name != "yiddish" && name != "nepali" && name != "romanian" && name != "spanish" && name != "swedish" {
 			t.Fatal("configuration identity", name, err)
 		}
 		seen[name] = true
@@ -183,7 +191,9 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 		if name == "portuguese" {
 			want = uint32(portuguese.ObjectID)
 		}
-		if name == "yiddish" { want = uint32(yiddish.ObjectID) }
+		if name == "yiddish" {
+			want = uint32(yiddish.ObjectID)
+		}
 		if name == "indonesian" {
 			want = uint32(indonesian.ObjectID)
 		}
@@ -195,6 +205,9 @@ func assertSeedConfigurations(t *testing.T, view catalog.Read, source *catalog.R
 		}
 		if name == "spanish" {
 			want = uint32(spanish.ObjectID)
+		}
+		if name == "swedish" {
+			want = uint32(swedish.ObjectID)
 		}
 		for i, expected := range map[int]uint32{0: want, 2: 11, 3: 10, 4: 3722} {
 			got, err := row[i].OID()

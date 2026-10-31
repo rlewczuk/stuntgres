@@ -70,9 +70,9 @@ type Engine struct {
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 	Statistics                      statistics.Provider
-	catalogCaptures                 catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
-	Statements                      Statements                   // Family dispatch; set by the composition, shared by every target.
-	Factory                         EngineFactory                // Composed constructor; set by the composition, shared by every target.
+	catalogCaptures                 catalogCaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.
+	Statements                      Statements          // Family dispatch; set by the composition, shared by every target.
+	Factory                         EngineFactory       // Composed constructor; set by the composition, shared by every target.
 }
 
 // EngineFactory builds a fresh composed engine, as NewWithSettings does: the
@@ -331,7 +331,11 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err != nil {
 		return nil, err
 	}
-	if err := e.Catalog.InstallSnowballLocked(bootstrap, snowball, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, spanish); err != nil {
+	swedish, err := functions.DefaultSwedishSnowballDictionary()
+	if err != nil {
+		return nil, err
+	}
+	if err := e.Catalog.InstallSnowballLocked(bootstrap, snowball, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, spanish, swedish); err != nil {
 		return nil, err
 	}
 	catalog.InstallBuiltinTablespaces(e.Catalog.State, bootstrap)

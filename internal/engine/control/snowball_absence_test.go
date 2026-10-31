@@ -12,12 +12,16 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 	const dropConfig = "DROP TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\";\n"
 	const dropDictionary = "DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"yiddish_stem\";\n"
 	const clearMappings = "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"yiddish\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n"
-	for _, tc := range []struct { name string; dictionary, configuration, collision bool; want string }{
+	for _, tc := range []struct {
+		name                                 string
+		dictionary, configuration, collision bool
+		want                                 string
+	}{
 		{"unchanged", true, true, false, ""},
 		{"configuration-only", true, false, false, dropConfig},
-		{"dictionary-remapped-survivor", false, true, false, clearMappings+dropDictionary},
-		{"both", false, false, false, dropConfig+dropDictionary},
-		{"other-seed-reuses-canonical-names", false, false, true, dropConfig+dropDictionary},
+		{"dictionary-remapped-survivor", false, true, false, clearMappings + dropDictionary},
+		{"both", false, false, false, dropConfig + dropDictionary},
+		{"other-seed-reuses-canonical-names", false, false, true, dropConfig + dropDictionary},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := snowballUnitSource(t)
@@ -25,36 +29,62 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 			dict := source.CatalogView.MustTSDictionary(source.CatalogView.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: "yiddish_stem"}))
 			config := source.CatalogView.MustTSConfiguration(source.CatalogView.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ns, Name: "yiddish"}))
 			if !tc.dictionary {
-				source.State.UnbindName(catalog.DescriptorNameKey(dict)); source.State.RemoveDescriptor(dict.Address())
+				source.State.UnbindName(catalog.DescriptorNameKey(dict))
+				source.State.RemoveDescriptor(dict.Address())
 				if tc.configuration {
-					next := *config; next.Mappings = catalog.CloneTSMappings(config.Mappings); next.ObjectRevision++
-					for i := range next.Mappings { next.Mappings[i].Dictionaries = []ids.ObjectAddress{{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}} }
+					next := *config
+					next.Mappings = catalog.CloneTSMappings(config.Mappings)
+					next.ObjectRevision++
+					for i := range next.Mappings {
+						next.Mappings[i].Dictionaries = []ids.ObjectAddress{{ClassID: ids.TSDictionaryClassID, ObjectID: 3765}}
+					}
 					source.State.SetDescriptor(next.Address(), &next)
 				}
 			}
-			if !tc.configuration { source.State.UnbindName(catalog.DescriptorNameKey(config)); source.State.RemoveDescriptor(config.Address()) }
+			if !tc.configuration {
+				source.State.UnbindName(catalog.DescriptorNameKey(config))
+				source.State.RemoveDescriptor(config.Address())
+			}
 			if tc.collision {
-				for _, item := range []struct { class ids.OID; original, current string }{{ids.TSDictionaryClassID, "english_stem", "yiddish_stem"}, {ids.TSConfigurationClassID, "english", "yiddish"}} {
+				for _, item := range []struct {
+					class             ids.OID
+					original, current string
+				}{{ids.TSDictionaryClassID, "english_stem", "yiddish_stem"}, {ids.TSConfigurationClassID, "english", "yiddish"}} {
 					a := source.CatalogView.NameAddress(ids.NameKey{ClassID: item.class, Namespace: ns, Name: item.original})
 					old := source.CatalogView.Get(a)
 					source.State.UnbindName(catalog.DescriptorNameKey(old))
-					if item.class == ids.TSDictionaryClassID { next := *old.(*catalog.TSDictionary); next.ObjectName = item.current; source.State.SetDescriptor(a, &next); source.State.BindName(catalog.DescriptorNameKey(&next), a)
-					} else { next := *old.(*catalog.TSConfiguration); next.ObjectName = item.current; source.State.SetDescriptor(a, &next); source.State.BindName(catalog.DescriptorNameKey(&next), a) }
+					if item.class == ids.TSDictionaryClassID {
+						next := *old.(*catalog.TSDictionary)
+						next.ObjectName = item.current
+						source.State.SetDescriptor(a, &next)
+						source.State.BindName(catalog.DescriptorNameKey(&next), a)
+					} else {
+						next := *old.(*catalog.TSConfiguration)
+						next.ObjectName = item.current
+						source.State.SetDescriptor(a, &next)
+						source.State.BindName(catalog.DescriptorNameKey(&next), a)
+					}
 				}
 			}
 			dictionaries, configurations := map[string]bool{}, map[string]bool{}
 			for _, raw := range source.CatalogView.Descriptors() {
 				switch d := raw.(type) {
 				case *catalog.TSDictionary:
-					if d.Seeded() { dictionaries[d.SeedName()] = true }
+					if d.Seeded() {
+						dictionaries[d.SeedName()] = true
+					}
 				case *catalog.TSConfiguration:
-					if d.Seeded() { configurations[d.SeedName()] = true }
+					if d.Seeded() {
+						configurations[d.SeedName()] = true
+					}
 				}
 			}
-			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish"}
+			languages := [...]string{"english", "arabic", "armenian", "basque", "danish", "dutch", "estonian", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish", "swedish"}
 			for _, language := range languages {
 				wantDictionary, wantConfiguration := true, true
-				if language == "yiddish" { wantDictionary, wantConfiguration = tc.dictionary, tc.configuration }
+				if language == "yiddish" {
+					wantDictionary, wantConfiguration = tc.dictionary, tc.configuration
+				}
 				if dictionaries[language+"_stem"] != wantDictionary || configurations[language] != wantConfiguration {
 					t.Fatal("intrinsic presence changed with spelling", language, dictionaries, configurations)
 				}
@@ -68,33 +98,54 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					defaultConfigurations[d.SeedName()] = true
 				}
 			}
-			if len(defaultDictionaries) != 21 || len(defaultConfigurations) != 21 { t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations) }
+			if len(defaultDictionaries) != 22 || len(defaultConfigurations) != 22 {
+				t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations)
+			}
 			for _, language := range languages {
-				if !defaultDictionaries[language+"_stem"] || !defaultConfigurations[language] { t.Fatal("missing immutable defaults", language) }
+				if !defaultDictionaries[language+"_stem"] || !defaultConfigurations[language] {
+					t.Fatal("missing immutable defaults", language)
+				}
 			}
 			script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}}
 			lines, err := script.snowballSeedRetirements(t.Context(), source.CatalogView.SnowballSeedDefaults())
-			if err != nil || strings.Join(lines, "") != tc.want { t.Fatal("exact ordered absence prelude", lines, tc.want, err) }
+			if err != nil || strings.Join(lines, "") != tc.want {
+				t.Fatal("exact ordered absence prelude", lines, tc.want, err)
+			}
 			if tc.collision {
-				configs, err := script.configurationProviderReplays(); if err != nil { t.Fatal(err) }
+				configs, err := script.configurationProviderReplays()
+				if err != nil {
+					t.Fatal(err)
+				}
 				moves, err := planProviderReplay(configs)
-				if err != nil || strings.Join(moves, "") != "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" RENAME TO \"yiddish\";\n" { t.Fatal("canonical config collision", moves, err) }
-				dictionaries, err := script.dictionaryProviderReplays(); if err != nil { t.Fatal(err) }
+				if err != nil || strings.Join(moves, "") != "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" RENAME TO \"yiddish\";\n" {
+					t.Fatal("canonical config collision", moves, err)
+				}
+				dictionaries, err := script.dictionaryProviderReplays()
+				if err != nil {
+					t.Fatal(err)
+				}
 				moves, err = planProviderReplay(dictionaries)
-				if err != nil || strings.Join(moves, "") != "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\" RENAME TO \"yiddish_stem\";\n" { t.Fatal("canonical dictionary collision", moves, err) }
+				if err != nil || strings.Join(moves, "") != "ALTER TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\" RENAME TO \"yiddish_stem\";\n" {
+					t.Fatal("canonical dictionary collision", moves, err)
+				}
 			}
 		})
 	}
 	t.Run("represented-English-Hindi-default-edges", func(t *testing.T) {
 		source := snowballUnitSource(t)
 		for _, raw := range source.State.Descriptors() {
-			if d, ok := raw.(*catalog.TSDictionary); ok && d.SeedName() == "english_stem" { source.State.UnbindName(catalog.DescriptorNameKey(d)); source.State.RemoveDescriptor(d.Address()) }
+			if d, ok := raw.(*catalog.TSDictionary); ok && d.SeedName() == "english_stem" {
+				source.State.UnbindName(catalog.DescriptorNameKey(d))
+				source.State.RemoveDescriptor(d.Address())
+			}
 		}
 		script := &dumpScript{Capture: &Capture{CatalogView: source.CatalogView}}
 		lines, err := script.snowballSeedRetirements(t.Context(), source.CatalogView.SnowballSeedDefaults())
-		want := "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n"+
-			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"hindi\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"hword_asciipart\", \"asciihword\";\n"+
+		want := "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n" +
+			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"hindi\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"hword_asciipart\", \"asciihword\";\n" +
 			"DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\";\n"
-		if err != nil || strings.Join(lines, "") != want { t.Fatal("represented baseline edges", lines, err) }
+		if err != nil || strings.Join(lines, "") != want {
+			t.Fatal("represented baseline edges", lines, err)
+		}
 	})
 }

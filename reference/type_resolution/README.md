@@ -325,6 +325,13 @@ direct/held execution, stock maps, diagnostics, atomicity and native-emitted
 replay share `RUN='^TestReferenceSpanishSnowball'`. Output-gated cancellation
 requires actual Spanish output on both backends. Private rules, resource
 ownership, seed replay and composed publication use `RUN='^TestSnowballSpanish'`.
+Swedish released tail-deletion rules, original codepoint/R1 and byte boundaries,
+114 independent stopwords, typed direct/held values, stock identities/maps,
+complete diagnostics, atomic changes and output-gated cancellation share
+`RUN='^TestReferenceSwedishSnowball'`. Native lifecycle replays the actual emitted
+dictionary/configuration SQL, preserving removed and explicit-empty resources.
+Private rules/resources and canonical seed replay use `RUN='^TestSnowballSwedish'`;
+accepted-fold backing and publication fences share `RUN='^TestSnowball(PreparedOwnership|Publication)$'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

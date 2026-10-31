@@ -266,7 +266,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   preserve retained row data/metadata while fresh generations resolve current
   identities. Available-but-uninstalled modules remain absent from `pg_extension`;
   the complete available-extension registry also includes installed `plpgsql`.
-- Installed dictionary metadata: `RUN='^TestReferenceTSDict'`
+- Installed dictionary metadata: `RUN='^TestReferenceTSDict'` preserves full
+  metadata and identity links across unaccent installation/removal, including
+  the complete native bootstrap inventory of 18 dictionaries (simple and 17
+  Snowball providers, including Swedish), then 19 with unaccent installed.
 - Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
 - pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
