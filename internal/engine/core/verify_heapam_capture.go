@@ -134,14 +134,3 @@ func (h *contribHost) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descri
 	}
 	return rows, nil
 }
-
-// Engine.mu is held. Waiting never rebinds a captured OID to a new incarnation.
-func (s *StatementScope) verifyHeapamReadmitLocked(e *Engine, auth AuthorizationView, ref ids.ObjectRef, descriptor *catalog.Relation, stored *storage.Relation, sequence *storage.SequenceGenerator) error {
-	if ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || auth.Catalog.Get(ref.Address) != descriptor || e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) != stored {
-		return ids.ErrCatalogReplaced
-	}
-	if descriptor.RelationKind == catalog.SequenceRelation && e.SequenceGeneratorLocked(s, ref.Address) != sequence {
-		return ids.ErrCatalogReplaced
-	}
-	return nil
-}

@@ -131,20 +131,3 @@ func (h *contribHost) Pgrowlocks(text string, result *sqltype.Descriptor) (_ []s
 	}
 	return exec.PgrowlocksValues(s.Op.Context(), result, records)
 }
-
-// Engine.mu is held; an admission wait never rebinds the lexical name to a
-// replacement incarnation, even if the original descriptor was dropped.
-func (s *StatementScope) pgrowlocksReadmitLocked(e *Engine, auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef, descriptor *catalog.Relation, stored *storage.Relation) error {
-	if ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() ||
-		auth.Catalog.Get(ref.Address) != descriptor || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) != stored {
-		return ids.ErrCatalogReplaced
-	}
-	current, err := resolveRelationSnapshot(auth, name, true)
-	if err != nil {
-		return err
-	}
-	if current != ref {
-		return ids.ErrCatalogReplaced
-	}
-	return nil
-}
