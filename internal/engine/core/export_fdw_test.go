@@ -103,6 +103,7 @@ func ForeignConstructionRetainsState(t *ForeignConstruction) bool {
 func ExplainBoundForTest(scope *StatementScope, auth AuthorizationView, statement parser.Statement, binding analyze.Binding) ([]string, error) {
 	r, err := newExplainRenderer(scope, auth, Options{Verbose: true})
 	if err != nil { return nil, err }
-	_, r.exportValue, _ = scope.Engine().Foreign.Codecs()
+	_, exportValue, _ := scope.Engine().Foreign.Codecs()
+	r.SetForeignParameters(exportValue, nil, nil)
 	return r.Command(statement, Bound{Binding: binding})
 }

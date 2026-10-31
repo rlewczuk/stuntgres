@@ -55,9 +55,8 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 	if _, err = renderer.Command(statement, Bound{Binding: binding}); err != nil {
 		return nil, err
 	}
-	if scope.ruleAction.Auth != nil && len(renderer.trees) != 0 {
-		renderer.trees[0].details = append([]string{"Rule rewrite command"}, renderer.trees[0].details...)
-		renderer.property(renderer.trees[0], "Rule Rewrite Command", true)
+	if scope.ruleAction.Auth != nil {
+		renderer.MarkRuleRewrite()
 	}
 	owner.renderers = append(owner.renderers, renderer)
 	if statement == owner.statement {
@@ -68,10 +67,10 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 		owner.planning = time.Since(owner.started)
 		owner.executing = time.Now()
 	}
-	if len(renderer.trees) == 0 {
+	tree := renderer.CommandTree()
+	if tree == nil {
 		return nil, nil
 	}
-	tree := renderer.trees[0]
 	tree.Actual = &exec.Actual{Loops: 1}
 	return tree, nil
 }
@@ -118,7 +117,7 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 	if len(lines) == 0 {
 		lines = append(lines, "Rewrite: nothing")
 	}
-	rows, err := Output(scope, schema, options, owner.renderers, lines, summaries)
+	rows, err := Output(scope.executionContext(), schema, options, owner.renderers, lines, summaries)
 	if err != nil {
 		return Result{}, err
 	}

@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -24,7 +23,7 @@ func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relatio
 			only = leaf.Only
 		}
 	}
-	read := partition.CaptureCatalog(r.scope.inheritanceRead(r.auth.Catalog), r.scope.PartitionRelations, r.scope.PendingDetachSnapshot())
+	read := r.host.PartitionCatalog(r.auth.Catalog)
 	var rows float64
 	var names []string
 	var identities []map[string]any
@@ -69,7 +68,7 @@ func (r *Renderer) sourceStatistics(tree *Tree, source *plan.SourceNode, relatio
 	if relation.RelationKind == catalog.PartitionedRelation {
 		err = partitionTree(relation)
 	} else if relation.RelationKind == catalog.TableRelation && !only {
-		err = table.InheritanceQueryClosure(read, relation, r.scope.Op.Session.SessionToken, visit)
+		err = table.InheritanceQueryClosure(read, relation, r.host.Operation().Session.SessionToken, visit)
 	} else {
 		err = visit(relation)
 	}
@@ -126,7 +125,7 @@ func (r *Renderer) filterEstimate(context plan.Node, predicate expr.Expr, estima
 		}
 		inherited := !only && (relation.Partition != nil || catalog.InheritanceHasChildren(r.auth.Catalog, address))
 		metadata := r.statisticsMetadata(address)
-		facts := session.ResolveStatistics(r.scope.PendingCatalog(), address, metadata, relation, r.auth.Catalog)
+		facts := session.ResolveStatistics(r.host.PendingCatalog(), address, metadata, relation, r.auth.Catalog)
 		if facts != nil {
 			if fact := facts.Columns[storage.StatisticsKey{Attribute: attribute, Inherited: inherited}]; fact != nil {
 				imported = imported || fact.Imported != nil
@@ -144,10 +143,9 @@ func (r *Renderer) filterEstimate(context plan.Node, predicate expr.Expr, estima
 	if len(inputs) == 0 {
 		return estimate, nil
 	}
-	e := r.scope.Engine()
-	e.Mu.Unlock()
-	rows, known, err := plan.EstimateSelectivityRows(r.scope.executionContext(), predicate, inputs, inputRows)
-	e.Mu.Lock()
+	r.host.ReleaseEngineLocked()
+	rows, known, err := plan.EstimateSelectivityRows(r.host.Context(), predicate, inputs, inputRows)
+	r.host.ReacquireEngine()
 	if err == nil && known {
 		estimate.Rows = min(plan.ExplainEstimateLimit, max(0, rows))
 		// Imported planner facts use PostgreSQL's minimum row estimate for
@@ -163,15 +161,14 @@ func (r *Renderer) filterEstimate(context plan.Node, predicate expr.Expr, estima
 // Existing committed maintenance is nontransactional, even when this statement
 // sees a private DDL row projection. New objects have only their private owner.
 func (r *Renderer) statisticsStorage(address ids.ObjectAddress) *storage.Relation {
-	e := r.scope.Engine()
-	if store := e.Storage.Relations[address]; store != nil {
+	if store := r.host.EngineStorageLocked().Relations[address]; store != nil {
 		return store
 	}
-	return e.PrivateStorageLocked(r.scope.PendingCatalog(), address)
+	return r.host.PrivateStorageLocked(address)
 }
 
 func (r *Renderer) statisticsMetadata(address ids.ObjectAddress) *storage.RelationMetadata {
-	return session.ResolveRelationMetadata(r.scope.PendingCatalog(), r.scope.Engine().Storage.RelationMetadata, address)
+	return session.ResolveRelationMetadata(r.host.PendingCatalog(), r.host.EngineStorageLocked().RelationMetadata, address)
 }
 
 // Ordinary stored-column bindings use frame/slot identity; QueryOccurrence is

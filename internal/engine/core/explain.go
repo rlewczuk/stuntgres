@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"slices"
 	"time"
@@ -32,6 +33,11 @@ func explainSupportedChild(statement parser.Statement) bool {
 		return true
 	}
 	return false
+}
+
+// newExplainRenderer starts a renderer over scope's statement host.
+func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options Options) (*Renderer, error) {
+	return NewRenderer((*statementHost)(scope), auth, options)
 }
 
 func (e *Engine) explainSchemaLocked(format string) []catalog.Column {
@@ -126,7 +132,6 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 	}
 	captured := auth.Catalog.State()
 	_, exportValue, _ := e.Foreign.Codecs()
-	renderer.exportValue = exportValue
 	e.Mu.Unlock()
 	scope.foreignUnlocked()
 	// Import arguments before provider planning, without evaluating expressions.
@@ -136,7 +141,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 			return Result{}, err
 		}
 	}
-	renderer.typedParameters = frame
+	var values []driver.Value
 	if exportValue != nil {
 		for _, value := range frame {
 			cell, err := exportValue(scope.executionContext(), value, scope.Output)
@@ -146,9 +151,10 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 			if bytes, ok := cell.([]byte); ok {
 				cell = slices.Clone(bytes)
 			}
-			renderer.parameters.Values = append(renderer.parameters.Values, cell)
+			values = append(values, cell)
 		}
 	}
+	renderer.SetForeignParameters(exportValue, frame, values)
 	e.Mu.Lock()
 	if err := renderer.ForeignFence(captured); err != nil {
 		e.Mu.Unlock()
@@ -178,7 +184,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		planning := time.Since(planningStart)
 		summaries.Planning = &planning
 	}
-	rows, err := Output(scope, schema, options, []*Renderer{renderer}, lines, summaries)
+	rows, err := Output(scope.executionContext(), schema, options, []*Renderer{renderer}, lines, summaries)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err

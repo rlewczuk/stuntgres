@@ -34,14 +34,15 @@ func (r *Renderer) sourceDetails(tree *Tree, source *plan.SourceNode, relation *
 		if definition == nil {
 			return fmt.Errorf("stuntgres: missing stored EXPLAIN source")
 		}
-		auth, err := r.scope.Engine().authorizeViewSourceLocked(r.scope, source.Ref, definition, principal, leaf.Mark)
+		current := principal
+		if !definition.Invoker() {
+			current = relation.Owner
+		}
+		full, err := r.host.AuthorizeViewSourceLocked(source.Ref, definition, principal, leaf.Mark, current)
 		if err != nil {
 			return err
 		}
-		auth.State.CurrentUser = principal
-		if !definition.Invoker() {
-			auth.State.CurrentUser = relation.Owner
-		}
+		auth := authorityOf(full)
 		r.viewActive[relation.Address()] = true
 		frames, occurrences, priorAuth, leaves := r.frames, r.occurrences, r.auth, r.leaves
 		priorInherited := r.inheritedMark
@@ -144,6 +145,8 @@ func (r *Renderer) rowSecurity(relation *catalog.Relation, command catalog.Polic
 		}
 		return plan.LogicalExpr{Info: expr.InfoOf(left), Op: operator, Left: left, Right: right}
 	}
+	// The policy checks' environment runs as principal, like auth.
+	env := ruleAuthority(r.auth.full.AsUser(principal))
 	var result expr.Expr
 	for _, group := range selection.Groups[:selection.Count] {
 		var permissive, restrictive expr.Expr
@@ -153,10 +156,10 @@ func (r *Renderer) rowSecurity(relation *catalog.Relation, command catalog.Polic
 				if policy == nil {
 					return nil, fmt.Errorf("stuntgres: missing EXPLAIN policy")
 				}
-				if err := view.CheckPolicyAuthority(auth.View, auth, relation, policy); err != nil {
+				if err := view.CheckPolicyAuthority(auth.View, env, relation, policy); err != nil {
 					return nil, err
 				}
-				imported, err := view.ImportPolicyClause(auth.Catalog, r.scope.Engine().Catalog.Domain, relation, policy, principal)
+				imported, err := view.ImportPolicyClause(auth.Catalog, r.host.CatalogDomain(), relation, policy, principal)
 				if err != nil {
 					return nil, err
 				}

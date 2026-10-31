@@ -15,7 +15,8 @@ import (
 )
 
 func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, error) {
-	deparser := stored.Deparser{View: r.auth.Catalog, Pretty: true, Output: r.scope.Output}
+	_, output := r.host.Environments()
+	deparser := stored.Deparser{View: r.auth.Catalog, Pretty: true, Output: output}
 	if !r.options.Verbose {
 		deparser.Path = r.path
 	}
@@ -184,7 +185,7 @@ func (r *Renderer) expression(root plan.Node, expression expr.Expr) (string, err
 		}
 		return text, true, err
 	}
-	return deparser.SQL(r.scope.executionContext(), expression, stored.DeparseParent{})
+	return deparser.SQL(r.host.Context(), expression, stored.DeparseParent{})
 }
 
 func (r *Renderer) frameRoot(root plan.Node, frame uint32) plan.Node {

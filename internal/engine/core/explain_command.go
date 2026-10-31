@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"maps"
 	"strings"
@@ -8,10 +9,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Bound graphs are borrowed only by this Describe/Execute activation. They are
@@ -24,7 +27,7 @@ type Bound struct {
 func (r *Renderer) Command(statement parser.Statement, bound Bound) ([]string, error) {
 	var trees []*Tree
 	if bound.Rules != nil {
-		if err := analyze.CheckBinding(r.auth, bound.Binding, statement); err != nil {
+		if err := analyze.CheckBinding(r.auth.full, bound.Binding, statement); err != nil {
 			return nil, err
 		}
 		if len(bound.Rules.Commands) == 0 {
@@ -34,7 +37,7 @@ func (r *Renderer) Command(statement parser.Statement, bound Bound) ([]string, e
 		}
 		for _, command := range bound.Rules.Commands {
 			auth := r.auth
-			r.auth = ruleAuthorizationOf(command.Auth)
+			r.auth = authorityOf(ruleAuthority(command.Auth))
 			tree, err := r.binding(command.Syntax, command.Binding)
 			r.auth = auth
 			if err != nil {
@@ -100,6 +103,30 @@ func (r *Renderer) Command(statement parser.Statement, bound Bound) ([]string, e
 	return r.Render(), nil
 }
 
+// SetForeignParameters supplies the statement's typed parameter frame and its
+// provider export for foreign planning.
+func (r *Renderer) SetForeignParameters(export exec.ForeignValueExporter, typed []sqltype.Value, values []driver.Value) {
+	r.exportValue, r.typedParameters, r.parameters.Values = export, typed, values
+}
+
+// CommandTree is the command's presentation root, or nil when it has none.
+func (r *Renderer) CommandTree() *Tree {
+	if len(r.trees) == 0 {
+		return nil
+	}
+	return r.trees[0]
+}
+
+// MarkRuleRewrite labels the command as a rule's rewritten action.
+func (r *Renderer) MarkRuleRewrite() {
+	if len(r.trees) == 0 {
+		return
+	}
+	r.trees[0].details = append([]string{"Rule rewrite command"}, r.trees[0].details...)
+	r.property(r.trees[0], "Rule Rewrite Command", true)
+}
+
+// Render returns the TEXT lines of the presentation.
 func (r *Renderer) Render() []string {
 	var lines []string
 	for _, tree := range r.trees {
@@ -133,11 +160,11 @@ func (r *Renderer) cte(definition *plan.CTEDefinition) (*Tree, error) {
 	var err error
 	if rewrite := r.rewrites[definition]; rewrite != nil {
 		if mutation, ok := analyze.MutationBinding(definition); ok {
-			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
+			if err := analyze.CheckBinding(ruleAuthority(rewrite.Caller), *mutation, definition.Statement); err != nil {
 				return nil, err
 			}
 		}
-		r.auth = ruleAuthorizationOf(rewrite.Command.Auth)
+		r.auth = authorityOf(ruleAuthority(rewrite.Command.Auth))
 		child, err = r.binding(rewrite.Command.Syntax, rewrite.Command.Binding)
 	} else if mutation, ok := definition.Mutation.(*analyze.Binding); ok {
 		child, err = r.binding(definition.Statement, *mutation)
@@ -153,7 +180,7 @@ func (r *Renderer) cte(definition *plan.CTEDefinition) (*Tree, error) {
 }
 
 func (r *Renderer) binding(statement parser.Statement, binding analyze.Binding) (*Tree, error) {
-	if err := analyze.CheckBinding(r.auth, binding, statement); err != nil {
+	if err := analyze.CheckBinding(r.auth.full, binding, statement); err != nil {
 		return nil, err
 	}
 	leaves := r.leaves

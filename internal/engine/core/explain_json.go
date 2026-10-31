@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -123,7 +124,8 @@ func (r *Renderer) jsonNode(tree *Tree) map[string]any {
 type Summaries struct{ Planning, Execution *time.Duration }
 
 // JSON enters the ordinary descriptor codec and result publication path.
-func Output(scope *StatementScope, schema []catalog.Column, options Options, renderers []*Renderer, lines []string, summaries Summaries) ([][]sqltype.Value, error) {
+// Output publishes the presentation as QUERY PLAN rows of schema.
+func Output(ctx context.Context, schema []catalog.Column, options Options, renderers []*Renderer, lines []string, summaries Summaries) ([][]sqltype.Value, error) {
 	if options.Format == "json" {
 		document := make([]map[string]any, 0)
 		for _, renderer := range renderers {
@@ -147,7 +149,7 @@ func Output(scope *StatementScope, schema []catalog.Column, options Options, ren
 		if err != nil {
 			return nil, err
 		}
-		value, err := schema[0].Usage.Type.Input(scope.executionContext(), string(encoded), -1)
+		value, err := schema[0].Usage.Type.Input(ctx, string(encoded), -1)
 		if err != nil {
 			return nil, err
 		}

@@ -23,17 +23,16 @@ func PlannerSourceRows(store *storage.Relation) float64 {
 // explainScan uses only the admitted catalog and published maintenance/root
 // metadata. It never opens a source, reads rows/buckets, or evaluates a probe.
 func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanDecision {
-	s := r.scope
-	costs := s.Op.PlannerCosts
+	costs := r.host.Operation().PlannerCosts
 	leaf, ok := filter.Child.(*plan.SourceNode)
 	if !ok {
 		return costs.Scan(1000, 1, ids.ObjectAddress{}, "")
 	}
-	e := s.Engine()
+	engineStore := r.host.EngineStorageLocked()
 	store := r.statisticsStorage(leaf.Ref.Address)
 	rows := PlannerSourceRows(store)
 	full := costs.Scan(rows, 1, ids.ObjectAddress{}, "")
-	if !s.implicit || s.Catalog != nil || len(r.leaves) != 1 || r.leaves[0].Mark.Mode != 0 {
+	if !r.host.ImplicitStatement() || len(r.leaves) != 1 || r.leaves[0].Mark.Mode != 0 {
 		return full
 	}
 	relation, ok := r.auth.Catalog.Relation(leaf.Ref.Address)
@@ -49,7 +48,7 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 		return full
 	}
 	var indexes []exec.CapturedHashIndex
-	for address, carrier := range e.Storage.IndexRoots {
+	for address, carrier := range engineStore.IndexRoots {
 		idx, ok := r.auth.Catalog.Relation(address)
 		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Method != catalog.HashMethod || idx.SQLIndex.Parent != leaf.Ref.Address || !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live || carrier == nil || carrier.Hash == nil {
 			continue
@@ -63,5 +62,5 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 	slices.SortFunc(indexes, func(a, b exec.CapturedHashIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	// OrdinaryEquality/EqualityFor inspect concrete typed metadata only;
 	// neither invokes the class's hash/equality implementation.
-	return exec.ChooseScan(filter, leaf.Ref, 1, frame, s.PlannerMethods, costs, rows, 1, indexes)
+	return exec.ChooseScan(filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, indexes)
 }

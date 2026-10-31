@@ -51,16 +51,16 @@ func (r *Renderer) sourcePruning(tree *Tree, source *plan.SourceNode, relation *
 			break
 		}
 	}
-	evaluation := exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: frame}, EvalStatement: exec.EvalStatement{Context: r.scope.executionContext(), Input: r.scope.Input}}
-	mode := r.scope.Op.ConstraintExclusion
-	e := r.scope.Engine()
-	e.Mu.Unlock()
-	proof, err := partition.NewBranchProof(r.scope.executionContext(), &evaluation, read, relation, source.Ref, filter.Predicate, mode, inherited)
+	in, _ := r.host.Environments()
+	evaluation := exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: frame}, EvalStatement: exec.EvalStatement{Context: r.host.Context(), Input: in}}
+	mode := r.host.Operation().ConstraintExclusion
+	r.host.ReleaseEngineLocked()
+	proof, err := partition.NewBranchProof(r.host.Context(), &evaluation, read, relation, source.Ref, filter.Predicate, mode, inherited)
 	var excluded []*catalog.Relation
 	if err == nil {
 		for _, physical := range physicals {
 			var possible bool
-			possible, err = proof.Possible(physical, !r.scope.PlannerMethods.NoPartitionPruning)
+			possible, err = proof.Possible(physical, !r.host.AdmittedPlannerMethods().NoPartitionPruning)
 			if err != nil {
 				break
 			}
@@ -69,7 +69,7 @@ func (r *Renderer) sourcePruning(tree *Tree, source *plan.SourceNode, relation *
 			}
 		}
 	}
-	e.Mu.Lock()
+	r.host.ReacquireEngine()
 	if err != nil {
 		return err
 	}

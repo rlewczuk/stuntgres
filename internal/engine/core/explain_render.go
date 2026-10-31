@@ -41,7 +41,7 @@ type explainSubplan struct {
 	label         string
 	frames        map[uint32]plan.Node
 	occurrences   map[int]*plan.SourceNode
-	auth          AuthorizationView
+	auth          authority
 	leaves        []exec.Leaf
 	image         string
 	policyTarget  ids.ObjectAddress
@@ -52,8 +52,8 @@ type explainSubplan struct {
 }
 
 type Renderer struct {
-	scope                        *StatementScope
-	auth                         AuthorizationView
+	host                         Host
+	auth                         authority
 	options                      Options
 	path                         []ids.ObjectAddress
 	frames                       map[uint32]plan.Node
@@ -87,12 +87,14 @@ type Renderer struct {
 	trees                        []*Tree
 }
 
-func newExplainRenderer(scope *StatementScope, auth AuthorizationView, options Options) (*Renderer, error) {
-	path, err := ReferencePath(auth)
+// NewRenderer starts one command's presentation over host, checking and
+// reading through auth.
+func NewRenderer(host Host, auth Authority, options Options) (*Renderer, error) {
+	path, err := auth.ReferencePath()
 	if err != nil {
 		return nil, err
 	}
-	return &Renderer{scope: scope, auth: auth, options: options, path: path, frame: 1, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*Tree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
+	return &Renderer{host: host, auth: authorityOf(auth), options: options, path: path, frame: 1, frames: make(map[uint32]plan.Node), occurrences: make(map[int]*plan.SourceNode), ctes: make(map[*plan.CTEDefinition]*Tree), viewActive: make(map[ids.ObjectAddress]bool)}, nil
 }
 
 func (r *Renderer) objectName(namespace ids.ObjectAddress, name string) string {
@@ -161,7 +163,7 @@ func (r *Renderer) query(query *plan.Query) (*Tree, error) {
 }
 
 func (r *Renderer) node(root plan.Node) (*Tree, error) {
-	if err := r.scope.executionContext().Err(); err != nil {
+	if err := r.host.Context().Err(); err != nil {
 		return nil, err
 	}
 	if root == nil {
@@ -246,7 +248,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		tree.children = append(tree.children, childTree)
 		estimates = append(estimates, childTree.estimate)
 		if isRecursive && child == left {
-			r.worktables[recursive.Definition] = min(plan.ExplainEstimateLimit, max(0, childTree.estimate.Rows*r.scope.Op.RecursiveWorktableFactor))
+			r.worktables[recursive.Definition] = min(plan.ExplainEstimateLimit, max(0, childTree.estimate.Rows*r.host.Operation().RecursiveWorktableFactor))
 		}
 	}
 	sourceRows := float64(1000)
@@ -362,7 +364,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		tree.nodeType = "Aggregate"
 		if len(n.Keys) > 0 {
 			method := "hash grouping"
-			if r.scope.PlannerMethods.NoHashAgg {
+			if r.host.AdmittedPlannerMethods().NoHashAgg {
 				method = "equality grouping"
 			}
 			tree.details = append(tree.details, "Method: "+method)
@@ -399,7 +401,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		tree.label = "Distinct"
 		tree.nodeType = "Distinct"
 		method := "hash deduplication"
-		if r.scope.PlannerMethods.NoHashAgg {
+		if r.host.AdmittedPlannerMethods().NoHashAgg {
 			method = "equality deduplication"
 		}
 		tree.details = append(tree.details, "Method: "+method)
@@ -431,7 +433,7 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		tree.nodeType = "Join"
 		r.property(tree, "Join Type", kind)
 		method := "nested-loop"
-		if !r.scope.PlannerMethods.NoHashJoin && exec.HashJoinEligible(n, r.frame) {
+		if !r.host.AdmittedPlannerMethods().NoHashJoin && exec.HashJoinEligible(n, r.frame) {
 			method = "hash-assisted"
 		}
 		tree.details = append(tree.details, "Method: "+method)

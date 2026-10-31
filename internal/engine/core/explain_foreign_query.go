@@ -23,11 +23,12 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 	if r.rowMarked || r.inheritedMark.Mode != 0 || r.foreign.outer || r.foreign.invocation || r.foreign.identityReads {
 		return nil, false, nil
 	}
-	if err := CheckRestoreEffect(r.scope.Op); err != nil {
+	if err := r.host.CheckRestoreEffect(); err != nil {
 		return nil, false, err
 	}
 	occurrences := make(map[int]exec.ForeignPlanningOccurrence)
-	input := exec.ForeignPlanningInput{Frame: r.frame, Input: r.scope.Input, Output: r.scope.Output, Parameters: r.typedParameters, ExportValue: r.exportValue, Occurrence: func(i int) exec.ForeignPlanningOccurrence { return occurrences[i] }}
+	in, out := r.host.Environments()
+	input := exec.ForeignPlanningInput{Frame: r.frame, Input: in, Output: out, Parameters: r.typedParameters, ExportValue: r.exportValue, Occurrence: func(i int) exec.ForeignPlanningOccurrence { return occurrences[i] }}
 	var capture func(plan.Node) error
 	capture = func(node plan.Node) error {
 		if node == nil {
@@ -84,21 +85,20 @@ func (r *Renderer) foreignQuery(root plan.Node) (*Tree, bool, error) {
 		return nil, false, err
 	}
 	captured := r.auth.Catalog.State()
-	e := r.scope.Engine()
-	e.Mu.Unlock()
-	r.scope.foreignUnlocked()
-	selected, ok, err := exec.PlanForeignQuery(r.scope.executionContext(), input, root)
+	r.host.ReleaseEngineLocked()
+	r.host.ReleaseReplacementRead()
+	selected, ok, err := exec.PlanForeignQuery(r.host.Context(), input, root)
 	var properties []catalog.ForeignExplainProperty
 	if err == nil && ok {
 		if provider, supported := selected.Source.Wrapper.(catalog.ForeignExplainScanProvider); supported {
 			path := selected.Path
 			path.Plan.Slots = slices.Clone(path.Plan.Slots)
-			properties, err = provider.ExplainForeignScan(r.scope.executionContext(), catalog.ForeignExplainScanRequest{ForeignRequest: exec.CopyForeignRequest(selected.Source.Request), Query: &catalog.ForeignExplainQueryPlan{Request: exec.CopyForeignQueryRequest(selected.Request), Path: path}, Options: r.foreignOptions()})
+			properties, err = provider.ExplainForeignScan(r.host.Context(), catalog.ForeignExplainScanRequest{ForeignRequest: exec.CopyForeignRequest(selected.Source.Request), Query: &catalog.ForeignExplainQueryPlan{Request: exec.CopyForeignQueryRequest(selected.Request), Path: path}, Options: r.foreignOptions()})
 			err = exec.ForeignCallbackError(err)
 		}
 	}
 	properties = slices.Clone(properties)
-	e.Mu.Lock()
+	r.host.ReacquireEngine()
 	if err != nil {
 		return nil, false, err
 	}

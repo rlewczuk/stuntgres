@@ -33,7 +33,7 @@ func (r *Renderer) foreignProperties(tree *Tree, properties []catalog.ForeignExp
 // Entered with Mu; callbacks run with neither engine nor replacement locks.
 // Every occurrence captures its own principal and actual provider plan.
 func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *catalog.Relation) (float64, error) {
-	if err := CheckRestoreEffect(r.scope.Op); err != nil {
+	if err := r.host.CheckRestoreEffect(); err != nil {
 		return 0, err
 	}
 	principal := r.auth.State.CurrentUser
@@ -66,15 +66,14 @@ func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *cata
 	}
 	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request}
 	captured := r.auth.Catalog.State()
-	e := r.scope.Engine()
-	e.Mu.Unlock()
-	r.scope.foreignUnlocked()
+	r.host.ReleaseEngineLocked()
+	r.host.ReleaseReplacementRead()
 	var execution exec.ForeignExecution
 	if r.rowMarked {
-		request, err = exec.PlanForeignRowMark(r.scope.executionContext(), handler.Wrapper, request, mark)
+		request, err = exec.PlanForeignRowMark(r.host.Context(), handler.Wrapper, request, mark)
 	}
 	if err == nil {
-		err = source.Plan(r.scope.executionContext(), request, &execution)
+		err = source.Plan(r.host.Context(), request, &execution)
 	}
 	var properties []catalog.ForeignExplainProperty
 	if err == nil {
@@ -82,13 +81,13 @@ func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *cata
 			path, planned := execution.Path, execution.Plan
 			path.Attributes = slices.Clone(path.Attributes)
 			planned.Attributes = slices.Clone(planned.Attributes)
-			properties, err = provider.ExplainForeignScan(r.scope.executionContext(), catalog.ForeignExplainScanRequest{ForeignRequest: exec.CopyForeignRequest(request), Size: execution.Size, Path: path, Plan: planned, Options: r.foreignOptions()})
+			properties, err = provider.ExplainForeignScan(r.host.Context(), catalog.ForeignExplainScanRequest{ForeignRequest: exec.CopyForeignRequest(request), Size: execution.Size, Path: path, Plan: planned, Options: r.foreignOptions()})
 			err = exec.ForeignCallbackError(err)
 		}
 	}
 	// Copy properties before returning to mutable engine ownership.
 	properties = slices.Clone(properties)
-	e.Mu.Lock()
+	r.host.ReacquireEngine()
 	if err != nil {
 		return 0, err
 	}
@@ -108,10 +107,10 @@ func (r *Renderer) foreignScan(tree *Tree, node *plan.SourceNode, relation *cata
 }
 
 func (r *Renderer) ForeignFence(captured *catalog.State) error {
-	if err := r.scope.executionContext().Err(); err != nil {
+	if err := r.host.Context().Err(); err != nil {
 		return err
 	}
-	current, err := r.scope.Engine().AuthorizationLocked(r.scope.Op)
+	current, err := r.host.CurrentAccessLocked()
 	if err != nil {
 		return err
 	}
@@ -122,7 +121,7 @@ func (r *Renderer) ForeignFence(captured *catalog.State) error {
 }
 
 func (r *Renderer) foreignModify(tree *Tree, relation *catalog.Relation, operation catalog.ForeignModifyOperation) error {
-	if err := CheckRestoreEffect(r.scope.Op); err != nil {
+	if err := r.host.CheckRestoreEffect(); err != nil {
 		return err
 	}
 	handler, request, err := fdw.ScanRequest(r.auth.View, r.policyPrincipal, relation, nil, r.auth.RestrictedRelations())
@@ -132,19 +131,18 @@ func (r *Renderer) foreignModify(tree *Tree, relation *catalog.Relation, operati
 	request.Parameters = r.parameters
 	source := &exec.ForeignQuerySource{Wrapper: handler.Wrapper, Request: request}
 	captured := r.auth.Catalog.State()
-	e := r.scope.Engine()
-	e.Mu.Unlock()
-	r.scope.foreignUnlocked()
-	modification, err := fdw.PlanModification(r.scope.executionContext(), source, operation, false)
+	r.host.ReleaseEngineLocked()
+	r.host.ReleaseReplacementRead()
+	modification, err := fdw.PlanModification(r.host.Context(), source, operation, false)
 	var properties []catalog.ForeignExplainProperty
 	if err == nil {
 		if provider, ok := handler.Wrapper.(catalog.ForeignExplainModifyProvider); ok {
-			properties, err = provider.ExplainForeignModify(r.scope.executionContext(), catalog.ForeignExplainModifyRequest{ForeignModifyRequest: modification.CallbackRequest(), Options: r.foreignOptions()})
+			properties, err = provider.ExplainForeignModify(r.host.Context(), catalog.ForeignExplainModifyRequest{ForeignModifyRequest: modification.CallbackRequest(), Options: r.foreignOptions()})
 			err = exec.ForeignCallbackError(err)
 		}
 	}
 	properties = slices.Clone(properties)
-	e.Mu.Lock()
+	r.host.ReacquireEngine()
 	if err != nil {
 		return err
 	}
