@@ -44,6 +44,18 @@ these are shared across families:
   nullability, a non-nil one declared nullability) and maps multirange type names
   to lib/pq's blank names. `fixture.RangeConsumeHeld` also serves INET and UUID stored-row
   tests.
+- `uuid_generation_shift_test.go`: the independent calendar oracle resolves each
+  nonzero month/day stage in the fixture's UTC or Denver zone before elapsed
+  time. Public Go offset-period enumeration implements the release's
+  [fold/gap interpretation](https://www.postgresql.org/docs/18/datetime-invalid-input.html),
+  rather than relying on `time.Date`'s ambiguous-time choice. Zero calendar
+  fields do not reconstruct the instant. Fixed literal vectors independently
+  check the helper and direct/prepared SQL arithmetic on both backends, including
+  both repeated-hour occurrences, gap normalization, month clamping and stage
+  ordering. The held postgres-style day-plus-time literal keeps its Prepare-time
+  interval meaning and Execute-time Denver calendar arithmetic, rather than
+  flattening its day into 24 elapsed hours. Live UUID shift checks retain their
+  existing two-second brackets.
 - `range_type_helpers_test.go`: custom family scenarios assert raw custom-OID
   transport independently of type-name spelling and share one backend callback.
 - `range_type_constructor*_test.go`: generated two/three-bound and
