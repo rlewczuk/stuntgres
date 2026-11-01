@@ -58,6 +58,7 @@ type sqlCursor struct {
 	routineDependencies                         []catalog.ExpressionDependency // Original immutable binding lifetimes, not permissions.
 	routineAuth                                 AuthorizationView              // DECLARE's initialized executor, not cached permission results.
 	deparseAuth                                 AuthorizationView
+	databaseName                                string
 	deparsePath                                 []ids.ObjectAddress
 	collationPath                               []ids.ObjectAddress
 	visibilityCatalog                           catalog.Read
@@ -102,6 +103,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.catalog = catalog.Read{}
 	c.roles = authorization.Read{}
 	c.deparseAuth = AuthorizationView{}
+	c.databaseName = ""
 	c.deparsePath, c.visibilityRelationPath, c.visibilityOtherPath = nil, nil, nil
 	c.collationPath = nil
 	c.visibilityCatalog = catalog.Read{}
@@ -219,6 +221,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	}
 	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), hold: declaration.Hold, PreparedResource: PreparedResource{Root: project}, schema: project.Schema(), Source: source, authority: s.authority,
 		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles,
+		databaseName:        s.Inquiry.databaseName,
 		routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog,
 		visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
@@ -317,6 +320,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
 	s.QuerySources, s.QueryLockContext = c.leaves, c.locks
 	s.Inquiry.CommentCatalog, s.Inquiry.commentRoles = c.catalog, c.roles
+	s.Inquiry.databaseName = c.databaseName
 	s.RoutineDependencies = c.routineDependencies
 	s.RoutineAuth = c.routineAuth
 	s.Inquiry.deparseAuth, s.Inquiry.DeparsePath = c.deparseAuth, c.deparsePath

@@ -167,6 +167,7 @@ func (s *StatementScope) commentEngine() *Engine {
 func (e *Engine) CaptureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.Inquiry.CommentCatalog.State() == nil {
 		scope.Inquiry.CommentCatalog = e.PrivateCatalogLocked(scope.PendingCatalog())
+		scope.Inquiry.databaseName = scope.Op.Session.DatabaseName
 		scope.Inquiry.commentRoles = e.RoleStore.Read(&e.Catalog.Owner, scope.Inquiry.CommentCatalog, e.OperationRolesLocked(scope.Op))
 		if err := e.captureSharedDependencyRootsLocked(scope.Op.Context(), &scope.Inquiry); err != nil {
 			return err
@@ -467,6 +468,7 @@ type inquirySnapshot struct {
 	CommentCatalog catalog.Read
 	commentRoles   authorization.Read
 	deparseAuth    AuthorizationView
+	databaseName   string // Captured with CommentCatalog, including a legitimate empty name.
 	// Retained with the catalog/role pair, never refreshed by source opening.
 	// The common single-database case needs no separate slice allocation.
 	sharedDependencySingle    [1]catalogrt.SharedDependencyDatabase

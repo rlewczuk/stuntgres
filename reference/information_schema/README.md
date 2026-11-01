@@ -5,7 +5,7 @@ shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `domains`, `user_defined_types`,
-`domain_constraints`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
+`domain_constraints`, `domain_udt_usage`, `referential_constraints`, `table_constraints`, `transforms` and `sequences`. Other grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
 
@@ -97,9 +97,31 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Transform metadata: `RUN='^TestReferenceInfoTransforms'`
 - Standalone composite inquiry: `RUN='^TestReferenceInfoUserDefinedTypes'`
 - Column domain usage: `RUN='^TestReferenceInfoColumnDomainUsage'`
+- Domain/base usage: `RUN='^TestReferenceInfoDomainUdtUsage'`
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
 - Routine parameter inquiry: `RUN='^TestReferenceInfoParameters'`
 - Referential constraints: `RUN='^TestReferenceInfoReferentialConstraints'`
+
+Domain/base usage scenarios assert the complete six-column nullable
+`sql_identifier`/NAME shape, exact immediate-base bags for unused, nested,
+enum/composite/array and builtin domains, and empty/NULL metadata. Enabled
+ownership of the base, not domain ownership or type/domain/schema ACLs, controls
+visibility; inherited and SET-only paths remain distinct. Direct, fresh-prepared
+and held reads cover role/owner publication, rename/schema moves and dependency
+removal, full SQL diagnostics and atomicity. Native-only phases retain old rows
+and descriptions across Reset/Restore and replay into independently allocated
+target authority with existing named owners. No column/routine traversal or
+synthetic domains are implied.
+
+Every new/changed definition needs selected native and pinned-reference proof:
+`make check RUN='^TestReferenceInfoDomainUdtUsage'` and the same with
+`REFERENCE=1`, plus both modes of `RUN='^TestReferenceInfoViewsBuiltins$'` and
+`RUN='^TestReferenceInfoColumnsPopulation$'` for the complete display/provider
+inventories. Discovery regression uses both modes of
+`RUN='^TestReferencePGTypeAdmission$'`. Feature smoke is
+`make check RUN='^TestReferenceInfoDomainUdtUsageFeatureSmoke$'`, also with
+`REFERENCE=1`; it exercises owner-filtered held reads, SET ROLE, lifecycle and
+native control retention.
 
 Parameter scenarios prescribe the complete nullable 32-domain projection,
 declared formal order/names/modes, type identity, owner-visible expression

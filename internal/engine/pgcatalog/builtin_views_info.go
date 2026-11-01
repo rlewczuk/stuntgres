@@ -3,6 +3,24 @@ package pgcatalog
 var infoBuiltinViews = [...]builtinView{
 	parametersBuiltinView,
 	infoUsagePrivilegesView,
+	// information_schema.domain_udt_usage — REL_18_6 information_schema.sql.
+	{oid: InfoDomainUdtUsageOID, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nbt"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("bt"), viewText("."), viewIdentifier("typname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_name"), viewText(",\n"),
+		viewText("    ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nt"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("t"), viewText("."), viewIdentifier("typname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_name"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_type"), viewText(" "), viewIdentifier("t"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nt"), viewText(",\n"),
+		viewText("    "), viewClass("pg_type"), viewText(" "), viewIdentifier("bt"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nbt"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("t"), viewText("."), viewIdentifier("typnamespace"), viewText(" = "), viewIdentifier("nt"), viewText("."), viewIdentifier("oid"),
+		viewText(") AND ("), viewIdentifier("t"), viewText("."), viewIdentifier("typbasetype"), viewText(" = "), viewIdentifier("bt"), viewText("."), viewIdentifier("oid"),
+		viewText(") AND ("), viewIdentifier("bt"), viewText("."), viewIdentifier("typnamespace"), viewText(" = "), viewIdentifier("nbt"), viewText("."), viewIdentifier("oid"),
+		viewText(") AND ("), viewIdentifier("t"), viewText("."), viewIdentifier("typtype"), viewText(" = 'd'::"), viewType("\"char\""),
+		viewText(") AND "), viewRoutine("pg_has_role", "26,25"), viewText("("), viewIdentifier("bt"), viewText("."), viewIdentifier("typowner"), viewText(", 'USAGE'::"), viewType("text"), viewText("));"),
+	}},
 	// information_schema.column_domain_usage — REL_18_6 information_schema.sql.
 	{oid: InfoColumnDomainUsageOID, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("domain_catalog"), viewText(",\n"),

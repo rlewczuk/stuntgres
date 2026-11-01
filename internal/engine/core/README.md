@@ -1809,8 +1809,15 @@ Producers, the OID registry and descriptor specs live in
   presentation and unlock timing; it is not a second dispatcher. Only `pg_locks`
   and lazy `pg_sequences` bypass producers.
   Information-schema domain and column inquiry sources use the statement's
-  paired catalog and authorization roots, including `column_domain_usage`;
-  source opening preserves that pair rather than resampling publication.
+  paired catalog and authorization roots, including `column_domain_usage` and
+  `domain_udt_usage`; source opening preserves that pair rather than resampling
+  publication. The latter uses the captured current principal and database name
+  to report immediate domain bases under enabled base-owner authority.
+  Its database name is an inquiry-owned scalar captured with CommentCatalog,
+  not a later read through the retained authorization's mutable Session pointer.
+  SQL cursors and protocol portals retain/restore that scalar with their inquiry
+  authority and release it on producer teardown; unrelated source policies stay
+  unchanged.
   Foreign metadata sources, including `foreign_tables`, carry that same pair
   with the current database name and temporary-owner authority. Shared runtime
   validation checks the exact source/ref and current principal before producing

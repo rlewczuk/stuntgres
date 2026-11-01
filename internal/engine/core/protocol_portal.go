@@ -315,7 +315,8 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	}
 	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), PreparedResource: PreparedResource{Root: project, Closer: bind}, schema: project.Schema(), Source: source, authority: s.authority,
 		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles, routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
-		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
+		databaseName: s.Inquiry.databaseName,
+		deparseAuth:  s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
 	exec.AdmitScan(root, source)
 	c.state = exec.State{Methods: s.PlannerMethods, Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
@@ -494,9 +495,13 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 // startProtocolPortal owns typed producer startup for wire Execute and nested
 // SQL/XML cursor demand. Neither caller decodes wire fields to recover values.
 func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (bool, Result, error) {
-	if p.started { return p.state == protocolPortalDone, Result{CommandTag: p.tag}, nil }
+	if p.started {
+		return p.state == protocolPortalDone, Result{CommandTag: p.tag}, nil
+	}
 	p.started = true
-	if p.producer != nil { return false, Result{}, nil }
+	if p.producer != nil {
+		return false, Result{}, nil
+	}
 	s.Expected = &p.Entry.Description
 	s.protocol().execute = p
 	defer func() { s.protocol().execute = nil }()
@@ -508,7 +513,9 @@ func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader
 		copy(frame, p.values)
 		return nil
 	}, &stream)
-	if err != nil { return false, Result{}, err }
+	if err != nil {
+		return false, Result{}, err
+	}
 	p.rows, p.tag = result.Rows, result.CommandTag
 	if p.rows == nil {
 		p.state = protocolPortalDone

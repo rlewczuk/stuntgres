@@ -160,6 +160,7 @@ var producers = [...]Registration{
 	{InfoForeignServersOID, captureInfoForeignServers},
 	{InfoForeignTableOptionsOID, captureInfoForeignTableOptions},
 	{InfoForeignTablesOID, captureInfoForeignTables},
+	{InfoDomainUdtUsageOID, captureInfoDomainUdtUsage},
 	{PreparedStatementsOID, capturePGPreparedStatements},
 	{ConstraintTableUsageOID, captureConstraintTableUsage},
 }

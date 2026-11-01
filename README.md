@@ -68,6 +68,17 @@ Type inquiries use the same direct, prepared and stored expression paths:
 nested domains without replacing nominal `pg_typeof` identity. Native fixture
 controls preserve the underlying type graph and stored expressions.
 
+`information_schema.domain_udt_usage` reports actual domains and their immediate
+base types through six nullable `sql_identifier` columns over NAME. Unused and
+builtin domains participate; nested domains retain their immediate parent, and
+enum, composite and array bases retain their own identities. Enabled ownership
+of the immediate base controls visibility, including inherited ownership and
+SET ROLE; domain ownership and type/domain USAGE grants alone do not qualify.
+This view does not traverse column or routine usages. Held queries refresh
+catalog and role authority; already returned rows survive later changes and
+native Reset/Restore. Reset removes user-domain rows but retains the source;
+Dump/Restore replays the logical type graph rather than dumping the builtin view.
+
 `pg_rewrite` exposes rule identities, enable modes, qualifications and ordered
 action trees for installed views, materialized views and ordinary rules.
 These metadata reads retain their captured definitions across replacement,

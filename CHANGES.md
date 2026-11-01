@@ -1,5 +1,13 @@
 # Changes
 
+- Add `information_schema.domain_udt_usage` with six nullable identifier-domain
+  columns, canonical builtin display and normal direct/prepared query metadata.
+  Actual unused and builtin domains report their immediate base, not column or
+  routine usage. Enabled base ownership governs visibility independently of
+  domain ownership and USAGE ACLs; held reads refresh role/catalog authority.
+  Domain lifecycle and native controls retain authentic relationships and
+  detached results without synthesizing objects or serializing the builtin view.
+
 - Expose current real `pg_ident_file_mappings` rules and parse diagnostics through
   explicit frozen `Driver.ConfigureIdentFile` attachment, including PostgreSQL
   quoting, continuations, includes/@ expansion, regex validation and provenance.

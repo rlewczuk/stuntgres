@@ -56,6 +56,17 @@ var ivBuiltinPathDefinitions = map[string]string{
     ((pg_options_to_table(attfdwoptions)).option_value)::character_data AS option_value
    FROM _pg_foreign_table_columns c;`,
 	"pg_catalog.pg_shadow": ivShadowDefinition,
+	"information_schema.domain_udt_usage": ` SELECT (current_database())::sql_identifier AS udt_catalog,
+    (nbt.nspname)::sql_identifier AS udt_schema,
+    (bt.typname)::sql_identifier AS udt_name,
+    (current_database())::sql_identifier AS domain_catalog,
+    (nt.nspname)::sql_identifier AS domain_schema,
+    (t.typname)::sql_identifier AS domain_name
+   FROM pg_type t,
+    pg_namespace nt,
+    pg_type bt,
+    pg_namespace nbt
+  WHERE ((t.typnamespace = nt.oid) AND (t.typbasetype = bt.oid) AND (bt.typnamespace = nbt.oid) AND (t.typtype = 'd'::"char") AND pg_has_role(bt.typowner, 'USAGE'::text));`,
 	"information_schema.column_domain_usage": ` SELECT (current_database())::sql_identifier AS domain_catalog,
     (nt.nspname)::sql_identifier AS domain_schema,
     (t.typname)::sql_identifier AS domain_name,

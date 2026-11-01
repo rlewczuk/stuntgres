@@ -4,7 +4,7 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`, `key_column_usage`,
-`constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`,
+`constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`, `domain_udt_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
@@ -531,6 +531,23 @@ type Producer func(Input) ([][]sqltype.Value, error)
   are not substitutes. Names and source-owned NAME/domain generations come
   from the paired immutable catalog/role capture. Cancellation or malformed
   authority discards every row, while successful empty captures stay typed.
+- `domain_udt_usage` projects six nullable `sql_identifier` columns in released
+  UDT-catalog/schema/name, domain-catalog/schema/name order. Both catalogs use
+  the captured current database. Real domain descriptors, including unused and
+  builtin domains, contribute their immediate `DomainBase` relationship; nested
+  domains are not flattened, and enum/composite/array bases keep their actual
+  type names. Arrays of domains are not domains and contribute no extra row.
+  Only enabled ownership of the immediate base admits rows: inheritance and
+  SET ROLE participate, but domain ownership, USAGE ACLs, schema access and
+  column/routine references are not inclusion predicates. Ordinary source SELECT
+  remains separate and initially PUBLIC. Source16249 reuses canonical row13339
+  and array13338; domain cells, namespaces and role authority belong to one
+  immutable statement capture. Malformed authority or cancellation returns no
+  partial rows; an empty successful capture retains its owned schema. Held
+  execution recaptures changes, while detached results survive lifecycle and
+  native Reset/Restore. Controls replay real types and owners, not this builtin
+  view's definition. The tokenized release definition shares normal path,
+  quoting, shadowing and nonowner-disclosure behavior with other builtin views.
 - `pg_ts_template` projects only captured, installed executable template
   descriptors. Its five nonnullable OID/NAME/OID/REGPROC/REGPROC columns retain
   the actual namespace and helper procedure identities; absent initialization
@@ -1394,7 +1411,7 @@ Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
-including `information_schema.columns`, `information_schema.domains`,
+including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`,
 `information_schema.user_defined_types`, `information_schema.tables`,
 `information_schema.usage_privileges`, `pg_catalog.pg_policies` and
 `pg_catalog.pg_rules`, with classification and per-output capability facts.
@@ -1520,6 +1537,8 @@ a hash root alone does not select that access method.
 - Column metadata public scenarios: `RUN='^TestReferenceInfoColumns'`
 - Domain-definition producer units: `RUN='^TestInfoDomains'`
 - Domain-definition public scenarios: `RUN='^TestReferenceInfoDomains'`
+- Domain/base usage producer/capture/cancellation units: `RUN='^TestInfoDomainUdtUsage'`
+- Domain/base usage public scenarios: `RUN='^TestReferenceInfoDomainUdtUsage'`
 - Table metadata producer units: `RUN='^TestInfoTables'`
 - Table metadata public scenarios: `RUN='^TestReferenceInfoTables'`
 - Routine metadata producer/identity units: `RUN='^TestInfoRoutines'`
