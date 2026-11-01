@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -118,4 +119,11 @@ type SessionInquiryHost interface {
 	// transaction's catalog epoch, then returns the statement's snapshot,
 	// nil when there is none.
 	CurrentSnapshotLocked() (*sqltype.Snapshot, error)
+}
+
+func sqlError(code, message string) error {
+	return &sqlstate.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR",
+		Code: code, Message: message,
+	}
 }

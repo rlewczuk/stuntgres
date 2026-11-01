@@ -2,27 +2,21 @@ package core
 
 import (
 	"context"
-	"fmt"
 
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (h *catalogInquiryHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	s := h.scope()
-	ctx := s.Op.Context()
+func SizeInquiry(h CatalogHost, kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	ctx := h.Operation().Context()
 	if err := ctx.Err(); err != nil { return sqltype.Value{}, err }
-	e := s.Engine()
-	e.Mu.Lock()
-	captures, present, err := h.captureSizeLocked(ctx, kind, arg, fork)
-	e.Mu.Unlock()
+	h.ReacquireEngine()
+	captures, present, err := captureSizeLocked(h, ctx, kind, arg, fork)
+	h.ReleaseEngineLocked()
 	if err != nil { return sqltype.Value{}, err }
 	if !present { return sqltype.Null(result), nil }
 	var sum int64
@@ -44,14 +38,13 @@ func (h *catalogInquiryHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Va
 
 // captureSizeLocked captures only headers, descriptors and immutable roots. The
 // shared cluster mutex owns all runtime maps; arithmetic runs after its release.
-func (h *catalogInquiryHost) captureSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, fork string) ([]storage.Allocation, bool, error) {
-	s, e := h.scope(), h.scope().Engine()
-	retained, err := h.host().catalogInquiryCatalog()
+func captureSizeLocked(h CatalogHost, ctx context.Context, kind functions.SizeKind, arg sqltype.Value, fork string) ([]storage.Allocation, bool, error) {
+	retained, err := h.InquiryCatalog()
 	if err != nil { return nil, false, err }
-	if retained.Epoch() != e.Catalog.State.Epoch() { return nil, false, ids.ErrCatalogReplaced }
-	view := e.PrivateCatalogLocked(s.PendingCatalog())
+	if retained.Epoch() != h.CatalogEpochLocked() { return nil, false, ids.ErrCatalogReplaced }
+	view := h.PrivateCatalogLocked(h.PendingCatalog())
 	if kind == functions.DatabaseSize || kind == functions.TablespaceSize {
-		return h.captureAggregateSizeLocked(ctx, kind, arg, view)
+		return h.AggregateAllocationsLocked(ctx, kind, arg, view)
 	}
 	oid, err := arg.ClassOID()
 	if err != nil { return nil, false, err }
@@ -63,114 +56,15 @@ func (h *catalogInquiryHost) captureSizeLocked(ctx context.Context, kind functio
 	}
 	var captures []storage.Allocation
 	if kind != functions.IndexesSize {
-		captures = append(captures, captureAllocationLocked(e, s, view, relation))
+		captures = append(captures, h.RelationAllocationLocked(view, relation))
 	}
 	if kind == functions.IndexesSize || kind == functions.TotalRelationSize {
 		for _, descriptor := range view.Descriptors() {
 			if err := ctx.Err(); err != nil { return nil, false, err }
 			idx, ok := descriptor.(*catalog.Relation)
 			if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == address {
-				captures = append(captures, captureAllocationLocked(e, s, view, idx))
+				captures = append(captures, h.RelationAllocationLocked(view, idx))
 			}
-		}
-	}
-	return captures, true, nil
-}
-
-func captureAllocationLocked(e *Engine, scope *StatementScope, view catalog.Read, relation *catalog.Relation) storage.Allocation {
-	a := storage.Allocation{Relation: relation}
-	var pending *session.Journal
-	if scope != nil { pending = scope.PendingCatalog() }
-	if relation.SQLIndex != nil {
-		a.Index = index.EffectiveRoot(e.Storage.IndexRoots, pending, relation.Address())
-		a.Allocated = a.Index != nil
-		a.Parent, _ = view.Relation(relation.SQLIndex.Parent)
-		if stored := e.PrivateStorageLocked(pending, relation.SQLIndex.Parent); stored != nil { a.ParentVersions = stored.Versions }
-		if scope != nil {
-			if scope.ProjectedRoots { a.ParentOwn = scope.Stage.Rows[relation.SQLIndex.Parent] } else {
-				a.ParentOwn = scope.OwnWrites[relation.SQLIndex.Parent]
-				a.ParentStaged = scope.Stage.Rows[relation.SQLIndex.Parent]
-				a.ReplaceOwn = scope.Stage.Replacing
-			}
-		}
-		return a
-	}
-	if relation.Sequence != nil {
-		if scope != nil { a.Allocated = e.SequenceGeneratorLocked(scope, relation.Address()) != nil } else { a.Allocated = e.Storage.Sequences[relation.Address()] != nil }
-		return a
-	}
-	if stored := e.PrivateStorageLocked(pending, relation.Address()); stored != nil {
-		a.Allocated, a.Versions = true, stored.Versions
-		if scope != nil {
-			if scope.ProjectedRoots { a.Own = scope.Stage.Rows[relation.Address()] } else {
-				a.Own = scope.OwnWrites[relation.Address()]
-				a.Staged = scope.Stage.Rows[relation.Address()]
-				a.ReplaceOwn = scope.Stage.Replacing
-			}
-		}
-	}
-	return a
-}
-
-func (h *catalogInquiryHost) captureAggregateSizeLocked(ctx context.Context, kind functions.SizeKind, arg sqltype.Value, view catalog.Read) ([]storage.Allocation, bool, error) {
-	s, e := h.scope(), h.scope().Engine()
-	class, label, privilege := ids.DatabaseClassID, "database", authorization.ConnectPrivilege
-	if kind == functions.TablespaceSize { class, label, privilege = ids.TablespaceClassID, "tablespace", authorization.CreatePrivilege }
-	var descriptor catalog.Descriptor
-	if arg.Type().ID() == sqltype.Name {
-		name, err := arg.Text()
-		if err != nil { return nil, false, err }
-		address := view.NameAddress(ids.NameKey{ClassID: class, Name: name})
-		descriptor = view.Get(address)
-		if descriptor == nil {
-			code := "42704"
-			if kind == functions.DatabaseSize { code = "3D000" }
-			return nil, false, SQLError(code, fmt.Sprintf(`%s "%s" does not exist`, label, name))
-		}
-	} else {
-		oid, err := arg.OID()
-		if err != nil { return nil, false, err }
-		descriptor = view.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)})
-		if descriptor == nil { return nil, false, SQLError("42704", fmt.Sprintf("%s with OID %d does not exist", label, oid)) }
-	}
-	auth, err := s.RoutineAuthorizationLocked()
-	if err != nil { return nil, false, err }
-	auth.Catalog = view
-	auth.Recapture(view)
-	allowed := kind == functions.TablespaceSize && descriptor.Address().ObjectID == catalog.DefaultTablespaceOID
-	if !allowed {
-		allowed, _, err = auth.ObjectPrivilege(ctx, auth, auth.State.CurrentUser.ID(), descriptor.Address(), privilege, 0)
-		if err != nil { return nil, false, err }
-	}
-	if !allowed {
-		stats, found := auth.Roles.Lookup("pg_read_all_stats")
-		if !found { return nil, false, fmt.Errorf("stuntgres: missing pg_read_all_stats role") }
-		allowed, err = authorization.HasRole(ctx, auth.Roles, &e.RoleStore.Domain, auth.State.CurrentUser.ID(), stats.Ref.ID(), authorization.RoleUsage)
-		if err != nil { return nil, false, err }
-	}
-	if !allowed { return nil, false, SQLError("42501", "permission denied for " + label + " " + descriptor.Name()) }
-	if kind == functions.DatabaseSize && e.Cluster.Targets[descriptor.Name()] == nil {
-		return nil, false, fmt.Errorf("stuntgres: database allocation runtime is not registered")
-	}
-	var captures []storage.Allocation
-	for name, target := range e.Cluster.Targets {
-		if err := ctx.Err(); err != nil { return nil, false, err }
-		if kind == functions.DatabaseSize && name != descriptor.Name() { continue }
-		targetView := target.Catalog.Current()
-		var scope *StatementScope
-		if target == e { scope, targetView = s, view }
-		if kind == functions.DatabaseSize && targetView.Owner().DatabaseAddress() != descriptor.Address() {
-			return nil, false, ids.ErrCatalogReplaced
-		}
-		for _, d := range targetView.Descriptors() {
-			if err := ctx.Err(); err != nil { return nil, false, err }
-			relation, ok := d.(*catalog.Relation)
-			if !ok { continue }
-			placement := catalog.DefaultTablespaceOID
-			if catalog.SharedRelation(relation) { placement = catalog.GlobalTablespaceOID }
-			if kind == functions.DatabaseSize && placement == catalog.GlobalTablespaceOID || kind == functions.TablespaceSize && placement != descriptor.Address().ObjectID { continue }
-			a := captureAllocationLocked(target, scope, targetView, relation)
-			if a.Allocated { captures = append(captures, a) }
 		}
 	}
 	return captures, true, nil

@@ -34,14 +34,10 @@ func (h *statementHost) TransactionInquiry() exec.TransactionInquiryRuntime {
 	return (*transactionInquiryHost)(h)
 }
 
-func (h *catalogInquiryHost) scope() *StatementScope     { return (*StatementScope)(h) }
-func (h *sessionInquiryHost) scope() *StatementScope     { return (*StatementScope)(h) }
-func (h *transactionInquiryHost) scope() *StatementScope { return (*StatementScope)(h) }
-
 // host is the statement host behind a group, for the shared host methods
 // (environments, notices) a group body calls.
-func (h *contribHost) host() *statementHost    { return (*statementHost)(h) }
-func (h *textSearchHost) host() *statementHost { return (*statementHost)(h) }
-func (h *catalogInquiryHost) host() *statementHost {
-	return (*statementHost)(h)
-}
+func (h *contribHost) host() *statementHost            { return (*statementHost)(h) }
+func (h *textSearchHost) host() *statementHost         { return (*statementHost)(h) }
+func (h *catalogInquiryHost) host() *statementHost     { return (*statementHost)(h) }
+func (h *sessionInquiryHost) host() *statementHost     { return (*statementHost)(h) }
+func (h *transactionInquiryHost) host() *statementHost { return (*statementHost)(h) }

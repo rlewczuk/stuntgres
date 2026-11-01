@@ -3,57 +3,36 @@ package core
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (h *catalogInquiryHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
-	scope := h.scope()
-	if scope.Inquiry.CommentCatalog.State() == nil {
+func LookupObjectAddress(h CatalogHost, c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
+	if read, _ := h.CommentSnapshot(); read.State() == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return addressLookup(scope).Lookup(c.Context, values)
+	lookup := h.LookupAddress()
+	return lookup.Lookup(c.Context, values)
 }
 
-// addressLookup is the statement's object address snapshot. Namespace checks
-// use the deparse authority as captured; notices go to the statement's
-// operation.
-func addressLookup(scope *StatementScope) regobj.AddressLookup {
-	auth := scope.Inquiry.deparseAuth
-	return regobj.AddressLookup{
-		Catalog: scope.Inquiry.CommentCatalog,
-		Roles:   scope.Inquiry.commentRoles,
-		Capture: regobj.InputCapture{
-			Authority: inputAuthority(auth), Path: scope.Inquiry.DeparsePath,
-			Database: scope.Op.Session.DatabaseName, Token: scope.Op.Session.SessionToken, Temporary: temporaryNamespace(auth),
-		},
-		Namespace: func(name parser.ObjectName) (analyze.NamespaceSelection, error) {
-			return LookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
-		},
-		Notice: scope.Op.EmitNotice,
-	}
+func IdentifyObject(h CatalogHost, c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return identifyObjectValues(h, values, result, functions.IdentifyObject)
 }
 
-func (h *catalogInquiryHost) IdentifyObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return identifyObjectValues(c, values, result, functions.IdentifyObject)
+func IdentifyObjectAddress(h CatalogHost, c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return identifyObjectValues(h, values, result, functions.IdentifyObjectAddress)
 }
 
-func (h *catalogInquiryHost) IdentifyObjectAddress(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return identifyObjectValues(c, values, result, functions.IdentifyObjectAddress)
+func DescribeObject(h CatalogHost, c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return identifyObjectValues(h, values, result, functions.DescribeObject)
 }
-
-func (h *catalogInquiryHost) DescribeObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return identifyObjectValues(c, values, result, functions.DescribeObject)
-}
-func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
-	scope := ScopeOf(c.LiveHost())
-	if scope == nil || scope.Inquiry.CommentCatalog.State() == nil {
+func identifyObjectValues(h CatalogHost, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
+	read, roles := h.CommentSnapshot()
+	if read.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return regobj.IdentifyValues(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, scope.Inquiry.DeparsePath, values, result, operation, scope.Op.Session.SessionToken)
+	return regobj.IdentifyValues(read, roles, h.DeparsePath(), values, result, operation, h.Operation().Session.SessionToken)
 }

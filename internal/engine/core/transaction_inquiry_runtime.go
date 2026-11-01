@@ -7,71 +7,57 @@ import (
 	"time"
 )
 
-func (h *transactionInquiryHost) TransactionAge(xid uint32) (int32, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
+func TransactionAge(h SessionInquiryHost, xid uint32) (int32, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	return e.transactionAgeLocked(scope.TxRef, xid)
+	return h.TransactionAgeLocked(xid)
 }
 
-func (h *transactionInquiryHost) MultiTransactionAge(xid uint32) (int32, error) {
-	scope := h.scope()
-	return scope.Engine().Locks.MultiAge(scope.LockTicket, xid)
+func MultiTransactionAge(h SessionInquiryHost, xid uint32) (int32, error) {
+	return h.LockManager().MultiAge(h.Ticket(), xid)
 }
 
-func (h *transactionInquiryHost) CurrentTransactionID(assign bool) (uint64, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
+func CurrentTransactionID(h SessionInquiryHost, assign bool) (uint64, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	if assign {
-		if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {
+		if err := h.AssignTransactionXIDLocked(); err != nil {
 			return 0, err
 		}
 	}
-	return e.Visibility.FullXIDLocked(scope.TxRef), nil
+	return h.VisibilityLocked().FullXIDLocked(h.TransactionRef()), nil
 }
 
-func (h *transactionInquiryHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	scope.Op.Session.Mu.Lock()
-	defer scope.Op.Session.Mu.Unlock()
-	if err := PublicationOperationLocked(e, scope.Op); err != nil {
+func CurrentSnapshot(h SessionInquiryHost) (*sqltype.Snapshot, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	snapshot, err := h.CurrentSnapshotLocked()
+	if err != nil {
 		return nil, err
 	}
-	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
-		return nil, ids.ErrCatalogReplaced
+	if snapshot == nil {
+		return nil, sqlError("55000", "no active snapshot")
 	}
-	if scope.currentSnapshot == nil {
-		return nil, SQLError("55000", "no active snapshot")
-	}
-	return scope.currentSnapshot, nil
+	return snapshot, nil
 }
 
-func (h *transactionInquiryHost) TransactionStatus(full uint64) (string, bool, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
+func TransactionStatus(h SessionInquiryHost, full uint64) (string, bool, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
 		return "", false, ids.ErrCatalogReplaced
 	}
-	return e.Visibility.TransactionStatusLocked(full)
+	return h.VisibilityLocked().TransactionStatusLocked(full)
 }
 
-func (h *transactionInquiryHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	scope := h.scope()
-	members, err := scope.Engine().Locks.MultiXactMembers(scope.Engine().Catalog.Domain, scope.LockTicket, xid)
+func TransactionMembers(h SessionInquiryHost, xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	members, err := h.LockManager().MultiXactMembers(h.CatalogDomain(), h.Ticket(), xid)
 	if err != nil {
 		return nil, err
 	}
@@ -95,28 +81,26 @@ func commitTimestampDisabled() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 }
 
-func (h *transactionInquiryHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	if !e.Visibility.TracksCommitTimestamps() {
-		e.Mu.Unlock()
+func CommitTimestamp(h SessionInquiryHost, xid uint32) (time.Time, uint32, bool, error) {
+	h.ReacquireEngine()
+	registry := h.VisibilityLocked()
+	if !registry.TracksCommitTimestamps() {
+		h.ReleaseEngineLocked()
 		return time.Time{}, 0, false, commitTimestampDisabled()
 	}
-	entry := e.Visibility.LookupCommitTimestampLocked(xid)
-	e.Mu.Unlock()
+	entry := registry.LookupCommitTimestampLocked(xid)
+	h.ReleaseEngineLocked()
 	return entry.Stamp, entry.Origin, entry.Present, nil
 }
 
-func (h *transactionInquiryHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	if !e.Visibility.TracksCommitTimestamps() {
-		e.Mu.Unlock()
+func LastCommittedTransaction(h SessionInquiryHost) (uint32, time.Time, uint32, bool, error) {
+	h.ReacquireEngine()
+	registry := h.VisibilityLocked()
+	if !registry.TracksCommitTimestamps() {
+		h.ReleaseEngineLocked()
 		return 0, time.Time{}, 0, false, commitTimestampDisabled()
 	}
-	xid, entry := e.Visibility.LastCommittedXID(), e.Visibility.LastCommitTimestamp()
-	e.Mu.Unlock()
+	xid, entry := registry.LastCommittedXID(), registry.LastCommitTimestamp()
+	h.ReleaseEngineLocked()
 	return xid, entry.Stamp, entry.Origin, entry.Present, nil
 }

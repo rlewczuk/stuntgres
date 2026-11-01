@@ -10,15 +10,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (h *catalogInquiryHost) CommentInquiry(c *exec.Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := h.scope()
-	if err := admitInquiryBody(c, provenance); err != nil {
+func CommentInquiry(h CatalogHost, c *exec.Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
+	if err := h.AdmitInquiryBody(c, provenance); err != nil {
 		return sqltype.Value{}, err
 	}
-	if scope.Inquiry.CommentCatalog.State() == nil {
+	read, roles := h.CommentSnapshot()
+	if read.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
-	text, err := regobj.CommentText(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, kind, values)
+	text, err := regobj.CommentText(read, roles, kind, values)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

@@ -3,47 +3,7 @@ package core
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/sqltype"
 )
-
-func (h *sessionInquiryHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
-	s := h.scope()
-	identity := s.Identity
-	if s.Op.EffectiveUser == nil && c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
-		identity = c.Query.Source.Authority.Expression.Identity
-	}
-	if s.Op.Restricted == nil && s.ForeignActionAuth != nil {
-		auth := s.ForeignActionAuth
-		role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		name, _ := auth.Catalog.LookupType(sqltype.Name)
-		identity.Current, identity.CurrentMissing = sqltype.String(name, role.Name), authorization.PrincipalRef{}
-	}
-	if kind != functions.IdentityCurrentSchema {
-		return identity.Value(kind)
-	}
-	if s.ForeignActionAuth == nil && s.ruleAction.Auth == nil && s.Inquiry.CurrentSchemaResult.Type() != nil {
-		return s.Inquiry.CurrentSchemaResult, nil
-	}
-	engine := s.Engine()
-	engine.Mu.Lock()
-	defer engine.Mu.Unlock()
-	auth, path, err := s.schemaInquiryPathLocked(engine)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	resultValue := sqltype.Null(result)
-	if len(path) > 0 {
-		resultValue = sqltype.String(result, auth.Catalog.Get(path[0]).Name())
-	}
-	if s.ForeignActionAuth == nil && s.ruleAction.Auth == nil {
-		s.Inquiry.CurrentSchemaResult = resultValue
-	}
-	return resultValue, nil
-}
 
 // Capture the identities under the binding catalog/authorization authority;
 // the snapshot changes only when the capture succeeds.

@@ -29,22 +29,22 @@ type routineInquiry struct {
 	runtime catalogrt.Runtime
 }
 
-func (s *StatementScope) deparseRoutine(c *exec.Context, signature functions.DeparseSignature, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+func deparseRoutine(h CatalogHost, c *exec.Context, signature functions.DeparseSignature, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	id, err := value.OID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	view := s.Inquiry.CommentCatalog
+	view, _ := h.CommentSnapshot()
 	d, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(id)})
 	if !ok || signature == functions.DeparseFunctionResult && d.RoutineKind == catalog.ProcedureRoutine {
 		return sqltype.Null(result), nil
 	}
 	if signature == functions.DeparseFunction && d.RoutineKind == catalog.AggregateRoutine {
-		return sqltype.Value{}, SQLError("42809", fmt.Sprintf("\"%s\" is an aggregate function", d.Name()))
+		return sqltype.Value{}, sqlError("42809", fmt.Sprintf("\"%s\" is an aggregate function", d.Name()))
 	}
-	in := s.deparseInputs()
+	in := h.DeparseInputs()
 	r := routineInquiry{Deparser: stored.Deparser{View: view, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner, RoutineDeclaration: true}}
-	r.runtime = catalogrt.Runtime{View: s.Inquiry.deparseAuth.View, Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
+	r.runtime = catalogrt.Runtime{View: h.DeparseView(), Presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings, TemporaryOwner: in.TemporaryOwner}}
 	var text string
 	switch signature {
 	case functions.DeparseFunctionArguments, functions.DeparseFunctionIdentityArguments:

@@ -1,36 +1,62 @@
 package core
 
 import (
-	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
-func (h *sessionInquiryHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := h.scope()
-	results := scope.Inquiry.searchPathResults
-	if scope.Inquiry.searchPathResults[0].Type() == nil || scope.ForeignActionAuth != nil || scope.ruleAction.Auth != nil {
-		engine := scope.Engine()
-		engine.Mu.Lock()
-		defer engine.Mu.Unlock()
-		auth, explicit, err := scope.schemaInquiryPathLocked(engine)
+func IdentityValue(h SessionInquiryHost, c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+	identity, err := h.ExpressionIdentity(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if kind != functions.IdentityCurrentSchema {
+		return identity.Value(kind)
+	}
+	cache := h.CurrentSchemaResult()
+	if h.InquiryCacheable() && cache.Type() != nil {
+		return *cache, nil
+	}
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	read, path, err := h.CurrentSchemaPathLocked()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	resultValue := sqltype.Null(result)
+	if len(path) > 0 {
+		resultValue = sqltype.String(result, read.Get(path[0]).Name())
+	}
+	if h.InquiryCacheable() {
+		*cache = resultValue
+	}
+	return resultValue, nil
+}
+
+func CurrentSchemas(h SessionInquiryHost, implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	cache := h.SearchPathResults()
+	results := *cache
+	if results[0].Type() == nil || !h.InquiryCacheable() {
+		h.ReacquireEngine()
+		defer h.ReleaseEngineLocked()
+		read, paths, err := h.SearchPathsLocked()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		effective := EffectivePath(auth, explicit, analyze.RelationLookup)
-		names := make([]string, len(effective))
-		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
+		names := make([]string, len(paths[1]))
+		for i, path := range paths {
 			for j, a := range path {
-				names[j] = auth.Catalog.Get(a).Name()
+				names[j] = read.Get(a).Name()
 			}
 			results[i], err = sqltype.Names(result, names[:len(path)])
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 		}
-		if scope.ForeignActionAuth == nil && scope.ruleAction.Auth == nil {
-			scope.Inquiry.searchPathResults = results
+		if h.InquiryCacheable() {
+			*cache = results
 		}
 	}
 	if implicit {
@@ -39,44 +65,34 @@ func (h *sessionInquiryHost) CurrentSchemas(implicit bool, result *sqltype.Descr
 	return results[0], nil
 }
 
-func (h *sessionInquiryHost) MyTempNamespace() (uint32, error) {
-	scope := h.scope()
-	engine := scope.Engine()
-	engine.Mu.Lock()
-	defer engine.Mu.Unlock()
-	auth, err := scope.namespaceAuthorizationLocked(engine)
+func MyTempNamespace(h SessionInquiryHost) (uint32, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	namespace, err := h.TemporaryNamespaceLocked()
 	if err != nil {
 		return 0, err
 	}
-	return uint32(temporaryNamespace(auth).ObjectID), nil
+	return uint32(namespace.ObjectID), nil
 }
 
-func (h *sessionInquiryHost) OtherTempNamespace(oid uint32) (bool, error) {
-	scope := h.scope()
-	engine := scope.Engine()
-	engine.Mu.Lock()
-	defer engine.Mu.Unlock()
-	auth, err := scope.namespaceAuthorizationLocked(engine)
+func OtherTempNamespace(h SessionInquiryHost, oid uint32) (bool, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	read, owner, err := h.NamespaceSessionLocked()
 	if err != nil {
 		return false, err
 	}
-	ns, _ := auth.Catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
-	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.Session.SessionToken, nil
+	ns, _ := read.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
+	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != owner.SessionToken, nil
 }
 
-func (h *sessionInquiryHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	if err := session.ValidateOperation(DomainOf(e), scope.Op); err != nil {
-		e.Mu.Unlock()
+func ListeningChannels(h SessionInquiryHost, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	h.ReacquireEngine()
+	channels, err := h.ListeningChannelsLocked()
+	h.ReleaseEngineLocked()
+	if err != nil {
 		return nil, err
 	}
-	var channels map[string]struct{}
-	if state := PayloadOf(scope.Op.Session).notifications.State; state != nil {
-		channels = state.Channels
-	}
-	e.Mu.Unlock()
 	if len(channels) == 0 {
 		return nil, nil
 	}
@@ -89,13 +105,8 @@ func (h *sessionInquiryHost) ListeningChannels(result *sqltype.Descriptor) ([]sq
 	return values, nil
 }
 
-func (h *sessionInquiryHost) NotificationQueueUsage() (float64, error) {
-	scope := h.scope()
-	e := scope.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	if err := session.ValidateOperation(DomainOf(e), scope.Op); err != nil {
-		return 0, err
-	}
-	return e.notificationQueueUsageLocked(), nil
+func NotificationQueueUsage(h SessionInquiryHost) (float64, error) {
+	h.ReacquireEngine()
+	defer h.ReleaseEngineLocked()
+	return h.NotificationQueueUsageLocked()
 }

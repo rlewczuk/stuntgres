@@ -9,15 +9,13 @@ import (
 )
 
 // DatabaseFilesInquiry answers catalog-only absence, never inventing physical storage.
-func (h *catalogInquiryHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
- s := h.scope()
- if err := s.Op.Context().Err(); err != nil { return sqltype.Value{}, err }
- e := s.Engine()
- e.Mu.Lock()
- defer e.Mu.Unlock()
- retained, err := h.host().catalogInquiryCatalog()
+func DatabaseFilesInquiry(h CatalogHost, kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+ if err := h.Operation().Context().Err(); err != nil { return sqltype.Value{}, err }
+ h.ReacquireEngine()
+ defer h.ReleaseEngineLocked()
+ retained, err := h.InquiryCatalog()
  if err != nil { return sqltype.Value{}, err }
- if retained.Epoch() != e.Catalog.State.Epoch() { return sqltype.Value{}, ids.ErrCatalogReplaced }
+ if retained.Epoch() != h.CatalogEpochLocked() { return sqltype.Value{}, ids.ErrCatalogReplaced }
  if kind == functions.FilenodeRelation {
   if _, err := arg.OID(); err != nil { return sqltype.Value{}, err }
   if _, err := second.OID(); err != nil { return sqltype.Value{}, err }
@@ -27,13 +25,13 @@ func (h *catalogInquiryHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKi
  if kind != functions.RelationFilenode && kind != functions.RelationFilepath { return sqltype.Value{}, fmt.Errorf("stuntgres: invalid database files inquiry kind") }
  oid, err := arg.ClassOID()
  if err != nil { return sqltype.Value{}, err }
- view := e.PrivateCatalogLocked(s.PendingCatalog())
+ view := h.PrivateCatalogLocked(h.PendingCatalog())
  relation, found := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
  if !found { return sqltype.Null(result), nil }
  switch pgcatalog.ClassKind(view, relation) {
  case "r", "i", "S", "t", "m":
-  if kind == functions.RelationFilenode { return sqltype.Value{}, SQLError("0A000", "pg_relation_filenode is not supported: the embedded engine has no physical PostgreSQL relation filenode mapping") }
-  return sqltype.Value{}, SQLError("0A000", "pg_relation_filepath is not supported: the embedded engine has no physical PostgreSQL relation file paths")
+  if kind == functions.RelationFilenode { return sqltype.Value{}, sqlError("0A000", "pg_relation_filenode is not supported: the embedded engine has no physical PostgreSQL relation filenode mapping") }
+  return sqltype.Value{}, sqlError("0A000", "pg_relation_filepath is not supported: the embedded engine has no physical PostgreSQL relation file paths")
  default:
   return sqltype.Null(result), nil
  }
