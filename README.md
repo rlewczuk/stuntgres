@@ -374,6 +374,11 @@ stable and volatile functions are permitted, without evaluating them at CREATE.
 automatic. `DROP STATISTICS` supports conditional and dependency modes.
 Definitions appear in `pg_statistic_ext`, including genuine `stxexprs` trees;
 `pg_get_expr` resolves renamed inputs from their retained attribute identities.
+`pg_get_statisticsobjdef(oid)` reconstructs each statistics declaration from its
+current schema, name, kinds, stable columns and original bound expressions.
+Relation visibility and identifier quoting follow the executing session; a
+missing statistics identity returns SQL NULL. Renaming inputs changes the
+reconstructed definition without evaluating its expressions.
 `ALTER STATISTICS` renames, moves schemas and transfers ownership with ordinary
 owner, schema CREATE and SET ROLE authorization. These metadata changes preserve
 the object identity, bound expressions and existing collected values.

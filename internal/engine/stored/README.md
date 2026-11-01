@@ -46,6 +46,10 @@ deparse owners. Replacement remaps relation/input/provider references and both
 definition and execution trees before validating destination usages; it never
 retains source OID authority or rebinds a rendered expression during ANALYZE.
 Ordinary descriptor owner/target/name changes share immutable recipe identity.
+`Deparser.StatisticsElement` presents definition trees with reduced internal
+parentheses and typed function-shape classification. It reuses `FunctionSyntax`
+and accepted rendering forms (operators remain grouped), follows transparent
+implicit conversions and never evaluates or substitutes execution trees.
 Type-only normalization uses the existing routine-declaration change preflight:
 unchanged callable declarations retain their original identity rather than an
 operation-local clone. The complete expression mapper still checks hidden
@@ -1344,6 +1348,8 @@ Trigger definition invariants, alias identity and remap ownership use
 `RUN='^TestTriggerTransition(Definition|Remap)$'`.
 Symbolic query-leaf remap/retag ownership and persistent capture rejection use
 `RUN='^TestNamedRelationStored'`.
+Statistics expression grouping and canonical presentation use
+`RUN='^TestDeparseStatistics'`.
 
 SQL-free constraint definition identity, owned backing, clone and destination-remap
 units use `RUN='^TestTriggerDeferredDefinition$'`.

@@ -881,6 +881,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{1387, ids.PGCatalogNamespaceOID, "pg_get_constraintdef", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3352, ids.PGCatalogNamespaceOID, "pg_get_partkeydef", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{3408, ids.PGCatalogNamespaceOID, "pg_get_partition_constraintdef", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
+	{catalog.RoutineIdentity{3415, ids.PGCatalogNamespaceOID, "pg_get_statisticsobjdef", "26"}, catalog.FunctionRoutine, 25, true, expr.Stable, 's', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	{catalog.RoutineIdentity{1390, ids.PGCatalogNamespaceOID, "isfinite", "1186"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.DatetimeRoutineProvider, nil},
 	{catalog.RoutineIdentity{1394, ids.PGCatalogNamespaceOID, "abs", "700"}, catalog.FunctionRoutine, 700, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider, nil},
 	{catalog.RoutineIdentity{1395, ids.PGCatalogNamespaceOID, "abs", "701"}, catalog.FunctionRoutine, 701, true, expr.Immutable, 's', false, 0, 0, functions.MathRoutineProvider, nil},

@@ -13,6 +13,11 @@ catalog-row supplement or identity-ledger lookup manufactures a target descripto
 or callable capability. Estimators retain their exact INTERNAL formals and stable,
 strict, parallel-safe declarations without exposing scalar execution.
 
+The executable `pg_get_statisticsobjdef` declaration is routine 3415, one OID
+formal and nullable TEXT result, strict STABLE and parallel-safe under the
+ordinary catalog inquiry provider. Its internal display source matches its SQL
+name; no named formal or pretty overload is declared.
+
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
 row estimate describe the backing view routine, not a callable SRF. Its explicit

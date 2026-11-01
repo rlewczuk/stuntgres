@@ -31,6 +31,7 @@ func TestDeparseRoutineAssociation(t *testing.T) {
 		{2162, "pg_get_function_arguments", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_arguments", functions.DeparseFunctionArguments},
 		{2232, "pg_get_function_identity_arguments", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_identity_arguments", functions.DeparseFunctionIdentityArguments},
 		{2165, "pg_get_function_result", "26", []sqltype.ID{sqltype.Oid}, "pg_get_function_result", functions.DeparseFunctionResult},
+		{3415, "pg_get_statisticsobjdef", "26", []sqltype.ID{sqltype.Oid}, "pg_get_statisticsobjdef", functions.DeparseStatistics},
 	} {
 		t.Run(tc.source, func(t *testing.T) {
 			// Successful typed binding uses this exact provider/formal lookup even

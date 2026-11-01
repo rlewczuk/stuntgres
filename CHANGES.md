@@ -1,5 +1,10 @@
 # Changes
 
+- Add `pg_get_statisticsobjdef(oid)` through typed binding and nullable TEXT
+  results, reconstructing authoritative extended-statistics definitions with
+  current names, expression syntax, visibility and quoting. Existing native
+  Dump/Restore preserves definitions and stored calls without a new serializer.
+
 - Complete raw `pg_catalog.pg_foreign_table` capture with a dedicated,
   authority-checked producer, declared rank-one text options, nullable bootstrap
   attribute facts and source-owned logical index presence. Only defined foreign

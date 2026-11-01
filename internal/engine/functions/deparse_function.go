@@ -32,6 +32,7 @@ const (
 	DeparseFunctionResult
 	DeparsePartitionConstraint
 	DeparsePartitionKey
+	DeparseStatistics
 )
 
 type deparseSignatureDefinition struct {
@@ -62,6 +63,7 @@ var deparseSignatures = [...]deparseSignatureDefinition{
 	{"pg_get_function_result", []sqltype.ID{sqltype.Oid}},
 	{"pg_get_partition_constraintdef", []sqltype.ID{sqltype.Oid}},
 	{"pg_get_partkeydef", []sqltype.ID{sqltype.Oid}},
+	{"pg_get_statisticsobjdef", []sqltype.ID{sqltype.Oid}},
 }
 
 type Deparse struct {

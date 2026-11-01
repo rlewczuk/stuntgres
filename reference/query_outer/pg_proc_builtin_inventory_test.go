@@ -28,6 +28,8 @@ import (
 // cost 10, strict/stable/parallel-safe metadata through the same inventory.
 // The two one-OID partition inquiries retain the released strict/stable/
 // parallel-safe scalar TEXT metadata and unnamed input formals.
+// Statistics definition inquiry OID3415 uses the same one-OID strict/STABLE/
+// parallel-safe TEXT contract and unnamed input formal.
 // The two publication inquiries retain released variadic/output formals,
 // strict/stable/parallel-safe metadata and fixed scalar/set-returning types.
 // The four XML predicate identities 2614/3051/3052/3053 retain strict scalar BOOL
@@ -189,8 +191,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Exported snapshots add the released zero-argument TEXT declaration OID3809.
 	// Four XPath declarations add the two internal implementations and two
 	// released SQL wrapper bodies.
-	if len(facts) != 2181 {
-		t.Fatalf("released represented overloads: got %d, want 2181", len(facts))
+	// Statistics definition introspection adds the one-OID TEXT declaration3415.
+	if len(facts) != 2182 {
+		t.Fatalf("released represented overloads: got %d, want 2182", len(facts))
 	}
 	return facts
 }

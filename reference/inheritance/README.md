@@ -61,6 +61,11 @@ pre-canceled utilities and gated
 external I/O with live statistics definitions. Their family
 selector is `make check RUN='^TestReferenceStatisticsObject'` in either mode.
 Collected statistics remain independently owned.
+Statistics definition reconstruction owns exact current-name, kind/expression,
+visibility/quoting, nullable TEXT, resolution diagnostics and held-execution
+witnesses, including genuine native dump replay and destination identity lookup.
+Select this public dual-mode family with
+`make check RUN='^TestReferenceDeparseStatistics'` (add `REFERENCE=1`).
 Statistics adapter metadata is asserted independently: native database type names
 are exact, while lib/pq returns an empty name for the three unknown statistics
 OIDs. Catalog type identities remain exact; numeric cross-adapter OID witnesses

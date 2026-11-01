@@ -12,6 +12,7 @@
 3053	xml_is_well_formed_content	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	25	\N	\N	\N	false	\N	xml_is_well_formed_content	\N	false	\N
 3352	pg_get_partkeydef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partkeydef	\N	false	\N
 3408	pg_get_partition_constraintdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_partition_constraintdef	\N	false	\N
+3415	pg_get_statisticsobjdef	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	25	26	\N	\N	\N	false	\N	pg_get_statisticsobjdef	\N	false	\N
 3689	ts_stat	11	12	10	10000	0	0	f	false	false	true	true	v	u	1	0	2249	25	{25,25,23,23}	{i,o,o,o}	{query,word,ndoc,nentry}	false	\N	ts_stat1	\N	false	\N
 3690	ts_stat	11	12	10	10000	0	0	f	false	false	true	true	v	u	2	0	2249	25 25	{25,25,25,23,23}	{i,i,o,o,o}	{query,weights,word,ndoc,nentry}	false	\N	ts_stat2	\N	false	\N
 3779	pg_create_physical_replication_slot	11	12	1	0	0	0	f	false	false	true	false	v	u	3	2	2249	19 16 16	{19,16,16,19,3220}	{i,i,i,o,o}	{slot_name,immediately_reserve,temporary,slot_name,lsn}	true	\N	pg_create_physical_replication_slot	\N	false	\N

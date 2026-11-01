@@ -60,6 +60,8 @@ func Deparse(c *exec.Context, in DeparseInputs, signature functions.DeparseSigna
 	switch signature {
 	case functions.DeparseTrigger, functions.DeparseTriggerPretty, functions.DeparseRule, functions.DeparseRulePretty:
 		return deparseRewrite(c, in, signature, values, result, renderer)
+	case functions.DeparseStatistics:
+		return deparseStatistics(c, in, values, result)
 	}
 	idx := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {

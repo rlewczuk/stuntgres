@@ -356,7 +356,7 @@ call live here.
   (OID-ordered provider lock requests the root takes and rechecks under
   `Engine.Mu`), `Deparse` (`pg_get_constraintdef`, `pg_get_expr`,
   `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`,
-  `pg_get_triggerdef`, `pg_get_ruledef`),
+  `pg_get_triggerdef`, `pg_get_ruledef`, `pg_get_statisticsobjdef`),
   `ValidateSelectedDomainRows`, `Target`/`AdmitTarget` (each statement kind
   belongs to exactly one `TargetEntry`, so entry order cannot change a result;
   non-relation ownership, including statistics and numeric large-object ownership,
@@ -379,6 +379,12 @@ call live here.
   bootstrap return rules. A bootstrap rule uses the captured default/pretty body
   callback, never executable view admission. Missing advertised body authority
   is an invariant error, not missing-object NULL.
+  Statistics inquiries dispatch by class before positional relation routing.
+  The captured statistics provider validates descriptor, owner and relation
+  authority; current stable attributes and immutable definition expressions
+  render through `stored.Deparser`. Object names are qualified, relation names
+  follow visibility, and missing identities return typed TEXT NULL. This path
+  neither evaluates expressions nor borrows the dump serializer.
   `TemporaryOwner` captures only the existing session token: qualified own-TEMP
   targets use `pg_temp`, foreign-session TEMP retains its actual namespace,
   and pretty first honors relation visibility. Naming never calls the lazy
@@ -526,6 +532,8 @@ TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 `REFERENCE=1` for the oracle.
 SQL-free trigger-owned constraint name/rename/drop units use
 `RUN='^TestTriggerDeferredConstraint'`.
+SQL-free statistics captured-authority and expression-presentation units use
+`RUN='^TestDeparseStatistics'`.
 
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'
