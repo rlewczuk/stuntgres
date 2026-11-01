@@ -115,8 +115,9 @@ func (c *serverCopyInputConn) Read(dst []byte) (int, error) {
 	}
 }
 
-// PostgreSQL exposes its actual socket-read wait. Native publishes G within
-// the caller-owned first-record hold established before Start; neither
+// PostgreSQL exposes its actual socket-read wait. Native publishes G from the
+// decoder's first input read for line 1, inside the first-record hold, so a
+// frontend holding G already observes native's ClientRead equivalent. Neither
 // CancelRequest EOF nor elapsed time is an executor acknowledgement.
 func serverObserveCopyInput(t *testing.T, f *fixture.ServerFixture, b fixture.Backend, w *serverWire) {
 	t.Helper()

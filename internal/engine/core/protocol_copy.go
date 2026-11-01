@@ -28,7 +28,9 @@ type CopyProtocolHooks struct {
 	FinishInput func() error
 }
 
-func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, options copyfmt.Options, columns int) error {
+// protocolCopyStart returns the frontend start publication, or nil without a
+// Start hook. Callers run it inside copyIO.
+func protocolCopyStart(hooks CopyProtocolHooks, from bool, options copyfmt.Options, columns int) func() error {
 	if hooks.Start == nil {
 		return nil
 	}
@@ -40,9 +42,17 @@ func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, o
 	for i := range formats {
 		formats[i] = format
 	}
-	_, err := s.copyIO(func() (int, error) {
-		return 0, hooks.Start(CopyProtocolMetadata{From: from, Format: format, ColumnFormats: formats})
-	})
+	return func() error {
+		return hooks.Start(CopyProtocolMetadata{From: from, Format: format, ColumnFormats: formats})
+	}
+}
+
+func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, options copyfmt.Options, columns int) error {
+	start := protocolCopyStart(hooks, from, options, columns)
+	if start == nil {
+		return nil
+	}
+	_, err := s.copyIO(func() (int, error) { return 0, start() })
 	return err
 }
 

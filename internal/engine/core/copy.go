@@ -288,22 +288,20 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		exec.RowCursor
 		Diagnostic(error) error
 	}
+	input := &copyReader{scope: s, source: source, start: protocolCopyStart(hooks, true, options, len(b.Targets))}
 	if options.Format == copyfmt.Binary {
-		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(copyReader{s, source})))
+		cursor = dml.NewCopyBinaryCursor(h, b, copyfmt.NewBinaryReader(bufio.NewReader(input)))
 	} else {
-		converted := sqltype.NewEncodingReader(copyReader{s, source}, options.Conversion, s.Op.Context)
+		converted := sqltype.NewEncodingReader(input, options.Conversion, s.Op.Context)
 		cursor = dml.NewCopyCursor(h, b, copyfmt.NewLineReader(options, bufio.NewReader(converted), dml.CopyLineTargets(b)), state)
 	}
 	rows, err := func() (index.WriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
 			s.Op.CopyInput.Active.Store(true)
 			// CopyInResponse permits immediate frontend cancellation. Install
-			// the first-record hold before its external start hook can send it.
+			// the first-record hold before the first input read sends it.
 			s.Op.CopyInput.Decoding.Store(true)
 			defer s.Op.StopCopyInput()
-		}
-		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
-			return index.WriteBatch{}, err
 		}
 		rows, err := dml.AssembleInsertRows(s.Op.Context(), b, cursor, -1, schema, s.Input, s.Output, h, len(unique.Keys) != 0 || unique.Checked, nil, nil)
 		if err == nil {

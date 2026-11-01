@@ -74,13 +74,29 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 	return call()
 }
 
+// copyReader reads frontend COPY input. A pending start publishes
+// CopyInResponse inside the first read's copyIO: the decoder has already begun
+// record 1 when the frontend can send data, cancel or terminate, as
+// PostgreSQL waits in ClientRead for line 1 after CopyInResponse.
 type copyReader struct {
 	scope  *StatementScope
 	source io.Reader
+	start  func() error
 }
 
-func (r copyReader) Read(p []byte) (int, error) {
+func (r *copyReader) Read(p []byte) (int, error) {
 	return r.scope.copyIO(func() (int, error) {
+		if start := r.start; start != nil {
+			r.start = nil
+			if err := start(); err != nil {
+				return 0, err
+			}
+			// Cancellation during the publication wins before input is
+			// consumed; the first-record hold still masks a user cancel.
+			if err := r.scope.Op.Context().Err(); err != nil {
+				return 0, err
+			}
+		}
 		n, err := r.source.Read(p)
 		if n > 0 {
 			r.scope.copyProgress.bytes.Add(int64(n))

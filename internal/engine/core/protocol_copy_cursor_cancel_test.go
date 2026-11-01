@@ -161,9 +161,12 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 	}{
 		{name: "ordinary_cancel", input: "bad\n", cause: context.Canceled},
 		{
+			// Start runs inside the first input read, as PostgreSQL waits in
+			// ClientRead for line 1 after CopyInResponse.
 			name: "terminal_cancel", input: "bad\n", code: "57P01",
-			message: "terminating connection due to administrator command",
-			cause:   &sqlstate.Error{Severity: "FATAL", Code: "57P01", Message: "terminating connection due to administrator command"},
+			message:    "terminating connection due to administrator command",
+			rowContext: "COPY t, line 1",
+			cause:      &sqlstate.Error{Severity: "FATAL", Code: "57P01", Message: "terminating connection due to administrator command"},
 		},
 		{
 			name: "before_admission", input: "bad\n", before: true, code: "57014",
