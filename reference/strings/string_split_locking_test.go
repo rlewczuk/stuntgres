@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceStringSplitLocking(t *testing.T) {
@@ -100,7 +99,7 @@ func TestReferenceStringSplitLocking(t *testing.T) {
 						tail = " ON TRUE"
 					}
 					q := "SELECT " + selectList + " FROM split_lock p" + join + tc.from + tail + " WHERE p.id=1" + tc.extra + " ORDER BY f.n,nextval('s') FOR UPDATE OF p"
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					done := fixture.RowAsync(t, ctx, reader, q, prepared, true, b.Recorder.RawBackend)
 					// Both are public pre-release observations, not assumed queue timing.
