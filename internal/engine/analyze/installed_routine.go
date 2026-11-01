@@ -30,17 +30,18 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	earth := family == functions.EarthdistanceExtension
 	pgstats := family == functions.PgstattupleExtension && signature == ""
 	spatial := family == functions.CubeExtension && signature == ""
+	crosstab := family == functions.TablefuncExtension && signature == ""
 	if spatial {
 		if _, selected := sqltype.CubeSpatialKind(text); !selected {
 			return nil, nil
 		}
 	}
 	var proc *catalog.Procedure
-	if selected := b.Clause.selectedProcedure; selected != nil && family == functions.TablefuncExtension && string(selected.Signature) != signature {
+	if selected := b.Clause.selectedProcedure; selected != nil && family == functions.TablefuncExtension && !crosstab && string(selected.Signature) != signature {
 		return nil, nil
 	}
 	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil {
-		if !(string(selected.Signature) == signature || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
+		if !(string(selected.Signature) == signature || crosstab && extension.TablefuncProviderOf(selected) == extension.StockTablefunc || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
 			return nil, nil
 		}
 		binding, failure := extension.ProcedureBindingName(auth.ReadCatalog(), selected)
@@ -172,6 +173,10 @@ type installedExtensionRoutine struct {
 	binder    *Binder
 	catalog   catalog.Read
 	procedure *catalog.Procedure
+}
+
+func (r installedExtensionRoutine) TablefuncCrosstabSignature() string {
+	return string(r.procedure.Signature)
 }
 
 func (r installedExtensionRoutine) Validate() error {

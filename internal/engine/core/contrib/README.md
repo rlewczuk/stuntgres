@@ -299,16 +299,18 @@ outside metadata locks. Sequence descriptors use their real physical columns.
 ### crosstab
 
 The crosstab statement host validates the captured procedure against current
-authority before argument evaluation, including strict-NULL calls. Nested source
-SQL borrows the existing SQL-routine activation, caller catalog/visibility and
-effective settings, with an isolated parameter frame. The whole SQL string is
-prepared; only admitted non-volatile commands execute, and the last result owns
-the pivot input. Each executed command has its own SQL-routine activation, so
-expected analysis, relation admission and source authority from an earlier
-command cannot authorize a later command. Commands share caller visibility,
-catalog frontier and effective settings, not query scratch. Every exit closes
-cursors and restores activation scratch. Parsing, typed codecs and source
-execution run outside `Engine.Mu`.
+authority before argument evaluation, including strict-NULL calls. Nested SQL
+borrows the existing SQL-routine activation, caller catalog/visibility and
+effective settings, with an isolated parameter frame. Hash calls first validate
+the minimum result width, fully execute and validate category SQL, then execute
+source SQL. Each string is prepared in full and has its own activation; only
+admitted non-volatile commands execute, and its last result supplies rows.
+Each command also owns fresh expected analysis, relation admission and source
+authority, so neither an earlier command nor the category query can authorize
+later source execution. Commands share caller visibility, catalog frontier and
+effective settings, not query scratch. Every exit closes cursors and restores
+activation scratch. Parsing, typed codecs and source execution run outside
+`Engine.Mu`.
 
 ### amcheck, connectby
 

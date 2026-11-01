@@ -216,7 +216,7 @@ func TestTablefuncCrosstabActivationCleanup(t *testing.T) {
 		"SELECT 1; SELECT k,category,v FROM ct_activation",
 		"SELECT k,category,v FROM ct_activation; SELECT 1; SELECT k,category,v FROM ct_activation",
 	} {
-		values, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, n.Usage.Type)
+		values, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, "", false, n.Usage.Type)
 		if err != nil || len(values) != 1 {
 			t.Fatal("multiple command source failed", source, len(values), err)
 		}
@@ -229,7 +229,7 @@ func TestTablefuncCrosstabActivationCleanup(t *testing.T) {
 		}
 	}
 	for _, source := range []string{"SELECT missing_ct", "SELECT )", "SHOW work_mem", "DELETE FROM missing_ct", "SELECT k,category,v FROM ct_activation; SHOW work_mem"} {
-		if _, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, n.Usage.Type); err == nil {
+		if _, err := scope.WriteHost().Contrib().TablefuncCrosstab(source, "", false, n.Usage.Type); err == nil {
 			t.Fatal("invalid source succeeded", source)
 		}
 		if !unchanged() {
@@ -288,13 +288,15 @@ func TestTablefuncCrosstabControlExpressionIdentity(t *testing.T) {
 
 func TestTablefuncCrosstabMutableMembershipIdentity(t *testing.T) {
 	for _, tc := range []struct{ name, signature string }{
-		{"crosstab", "text"}, {"crosstab2", "text"}, {"crosstab3", "text"}, {"crosstab4", "text"}, {"crosstab", "text,integer"},
+		{"crosstab", "text"}, {"crosstab2", "text"}, {"crosstab3", "text"}, {"crosstab4", "text"}, {"crosstab", "text,integer"}, {"crosstab", "text,text"},
 	} {
 		t.Run(tc.name+"("+tc.signature+")", func(t *testing.T) {
 			name := tc.name
 			var extra []parser.Expr
-			if tc.signature != "text" {
+			if tc.signature == "text,integer" {
 				extra = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 3}}}
+			} else if tc.signature == "text,text" {
+				extra = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "SELECT 0"}}}
 			}
 			e := engine.New()
 			crosstabUnitInstalled(t, e)
@@ -365,6 +367,11 @@ func TestTablefuncCrosstabMutableMembershipIdentity(t *testing.T) {
 }
 
 func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
+	crosstabPreparedOwnership(t, false)
+}
+
+func crosstabPreparedOwnership(t *testing.T, categories bool) {
+	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, s, "CREATE EXTENSION tablefunc")
@@ -372,7 +379,11 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 	cycle := s.NewProtocolCycle()
 	command := func(fn func(*core.StatementScope) error) { enginetest.PreparedFoldProtocolCommand(t, e, s, cycle, fn) }
 	command(func(scope *core.StatementScope) error {
-		_, err := scope.ParseProtocol("ct_definition", "SELECT * FROM crosstab3('SELECT missing_ct')", nil)
+		query := "SELECT * FROM crosstab3('SELECT missing_ct')"
+		if categories {
+			query = "SELECT * FROM crosstab('SELECT missing_ct'::text || COALESCE(-(7::integer),0)::text,'SELECT 0'::text) AS t(k text,v text)"
+		}
+		_, err := scope.ParseProtocol("ct_definition", query, nil)
 		return err
 	})
 	registry := core.PayloadOf(s).PreparedSQL
@@ -381,6 +392,9 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 		t.Fatal("missing real prepared definition owner")
 	}
 	owner := definition.Description.Folds
+	if owner.Current().Generation != 0 || len(owner.Current().Entries) != 0 {
+		t.Fatal("Parse evaluated crosstab children")
+	}
 	command(func(scope *core.StatementScope) error {
 		_, err := scope.BindProtocolPortal("ct_binding", "ct_definition", &enginetest.ProtocolReader{Data: []byte{0, 0, 0, 0, 0, 0}})
 		return err
@@ -388,6 +402,50 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 	binding := registry.Binding("ct_binding")
 	if binding == nil || binding.Entry.Description.Folds != owner || binding.Resource == nil || binding.Resource.Root == nil {
 		t.Fatal("binding lost definition/private graph")
+	}
+	accepted := owner.Current()
+	if binding.Folds == nil || binding.Folds.Generation != accepted.Generation || len(binding.Folds.Entries) != len(accepted.Entries) {
+		t.Fatal("binding lost accepted fold generation")
+	}
+	if len(accepted.Entries) != 0 && &binding.Folds.Entries[0] != &accepted.Entries[0] {
+		t.Fatal("binding copied immutable fold backing")
+	}
+	if categories && len(accepted.Entries) == 0 {
+		t.Fatal("missing actual immutable child-fold backing")
+	}
+	var child exec.FoldConstant
+	childIndex := -1
+	var childInputs []exec.FoldInput
+	if categories {
+		child = enginetest.PreparedFoldEntry(t, definition.Description, sqltype.Int4, "-7")
+		if child.Source == (expr.FoldSourceOccurrence{}) || child.Frame != child.Source.Frame || len(child.Inputs) == 0 {
+			t.Fatal("accepted unary source child lost provenance or immutable inputs")
+		}
+		provider, ok := child.Callable.(*catalog.Procedure)
+		if !ok || provider.Volatility != expr.Immutable {
+			t.Fatal("accepted source child lost its genuine immutable provider")
+		}
+		if _, err := exec.ValidateStoredRoutineDescriptor(e.CatalogRead(), provider); err != nil {
+			t.Fatal("accepted source child provider is not current", err)
+		}
+		inputSeven := false
+		for _, input := range child.Inputs {
+			if input.Value.Type() != nil && input.Value.Type().ID() == sqltype.Int4 {
+				value, err := input.Value.Integer()
+				if err == nil && value == 7 { inputSeven = true }
+			}
+		}
+		if !inputSeven { t.Fatal("accepted unary source child lost typed input seven") }
+		for i, entry := range accepted.Entries {
+			if enginetest.SamePublishedFold(entry, child) {
+				childIndex = i
+				break
+			}
+		}
+		if childIndex < 0 || &binding.Folds.Entries[childIndex].Inputs[0] != &child.Inputs[0] {
+			t.Fatal("binding did not retain actual accepted child input backing")
+		}
+		childInputs = append([]exec.FoldInput(nil), child.Inputs...)
 	}
 	var captured *plan.InstalledTablefuncCrosstabExpr
 	plan.VisitExecutableQuery(binding.Resource.Root, func(plan.Node) {}, func(node expr.Expr) {
@@ -404,13 +462,58 @@ func TestTablefuncCrosstabPreparedOwnership(t *testing.T) {
 	if err := stored.ValidateInstalledTablefuncCrosstab(*captured, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
+	if captured.Categories != categories {
+		t.Fatal("accepted graph lost selected crosstab mode")
+	}
+	children := append([]expr.Expr(nil), captured.Args...)
 	graph := binding.Resource.Root
+	var publication *core.FoldPublication
+	if categories {
+		op, err := s.Acquire(t.Context())
+		if err != nil { t.Fatal(err) }
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		if err == nil {
+			var environment core.PreparedEnvironment
+			environment, err = e.PreparedEnvironmentLocked(auth, true)
+			if err == nil {
+				publication, err = core.BeginFoldPublication(&definition.Description, definition.Body, environment, auth.Catalog, nil)
+			}
+		}
+		e.Mu.Unlock()
+		op.Done()
+		if err != nil || publication == nil { t.Fatal("missing actual next publication", publication, err) }
+	}
 	command(func(scope *core.StatementScope) error { return scope.CloseProtocolStatement("ct_definition") })
 	if owner.Live() || binding.Retired || binding.Resource.Root != graph {
 		t.Fatal("definition retirement changed accepted graph or retained publication rights")
 	}
+	if !reflect.DeepEqual(children, captured.Args) || binding.Folds.Generation != accepted.Generation {
+		t.Fatal("definition retirement mutated accepted arguments or generation")
+	}
 	if captured.Usage.Type == nil || captured.RoutineReference != captured.Procedure {
 		t.Fatal("accepted capture lost original result/provider")
+	}
+	if categories {
+		retired := owner.Current()
+		op, err := s.Acquire(t.Context())
+		if err != nil { t.Fatal(err) }
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		if err == nil {
+			var environment core.PreparedEnvironment
+			environment, err = e.PreparedEnvironmentLocked(auth, true)
+			if err == nil { err = publication.Accept(op.Ctx, auth.Catalog, environment, e.Catalog.State.Epoch()) }
+		}
+		e.Mu.Unlock()
+		op.Done()
+		after := owner.Current()
+		if !errors.Is(err, ids.ErrCatalogReplaced) || publication.Group.Sealed || after.Generation != retired.Generation || binding.Resource.Root != graph || binding.Folds.Generation != accepted.Generation || &binding.Folds.Entries[0] != &accepted.Entries[0] || !reflect.DeepEqual(children, captured.Args) {
+			t.Fatal("rejected publication mutated retired owner or accepted backing", err)
+		}
+		if !enginetest.SamePublishedFold(binding.Folds.Entries[childIndex], child) || &binding.Folds.Entries[childIndex].Inputs[0] != &child.Inputs[0] || !reflect.DeepEqual(binding.Folds.Entries[childIndex].Inputs, childInputs) {
+			t.Fatal("rejected publication mutated actual accepted unary child backing")
+		}
 	}
 	command(func(scope *core.StatementScope) error { return scope.CloseProtocolPortal("ct_binding") })
 	if !binding.Retired {

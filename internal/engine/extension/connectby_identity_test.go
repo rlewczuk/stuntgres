@@ -30,7 +30,7 @@ func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
 	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION tablefunc SCHEMA installed")
 	read := e.CatalogRead()
 	ext := read.MustExtension(read.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
-	if len(ext.Members) != 16 || !ext.Installation.Valid() || len(ext.Installation.Members) != 16 {
+	if len(ext.Members) != 17 || !ext.Installation.Valid() || len(ext.Installation.Members) != 17 {
 		t.Fatal("incomplete genuine tablefunc recipe", ext)
 	}
 	for slot, signature := range tablefuncSelectedSignatures {
@@ -44,6 +44,10 @@ func connectbyCatalog(t *testing.T) (catalog.Read, *catalog.Extension) {
 		if proc.Name() != name || string(proc.Signature) != signature || proc.Result != result || proc.Volatility != volatility || !proc.Strict || proc.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u', ReturnsSet: true, Rows: 1000}) || proc.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || !proc.Origin.Valid(proc.Address()) {
 			t.Fatal("independent released declaration mismatch", slot, proc)
 		}
+	}
+	hash := read.MustProcedure(ext.Installation.Members[16])
+	if hash.Name() != "crosstab" || hash.Signature != "25,25" || hash.Result != 2249 || hash.Display.Source != "crosstab_hash" || !hash.Strict || hash.Volatility != expr.Stable {
+		t.Fatal("appended category declaration", hash)
 	}
 	return read, ext
 }
@@ -139,8 +143,8 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(record.Members) != 16 {
-		t.Fatal("genuine sixteen-declaration metadata", record, found, err)
+	if err != nil || !found || len(record.Members) != 17 {
+		t.Fatal("genuine seventeen-declaration metadata", record, found, err)
 	}
 	// The appended crosstab inventory is independent of production manifests.
 	wants := []struct{ kind, name, signature string }{
@@ -155,8 +159,9 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 		{"procedure", "crosstab3", "pg_catalog.text"},
 		{"procedure", "crosstab4", "pg_catalog.text"},
 		{"procedure", "crosstab", "pg_catalog.text, integer"},
+		{"procedure", "crosstab", "pg_catalog.text, pg_catalog.text"},
 	}
-	seen := make([]bool, 16)
+	seen := make([]bool, 17)
 	for _, member := range record.Members {
 		if member.Declaration == nil || *member.Declaration < 0 || *member.Declaration >= len(seen) || seen[*member.Declaration] {
 			t.Fatal("invalid immutable owner inventory", member)
@@ -190,7 +195,7 @@ func TestTablefuncConnectbyOwnerCodec(t *testing.T) {
 		return err
 	}
 	if err := decodeImport(record); err != nil {
-		t.Fatal("composed sixteen-member owner record", err)
+		t.Fatal("composed seventeen-member owner record", err)
 	}
 	for _, kind := range []string{"count", "signature", "declaration", "version"} {
 		bad := record

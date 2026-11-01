@@ -36,7 +36,7 @@ func TestExtensionOwnershipCrosstabReplayCreators(t *testing.T) {
 			}
 			installed := source.CatalogRead()
 			ext := installed.MustExtension(installed.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
-			if len(ext.Installation.Declarations) != 16 {
+			if len(ext.Installation.Declarations) != 17 {
 				t.Fatal("incomplete genuine tablefunc recipe")
 			}
 			for n := 2; n <= 4; n++ {

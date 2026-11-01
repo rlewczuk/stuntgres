@@ -119,6 +119,11 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if name == "pgstatindex" || name == "pgstathashindex" || name == "pgstatginindex" || name == "pgstattuple" || name == "pgstattuple_approx" || name == "pg_relpages" || name == "pg_visibility_map" || name == "pg_visibility" || name == "pg_visibility_map_summary" {
 		providerOverride = true
 	}
+	// Crosstab binding consumes the ordinary selector's genuine signature even
+	// under its original installed spelling, before any relabel override exists.
+	if name == "crosstab" || name == "crosstab2" || name == "crosstab3" || name == "crosstab4" {
+		providerOverride = true
+	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
 	if extension.LtreePathProcedureName(name) || name == "_intbig_in" || name == "_intbig_out" {
 		providerOverride = true

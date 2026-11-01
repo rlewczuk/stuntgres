@@ -50,10 +50,10 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 	if err := extension.StockTablefunc.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if len(ext.Members) != 16 {
+	if len(ext.Members) != 17 {
 		t.Fatal("member inventory", ext.Members)
 	}
-	for _, slot := range []int{5, 12, 13, 14, 15} {
+	for _, slot := range []int{5, 12, 13, 14, 15, 16} {
 		p := view.MustProcedure(ext.Members[slot])
 		if err := (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(view, p); err != nil {
 			t.Fatal("shared installed procedure validation", slot, err)
@@ -63,10 +63,23 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 		if slot >= 12 && slot <= 14 {
 			expected = fmt.Sprintf("crosstab%d", slot-10)
 		}
+		signature, source := catalog.ProcedureSignature("25"), "crosstab"
+		if slot == 15 {
+			signature = "25,23"
+		} else if slot == 16 {
+			signature, source = "25,25", "crosstab_hash"
+		}
+		if p.Signature != signature || p.Display.Source != source {
+			t.Fatal("released signature and executable symbol", slot, p)
+		}
 		if err != nil || symbol != expected || p.Volatility != expr.Stable || !p.Strict || !p.Installed.ReturnsSet || p.Installed.Parallel != 'u' || p.Owner != e.RoleStore.Domain.Principal(10) {
 			t.Fatal("procedure declaration", slot, p, symbol, err)
 		}
-		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Signature = "25,25" }, func(p *catalog.Procedure) { p.ObjectRevision = 0 }, func(p *catalog.Procedure) { p.Implementation = new(extension.TablefuncProvider) }, func(p *catalog.Procedure) { p.Installed.Rows = 1 }, func(p *catalog.Procedure) { p.Installed.Parallel = 's' }, func(p *catalog.Procedure) { p.Installed.Parallel = 'r' }, func(p *catalog.Procedure) { p.Installed.Parallel = 0 }, func(p *catalog.Procedure) { p.Display.Source = "crosstab_hash" }} {
+		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) {
+			if p.Signature == "25,25" { p.Signature = "25,23" } else { p.Signature = "25,25" }
+		}, func(p *catalog.Procedure) { p.ObjectRevision = 0 }, func(p *catalog.Procedure) { p.Implementation = new(extension.TablefuncProvider) }, func(p *catalog.Procedure) { p.Installed.Rows = 1 }, func(p *catalog.Procedure) { p.Installed.Parallel = 's' }, func(p *catalog.Procedure) { p.Installed.Parallel = 'r' }, func(p *catalog.Procedure) { p.Installed.Parallel = 0 }, func(p *catalog.Procedure) {
+			if p.Display.Source == "crosstab_hash" { p.Display.Source = "crosstab" } else { p.Display.Source = "crosstab_hash" }
+		}} {
 			state := catalog.CloneState(view.State())
 			bad := *p
 			mutate(&bad)
@@ -77,6 +90,31 @@ func TestTablefuncCrosstabProviderIdentity(t *testing.T) {
 			if (extension.CatalogProvider{Class: ids.ProcedureClassID}).Validate(e.Catalog.Read(state), &bad) == nil {
 				t.Fatal("shared validator accepted forged procedure", slot, bad)
 			}
+		}
+	}
+	for _, kind := range []string{"missing_hash", "duplicate_hash", "reordered_hash", "foreign_hash_owner"} {
+		state := catalog.CloneState(view.State())
+		hash := *view.MustProcedure(ext.Members[16])
+		if kind == "foreign_hash_owner" {
+			hash.Owner = engine.New().RoleStore.Domain.Principal(10)
+		} else {
+			recipe := *hash.Origin.Installation
+			recipe.Members = append([]ids.ObjectAddress(nil), recipe.Members...)
+			switch kind {
+			case "missing_hash":
+				recipe.Members = recipe.Members[:16]
+			case "duplicate_hash":
+				recipe.Members[16] = recipe.Members[15]
+			case "reordered_hash":
+				recipe.Members[15], recipe.Members[16] = recipe.Members[16], recipe.Members[15]
+			}
+			origin := *hash.Origin
+			origin.Installation = &recipe
+			hash.Origin = &origin
+		}
+		state.SetDescriptor(hash.Address(), &hash)
+		if extension.StockTablefunc.ValidateExtension(e.Catalog.Read(state), ext) == nil {
+			t.Fatal("forged appended hash role accepted", kind)
 		}
 	}
 	roles, err := extension.InstalledTypes(view, ext)
@@ -215,12 +253,16 @@ func TestTablefuncCrosstabControlIdentity(t *testing.T) {
 		backing.Owner = memberOwner.Ref
 		state.SetDescriptor(backing.Address(), &backing)
 	}
+	hashOwner := *view.MustProcedure(ext.Members[16])
+	hashOwner.ACL = authorization.SchemaACLOwner(hashOwner.ACL, hashOwner.Owner, memberOwner.Ref)
+	hashOwner.Owner = memberOwner.Ref
+	state.SetDescriptor(hashOwner.Address(), &hashOwner)
 	metadata, err := extension.OwnerMetadata(e.Catalog.Read(state), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
 	record, found, err := extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata, "-- ")))
-	if err != nil || !found || len(record.Members) != 16 {
+	if err != nil || !found || len(record.Members) != 17 {
 		t.Fatal(record, found, err)
 	}
 	// Deliberately reverse the record: import must restore coherent pairs without
@@ -240,6 +282,11 @@ func TestTablefuncCrosstabControlIdentity(t *testing.T) {
 	restored := replay.Catalog.Read(candidate)
 	if err := extension.StockTablefunc.ValidateExtension(restored, replayExt); err != nil {
 		t.Fatal(err)
+	}
+	hash := restored.MustProcedure(replayExt.Members[16])
+	owner, ok := replay.Roles().Lookup(memberOwner.Name)
+	if !ok || hash.Owner != owner.Ref || hash.Signature != "25,25" || hash.Display.Source != "crosstab_hash" {
+		t.Fatal("appended hash owner/source lost on replay", hash)
 	}
 	for _, slot := range []int{6, 8, 10} {
 		typ := restored.MustType(replayExt.Members[slot])

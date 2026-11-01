@@ -49,6 +49,9 @@ func TestConnectbyCompletionRebuildAndRemap(t *testing.T) {
 		}
 		read := e.CatalogRead()
 		ext := read.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "tablefunc"}))
+		if len(ext.Installation.Members) != 17 || read.MustProcedure(ext.Installation.Members[16]).Signature != "25,25" || read.MustProcedure(ext.Installation.Members[16]).Display.Source != "crosstab_hash" {
+			t.Fatal("incomplete remapped tablefunc provider graph")
+		}
 		if n.Procedure != read.MustProcedure(ext.Members[v.slot]) {
 			t.Fatal("incorrect member authority", n.Ref, v.slot)
 		}

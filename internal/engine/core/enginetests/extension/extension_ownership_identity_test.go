@@ -1200,7 +1200,7 @@ func ownershipConnectbyIdentity(t *testing.T) {
 			enginetest.RoleExecute(t, e, op, `ALTER EXTENSION tablefunc ADD FUNCTION eo_extra(integer)`)
 			populated := e.CatalogRead()
 			currentExtension := populated.MustExtension(ext.Address())
-			if len(currentExtension.Members) != 17 || len(recipe.Declarations) != 16 {
+			if len(currentExtension.Members) != 18 || len(recipe.Declarations) != 17 {
 				t.Fatal("ordinary membership rewrote release recipe")
 			}
 			if err := extension.StockTablefunc.ValidateExtension(populated, currentExtension); err != nil {
@@ -1340,7 +1340,7 @@ func ownershipConnectbyCanonicalRemap(t *testing.T) {
 	e, ext := ownershipUnitInstall(t, "tablefunc")
 	view := e.CatalogRead()
 	recipe := ext.Installation
-	if len(recipe.Members) != 16 || len(recipe.Declarations) != 16 {
+	if len(recipe.Members) != 17 || len(recipe.Declarations) != 17 {
 		t.Fatal("complete tablefunc recipe lost normal_rand, connectby or crosstab declarations")
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 950000}, ext.TargetNamespace: {ClassID: ids.NamespaceClassID, ObjectID: 950001}}

@@ -30,36 +30,55 @@ func ValidateTablefuncCrosstab[A Authority](h Host[A], n plan.InstalledTablefunc
 	return stored.ValidateInstalledTablefuncCrosstab(n, auth.Access().Catalog)
 }
 
-// TablefuncCrosstab runs crosstab's source SQL and pivots the last command's
-// rows.
-func TablefuncCrosstab[A Authority](h Host[A], text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	spi := exec.NestedSQL(h)
-	if err := spi.EnterNestedSQL(); err != nil {
+// TablefuncCrosstab executes each SQL string under its own nested activation.
+// Category loading and validation precede even preparation of source SQL.
+func TablefuncCrosstab[A Authority](h Host[A], text, categorySQL string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	command := &crosstabCommand[A]{host: h, text: text, result: result, hash: hash}
+	if hash {
+		if err := exec.ValidateCrosstabCategoriesResult(result); err != nil {
+			return nil, err
+		}
+		categories := &crosstabCommand[A]{host: h, text: categorySQL, categories: true}
+		if err := runCrosstabSQL(h, categories); err != nil {
+			return nil, err
+		}
+		command.ordinals = categories.ordinals
+	}
+	if err := runCrosstabSQL(h, command); err != nil {
 		return nil, err
+	}
+	return command.values, nil
+}
+
+func runCrosstabSQL[A Authority](h Host[A], command *crosstabCommand[A]) error {
+	spi := exec.NestedSQL(h)
+	command.spi = spi
+	text := command.text
+	if err := spi.EnterNestedSQL(); err != nil {
+		return err
 	}
 	defer spi.LeaveNestedSQL()
 	read, statements, err := spi.ParseNestedSQL(h.Operation().Context(), text)
 	if err != nil {
-		return nil, exec.RewriteSQLDiagnostic(err, text)
+		return exec.RewriteSQLDiagnostic(err, text)
 	}
 	// SPI prepares the entire string before executing any of its plans.
 	for _, statement := range statements {
 		if err := spi.PrepareNestedSQL(statement, read); err != nil {
-			return nil, exec.RewriteSQLDiagnostic(err, text)
+			return exec.RewriteSQLDiagnostic(err, text)
 		}
 	}
 	// Admission, expected analysis and source authority belong to one command,
 	// not the entire SPI string. In particular, the next SELECT must not reuse
 	// the preceding SELECT's prepared/source captures.
-	command := &crosstabCommand[A]{host: h, spi: spi, text: text, result: result}
-	request := exec.NestedRequest{Text: text, Diagnose: true, Caller: "crosstab"}
+	request := exec.NestedRequest{Text: text, Diagnose: true, Caller: "crosstab", CloseFailed: true}
 	for i, statement := range statements {
 		command.last = i == len(statements)-1
 		if err := spi.ExecuteNestedSQL(statement, read, request, command); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return command.values, nil
+	return nil
 }
 
 // crosstabCommand is one command of the crosstab source SQL. Only the last
@@ -71,6 +90,9 @@ type crosstabCommand[A Authority] struct {
 	result *sqltype.Descriptor
 	last   bool
 	values []sqltype.Value
+	hash       bool
+	categories bool
+	ordinals   map[string]int
 }
 
 func (c *crosstabCommand[A]) NestedCommand(parser.Statement) (bool, error) { return false, nil }
@@ -96,6 +118,14 @@ func (c *crosstabCommand[A]) NestedRows(_ parser.Statement, rows exec.RowResult)
 	var err error
 	if c.last {
 		input, output := h.Environments()
+		if c.categories {
+			c.ordinals, err = exec.ConsumeCrosstabCategories(h.Operation().Context(), rows, output, c.text)
+			return err
+		}
+		if c.hash {
+			c.values, err = exec.ConsumeCrosstabHash(h.Operation().Context(), rows, c.result, c.ordinals, input, output, c.text)
+			return err
+		}
 		// Match the shared routine-result diagnostic path: successful pivots
 		// never capture a catalog/path display snapshot.
 		var name func(sqltype.ID) string

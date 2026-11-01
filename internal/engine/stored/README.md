@@ -247,11 +247,12 @@ Destination authority is recaptured only through catalog replacement; source
 expressions, descriptors and installation recipes remain immutable. No matcher,
 initialized callback or session memo is serialized or retained by the recipe.
 
-Installed crosstab consumers retain their selected procedure and genuine named
-result generation, or their completed anonymous record definition. Reference,
-remap, retag and rendering walkers preserve those captures and resolve current
-presentation independently of mutable function/type labels. Dynamic inner SQL
-remains text, not a frozen dependency on the relations it may later resolve.
+Installed crosstab consumers retain their selected procedure, category-query
+mode, exact TEXT/INT4 formals and genuine named result generation or completed
+anonymous record definition. Reference, remap, retag and rendering walkers
+preserve those captures and owned argument backing, resolving current
+presentation independently of mutable function/type labels. Each dynamic inner
+SQL string remains text, not a frozen dependency on relations it may later resolve.
 
 Installed ltree array calls retain both exact formal generations, operation and
 orientation, original procedure declaration and catalog-domain reference.

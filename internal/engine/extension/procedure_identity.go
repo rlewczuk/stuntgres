@@ -655,6 +655,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection proce
 				}
 			}
 		}
+		if slot == tablefuncCrosstabStart+11 {
+			source = "crosstab_hash"
+		}
 		if p.Installed != declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source, Binary: "$libdir/tablefunc", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
 			return invalid()
 		}

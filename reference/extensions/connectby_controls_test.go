@@ -212,7 +212,7 @@ func connectbyBadOwnerDump(t *testing.T, dump string) string {
 		if err := json.Unmarshal(record["members"], &members); err != nil {
 			t.Fatal(err)
 		}
-		if len(members) != 16 {
+		if len(members) != 17 {
 			t.Fatal("selected tablefunc owner inventory", len(members))
 		}
 		selected := -1

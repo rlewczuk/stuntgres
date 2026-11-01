@@ -12,6 +12,7 @@ import (
 type TablefuncCrosstab struct {
 	expr.Info
 	Args []expr.Expr
+	Categories bool
 }
 
 func bindTablefuncCrosstab(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
@@ -26,20 +27,29 @@ func bindTablefuncCrosstab(b Binder, raw parser.FunctionExpr) (expr.Expr, error)
 	if err := ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
-	signature := "25"
-	if len(operands) == 2 {
-		signature = "25,23"
-	}
-	routine, err := b.InstalledRoutine(raw.Name, TablefuncExtension, signature)
+	routine, err := b.InstalledRoutine(raw.Name, TablefuncExtension, "")
 	if err != nil {
 		return nil, err
 	}
-	valid := routine != nil && !raw.ResolutionOnly && !raw.Variadic && (len(operands) == 1 || len(operands) == 2) && len(raw.ArgNames) == 0
+	if routine == nil {
+		return nil, b.SignatureError(raw.Name, raw.Pos, installedArgumentNames(b, raw, operands))
+	}
+	declaration, ok := routine.(interface{ TablefuncCrosstabSignature() string })
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: missing crosstab declaration")
+	}
+	signature := declaration.TablefuncCrosstabSignature()
+	categories := signature == "25,25"
+	arity := 1
+	if signature == "25,23" || categories {
+		arity = 2
+	}
+	valid := (signature == "25" || signature == "25,23" || categories) && !raw.ResolutionOnly && !raw.Variadic && len(operands) == arity && len(raw.ArgNames) == 0
 	args := make([]expr.Expr, len(operands))
 	properties := expr.Properties{Volatility: expr.Stable, StageDependent: true}
 	for i, operand := range operands {
 		id := sqltype.Text
-		if i == 1 {
+		if i == 1 && !categories {
 			id = sqltype.Int4
 		}
 		formal := b.Type(id).Usage()
@@ -65,26 +75,26 @@ func bindTablefuncCrosstab(b Binder, raw parser.FunctionExpr) (expr.Expr, error)
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	return routine.Attach(TablefuncCrosstab{Info: b.Info(b.Type(2249).Usage(), raw.Pos, properties), Args: args})
+	return routine.Attach(TablefuncCrosstab{Info: b.Info(b.Type(2249).Usage(), raw.Pos, properties), Args: args, Categories: categories})
 }
 func (n TablefuncCrosstab) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: crosstab requires a source invocation")
 }
 func (n TablefuncCrosstab) Children() []expr.Expr { return n.Args }
 func (n TablefuncCrosstab) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if len(children) != len(n.Args) || len(children) < 1 || len(children) > 2 {
+	if len(children) != len(n.Args) || len(children) < 1 || len(children) > 2 || n.Categories && len(children) != 2 {
 		return nil, fmt.Errorf("stuntgres: invalid crosstab arguments")
 	}
 	for i, child := range children {
 		id := sqltype.Text
-		if i == 1 {
+		if i == 1 && !n.Categories {
 			id = sqltype.Int4
 		}
 		if child == nil || child.ResultUsage().Type == nil || child.ResultUsage().Type.ID() != id {
 			return nil, fmt.Errorf("stuntgres: invalid crosstab argument")
 		}
 	}
-	n.Info, n.Args = info, children
+	n.Info, n.Args = info, append([]expr.Expr(nil), children...)
 	return n, nil
 }
 func (n TablefuncCrosstab) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
@@ -93,11 +103,11 @@ func (n TablefuncCrosstab) Substitute(info expr.Info, children []expr.Expr) (exp
 func (TablefuncCrosstab) SourceAdmission() (bool, bool) { return true, true }
 
 type TablefuncCrosstabRuntime interface {
-	TablefuncCrosstab(string, *sqltype.Descriptor) ([]sqltype.Value, error)
+	TablefuncCrosstab(string, string, bool, *sqltype.Descriptor) ([]sqltype.Value, error)
 }
 
 func (n TablefuncCrosstab) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	var source string
+	var source, categories string
 	null := false
 	for i, arg := range n.Args {
 		value, err := arg.Eval(ctx)
@@ -108,6 +118,11 @@ func (n TablefuncCrosstab) OpenSource(ctx expr.Context) (expr.SourceCursor, erro
 			null = true
 		} else if i == 0 {
 			source, err = value.Text()
+			if err != nil {
+				return expr.SourceCursor{}, err
+			}
+		} else if n.Categories && i == 1 {
+			categories, err = value.Text()
 			if err != nil {
 				return expr.SourceCursor{}, err
 			}
@@ -124,13 +139,16 @@ func (n TablefuncCrosstab) OpenSource(ctx expr.Context) (expr.SourceCursor, erro
 		defer body.Leave()
 	}
 	if n.Usage.Type == nil || !n.Usage.Type.IsComposite() {
+		if n.Categories {
+			return expr.SourceCursor{}, expr.ErrorAt("0A000", "materialize mode required, but it is not allowed in this context", parser.Position{})
+		}
 		return expr.SourceCursor{}, expr.ErrorAt("0A000", "function returning record called in context that cannot accept type record", parser.Position{})
 	}
 	runtime, ok := ctx.(TablefuncCrosstabRuntime)
 	if !ok {
 		return expr.SourceCursor{}, fmt.Errorf("stuntgres: missing crosstab statement runtime")
 	}
-	rows, err := runtime.TablefuncCrosstab(source, n.Usage.Type)
+	rows, err := runtime.TablefuncCrosstab(source, categories, n.Categories, n.Usage.Type)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}

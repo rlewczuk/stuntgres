@@ -675,11 +675,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **tablefunc** (`tablefunc_provider.go`, `tablefunc_stage.go`): trusted/relocatable
   version 1.0 retains strict volatile `normal_rand(integer,float8,float8)` at
   slot zero and four strict stable SETOF-record connectby overloads at slots
-  one through four. Appended single-source `crosstab(text)`, its ignored-integer
-  overload and `crosstab2`/`crosstab3`/`crosstab4` are STABLE, STRICT and
-  set-returning. Generic calls use caller-owned record definitions, not provider
-  OUT parameters; each fixed wrapper returns its genuine standalone text composite.
-  One sealed sixteen-declaration recipe contains ten procedures, three named
+  one through four. Single-source `crosstab(text)`, its ignored-integer overload,
+  `crosstab2`/`crosstab3`/`crosstab4`, and the appended slot-sixteen
+  `crosstab(text,text)` are STABLE, STRICT and set-returning. The two-text form
+  authenticates `crosstab_hash`; the other crosstab declarations use `crosstab`.
+  Generic calls use caller-owned record definitions, not provider OUT parameters;
+  each fixed wrapper returns its genuine standalone text composite.
+  One sealed seventeen-declaration recipe contains eleven procedures, three named
   types and their three implicit arrays, independent of mutable reciprocal
   membership. Backing composite relations are not extension members. Staging,
   immutable symbol checks and symbolic v3 owner replay share that recipe;

@@ -22,15 +22,16 @@ func crosstabInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		})
 	}
-	q := "SELECT p.proname,p.pronargs,p.prorettype::regtype::text AS result,p.provolatile,p.proisstrict,p.proretset,p.proparallel,p.proargnames::text AS names FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='" + schema + "' AND (p.proname IN ('crosstab2','crosstab3','crosstab4') OR (p.proname='crosstab' AND p.oid::regprocedure::text IN ('" + schema + ".crosstab(text)','" + schema + ".crosstab(text,integer)')))"
+	q := "SELECT p.proname,p.pronargs,p.prorettype::regtype::text AS result,p.provolatile,p.proisstrict,p.proretset,p.proparallel,p.proargnames::text AS names,p.proargtypes::text AS args,p.prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='" + schema + "' AND (p.proname IN ('crosstab2','crosstab3','crosstab4') OR (p.proname='crosstab' AND p.oid::regprocedure::text IN ('" + schema + ".crosstab(text)','" + schema + ".crosstab(text,integer)','" + schema + ".crosstab(text,text)')))"
 	// regprocedure output omits visible schema names. Force an unrelated path.
 	run("search_path/catalog", fixture.Exec("SET search_path TO pg_catalog", 0))
-	s := fixture.Select(q, []string{"proname", "pronargs", "result", "provolatile", "proisstrict", "proretset", "proparallel", "names"}, []string{"NAME", "INT2", "TEXT", "CHAR", "BOOL", "BOOL", "CHAR", "TEXT"}, [][]any{
-		{"crosstab", int64(1), "record", "s", true, true, "u", nil},
-		{"crosstab", int64(2), "record", "s", true, true, "u", nil},
-		{"crosstab2", int64(1), schema + ".tablefunc_crosstab_2", "s", true, true, "u", nil},
-		{"crosstab3", int64(1), schema + ".tablefunc_crosstab_3", "s", true, true, "u", nil},
-		{"crosstab4", int64(1), schema + ".tablefunc_crosstab_4", "s", true, true, "u", nil},
+	s := fixture.Select(q, []string{"proname", "pronargs", "result", "provolatile", "proisstrict", "proretset", "proparallel", "names", "args", "prosrc"}, []string{"NAME", "INT2", "TEXT", "CHAR", "BOOL", "BOOL", "CHAR", "TEXT", "TEXT", "TEXT"}, [][]any{
+		{"crosstab", int64(1), "record", "s", true, true, "u", nil, "25", "crosstab"},
+		{"crosstab", int64(2), "record", "s", true, true, "u", nil, "25 23", "crosstab"},
+		{"crosstab", int64(2), "record", "s", true, true, "u", nil, "25 25", "crosstab_hash"},
+		{"crosstab2", int64(1), schema + ".tablefunc_crosstab_2", "s", true, true, "u", nil, "25", "crosstab"},
+		{"crosstab3", int64(1), schema + ".tablefunc_crosstab_3", "s", true, true, "u", nil, "25", "crosstab"},
+		{"crosstab4", int64(1), schema + ".tablefunc_crosstab_4", "s", true, true, "u", nil, "25", "crosstab"},
 	})
 	s.Bag = true
 	run("procedures/direct", s)
@@ -40,7 +41,7 @@ func crosstabInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		t.Fatal("extension identity", ext, err)
 	}
 	seen := map[int64]bool{}
-	for _, signature := range []string{"crosstab(text)", "crosstab(text,integer)", "crosstab2(text)", "crosstab3(text)", "crosstab4(text)"} {
+	for _, signature := range []string{"crosstab(text)", "crosstab(text,integer)", "crosstab(text,text)", "crosstab2(text)", "crosstab3(text)", "crosstab4(text)"} {
 		var proc int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT $1::regprocedure::oid::bigint", schema+"."+signature).Scan(&proc); err != nil || proc <= 0 || seen[proc] {
 			t.Fatal("procedure identity", signature, proc, err)
@@ -107,9 +108,9 @@ func crosstabInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		}
 	}
 	if !b.PG {
-		// Ten supported procedures plus three named types and their implicit arrays.
-		run("members/type_and_procedure_count", fixture.Select("SELECT count(*) AS n FROM pg_depend WHERE classid IN (1247,1255) AND refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(16)}}, ext))
-		run("members/total_count", fixture.Select("SELECT count(*) AS n FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(16)}}, ext))
+		// Eleven supported procedures plus three named types and their implicit arrays.
+		run("members/type_and_procedure_count", fixture.Select("SELECT count(*) AS n FROM pg_depend WHERE classid IN (1247,1255) AND refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(17)}}, ext))
+		run("members/total_count", fixture.Select("SELECT count(*) AS n FROM pg_depend WHERE refclassid=3079 AND refobjid=$1 AND deptype='e'", []string{"n"}, []string{"INT8"}, [][]any{{int64(17)}}, ext))
 	}
 	run("search_path/public", fixture.Exec("SET search_path TO public", 0))
 }

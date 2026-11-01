@@ -279,8 +279,8 @@ func (h *contribHost) Connectby(request functions.ConnectbyRequest) ([]sqltype.V
 	return contrib.Connectby[AuthorizationView](h.host(), request)
 }
 
-func (h *contribHost) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return contrib.TablefuncCrosstab[AuthorizationView](h.host(), text, result)
+func (h *contribHost) TablefuncCrosstab(text, categories string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return contrib.TablefuncCrosstab[AuthorizationView](h.host(), text, categories, hash, result)
 }
 
 func (h *contribHost) ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error {

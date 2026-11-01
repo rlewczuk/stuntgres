@@ -221,6 +221,15 @@ directional typmods are checked without implicit conversion acceptance. Mismatch
 diagnostics borrow the caller's catalog-backed type namer for scalar and recursive
 array-element qualification and identifier quoting while retaining builtin
 typmods; naming is captured only on failure and is never retained in result tuples.
+The hash path drains ordered categories before source SQL and keeps category
+ordinals under opaque first-62-byte output-string keys. It groups adjacent full
+NULL-safe row-name strings, captures first-row extras and overwrites matched
+cells with the last value, including NULL. Only final selected strings enter
+destination input/typmod/domain codecs at group emission; ignored values,
+overwritten strings and later extras are not input-converted. Empty source
+results bypass conditional category/source/result-width checks. Both consumers
+close their cursor on every exit and publish no partial map or tuple collection.
+
 
 
 ## What it owns

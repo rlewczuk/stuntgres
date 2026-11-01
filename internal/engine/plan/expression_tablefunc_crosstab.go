@@ -16,8 +16,8 @@ type InstalledTablefuncCrosstabExpr struct {
 }
 
 func (n InstalledTablefuncCrosstabExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if info.RoutineReference != n.Procedure {
-		return nil, fmt.Errorf("stuntgres: crosstab lost installed identity")
+	if n.Procedure == nil || info.RoutineReference != n.Procedure || n.Categories != (n.Procedure.Signature == "25,25") {
+		return nil, fmt.Errorf("stuntgres: crosstab lost installed identity or mode")
 	}
 	next, err := n.TablefuncCrosstab.Rebuild(info, children)
 	if err != nil {
@@ -40,11 +40,11 @@ func (n InstalledTablefuncCrosstabExpr) OpenSource(ctx expr.Context) (expr.Sourc
 }
 func (n InstalledTablefuncCrosstabExpr) SameSourceOccurrence(other expr.Expr) bool {
 	o, ok := other.(InstalledTablefuncCrosstabExpr)
-	return ok && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage())
+	return ok && n.Categories == o.Categories && n.Ref == o.Ref && n.Procedure == o.Procedure && sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage())
 }
 func (n InstalledTablefuncCrosstabExpr) SameGroup(other expr.Expr, same func(expr.Expr, expr.Expr) bool, definition bool) bool {
 	o, ok := other.(InstalledTablefuncCrosstabExpr)
-	if !ok || n.Ref != o.Ref || n.Procedure != o.Procedure || !sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage()) || len(n.Args) != len(o.Args) {
+	if !ok || n.Categories != o.Categories || n.Ref != o.Ref || n.Procedure != o.Procedure || !sqltype.SameRecordUsage(n.ResultUsage(), o.ResultUsage()) || len(n.Args) != len(o.Args) {
 		return false
 	}
 	for i, arg := range n.Args {

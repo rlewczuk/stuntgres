@@ -208,8 +208,11 @@ the activation's complete scalar Usage in the ordinary PL-local expression.
 Reached WHEN lists use the shared IN binder; no alternate comparison resolver
 or published fake local carries search state.
 
-Installed crosstab selection uses ordinary procedure discovery and coercion.
-Shared function-column completion supplies generic RECORD shape. Installed
+Installed crosstab selection uses ordinary procedure discovery and coercion,
+including canonical installed names before a relabel override exists. The shared
+winner supplies the genuine one-text, text/integer or text/text declaration;
+ordinary path shadows remain ordinary routines. Shared function-column
+completion supplies generic RECORD shape. Installed
 crosstab captures every declared member's type/collation dependency even for
 empty or strict-NULL calls, without adding authority to another provider's
 captured routine manifest during stored-occurrence completion. Fixed wrappers

@@ -26,7 +26,17 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 				run(fixture.Exec(`GRANT USAGE ON SCHEMA public TO eo_survivor_acl`, 0))
 				run(fixture.Exec(`GRANT SELECT ON public.ct_source TO eo_survivor_acl`, 0))
 				sourceSQL := strings.Replace(fixture.CrosstabSource, "FROM ct_source", "FROM public.ct_source", 1)
-				old := []string{"crosstab(text)", "crosstab(text,integer)", "crosstab2(text)", "crosstab3(text)", "crosstab4(text)"}
+				old := []struct {
+					signature, result, symbol string
+					width                     int
+				}{
+					{"crosstab(text)", "record", "crosstab", 0},
+					{"crosstab(text,integer)", "record", "crosstab", 0},
+					{"crosstab2(text)", "eo_new.tablefunc_crosstab_2", "crosstab", 2},
+					{"crosstab3(text)", "eo_new.tablefunc_crosstab_3", "crosstab", 3},
+					{"crosstab4(text)", "eo_new.tablefunc_crosstab_4", "crosstab", 4},
+					{"crosstab(text,text)", "record", "crosstab_hash", 0},
+				}
 				signatures := make([]string, len(old))
 				ids := make([]int64, len(old))
 				declarations := make([][][]any, len(old))
@@ -37,20 +47,26 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 				}
 				query := func(i int, routine, arg string) string {
 					call := routine + "(" + arg
-					if i == 1 {
+					if old[i].signature == "crosstab(text,integer)" {
 						call += ",3::integer"
 					}
+					if old[i].signature == "crosstab(text,text)" {
+						call += "," + fixture.CrosstabQuote("SELECT category FROM (VALUES(1,'z'::text),(2,'a'),(3,'x')) AS cats(seq,category) ORDER BY seq")
+					}
 					call += ")"
-					if i < 2 {
+					if old[i].width == 0 {
 						return "SELECT * FROM " + call + " AS t(k text,c1 text,c2 text,c3 text) ORDER BY k"
 					}
 					return "SELECT * FROM " + call + " ORDER BY row_name"
 				}
 				want := func(i int, q string, args ...any) fixture.Step {
-					if i < 2 {
+					if old[i].signature == "crosstab(text,text)" {
+						return fixture.Select(q, []string{"k", "c1", "c2", "c3"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"g1", "A", "C", nil}, {"g2", nil, nil, "B2"}, {"g3", nil, nil, nil}}, args...)
+					}
+					if old[i].width == 0 {
 						return fixture.CrosstabWant(q, args...)
 					}
-					n := i
+					n := old[i].width
 					columns := []string{"row_name"}
 					types := []string{"TEXT"}
 					rows := [][]any{{"g1", "A", "C"}, {"g2", "B1", "B2"}, {"g3", nil, nil}}
@@ -70,7 +86,8 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					}
 					return fixture.Select(q, columns, types, rows, args...)
 				}
-				for i, sig := range old {
+				for i, declaration := range old {
+					sig := declaration.signature
 					original := "eo_old." + sig
 					fixture.OwnershipSurvivorACL(run, original)
 					ids[i] = fixture.OwnershipID(t, p, c, "SELECT '"+original+"'::regprocedure::bigint")
@@ -169,13 +186,10 @@ func ownershipCrosstabSurvivors(t *testing.T) {
 					r(fixture.OwnershipCount(`SELECT count(*) FROM pg_extension WHERE extname='tablefunc'`, 0))
 					for i, sig := range signatures {
 						ownershipSurvivorLinks(r, sig, foreign)
-						symbol := "crosstab"
-						result := "record"
-						if i >= 2 {
-							result = fmt.Sprintf("eo_new.tablefunc_crosstab_%d", i)
-						}
+						symbol := old[i].symbol
+						result := old[i].result
 						r(fixture.Select(`SELECT p.prorettype::regtype::text,p.proisstrict,p.provolatile,p.proretset,p.proparallel,p.procost,p.prorows,p.prosrc,p.probin FROM pg_proc p WHERE p.oid='`+sig+`'::regprocedure`, []string{"prorettype", "proisstrict", "provolatile", "proretset", "proparallel", "procost", "prorows", "prosrc", "probin"}, []string{"TEXT", "BOOL", "CHAR", "BOOL", "CHAR", "FLOAT4", "FLOAT4", "TEXT", "TEXT"}, [][]any{{result, true, "s", true, "u", float64(1), float64(1000), symbol, "$libdir/tablefunc"}}))
-						if i >= 2 {
+						if old[i].width != 0 {
 							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_proc'::regclass AND objid='`+sig+`'::regprocedure AND refclassid='pg_type'::regclass AND refobjid='`+result+`'::regtype AND deptype='n'`, 1))
 							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_type t JOIN pg_class c ON c.oid=t.typrelid JOIN pg_type a ON a.oid=t.typarray WHERE t.oid='`+result+`'::regtype AND c.reltype=t.oid AND a.typelem=t.oid`, 1))
 							r(fixture.OwnershipCount(`SELECT count(*) FROM pg_depend WHERE classid='pg_type'::regclass AND objid IN (SELECT oid FROM pg_type WHERE oid='`+result+`'::regtype OR typelem='`+result+`'::regtype) AND refclassid='pg_extension'::regclass AND deptype='e'`, 0))

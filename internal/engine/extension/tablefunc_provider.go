@@ -53,7 +53,7 @@ func (p *TablefuncProvider) validateRecipe(v catalog.Read, ext *catalog.Extensio
 	if p != StockTablefunc || v.Owner() == nil || !currentManifest(v, ext) || ext.Name() != "tablefunc" || ext.Version != "1.0" || len(ext.Members) != tablefuncMemberCount || v.Owner().Extensions["tablefunc"] != p {
 		return invalid()
 	}
-	for _, slot := range []int{0, 1, 2, 3, 4, 5, 12, 13, 14, 15} {
+	for _, slot := range []int{0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16} {
 		proc, ok := v.Procedure(ext.Members[slot])
 		if !ok || proc.Extension != ext.Address() || proc.Implementation != p {
 			return invalid()

@@ -32,7 +32,7 @@ type ContribRuntime interface {
 	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
 	ValidateConnectby(n plan.InstalledConnectbyExpr) error
 	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)
-	TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error)
+	TablefuncCrosstab(text, categories string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidateTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) error
 	PgBuffercache(result *sqltype.Descriptor) (expr.SourceCursor, error)
 	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)

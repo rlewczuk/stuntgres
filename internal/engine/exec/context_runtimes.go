@@ -1066,7 +1066,7 @@ func (c *Context) Connectby(request functions.ConnectbyRequest) ([]sqltype.Value
 	return host.Contrib().Connectby(request)
 }
 
-func (c *Context) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func (c *Context) TablefuncCrosstab(text, categories string, hash bool, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return nil, err
 	}
@@ -1074,7 +1074,7 @@ func (c *Context) TablefuncCrosstab(text string, result *sqltype.Descriptor) ([]
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: crosstab lacks statement scope")
 	}
-	return host.Contrib().TablefuncCrosstab(text, result)
+	return host.Contrib().TablefuncCrosstab(text, categories, hash, result)
 }
 
 func (c *Context) OpenTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr) (expr.SourceCursor, error) {

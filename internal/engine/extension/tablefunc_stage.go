@@ -11,7 +11,7 @@ import (
 )
 
 const tablefuncCrosstabStart = len(tablefuncMembers)
-const tablefuncMemberCount = tablefuncCrosstabStart + 11
+const tablefuncMemberCount = tablefuncCrosstabStart + 12
 
 var tablefuncColumnNames = [...]string{"row_name", "category_1", "category_2", "category_3", "category_4"}
 var tablefuncTypeRoles = [...]string{"", "tablefunc_crosstab_2", "tablefunc_crosstab_2[]", "tablefunc_crosstab_3", "tablefunc_crosstab_3[]", "tablefunc_crosstab_4", "tablefunc_crosstab_4[]"}
@@ -28,6 +28,8 @@ func tablefuncProcedure(slot int, ext *catalog.Extension) (string, catalog.Proce
 		return [...]string{"crosstab2", "crosstab3", "crosstab4"}[slot-tablefuncCrosstabStart-7], "25", ext.Members[tablefuncCrosstabStart+1+2*(slot-tablefuncCrosstabStart-7)].ObjectID
 	case 10:
 		return "crosstab", "25,23", 2249
+	case 11:
+		return "crosstab", "25,25", 2249
 	}
 	return "", "", 0
 }
@@ -52,6 +54,9 @@ func (p *TablefuncProvider) Stage(stage Stage, ext *catalog.Extension, owner aut
 			member := tablefuncMembers[slot]
 			name, signature, result = member.name, member.signature, member.result
 			volatility, declaration, source = member.volatility, tablefuncNormalDeclaration(), member.source
+		}
+		if slot == tablefuncCrosstabStart+11 {
+			source = "crosstab_hash"
 		}
 		proc := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: volatility, Strict: true, Installed: declaration, Display: catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: source}, Implementation: p}
 		proc.Display.Binary, proc.Display.HasBinary = "$libdir/tablefunc", true
@@ -92,7 +97,7 @@ func (p *TablefuncProvider) Stage(stage Stage, ext *catalog.Extension, owner aut
 		slot := tablefuncCrosstabStart + 1 + 2*(n-2)
 		ext.Members[slot], ext.Members[slot+1] = typ.Address(), array.Address()
 	}
-	for _, slot := range []int{12, 13, 14, 15} {
+	for _, slot := range []int{12, 13, 14, 15, 16} {
 		if err := createProc(slot); err != nil {
 			return err
 		}

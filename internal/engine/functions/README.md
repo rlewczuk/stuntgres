@@ -656,10 +656,13 @@ defines every approximate byte component and database/tablespace aggregation;
 all lookup, NULL, typing, diagnostic and authority behavior is exact.
 
 
-Installed `TablefuncCrosstab` nodes retain immutable arguments and the admitted
-record or named-composite usage. They are strict, stable, never planning-folded
-sources; no SQL, catalog authority, cursor or runtime rows are retained on them.
-The statement capability executes the supplied SQL only when the source opens.
+Installed `TablefuncCrosstab` nodes retain immutable arguments, the selected
+category-query mode and the admitted record or named-composite usage. Shared
+overload selection determines TEXT versus INT4 second formals. They are strict,
+stable, never planning-folded sources; no catalog authority, cursor or runtime
+rows are retained on them. The statement capability executes supplied SQL only
+when the source opens; either NULL TEXT argument suppresses both nested strings
+after current installed authority admission.
 An unresolved generic result uses the shared deferred-record carrier for typed
 NULL frames; only a declared FROM record supplies its executable tuple shape.
 Non-NULL calls without that shape fail when the source opens, not during binding.

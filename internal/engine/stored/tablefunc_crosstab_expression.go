@@ -9,12 +9,12 @@ import (
 )
 
 func ValidateInstalledTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr, v catalog.Read) error {
-	if n.Procedure == nil || n.RoutineReference != n.Procedure || len(n.Args) < 1 || len(n.Args) > 2 {
+	if n.Procedure == nil || n.RoutineReference != n.Procedure || len(n.Args) < 1 || len(n.Args) > 2 || n.Categories && len(n.Args) != 2 {
 		return fmt.Errorf("stuntgres: invalid crosstab expression")
 	}
 	for i, arg := range n.Args {
 		id := sqltype.Text
-		if i == 1 {
+		if i == 1 && !n.Categories {
 			id = sqltype.Int4
 		}
 		typ, ok := v.LookupType(id)
@@ -35,6 +35,9 @@ func ValidateInstalledTablefuncCrosstab(n plan.InstalledTablefuncCrosstabExpr, v
 	signature := catalog.ProcedureSignature("25")
 	if len(n.Args) == 2 {
 		signature = "25,23"
+		if n.Categories {
+			signature = "25,25"
+		}
 	}
 	if current.Signature != signature {
 		return fmt.Errorf("stuntgres: invalid crosstab arity")
