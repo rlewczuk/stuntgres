@@ -175,7 +175,7 @@ func TestReferenceBinaryConversionLifecycle(t *testing.T) {
 			// test-level Cleanup) removes them before the ordinary PostgreSQL
 			// backend body starts, including partial replay/assertion failures.
 			defer func() {
-				cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := p.Postgres.ExecContext(cleanup, "DROP VIEW IF EXISTS bc_control_view; DROP TABLE IF EXISTS bc_control"); err != nil {
 					t.Errorf("binary conversion replay cleanup: %v", err)

@@ -91,7 +91,7 @@ func TestReferenceDateCanceledStagedRestorePreservesSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer old.Close()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	reader := &dateGatedReader{started: make(chan struct{}), release: make(chan struct{}), payload: strings.NewReader("CREATE TABLE public.replaced (v INT); INSERT INTO public.replaced VALUES (99);")}
 	done := make(chan error, 1)
