@@ -84,60 +84,57 @@ func TestReferenceDataTypePrivilegesLifecycle(t *testing.T) {
 
 func TestReferenceDataTypePrivilegesControls(t *testing.T) {
 	dtpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step)) {
-		for _, q := range []string{"CREATE DOMAIN dtp_control_domain AS varchar(7)", "CREATE TYPE dtp_control_type AS (a integer,b varchar(7)[])", "CREATE TABLE dtp_control_table(a dtp_control_domain,b dtp_control_type,c integer[][])"} {
-			run(fixture.Exec(q, 0))
+		ddl := []string{
+			"CREATE DOMAIN dtp_control_domain AS varchar(7)",
+			"CREATE TYPE dtp_control_type AS (a integer,b varchar(7)[])",
+			"CREATE TABLE dtp_control_table(a dtp_control_domain,b dtp_control_type,c integer[][])",
+			"CREATE FUNCTION dtp_control_function(a integer) RETURNS integer LANGUAGE SQL AS 'SELECT a'",
+			"CREATE PROCEDURE dtp_control_procedure() LANGUAGE SQL AS 'SELECT 1'",
 		}
-		where := "object_schema='public' AND object_name IN ('dtp_control_domain','dtp_control_type','dtp_control_table')"
-		want := dtpRows("public", "dtp_control_domain", "DOMAIN", "1")
-		want = append(want, dtpRows("public", "dtp_control_type", "USER-DEFINED TYPE", "1", "2")...)
-		want = append(want, dtpRows("public", "dtp_control_table", "TABLE", "1", "2", "3")...)
-		run(dtpProjection(t, p, c, where, want))
-		if b.PG {
-			// PostgreSQL has real DDL, not a fabricated native Reset API.
-			run(fixture.Exec("DROP TABLE dtp_control_table", 0))
-			run(fixture.Exec("DROP TYPE dtp_control_type", 0))
-			run(fixture.Exec("DROP DOMAIN dtp_control_domain", 0))
-			run(dtpProjection(t, p, c, where, nil))
-			return
+		create := func() { for _, q := range ddl { run(fixture.Exec(q, 0)) } }
+		create()
+		where := "object_schema='public'"
+		inventory := func() [][]any {
+			want := dtpRows("public", "dtp_control_domain", "DOMAIN", "1")
+			want = append(want, dtpRows("public", "dtp_control_type", "USER-DEFINED TYPE", "1", "2")...)
+			want = append(want, dtpRows("public", "dtp_control_table", "TABLE", "1", "2", "3")...)
+			f := dtpRoutineIdentity(t,p,c,"public","dtp_control_function","integer")
+			proc := dtpRoutineIdentity(t,p,c,"public","dtp_control_procedure","")
+			want = append(want,dtpRoutineRows("public",f,"0","1")...)
+			want = append(want,dtpRoutineRows("public",proc,nil)...)
+			return want
 		}
-		q := "SELECT * FROM information_schema.data_type_privileges WHERE " + where + " ORDER BY object_name,dtd_identifier"
-		old, err := b.DB.QueryContext(p.Ctx, q)
-		if err != nil {
-			t.Fatal(err)
+		check := func() {
+			run(dtpProjection(t,p,c,where,inventory()))
+			dtpCheckRoutineJoins(t,p,c,run,"public",dtpRoutineIdentity(t,p,c,"public","dtp_control_function","integer"),[]string{"1"},"0")
+			dtpCheckRoutineJoins(t,p,c,run,"public",dtpRoutineIdentity(t,p,c,"public","dtp_control_procedure",""),nil,nil)
 		}
+		check()
+		original := dtpExpectedDatabase(t,p,c,inventory())
+		old, err := b.DB.QueryContext(p.Ctx,"SELECT * FROM information_schema.data_type_privileges WHERE "+where)
+		if err != nil { t.Fatal(err) }
 		defer old.Close()
-		var dump bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
-			t.Fatal(err)
+		metadata := dtpRetainedMetadata(t,old)
+		if b.PG {
+			for _,q:=range []string{"DROP FUNCTION dtp_control_function(integer)","DROP PROCEDURE dtp_control_procedure()","DROP TABLE dtp_control_table","DROP TYPE dtp_control_type","DROP DOMAIN dtp_control_domain"}{run(fixture.Exec(q,0))}
+			run(dtpProjection(t,p,c,where,nil))
+			create()
+		} else {
+			var dump bytes.Buffer
+			if err:=stuntgres.Dump(p.Ctx,p.Native,&dump);err!=nil{t.Fatal(err)}
+			if err:=stuntgres.Reset(p.Ctx,p.Native);err!=nil{t.Fatal(err)}
+			run(dtpProjection(t,p,c,where,nil))
+			if err:=stuntgres.Restore(p.Ctx,p.Native,bytes.NewReader(dump.Bytes()));err!=nil{t.Fatal(err)}
 		}
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
+		check() // Re-resolve actual post-replacement identities, never pin dynamic OIDs.
+		metadata()
+		if got:=dtpReadNullableRows(t,old);!reflect.DeepEqual(got,original){t.Fatal("retained control inventory",got,original)}
+		if !b.PG {
+			prior:=inventory()
+			if err:=stuntgres.Restore(p.Ctx,p.Native,bytes.NewBufferString("CREATE FUNCTION dtp_failed() RETURNS integer LANGUAGE SQL AS 'SELECT 1'; CREATE TABLE dtp_bad(a dtp_missing);"));err==nil{t.Fatal("invalid Restore succeeded")}
+			run(dtpProjection(t,p,c,where,prior))
+			run(dtpProjection(t,p,c,"object_schema='public' AND object_name LIKE 'dtp_failed%'",nil))
 		}
-		run(dtpProjection(t, p, c, where, nil))
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal(err)
-		}
-		run(dtpProjection(t, p, c, where, want))
-		got := dtpReadRows(t, old)
-		var database string
-		if err := c.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&database); err != nil {
-			t.Fatal(err)
-		}
-		ordered := append(dtpRows("public", "dtp_control_domain", "DOMAIN", "1"), dtpRows("public", "dtp_control_table", "TABLE", "1", "2", "3")...)
-		ordered = append(ordered, dtpRows("public", "dtp_control_type", "USER-DEFINED TYPE", "1", "2")...)
-		var expected [][]string
-		for _, row := range ordered {
-			expected = append(expected, []string{database, row[0].(string), row[1].(string), row[2].(string), row[3].(string)})
-		}
-		if !reflect.DeepEqual(got, expected) {
-			t.Fatalf("retained rows got %v want %v", got, expected)
-		}
-		// A failed staged replacement cannot disturb this actual inventory.
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString("CREATE DOMAIN dtp_failed AS integer; CREATE TABLE dtp_bad(a dtp_missing);")); err == nil {
-			t.Fatal("invalid Restore succeeded")
-		}
-		run(dtpProjection(t, p, c, where, want))
-		run(dtpProjection(t, p, c, "object_schema='public' AND object_name='dtp_failed'", nil))
 	})
 }
 
@@ -164,6 +161,39 @@ func TestReferenceDataTypePrivilegesFeatureSmoke(t *testing.T) {
 		run(fixture.Exec("ALTER TABLE dtp_smoke_table DROP COLUMN b", 0))
 		run(fixture.Exec("ALTER TABLE dtp_smoke_table ADD COLUMN e varchar(7)[]", 0))
 		run(dtpProjection(t, p, c, where, append(append([][]any{}, types...), dtpRows("public", "dtp_smoke_table", "TABLE", "1", "3", "4", "5")...)))
+		for _,q:=range []string{
+			"CREATE FUNCTION dtp_smoke_function(IN a integer,OUT b integer) LANGUAGE SQL AS 'SELECT a'",
+			"CREATE PROCEDURE dtp_smoke_procedure() LANGUAGE SQL AS 'SELECT 1'",
+			"REVOKE EXECUTE ON FUNCTION dtp_smoke_function(integer) FROM PUBLIC",
+			"REVOKE EXECUTE ON PROCEDURE dtp_smoke_procedure() FROM PUBLIC",
+		}{run(fixture.Exec(q,0))}
+		dtpDeclaredDomains(run)
+		fid:=dtpRoutineIdentity(t,p,c,"public","dtp_smoke_function","integer")
+		pid:=dtpRoutineIdentity(t,p,c,"public","dtp_smoke_procedure","")
+		routineWhere:="object_schema='public' AND object_type='ROUTINE'"
+		routines:=append(dtpRoutineRows("public",fid,"0","1","2"),dtpRoutineRows("public",pid,nil)...)
+		run(dtpProjection(t,p,c,routineWhere,routines))
+		dtpCheckRoutineJoins(t,p,c,run,"public",fid,[]string{"1","2"},"0")
+		dtpCheckRoutineJoins(t,p,c,run,"public",pid,nil,nil)
+		dtpActor(run,"dtp_reader",func(){run(dtpProjection(t,p,c,routineWhere,nil))})
+		run(fixture.Exec("GRANT EXECUTE ON FUNCTION dtp_smoke_function(integer) TO dtp_reader",0))
+		run(fixture.Exec("GRANT EXECUTE ON PROCEDURE dtp_smoke_procedure() TO dtp_reader",0))
+		dtpActor(run,"dtp_reader",func(){
+			run(dtpProjection(t,p,c,routineWhere,routines))
+			run(dtpLockDenied("SELECT * FROM information_schema.data_type_privileges WHERE "+routineWhere+" FOR UPDATE"))
+		})
+		defer func(){
+			_,_=c.ExecContext(p.Ctx,"RESET SESSION AUTHORIZATION")
+			if _,err:=c.ExecContext(p.Ctx,"REVOKE UPDATE ON information_schema.data_type_privileges FROM dtp_reader");err!=nil{t.Error(err)}
+		}()
+		run(fixture.Exec("GRANT UPDATE ON information_schema.data_type_privileges TO dtp_reader",0))
+		dtpActor(run,"dtp_reader",func(){
+			locked:=dtpProjection(t,p,c,routineWhere,routines);locked.Query+=" FOR UPDATE";run(locked)
+			run(fixture.Select("SELECT * FROM information_schema.data_type_privileges WHERE FALSE FOR UPDATE",dtpColumns,dtpTypes,nil))
+		})
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION dtp_smoke_function(integer) FROM dtp_reader",0))
+		run(fixture.Exec("REVOKE EXECUTE ON PROCEDURE dtp_smoke_procedure() FROM dtp_reader",0))
+		dtpActor(run,"dtp_reader",func(){run(dtpProjection(t,p,c,routineWhere,nil))})
 		run(fixture.ImplicitError("SELECT missing FROM information_schema.data_type_privileges", fixture.Diagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "8"}))
 	})
 }

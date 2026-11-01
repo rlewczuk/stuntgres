@@ -110,7 +110,7 @@ func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLoc
 			}
 			return nil
 		}
-		if exec.IsPGSequencesRelation(d) {
+		if exec.IsPGSequencesRelation(d) || exec.IsDataTypePrivilegesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
 		if (referenceMarked || inherited.Mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {

@@ -144,7 +144,7 @@ func CheckPolicyAuthority(a access.View, env access.Environment, consumer *catal
 		if err := a.CheckColumns(env, ref, relation, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if exec.EffectiveQueryRowMark(relation, leaf.Mark).Mode != 0 {
+		if exec.PrivilegeQueryRowMark(relation, leaf.Mark).Mode != 0 {
 			if err := a.CheckColumns(env, ref, relation, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}

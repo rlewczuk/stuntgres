@@ -618,11 +618,25 @@ func IsPGSequencesRelation(relation *catalog.Relation) bool {
 	return relation.RelationKind == catalog.CatalogRelation && relation.Address().ObjectID == 12048
 }
 
-// SQL marks remain intact for binding, admission and clause diagnostics.
-// The expanded pg_sequences view has no represented physical tuple to mark;
-// its admitted-row sequence helper locks are a separate execution obligation.
-func EffectiveQueryRowMark(relation *catalog.Relation, mark plan.RowMark) plan.RowMark {
+// IsDataTypePrivilegesRelation identifies the expanded datatype-usage view.
+func IsDataTypePrivilegesRelation(relation *catalog.Relation) bool {
+	return relation.RelationKind == catalog.CatalogRelation && relation.Address().ObjectID == 16201
+}
+
+// PrivilegeQueryRowMark preserves datatype-view UPDATE admission even though
+// there is no physical tuple to lock. pg_sequences keeps its existing rule.
+func PrivilegeQueryRowMark(relation *catalog.Relation, mark plan.RowMark) plan.RowMark {
 	if IsPGSequencesRelation(relation) {
+		return plan.RowMark{}
+	}
+	return mark
+}
+
+// SQL marks remain intact for binding, admission and clause diagnostics.
+// Expanded metadata views have no represented physical tuple to mark.
+// pg_sequences' admitted-row helper locks remain a separate obligation.
+func EffectiveQueryRowMark(relation *catalog.Relation, mark plan.RowMark) plan.RowMark {
+	if IsPGSequencesRelation(relation) || IsDataTypePrivilegesRelation(relation) {
 		return plan.RowMark{}
 	}
 	return mark

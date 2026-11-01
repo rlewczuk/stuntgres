@@ -961,13 +961,7 @@ var Specs = [...]Spec{
 		{"sourceline", sqltype.Int4, true, 0, 0, -1},
 		{"pending_restart", sqltype.Bool, true, 0, 0, -1},
 	}, true, false, false, false, "stuntgres: missing pg_settings carrier"},
-	{DataTypePrivilegesOID, 13229, "data_type_privileges", []ColumnSpec{
-		{"object_catalog", sqltype.Name, true, 0, 0, -1},
-		{"object_schema", sqltype.Name, true, 0, 0, -1},
-		{"object_name", sqltype.Name, true, 0, 0, -1},
-		{"object_type", sqltype.VarChar, true, 950, 0, -1},
-		{"dtd_identifier", sqltype.Name, true, 0, 0, -1},
-	}, true, false, false, false, "stuntgres: missing data type privilege carrier"},
+	{DataTypePrivilegesOID, 13229, "data_type_privileges", dataTypePrivilegesColumns, true, false, false, false, "stuntgres: missing data type privilege carrier"},
 	{InfoUserMappingsOID, 13229, "user_mappings", []ColumnSpec{
 		{"authorization_identifier", 13248, true, 950, 0, -1},
 		{"foreign_server_catalog", 13248, true, 950, 0, -1},

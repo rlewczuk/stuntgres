@@ -131,3 +131,31 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}
 }
+
+func TestDataTypePrivilegesEffectiveRowMarks(t *testing.T) {
+	e := engine.New()
+	view := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16201})
+	sequences := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+	table := &catalog.Relation{RelationKind: catalog.TableRelation}
+	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
+	if exec.PrivilegeQueryRowMark(view, requested) != requested || exec.PrivilegeQueryRowMark(table, requested) != requested || exec.PrivilegeQueryRowMark(sequences, requested) != (plan.RowMark{}) {
+		t.Fatal("physical suppression changed UPDATE admission")
+	}
+	locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{
+		{Leaf: exec.Leaf{Relation: view, Mark: requested}, Mark: exec.EffectiveQueryRowMark(view, requested)},
+		{Leaf: exec.Leaf{Relation: table, Mark: requested}, Mark: exec.EffectiveQueryRowMark(table, requested)},
+	}}
+	expanded := &exec.Source{Materialized: true, Occurrences: []int{0, 1}}
+	inputs := &exec.Source{Sources: []*exec.Source{expanded}, Locks: locks}
+	pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
+	if len(pending) != 1 || !reflect.DeepEqual(pending[0].Occurrences, []int{1}) || pending[0].Mark != requested {
+		t.Fatal("metadata expansion changed real tuple marks", pending)
+	}
+	inputs.Sources[0] = &exec.Source{Occurrence: 0}
+	if pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
+		t.Fatal("metadata tuple mark reached arbitration", pending)
+	}
+	if locks.Leaves[0].Leaf.Mark != requested || locks.Leaves[0].Mark != (plan.RowMark{}) || !reflect.DeepEqual(expanded.Occurrences, []int{0, 1}) {
+		t.Fatal("physical suppression mutated SQL demand or expansion")
+	}
+}

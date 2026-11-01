@@ -8,6 +8,16 @@
   Domain lifecycle and native controls retain authentic relationships and
   detached results without synthesizing objects or serializing the builtin view.
 
+- Complete `information_schema.data_type_privileges` with genuine nullable
+  information-schema domains and actual routine declaration identities. All
+  formal modes and function results are represented; procedure results retain
+  NULL identifiers. Current ownership/column/type/EXECUTE privileges govern
+  visibility, including revocable seeded-domain USAGE. Metadata view row locks
+  preserve UPDATE admission without inventing represented-object tuple locks.
+  Coverage includes descriptor joins, retained/prepared reads and native replay,
+  with domain-aware native payload assertions and supported SQL composite/type
+  declarations plus scalar PL/pgSQL declarations checked against real type IDs.
+
 - Expose current real `pg_ident_file_mappings` rules and parse diagnostics through
   explicit frozen `Driver.ConfigureIdentFile` attachment, including PostgreSQL
   quoting, continuations, includes/@ expansion, regex validation and provenance.

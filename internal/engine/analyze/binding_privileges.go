@@ -149,7 +149,7 @@ func CheckQuerySources(auth Privileges, sources []exec.Leaf) error {
 				return err
 			}
 		}
-		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
+		if exec.PrivilegeQueryRowMark(source.Relation, source.Mark).Mode != 0 {
 			if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}

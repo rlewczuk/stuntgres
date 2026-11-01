@@ -139,19 +139,7 @@ func TestReferenceDataTypePrivilegesDiagnostics(t *testing.T) {
 			run(fixture.Select("SELECT a FROM dtp_diagnostic_sentinel", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			run(dtpProjection(t, p, c, "object_name='dtp_invented'", nil))
 		}
-		lockQuery := "SELECT * FROM information_schema.data_type_privileges WHERE FALSE FOR UPDATE"
-		if b.PG {
-			// The pinned oracle permits this empty locking query on the view.
-			empty := fixture.Select(lockQuery, dtpColumns, dtpTypes, nil)
-			empty.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-				types, err := rows.ColumnTypes()
-				if err != nil { t.Fatal(err) }
-				fixture.TableDDLColumnTypes(t, true, types, dtpColumns, dtpTypes, []bool{true,true,true,true,true})
-			}
-			run(empty)
-		} else {
-			run(fixture.ImplicitError(lockQuery, fixture.Diagnostic{Code:"0A000", Message:"row locking is not supported for virtual catalog relations"}))
-		}
+		run(fixture.Select("SELECT * FROM information_schema.data_type_privileges WHERE FALSE FOR UPDATE", dtpColumns, dtpTypes, nil))
 		run(dtpProjection(t, p, c, "object_schema='public' AND object_name='dtp_diagnostic_absent'", nil))
 	})
 }

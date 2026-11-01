@@ -123,7 +123,7 @@ func checkRowMarksExpanded(a access.View, env access.Environment, d *catalog.Rel
 		if err := a.CheckColumns(env, use, child, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if exec.EffectiveQueryRowMark(child, mark).Mode != 0 {
+		if exec.PrivilegeQueryRowMark(child, mark).Mode != 0 {
 			if err := a.CheckColumns(env, use, child, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}

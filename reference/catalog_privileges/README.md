@@ -10,6 +10,28 @@ views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
 
+`TestReferenceDataTypePrivileges` covers actual table, domain, composite and
+routine datatype uses through five nullable information-schema domains (public
+NAME/NAME/NAME/VARCHAR/NAME carriers). Routine identities come independently
+from real callable OIDs; all declaration formals, function results and NULL
+procedure results join the existing columns/domains/parameters/routines views.
+SQL declarations witness domain, composite and array inputs plus domain and
+composite results; a supported scalar PL/pgSQL declaration covers that language
+route without requiring unsupported composite PL/pgSQL formals. Independent
+`pg_proc`/`pg_type` identities establish the declared types, not only row counts.
+Visibility follows current enabled ownership and column, type-USAGE or EXECUTE
+authority, not namespace access or the used type's ACL. Seeded domain grants are
+revocable. Direct/prepared and retained results cover ACL/rename/drop frontiers,
+native Dump/Reset/Restore and failed replacement atomicity. Row-lock witnesses
+separate metadata-view UPDATE admission from nonexistent physical tuple marks,
+including stored wrappers and empty results. The wrapper matrix explicitly grants
+schema USAGE so relation lookup cannot mask its independent view UPDATE checks.
+Run
+`make check RUN='^TestReferenceDataTypePrivileges'` and the same command with
+`REFERENCE=1`; the focused public smoke is
+`make check RUN='^TestReferenceDataTypePrivilegesFeatureSmoke$'`, in both modes.
+
+
 The `TestReferenceDatabaseFiles` family independently specifies all three
 relation-location signatures: typed values/metadata, relation-kind boundaries,
 full logical diagnostics, privileges, native logical replay and a focused smoke.

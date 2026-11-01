@@ -94,6 +94,18 @@ func dtpRows(schema, name, kind string, ids ...string) [][]any {
 	return rows
 }
 
+func dtpDeclaredDomains(run func(fixture.Step)) {
+	var declared [][]any
+	for i, name := range dtpColumns {
+		typeName := "sql_identifier"
+		if i == 3 {
+			typeName = "character_data"
+		}
+		declared = append(declared, []any{name, typeName})
+	}
+	run(fixture.Select("SELECT a.attname,t.typname FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.oid=a.atttypid WHERE a.attrelid='information_schema.data_type_privileges'::regclass AND a.attnum>0 ORDER BY a.attnum", []string{"attname", "typname"}, []string{"NAME", "NAME"}, declared))
+}
+
 func TestReferenceDataTypePrivilegesShape(t *testing.T) {
 	dtpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step)) {
 		run(fixture.Exec("CREATE TABLE dtp_shape(a integer,b varchar(7)[])", 0))
@@ -138,31 +150,7 @@ func TestReferenceDataTypePrivilegesShape(t *testing.T) {
 			}
 			run(s)
 		}
-		if b.PG {
-			// PostgreSQL declares information-schema domains, independently of
-			// pq's base-carrier protocol metadata.
-			var declared [][]any
-			for i, name := range dtpColumns {
-				typeName := "sql_identifier"
-				if i == 3 {
-					typeName = "character_data"
-				}
-				declared = append(declared, []any{name, typeName})
-			}
-			run(fixture.Select("SELECT a.attname,t.typname FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_type t ON t.oid=a.atttypid WHERE a.attrelid='information_schema.data_type_privileges'::regclass AND a.attnum>0 ORDER BY a.attnum", []string{"attname", "typname"}, []string{"NAME", "NAME"}, declared))
-		} else {
-			// Native declares existing builtin carriers; information-schema
-			// sql_identifier/character_data domains remain lookup-only.
-			var attributes [][]any
-			for i, name := range dtpColumns {
-				typeOID, collation := int64(19), int64(950)
-				if i == 3 {
-					typeOID = 1043
-				}
-				attributes = append(attributes, []any{name, int64(i + 1), typeOID, false, collation})
-			}
-			run(fixture.Select("SELECT attname,attnum,atttypid,attnotnull,attcollation FROM pg_catalog.pg_attribute WHERE attrelid='information_schema.data_type_privileges'::regclass::oid AND attnum>0 ORDER BY attnum", []string{"attname", "attnum", "atttypid", "attnotnull", "attcollation"}, []string{"NAME", "INT2", "OID", "BOOL", "OID"}, attributes))
-		}
+		dtpDeclaredDomains(run)
 	})
 }
 
@@ -181,10 +169,6 @@ func TestReferenceDataTypePrivilegesDescriptors(t *testing.T) {
 		want = append(want, dtpRows("public", "dtp_composite", "USER-DEFINED TYPE", "1", "2", "3")...)
 		want = append(want, dtpRows("public", "dtp_mixed", "TABLE", "1", "2", "3", "4", "5", "6", "7")...)
 		run(dtpProjection(t, p, c, "object_schema='public' AND object_name IN ('dtp_domain','dtp_enum','_dtp_enum','dtp_composite','dtp_empty','dtp_mixed')", want))
-		if !b.PG {
-			// Native has no routine parameter/return descriptor capability.
-			run(dtpProjection(t, p, c, "object_type='ROUTINE'", nil))
-		}
 	})
 }
 
@@ -233,5 +217,31 @@ func TestReferenceDataTypePrivilegesBuiltinDomains(t *testing.T) {
 			run(dtpProjection(t, p, c, "object_schema='information_schema' AND object_type='DOMAIN' AND object_name IN ('cardinal_number','character_data','sql_identifier','time_stamp','yes_or_no')", want))
 			run(dtpProjection(t, p, c, "object_schema='pg_catalog' AND object_name IN ('int4','text','_int4','varchar')", nil))
 		})
+		defer func() {
+			_, _ = c.ExecContext(p.Ctx, "RESET SESSION AUTHORIZATION")
+			if _, err := c.ExecContext(p.Ctx, "GRANT USAGE ON DOMAIN information_schema.cardinal_number TO PUBLIC"); err != nil {
+				t.Error(err)
+			}
+		}()
+		check := func(visible bool) {
+			dtpActor(run, "dtp_reader", func() {
+				var domain, usage [][]any
+				if visible {
+					domain = [][]any{{"cardinal_number", "1"}}
+					usage = dtpRows("information_schema", "cardinal_number", "DOMAIN", "1")
+				}
+				run(fixture.Select("SELECT domain_name,dtd_identifier FROM information_schema.domains WHERE domain_schema='information_schema' AND domain_name='cardinal_number'", []string{"domain_name", "dtd_identifier"}, []string{"NAME", "NAME"}, domain))
+				run(dtpProjection(t, p, c, "object_schema='information_schema' AND object_name='cardinal_number' AND object_type='DOMAIN'", usage))
+			})
+		}
+		check(true)
+		run(fixture.Exec("REVOKE USAGE ON DOMAIN information_schema.cardinal_number FROM PUBLIC", 0))
+		check(false)
+		run(fixture.Exec("GRANT USAGE ON DOMAIN information_schema.cardinal_number TO dtp_reader", 0))
+		check(true)
+		run(fixture.Exec("REVOKE USAGE ON DOMAIN information_schema.cardinal_number FROM dtp_reader", 0))
+		check(false)
+		run(fixture.Exec("GRANT USAGE ON DOMAIN information_schema.cardinal_number TO PUBLIC", 0))
+		check(true)
 	})
 }

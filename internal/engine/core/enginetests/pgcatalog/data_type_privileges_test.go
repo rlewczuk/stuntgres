@@ -40,6 +40,22 @@ func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth core.Authori
 	return catalogrt.CaptureRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Temporary: core.CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureDataTypePrivileges)
 }
 
+func dtpUnitText(t *testing.T, value sqltype.Value) string {
+	t.Helper()
+	if value.Type() == nil || !value.Type().IsDomain() {
+		t.Fatal("missing source domain", value)
+	}
+	base, err := value.BaseValue()
+	if err != nil {
+		t.Fatal("source domain payload", err)
+	}
+	text, err := base.Text()
+	if err != nil {
+		t.Fatal("source text payload", err)
+	}
+	return text
+}
+
 // A deterministic cancellation point inside enumeration, without timing races.
 type dtpCancelContext struct {
 	context.Context
@@ -95,11 +111,15 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		if i == 3 {
 			want = sqltype.VarChar
 		}
-		if column.Usage.Type.ID() != want || column.Usage.Type.IsDomain() || column.OriginTable != uint32(pgcatalog.DataTypePrivilegesOID) || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) || !column.Nullable || !column.NullabilityKnown {
+		domainID := sqltype.ID(13248)
+		if i == 3 {
+			domainID = 13246
+		}
+		if column.Usage.Type.ID() != domainID || !column.Usage.Type.IsDomain() || column.Usage.Type.BaseType().ID() != want || column.Usage.Collation.ID != 950 || column.Usage.Typmod != -1 || column.DeclaredDimensions != 0 || column.OriginTable != uint32(pgcatalog.DataTypePrivilegesOID) || column.OriginAttribute != int16(i+1) || source.Attributes[i] != int32(i+1) || !column.Nullable || !column.NullabilityKnown {
 			t.Fatal("incorrect source carrier/origin", i, column)
 		}
 	}
-	// A real staged user domain cannot inherit the seeded builtin exemption.
+	// An ownerless domain cannot be disclosed under fabricated authority.
 	enginetest.RoleExecute(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer")
 	state := catalog.CloneState(f.e.Catalog.State)
 	domain := *domainUnitType(t, f.e.Catalog.Read(state), "dtp_ownerless")
@@ -127,9 +147,9 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	selectIDs := func(source *exec.Source) []string {
 		var ids []string
 		for _, row := range source.Anonymous {
-			name, _ := row[2].Text()
+			name := dtpUnitText(t, row[2])
 			if name == "dtp_unit" {
-				id, _ := row[4].Text()
+				id := dtpUnitText(t, row[4])
 				ids = append(ids, id)
 			}
 		}
