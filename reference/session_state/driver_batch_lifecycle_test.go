@@ -173,31 +173,22 @@ func TestReferenceDriverBatchCancellationLifecycle(t *testing.T) {
 				if explicit {
 					f.exec(f.owner, "BEGIN", 0)
 				}
-				ctx, cancel := context.WithTimeout(p.Ctx, batchCancelDeadline(b))
+				ctx, cancel := context.WithCancel(p.Ctx)
 				defer cancel()
-				done := make(chan error, 1)
-				go func() {
-					_, err := f.owner.ExecContext(ctx, "INSERT INTO timeout_sentinel VALUES(8); SELECT v FROM timeout_blocked; INSERT INTO timeout_sentinel VALUES(9)")
-					done <- err
-				}()
-				t.Cleanup(func() {
-					cancel()
-					select {
-					case <-done:
-					case <-time.After(fixture.Liveness):
-						t.Error("cancellation worker did not join")
-					}
+				finished := make(chan struct{})
+				join := fixture.LockOperation(t, p.Ctx, func(context.Context) fixture.RelationOutcome {
+					defer close(finished)
+					r, err := f.owner.ExecContext(ctx, "INSERT INTO timeout_sentinel VALUES(8); SELECT v FROM timeout_blocked; INSERT INTO timeout_sentinel VALUES(9)")
+					return fixture.RelationOutcome{Result: r, Err: err}
 				})
-				if b.PG {
-					fixture.LockWaitBehind(t, p.Ctx, f.ownerPID, f.peerPID, f.blockedOID, "AccessShareLock")
-					cancel()
-				}
-				err := <-done
-				done <- nil
+				// Cancel only the observed blocked SELECT on both backends.
+				fixture.RelationLockPending(t, p, b, f.ownerPID, f.peerPID, f.blockedOID, "AccessShareLock", finished)
+				cancel()
+				err := join().Err
 				if b.PG {
 					w := batchDiag("57014", "canceling statement due to user request")
 					fixture.AssertDiagnostic(t, err, &w)
-				} else if !errors.Is(err, context.DeadlineExceeded) {
+				} else if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
 				if b.PG {

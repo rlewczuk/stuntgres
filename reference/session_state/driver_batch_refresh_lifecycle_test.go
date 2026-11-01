@@ -7,7 +7,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
@@ -22,7 +21,7 @@ func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
 		holder := fixture.QueryLockBegin(t, p.Ctx, f.B)
 		defer holder.Rollback()
 		batchRefreshRows(t, p, b, holder, "batch_refresh_blocked", batchRefreshOld())
-		ctx, cancel := context.WithTimeout(p.Ctx, batchCancelDeadline(b))
+		ctx, cancel := context.WithCancel(p.Ctx)
 		defer cancel()
 		pid, blocker := 0, 0
 		var oid int64
@@ -32,42 +31,23 @@ func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
 			oid = fixture.LockOID(t, p.Ctx, "batch_refresh_blocked")
 		}
 		q := "INSERT INTO batch_refresh_base VALUES(3,'c'); REFRESH MATERIALIZED VIEW batch_refresh_mv; REFRESH MATERIALIZED VIEW batch_refresh_blocked; INSERT INTO batch_refresh_base VALUES(99,'skipped')"
-		done := make(chan error, 1)
-		go func() {
+		finished := make(chan struct{})
+		join := fixture.LockOperation(t, p.Ctx, func(context.Context) fixture.RelationOutcome {
+			defer close(finished)
 			r, err := f.A.ExecContext(ctx, q)
 			if r != nil {
 				err = errors.New("canceled refresh message returned a result")
 			}
-			done <- err
-		}()
-		joined := false
-		defer func() {
-			cancel()
-			holder.Rollback()
-			if !joined {
-				select {
-				case <-done:
-				case <-time.After(fixture.Liveness):
-					t.Error("refresh cancellation worker failed to join")
-				}
-			}
-		}()
-		if b.PG {
-			// Observe the actual second refresh wait, not a callback or started signal.
-			fixture.LockWaitBehind(t, p.Ctx, pid, blocker, oid, "AccessExclusiveLock")
-			cancel()
-		}
-		select {
-		case err := <-done:
-			joined = true
-			if b.PG {
-				w := batchDiag("57014", "canceling statement due to user request")
-				fixture.AssertDiagnostic(t, err, &w)
-			} else if !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatalf("native retained refresh cancellation: %v", err)
-			}
-		case <-time.After(fixture.Liveness):
-			t.Fatal("refresh cancellation did not finish")
+			return fixture.RelationOutcome{Err: err}
+		})
+		// Observe the actual second refresh wait, not a callback or started signal.
+		fixture.RelationLockPending(t, p, b, pid, blocker, oid, "AccessExclusiveLock", finished)
+		cancel()
+		if err := join().Err; b.PG {
+			w := batchDiag("57014", "canceling statement due to user request")
+			fixture.AssertDiagnostic(t, err, &w)
+		} else if !errors.Is(err, context.Canceled) {
+			t.Fatalf("native retained refresh cancellation: %v", err)
 		}
 		if err := holder.Rollback(); err != nil {
 			t.Fatal(err)
