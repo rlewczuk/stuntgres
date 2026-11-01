@@ -8,7 +8,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -103,7 +102,7 @@ func TestReferenceEventTriggerPersistence(t *testing.T) {
 					}
 					defer pg.Close()
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						if _, err := pg.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 							t.Error(err)

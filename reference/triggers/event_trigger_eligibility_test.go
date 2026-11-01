@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -174,7 +173,7 @@ func eventTriggerForeignEligibility(t *testing.T) {
 	eventTriggerScenario(t, []string{"et_foreign"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		t.Cleanup(func() {
 			eventTriggerCleanup(t, b.DB, []string{"et_foreign"})
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, q := range []string{"DROP FOREIGN DATA WRAPPER IF EXISTS et_fdw CASCADE", "DROP ACCESS METHOD IF EXISTS et_am CASCADE"} {
 				if _, err := b.DB.ExecContext(ctx, q); err != nil {

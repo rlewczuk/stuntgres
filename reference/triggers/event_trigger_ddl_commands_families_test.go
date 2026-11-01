@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -28,7 +27,7 @@ func ddlCommandFamilies(t *testing.T, cases []ddlCommandWitness) {
 			ddlCommandScenario(t, func(d ddlCommandCase) {
 				if tc.class == "2328" || tc.class == "1417" || tc.kind == "foreign table" {
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						_, _ = d.c.ExecContext(ctx, "ROLLBACK")
 						if _, err := d.c.ExecContext(ctx, "DROP FOREIGN DATA WRAPPER IF EXISTS et_dc_fdw CASCADE"); err != nil {
@@ -38,7 +37,7 @@ func ddlCommandFamilies(t *testing.T, cases []ddlCommandWitness) {
 				}
 				if tc.tag == "REINDEX" {
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						if _, err := d.c.ExecContext(ctx, "DROP TABLE IF EXISTS et_dc_base CASCADE"); err != nil {
 							d.t.Error(err)

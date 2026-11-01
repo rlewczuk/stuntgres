@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -23,7 +22,7 @@ func TestReferenceExtensionOwnershipCommandInspection(t *testing.T) {
 				// Retire the global callback before extension/schema teardown, also
 				// on assertion failure. The scenario retains its fallback cleanup.
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{
 						"DROP EVENT TRIGGER IF EXISTS et_dc_eo_end",

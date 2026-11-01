@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -85,7 +84,7 @@ func ddlCommandsSameVersionExtension(t *testing.T) {
 		defer pool.Close()
 		defer c.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := c.ExecContext(ctx, "DROP EXTENSION IF EXISTS unaccent CASCADE"); err != nil {
 				t.Error(err)

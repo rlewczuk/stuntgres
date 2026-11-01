@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -20,7 +19,7 @@ func ddlCommandsTemporaryNamespaceIdentity(t *testing.T) {
 		peer.c = peerConn
 		owner.exec("CREATE TEMP TABLE et_dc_foreign_temp(i integer)")
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := owner.c.ExecContext(ctx, "DROP TABLE IF EXISTS pg_temp.et_dc_foreign_temp"); err != nil {
 				t.Error(err)

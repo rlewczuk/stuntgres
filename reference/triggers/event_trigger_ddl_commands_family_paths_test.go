@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -57,7 +56,7 @@ func ddlCommandsDropOwned(t *testing.T) {
 	ddlCommandScenario(t, func(d ddlCommandCase) {
 		t := d.t
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, query := range []string{"ROLLBACK", "DROP OWNED BY et_dc_role"} {
 				if _, err := d.c.ExecContext(ctx, query); err != nil {
@@ -95,7 +94,7 @@ func ddlCommandsDropOwned(t *testing.T) {
 func ddlCommandsUserMapping(t *testing.T) {
 	ddlCommandScenario(t, func(d ddlCommandCase) {
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			d.c.ExecContext(ctx, "ROLLBACK")
 			if _, err := d.c.ExecContext(ctx, "DROP FOREIGN DATA WRAPPER IF EXISTS et_dc_fdw CASCADE"); err != nil {

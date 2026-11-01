@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -135,7 +134,7 @@ func TestReferenceEventTriggerDDLCommandsOpaque(t *testing.T) {
 func ddlCommandsExtensionOracle(t *testing.T) {
 	eventTriggerScenario(t, []string{"et_dc_extension"}, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := c.ExecContext(ctx, "DROP EXTENSION IF EXISTS unaccent CASCADE"); err != nil {
 				t.Error(err)
