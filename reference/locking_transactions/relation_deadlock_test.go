@@ -113,7 +113,7 @@ func deadlockPublicWorker(t *testing.T, parent context.Context, index int, call 
 	}
 }
 func deadlockPublicRollback(c *sql.Conn) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	c.ExecContext(ctx, "ROLLBACK")
 }

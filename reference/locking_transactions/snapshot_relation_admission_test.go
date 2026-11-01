@@ -65,7 +65,7 @@ func TestReferenceSnapshotRelationAdmission(t *testing.T) {
 							done <- snapshotRemedyRead(reader.QueryContext(ctx, query))
 						}
 					}()
-					poll, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+					poll, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer stop()
 					for {
 						select {

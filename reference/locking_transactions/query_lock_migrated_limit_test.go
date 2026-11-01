@@ -191,7 +191,7 @@ func TestReferenceQueryLimitMigratedLockSmoke(t *testing.T) {
 								if abandoned.rows != nil {
 									abandoned.rows.Close()
 								}
-							case <-time.After(5 * time.Second):
+							case <-time.After(fixture.Liveness):
 								t.Error("stored frontier query did not terminate")
 							}
 						}

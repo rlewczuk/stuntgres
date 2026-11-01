@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceQueryLockSelectedRechecks(t *testing.T) {
@@ -37,7 +36,7 @@ func TestReferenceQueryLockSelectedRechecks(t *testing.T) {
 					// The shared volatile output is also the ORDER key, an actual pre-lock
 					// consuming frontier rather than an assumption about target demand timing.
 					q := "SELECT a.v+b.v+nextval('s')::int*0 AS v FROM t a JOIN u b ON a.id=b.id WHERE b.id=1 ORDER BY v FOR UPDATE OF a"
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					done := fixture.RowAsync(t, ctx, peer, q, prepared, true, b.Recorder.RawBackend)
 					if b.PG {

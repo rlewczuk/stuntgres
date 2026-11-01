@@ -8,7 +8,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func inheritanceQueryLocks(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *sql.Conn, bool)) {
@@ -39,7 +38,7 @@ func inheritanceQueryLocks(t *testing.T, body func(*testing.T, *fixture.Pair, fi
 // request, not a sleep or middleware entry assumed to imply admission.
 func inheritanceQueryWait(t *testing.T, p *fixture.Pair, b fixture.Backend, holder, waiter int, completed ...<-chan fixture.RelationOutcome) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	if b.PG {
 		fixture.RowWait(t, ctx, waiter, holder)

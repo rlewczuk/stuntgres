@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceCommitTimeAssignmentBoundaries(t *testing.T) {
@@ -22,7 +21,7 @@ func TestReferenceCommitTimeAssignmentBoundaries(t *testing.T) {
 					committed := !explicit
 					defer func() {
 						if !committed {
-							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							if _, err := owner.ExecContext(ctx, "ROLLBACK"); err != nil {
 								t.Error("explicit assignment cleanup", err)
@@ -61,7 +60,7 @@ func TestReferenceCommitTimeAssignmentBoundaries(t *testing.T) {
 					committed := !explicit
 					defer func() {
 						if !committed {
-							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							if _, err := owner.ExecContext(ctx, "ROLLBACK"); err != nil {
 								t.Error("explicit assignment cleanup", err)

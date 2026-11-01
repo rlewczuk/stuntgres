@@ -256,7 +256,7 @@ func pgrowPosition(q, token string) string {
 // start. The same pg_locks and pg_blocking_pids relationships apply in both modes.
 func pgrowWait(t *testing.T, p *fixture.Pair, observer *sql.Conn, waiter, holder int, relation bool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	q := "SELECT $2=ANY(pg_blocking_pids($1))"
 	if relation {

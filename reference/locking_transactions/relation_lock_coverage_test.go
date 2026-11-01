@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRelationLockPhysicalEnd(t *testing.T) {
@@ -130,7 +129,7 @@ func TestReferenceRelationLockExclusiveConflict(t *testing.T) {
 						var stmt *sql.Stmt
 						if prepared {
 							// Must finish while A still holds AX: Prepare is metadata-only.
-							prepareCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+							prepareCtx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 							stmt, err = waiter.PrepareContext(prepareCtx, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 							cancel()
 							if err != nil {

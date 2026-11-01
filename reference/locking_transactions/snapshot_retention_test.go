@@ -71,7 +71,7 @@ func TestReferenceSnapshotStatementRetention(t *testing.T) {
 						}
 					}
 				})
-				poll, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+				poll, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer stop()
 				for {
 					var pending bool

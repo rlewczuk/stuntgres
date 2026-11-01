@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceTransactionIsolationReadOnlyUtilityPrecedence(t *testing.T) {
@@ -31,7 +30,7 @@ func TestReferenceTransactionIsolationReadOnlyUtilityPrecedence(t *testing.T) {
 							}
 							a, b := fixture.LockConnections(t, p.Ctx, db)
 							var err error
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							fixture.IsolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 							fixture.IsolationReferenceAffected(t, ctx, b, "INSERT INTO t VALUES(1)", false, 1)

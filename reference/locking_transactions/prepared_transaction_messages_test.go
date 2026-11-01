@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/stdlib"
 
@@ -50,7 +49,7 @@ func preparedMessageBoundaryEffects(t *testing.T) {
 
 func preparedMessageReceive(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, channel, payload string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	var pid uint64
 	var gotChannel, gotPayload string

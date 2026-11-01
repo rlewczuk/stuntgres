@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func smokeDeadlockAcyclic(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			a, b := fixture.LockConnections(t, ctx, backend.DB)
 			c := deadlockPublicConn(t, ctx, backend.DB)

@@ -84,7 +84,7 @@ func TestReferenceRowLockJoinedIndependence(t *testing.T) {
 					fixture.RowAffected(t, p.Ctx, b, "UPDATE u SET id=3 WHERE id=3", prepared, 1)
 					fixture.RowAffected(t, p.Ctx, b, "UPDATE t SET v=20 WHERE id=2", prepared, 1)
 					if backend.PG {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						done := fixture.RowAsync(t, ctx, b, "DELETE FROM u WHERE id=1", prepared, false)
 						fixture.RowWait(t, ctx, bp, ap)

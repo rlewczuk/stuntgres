@@ -139,7 +139,7 @@ func TestReferencePreparedTransactionRestoreReaderOverlap(t *testing.T) {
 				if !joined {
 					select {
 					case <-done:
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("Restore worker did not join")
 					}
 				}

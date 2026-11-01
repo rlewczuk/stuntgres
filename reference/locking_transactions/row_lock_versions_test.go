@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func referenceRowReadCommittedWaits(t *testing.T) {
@@ -39,7 +38,7 @@ func referenceRowReadCommittedWaits(t *testing.T) {
 							if predicate {
 								query = "SELECT v FROM t WHERE v=10 " + clause
 							}
-							ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+							ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 							defer cancel()
 							done := fixture.RowAsync(t, ctx, reader, query, prepared, true, fixture.RawPostgres)
 							fixture.RowWait(t, ctx, bp, ap)
@@ -103,7 +102,7 @@ func referenceRowOrderingWaits(t *testing.T) {
 			}
 			defer tx.Rollback()
 			fixture.LockExec(t, p.Ctx, tx, "UPDATE t SET v=30 WHERE id=1", 1)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			done := fixture.RowAsync(t, ctx, b, "SELECT v FROM t ORDER BY v FOR SHARE", prepared, true)
 			fixture.RowWait(t, ctx, bp, ap)
@@ -160,7 +159,7 @@ func referenceRowJoinRecheck(t *testing.T) {
 			}
 			defer tx.Rollback()
 			fixture.LockExec(t, p.Ctx, tx, "UPDATE t SET id=3 WHERE id=1", 1)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			done := fixture.RowAsync(t, ctx, b, "SELECT t.v FROM t JOIN u ON t.id=u.id FOR SHARE", prepared, true, fixture.RawPostgres)
 			fixture.RowWait(t, ctx, bp, ap)

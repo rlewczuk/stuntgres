@@ -223,7 +223,7 @@ func TestReferenceAdvisorySessionWarnings(t *testing.T) {
 				_, owner, _ = fixture.NoticeReferencePool(t, p, false, &callback, fixture.NoticeReferenceOption{
 					Joined: func() bool { return joined },
 					Handler: func(fixture.Diagnostic) {
-						ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						if physical == nil {
 							callbackErr = fmt.Errorf("notice callback escaped its originating Raw lifetime")
@@ -232,7 +232,7 @@ func TestReferenceAdvisorySessionWarnings(t *testing.T) {
 						callbackErr = queryBool(physical, ctx, "SELECT true", true)
 					},
 				})
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				done := make(chan error, 1)
 				t.Cleanup(func() {

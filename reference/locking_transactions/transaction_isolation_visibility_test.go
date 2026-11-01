@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func referenceIsolationVisibility(t *testing.T, postgres bool) {
@@ -25,10 +24,10 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 			}
 			t.Run(mode.name+"/"+path, func(t *testing.T) {
 				_, a, b := fixture.IsolationReferenceConnections(t, fixture.NewScenario(t), postgres)
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				t.Cleanup(func() {
-					cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					a.ExecContext(cleanup, "ROLLBACK")
 					b.ExecContext(cleanup, "ROLLBACK")
@@ -114,10 +113,10 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 		}
 		t.Run("RR/concurrent_update/"+path, func(t *testing.T) {
 			_, a, b := fixture.IsolationReferenceConnections(t, fixture.NewScenario(t), postgres)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			t.Cleanup(func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				a.ExecContext(cleanup, "ROLLBACK")
 			})

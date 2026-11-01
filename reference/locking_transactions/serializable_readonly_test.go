@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func serializableReferenceWriters(t *testing.T, p *fixture.Pair, b fixture.Backend) (*sql.Conn, *sql.Conn, *sql.Conn) {
@@ -71,7 +70,7 @@ func TestReferenceSerializableReadOnlyAnomaly(t *testing.T) {
 
 func serializableReferenceSafeWait(t *testing.T, ctx context.Context, pid int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var waiting bool

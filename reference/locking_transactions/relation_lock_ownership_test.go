@@ -36,7 +36,7 @@ func TestReferenceRelationLockOwnership(t *testing.T) {
 					other := sql.OpenDB(connector)
 					t.Cleanup(func() { other.Close() })
 					fixture.LockExec(t, ctx, other, "CREATE TABLE t(v INT)", 0)
-					bounded, cancel := context.WithTimeout(ctx, time.Second)
+					bounded, cancel := context.WithTimeout(ctx, fixture.Liveness)
 					fixture.LockExec(t, bounded, other, "INSERT INTO t VALUES(7)", 1)
 					rows, err := other.QueryContext(bounded, "SELECT v FROM t")
 					fixture.LimitLockValues(t, fixture.RelationOutcome{Rows: rows, Err: err}, false, 7)

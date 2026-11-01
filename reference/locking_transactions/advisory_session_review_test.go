@@ -9,7 +9,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceAdvisorySessionReviewCheckPreparation(t *testing.T) {
@@ -21,7 +20,7 @@ func TestReferenceAdvisorySessionReviewCheckPreparation(t *testing.T) {
 			peer := advisorySessionConn(t, p, b)
 			run := func(s fixture.Step) { fixture.CheckRun(t, p.Ctx, a, record, s) }
 			t.Cleanup(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, c := range []*sql.Conn{a, peer} {
 					if _, err := c.ExecContext(ctx, "SELECT pg_advisory_unlock_all()"); err != nil {
@@ -89,7 +88,7 @@ func TestReferenceAdvisorySessionReviewCheckPreparation(t *testing.T) {
 						t.Fatal("Dump lost stored CHECK syntax/dependency", name, dump.String())
 					}
 				}
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				err := stuntgres.Restore(ctx, p.Native, bytes.NewReader(dump.Bytes()))
 				cancel()
 				if err != nil {
@@ -142,7 +141,7 @@ func TestReferenceAdvisorySessionReviewCheckPreparation(t *testing.T) {
 					t.Fatal(err)
 				}
 				advisorySessionValue(t, p.Ctx, a, "SELECT pg_advisory_lock(3206)", "VOID", "")
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				err := stuntgres.Restore(ctx, p.Native, strings.NewReader(dump.String()+"\nINSERT INTO advisory_review_error VALUES(3);"))
 				cancel()
 				full := advisorySessionTimeout("22012", "division by zero")

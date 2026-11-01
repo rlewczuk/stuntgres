@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRowLockKeyControl(t *testing.T) {
@@ -31,7 +30,7 @@ func TestReferenceRowLockKeyControl(t *testing.T) {
 				run(fixture.Prepared(fixture.ImplicitError("UPDATE t SET id=2 WHERE id=1", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout"})))
 				run(fixture.Exec("SET lock_timeout=0", 0))
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			done := fixture.RowAsync(t, ctx, b, "UPDATE t SET id=2 WHERE id=1", true, false)
 			if backend.PG {

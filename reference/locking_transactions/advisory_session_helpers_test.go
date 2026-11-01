@@ -111,7 +111,7 @@ func advisorySessionClear(t *testing.T, ctx context.Context, c fixture.Executor)
 
 func advisorySessionWait(t *testing.T, ctx context.Context, waiter, holder int, k advisorySessionKey, shared bool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	mode := "ExclusiveLock"
 	if shared {

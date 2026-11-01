@@ -3,12 +3,11 @@ package reference_test
 import (
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
 
-const snapshotCleanupTimeout = 5 * time.Second
+const snapshotCleanupTimeout = fixture.Liveness
 
 func snapshotPeerLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend, route, completion string) {
 	t.Helper()

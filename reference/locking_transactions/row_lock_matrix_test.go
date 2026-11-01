@@ -36,7 +36,7 @@ func TestReferenceRowLockMatrix(t *testing.T) {
 							query := "SELECT v FROM t WHERE id=1 " + fixture.RowClauses[requested]
 							if referenceRowConflicts[requested][held] {
 								if backend.PG {
-									ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+									ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 									defer cancel()
 									done := fixture.RowAsync(t, ctx, b, query, prepared, true, backend.Recorder.RawBackend)
 									fixture.RowWait(t, ctx, bp, ap)
@@ -123,7 +123,7 @@ func TestReferenceRowLockDMLModes(t *testing.T) {
 									}
 									if deleting || i != 0 {
 										if backend.PG {
-											ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+											ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 											defer cancel()
 											done := fixture.RowAsync(t, ctx, b, query, prepared, false)
 											fixture.RowWait(t, ctx, bp, ap)

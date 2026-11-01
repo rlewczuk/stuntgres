@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceQueryLockOptions(t *testing.T) {
@@ -77,7 +76,7 @@ func TestReferenceQueryLockOptionsTableWaits(t *testing.T) {
 					}
 					holder := fixture.QueryLockBegin(t, p.Ctx, a)
 					fixture.LockExec(t, p.Ctx, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", 0)
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					var x fixture.Executor = peer
 					if prepared {

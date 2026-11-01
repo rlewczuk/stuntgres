@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRelationDeadlockDiagnosticsNegative(t *testing.T) {
@@ -35,7 +34,7 @@ func TestReferenceRelationDeadlockDiagnosticsNegative(t *testing.T) {
 			fixture.LockExec(t, ctx, a, "CREATE ROLE deadlock_oracle_reader", 0)
 			if backend.PG {
 				t.Cleanup(func() {
-					cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					a.ExecContext(cleanup, "ROLLBACK")
 					b.ExecContext(cleanup, "ROLLBACK")

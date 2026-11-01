@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -142,7 +141,7 @@ func TestReferencePgrowlocksDynamicSnapshot(t *testing.T) {
 // gate relation, not the target. Both the request and actual blocker must exist.
 func pgrowDynamicGateWait(t *testing.T, p *fixture.Pair, observer *sql.Conn, reader, holder int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	const query = `SELECT $2=ANY(pg_blocking_pids($1)) AND EXISTS(
  SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='relation'

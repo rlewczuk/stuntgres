@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceAdvisorySessionCheckConsumers(t *testing.T) {
@@ -76,7 +75,7 @@ func TestReferenceAdvisorySessionCheckConsumers(t *testing.T) {
 				}
 				advisorySessionValue(t, p.Ctx, a, "SELECT pg_advisory_lock(208)", "VOID", "")
 				advisorySessionValue(t, p.Ctx, a, "SELECT pg_advisory_lock(208)", "VOID", "")
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				err := stuntgres.Restore(ctx, p.Native, bytes.NewReader(dump.Bytes()))
 				cancel()
 				if err != nil {
