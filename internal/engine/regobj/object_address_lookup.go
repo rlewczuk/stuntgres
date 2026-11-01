@@ -278,6 +278,9 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42883", fmt.Sprintf("operator %s(%s, %s) does not exist", strings.Join(names, "."), args[0], args[1]))
 	case 2605:
+		if cast, ok := view.Cast(sqltype.ID(typeID), sqltype.ID(argIDs[0])); ok {
+			return cast.Address(), nil
+		}
 		for i := range sqltype.CastMetadataCount() {
 			cast, _ := sqltype.CastMetadataAt(i)
 			if uint32(cast.Source) == typeID && ids.OID(cast.Target) == argIDs[0] {
@@ -416,7 +419,7 @@ func (q AddressLookup) Lookup(ctx context.Context, values [3]sqltype.Value) (ids
 		}
 		return missing("42704", fmt.Sprintf("%s %q for %s %q does not exist", object, name, owner, relation.Name()))
 	}
-	if class == 3456 || class == 2607 || class == 3764 || class == 3600 {
+	if class == 3456 || class == 2607 || class == 3764 || class == 3600 || class == 3602 {
 		d, err := q.descriptor(class, names)
 		if err != nil {
 			return ids.ObjectAddress{}, err

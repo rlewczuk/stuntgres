@@ -1001,9 +1001,15 @@ Persistent callback/audit state survives native Dump/Restore; inspection scratch
 is never serialized. Physical PostgreSQL TOAST storage records have no native
 storage counterpart.
 
-`pg_get_object_address` reconstructs supported table, function and procedure
-identities from actual saved dropped-object name/type arrays after recreation,
-outside event context and through native Dump/Reset/Restore. Forward and inverse
+`pg_get_object_address` reconstructs supported table, function, procedure, dynamic
+cast and text-search configuration identities from actual saved dropped-object
+name/type arrays after same-name recreation, outside event context and through
+native Dump/Reset/Restore, fresh-driver Restore and unchanged SQL replay.
+Dynamic cast lookup uses the indexed descriptor before fixed metadata; configuration
+lookup shares the existing namespace/name descriptor path. Combined end/drop/rewrite
+callbacks retain serializable receipts, exact rewrite values and drop-before-end
+ordering through native replacement without persisting event scratch.
+Forward and inverse
 routine identity use the represented declaration's procedure/aggregate kind;
 lookup-only helpers keep their own function kind. Exact signatures retain
 PostgreSQL missing/wrong-kind diagnostics, raw dotted diagnostic names, canonical

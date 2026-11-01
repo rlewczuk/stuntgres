@@ -16,6 +16,7 @@ import (
 func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 	fixture.SchemaReferenceCleanup(t, "et_do_saved")
 	droppedScenario(t, func(d droppedCase) {
+		t := d.t
 		d.setup()
 		d.exec(
 			"CREATE TABLE public.et_do_owner(name text)",
@@ -56,6 +57,29 @@ func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 			d.exec(ddl)
 			d.clear()
 		}
+		// Keep all cast/configuration records in their own saved table. In
+		// particular the normal-dependent configuration must not be filtered
+		// by original. Restore incumbent tags and empty audits before history.
+		d.exec("CREATE TABLE public.et_bi_saved AS SELECT * FROM public.et_do_audit WHERE false",
+			"DROP EVENT TRIGGER et_do_drop", "DROP EVENT TRIGGER et_do_end")
+		d.install("'DROP CAST','DROP TEXT SEARCH DICTIONARY'")
+		var builtinSaved, builtinRoots []droppedRecord
+		for _, recipe := range builtinRecipes() {
+			d.exec(recipe.setup...)
+			d.exec(recipe.recreate...)
+			records := d.capture(recipe.records)
+			d.drop(recipe.drop, false)
+			d.bag(1, records)
+			d.bag(2, records)
+			d.phases(len(records))
+			d.run(fixture.Exec("INSERT INTO public.et_bi_saved SELECT * FROM public.et_do_audit WHERE pass=1", int64(len(records))))
+			builtinSaved = append(builtinSaved, records...)
+			builtinRoots = append(builtinRoots, records[recipe.target])
+			d.exec(recipe.recreate...)
+			d.clear()
+		}
+		d.exec("DROP EVENT TRIGGER et_do_drop", "DROP EVENT TRIGGER et_do_end")
+		d.install("'DROP TABLE','DROP SCHEMA','DROP FUNCTION','DROP PROCEDURE'")
 		historic := d.capture(droppedTable("public", "et_do_history", true))
 		d.drop("DROP TABLE public.et_do_history", false)
 		d.bag(1, historic)
@@ -73,6 +97,10 @@ func TestReferenceEventTriggerDroppedObjectsPersistence(t *testing.T) {
 			x.bag(2, historic)
 			x.phases(7)
 			droppedReconstructionCheck(x, "public.et_addr_saved", savedRecipes)
+			builtinSavedBag(x, "public.et_bi_saved", builtinSaved)
+			builtinRecipeCheck(x, "public.et_bi_saved", builtinRoots)
+			builtinRecipeData(x, "cast")
+			builtinRecipeData(x, "configuration")
 			var savedRows [][]any
 			for _, r := range savedRecipes {
 				savedRows = append(savedRows, r.row(b.PG))

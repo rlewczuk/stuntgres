@@ -223,6 +223,10 @@ import it.
   names; argument cells are parsed SQL types rendered canonically. Sequential
   syntax/NULL validation precedes the 100-input routine cap, which precedes
   semantic type and namespace lookup. Missing zero-input aggregates use `(*)`.
+  Cast lookup consults the current indexed source/target descriptor before fixed
+  released cast metadata. Text-search configurations (class3602) share the
+  namespace/name descriptor path with templates and dictionaries. Saved address
+  arrays resolve against the executing catalog, not a previous prepared reader.
 - **Comment inquiries** (`comment_inquiry.go`): `CommentText` answers
   `obj_description`, `col_description` and `shobj_description` over the
   comment catalog and roles; an empty text is NULL. Local extension lookups use

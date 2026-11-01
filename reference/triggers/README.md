@@ -95,6 +95,15 @@ failing-consumer rollback/savepoint recovery and native cancellation are checked
 counterparts through both replacement rounds, fresh-driver Restore and unchanged
 native dump replay into PostgreSQL. Stored historic numeric OIDs remain ordinary
 audit data; reconstruction compares the current catalog, not historic IDs.
+Saved cast and text-search configuration recipes use those same execution routes,
+including normal-dependent configurations, full missing-object diagnostics and
+current cast endpoints/configuration mappings. Reconstruction requires an existing
+same-kind, identically named counterpart; historical OIDs are never lookup authority.
+The combined inspection scenario installs end/drop/rewrite callbacks together,
+checks serializable DDL receipts, both rewrite values and drop-before-end ordering,
+and resolves actual saved table-root cells outside event context. Native replacement
+preserves definitions, activation links, data and audit recipes without firing
+callbacks during Restore; a new rewrite uses the restored current catalog.
 Native controls do not emulate PostgreSQL physical storage, WAL durability,
 network/process or native ABI mechanisms.
 
@@ -148,11 +157,3 @@ utility handles share the same SQL definitions and independent expected rows,
 metadata, diagnostics and atomicity assertions.
 The live nesting cross-family witness uses `RUN='^TestReferenceTriggerDepthEvent$'`.
 
-Bounded recipe selectors (run each natively and with `REFERENCE=1`; add `RACE=1`
-for selected race coverage):
-
-```sh
-make check RUN='^TestReferenceEventTriggerObjectAddressReconstruction$'
-make check RUN='^TestReferenceEventTriggerDroppedObjectsPersistence$'
-make check RUN='^TestReferenceEventTriggerDroppedObjects'
-```
