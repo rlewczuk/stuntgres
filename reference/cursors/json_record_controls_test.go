@@ -66,7 +66,7 @@ func jsonRecordControlJoin(t *testing.T, done <-chan error) error {
 	select {
 	case err := <-done:
 		return err
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("JSON record control worker did not join")
 		return nil
 	}

@@ -15,7 +15,7 @@ import (
 // Barriers witness external I/O rather than relying on scheduling or sleeps.
 func jsonbRecordControlIO(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, dump []byte, checks []fixture.Step) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	writer := &fixture.CatalogControlGatedWriter{Started: make(chan struct{}), Release: make(chan struct{})}
 	var release sync.Once
@@ -28,7 +28,7 @@ func jsonbRecordControlIO(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		if !joined {
 			select {
 			case <-done:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("Dump worker did not join")
 			}
 		}
@@ -70,7 +70,7 @@ func jsonbRecordControlIO(t *testing.T, p *fixture.Pair, b fixture.Backend, c *s
 		if !restoreJoined {
 			select {
 			case <-restored:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("Restore worker did not join")
 			}
 		}
