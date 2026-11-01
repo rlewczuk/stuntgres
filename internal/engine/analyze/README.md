@@ -181,6 +181,16 @@ that routine separately from result type. Ordering captures the current default
 B-tree class, family, support member and comparator before reading rows. Datum
 ordering capability never creates absent ordinary operator overloads.
 
+Installed ISN predicates use `ComparisonExpr` with actual routine and operator
+dependencies over the finite released role pairs. Named comparisons retain
+call syntax and the selected procedure; checked conversion calls use the shared
+`CastRoutine` and packed coercion kernel, never a spelling-based type shortcut.
+Cast selection authenticates both genuine same-cohort endpoints before context
+admission. All eight ISN roles route same-type ORDER BY through the current
+installed default B-tree class and captured class/family/member/routine support,
+including empty and NULL-only inputs. Datum capability alone does not authorize
+a missing operator, cast or ordering provider.
+
 Standalone CALL uses the common callable selector with the full formal-position
 projection for every candidate kind, including function OUT declarations.
 Candidate ranking and namespace masking precede invocation-kind rejection.
@@ -291,6 +301,13 @@ library, and never the root engine or `session`. The engine, the root driver
   Installed heap-verification calls retain their exact provider slot and four
   OUT fields, use shared named/default coercion, and map written source
   occurrences to canonical inputs for frozen-literal capture.
+  SQL/JSON DEFAULT shape follows analyzed casts: intrinsic coercions retain their
+  function classification, selected binary/IO casts are transparent, and selected
+  cast-routine/SQL-routine calls retain real scalar function shape. Transparent
+  wrappers retain the earliest analyzed location, including prefix CAST syntax;
+  diagnostic shape admission precedes
+  the full-tree column restriction. Routine binding still owns provider,
+  privilege and dependency authentication.
 - **`Host`** (`host.go`): the engine services the binder calls (name and type
   resolution, privileges, definition reads, captures, stored views). The engine
   implements it as `BindingHost`.

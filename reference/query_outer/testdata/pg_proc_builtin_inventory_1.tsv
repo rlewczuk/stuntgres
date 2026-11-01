@@ -25,6 +25,14 @@
 84	boolne	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	16 16	\N	\N	\N	false	\N	boolne	\N	false	\N
 88	pg_ddl_command_recv	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	32	2281	\N	\N	\N	false	\N	pg_ddl_command_recv	\N	false	\N
 89	version	11	12	1	0	0	0	f	false	false	true	false	s	s	0	0	25		\N	\N	\N	false	\N	pgsql_version	\N	false	\N
+101	eqsel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	eqsel	\N	false	\N
+102	neqsel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	neqsel	\N	false	\N
+103	scalarltsel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	scalarltsel	\N	false	\N
+104	scalargtsel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	scalargtsel	\N	false	\N
+105	eqjoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	eqjoinsel	\N	false	\N
+106	neqjoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	neqjoinsel	\N	false	\N
+107	scalarltjoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	scalarltjoinsel	\N	false	\N
+108	scalargtjoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	scalargtjoinsel	\N	false	\N
 115	box_above_eq	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	603 603	\N	\N	\N	false	\N	box_above_eq	\N	false	\N
 116	box_below_eq	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	603 603	\N	\N	\N	false	\N	box_below_eq	\N	false	\N
 125	box_overlap	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	603 603	\N	\N	\N	false	\N	box_overlap	\N	false	\N
@@ -170,6 +178,8 @@
 332	gisthandler	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	325	2281	\N	\N	\N	false	\N	gisthandler	\N	false	\N
 334	spghandler	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	325	2281	\N	\N	\N	false	\N	spghandler	\N	false	\N
 335	brinhandler	11	12	1	0	0	0	f	false	false	true	false	v	s	1	0	325	2281	\N	\N	\N	false	\N	brinhandler	\N	false	\N
+336	scalarlesel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	scalarlesel	\N	false	\N
+337	scalargesel	11	12	1	0	0	0	f	false	false	true	false	s	s	4	0	701	2281 26 2281 23	\N	\N	\N	false	\N	scalargesel	\N	false	\N
 339	poly_same	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	604 604	\N	\N	\N	false	\N	poly_same	\N	false	\N
 340	poly_contain	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	604 604	\N	\N	\N	false	\N	poly_contain	\N	false	\N
 341	poly_left	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	604 604	\N	\N	\N	false	\N	poly_left	\N	false	\N
@@ -208,6 +218,7 @@
 381	dist_bs	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	701	603 601	\N	\N	\N	false	\N	dist_bs	\N	false	\N
 383	array_cat	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	5078	5078 5078	\N	\N	\N	false	\N	array_cat	\N	false	\N
 384	array_to_string	11	12	1	0	0	0	f	false	false	false	false	s	s	3	0	25	2277 25 25	\N	\N	\N	false	\N	array_to_text_null	\N	false	\N
+386	scalarlejoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	scalarlejoinsel	\N	false	\N
 390	array_ne	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	2277 2277	\N	\N	\N	false	\N	array_ne	\N	false	\N
 391	array_lt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	2277 2277	\N	\N	\N	false	\N	array_lt	\N	false	\N
 392	array_gt	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	2277 2277	\N	\N	\N	false	\N	array_gt	\N	false	\N
@@ -215,6 +226,7 @@
 394	string_to_array	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	1009	25 25	\N	\N	\N	false	\N	text_to_array	\N	false	\N
 395	array_to_string	11	12	1	0	0	0	f	false	false	true	false	s	s	2	0	25	2277 25	\N	\N	\N	false	\N	array_to_text	\N	false	\N
 396	array_ge	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	2277 2277	\N	\N	\N	false	\N	array_ge	\N	false	\N
+398	scalargejoinsel	11	12	1	0	0	0	f	false	false	true	false	s	s	5	0	701	2281 26 2281 21 2281	\N	\N	\N	false	\N	scalargejoinsel	\N	false	\N
 400	hashtext	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	25	\N	\N	\N	false	\N	hashtext	\N	false	\N
 401	text	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	1042	\N	\N	\N	false	\N	rtrim1	\N	false	\N
 406	text	11	12	1	0	0	0	f	false	true	true	false	i	s	1	0	25	19	\N	\N	\N	false	\N	name_text	\N	false	\N

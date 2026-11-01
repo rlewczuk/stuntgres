@@ -82,7 +82,7 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 		}
 		return d
 	}
-	for _, name := range []string{"cube", "query_int", "citext", "ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
+	for _, name := range []string{"cube", "query_int", "citext", "ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13", "upc"} {
 		var d *Descriptor
 		var e error
 		switch name {
@@ -106,6 +106,8 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 			d, e = Issn(next, name, name)
 		case "issn13":
 			d, e = Issn13(next, name, name)
+		case "upc":
+			d, e = Upc(next, name, name)
 		}
 		next++
 		cat := "U"
@@ -173,7 +175,7 @@ func castUnitUniverse(t *testing.T) []castUnitFact {
 	return facts
 }
 
-// Closed direct facts from REL_18_6 pg_cast.dat and citext--1.4.sql.
+// Closed direct facts from REL_18_6 pg_cast.dat, citext--1.4.sql and isn--1.1.sql.
 func castUnitEdges() []castUnitEdge {
 	var edges []castUnitEdge
 	add := func(s, t string, c, m byte) { edges = append(edges, castUnitEdge{s, t, c, m}) }
@@ -234,6 +236,16 @@ func castUnitEdges() []castUnitEdge {
 			method = 'f'
 		}
 		add(p[0], p[1], p[2][0], method)
+	}
+	// The released ISN graph is direct, with no implicit or transitive edges:
+	// seven checked EAN narrowings, seven binary widenings and six family relabels.
+	for _, narrow := range strings.Fields("isbn isbn13 ismn ismn13 issn issn13 upc") {
+		add("ean13", narrow, 'e', 'f')
+		add(narrow, "ean13", 'a', 'b')
+	}
+	for _, pair := range [][2]string{{"isbn", "isbn13"}, {"ismn", "ismn13"}, {"issn", "issn13"}} {
+		add(pair[0], pair[1], 'a', 'b')
+		add(pair[1], pair[0], 'a', 'b')
 	}
 	return edges
 }

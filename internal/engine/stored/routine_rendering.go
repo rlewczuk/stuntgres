@@ -106,44 +106,64 @@ func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Render
 	}
 	if call, installed := node.(functions.LtreeArray); installed {
 		current, err := currentLtreeArray(view, call)
-		if err != nil { return spec, err }
+		if err != nil {
+			return spec, err
+		}
 		namespace, ok := view.Namespace(current.Namespace())
-		if !ok { return spec, fmt.Errorf("stuntgres: missing ltree array namespace") }
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ltree array namespace")
+		}
 		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
 		return spec, nil
 	}
- if call, installed := node.(functions.LtreeLtxtquery); installed {
-  current, err := currentLtreeLtxtquery(view, call)
-  if err != nil { return spec, err }
-  namespace, ok := view.Namespace(current.Namespace())
-  if !ok { return spec, fmt.Errorf("stuntgres: missing ltree ltxtquery namespace") }
-  spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
-  return spec, nil
- }
+	if call, installed := node.(functions.LtreeLtxtquery); installed {
+		current, err := currentLtreeLtxtquery(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ltree ltxtquery namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := node.(functions.LtreeHierarchy); installed {
 		current, err := currentLtreeHierarchy(view, call)
-		if err != nil { return spec, err }
+		if err != nil {
+			return spec, err
+		}
 		namespace, ok := view.Namespace(current.Namespace())
-		if !ok { return spec, fmt.Errorf("stuntgres: missing ltree hierarchy namespace") }
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ltree hierarchy namespace")
+		}
 		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
 		return spec, nil
 	}
- if call, installed := node.(functions.LtreePath); installed {
-  current, err := currentLtreePath(view, call)
-  if err != nil { return spec, err }
-  namespace, ok := view.Namespace(current.Namespace())
-  if !ok { return spec, fmt.Errorf("stuntgres: missing ltree path namespace") }
-  spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
-  return spec, nil
- }
- if call, installed := node.(functions.LtreeLquery); installed {
-  current, err := currentLtreeLquery(view, call)
-  if err != nil { return spec, err }
-  namespace, ok := view.Namespace(current.Namespace())
-  if !ok { return spec, fmt.Errorf("stuntgres: missing ltree lquery namespace") }
-  spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
-  return spec, nil
- }
+	if call, installed := node.(functions.LtreePath); installed {
+		current, err := currentLtreePath(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ltree path namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
+	if call, installed := node.(functions.LtreeLquery); installed {
+		current, err := currentLtreeLquery(view, call)
+		if err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ltree lquery namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	if call, installed := citextStringCallOf(node); installed {
 		current, err := currentCitextString(view, call)
 		if err != nil {
@@ -191,11 +211,21 @@ func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Render
 		if err != nil {
 			return spec, err
 		}
-		if extension.CitextProviderOf(current) != extension.StockCitext || symbol != "citext" || cast.Count != 1 || current.Signature != extension.CitextSignature(cast.Formals[0]) || current.Result != ids.OID(cast.Result) {
-			return spec, fmt.Errorf("stuntgres: invalid installed cast rendering identity")
-		}
-		if err := extension.StockCitext.ValidateProcedure(view, current); err != nil {
-			return spec, err
+		if extension.IsnProviderOf(current) == extension.StockIsn {
+			capture, ok := isnCaptureOf(cast)
+			if !ok {
+				return spec, fmt.Errorf("stuntgres: invalid ISN cast rendering")
+			}
+			if err := validateIsnCaptureProcedure(view, current, capture); err != nil {
+				return spec, err
+			}
+		} else {
+			if extension.CitextProviderOf(current) != extension.StockCitext || symbol != "citext" || cast.Count != 1 || current.Signature != extension.CitextSignature(cast.Formals[0]) || current.Result != ids.OID(cast.Result) {
+				return spec, fmt.Errorf("stuntgres: invalid installed cast rendering identity")
+			}
+			if err := extension.StockCitext.ValidateProcedure(view, current); err != nil {
+				return spec, err
+			}
 		}
 		if err := cast.ValidateStoredProvider(); err != nil {
 			return spec, err

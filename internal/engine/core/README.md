@@ -2444,6 +2444,8 @@ Path accepted-definition ownership uses `RUN='^TestLtreePathPrepared'`, retainin
 every scalar-LCA occurrence and exact installed fold backing through rejection.
 Mixed scalar label-query definition/fold ownership uses
 `RUN='^TestLtreeLtxtqueryPrepared'`.
+Installed ISN accepted definition, operand backing and rejected fold publication
+use `RUN='^TestIsnExpression'`; stored transport authority shares that family.
 
 Trigger-mode candidate, staged cancellation, prepared publication, clone/FK and
 replay ownership units share `RUN='^TestTriggerMode'`, also with `RACE=1`.

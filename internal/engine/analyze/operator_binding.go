@@ -218,14 +218,23 @@ func (b *Binder) selectCatalogOperator(set operatorCandidateSet, raw parser.Oper
 func (b *Binder) requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
 	if d.Origin.Valid(d.Address()) {
 		typ := b.Type(sqltype.ID(d.Left))
-		if typ.IsLtree() && d.Left==d.Right {
-			procedure,err:=b.ltreeOperatorProcedure(d.Name(),typ);if err!=nil{return err}
-			if procedure.Address().ObjectID==d.Function{return nil}
+		if typ.IsLtree() && d.Left == d.Right {
+			procedure, err := b.ltreeOperatorProcedure(d.Name(), typ)
+			if err != nil {
+				return err
+			}
+			if procedure.Address().ObjectID == d.Function {
+				return nil
+			}
 		}
 		if typ.IsHstore() && d.Left == d.Right {
 			procedure, err := b.hstoreOperatorProcedure(d.Name(), typ)
-			if err != nil { return err }
-			if procedure.Address().ObjectID == d.Function { return nil }
+			if err != nil {
+				return err
+			}
+			if procedure.Address().ObjectID == d.Function {
+				return nil
+			}
 		}
 		if typ.IsCube() && d.Left == d.Right {
 			procedure, err := b.cubeOperatorProcedure(d.Name(), typ)
@@ -351,19 +360,40 @@ func (b *Binder) BindCatalogOperator(raw parser.OperatorExpr, policy ExpressionP
 // Synthetic argument slots are binder-local, cannot occur in parsed SQL, and
 // are restored even if the selected provider rejects an unsupported signature.
 func (b *Binder) BindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
-	if extension.LtreeProviderOf(d)==extension.StockLtree {
-		view:=b.BindingCatalog()
-		if err:=extension.StockLtree.ValidateProcedure(view,d);err!=nil{return nil,err}
-		symbol,err:=extension.ProcedureSymbol(view,d);if err!=nil{return nil,err}
-		for i,name:=range extension.LtreeComparisonNames[:6]{
-			if symbol!=name{continue}
-			if len(args)!=2{return nil,fmt.Errorf("stuntgres: invalid ltree operator arity")}
-			input,err:=b.comparisonInfo(args[0],args[1]);if err!=nil{return nil,err}
-			predicate,err:=sqltype.BindComparisonPredicate(sqltype.ComparisonOperator(i),args[0].ResultUsage().Type,args[1].ResultUsage().Type,b.Type(sqltype.Bool),input.Usage.Collation,input.CollationConflict);if err!=nil{return nil,err}
-			info:=b.Info(b.Type(sqltype.Bool).Usage(),pos,expr.MergeProperties(args[0].Properties(),args[1].Properties()))
-			info,ref,err:=b.selectedComparisonRoutineInfo(info,d);if err!=nil{return nil,err}
-			b.dependency(ref,d.Revision())
-			return plan.ComparisonExpr{Info:info,RoutineRef:ref,Left:args[0],Right:args[1],Predicate:predicate,Operator:[]string{"=","<>","<","<=",">",">="}[i],Namespace:view.Get(d.Namespace()).Name()},nil
+	if extension.IsnProviderOf(d) == extension.StockIsn {
+		return b.bindIsnRoutine(d, args, pos, false)
+	}
+	if extension.LtreeProviderOf(d) == extension.StockLtree {
+		view := b.BindingCatalog()
+		if err := extension.StockLtree.ValidateProcedure(view, d); err != nil {
+			return nil, err
+		}
+		symbol, err := extension.ProcedureSymbol(view, d)
+		if err != nil {
+			return nil, err
+		}
+		for i, name := range extension.LtreeComparisonNames[:6] {
+			if symbol != name {
+				continue
+			}
+			if len(args) != 2 {
+				return nil, fmt.Errorf("stuntgres: invalid ltree operator arity")
+			}
+			input, err := b.comparisonInfo(args[0], args[1])
+			if err != nil {
+				return nil, err
+			}
+			predicate, err := sqltype.BindComparisonPredicate(sqltype.ComparisonOperator(i), args[0].ResultUsage().Type, args[1].ResultUsage().Type, b.Type(sqltype.Bool), input.Usage.Collation, input.CollationConflict)
+			if err != nil {
+				return nil, err
+			}
+			info := b.Info(b.Type(sqltype.Bool).Usage(), pos, expr.MergeProperties(args[0].Properties(), args[1].Properties()))
+			info, ref, err := b.selectedComparisonRoutineInfo(info, d)
+			if err != nil {
+				return nil, err
+			}
+			b.dependency(ref, d.Revision())
+			return plan.ComparisonExpr{Info: info, RoutineRef: ref, Left: args[0], Right: args[1], Predicate: predicate, Operator: []string{"=", "<>", "<", "<=", ">", ">="}[i], Namespace: view.Get(d.Namespace()).Name()}, nil
 		}
 	}
 	previous, previousSyntax := b.Clause.SelectedOperatorArgs, b.Clause.SelectedOperatorSyntax

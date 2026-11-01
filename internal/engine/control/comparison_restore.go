@@ -161,14 +161,14 @@ func (c *ComparisonRestore) Before(index int, stmt parser.Statement, current cat
 					continue
 				}
 				procedure, ok := current.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: operator.Function})
-				if !ok || procedure.Implementation != extension.StockCube && procedure.Implementation != extension.StockHstore && procedure.Implementation != extension.StockLtree {
+				if !ok || procedure.Implementation != extension.StockCube && procedure.Implementation != extension.StockHstore && procedure.Implementation != extension.StockLtree && procedure.Implementation != extension.StockIsn {
 					continue
 				}
 				symbol, err := extension.ProcedureSymbol(current, procedure)
 				if err != nil {
 					return false, err
 				}
-				if procedure.Implementation == extension.StockCube && extension.CubeComparisonName(symbol) || procedure.Implementation == extension.StockHstore && extension.HstoreComparisonName(symbol) || procedure.Implementation == extension.StockLtree && extension.LtreeComparisonName(symbol) {
+				if procedure.Implementation == extension.StockCube && extension.CubeComparisonName(symbol) || procedure.Implementation == extension.StockHstore && extension.HstoreComparisonName(symbol) || procedure.Implementation == extension.StockLtree && extension.LtreeComparisonName(symbol) || procedure.Implementation == extension.StockIsn && extension.IsnComparisonName(symbol) {
 					// The binding coordinate belongs to the operator. Its
 					// independently movable callee is declaration authority,
 					// never a substitute for an operator in this namespace.

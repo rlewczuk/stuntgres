@@ -38,8 +38,12 @@ func (b *Binder) comparisonRoutineDeclaration(name string, left, right *sqltype.
 		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
 	}
 	if left.IsLtree() && left == right {
-		procedure,err:=b.ltreeOperatorProcedure(name,left)
-		return procedure,sqltype.EqualitySignature{Left:left.ID(),Right:right.ID()},err
+		procedure, err := b.ltreeOperatorProcedure(name, left)
+		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
+	}
+	if left.IsISN() && right.IsISN() {
+		procedure, err := b.isnOperatorProcedure(name, left, right)
+		return procedure, sqltype.EqualitySignature{Left: left.ID(), Right: right.ID()}, err
 	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
 	declaration := routine.OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
@@ -87,7 +91,7 @@ func rangeRoutineFormalID(d *sqltype.Descriptor) sqltype.ID {
 func (b *Binder) selectedComparisonRoutineInfo(info expr.Info, procedure *catalog.Procedure) (expr.Info, ids.ObjectRef, error) {
 	info.RoutineReference = procedure
 	var ref ids.ObjectRef
-	if procedure.Implementation == extension.StockCube || procedure.Implementation == extension.StockHstore || procedure.Implementation == extension.StockLtree {
+	if procedure.Implementation == extension.StockCube || procedure.Implementation == extension.StockHstore || procedure.Implementation == extension.StockLtree || procedure.Implementation == extension.StockIsn {
 		view := b.BindingCatalog()
 		if view.Owner() == nil {
 			return expr.Info{}, ref, fmt.Errorf("stuntgres: missing installed comparison authority")

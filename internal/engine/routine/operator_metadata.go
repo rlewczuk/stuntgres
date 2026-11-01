@@ -782,8 +782,8 @@ var SupportedOperatorMetadata = [...]OperatorMetadata{
 	{5076, 16, "b", false, false, 5075, 5073, 5037, 337, 398},
 }
 
-// REL_18_6 pg_proc.dat estimator result facts supplement the existing identity
-// inventory only. They do not publish pg_proc rows or callable providers.
+// REL_18_6 pg_proc.dat estimator result facts also cover lookup-only identities
+// outside the materialized declaration inventory. These facts grant no provider.
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 func ReleasedOperatorEstimatorResult(id ids.OID) ids.OID {
 	switch id {

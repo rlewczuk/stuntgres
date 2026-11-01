@@ -1,7 +1,9 @@
 package analyze
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
@@ -26,11 +28,17 @@ func (b *Binder) ValidateSQLJSONDefault(raw parser.Expr, bound expr.Expr) error 
 }
 
 func sqlJSONDefaultPosition(raw parser.Expr, bound expr.Expr) parser.Position {
-	// Transparent analyzed wrappers retain their operand's location, including
-	// specialized regclass syntax whose raw position is the cast separator.
+	// PostgreSQL keeps the earliest analyzed location: prefix CAST syntax
+	// can precede its operand, while postfix :: syntax follows it.
+	position := bound.SourcePosition()
 	for {
+		if next := bound.SourcePosition(); next.Character > 0 && (position.Character <= 0 || next.Offset < position.Offset) {
+			position = next
+		}
 		switch node := bound.(type) {
 		case plan.CoercionExpr:
+			bound = node.Child
+		case plan.DatumCastExpr:
 			bound = node.Child
 		case plan.CollationExpr:
 			bound = node.Child
@@ -41,9 +49,11 @@ func sqlJSONDefaultPosition(raw parser.Expr, bound expr.Expr) parser.Position {
 unwrapped:
 	raw = sqlJSONDefaultOperand(raw)
 	if _, ok := raw.(parser.OperatorExpr); ok {
-		return parser.ExpressionStart(raw)
+		if start := parser.ExpressionStart(raw); start.Character > 0 && (position.Character <= 0 || start.Offset < position.Offset) {
+			position = start
+		}
 	}
-	return bound.SourcePosition()
+	return position
 }
 
 func sqlJSONDefaultOperand(raw parser.Expr) parser.Expr {
@@ -69,6 +79,10 @@ func sqlJSONDefaultExpression(raw parser.Expr, bound expr.Expr) bool {
 				return true
 			}
 			bound = node.Child
+		case plan.DatumCastExpr:
+			// Both selected binary relabels and CoerceViaIO preserve the
+			// operand's shape; neither is a scalar function invocation.
+			bound = node.Child
 		case plan.CollationExpr:
 			bound = node.Child
 		default:
@@ -76,11 +90,16 @@ func sqlJSONDefaultExpression(raw parser.Expr, bound expr.Expr) bool {
 		}
 	}
 unwrapped:
-	switch bound.(type) {
+	switch node := bound.(type) {
 	case plan.LiteralExpr:
 		return true
 	case plan.ParameterExpr:
 		return false
+	case functions.CastRoutine:
+		procedure, ok := node.RoutineReference.(*catalog.Procedure)
+		return ok && procedure != nil && procedure.RoutineKind == catalog.FunctionRoutine && node.ValidateStoredProvider() == nil
+	case plan.SQLRoutineExpr:
+		return node.Procedure != nil && node.Procedure.RoutineKind == catalog.FunctionRoutine && node.ValidateStoredProvider() == nil
 	}
 	// No-op casts may disappear during analysis. Their written presence cannot
 	// legalize a Param or special construct, unlike an actual cast function.

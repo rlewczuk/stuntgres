@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -58,6 +59,21 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	}
 	if r.Err = r.Context.Err(); r.Err != nil {
 		return
+	}
+	if selected, ok := expr.(plan.SelectedOperatorExpr); ok {
+		r.Add(selected.Ref.Address)
+		// The provider is implementation authority, not another written call.
+		// Its operands can still contain genuine selected routine calls.
+		plan.ExpressionChildren(selected.Provider, r.Expression)
+		return
+	}
+	procedure, err := exec.ExpressionRoutineDescriptor(expr)
+	if err != nil {
+		r.Err = err
+		return
+	}
+	if procedure != nil {
+		r.Add(procedure.Address())
 	}
 	switch n := expr.(type) {
 	case plan.InsertUsernameExpr:
@@ -123,12 +139,6 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		for _, pair := range n.Comparisons {
 			r.Add(pair.RoutineRef.Address)
 		}
-	case plan.SelectedOperatorExpr:
-		r.Add(n.Ref.Address)
-		// The provider carries implementation authority, not another SQL call.
-		// Visit its operands normally so genuine nested calls still contribute.
-		plan.ExpressionChildren(n.Provider, r.Expression)
-		return
 	case plan.UnnestExpr:
 		if n.Procedure != nil {
 			r.Add(n.Ref.Address)
@@ -288,9 +298,9 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		}
 		r.Query(n.QueryPlan.Root)
 	}
-	// Fixed builtin providers are pinned; installed providers above record their
-	// genuine procedure identity. Arguments include every analyzed CASE arm,
-	// independently of execution demand.
+	// Fixed builtin providers are pinned. Selected calls record their actual
+	// procedure regardless of the concrete carrier; selected operators above
+	// retain a separate SQL edge. Visit every analyzed arm, not only demanded ones.
 	plan.ExpressionChildren(expr, r.Expression)
 }
 

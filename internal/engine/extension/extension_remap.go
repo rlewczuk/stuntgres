@@ -230,7 +230,7 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		} else {
 			n.Aggregate = remapOwnedAggregate(d.Aggregate, n.Address(), mapping)
 		}
-		if HstoreProviderOf(&n) != nil || LtreeProviderOf(&n) != nil || n.RangeConstructor != nil || CubeProviderOf(&n) != nil || EarthdistanceProviderOf(&n) != nil || TablefuncProviderOf(&n) != nil {
+		if HstoreProviderOf(&n) != nil || LtreeProviderOf(&n) != nil || IsnProviderOf(&n) != nil || n.RangeConstructor != nil || CubeProviderOf(&n) != nil || EarthdistanceProviderOf(&n) != nil || TablefuncProviderOf(&n) != nil {
 			n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n.Result}).ObjectID
 			parts := strings.Split(string(n.Signature), ",")
 			for i, part := range parts {
@@ -240,7 +240,7 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 			}
 			n.Signature = catalog.ProcedureSignature(strings.Join(parts, ","))
 		}
-		if SegProviderOf(&n) != nil || IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil || IsnProviderOf(&n) != nil {
+		if SegProviderOf(&n) != nil || IntarrayProviderOf(&n) != nil || CitextProviderOf(&n) != nil {
 			// Provider validation owns these immutable formal signatures.
 			// Comparisons instead remap their citext inputs and retain BOOL.
 			citextConversion := CitextProviderOf(d) == StockCitext && (d.Signature == "1042" || d.Signature == "16" || d.Signature == "869")

@@ -56,7 +56,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.3" || len(ext.Members) != 32 || len(ext.Installation.Members) != 24 || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
+	if ext.Version != "1.3" || len(ext.Members) != extension.IsnMemberCount+8 || len(ext.Installation.Members) != extension.IsnMemberCount || base.Extension != ext.Address() || !base.SQLType.IsEan13() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	long := view.MustType(ext.Members[6])
@@ -92,18 +92,16 @@ func TestIsnProviderIdentity(t *testing.T) {
 	}
 	for _, address := range ext.Members {
 		member := view.Get(address)
-		if member == nil || member.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(member) != ext.Address() {
+		if member == nil || address.ClassID != ids.CastClassID && member.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
 		owner, _, _ := access.DescriptorACL(member)
-		if owner != ext.Owner {
+		if address.ClassID != ids.CastClassID && owner != ext.Owner {
 			t.Fatal("owner", address)
 		}
-		if member.Kind() == ids.TypeObject {
-			if err := (stored.TypeProvider{}).Validate(view, member); err != nil {
-				t.Fatal(err)
-			}
-		} else if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+		if provider := view.Owner().Provider(address.ClassID); provider == nil {
+			t.Fatal("missing member provider", address)
+		} else if err := provider.Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -121,7 +119,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 32 || !arrayInternal || !members[arrayAddress] {
+	if len(members) != extension.IsnMemberCount+8 || !arrayInternal || !members[arrayAddress] {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -150,12 +148,12 @@ func TestIsnProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := extensionOwnerRecipeOrder(records[0])
-	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != 32 {
+	if record.Name != "isn" || record.Schema != "public" || record.Version != "1.3" || record.Owner != "postgres" || len(record.Members) != extension.IsnMemberCount+8 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
 		want := "postgres"
-		if member.Declaration == nil {
+		if member.Declaration == nil || member.Kind == "cast" {
 			want = ""
 		}
 		if member.Owner != want {

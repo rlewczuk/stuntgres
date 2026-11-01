@@ -232,10 +232,11 @@ The retained member is a sealed declaration slot, not a position in current
 extension membership. Both qualified operators and genuine direct calls survive
 detach, foreign attachment, original-header retirement and authorized transport;
 mutable names and equal numeric OIDs never authorize remapping.
-SQL dependency recording distinguishes explicit routine calls from selected
-operators: operators reference their operator identity and actual operands,
-including genuine nested function calls, while executable backing-procedure
-authority remains separately retained.
+SQL dependency recording extracts each real selected routine declaration through
+the shared call-reference carrier, independently of its concrete expression
+family. Operators instead reference their operator identity and actual operands,
+including nested checked-conversion calls; their executable backing-procedure
+authority remains separately retained, never another written SQL call.
 Direct mixed scalar label-query calls record the actual selected procedure
 address; their operator form records only the operator plus recursively visited
 operands, without promoting its backing carrier into another SQL dependency.
@@ -279,6 +280,17 @@ Reference-only traversal shares both source comparator and original capture
 until the typed remap can validate and rebuild destination ownership.
 Dependency traversal retains those four captured support references as well as
 the ordinary key-expression dependencies.
+ISN uses these same comparison and sort carriers with both exact operand roles,
+packed flag/issue semantics and genuine selected declarations. Ordering transport
+requires the same nominal scalar role, validates the original four-revision
+capture against its source generation, then binds the mapped class against the
+exact current destination generation. Named predicates retain callable syntax;
+checked `CastRoutine` expressions remap both source and result types. Source
+captures are authenticated before destination remapping; current labels and
+membership cannot replace original procedure/operator authority.
+ISN typed literals own their qualified leaf annotation; exact same-Usage
+transparent coercions reuse it so replay does not accumulate redundant casts.
+
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
 conversion mode and selected procedure/member references. Comparison and hash
@@ -539,8 +551,8 @@ host methods.
   Replay renders checked current labels without refreshing captured authority.
   Pattern replay casts both original operands explicitly, retaining the selected
   citext/text signature even when ESCAPE normalization produced a text pattern.
-  Installed citext `CastRoutine` calls use this same presentation seam after
-  validating the original carrier and current provider manifest/signature.
+  Installed citext and ISN `CastRoutine` calls use this same presentation seam
+  after validating the original carrier and current provider signature.
   Schema rename therefore updates deparse and default replay labels without
   changing the captured declaration, coercion plan or original snapshot.
   Selected citext string scalars preserve their shared `String` capture through
@@ -1316,6 +1328,8 @@ graph ownership use `RUN='^TestLtree(Hierarchy|Lquery)Stored'`.
 Bounded path expression/capture and source/destination ownership use
 `RUN='^TestLtreePath'`, including repeated operands and rejected remap publication.
 Mixed scalar label-query ownership uses `RUN='^TestLtreeLtxtqueryStored'`.
+Installed ISN original/current declaration and operand-generation transport uses
+`RUN='^TestIsnExpression'`, shared with accepted prepared ownership witnesses.
 
 Package units cover the payload API, rule presentation, routine recipes and aggregate recipes.
 `TestViewPartsRoundTrip` and `TestRulePartsRoundTrip` require every `View`,

@@ -54,6 +54,18 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 	facts = append(facts, irBuiltinFacts3...)
 	facts = append(facts, irBuiltinCastFacts...)
 	facts = append(facts,
+		irBuiltinFact{101, "eqsel", "eqsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{102, "neqsel", "neqsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{103, "scalarltsel", "scalarltsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{104, "scalargtsel", "scalargtsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{105, "eqjoinsel", "eqjoinsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{106, "neqjoinsel", "neqjoinsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{107, "scalarltjoinsel", "scalarltjoinsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{108, "scalargtjoinsel", "scalargtjoinsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{336, "scalarlesel", "scalarlesel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{337, "scalargesel", "scalargesel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{386, "scalarlejoinsel", "scalarlejoinsel", "INTERNAL", "INVOKER"},
+		irBuiltinFact{398, "scalargejoinsel", "scalargejoinsel", "INTERNAL", "INVOKER"},
 		irBuiltinFact{6183, "ts_debug", "", "SQL", "INVOKER"},
 		irBuiltinFact{6184, "ts_debug", "", "SQL", "INVOKER"},
 		irBuiltinFact{3689, "ts_stat", "ts_stat1", "INTERNAL", "INVOKER"},
@@ -115,8 +127,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1783 {
-		t.Fatalf("released represented inventory: got %d, want 1783", len(facts))
+	if len(facts) != 1795 {
+		t.Fatalf("released represented inventory: got %d, want 1795", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

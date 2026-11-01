@@ -18,6 +18,18 @@ type builtinDisplayFacts struct {
 }
 
 var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
+	101:  {Language: catalog.InternalRoutineLanguage, Source: "eqsel"},
+	102:  {Language: catalog.InternalRoutineLanguage, Source: "neqsel"},
+	103:  {Language: catalog.InternalRoutineLanguage, Source: "scalarltsel"},
+	104:  {Language: catalog.InternalRoutineLanguage, Source: "scalargtsel"},
+	105:  {Language: catalog.InternalRoutineLanguage, Source: "eqjoinsel"},
+	106:  {Language: catalog.InternalRoutineLanguage, Source: "neqjoinsel"},
+	107:  {Language: catalog.InternalRoutineLanguage, Source: "scalarltjoinsel"},
+	108:  {Language: catalog.InternalRoutineLanguage, Source: "scalargtjoinsel"},
+	336:  {Language: catalog.InternalRoutineLanguage, Source: "scalarlesel"},
+	337:  {Language: catalog.InternalRoutineLanguage, Source: "scalargesel"},
+	386:  {Language: catalog.InternalRoutineLanguage, Source: "scalarlejoinsel"},
+	398:  {Language: catalog.InternalRoutineLanguage, Source: "scalargejoinsel"},
 	6363: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_attribute_stats", OmitAllArgTypes: true},
 	6398: {Language: catalog.InternalRoutineLanguage, Source: "pg_clear_attribute_stats"},
 	6362: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_relation_stats", OmitAllArgTypes: true},

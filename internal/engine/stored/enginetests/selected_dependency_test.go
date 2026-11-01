@@ -85,9 +85,9 @@ func TestSelectedOperatorSQLDependencySets(t *testing.T) {
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
 	for _, sql := range []string{
-		"CREATE EXTENSION ltree", "CREATE EXTENSION hstore", "CREATE EXTENSION citext",
+		"CREATE EXTENSION ltree", "CREATE EXTENSION hstore", "CREATE EXTENSION citext", "CREATE EXTENSION isn",
 		"CREATE TYPE sd_pair AS (i integer,n text)",
-		"CREATE TABLE sd_owner(paths ltree[],a ltree,b ltree,q lquery,h hstore,k text,r sd_pair,c citext,d citext,h2 hstore,x ltxtquery)",
+		"CREATE TABLE sd_owner(paths ltree[],a ltree,b ltree,q lquery,h hstore,k text,r sd_pair,c citext,d citext,h2 hstore,x ltxtquery,e ean13,book isbn)",
 	} {
 		enginetest.SessionSQL(t, s, sql)
 	}
@@ -115,6 +115,7 @@ func TestSelectedOperatorSQLDependencySets(t *testing.T) {
 		{"hstore_comparison", "h = h2", "public.hstore_eq(h,h2)", []int{5, 10}},
 		{"citext_comparison", "c = d", "public.citext_eq(c,d)", []int{8, 9}},
 		{"citext_pattern", "c LIKE d", "public.texticlike(c,d)", []int{8, 9}},
+		{"isn_comparison", "e = book", "public.isneq(e,book)", []int{12, 13}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			projection := tc.operator
@@ -171,6 +172,17 @@ func TestSelectedOperatorSQLDependencySets(t *testing.T) {
 			}
 		})
 	}
+	t.Run("isn_nested_checked_call", func(t *testing.T) {
+		binding := selectedDependencyBinding(t, e, s, "SELECT e = isbn(e) FROM sd_owner")
+		selected := binding.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.SelectedOperatorExpr)
+		comparison := selected.Provider.(plan.ComparisonExpr)
+		conversion := selectedDependencyProcedure(t, comparison.Right)
+		backer := selectedDependencyProcedure(t, comparison)
+		selectedDependencyManifest(t, binding, conversion)
+		selectedDependencyManifest(t, binding, backer)
+		got, err := stored.ExpressionDependRefs(context.Background(), view, selected)
+		selectedDependencySet(t, got, err, selected.Ref.Address, conversion.Address(), column(12))
+	})
 }
 
 func TestSelectedDependencyNestedCallsAndNull(t *testing.T) {

@@ -18,6 +18,35 @@ func TestCastImplementedAdmission(t *testing.T) {
 		byName[f.name] = f
 	}
 	edges := castUnitEdges()
+	isnRoles := map[string]bool{"ean13": true, "isbn": true, "isbn13": true, "ismn": true, "ismn13": true, "issn": true, "issn13": true, "upc": true}
+	for role := range isnRoles {
+		if _, ok := byName[role]; !ok {
+			t.Fatal("missing ISN admission source", role)
+		}
+	}
+	isnEdges := make(map[[2]string]bool)
+	checked, relabels := 0, 0
+	for _, edge := range edges {
+		if !isnRoles[edge.source] || !isnRoles[edge.target] {
+			continue
+		}
+		pair := [2]string{edge.source, edge.target}
+		if isnEdges[pair] {
+			t.Fatal("duplicate ISN direct edge", pair)
+		}
+		isnEdges[pair] = true
+		switch {
+		case edge.source == "ean13" && edge.context == 'e' && edge.method == 'f':
+			checked++
+		case edge.source != "ean13" && edge.context == 'a' && edge.method == 'b':
+			relabels++
+		default:
+			t.Fatal("invalid independently specified ISN edge", edge)
+		}
+	}
+	if len(isnEdges) != 20 || checked != 7 || relabels != 13 {
+		t.Fatal("incomplete released ISN direct inventory", len(isnEdges), checked, relabels)
+	}
 	visited := 0
 	for _, source := range facts {
 		for _, target := range facts {

@@ -16,6 +16,7 @@ const (
 	binaryCoercionNetwork
 	binaryCoercionPoints
 	binaryCoercionTriple
+	binaryCoercionISN
 )
 
 // BinaryCoercionPlan captures descriptor authority and a proven native datum
@@ -37,6 +38,8 @@ func PlanBinaryCoercion(source, target *Descriptor) (BinaryCoercionPlan, error) 
 	}
 	s, t := source.id, target.id
 	switch {
+	case source.IsISN() && target.IsISN() && isnRole(source) > 0 && isnRole(source) != isnRole(target) && isnPair(isnRole(source), isnRole(target)):
+		p.method = binaryCoercionISN
 	case binaryWord32(s) && binaryWord32(t):
 		p.method = binaryCoercion32
 	case binaryWord64(s) && binaryWord64(t):
@@ -97,6 +100,11 @@ func (p BinaryCoercionPlan) Apply(ctx context.Context, value Value) (Value, erro
 		return Null(p.target), nil
 	}
 	switch p.method {
+	case binaryCoercionISN:
+		if !validIsnPayload(p.source, value.integer) || !validIsnPayload(p.target, value.integer) {
+			return Value{}, fmt.Errorf("invalid ISN relabel payload")
+		}
+		return Value{typ: p.target, integer: value.integer}, nil
 	case binaryCoercion32:
 		word, err := binaryEncode32(value)
 		if err != nil {

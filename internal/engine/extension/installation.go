@@ -44,6 +44,11 @@ func ValidateCurrentInstallation(v catalog.Read, ext *catalog.Extension, impleme
 				return err
 			}
 		}
+		if class, ok := d.(*catalog.OperatorClass); ok && class.Origin.Installation.Implementation == StockIsn {
+			if err := ValidateIsnClassBindings(v, class); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

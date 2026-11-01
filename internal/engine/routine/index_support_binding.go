@@ -88,7 +88,7 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 		if err != nil {
 			return class, err
 		}
-		if support.Provider == sqltype.CubeIndexSupport || support.Provider == sqltype.HstoreIndexSupport {
+		if support.Provider == sqltype.CubeIndexSupport || support.Provider == sqltype.HstoreIndexSupport || support.Provider == sqltype.IsnIndexSupport {
 			member, _ := view.FamilySupport(fact.Family, fact.InputType, fact.InputType, int16(slot))
 			if member == nil || member.InternalOwner != fact.Address() || !fact.Origin.Valid(fact.Address()) {
 				return class, fmt.Errorf("stuntgres: cube support requires its installed class")
@@ -151,6 +151,25 @@ func selectNativeIndexSupport(view catalog.Read, family, left, right uint32, slo
 		return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: inconsistent index support member")
 	}
 	proc, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: member.Function})
+	if ok && extension.IsnProviderOf(proc) == extension.StockIsn {
+		if err := extension.StockIsn.ValidateProcedure(view, proc); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		installation := proc.Origin.Installation
+		role := proc.Origin.Declaration - extension.IsnSupportStart
+		if role < 0 || role >= 8 || slot != 1 || left != right {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid ISN support slot")
+		}
+		fact, exists := view.OperatorFamily(installation.Members[extension.IsnFamilySlot])
+		class, classOK := view.OperatorClass(installation.Members[extension.IsnClassStart+role].ObjectID)
+		if !exists || !classOK || fact.Address().ObjectID != ids.OID(family) || class.InputType != ids.OID(left) || member.InternalOwner != class.Address() || !catalog.SameInstallation(class, installation) {
+			return sqltype.IndexSupport{}, fmt.Errorf("stuntgres: invalid ISN support class")
+		}
+		if err := extension.ValidateIsnClassBindings(view, class); err != nil {
+			return sqltype.IndexSupport{}, err
+		}
+		return sqltype.IndexSupport{Provider: sqltype.IsnIndexSupport, Family: family, Member: uint32(member.Address().ObjectID), Routine: uint32(member.Function), Left: left, Right: right, Revision: uint64(member.Revision()), FamilyRevision: uint64(fact.Revision()), RoutineRevision: uint64(proc.Revision())}, nil
+	}
 	if ok && extension.LtreeProviderOf(proc) == extension.StockLtree {
 		if err := extension.StockLtree.ValidateProcedure(view, proc); err != nil {
 			return sqltype.IndexSupport{}, err

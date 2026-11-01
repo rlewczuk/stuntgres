@@ -58,6 +58,8 @@ The complete represented builtin `pg_proc` inventory includes all twelve
 statistics I/O declarations, including non-callable INTERNAL receive metadata,
 and all generic-file read/binary/stat/tmpdir overloads. Twelve metadata-only RI
 trigger functions retain their released volatile classification and defaults.
+The twelve scalar comparison estimators likewise expose genuine strict STABLE,
+parallel-safe INTERNAL metadata without scalar execution providers.
 Release-owned TSV facts preserve exact membership and all 28 projected fields,
 including tmpdir's explicit cost 10 and row estimate 20.
 The metadata-only file-settings backing routine (OID 3329) contributes its seven

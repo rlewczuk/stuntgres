@@ -24,6 +24,13 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			ext.Members[recipe.slot+offset] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 		}
 	}
+	for slot := IsnComparisonStart; slot < IsnMemberCount; slot++ {
+		oid, err := stage.AllocateOID()
+		if err != nil {
+			return err
+		}
+		ext.Members[slot] = ids.ObjectAddress{ClassID: isnMemberClass(slot), ObjectID: oid}
+	}
 	ns := stage.Read().Get(ext.TargetNamespace).Name()
 	for _, recipe := range isnRecipes {
 		// The script declares input, then output, before completing the type.
@@ -128,7 +135,7 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			}
 		}
 	}
-	return nil
+	return p.stageDeclarations(stage, ext, owner)
 }
 
 func isnCodecConflict(recipe isnRecipe, codec int) error {

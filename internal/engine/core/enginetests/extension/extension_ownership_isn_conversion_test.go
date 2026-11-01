@@ -21,12 +21,12 @@ func TestExtensionOwnershipISNConversionAuthority(t *testing.T) {
 		t.Helper()
 		for _, pair := range [][2]*catalog.Type{{view.MustType(upc.Address()), view.MustType(ean.Address())}, {view.MustType(ean.Address()), view.MustType(upc.Address())}} {
 			for _, mode := range []sqltype.CoercionContext{sqltype.Explicit, sqltype.Assignment, sqltype.Implicit} {
-				// Selection authenticates endpoints independently of whether the
-				// intrinsic cast planner permits this particular context.
-				if _, err := catalog.SelectCoercion(view, pair[0].SQLType.Usage(), pair[1].SQLType.Usage(), mode); err != nil {
-					t.Fatal(err)
-				}
 				want := mode == sqltype.Explicit || mode == sqltype.Assignment && pair[0].SQLType.IsUpc()
+				selected, err := catalog.SelectCoercion(view, pair[0].SQLType.Usage(), pair[1].SQLType.Usage(), mode)
+				declared, exists := view.Cast(pair[0].SQLType.ID(), pair[1].SQLType.ID())
+				if (err == nil) != (!exists || want) || exists && want && selected != declared {
+					t.Fatal("declared edge/context selection", mode, selected, err)
+				}
 				if err := catalog.CanCoerce(view, pair[0].SQLType.Usage(), pair[1].SQLType.Usage(), mode); (err == nil) != want {
 					t.Fatal("scalar coercion context changed", mode, err)
 				}

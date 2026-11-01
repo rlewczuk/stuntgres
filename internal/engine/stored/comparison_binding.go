@@ -52,17 +52,17 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr, visitProcedur
 		}
 		var expected string
 		switch name {
-		case "cube_eq", "hstore_eq", "ltree_eq":
+		case "cube_eq", "hstore_eq", "ltree_eq", "int8eq":
 			expected = "="
-		case "cube_ne", "hstore_ne", "ltree_ne":
+		case "cube_ne", "hstore_ne", "ltree_ne", "int8ne":
 			expected = "<>"
-		case "cube_lt", "ltree_lt":
+		case "cube_lt", "ltree_lt", "int8lt":
 			expected = "<"
-		case "cube_le", "ltree_le":
+		case "cube_le", "ltree_le", "int8le":
 			expected = "<="
-		case "cube_gt", "ltree_gt":
+		case "cube_gt", "ltree_gt", "int8gt":
 			expected = ">"
-		case "cube_ge", "ltree_ge":
+		case "cube_ge", "ltree_ge", "int8ge":
 			expected = ">="
 		case "hstore_lt":
 			expected = "#<#"
@@ -107,6 +107,16 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr, visitProcedur
 		}
 		return addCurrent(captured, capture.name, capture.left, capture.right)
 	}
+	addIsn := func(captured *catalog.Procedure, capture isnCapture) error {
+		if err := remapIsnRoutine(view, nil, captured, captured, capture, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }); err != nil {
+			return err
+		}
+		symbol, err := extension.ProcedureSymbol(view, view.MustProcedure(captured.Address()))
+		if err != nil {
+			return err
+		}
+		return addCurrent(captured, symbol, capture.left, capture.right)
+	}
 	visit = func(node expr.Expr) error {
 		if node == nil {
 			return nil
@@ -132,9 +142,14 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr, visitProcedur
 		case plan.ConditionalExpr, plan.DistinctExpr:
 			implicit = true
 		case plan.ComparisonExpr:
-			implicit = n.Namespace == ""
+			implicit = n.Namespace == "" && !n.Named
 		case plan.CaseExpr:
 			for _, arm := range n.Arms {
+				if arm.TestUsage.Type.IsISN() {
+					if err := addIsn(arm.Routine, isnCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, op: "=", result: sqltype.Bool}); err != nil {
+						return err
+					}
+				}
 				if arm.TestUsage.Type.IsLtree() {
 					if err := addLtree(arm.Routine, ltreeComparisonCapture{ref: arm.RoutineRef, left: arm.TestUsage.Type, right: arm.Condition.ResultUsage().Type, name: "ltree_eq", result: sqltype.Bool}); err != nil {
 						return err
@@ -174,6 +189,15 @@ func ComparisonBindingNamespace(view catalog.Read, node expr.Expr, visitProcedur
 			}, true)
 			if failure != nil {
 				return failure
+			}
+		}
+		if capture, isn := isnCaptureOf(node); implicit && isn && !capture.cast {
+			captured, ok := expr.InfoOf(node).RoutineReference.(*catalog.Procedure)
+			if !ok {
+				return fmt.Errorf("stuntgres: missing ISN comparison capture")
+			}
+			if err := addIsn(captured, capture); err != nil {
+				return err
 			}
 		}
 		if capture, ltree := ltreeComparisonCaptureOf(node); implicit && ltree {

@@ -518,8 +518,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `upc_in(cstring)`/`isn_out(upc)` to their own scalars. The ISBN13,
   ISMN13 and ISSN13 input SQL identities have immutable source symbols `isbn_in`,
   `ismn_in` and `issn_in`; output overloads are
-  distinguished by their own scalar signature. Owner metadata records
-  each output argument symbolically and remaps it to its destination descriptor.
+  distinguished by their own scalar signature. The immutable recipe appends 168
+  INTERNAL comparison routines and their 168 operators over exactly 28 ordered
+  role pairs, seven checked conversion routines, eight INTERNAL comparators, one
+  B-tree family, eight default same-type classes and twenty real casts (404
+  declarations total). Class-owned strategy/support rows are not extension
+  declarations. Codecs reject these noncodec roles. Signature authority uses
+  sealed scalar slots and one installation cohort, independently of current
+  membership or original-header lifetime. Owner metadata serializes every formal
+  and result symbolically; import remaps both sides of checked conversions.
   Admission follows script order: input signature, output signature, then full
   type collision. An occupied type supplies only the existing output argument
   identity for collision detection; installation never adopts its descriptor.

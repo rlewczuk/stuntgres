@@ -16,7 +16,7 @@ func SelectCoercion(view Read, source, target sqltype.Usage, mode sqltype.Coerci
 	if source.Type.IsDomain() || target.Type.IsDomain() || source == target {
 		return nil, nil
 	}
-	if source.Type.IsUpc() && target.Type.IsEan13() || source.Type.IsEan13() && target.Type.IsUpc() {
+	if source.Type.IsISN() && target.Type.IsISN() {
 		from, fromOK := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.Type.ID())})
 		to, toOK := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.Type.ID())})
 		if !fromOK || !toOK || from.SQLType != source.Type || to.SQLType != target.Type || view.owner == nil {

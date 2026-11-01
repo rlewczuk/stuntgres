@@ -38,7 +38,7 @@ var isnRecipes = [...]isnRecipe{
 	{21, "upc", "upc_in", "isn_out", "upc_in", sqltype.Upc, (*sqltype.Descriptor).IsUpc},
 }
 
-const isnMemberCount = len(isnRecipes) * 3
+const isnMemberCount = IsnMemberCount
 
 func IsnSignature(id sqltype.ID) catalog.ProcedureSignature {
 	return catalog.ProcedureSignature(strconv.FormatUint(uint64(id), 10))
@@ -102,7 +102,7 @@ func (p *IsnProvider) validateRecipe(v catalog.Read, ext *catalog.Extension) err
 			}
 		}
 	}
-	return nil
+	return validateIsnDeclarations(v, ext)
 }
 
 // IsnCodecType resolves immutable member slots, never mutable procedure names.
@@ -128,8 +128,7 @@ func (p *IsnProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure)
 	if p != StockIsn {
 		return fmt.Errorf("stuntgres: foreign isn provider")
 	}
-	_, _, err := IsnCodecType(v, proc)
-	return err
+	return ValidateProcedureOrigin(v, proc, p)
 }
 
 // ValidateISNConversion authenticates the two current mapped released types,
@@ -150,12 +149,11 @@ func (p *IsnProvider) ValidateISNConversion(v catalog.Read, from, to *catalog.Ty
 	if !catalog.SameInstallation(to, from.Origin.Installation) {
 		return invalid()
 	}
-	// These are released recipe roles, not names or current member positions.
-	if from.Origin.Declaration == isnRecipes[7].slot && from.SQLType.IsUpc() &&
-		to.Origin.Declaration == isnRecipes[0].slot && to.SQLType.IsEan13() ||
-		from.Origin.Declaration == isnRecipes[0].slot && from.SQLType.IsEan13() &&
-			to.Origin.Declaration == isnRecipes[7].slot && to.SQLType.IsUpc() {
-		return nil
+	// Endpoint authenticity precedes edge admission, including unsupported pairs.
+	for _, endpoint := range [...]*catalog.Type{from, to} {
+		if _, err := isnTypeRole(v, endpoint, from.Origin.Installation); err != nil {
+			return err
+		}
 	}
-	return invalid()
+	return nil
 }

@@ -57,7 +57,7 @@ func TestIsnManifestRoles(t *testing.T) {
 	}
 	for _, slot := range []int{0, 3, 6, 9, 12, 15, 18, 21} {
 		base := before.MustType(ext.Installation.Members[slot])
-		other := before.MustType(ext.Installation.Members[(slot+3)%len(ext.Installation.Members)])
+		other := before.MustType(ext.Installation.Members[(slot+3)%24])
 		input := "9780123456780!"
 		if slot == 0 {
 			input = "1234567890120!"

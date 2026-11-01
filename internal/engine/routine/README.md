@@ -6,10 +6,12 @@ DDL handlers, and operator/owned-routine dump statements. Immutable SQL routine
 definitions and invocation frames are in [`proc`](../proc/README.md); call
 resolution and SQL body binding stay in the engine.
 
-The parser-handler, vector-I/O, DDL-receiver and RI metadata declarations are
-ordinary zero-provider builtin descriptors. Catalog rows and definition inquiry
-share those released declarations; no catalog-row supplement or identity-ledger
-lookup manufactures a target descriptor or callable capability.
+The parser-handler, vector-I/O, DDL-receiver, RI and twelve scalar comparison
+estimator metadata declarations are ordinary zero-provider builtin descriptors.
+Catalog rows and definition inquiry share those released declarations; no
+catalog-row supplement or identity-ledger lookup manufactures a target descriptor
+or callable capability. Estimators retain their exact INTERNAL formals and stable,
+strict, parallel-safe declarations without exposing scalar execution.
 
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
@@ -460,6 +462,10 @@ package or the engine.
   and foreign members retain those roles with current reciprocal membership
   and principal validation; absent origin extensions supply no new authority.
   Restore binds destination members.
+  ISN ordering selects only its genuine same-type B-tree slot-1 comparator,
+  class-owned support row and sealed family/class roles. It retains all four
+  effective revisions and rejects wrong roles, methods, slots or generations
+  without a builtin fallback, including empty and NULL-only sorts.
   `RangeTypeRebinder` rebuilds a range
   type's support capture with destination identities for
   `typedef.ReownDomainTypes`.

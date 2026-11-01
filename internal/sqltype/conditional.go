@@ -125,6 +125,15 @@ func ResolveComparison(operator ComparisonOperator, left, right *Descriptor) (Eq
 			}
 			return EqualitySignature{}, failure("42883", "incompatible comparison operands")
 		}
+		if base.IsISN() {
+			if other == nil {
+				return EqualitySignature{base.ID(), base.ID()}, nil
+			}
+			if !isnPair(isnRole(base), isnRole(other.BaseType())) {
+				return EqualitySignature{}, failure("42883", "incompatible comparison operands")
+			}
+			return EqualitySignature{l, r}, nil
+		}
 		if base.IsHstore() {
 			if operator != CompareEqual && operator != CompareNotEqual || other != nil && other.BaseType() != base {
 				return EqualitySignature{}, failure("42883", "incompatible comparison operands")

@@ -468,7 +468,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		// Identifier literals already render with their scalar authority. A
 		// transparent relabel must not grow another CAST on each Restore.
-		if r.CheckLiterals == nil && (sqltype.IsTransactionIdentifier(u.Type.ID()) || sqltype.IsSnapshot(u.Type.ID())) && n.Child.ResultUsage() == u {
+		if r.CheckLiterals == nil && (sqltype.IsTransactionIdentifier(u.Type.ID()) || sqltype.IsSnapshot(u.Type.ID()) || u.Type.IsISN()) && n.Child.ResultUsage() == u {
 			return child, nil
 		}
 		// Bare quoted TEXT becomes unknown on replay and can move a deferred
@@ -700,6 +700,9 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 		predicate, err := sqltype.BindComparisonPredicate(operator, n.Left.ResultUsage().Type, n.Right.ResultUsage().Type, u.Type, ref, conflict)
 		if err != nil || !predicate.Equal(n.Predicate) {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
+		}
+		if n.Named {
+			return isnNamedComparisonSQL(view, n, func(child expr.Expr) (string, error) { return r.SQL(ctx, view, child) })
 		}
 		left, err := r.SQL(ctx, view, n.Left)
 		if err != nil {

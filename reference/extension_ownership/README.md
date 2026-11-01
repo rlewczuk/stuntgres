@@ -7,6 +7,17 @@ extension, and the native Dump/Reset/Restore controls of these states. The
 extension registry, installation and removal themselves are in
 [reference/extensions](../extensions/README.md).
 
+The bounded `isn_conversion_*_test.go` corpus owns installed ISN comparison,
+conversion and same-type ordering declarations, independent packed-value
+expectations, full diagnostics, statement atomicity and retained provider
+identity through SQL lifecycle and native controls. It uses public fixture APIs;
+short presentation strings are not comparison keys.
+Native replacement preserves the catalog-lifetime fence for held installed-type
+parameters: they fail with the exact cached-parameter diagnostic, while a fresh
+prepare binds restored identities. A held comparison with builtin TEXT inputs,
+interior ISN casts and a BOOL result reanalyzes against the restored provider;
+its fixed public signature does not authorize reuse of retired installed types.
+
 ## Testing
 
 Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the same
@@ -264,6 +275,8 @@ make check RUN='^TestReferenceExtensionOwnership(Membership|Controls)$$/^connect
 make check REFERENCE=1 RUN='^TestReferenceExtensionOwnership(Membership|Controls)$$/^connectby_survivors$$'
 make check RUN='^TestReferencePageinspectBrin(Installation|Pages|Revmap|Items|Datums|Metadata|Diagnostics|Permissions|OutputEnvironment|Controls)$'
 make check REFERENCE=1 RUN='^TestReferencePageinspectBrin(Installation|Pages|Revmap|Items|Datums|Metadata|Diagnostics|Permissions|OutputEnvironment|Controls)$'
+make check RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering)$'
+make check REFERENCE=1 RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering)$'
 ```
 
 The prerequisite fixture lives in `reference/extension_types`; it reuses the

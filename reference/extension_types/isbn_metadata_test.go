@@ -107,7 +107,19 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		}
 	}
 	if !b.PG {
-		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}, {"ismn13_in"}, {"ean13_out"}, {"issn_in"}, {"isn_out"}, {"issn13_in"}, {"ean13_out"}, {"upc_in"}, {"isn_out"}})
+		expected := [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}, {"ismn13_in"}, {"ean13_out"}, {"issn_in"}, {"isn_out"}, {"issn13_in"}, {"ean13_out"}, {"upc_in"}, {"isn_out"}}
+		for range 28 {
+			for _, name := range []string{"isneq", "isnne", "isnlt", "isnle", "isngt", "isnge"} {
+				expected = append(expected, []any{name})
+			}
+		}
+		for _, role := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13", "upc"} {
+			expected = append(expected, []any{"bt" + role + "cmp"})
+			if role != "ean13" {
+				expected = append(expected, []any{role})
+			}
+		}
+		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, expected)
 		s.Bag = true
 		run(s)
 	}

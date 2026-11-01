@@ -1874,7 +1874,7 @@ const (
 	intervalTimeConversion
 	geometryCastConversion
 	rangeMultirangeConversion
-	upcEanConversion
+	isnConversion
 )
 
 type CoercionPlan struct {
@@ -1944,8 +1944,8 @@ func (p CoercionPlan) FunctionCastShortcut() bool {
 // well as its input, so an element function can establish an accepted shape.
 func (p CoercionPlan) FunctionExpression() bool {
 	switch p.method {
-	case upcEanConversion:
-		return p.source.Type.IsEan13() && p.target.Type.IsUpc()
+	case isnConversion:
+		return p.source.Type.IsEan13()
 	case arrayConversion:
 		return p.element != nil && p.element.FunctionExpression()
 	case viaIO, jsonFormattedInput, jsonReturningOutput:
@@ -2166,11 +2166,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
-	if source.Type.IsUpc() && target.Type.IsEan13() || source.Type.IsEan13() && target.Type.IsUpc() {
-		if context < Assignment || target.Type.IsUpc() && context != Explicit {
+	if source.Type != target.Type && source.Type.IsISN() && target.Type.IsISN() {
+		a, b := isnRole(source.Type), isnRole(target.Type)
+		if a == b || !isnPair(a, b) || context < Assignment || a == 0 && context != Explicit {
 			return p, failure("42804", "incompatible source and destination types")
 		}
-		p.method = upcEanConversion
+		p.method = isnConversion
 		return p, nil
 	}
 	if source.Type == target.Type {
@@ -2262,8 +2263,8 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		return Value{}, fmt.Errorf("invalid XML payload")
 	}
 	switch p.method {
-	case upcEanConversion:
-		return p.applyUpcEan(v)
+	case isnConversion:
+		return p.applyISN(v)
 	case integerByteaConversion, integerBitConversion, internalCharConversion,
 		macConversion, jsonbScalarConversion, intervalTimeConversion,
 		geometryCastConversion, rangeMultirangeConversion:
@@ -2600,6 +2601,12 @@ func bindComparisonTypes(left, right *Descriptor) (Comparison, error) {
 		}
 		return p, nil
 	}
+	if left.IsISN() || right.IsISN() {
+		if isnPair(isnRole(left), isnRole(right)) {
+			return p, nil
+		}
+		return p, failure("42883", "incompatible comparison operands")
+	}
 	if IsTransactionIdentifier(left.id) || IsTransactionIdentifier(right.id) {
 		if left == right || left.id == Xid && right.id == Int4 {
 			return p, nil
@@ -2657,6 +2664,18 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if p.left.IsISN() {
+		if !validIsnPayload(p.left, a.integer) || !validIsnPayload(p.right, b.integer) {
+			return 0, fmt.Errorf("invalid ISN comparison payload")
+		}
+		if a.integer < b.integer {
+			return -1, nil
+		}
+		if a.integer > b.integer {
+			return 1, nil
+		}
+		return 0, nil
+	}
 	if p.left.IsLtree() {
 		if !a.validLtree() || !b.validLtree() {
 			return 0, fmt.Errorf("invalid ltree comparison payload")

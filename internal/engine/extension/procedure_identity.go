@@ -191,29 +191,17 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 			name, signature, result = spec.name, spec.signature(base.SQLType.ID()), spec.resultOID(base.SQLType.ID())
 		}
 	case StockIsn:
-		count = isnMemberCount
-		found := false
-		for _, recipe := range isnRecipes {
-			if slot != recipe.slot+1 && slot != recipe.slot+2 {
-				continue
-			}
-			if len(ext.Members) != count {
-				return invalid()
-			}
-			base, ok := v.Type(ext.Members[recipe.slot])
-			if !ok || !recipe.accept(base.SQLType) || !catalog.SameInstallation(base, ext) || base.Revision() == 0 {
-				return invalid()
-			}
-			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
-				return invalid()
-			}
-			name, sqlName, signature, result = recipe.inputSource, recipe.input, "2275", ids.OID(base.SQLType.ID())
-			if slot == recipe.slot+2 {
-				name, sqlName, signature, result = recipe.output, recipe.output, IsnSignature(base.SQLType.ID()), 2275
-			}
-			found = true
+		count = IsnMemberCount
+		var display catalog.RoutineDisplay
+		var err error
+		sqlName, name, signature, result, display, err = isnRoutineDeclaration(v, ext.Members, slot)
+		if err != nil || p.Display != display {
+			return invalid()
 		}
-		if !found {
+		if slot >= IsnComparisonStart && p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) {
+			return invalid()
+		}
+		if err := validateIsnRoutineTypes(v, p); err != nil {
 			return invalid()
 		}
 	case StockLtree:
@@ -399,10 +387,14 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		}
 	case StockPgvisibility:
 		count = len(PgvisibilityMembers)
-		if slot >= count { return invalid() }
+		if slot >= count {
+			return invalid()
+		}
 		m := PgvisibilityMembers[slot]
 		name, signature, result, volatility = m.Name, m.Signature, 2249, expr.Volatile
-		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pg_visibility", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 { return invalid() }
+		if p.Installed != m.Declaration || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: m.Source, Binary: "$libdir/pg_visibility", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgstattuple:
 		count = len(PgstattupleMembers)
 		if slot >= count {

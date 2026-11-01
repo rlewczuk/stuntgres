@@ -599,11 +599,17 @@ Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
 shared coercion planner; typed text needs an explicit conversion to an installed
 ISN role. UPC owns the leading-zero EAN subset and emits twelve compact digits
-plus any retained marker. The shared packed conversion permits UPC to EAN13
-assignment and explicit checked EAN13 to UPC, preserving the marker without
-text I/O. UPC to EAN13 is a function-free relabel; only the checked reverse
-direction contributes a cast function to expression-shape and evaluation counts.
-Neither equal OIDs nor shared physical storage authorize other family interchange;
+plus any retained marker. Direct packed coercion admits twenty edges: seven
+explicit checked EAN narrowings and thirteen assignment/explicit relabels back
+to EAN or between a family's short/long roles. No implicit or transitive edge
+is inferred. Only checked narrowing contributes a function to expression-shape
+and evaluation counts. Conversion validates the exact source generation and
+copies the complete packed integer without text I/O. Comparisons admit the
+released same-role, EAN/other-role and short/long pairs, comparing the corrected
+identifier and flag together; issue digits remain significant. SQL overload and
+installed authority admission stay catalog-owned. Same-type ordering requires
+authenticated `IsnIndexSupport`, including class/family/member/routine revisions,
+even for empty or NULL-only input. Equal OIDs never authorize family interchange;
 imports require exact source/destination descriptor authorization.
 
 ## Type families
@@ -898,7 +904,7 @@ match engine tests of the same mechanism):
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps|JSONPath)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
-- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|Isn|Upc|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Installed hstore codecs, typed comparison/hash, index captures and conversions: `RUN='^TestHstore'`.
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`

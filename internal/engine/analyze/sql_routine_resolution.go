@@ -170,7 +170,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			if (cubeFamily || extension.CubeComparisonName(name)) && (extension.CubeProviderOf(d) == extension.StockCube || extension.EarthdistanceProviderOf(d) == extension.StockEarthdistance) {
 				hasCube = true
 			}
-			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.LtreeProviderOf(d) == extension.StockLtree {
+			if extension.RefintProviderOf(d) == extension.StockRefint || extension.CitextProviderOf(d) == extension.StockCitext || extension.HstoreProviderOf(d) == extension.StockHstore || extension.LtreeProviderOf(d) == extension.StockLtree || extension.IsnProviderOf(d) == extension.StockIsn {
 				hasSQL = true
 			}
 			if !d.DynamicCallable() && d.Builtin == nil && d.Implementation == nil && !internalSignature {
@@ -829,6 +829,22 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			return nil, err
 		}
 		return node, nil
+	}
+	if d != nil && extension.IsnProviderOf(d) == extension.StockIsn && d.Origin != nil && d.Origin.Declaration >= extension.IsnComparisonStart {
+		node, err := b.bindSelectedIsn(raw, selected)
+		if err == nil && freezeSyntax {
+			symbol, failure := extension.ProcedureSymbol(selected.auth.ReadCatalog(), d)
+			if failure != nil {
+				return nil, failure
+			}
+			frozen := raw
+			frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+			if b.Stored.Syntax == nil {
+				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+			}
+			b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+		}
+		return node, err
 	}
 	if d != nil && extension.LtreeProviderOf(d) == extension.StockLtree {
 		if err := extension.StockLtree.ValidateProcedure(selected.auth.ReadCatalog(), d); err != nil {

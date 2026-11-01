@@ -111,6 +111,7 @@ type ComparisonExpr struct {
 	Predicate   sqltype.ComparisonPredicate
 	Operator    string
 	Namespace   string
+	Named       bool // selected callable comparison rather than operator syntax
 }
 
 func (e ComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -124,6 +125,15 @@ func (e ComparisonExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	return e.Predicate.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 }
+
+func (e ComparisonExpr) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if !e.Named || kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Left, e.Right}, Count: 2, SelectedImplicit: true}, true, nil
+}
+
+func (e ComparisonExpr) LooksLikeFunction() bool { return e.Named }
 
 type Truth uint8
 

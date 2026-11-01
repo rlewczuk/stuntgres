@@ -16,6 +16,19 @@ import (
 // Fixed OUT type/name facts below follow PostgreSQL REL_18_6 pg_proc.dat.
 var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
 	// Released metadata-only rows are real descriptors, without scalar providers.
+	// Real operator estimator metadata; INTERNAL formals have no scalar provider.
+	{catalog.RoutineIdentity{101, ids.PGCatalogNamespaceOID, "eqsel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{102, ids.PGCatalogNamespaceOID, "neqsel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{103, ids.PGCatalogNamespaceOID, "scalarltsel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{104, ids.PGCatalogNamespaceOID, "scalargtsel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{105, ids.PGCatalogNamespaceOID, "eqjoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{106, ids.PGCatalogNamespaceOID, "neqjoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{107, ids.PGCatalogNamespaceOID, "scalarltjoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{108, ids.PGCatalogNamespaceOID, "scalargtjoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{336, ids.PGCatalogNamespaceOID, "scalarlesel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{337, ids.PGCatalogNamespaceOID, "scalargesel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{386, ids.PGCatalogNamespaceOID, "scalarlejoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
+	{catalog.RoutineIdentity{398, ids.PGCatalogNamespaceOID, "scalargejoinsel", "2281,26,2281,21,2281"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{40, ids.PGCatalogNamespaceOID, "int2vectorin", "2275"}, catalog.FunctionRoutine, 22, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{41, ids.PGCatalogNamespaceOID, "int2vectorout", "22"}, catalog.FunctionRoutine, 2275, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{54, ids.PGCatalogNamespaceOID, "oidvectorin", "2275"}, catalog.FunctionRoutine, 30, true, expr.Immutable, 's', false, 0, 0, 0, nil},

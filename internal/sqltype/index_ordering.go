@@ -373,12 +373,13 @@ const (
 	CubeIndexSupport
 	HstoreIndexSupport
 	LtreeIndexSupport
+	IsnIndexSupport
 )
 
 type IndexSupport struct {
-	Provider                             IndexSupportProvider
-	Family, Member, Routine, Left, Right uint32
-	Revision                             uint64
+	Provider                                       IndexSupportProvider
+	Family, Member, Routine, Left, Right           uint32
+	Revision                                       uint64
 	ClassRevision, FamilyRevision, RoutineRevision uint64
 }
 
@@ -414,11 +415,27 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 		return IndexComparison{}, failure("0A000", "index operator class is unsupported")
 	}
 	s := c.Support(1)
+	if u.Type.BaseType().IsISN() {
+		if s.Provider != IsnIndexSupport || c.input != u.Type.BaseType().ID() || c.method != 403 || s.Family != c.family || s.Left != uint32(c.input) || s.Right != s.Left || s.Member == 0 || s.Routine == 0 || s.Revision == 0 || s.ClassRevision == 0 || s.FamilyRevision == 0 || s.RoutineRevision == 0 || !u.validCollation() {
+			return IndexComparison{}, fmt.Errorf("invalid installed ISN index support")
+		}
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return IndexComparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, c.OID()
+		return IndexComparison{comparison: p, input: c.input, routine: s.Routine, support: s}, nil
+	}
 	if u.Type.BaseType().IsLtree() {
-		if !validLtreeIndexSupport(u,c,s,403) { return IndexComparison{},fmt.Errorf("invalid installed ltree index support") }
-		p,err:=BindComparison(u.Type,u.Type,u.Collation,false);if err!=nil{return IndexComparison{},err}
-		p.orderingBound,p.defaultBtreeOpclass=true,c.OID()
-		return IndexComparison{comparison:p,input:c.input,routine:s.Routine,support:s},nil
+		if !validLtreeIndexSupport(u, c, s, 403) {
+			return IndexComparison{}, fmt.Errorf("invalid installed ltree index support")
+		}
+		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
+		if err != nil {
+			return IndexComparison{}, err
+		}
+		p.orderingBound, p.defaultBtreeOpclass = true, c.OID()
+		return IndexComparison{comparison: p, input: c.input, routine: s.Routine, support: s}, nil
 	}
 	if u.Type.BaseType().IsHstore() && s.Provider != HstoreIndexSupport {
 		return IndexComparison{}, fmt.Errorf("missing installed hstore index support")
@@ -467,8 +484,10 @@ func BindIndexOrdering(u Usage, c IndexClass) (IndexComparison, error) {
 func (p IndexComparison) Support() IndexSupport { return p.support }
 
 func (p IndexComparison) DatumComparison() Comparison {
-	comparison:=p.comparison
-	if p.support.Provider!=BuiltinIndexSupport{comparison.orderingSupport=p.support}
+	comparison := p.comparison
+	if p.support.Provider != BuiltinIndexSupport {
+		comparison.orderingSupport = p.support
+	}
 	return comparison
 }
 
@@ -477,7 +496,7 @@ func (p IndexComparison) DatumComparison() Comparison {
 func (p IndexComparison) SameOperation(other IndexComparison) bool {
 	p.support.Revision, p.support.FamilyRevision, p.support.RoutineRevision = 0, 0, 0
 	other.support.Revision, other.support.FamilyRevision, other.support.RoutineRevision = 0, 0, 0
-	p.support.ClassRevision,other.support.ClassRevision=0,0
+	p.support.ClassRevision, other.support.ClassRevision = 0, 0
 	p.comparison.defaultBtreeOpclass, other.comparison.defaultBtreeOpclass = 0, 0
 	return p == other
 }
@@ -498,7 +517,7 @@ func (p *IndexComparison) Compare(ctx context.Context, a, b Value, input InputEn
 	if a.typ != p.comparison.left || b.typ != p.comparison.right || a.null || b.null || !a.typ.Concrete() {
 		return 0, fmt.Errorf("invalid index comparison values")
 	}
-	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport || p.support.Provider == LtreeIndexSupport {
+	if p.support.Provider == CubeIndexSupport || p.support.Provider == HstoreIndexSupport || p.support.Provider == LtreeIndexSupport || p.support.Provider == IsnIndexSupport {
 		return p.comparison.Compare(ctx, a, b, input)
 	}
 	if p.routine == 351 {

@@ -124,6 +124,19 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 				if tc.name == "earthdistance" && p.Name() == "geo_distance" {
 					language = catalog.CRoutineLanguage
 				}
+				if tc.name == "isn" {
+					switch p.Name() {
+					case "isneq", "isnne", "isnlt", "isnle", "isngt", "isnge",
+						"btean13cmp", "btisbncmp", "btisbn13cmp", "btismncmp",
+						"btismn13cmp", "btissncmp", "btissn13cmp", "btupccmp":
+						language = catalog.InternalRoutineLanguage
+					}
+					if p.Display.HasBinary != (language == catalog.CRoutineLanguage) ||
+						language == catalog.CRoutineLanguage && p.Display.Binary != "$libdir/isn" ||
+						language == catalog.InternalRoutineLanguage && p.Display.Binary != "" {
+						t.Fatal("ISN released binary declaration", p)
+					}
+				}
 				if tc.name == "citext" {
 					switch p.Name() {
 					case "citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge":
@@ -152,6 +165,19 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 				}
 			}
 			want := append([]string(nil), tc.sources...)
+			if tc.name == "isn" {
+				// The closed release inventory has 28 operand pairs for each
+				// predicate, seven checked casts and eight same-type comparators.
+				for range 28 {
+					want = append(want, "int8eq", "int8ne", "int8lt", "int8le", "int8gt", "int8ge")
+				}
+				want = append(want, "isbn_cast_from_ean13", "isbn_cast_from_ean13",
+					"ismn_cast_from_ean13", "ismn_cast_from_ean13",
+					"issn_cast_from_ean13", "issn_cast_from_ean13", "upc_cast_from_ean13")
+				for range 8 {
+					want = append(want, "btint8cmp")
+				}
+			}
 			sort.Strings(got)
 			sort.Strings(want)
 			if !reflect.DeepEqual(got, want) {

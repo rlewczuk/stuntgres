@@ -37,11 +37,8 @@ func TestReferenceUserOperatorCatalogRows(t *testing.T) {
 		query := "SELECT oid,oprname,oprnamespace,oprowner,oprkind,oprcanmerge,oprcanhash,oprleft,oprright,oprresult,oprcom,oprnegate,oprcode::oid AS oprcode,oprrest::oid AS oprrest,oprjoin::oid AS oprjoin FROM pg_operator WHERE oprnamespace='public'::regnamespace AND oprname IN ('#!#','##~','#=#','#~#') ORDER BY oprname"
 		fixture.OidReferenceRows(t, p.Ctx, b, c, fixture.Select(query, columns, types, rows))
 		fixture.OidReferenceRows(t, p.Ctx, b, c, fixture.Prepared(fixture.Select(query, columns, types, rows)))
-		// Identity-only estimator metadata does not fabricate native pg_proc rows.
-		routineRows := int64(0)
-		if b.PG {
-			routineRows = 2
-		}
-		userOperatorValue(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE oid=101 OR oid=105", "INT8", routineRows)
+		// Released estimator descriptors are genuine catalog metadata;
+		// descriptor presence does not grant executable scalar authority.
+		userOperatorValue(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE oid=101 OR oid=105", "INT8", int64(2))
 	})
 }

@@ -109,6 +109,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			if err != nil {
 				return nil, false, err
 			}
+			if capture, installed := isnCaptureOf(node); ok && installed {
+				if failure := remapIsnRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if capture, installed := hstoreComparisonCaptureOf(node); ok && installed {
 				if failure := remapHstoreComparisonRoutine(view, reader, captured, current, capture, retainedType); failure != nil {
 					return nil, false, failure
@@ -480,13 +485,19 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 	case plan.InstalledPgvisibilityExpr:
 		n.Args = children(n.Args)
-		if err != nil { return node, false, err }
+		if err != nil {
+			return node, false, err
+		}
 		proc, ok := originalProcedure(n.Procedure)
-		if !ok || extension.PgvisibilityProviderOf(proc) != extension.StockPgvisibility { return nil, false, fmt.Errorf("stuntgres: missing remapped pg_visibility function") }
+		if !ok || extension.PgvisibilityProviderOf(proc) != extension.StockPgvisibility {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pg_visibility function")
+		}
 		changed = changed || n.Procedure != proc
 		n.Procedure, info.RoutineReference = proc, proc
 		n.Info = info
-		if err = ValidateInstalledPgvisibility(n, view); err != nil { return nil, false, err }
+		if err = ValidateInstalledPgvisibility(n, view); err != nil {
+			return nil, false, err
+		}
 		rebound = n
 	case plan.InstalledPgstattupleExpr:
 		n.Args = children(n.Args)
@@ -1038,7 +1049,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 				if !ok {
 					return nil, false, fmt.Errorf("stuntgres: missing remapped CASE equality declaration")
 				}
-				if old.TestUsage.Type.IsLtree() || old.Condition.ResultUsage().Type.IsLtree() {
+				if old.TestUsage.Type.IsISN() || old.Condition.ResultUsage().Type.IsISN() {
+					if failure := remapIsnRoutine(view, reader, old.Routine, current, isnCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, op: "=", result: sqltype.Bool}, retainedType); failure != nil {
+						return nil, false, failure
+					}
+				} else if old.TestUsage.Type.IsLtree() || old.Condition.ResultUsage().Type.IsLtree() {
 					if failure := remapLtreeComparisonRoutine(view, reader, old.Routine, current, ltreeComparisonCapture{ref: old.RoutineRef, left: old.TestUsage.Type, right: old.Condition.ResultUsage().Type, name: "ltree_eq", result: sqltype.Bool}, retainedType); failure != nil {
 						return nil, false, failure
 					}
@@ -1434,6 +1449,18 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 		n.Info = info
 		rebound = n
+	case functions.CastRoutine:
+		mapped := children(n.Children())
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			if n.Usage.Type.IsISN() && info.Usage.Type.IsISN() {
+				rebound, err = functions.NewCastRoutine(info, n.Name, n.Namespace, mapped, n.Volatility)
+			} else {
+				rebound, err = n.Rebuild(info, mapped)
+			}
+		}
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		var mapped []expr.Expr
