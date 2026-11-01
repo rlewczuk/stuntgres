@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -43,7 +42,7 @@ func TestReferenceRoutineAttributesProviderMetadata(t *testing.T) {
 				// pg_catalog survives public-schema fixture cleanup. Restore the
 				// released builtin defaults even when a later assertion is fatal.
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := c.ExecContext(ctx, "RESET ROLE"); err != nil {
 						t.Error("provider metadata cleanup role", err)

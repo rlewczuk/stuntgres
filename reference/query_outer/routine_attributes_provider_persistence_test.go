@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -105,7 +104,7 @@ func TestReferenceRoutineAttributesProviderPersistence(t *testing.T) {
 							q += " ROWS " + attributesProviderNumber(rows)
 						}
 						return func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							for _, ownerSQL := range restoreOwners {
 								if _, err := pg.ExecContext(ctx, ownerSQL); err != nil {

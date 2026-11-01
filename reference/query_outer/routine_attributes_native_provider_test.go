@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -41,7 +40,7 @@ func TestReferenceRoutineAttributesNativeProviderBoundary(t *testing.T) {
 				// bounded cleanup before the first ALTER, including fatal-test paths.
 				// The baseline assertion below requires these original attributes.
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := c.ExecContext(ctx, "RESET ROLE"); err != nil {
 						t.Error("provider cleanup role", err)

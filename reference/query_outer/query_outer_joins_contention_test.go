@@ -65,7 +65,7 @@ func TestReferenceQueryOuterJoinsContention(t *testing.T) {
 							queryCtx, cancel := context.WithCancel(p.Ctx)
 							defer cancel()
 							done := fixture.RowAsync(t, queryCtx, reader, query, prepared, true, backend.Recorder.RawBackend)
-							waitCtx, stopWait := context.WithTimeout(p.Ctx, 5*time.Second)
+							waitCtx, stopWait := context.WithTimeout(p.Ctx, fixture.Liveness)
 							defer stopWait()
 							if backend.PG {
 								fixture.RowWait(t, waitCtx, bp, ap)
