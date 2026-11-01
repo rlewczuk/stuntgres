@@ -76,7 +76,7 @@ func TestReferenceRLSCombinationLatestRow(t *testing.T) {
 						wp = fixture.LockPID(s.T, s.P.Ctx, s.C)
 					}
 					s.Exec("SET ROLE comb_reader")
-					ctx, cancel := context.WithTimeout(s.P.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(s.P.Ctx, fixture.Liveness)
 					defer cancel()
 					done := make(chan fixture.RelationOutcome, 1)
 					joined := false
@@ -86,7 +86,7 @@ func TestReferenceRLSCombinationLatestRow(t *testing.T) {
 						if !joined {
 							select {
 							case <-done:
-							case <-time.After(5 * time.Second):
+							case <-time.After(fixture.Liveness):
 								s.T.Error("worker failed to join")
 							}
 						}

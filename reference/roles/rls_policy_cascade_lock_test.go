@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -73,7 +72,7 @@ func TestReferenceRLSPolicyCascadeOwnerLock(t *testing.T) {
 						if _, err := tx.ExecContext(s.P.Ctx, "LOCK TABLE t IN ACCESS SHARE MODE"); err != nil {
 							s.T.Fatal(err)
 						}
-						ctx, cancel := context.WithTimeout(s.P.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(s.P.Ctx, fixture.Liveness)
 						defer cancel()
 						done := make(chan error, 1)
 						joined := false

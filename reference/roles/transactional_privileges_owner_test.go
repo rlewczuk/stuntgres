@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -92,7 +91,7 @@ func transactionalPrivilegesPreparedTransactions(t *testing.T) {
 			fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), held bool) {
 				const gid = "transactional_privileges_prepared"
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					c.ExecContext(ctx, "ROLLBACK")
 					c.ExecContext(ctx, "ROLLBACK PREPARED '"+gid+"'")
