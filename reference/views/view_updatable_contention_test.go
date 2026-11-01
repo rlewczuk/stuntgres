@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceViewUpdatableContention(t *testing.T) {
@@ -44,7 +43,7 @@ func TestReferenceViewUpdatableContention(t *testing.T) {
 			fixture.LockExec(t, p.Ctx, tx, "UPDATE t SET a=0 WHERE id=1", 1)
 			pid, hpid := fixture.LockPID(t, p.Ctx, waiter), fixture.LockPID(t, p.Ctx, holder)
 			done := fixture.RowAsync(t, p.Ctx, waiter, "UPDATE w SET a=99 WHERE id=1", held, false)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			fixture.RowWait(t, ctx, pid, hpid)
 			if err := tx.Commit(); err != nil {

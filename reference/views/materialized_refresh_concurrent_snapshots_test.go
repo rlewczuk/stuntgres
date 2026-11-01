@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceMaterializedRefreshConcurrentSnapshots(t *testing.T) {
@@ -34,7 +33,7 @@ func TestReferenceMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, tx, b.Recorder, concurrentOld())
 					}
 					concurrentChange(run)
-					ctx, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer stop()
 					fixture.RunStep(t, ctx, writer, b.Recorder, fixture.Exec(concurrentRefreshSQL, 0))
 					fixture.RunStep(t, p.Ctx, tx, b.Recorder, concurrentOld())

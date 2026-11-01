@@ -24,7 +24,7 @@ func concurrentAtomicScans(t *testing.T) {
 			defer func() {
 				cancel()
 				if !joined {
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					select {
 					case <-done:

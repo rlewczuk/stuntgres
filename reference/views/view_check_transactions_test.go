@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceViewCheckTransactions(t *testing.T) {
@@ -63,7 +62,7 @@ func TestReferenceViewCheckCancellation(t *testing.T) {
 			live, stop := context.WithCancel(p.Ctx)
 			defer stop()
 			done := fixture.RowAsync(t, live, waiter, "UPDATE v SET b=b+1", held, false)
-			wait, finish := context.WithTimeout(p.Ctx, 5*time.Second)
+			wait, finish := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer finish()
 			fixture.RowWait(t, wait, pid, hpid)
 			stop()

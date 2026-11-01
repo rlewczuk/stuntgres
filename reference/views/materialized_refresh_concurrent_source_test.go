@@ -39,7 +39,7 @@ func TestReferenceMaterializedRefreshConcurrentSourceMaterialized(t *testing.T) 
 				cancel()
 				tx.Rollback()
 				if !joined {
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					select {
 					case <-done:
@@ -70,7 +70,7 @@ func TestReferenceMaterializedRefreshConcurrentSourceMaterialized(t *testing.T) 
 			run(fixture.Exec("UPDATE source_base SET s='new' WHERE i=1", 1))
 			run(fixture.Exec("DELETE FROM source_base WHERE i=2", 1))
 			run(fixture.Exec("INSERT INTO source_base VALUES(3,'three')", 1))
-			publish, stop := context.WithTimeout(ctx, 3*time.Second)
+			publish, stop := context.WithTimeout(ctx, fixture.Liveness)
 			defer stop()
 			fixture.RunStep(t, publish, observer, b.Recorder, fixture.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY source_inner", 0))
 			run(refreshBag("source_inner", fresh))
