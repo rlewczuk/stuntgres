@@ -67,7 +67,7 @@ func TestReferenceConcurrentIndexComputedContenders(t *testing.T) {
 					cancel()
 					select {
 					case <-done:
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("contender did not join")
 					}
 				})
