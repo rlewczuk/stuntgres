@@ -112,6 +112,7 @@ func icProviderInventory(c *icCase) {
 		"information_schema.check_constraint_routine_usage": ccruColumns,
 		"information_schema.check_constraints":              iccColumns,
 		"information_schema.constraint_column_usage":        fixture.CCUColumns,
+		"information_schema.constraint_table_usage":         fixture.CTUColumns,
 		"information_schema.domain_constraints":             dcColumns,
 		"information_schema.referential_constraints":        ircColumns,
 		"information_schema.table_constraints":              tcColumns,

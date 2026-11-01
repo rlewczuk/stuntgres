@@ -6,7 +6,7 @@ Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
 views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
 `role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`, `user_mapping_options`,
-`key_column_usage`, `constraint_column_usage`, `sql_features`, `sql_sizing`,
+`key_column_usage`, `constraint_column_usage`, `constraint_table_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
 in [reference/catalogs](../catalogs/README.md).
 
@@ -37,6 +37,31 @@ and the identical command with `REFERENCE=1`. Feature smoke:
 `make check RUN='^TestReferenceDatabaseFilesSmoke$'`, also with `REFERENCE=1`.
 The unchanged fixture pins PostgreSQL 18.6/UTF8/C; stale selected catalog 18.0
 metadata is not authority to repin the oracle.
+
+`constraint_table_usage` prescribes exactly six nullable `sql_identifier` fields
+(externally NAME), not column names or key ordinals. PK/UNIQUE project the
+constrained table, and FK projects its referenced table with the child's
+constraint identity. Composite keys still yield one row per real descriptor;
+identical complete tuples from separate same-named FKs retain their multiplicity.
+Standalone unique indexes contribute no invented constraint row. CHECK and
+NOT NULL are excluded. Enabled ownership of the projected ordinary/partitioned
+table is the only visibility condition, including peer TEMP tables: child
+ownership and data/schema privileges alone reveal nothing.
+
+Direct, fresh-prepared and held scenarios cover exact bags and NAME transport,
+empty/NULL boundaries, inheritance versus SET authority, owner/schema changes,
+private/peer transaction frontiers, failed ALTER atomicity, full diagnostics and
+ordinary context cancellation. Existing KCU, referential_constraints and key
+vectors witness column order and unique identity without adding CTU columns or
+borrowing their different visibility predicates. Native-only control phases
+retain old rows and ColumnTypes across Reset and repeated/independent-driver
+Restore, preserving duplicate tuples. Successful replacement retires held
+domain-result signatures with exact `0A000` / `cached plan must not change result
+type`; fresh direct/prepared/held readers use the new catalog lifetime.
+Failed/canceled Restore preserves the same held reader and catalog atomically.
+Run the selected family and its feature smoke both natively and with
+`REFERENCE=1`; the column and six builtin-deparse inventories are selected in
+[reference/information_schema](../information_schema/README.md#testing).
 
 ## Testing
 
@@ -115,6 +140,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/information_schema`), `RUN='^TestReferenceDataTypePrivileges'`
 - Role table grants: `RUN='^TestReferenceInfoRoleTableGrants'`
 - Table privileges: `RUN='^TestReferenceInfoTablePrivileges'`
+- Constraint table usage: `RUN='^TestReferenceInfoConstraintTableUsage'`.
 - Tablespaces: `RUN='^TestReferenceTablespace'`
 - Size formatting: `RUN='^TestReferenceSize'`; logical relation/database/tablespace allocation: `RUN='^TestReferenceRelationSize'`
   Size diagnostic scenarios include retained FILTER predicate analysis and

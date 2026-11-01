@@ -161,6 +161,7 @@ var producers = [...]Registration{
 	{InfoForeignTableOptionsOID, captureInfoForeignTableOptions},
 	{InfoForeignTablesOID, captureInfoForeignTables},
 	{PreparedStatementsOID, capturePGPreparedStatements},
+	{ConstraintTableUsageOID, captureConstraintTableUsage},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

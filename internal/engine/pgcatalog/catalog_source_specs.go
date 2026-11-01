@@ -1057,6 +1057,14 @@ var Specs = [...]Spec{
 		{"constraint_schema", 13248, true, 950, 0, -1},
 		{"constraint_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing constraint column usage domain"},
+	{ConstraintTableUsageOID, 13229, "constraint_table_usage", []ColumnSpec{
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+		{"constraint_catalog", 13248, true, 950, 0, -1},
+		{"constraint_schema", 13248, true, 950, 0, -1},
+		{"constraint_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing constraint table usage domain"},
 	{InfoEnabledRolesOID, 13229, "enabled_roles", []ColumnSpec{
 		{"role_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing enabled role identifier domain"},

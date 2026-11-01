@@ -52,6 +52,8 @@ var PGUserColumns = []string{"usename", "usesysid", "usecreatedb", "usesuper", "
 
 var CCUColumns = []string{"table_catalog", "table_schema", "table_name", "column_name", "constraint_catalog", "constraint_schema", "constraint_name"}
 
+var CTUColumns = []string{"table_catalog", "table_schema", "table_name", "constraint_catalog", "constraint_schema", "constraint_name"}
+
 var KCUColumns = []string{"constraint_catalog", "constraint_schema", "constraint_name", "table_catalog", "table_schema", "table_name", "column_name", "ordinal_position", "position_in_unique_constraint"}
 
 var RTGColumns = []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}

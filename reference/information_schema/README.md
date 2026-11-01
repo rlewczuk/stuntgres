@@ -61,6 +61,16 @@ even though the native runtime has no parsed file assignments.
 The same inventory includes `pg_ident_file_mappings` as a view with its seven
 release-ordered mapping/provenance/error columns, independently checking both
 the complete native provider-name bag and direct/prepared attribute metadata.
+The PUBLIC-readable `constraint_table_usage` inventory has exactly six nullable
+`sql_identifier` columns (NAME base), in documented table/constraint order,
+ordinals1–6 and view classification. `TestReferenceInfoColumnsPopulation/providers`
+checks the complete provider inventory; the shape test alone does not consume
+this inventory. All six `TestReferenceInfoViewsBuiltins` definition maps include
+the released CTU projection and ownership predicate: default/information_schema
+path/shadow, each with and without quote_all_identifiers. Held definition reads
+also track current display settings. Functional CTU rows, duplicate constraint
+tuples, projected-table owner visibility and lifecycle scenarios belong to
+[reference/catalog_privileges](../catalog_privileges/README.md).
 
 Every query of these views builds the whole view before filtering, so an
 inventory of builtin or installed objects (view definitions per display mode,

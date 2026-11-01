@@ -4,7 +4,7 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`, `key_column_usage`,
-`constraint_column_usage`, `column_column_usage`, `column_domain_usage`,
+`constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
@@ -1193,6 +1193,18 @@ catalog writes or bypass a provider's independent backing-source checks.
 - `constraint_column_usage`: CHECK columns come from `ExpressionReferences`,
   never a second walker; owner-role inheritance on the table is the only
   visibility predicate.
+- `constraint_table_usage`: six nullable `sql_identifier` columns identifying the
+  projected table and actual constraint. Each PK/UNIQUE descriptor contributes
+  one owning-table row; each FK contributes one referenced-table row with its
+  child's constraint namespace/name. Identical tuples from separate constraints
+  survive: no DISTINCT, column expansion or fabricated unique-index constraint.
+  Only projected ordinary/partitioned tables qualify, and inherited ownership of
+  that table alone controls visibility, including peer TEMP tables. Child
+  ownership, table/column grants, schema USAGE, RLS and search_path do not
+  substitute for enabled target ownership. CHECK/NOT NULL never contribute.
+  Capture uses paired immutable catalog/role roots and the current identifier
+  domain; cancellation or invalid authority discards the entire prefix. The
+  native source OID16252 links the existing row13329/array13328 identities.
 - `column_column_usage`: generated-column dependencies from the shared
   `ExpressionReferences` walker over analyzed (not folded) expressions,
   deduplicated per generation; enabled relation-owner membership is the only
@@ -1482,7 +1494,7 @@ a hash root alone does not select that access method.
   dimensions, typed all-IN NULL controls and declaration-owned default counts.
 - Registry coverage and captured registration identity (engine):
   `RUN='^TestCatalog(SourceProducerCoverage|GrantRegistration)$'`
-- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
+- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|ConstraintTableUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (`core/enginetests/infoschema`): `RUN='^TestInfoColumnDomainUsage'`
 - Foreign-wrapper option producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrappers'`
@@ -1494,7 +1506,7 @@ a hash root alone does not select that access method.
   `RUN='^TestTypeProcedureDependencies'`.
 - Wait-event definition units: `RUN='^TestPGWaitEvents'`
 - Wait-event definition public scenarios: `RUN='^TestReferencePGWaitEvents'`
-- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`
+- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|ConstraintTableUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations)'`
 - Schema inquiry units: `RUN='^TestInfoSchemata'`
 - Schema inquiry SQL: `RUN='^TestReferenceInfoSchemata'`
 - Trigger and constraint-ownership producer units: `RUN='^TestPGTrigger'`
