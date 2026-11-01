@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -31,7 +30,7 @@ func TestReferenceExecutionPauseDelete(t *testing.T) {
 				jsonbEachScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 					run := func(step fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, step) }
 					defer func() {
-						cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						if _, err := c.ExecContext(cleanup, "ROLLBACK"); err != nil {
 							t.Error("DELETE transaction cleanup", err)
@@ -114,7 +113,7 @@ func TestReferenceExecutionPauseDelete(t *testing.T) {
 					}
 					locked := true
 					unlock := func() {
-						cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						var unlocked bool
 						if err := holder.QueryRowContext(cleanup, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil || !unlocked {
@@ -180,7 +179,7 @@ func TestReferenceExecutionPauseDelete(t *testing.T) {
 
 func executionPauseDeleteDemand(t *testing.T, p *fixture.Pair, b fixture.Backend, point string, execute func(context.Context) fixture.RelationOutcome, second string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	var pause *stuntgres.ExecutionPause
 	if !b.PG {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -13,7 +12,7 @@ import (
 func TestReferenceExecutionPauseCursor(t *testing.T) {
 	jsonbEachScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := c.ExecContext(cleanup, "ROLLBACK"); err != nil {
 				t.Error("cursor transaction cleanup", err)
@@ -60,7 +59,7 @@ func TestReferenceExecutionPauseCursor(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			var unlocked bool
 			if err := holder.QueryRowContext(cleanup, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil || !unlocked {
@@ -125,7 +124,7 @@ func executionPauseCursorFetch(t *testing.T, p *fixture.Pair, b fixture.Backend,
 
 func executionPauseCursorDemand(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, query string, execute bool, consume func(fixture.RelationOutcome)) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	var pause *stuntgres.ExecutionPause
 	if !b.PG {

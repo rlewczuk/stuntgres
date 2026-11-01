@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -96,7 +95,7 @@ func TestReferenceExecutionPauseRuntimeOwners(t *testing.T) {
 						run(fixture.Exec(q, count))
 					}
 					defer func() {
-						ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer stop()
 						_, _ = c.ExecContext(ctx, "ROLLBACK")
 						if tc.name == "sql_execute_actual" {
@@ -232,7 +231,7 @@ func TestReferenceExecutionPauseRuntimeOwners(t *testing.T) {
 
 func executionPauseRuntimeDemand(t *testing.T, p *fixture.Pair, point string, canceled bool, execute func(context.Context) fixture.RelationOutcome) (fixture.RelationOutcome, func()) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	if point == "" {
 		return execute(ctx), cancel
 	}

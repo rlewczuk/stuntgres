@@ -113,7 +113,7 @@ func jsonbConcatDeleteGateCancel(t *testing.T, p *fixture.Pair, b fixture.Backen
 	}
 	// The worker is joined; observe exact-key cleanup through an idle session,
 	// not through the native operation's now-canceled context.
-	cleanupCtx, cleanupCancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	cleanupCtx, cleanupCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cleanupCancel()
 	const gateLocks = `SELECT count(*) FROM pg_locks WHERE pid IN ($1,$2) AND locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND classid::bigint=0 AND objid::bigint=$3 AND objsubid=1`
 	var remaining int64
