@@ -25,9 +25,11 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		// Hang guards only: the child's own timeout dumps stacks before the
+		// parent kills it, and both leave room for its Liveness-bounded waits.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*enginetest.Liveness)
 		defer cancel()
-		cmd := osexec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationDefinitionProviderReservation$", "-test.count=1", "-test.timeout=10s")
+		cmd := osexec.CommandContext(ctx, binary, "-test.run=^TestTypedPublicationDefinitionProviderReservation$", "-test.count=1", "-test.timeout="+(2*enginetest.Liveness).String())
 		cmd.Env = append(os.Environ(), "STUNTGRES_TYPED_DEFINITION_HOLD_CHILD=1")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -52,7 +54,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 				called = true
 				e.Catalog.Providers[ids.RelationClassID] = original
 				go func() { reset <- engine.Reset(context.Background(), e) }()
-				deadline := time.Now().Add(3 * time.Second)
+				deadline := time.Now().Add(enginetest.Liveness)
 				for {
 					core.ReplacementAdmissionMuRef(&e.ReplacementMu).Lock()
 					queued := core.ReplacementAdmissionReaders(&e.ReplacementMu) == 1 && core.ReplacementAdmissionWriters(&e.ReplacementMu) == 1 && !core.ReplacementAdmissionWriting(&e.ReplacementMu)
@@ -85,7 +87,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-			case <-time.After(3 * time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Fatal("cancellation did not release genuine provider reservation")
 			}
 			if e.CatalogRead().Epoch() == before.Epoch() {
