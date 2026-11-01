@@ -39,7 +39,25 @@ func validateTemplate(v catalog.Read, d *catalog.TSTemplate) error {
 		return nil
 	}
 	installation, ok := catalog.OriginInstallation(d)
-	if !ok || v.Get(d.Address()) != d || v.Owner() == nil || v.Owner().Extensions[installation.Provider] != StockUnaccent || installation.Implementation != StockUnaccent || StockUnaccent.Versions().InstallPath(installation.Version) == nil || UnaccentTemplateProviderOf(d) != StockUnaccent || d.Origin.Declaration != 4 || len(installation.Members) != 6 {
+	if !ok || v.Get(d.Address()) != d || v.Owner() == nil || v.Owner().Extensions[installation.Provider] != installation.Implementation {
+		return InvalidProviderDescriptor()
+	}
+	templateSlot, helperSlot, members := 0, 0, 0
+	switch installation.Implementation {
+	case StockUnaccent:
+		templateSlot, helperSlot, members = 4, 2, 6
+		if UnaccentTemplateProviderOf(d) != StockUnaccent || StockUnaccent.Versions().InstallPath(installation.Version) == nil {
+			return InvalidProviderDescriptor()
+		}
+	case StockDictInt:
+		templateSlot, helperSlot, members = 2, 0, 4
+		if DictIntTemplateProviderOf(d) != StockDictInt || StockDictInt.Versions().InstallPath(installation.Version) == nil {
+			return InvalidProviderDescriptor()
+		}
+	default:
+		return InvalidProviderDescriptor()
+	}
+	if d.Origin.Declaration != templateSlot || len(installation.Members) != members {
 		return InvalidProviderDescriptor()
 	}
 	canonical, ok := installation.Declarations[d.Origin.Declaration].(*catalog.TSTemplate)
@@ -48,7 +66,7 @@ func validateTemplate(v catalog.Read, d *catalog.TSTemplate) error {
 	}
 	for i, a := range [2]ids.ObjectAddress{d.Init, d.Lexize} {
 		p, ok := v.Procedure(a)
-		if !ok || !catalog.SameInstallation(p, installation) || p.Origin.Declaration != i+2 {
+		if !ok || !catalog.SameInstallation(p, installation) || p.Origin.Declaration != i+helperSlot {
 			return InvalidProviderDescriptor()
 		}
 	}
@@ -93,6 +111,13 @@ func dictionaryCapability(v catalog.Read, d *catalog.TSTemplate) uint8 {
 			return 0
 		}
 		return 3
+	}
+	if DictIntProviderOf(init) == StockDictInt && DictIntProviderOf(lexize) == StockDictInt {
+		installation, ok := catalog.OriginInstallation(init)
+		if !ok || !catalog.SameInstallation(lexize, installation) || init.Origin.Declaration != 0 || lexize.Origin.Declaration != 1 {
+			return 0
+		}
+		return 7
 	}
 	if UnaccentProviderOf(init) != StockUnaccent || UnaccentProviderOf(lexize) != StockUnaccent {
 		return 0

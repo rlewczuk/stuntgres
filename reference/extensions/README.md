@@ -159,6 +159,13 @@ package; pgcrypto's BF/DES/CAST scenarios need the legacy OpenSSL provider
 - Helpers: family scenario and assertion helpers live in the family's
   `*_fixture_test.go` or `*_helpers_test.go` files (for example
   `pgcryptoCase`, `uuidOsspCase`).
+- Integer dictionary scenarios use `RUN='^TestReferenceDictInt'` in both modes.
+  `dict_int_fixture_test.go` owns isolated public SQL scenarios and reuses the
+  shared lexeme metadata/raw-carrier assertions. Independently specified byte,
+  sign, option and diagnostic expectations feed direct and retained prepared
+  consumers, genuine configuration/GiST queries, mutable installed identities
+  and native control phases. PostgreSQL replays actual native-emitted SQL;
+  physical index implementation and native C loading are not test substitutes.
 - Conversion helpers (`conversion_helpers_test.go`) own scenario setup, registered
   handler declarations, metadata and real byte assertions. `conversionHideSeed`
   registers repair before moving a default; owner-transaction assertions use the

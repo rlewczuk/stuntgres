@@ -11,6 +11,11 @@ func UnaccentProviderOf(d *catalog.Procedure) *UnaccentProvider {
 	return p
 }
 
+func DictIntProviderOf(d *catalog.Procedure) *DictIntProvider {
+	p, _ := d.Implementation.(*DictIntProvider)
+	return p
+}
+
 func HstoreProviderOf(d *catalog.Procedure) *HstoreProvider {
 	p, _ := d.Implementation.(*HstoreProvider)
 	return p
@@ -82,5 +87,15 @@ func UnaccentTemplateProviderOf(d *catalog.TSTemplate) *UnaccentProvider {
 
 func UnaccentDictionaryProviderOf(d *catalog.TSDictionary) *UnaccentProvider {
 	p, _ := d.Implementation.(*UnaccentProvider)
+	return p
+}
+
+func DictIntTemplateProviderOf(d *catalog.TSTemplate) *DictIntProvider {
+	p, _ := d.Implementation.(*DictIntProvider)
+	return p
+}
+
+func DictIntDictionaryProviderOf(d *catalog.TSDictionary) *DictIntProvider {
+	p, _ := d.Implementation.(*DictIntProvider)
 	return p
 }

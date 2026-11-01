@@ -87,6 +87,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"bloom":           {"bloom", "1.0", nil, "bloom access method - signature file based index"},
 			"citext":          {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 			"cube":            {"cube", "1.5", nil, "data type for multidimensional cubes"},
+			"dict_int":        {"dict_int", "1.0", nil, "text search dictionary template for integers"},
 			"earthdistance":   {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
 			"hstore":          {"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"},
 			"unaccent":        {"unaccent", "1.1", version, comment},
@@ -118,6 +119,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["bloom"] = []any{"bloom", "1.0", false, true, false, true, nil, nil, "bloom access method - signature file based index"}
 			expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 			expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
+			expected["dict_int"] = []any{"dict_int", "1.0", false, true, true, true, nil, nil, "text search dictionary template for integers"}
 			expected["earthdistance"] = []any{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}
 			expected["hstore"] = []any{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}

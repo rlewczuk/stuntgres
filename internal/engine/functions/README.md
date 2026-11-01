@@ -1063,6 +1063,10 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
+  `IntDictionary` owns immutable maxlen/rejectlong/absval settings and performs
+  byte truncation or recognized-stopword rejection after optional ASCII-sign
+  removal. Empty input remains one empty lexeme. It retains no catalog, file,
+  session, cache or invocation scratch; the extension owner compiles options.
   `english.stop`, `danish.stop`, `dutch.stop`, `french.stop`, `finnish.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop`, `russian.stop`, `spanish.stop`, `swedish.stop` and `turkish.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
@@ -1525,6 +1529,7 @@ make check RUN='^TestGeometryPositionProviderLifecycle$'  # position provider au
 make check RUN='^TestFTSQueryFunctions'  # query utility providers, kernels and runtime lifetime
 make check RUN='^TestFTSJSON'  # JSON conversion operand lifecycle
 make check RUN='^TestSimpleDictionary'  # dictionary kernels and shipped resources
+make check RUN='^TestDictInt'  # immutable integer kernel and composed provider lifecycle
 make check RUN='^TestSnowball'  # released language rules, provider/resources and lifetime ownership
 make check RUN='^TestSynonym'  # real synonym compiler, provider and retained publication lifetimes
 make check RUN='^TestIspell'  # explicit dictionary readers, conditions, morphology, compounds and cancellation

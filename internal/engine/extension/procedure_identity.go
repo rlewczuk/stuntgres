@@ -537,6 +537,17 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if p.Installed != pgrowlocksDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "pgrowlocks", Binary: "$libdir/pgrowlocks", HasBinary: true}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()
 		}
+	case StockDictInt:
+		count = 4
+		if ext.Provider != "dict_int" || ext.Version != "1.0" || slot > 1 {
+			return invalid()
+		}
+		name = [2]string{"dintdict_init", "dintdict_lexize"}[slot]
+		signature = [2]catalog.ProcedureSignature{catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}[slot]
+		result, volatility = 2281, expr.Volatile
+		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/dict_int", HasBinary: true}) || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.PLHandler != catalog.NoPLHandler || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.LiteralDefaults != nil || p.InputNames != nil {
+			return invalid()
+		}
 	case StockUnaccent:
 		count = 6
 		if len(ext.Members) != count || slot > 3 {

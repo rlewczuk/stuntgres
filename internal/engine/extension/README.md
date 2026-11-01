@@ -2,7 +2,7 @@
 
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
-earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
+earthdistance, dict_int, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pg_trgm, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
@@ -188,10 +188,10 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Text-search templates validate their captured callbacks through the registered
   procedure provider, including exact intrinsic builtin declaration identity.
   Ordinary templates remain ordinary creators even when extension members.
-  Installed unaccent templates authenticate the sealed released template role
-  and callback declarations from the same genuine cohort; detached, foreign and
-  absent-origin membership states do not change their execution capability.
-  Compilation and publication-current checks share this authority validation.
+  Installed unaccent and dict_int templates authenticate their sealed released
+  template role and callback declarations from the same genuine cohort;
+  detached, foreign and absent-origin membership states do not change execution
+  capability. Compilation and publication-current checks share this validation.
 - **Seg members** (`seg_provider.go`, `seg_stage.go`): the trusted relocatable
   1.4 provider owns the twelve-byte scalar and strict immutable C input/output
   roles. Its reciprocal array is internally dependent and a current direct
@@ -267,7 +267,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   description uses the current dependency search path, not input qualification.
   Definition validity is separate from native dictionary execution. Compilation
   admits only the genuine stock-simple/synonym/thesaurus/ispell pairs, authenticated bootstrap
-  Snowball helpers, or a currently authenticated unaccent installation's helper pair.
+  Snowball helpers, or a currently authenticated unaccent or dict_int helper pair.
   Intrinsic callback/template/dictionary capability does not require empty or
   matching current extension membership or a live installation header. Each
   current member edge still requires its own reciprocal parent validation.
@@ -277,8 +277,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Detached compilation captures the catalog and rechecks both real helpers at
   completion. No callback or resource I/O runs under the catalog mutex.
   Callback links remain executable dependencies even when SQL `pg_depend`
-  omits references to pinned builtin procedures. Installed unaccent helpers
-  retain visible NORMAL dependency edges.
+  omits references to pinned builtin procedures. Installed unaccent and dict_int
+  helpers retain visible NORMAL dependency edges.
 - **Dictionary definitions** (`dictionary_*.go`): ordinary schema-CREATE and
   owner authority, independent of extension installation privileges. Preparation
   captures template/options and immutable startup resources; actual ispell
@@ -286,7 +286,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   rechecks current namespace/template/revision and role authority.
   SET SCHEMA checks destination CREATE before source ownership, both during
   preparation and at current-authority completion.
-  Ordered immutable options and genuine simple/synonym/unaccent/Snowball/thesaurus/ispell runtime state publish in
+  Ordered immutable options and genuine simple/synonym/unaccent/dict_int/Snowball/thesaurus/ispell runtime state publish in
   the existing catalog journal. ALTER removes matching options before appending
   supplied replacements. Standalone dictionaries depend on their real namespace
   and template, without fabricated extension membership. `DictionaryDumpStatement`
@@ -306,6 +306,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Installed dictionaries retain genuine provider origin and template/helper links
   across independent membership, name and schema changes. V3 import checks final
   symbolic labels against the actual reconstructed immutable declaration.
+  Dict_int owns four released declarations: two strict, volatile, parallel-unsafe
+  helpers, the template and the default dictionary. Its registered Go kernel
+  owns only maxlen/rejectlong/absval settings; ordered option text remains
+  independent from effective settings, and no server files or C ABI are loaded.
+  Shared configuration lexization and logical typed index roots consume the same
+  rich lexical result; physical PostgreSQL index machinery is not reconstructed.
   Thesaurus preparation resolves decoded logical Dictionary options using current
   caller namespace authority, captures the selected scalar normalizer, compiles
   outside the mutex and re-resolves/rechecks on completion. The normalizer is a
@@ -766,6 +772,9 @@ DDL and catalogs),
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 Visibility provider and expression ownership use `RUN='^TestPgvisibility'`.
+
+Integer dictionary kernel, provider, publication and index-owner units share
+`RUN='^TestDictInt'`; the public family is owned by `reference/extensions`.
 
 Autoinc installation and forgery units in `enginetests` use
 `RUN='^TestAutoincProviderIdentity$'`; its public scenarios live in `reference/operators`.

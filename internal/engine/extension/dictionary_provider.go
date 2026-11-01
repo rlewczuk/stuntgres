@@ -36,6 +36,13 @@ func CompileDictionary(ctx context.Context, view catalog.Read, template *catalog
 		return nil, dictionaryError("42601", fmt.Sprintf(`text search template "%s" does not accept options`, template.Name()))
 	}
 	capability := dictionaryCapability(view, template)
+	if capability == 7 {
+		maxlen, rejectlong, absval, err := intDictionaryOptions(options)
+		if err != nil {
+			return nil, err
+		}
+		return functions.NewIntDictionary(maxlen, rejectlong, absval), nil
+	}
 	if capability == 3 {
 		return compileSnowballOptions(ctx, options)
 	}
@@ -195,19 +202,20 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 			return InvalidProviderDescriptor()
 		}
 	}
-	if dictionaryCapability(v, template) == 1 {
+	capability := dictionaryCapability(v, template)
+	if capability == 1 {
 		runtime, ok := d.Runtime.(*functions.SimpleDictionary)
 		accept, stopwords, err := simpleOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(accept, stopwords) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
-	} else if dictionaryCapability(v, template) == 4 {
+	} else if capability == 4 {
 		runtime, ok := d.Runtime.(*functions.SynonymDictionary)
 		resource, sensitive, err := synonymOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(resource, sensitive) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
-	} else if dictionaryCapability(v, template) == 3 {
+	} else if capability == 3 {
 		runtime, ok := d.Runtime.(*functions.SnowballDictionary)
 		language, stopwords := "", ""
 		seenLanguage, seenStopwords := false, false
@@ -230,13 +238,25 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		if !ok || !seenLanguage || !runtime.Configured(language, stopwords) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
-	} else if dictionaryCapability(v, template) == 6 {
+	} else if capability == 6 {
 		runtime, ok := d.Runtime.(*functions.IspellDictionary)
 		names, err := ispellOptions(d.Options, nil)
 		if !ok || err != nil || !runtime.Configured(names[0], names[1], names[2]) || d.Implementation != nil {
 			return InvalidProviderDescriptor()
 		}
-	} else if dictionaryCapability(v, template) == 2 {
+	} else if capability == 7 {
+		runtime, ok := d.Runtime.(*functions.IntDictionary)
+		maxlen, rejectlong, absval, err := intDictionaryOptions(d.Options)
+		if !ok || err != nil || !runtime.Configured(maxlen, rejectlong, absval) {
+			return InvalidProviderDescriptor()
+		}
+		if d.Implementation != nil || d.Origin != nil {
+			installation, installed := catalog.OriginInstallation(d)
+			if !installed || DictIntDictionaryProviderOf(d) != StockDictInt || d.Origin.Declaration != 3 || installation.Implementation != StockDictInt || !catalog.SameInstallation(template, installation) {
+				return InvalidProviderDescriptor()
+			}
+		}
+	} else if capability == 2 {
 		if d.Runtime != functions.StockUnaccent {
 			return InvalidProviderDescriptor()
 		}
@@ -247,7 +267,7 @@ func validateDictionary(v catalog.Read, d *catalog.TSDictionary) error {
 		if d.Implementation != nil && (!installed || UnaccentDictionaryProviderOf(d) != StockUnaccent || d.Origin.Declaration != 5 || installation.Implementation != StockUnaccent || !catalog.SameInstallation(template, installation)) {
 			return InvalidProviderDescriptor()
 		}
-	} else if dictionaryCapability(v, template) == 5 {
+	} else if capability == 5 {
 		runtime, ok := d.Runtime.(*functions.ThesaurusDictionary)
 		resource, _, err := thesaurusOptions(d.Options)
 		if !ok || err != nil || !runtime.Configured(resource) || d.Implementation != nil {
