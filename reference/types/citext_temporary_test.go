@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -81,7 +80,7 @@ func TestReferenceCitextTemporary(t *testing.T) {
 			if err := ownerDB.Close(); err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			fixture.RunStep(t, ctx, peer, b.Recorder, fixture.Select("SELECT pg_advisory_lock(30791801)", []string{"pg_advisory_lock"}, []string{"VOID"}, [][]any{{""}}))
 			run(fixture.Select("SELECT pg_advisory_unlock(30791801)", []string{"pg_advisory_unlock"}, []string{"BOOL"}, [][]any{{true}}))

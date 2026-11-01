@@ -191,7 +191,7 @@ func compositeExprAwait(t *testing.T, ch <-chan struct{}) {
 	t.Helper()
 	select {
 	case <-ch:
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("control I/O barrier deadline")
 	}
 }
@@ -202,7 +202,7 @@ func compositeExprDone(t *testing.T, ch <-chan error) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("control worker deadline")
 	}
 }
@@ -263,7 +263,7 @@ func TestReferenceCompositeExprControlRejection(t *testing.T) {
 				close(r.release)
 				select {
 				case <-readerDone:
-				case <-time.After(5 * time.Second):
+				case <-time.After(fixture.Liveness):
 					t.Error("Restore cleanup deadline")
 				}
 			}
@@ -278,7 +278,7 @@ func TestReferenceCompositeExprControlRejection(t *testing.T) {
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(fixture.Liveness):
 			t.Fatal("canceled Restore did not join")
 		}
 		check()
@@ -295,7 +295,7 @@ func TestReferenceCompositeExprControlRejection(t *testing.T) {
 			}
 		}()
 		compositeExprAwait(t, w.Started)
-		writeCtx, writeCancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		writeCtx, writeCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer writeCancel()
 		result, err := c.ExecContext(writeCtx, `UPDATE holder SET v.i=8`)
 		if err != nil {
