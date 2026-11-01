@@ -42,11 +42,12 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					setting := "idle_in_transaction_session_timeout"
 					if kind == "wrong-inside" {
 						setting = "idle_session_timeout"
-					}
-					f.set(setting, "250ms")
-					if kind == "wrong-inside" {
+						// Arm inside the block: an idle_session_timeout armed
+						// outside it would race BEGIN and, after ROLLBACK, the
+						// owner checks below. ROLLBACK reverts the setting.
 						f.beginPrivate()
 					}
+					f.set(setting, "250ms")
 					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 					f.show(setting, "250ms")
 					if kind == "wrong-inside" {
