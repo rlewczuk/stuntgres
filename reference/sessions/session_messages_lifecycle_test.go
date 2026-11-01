@@ -7,7 +7,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -168,7 +167,7 @@ func TestReferenceSessionMessagesLifecycle(t *testing.T) {
 				sessionMessageSQL(t, p, b, c, "NOTIFY lifetime, 'own'")
 				sessionMessageReceive(t, p, b, c, "lifetime", "own")
 			}
-			ctx, stop := context.WithTimeout(p.Ctx, time.Second)
+			ctx, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer stop()
 			if err := r.PingContext(ctx); err != nil {
 				t.Fatal(err)

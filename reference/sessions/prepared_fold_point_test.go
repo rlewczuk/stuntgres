@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -26,7 +25,7 @@ func preparedFoldScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fix
 			}
 			t.Cleanup(func() { c.Close() })
 			t.Cleanup(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, q := range []string{"ROLLBACK", "DEALLOCATE ALL", "RESET extra_float_digits", "RESET search_path"} {
 					if _, err := c.ExecContext(ctx, q); err != nil {

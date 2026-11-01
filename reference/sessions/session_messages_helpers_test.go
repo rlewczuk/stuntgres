@@ -56,7 +56,7 @@ func sessionMessageConn(t *testing.T, p *fixture.Pair, b fixture.Backend) *sql.C
 	t.Cleanup(func() {
 		// A terminal absence probe may retire the PG transport. Cleanup does
 		// not reconnect or mask its explicitly observed lifecycle outcome.
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		_, _ = c.ExecContext(ctx, "ROLLBACK")
 		_, _ = c.ExecContext(ctx, "UNLISTEN *")
@@ -72,7 +72,7 @@ func sessionMessageSQL(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixtu
 
 func sessionMessageReceive(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, channel, payload string) sessionMessage {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	got, err := sessionMessageWait(ctx, c, b.PG)
 	if err != nil {

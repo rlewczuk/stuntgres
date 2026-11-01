@@ -206,13 +206,13 @@ func TestReferenceViewLocksDeadlock(t *testing.T) {
 			result        sql.Result
 			err, rollback error
 		}
-		ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		done := make(chan outcome, 2)
 		joined, started := 0, 0
 		t.Cleanup(func() {
 			cancel()
-			deadline := time.NewTimer(5 * time.Second)
+			deadline := time.NewTimer(fixture.Liveness)
 			defer deadline.Stop()
 			for joined < started {
 				select {
@@ -228,7 +228,7 @@ func TestReferenceViewLocksDeadlock(t *testing.T) {
 			started++
 			go func() {
 				r, err := conns[i].ExecContext(ctx, queries[i])
-				recovery, stop := context.WithTimeout(context.Background(), 2*time.Second)
+				recovery, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				_, rb := conns[i].ExecContext(recovery, "ROLLBACK")
 				done <- outcome{i, r, err, rb}

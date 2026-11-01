@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -97,7 +96,7 @@ func TestReferenceSessionMessagesPublication(t *testing.T) {
 			for _, r := range []*sql.Conn{a, c} {
 				sessionMessageSQL(t, p, b, r, "LISTEN publication")
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			start := make(chan struct{})
 			out := make(chan error, 2)
@@ -144,7 +143,7 @@ func TestReferenceSessionMessagesPublication(t *testing.T) {
 			r := sessionMessageConn(t, p, b)
 			s := sessionMessageConn(t, p, b)
 			sessionMessageSQL(t, p, b, r, "LISTEN publication")
-			ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			type outcome struct {
 				n   sessionMessage

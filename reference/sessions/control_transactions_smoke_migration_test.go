@@ -9,7 +9,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceControlTransactionsSmoke(t *testing.T) {
@@ -19,7 +18,7 @@ func TestReferenceControlTransactionsSmoke(t *testing.T) {
 				p := fixture.NewScenario(t)
 				for _, backend := range p.Backends() {
 					t.Run(backend.Name, func(t *testing.T) {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						ctx = context.WithValue(ctx, fixture.RecorderKey{}, backend.Recorder)
 						m := fixture.MigrationSmoke{T: t, PG: backend.PG, Native: p.Native, Recorder: backend.Recorder}
@@ -202,7 +201,7 @@ func TestReferenceControlTransactionsSmoke(t *testing.T) {
 	}
 	for _, prepared := range []bool{false, true} {
 		t.Run("cancel_during_read_and_borrower_release/"+map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			p := fixture.NewFixture(t, false, true)
 			var noticeRecords []fixture.Diagnostic

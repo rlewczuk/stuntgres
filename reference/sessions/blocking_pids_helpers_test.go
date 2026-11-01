@@ -10,7 +10,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func blockingScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -25,7 +24,7 @@ func blockingConn(t *testing.T, p *fixture.Pair, b fixture.Backend) (*sql.Conn, 
 	t.Helper()
 	c := namespaceConn(t, p, b)
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		_, _ = c.ExecContext(ctx, "ROLLBACK")
 	})
@@ -150,7 +149,7 @@ func blockingWant(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Ex
 // a sleep. The identity expectation comes from an independent physical source.
 func blockingWait(t *testing.T, p *fixture.Pair, b fixture.Backend, c fixture.Executor, function string, pid int, want ...int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 4*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	sort.Ints(want)
 	for {

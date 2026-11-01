@@ -124,7 +124,7 @@ func viewLocksRead(t *testing.T, ctx context.Context, b fixture.Backend, x fixtu
 
 func viewLocksPoll(t *testing.T, p *fixture.Pair, b fixture.Backend, x fixture.Executor, where string, match func([]viewLockRow) bool, args ...any) []viewLockRow {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 4*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		got := viewLocksRead(t, ctx, b, x, where, args...)

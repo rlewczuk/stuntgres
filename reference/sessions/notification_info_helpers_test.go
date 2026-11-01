@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -23,7 +22,7 @@ func notificationInfoConn(t *testing.T, p *fixture.Pair, b fixture.Backend) *sql
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		_, _ = conn.ExecContext(ctx, "ROLLBACK")
 		_, _ = conn.ExecContext(ctx, "UNLISTEN *")

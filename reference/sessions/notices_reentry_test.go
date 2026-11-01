@@ -10,7 +10,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Return callback failures to the joined command owner rather than calling
@@ -70,7 +69,7 @@ func TestReferenceNoticesReentrant(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, backend := range p.Backends() {
 		t.Run(backend.Name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			var peerNotices, notices, copies []fixture.Diagnostic
 			joined := true
@@ -158,7 +157,7 @@ func TestReferenceNoticesPhysicalCloseReentry(t *testing.T) {
 				}
 				return
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			var physical driver.Conn
 			var closeErr error
@@ -204,7 +203,7 @@ func TestReferenceNoticesSynchronous(t *testing.T) {
 				Handler: func(fixture.Diagnostic) { close(entered); <-release },
 				Joined:  func() bool { return joined },
 			})
-			deadline, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+			deadline, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 			ctx, cancel := context.WithCancel(deadline)
 			returned := make(chan error, 1)
 			defer func() {
