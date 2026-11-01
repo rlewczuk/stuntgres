@@ -30,6 +30,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	337:  {Language: catalog.InternalRoutineLanguage, Source: "scalargesel"},
 	386:  {Language: catalog.InternalRoutineLanguage, Source: "scalarlejoinsel"},
 	398:  {Language: catalog.InternalRoutineLanguage, Source: "scalargejoinsel"},
+	3809: {Language: catalog.InternalRoutineLanguage, Source: "pg_export_snapshot"},
 	6363: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_attribute_stats", OmitAllArgTypes: true},
 	6398: {Language: catalog.InternalRoutineLanguage, Source: "pg_clear_attribute_stats"},
 	6362: {Language: catalog.InternalRoutineLanguage, Source: "pg_restore_relation_stats", OmitAllArgTypes: true},

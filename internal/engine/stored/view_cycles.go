@@ -90,3 +90,49 @@ func AdmitView(d *catalog.Relation, restricted settings.RestrictedRelationKinds)
 	}
 	return nil
 }
+
+// ReadExportRootDemand follows immutable retained read recipes and current
+// routine descriptors. This is possible-execution metadata, not RLS selection
+// or authorization: callers do not yet have the source's effective principal.
+// Policy presentations use the same typed query/dependency/source structure as
+// views. An active-path guard bounds recursive policy/view definitions without
+// executing their ordinary admission/error path.
+func ReadExportRootDemand(read catalog.Read, definition *View) bool {
+	var active [16]*View
+	return readExportRootDemand(read, definition, active[:0])
+}
+
+// RelationReadExportRootDemand uses the same retained view/policy closure for
+// an already bound ordinary read source, before its first active snapshot.
+func RelationReadExportRootDemand(read catalog.Read, relation *catalog.Relation) bool {
+	var active [16]*View
+	return relationReadExportRootDemand(read,relation,active[:0])
+}
+
+func relationReadExportRootDemand(read catalog.Read, child *catalog.Relation, active []*View) bool {
+	if child.RelationKind==catalog.ViewRelation&&readExportRootDemand(read,ViewOf(child),active){return true}
+	if child.Security.RLSEnabled{
+		for _,policy:=range child.Security.Policies{
+			if policy.Command!=catalog.PolicyAll&&policy.Command!=catalog.PolicySelect{continue}
+			if condition:=PolicyOf(policy.Using);condition!=nil&&readExportRootDemand(read,condition.Presentation(),active){return true}
+		}
+	}
+	return false
+}
+
+func readExportRootDemand(read catalog.Read, definition *View, active []*View) bool {
+	if definition == nil { return false }
+	for _, previous := range active { if previous == definition { return false } }
+	if definition.Query().ExportRoots { return true }
+	for _, dependency := range definition.Dependencies() {
+		if routine, ok := read.Procedure(dependency.Ref.Address); ok && exec.RoutineExportRootDemand(read, routine) { return true }
+	}
+	active = append(active, definition)
+	for _, source := range definition.Sources() {
+		if source.AnalysisOnly { continue }
+		child, ok := read.Relation(source.Ref.Address)
+		if !ok { continue } // Ordinary admission retains missing-object diagnostics.
+		if relationReadExportRootDemand(read,child,active){return true}
+	}
+	return false
+}

@@ -475,7 +475,12 @@ recognition excludes DECLARE sections, including names after declaration
 semicolons. PERFORM changes only the grammar head; its diagnostic SELECT
 coordinates belong to the host.
 Utility statements share the ordinary SQL command grammar, including bounded
-SET TRANSACTION characteristics. Dynamic EXECUTE has its own instruction.
+SET TRANSACTION characteristics. `SET TRANSACTION SNAPSHOT 'identifier'` is a
+closed literal alternative on `TransactionCharacteristics`, not a mode or
+expression: NULL, parameters, casts, suffixes and mode combinations are syntax
+errors in SQL and static PL SQL alike. Describe remains effect-free; runtime
+owns token lookup, timing, isolation and transaction-lifetime checks.
+Dynamic EXECUTE has its own instruction.
 COMMIT/ROLLBACK retain a dedicated positioned `PLTransaction` payload with
 optional AND [NO] CHAIN and parser-owned admission; lexical BEGIN/END remain
 blocks. Runtime eligibility is not a declaration-time parser decision.

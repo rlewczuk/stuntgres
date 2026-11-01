@@ -233,7 +233,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, core.DisclosureEnv(&auth), f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []index.ColumnTransformation{{Attribute: 10, Rewrite: true}}, nil, nil, true)
+	validated, err := index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, core.DisclosureEnv(&auth), f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []index.ColumnTransformation{{Attribute: 10, Rewrite: true}}, nil, nil, true, nil)
 	if err != nil || validated[f.index.Name()] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}

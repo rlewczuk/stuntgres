@@ -8,16 +8,17 @@ import (
 
 // prepareReplacementLocatorsLocked updates only real same-object heap
 // replacements (TRUNCATE, REFRESH and row-shape rewrites), plus their rebuilt
-// indexes. Descriptor-only edits and ordinary root revisions preserve locators.
+// indexes. Metadata-only projections may replace a Go store without replacing
+// its physical incarnation; rewritten supplies the admitted publication intent.
 // Caller holds Engine.mu; every allocation precedes publication mutations.
-func (e *Engine) prepareReplacementLocatorsLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation) (*catalog.State, error) {
+func (e *Engine) prepareReplacementLocatorsLocked(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, rewritten func(ids.ObjectAddress) bool) (*catalog.State, error) {
 	if next == nil {
 		return nil, nil
 	}
 	var replaced map[ids.ObjectAddress]bool
 	for address, store := range relations {
 		old := e.Storage.Relations[address]
-		if old == nil || old == store {
+		if old == nil || old == store || !rewritten(address) {
 			continue
 		}
 		if replaced == nil {

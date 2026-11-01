@@ -870,6 +870,11 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			break
 		}
 	}
+	snapshotWrites,_:=scope.ColumnProjectionRoots(ref.Address)
+	rowExpressions:=physicalRows&&store!=nil&&(len(store.Versions)!=0||len(snapshotWrites)!=0)
+	defaultPreflight:=false
+	for _,added:=range additions{defaultPreflight=defaultPreflight||added.Expression!=nil}
+	if err:=prepareAlterExpressionSnapshot(scope,e.StageRead(stage),next,additions,transformations,storedReplacements,addedIndexes,rowExpressions,defaultPreflight,typeChecks,addedChecks,validatedChecks);err!=nil{return core.Result{},err}
 	fills, perRowAdd, err := table.PlanAddedColumns(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
 	if err != nil {
 		return core.Result{}, err

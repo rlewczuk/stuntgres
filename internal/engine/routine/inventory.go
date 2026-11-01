@@ -15,6 +15,7 @@ import (
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 // Fixed OUT type/name facts below follow PostgreSQL REL_18_6 pg_proc.dat.
 var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
+	{catalog.RoutineIdentity{3809, ids.PGCatalogNamespaceOID, "pg_export_snapshot", ""}, catalog.FunctionRoutine, 25, true, expr.Volatile, 'u', false, 0, 0, functions.CatalogRoutineProvider, nil},
 	// Released metadata-only rows are real descriptors, without scalar providers.
 	// Real operator estimator metadata; INTERNAL formals have no scalar provider.
 	{catalog.RoutineIdentity{101, ids.PGCatalogNamespaceOID, "eqsel", "2281,26,2281,23"}, catalog.FunctionRoutine, 701, true, expr.Stable, 's', false, 0, 0, 0, nil},

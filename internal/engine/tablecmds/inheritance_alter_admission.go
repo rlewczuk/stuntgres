@@ -94,7 +94,13 @@ func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.O
 			if state.Descendant {
 				planned, state.Graph, err = inheritedAlterActions(e, state, actual)
 				if err != nil {
-					return err
+					if state.Partition{return err}
+					state.Prepared[actual.Address()]=&table.InheritancePreparedNode{Old:actual,Actions:incoming,Graph:table.AlterGraph(actual),Reader:state.Definition,SelectionError:err}
+					// As with a failed cooked step, do not authorize or cook
+					// later descendants. Parent runtime preflight still precedes
+					// this diagnostic when the sole-stage traversal resumes.
+					scope.StatementMutation=original
+					return nil
 				}
 			}
 			if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 && !table.ValidationOnly(planned) {

@@ -52,6 +52,9 @@ type Host interface {
 	// original dependency manifest. Reads statement-owned fields only; fails
 	// once the statement has finished.
 	RoutineAdmission() (RoutineAccess, []catalog.ExpressionDependency, error)
+	// Actual ALTER index targets are selected by the existing index pipeline;
+	// snapshot admission happens before any of their executable recipes open.
+	PrepareUtilityIndexSnapshot(catalog.Read, []*catalog.Relation) error
 
 	// Sequences: acquires the sequence lock, then reads the generator under
 	// Engine.mu.
@@ -104,6 +107,8 @@ type Host interface {
 	CatalogInquiry() CatalogInquiryRuntime
 	SessionInquiry() SessionInquiryRuntime
 	TransactionInquiry() TransactionInquiryRuntime
+	// Snapshot export publishes transaction-owned retained roots.
+	ExportSnapshot() (string, error)
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime

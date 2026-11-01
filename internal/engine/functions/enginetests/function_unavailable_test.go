@@ -18,7 +18,6 @@ func TestUnavailableFunctionIdentityBoundary(t *testing.T) {
 		expression string
 		code       string
 	}{
-		{"pg_catalog.pg_export_snapshot()", "0A000"},
 		{"pg_terminate_backend()", "42883"},
 		{"pg_terminate_backend(true)", "42883"},
 		{"pg_terminate_backend(1,true)", "42883"},

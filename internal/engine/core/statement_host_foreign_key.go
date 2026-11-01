@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
@@ -10,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
@@ -146,6 +148,53 @@ func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVe
 	return h.Stage.deleteForeignAction(ref, old)
 }
 
+// RI's generated writable SPI command takes its own READ COMMITTED pair.
+// STABLE callees borrow this pair, not the suspended parent DML snapshot.
+func (h *statementHost) BeginForeignActionSnapshot(job *dml.ForeignKeyJob, event dml.ForeignActionTransition, action parser.ForeignKeyAction) (func(),error) {
+	s:=h.scope()
+	if s.Owner.Isolation.Stable(){return nil,nil}
+	e:=s.Engine()
+	snapshot,frontier,capture,demand:=s.currentSnapshot,s.snapshotFrontier,s.exportCapture,s.exportRootDemand
+	target,targets,targetAdmission:=s.snapshotTarget,s.snapshotTargets,s.snapshotTargetAdmission
+	parentView,inquiry:=s.View,s.Inquiry
+	s.currentSnapshot,s.exportCapture=nil,nil
+	s.snapshotFrontier=0
+	s.snapshotTarget=visibility.Root{}
+	s.snapshotTargets=nil
+	s.snapshotTargetAdmission=false
+	s.View=nil
+	s.Inquiry=inquirySnapshot{}
+	s.exportRootDemand=false
+	e.Mu.Lock()
+	read:=e.PrivateCatalogLocked(s.PendingCatalog())
+	childEvent:=stored.TriggerUpdate
+	if action==parser.ForeignKeyCascade&&event.Next.Row==0{childEvent=stored.TriggerDelete}
+	attributes:=job.Definition.Attributes
+	if event.Next.Row==0&&len(job.Definition.DeleteAttributes)!=0{attributes=job.Definition.DeleteAttributes}
+	if action==parser.ForeignKeySetDefault{
+		for _,attribute:=range attributes{
+			for slot,actual:=range job.Child.Attributes{
+				if actual==attribute{
+					node,_:=analyze.ColumnDefault(read,job.Child,slot)
+					s.NoteUtilityExpressionDemandLocked(read,node)
+					break
+				}
+			}
+		}
+	}
+	s.exportRootDemand=s.exportRootDemand||retainedWriteExportRootDemand(read,nil,job.Child,childEvent)||triggerExportRootDemand(read,job.Child,childEvent,attributes)||foreignActionExportRootDemand(read,job.Child,childEvent,attributes,nil)
+	e.Mu.Unlock()
+	restore:=func(){
+		if s.View!=nil&&s.View!=parentView{s.View.Release()}
+		s.currentSnapshot,s.snapshotFrontier,s.exportCapture=snapshot,frontier,capture
+		s.exportRootDemand=demand
+		s.snapshotTarget,s.snapshotTargets,s.snapshotTargetAdmission=target,targets,targetAdmission
+		s.View,s.Inquiry=parentView,inquiry
+	}
+	if err:=s.snapshotDataPhase();err!=nil{restore();return nil,err}
+	return restore,nil
+}
+
 // PlanForeignActionInput reads the statement's input environment, captures
 // the type diagnostic names under Engine.mu when the targets carry domain
 // checks, and for SET DEFAULT binds the child's defaults with the root binder
@@ -185,6 +234,12 @@ func (h *statementHost) PlanForeignActionInput(ctx context.Context, a dml.Author
 	binder := analyze.Binder{Host: e.AnalysisHost(s.Op), Ctx: util.DeactivateExecutionPause(workadmission.Suspend(ctx)), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
 	e.Mu.Lock()
 	err := binder.CaptureRetainedWriteInput(plan.Defaults, nil, nil)
+	if err == nil && retainedWriteExportRootDemand(auth.Catalog, plan.Defaults, job.Child, stored.TriggerUpdate) {
+		s.exportRootDemand = true
+		if !s.Owner.Isolation.Stable() && s.exportCapture == nil {
+			err = errors.New("stuntgres: foreign action export demand was not admitted before the active snapshot")
+		}
+	}
 	if err == nil && binder.Consumer.VisibilitySnapshot {
 		err = e.captureVisibilitySnapshotLocked(s)
 	}

@@ -141,10 +141,18 @@ root on backing rename without suppressing TYPE/shape/derived rebind work.
 Logical reminting can change a retained derived/predicate metadata identity even
 when referenced dense slots remain unchanged. Layout transport records the exact
 source-to-target construction mapping in that case too: shallow-COW only the
-provenance wrapper and share physical entries, order and membership. Recursive
-comparison against the saved source preserves clean construction without
-laundering existing debt. No key evaluation, scan, sort or physical rebuild is
-justified by that metadata-only mapping.
+provenance wrapper, retaining the previous immutable history and exact physical
+entries (including order and key backing) and membership-map backing. A new
+wrapper is not a physical rebuild; the historical wrapper stays untouched, and
+an ordinary sibling with unchanged semantics retains its exact root pointer.
+Metadata-only parent layout projections also preserve the heap and index storage
+locators. Publication uses its admitted rewrite/refresh intent, not a changed Go
+store pointer, to decide whether physical incarnation requires a locator-only
+descriptor clone; the exact layout source and published target stay mapped.
+Recursive comparison against the saved source preserves clean construction
+without laundering existing debt. No key evaluation, scan, sort or physical
+rebuild is justified by that metadata-only mapping. A genuine subsequent rewrite
+instead installs replacement physical backing and complete-build construction.
 
 ## Real rebuild publication
 

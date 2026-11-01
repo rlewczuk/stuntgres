@@ -60,19 +60,43 @@ func temporaryTableDependencies(s *fixture.TempReferenceSession) {
 	s.Utility("CREATE TEMP TABLE dependencies(id SERIAL UNIQUE,v INT GENERATED ALWAYS AS IDENTITY) ON COMMIT DELETE ROWS", nil)
 	s.Exec(s.C, "CREATE INDEX dependency_plain ON dependencies(id)", 0)
 	s.Exec(s.C, "CREATE INDEX dependency_expression ON dependencies((id + 1))", 0)
+	locators := func() [3][2]int64 {
+		s.T.Helper()
+		var result [3][2]int64
+		for i, name := range []string{"dependencies", "dependency_plain", "dependency_expression"} {
+			if err := s.C.QueryRowContext(s.P.Ctx, "SELECT oid,relfilenode FROM pg_class WHERE oid=$1::regclass", name).Scan(&result[i][0], &result[i][1]); err != nil {
+				s.T.Fatal(err)
+			}
+			if result[i][0] <= 0 || result[i][1] <= 0 {
+				s.T.Fatal("fixture lacks an actual temporary heap/index incarnation", name, result[i])
+			}
+		}
+		return result
+	}
+	beforeLocators := locators()
+	assertLocators := func() {
+		s.T.Helper()
+		// ON COMMIT DELETE truncates in place, including its rebuilt indexes.
+		if after := locators(); after != beforeLocators {
+			s.T.Fatal("temporary commit/rollback replaced physical identities", beforeLocators, after)
+		}
+	}
 	s.Exec(s.C, "BEGIN", 0)
 	s.Exec(s.C, "INSERT INTO dependencies DEFAULT VALUES", 1)
 	fixture.TemporaryTableRows(s, s.C, "dependencies", 1)
 	s.Exec(s.C, "COMMIT", 0)
 	fixture.TemporaryTableRows(s, s.C, "dependencies")
+	assertLocators()
 	s.Exec(s.C, "BEGIN", 0)
 	s.Exec(s.C, "INSERT INTO dependencies DEFAULT VALUES", 1)
 	fixture.TemporaryTableRows(s, s.C, "dependencies", 2)
 	s.Exec(s.C, "ROLLBACK", 0)
+	assertLocators()
 	s.Exec(s.C, "BEGIN", 0)
 	s.Exec(s.C, "INSERT INTO dependencies DEFAULT VALUES", 1)
 	fixture.TemporaryTableRows(s, s.C, "dependencies", 3)
 	s.Exec(s.C, "COMMIT", 0)
+	assertLocators()
 	s.Utility("CREATE TEMP TABLE readonly_temp(v INT)", nil)
 	s.Exec(s.C, "BEGIN READ ONLY", 0)
 	s.Exec(s.C, "INSERT INTO readonly_temp VALUES(7)", 1)

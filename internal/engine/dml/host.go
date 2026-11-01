@@ -128,6 +128,10 @@ type ForeignKeys interface {
 	// DEFAULT the bound defaults and retained original child-owner calls.
 	// event supplies the actual action diagnostic frame. Locks; never waits.
 	PlanForeignActionInput(ctx context.Context, a Authority, job *ForeignKeyJob, plan *ForeignActionPlan, event ForeignActionTransition, action parser.ForeignKeyAction) error
+	// BeginForeignActionSnapshot enters the generated SPI command's active
+	// snapshot before default planning or trigger evaluation. A non-nil restore
+	// balances the lexical pair on every success/error/cancellation.
+	BeginForeignActionSnapshot(job *ForeignKeyJob, event ForeignActionTransition, action parser.ForeignKeyAction) (func(), error)
 	// SwapForeignActionAuthority installs next as the running RI action's
 	// authority (nil clears it) and returns the previous one, nil when none.
 	// Never locks.

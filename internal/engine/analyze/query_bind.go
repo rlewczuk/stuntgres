@@ -663,7 +663,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			analysis = append(analysis, spec.Frame.End.Offset)
 		}
 	}
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.FrameID(), Syntax: s, HasTargetSet: b.Clause.QueryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.Consumer.VisibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.FrameID(), Syntax: s, HasTargetSet: b.Clause.QueryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.Consumer.VisibilitySnapshot, ExportRoots: b.Consumer.ExportRoots}, nil
 }
 
 func (b *Binder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {

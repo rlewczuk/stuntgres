@@ -84,7 +84,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		s.CompleteUtility()
 		return Result{}, nil
 	}
-	if s.Op.Restricted != nil {
+	if s.Op.Restricted != nil && stmt.Snapshot == nil {
 		err := s.Op.AssignInvocationModes(stmt.Modes)
 		if err == nil {
 			s.CompleteUtility()
@@ -98,6 +98,13 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	}
 	if !t.InBlock() && s.activeSQLRoutineDepth == 0 {
 		s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
+	}
+	if stmt.Snapshot != nil {
+		err := s.importSnapshot(*stmt.Snapshot)
+		if err == nil {
+			s.CompleteUtility()
+		}
+		return Result{}, err
 	}
 	err := assignModes(t, stmt.Modes)
 	if err == nil {
@@ -115,12 +122,16 @@ func (s *StatementScope) snapshotAnalysisPhase(stmt parser.Statement) error {
 	return s.snapshotPhase(stmt)
 }
 
-// Utilities enter with an active snapshot before their internal relation waits.
-// Ordinary RC commands select theirs only after relation admission.
+// Most utilities enter before internal execution waits. CTAS first acquires
+// its analysis-time source grants; ordinary RC queries also capture after grants.
 func (s *StatementScope) snapshotExecutionAdmission(stmt parser.Statement) error {
-	switch stmt.(type) {
-	case *parser.CreateQueryTable, *parser.RefreshMaterializedView:
-		return s.snapshotPhase(stmt)
+	switch command := stmt.(type) {
+	case *parser.CreateQueryTable:
+		// Parser analysis acquires CTAS/MVAS source locks before the utility
+		// executor/event snapshot. Keep stable analysis, but no early RC cut.
+		return s.snapshotAnalysisPhase(stmt)
+	case *parser.RefreshMaterializedView:
+		return s.snapshotRefreshPhase(command)
 	default:
 		return s.snapshotAnalysisPhase(stmt)
 	}
@@ -133,12 +144,16 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	previous := s.snapshotTargetAdmission
 	s.snapshotTargetAdmission = session.SnapshotTargetAdmission(stmt)
 	defer func() { s.snapshotTargetAdmission = previous }()
-	return s.snapshotDataPhase()
+	return s.snapshotDataPhaseForUtility(stmt)
 }
 
 // Fastpath has no SQL AST but obtains the same transaction snapshot before
 // reading its function identity or invoking argument/result codecs.
 func (s *StatementScope) snapshotDataPhase() error {
+	return s.snapshotDataPhaseForUtility(nil)
+}
+
+func (s *StatementScope) snapshotDataPhaseForUtility(statement parser.Statement) error {
 	t, e := s.Owner, s.Engine()
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
@@ -150,6 +165,8 @@ func (s *StatementScope) snapshotDataPhase() error {
 	}
 	sess := s.Op.Session
 	e.Mu.Lock()
+	if refresh, ok := statement.(*parser.RefreshMaterializedView); ok { s.installRefreshExportDemandLocked(refresh) }
+	s.installUtilityEventExportDemandLocked(statement)
 	sess.Mu.Lock()
 	check := func() error {
 		if err := PublicationOperationLocked(e, s.Op); err != nil {
@@ -225,6 +242,9 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 			return SQLError("55000", "no active transaction snapshot")
 		}
 		s.currentSnapshot, s.snapshotFrontier = t.CurrentSnapshot, t.Frontier
+		if s.exportRootDemand {
+			s.exportCapture = &exportedSnapshot{roots: t.Roots, catalog: t.SequenceCatalog, frontier: t.Frontier, snapshot: t.CurrentSnapshot, xmin: e.Visibility.Entries[t.Ref].Xmin}
+		}
 		return nil
 	}
 	snapshot, err := e.Visibility.CurrentSnapshotLocked(t.Ref)
@@ -232,6 +252,11 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 		return err
 	}
 	s.currentSnapshot, s.snapshotFrontier = snapshot, e.Visibility.CommitSeq()
+	if s.exportRootDemand {
+		xmin, err := e.Visibility.SnapshotLocked(t.Ref, false)
+		if err != nil { return err }
+		s.exportCapture = &exportedSnapshot{roots: session.CommittedRoots(e.Catalog.State, &e.Storage), catalog: e.Catalog.State, frontier: s.snapshotFrontier, snapshot: snapshot, xmin: xmin}
+	}
 	s.retainSnapshotTargetRootsLocked(e)
 	// RC retains the command pair and admitted target roots, not transaction-wide
 	// roots. Snapshot acquisition closes the transaction-characteristics window.

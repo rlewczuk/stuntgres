@@ -131,6 +131,26 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			nodes[i] = node
 		}
+		// Actual expressions and the prepared body are separate executable
+		// phases. Export records retain their actual cut, not authority to
+		// replace the body's later RC source-admission cut.
+		actualRef := s.TxRef
+		previousSnapshot, previousFrontier, previousCapture := s.currentSnapshot, s.snapshotFrontier, s.exportCapture
+		previousTarget, previousTargets, previousTargetAdmission := s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission
+		previousDemand := s.exportRootDemand
+		previousAdvertisement := e.Visibility.Entries[actualRef]
+		defer func() {
+			if !locked { e.Mu.Lock(); defer e.Mu.Unlock() }
+			if s.TxRef != actualRef { return }
+			s.currentSnapshot, s.snapshotFrontier, s.exportCapture = previousSnapshot, previousFrontier, previousCapture
+			s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission = previousTarget, previousTargets, previousTargetAdmission
+			s.exportRootDemand = previousDemand
+			if current, ok := e.Visibility.Entries[actualRef]; ok {
+				current.Xmin, current.Snapshot, current.SafeBuilder = previousAdvertisement.Xmin, previousAdvertisement.Snapshot, previousAdvertisement.SafeBuilder
+				e.Visibility.Entries[actualRef] = current
+			}
+		}()
+		s.installExportDemand(&analyze.Binding{ExportRoots: binder.Consumer.ExportRoots, Dependencies: binder.Dependencies})
 		if binder.Consumer.CatalogSnapshot || binder.Prepared.RegclassConcat {
 			if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 				return err
@@ -145,6 +165,9 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		input = binder.Input
 		e.Mu.Unlock()
 		locked = false
+		if s.exportRootDemand && s.currentSnapshot == nil {
+			if err := s.snapshotDataPhase(); err != nil { return err }
+		}
 		ctx = s.ActivateRuntime(ctx)
 		// Actuals are their own executable recipe, not the prepared body's
 		// parameter-only binding. Borrow the original actual manifest without

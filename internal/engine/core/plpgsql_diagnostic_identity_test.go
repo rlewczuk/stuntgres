@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -87,6 +88,7 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 		}
 		collationUnitPublish(t, e, stage)
 	}()
+	enginetest.SessionSQL(t, creator, "CREATE TABLE pl_cache_parent(id integer)")
 	op, err := creator.Acquire(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -117,42 +119,99 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 			t.Fatal("failed nested invocation leaked identity")
 		}
 	}
+	assertCache := func(scope *core.StatementScope, routine *catalog.Procedure, identity string) {
+		t.Helper()
+		e.Mu.Lock()
+		retained := core.PayloadSQLRoutines(core.PayloadOf(scope.Op.Session))[d.Address()]
+		e.Mu.Unlock()
+		if core.RoutineAnalysisPLProcedure(&retained) != routine || core.RoutineAnalysisPLDiagnostic(&retained) != identity {
+			t.Fatalf("first-compile cache owner/identity: got %p %q, want %p %q",
+				core.RoutineAnalysisPLProcedure(&retained), core.RoutineAnalysisPLDiagnostic(&retained), routine, identity)
+		}
+	}
 	core.SetRoutineDemandPLDiagnostic(core.ScopeSQLRoutineRef(s), "outer_identity()")
 	invoke(s, d, "pl_cache_schema.cache_fn()")
 	setPath(s, "pl_cache_schema,public")
 	invoke(s, d, "pl_cache_schema.cache_fn()")
-	if d.SQL.PL != program {
-		t.Fatal("session signature mutated persisted program")
+	assertCache(s, d, "pl_cache_schema.cache_fn()")
+	// Each invocation owner starts without the creating validator's cache.
+	newScope := func() *core.StatementScope {
+		t.Helper()
+		op, done, err := enginetest.Operation(e, t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(done)
+		scope, err := e.StartStatement(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { scope.Finish(nil) })
+		if err := scope.Gate(&parser.Select{}); err != nil {
+			t.Fatal(err)
+		}
+		core.SetScopeWorked(scope, true)
+		core.SetRoutineDemandPLDiagnostic(core.ScopeSQLRoutineRef(scope), "independent_outer()")
+		assertCache(scope, nil, "")
+		return scope
 	}
-	// An absent session entry captures this session's first-compile visibility,
-	// independently of the creating session's validator cache.
-	freshOp, done, err := enginetest.Operation(e, t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(done)
-	fresh, err := e.StartStatement(freshOp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { fresh.Finish(nil) })
-	if err := fresh.Gate(&parser.Select{}); err != nil {
-		t.Fatal(err)
-	}
-	core.SetScopeWorked(fresh, true)
+	fresh := newScope()
 	setPath(fresh, "pl_cache_schema,public")
 	invoke(fresh, d, "cache_fn()")
 	setPath(fresh, "public,pl_cache_schema")
 	invoke(fresh, d, "cache_fn()")
-	// A replacement immutable carrier invalidates its predecessor's signature;
-	// unchanged source/typed layout alone cannot authorize stale presentation.
+	parent := read.MustRelation(enginetest.CatalogRef(t, e, read, "pl_cache_parent").Address)
+	maintenanceInvoke := func(scope *core.StatementScope, routine *catalog.Procedure, identity string) {
+		t.Helper()
+		previous := scope.Op.Restricted
+		if err := scope.WithMaintenanceOwner(parent, func(*exec.Context) error {
+			invoke(scope, routine, identity)
+			assertCache(scope, routine, identity)
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if scope.Op.Restricted != previous {
+			t.Fatal("maintenance invocation leaked restriction")
+		}
+	}
+	// Warm first-compile presentation wins even when the function is no longer
+	// visible on the ordinary path or on maintenance's safe path.
+	maintenanceInvoke(fresh, d, "cache_fn()")
+	assertCache(fresh, d, "cache_fn()")
+	invoke(fresh, d, "cache_fn()")
+	maintenanceInvoke(s, d, "pl_cache_schema.cache_fn()")
+	assertCache(s, d, "pl_cache_schema.cache_fn()")
+
+	// A genuinely cold executor compiles under maintenance's safe path. That
+	// qualified signature lives in the same session cache after owner unwind,
+	// rather than being a transient frame-only override.
+	cold := newScope()
+	setPath(cold, "pl_cache_schema,public")
+	maintenanceInvoke(cold, d, "pl_cache_schema.cache_fn()")
+	invoke(cold, d, "pl_cache_schema.cache_fn()")
+	assertCache(cold, d, "pl_cache_schema.cache_fn()")
+	setPath(cold, "public,pl_cache_schema")
+	invoke(cold, d, "pl_cache_schema.cache_fn()")
+	assertCache(fresh, d, "cache_fn()")
+	assertCache(s, d, "pl_cache_schema.cache_fn()")
+
+	// The same address/source/typed layout cannot lend an old declaration's
+	// signature to a replacement. Its first environment owns the new spelling.
 	replacement := *d
+	maintenanceInvoke(fresh, &replacement, "pl_cache_schema.cache_fn()")
+	setPath(fresh, "pl_cache_schema,public")
+	invoke(fresh, &replacement, "pl_cache_schema.cache_fn()")
+	assertCache(fresh, &replacement, "pl_cache_schema.cache_fn()")
+	assertCache(s, d, "pl_cache_schema.cache_fn()")
+	assertCache(cold, d, "pl_cache_schema.cache_fn()")
 	invoke(s, &replacement, "cache_fn()")
-	e.Mu.Lock()
-	retained := core.PayloadSQLRoutines(core.PayloadOf(s.Op.Session))[d.Address()]
-	e.Mu.Unlock()
-	if core.RoutineAnalysisPLProcedure(&retained) != &replacement || core.RoutineAnalysisPLDiagnostic(&retained) != "cache_fn()" {
-		t.Fatal("replacement carrier did not own recaptured signature")
+	assertCache(s, &replacement, "cache_fn()")
+	maintenanceInvoke(s, &replacement, "cache_fn()")
+	invoke(s, &replacement, "cache_fn()")
+	assertCache(fresh, &replacement, "pl_cache_schema.cache_fn()")
+	if d.SQL.PL != program || replacement.SQL.PL != program {
+		t.Fatal("session signature mutated persisted program")
 	}
 	restore := s.ActivateSQLRoutine(nil, read)
 	if core.RoutineDemandPLDiagnostic(core.ScopeSQLRoutineRef(s)) != "" {

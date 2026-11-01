@@ -58,6 +58,8 @@ import (
 // BOOL declarations; only termination names pid/timeout and defaults timeout.
 // The two statistics-snapshot lifecycle declarations retain their released
 // zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
+// Exported transaction snapshots add strict VOLATILE/parallel-unsafe OID3809,
+// with no inputs and a scalar TEXT result; strictness is pg_proc.h's default.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -184,8 +186,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// 1000 and internal source pg_ident_file_mappings (REL_18_6 pg_proc.dat).
 	// Twelve comparison estimator declarations add their genuine strict/STABLE/
 	// parallel-safe INTERNAL metadata, without any scalar execution provider.
-	if len(facts) != 2176 {
-		t.Fatalf("released represented overloads: got %d, want 2176", len(facts))
+	// Exported snapshots add the released zero-argument TEXT declaration OID3809.
+	if len(facts) != 2177 {
+		t.Fatalf("released represented overloads: got %d, want 2177", len(facts))
 	}
 	return facts
 }

@@ -450,6 +450,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 	}
+	scope.installExportDemandFor(&b,stmt)
 	scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.VisibilitySnapshot
 	if b.Query != nil {
 		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.Query.VisibilitySnapshot

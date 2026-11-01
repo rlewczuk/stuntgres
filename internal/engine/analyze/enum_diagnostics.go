@@ -115,27 +115,39 @@ func (b *Binder) CaptureRetainedWriteInput(defaults []expr.Expr, generations map
 			_, _, visibility := inquiry.SnapshotDemand(plan.NullLiteral)
 			b.Consumer.VisibilitySnapshot = b.Consumer.VisibilitySnapshot || visibility
 		}
+		if demand, ok := node.(expr.ExportRootDemander); ok {
+			b.Consumer.ExportRoots = b.Consumer.ExportRoots || demand.ExportRootDemand()
+		}
 		failure = CaptureRetainedExpressionInput(node, b.captureElementInput, b.CaptureFTSParserInput, b.CaptureTypeDiagnosticInput)
 	}
+	return VisitRetainedWriteExpressions(defaults, generations, checks, func(node expr.Expr) error {
+		visit(node)
+		return failure
+	})
+}
+
+// VisitRetainedWriteExpressions is the common typed recipe walk for retained
+// write input capture and pure executable-demand classification. It performs
+// no binding, authorization, catalog capture, or evaluation.
+func VisitRetainedWriteExpressions(defaults []expr.Expr, generations map[int32]catalog.ColumnGeneration, checks []catalog.CheckConstraint, visit func(expr.Expr) error) error {
+	walk := func(node expr.Expr) error {
+		var failure error
+		plan.WalkExpression(node, func(child expr.Expr) {
+			if failure == nil {
+				failure = visit(child)
+			}
+		})
+		return failure
+	}
 	for _, node := range defaults {
-		plan.WalkExpression(node, visit)
-		if failure != nil {
-			return failure
-		}
+		if err := walk(node); err != nil { return err }
 	}
 	for _, definition := range generations {
-		plan.WalkExpression(definition.Planned, visit)
-		if failure != nil {
-			return failure
-		}
+		if err := walk(definition.Planned); err != nil { return err }
 	}
 	for _, definition := range checks {
-		if definition.NotEnforced {
-			continue
-		}
-		plan.WalkExpression(definition.Expression, visit)
-		if failure != nil {
-			return failure
+		if !definition.NotEnforced {
+			if err := walk(definition.Expression); err != nil { return err }
 		}
 	}
 	return nil

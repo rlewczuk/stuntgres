@@ -30,6 +30,11 @@ Existing-value domain validation and typed row/index preparation activate only
 in detached runtime phases. Typed scans and layout transport reuse the invocation
 context rather than activating per row. Domain replay capture remains dormant
 under its capture mutex; subsequent real row execution owns runtime admission.
+Typed-table index rebuilds pass the actual transformed table's restricted
+maintenance-owner callback to the shared late index selector, just as table
+ALTER does. Only selected builds enter that environment; initiating disclosure,
+historical row work, produced-entry reuse and final publication fences remain
+separate. Composite/source-type ownership never substitutes for table ownership.
 
 ## Entry points
 

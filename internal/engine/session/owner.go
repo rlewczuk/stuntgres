@@ -79,6 +79,7 @@ type TransactionOwner struct {
 	Catalog             *Journal
 	Savepoints          []SavepointMark
 	AccessedTemporary   bool
+	ExportedSnapshots bool // Sticky for the whole top-level incarnation, not savepoint state.
 	TempTablespaces     TempTablespaceSelector
 	RetainedMessage     bool           // Admission spans a direct multi-command message.
 	ProtocolCycle       *ProtocolCycle // Retention only; never owns admission.

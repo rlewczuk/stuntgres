@@ -105,6 +105,9 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 	shape.MergeFills(fills, next)
 	replacement := store
 	projectedWrites, projectedDeletes := scope.ColumnProjectionRoots(ref.Address)
+	rowExpressions:=len(versions)!=0||len(projectedWrites)!=0
+	expressionWork:=rowExpressions&&(len(transformations)!=0||len(storedReplacements)!=0||len(additions)!=0||len(typeChecks)!=0||len(addedChecks)!=0||len(validatedChecks)!=0)
+	if err:=prepareAlterExpressionSnapshot(scope,e.StageRead(stage),next,additions,transformations,storedReplacements,addedIndexes,rowExpressions,expressionWork,typeChecks,addedChecks,validatedChecks);err!=nil{return core.Result{},err}
 	if work.validityOnly {
 		if scanValidator, scan := table.PlanAlterScan(old, next, schema, false, physicalRows, nil, nil, validatedChecks, validatedAttributes, nil, nil); scan {
 			if scanValidator.Checks != nil {
@@ -193,7 +196,10 @@ func finishAlterPhysical(e *core.Engine, scope *core.StatementScope, phase core.
 		return core.Result{}, err
 	}
 	indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.ActivateRuntime(op.Context()), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, core.DisclosureEnv(&disclosure), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, transformations, storedReplacements, addedIndexes, rewrite)
+	withIndexOwner := func(work func(*exec.Context) error) error {
+		return scope.WithMaintenanceOwner(next, work)
+	}
+	indexBuilds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, disclosure.View, core.DisclosureEnv(&disclosure), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, transformations, storedReplacements, addedIndexes, rewrite, withIndexOwner)
 	if err != nil {
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: op, CatalogStage: stage}, disclosure, err)
 	}

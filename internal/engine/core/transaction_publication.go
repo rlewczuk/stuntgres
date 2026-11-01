@@ -480,7 +480,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			return err
 		}
 		if c != nil {
-			nextCatalog, err = e.prepareReplacementLocatorsLocked(nextCatalog, nextStorage)
+			nextCatalog, err = e.prepareReplacementLocatorsLocked(nextCatalog, nextStorage, func(address ids.ObjectAddress) bool {
+				return c.Storage[address].Rewritten
+			})
 			if err != nil {
 				sess.Mu.Unlock()
 				e.Mu.Unlock()

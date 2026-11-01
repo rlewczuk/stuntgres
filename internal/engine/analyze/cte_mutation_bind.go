@@ -169,6 +169,7 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 	b.UsedColumns = binder.Target.Uses
 	b.SubqueryDemand = binder.Query.subqueryDemand
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
+	b.ExportRoots = binder.Consumer.ExportRoots
 	if b.Relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
@@ -198,8 +199,10 @@ func bindMutationCommand(binder *Binder, auth Authority, requiredRef ids.ObjectR
 	// binder. Retain them in both this command and the statement accumulators.
 	binder.Query.subqueryDemand = binder.Query.subqueryDemand || b.SubqueryDemand
 	binder.Consumer.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot || b.VisibilitySnapshot
+	binder.Consumer.ExportRoots = binder.Consumer.ExportRoots || b.ExportRoots
 	b.SubqueryDemand = binder.Query.subqueryDemand
 	b.VisibilitySnapshot = binder.Consumer.VisibilitySnapshot
+	b.ExportRoots = binder.Consumer.ExportRoots
 	if binder.Consumer.frozenDefinition {
 		// Capture and presentation must share the same normalized syntax:
 		// named routine formals are typed parameters, never missing columns.
@@ -244,6 +247,7 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 	targetName, targetAlias, uses := b.Target.Name, b.Target.alias, b.Target.Uses
 	returningRead := b.Target.returningReadRequired
 	subqueries, visibility := b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot
+	exportRoots := b.Consumer.ExportRoots
 	singleInsert := b.Clause.stringSingleInsert
 	restoreQuery := b.EnterQuery(true)
 	defer func() {
@@ -255,6 +259,7 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 		b.Target.Name, b.Target.alias, b.Target.Uses = targetName, targetAlias, uses
 		b.Target.returningReadRequired = returningRead
 		b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = subqueries, visibility
+		b.Consumer.ExportRoots = exportRoots
 		b.Clause.stringSingleInsert = singleInsert
 	}()
 	b.Target.Relation, b.Target.Ref, b.Target.InsertTarget = nil, ids.ObjectRef{}, nil
@@ -262,6 +267,7 @@ func (b *Binder) bindCTEMutation(statement parser.Statement) (Binding, error) {
 	b.Target.deleteTarget, b.Target.deleteUsingSources, b.Target.mergeWhen, b.Target.mergeInput = false, false, false, false
 	b.Target.Name, b.Target.alias, b.Target.Uses = "", "", nil
 	b.Target.returningReadRequired, b.Query.subqueryDemand, b.Consumer.VisibilitySnapshot = false, false, false
+	b.Consumer.ExportRoots = false
 	b.Clause.stringSingleInsert = false
 	b.Query.Frame = 0 // Installed mutation/RETURNING row frames are frame 1.
 	oldCTEs := len(b.cte.bindings)

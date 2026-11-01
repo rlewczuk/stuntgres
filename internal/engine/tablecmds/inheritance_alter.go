@@ -91,6 +91,7 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		state.Graph = table.AlterGraph(old)
 		planned := actions
 		if cached := state.Prepared[old.Address()]; cached != nil {
+			if cached.SelectionError!=nil{return core.Result{},cached.SelectionError}
 			planned = cached.Actions
 			state.Graph = catalog.CloneInheritance(cached.Graph)
 		} else if state.Descendant {

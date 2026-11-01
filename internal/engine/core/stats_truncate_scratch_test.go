@@ -128,12 +128,13 @@ func TestStatsSnapshotTruncateScratchOwnership(t *testing.T) {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
-		// Match TestAnalyzePreparedAuthorityRejection's host storage-remint
-		// path. AlterRelation instead requires a defining revision, which would
-		// add an unrelated authority change to this stale-storage fixture.
+		// Declare a physical storage remint, not a metadata projection.
+		// AlterRelation instead requires a defining revision, which would add
+		// an unrelated authority change to this stale-storage fixture.
 		stage.RowShapes = map[ids.ObjectAddress]storage.RowShape{p.Address: {
 			Original: original, Root: original.Versions, Replacement: &replacement,
 			ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation,
+			Rewritten: true,
 		}}
 		truncateUnitPublish(t, e, stage)
 		current := e.CatalogRead()

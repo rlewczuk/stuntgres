@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var snapshotNames = [...]string{"pg_current_snapshot", "pg_snapshot_xmin", "pg_snapshot_xmax", "pg_snapshot_xip", "pg_visible_in_snapshot"}
+var snapshotNames = [...]string{"pg_current_snapshot", "pg_snapshot_xmin", "pg_snapshot_xmax", "pg_snapshot_xip", "pg_visible_in_snapshot", "pg_export_snapshot"}
 var legacySnapshotNames = [...]string{"txid_current_snapshot", "txid_snapshot_xmin", "txid_snapshot_xmax", "txid_snapshot_xip", "txid_visible_in_snapshot"}
 
 const (
@@ -17,6 +17,7 @@ const (
 	snapshotMax
 	snapshotXip
 	snapshotVisible
+	snapshotExport
 )
 
 type snapshotExpression struct {
@@ -35,7 +36,7 @@ func snapshotTypes(legacy bool) (sqltype.ID, sqltype.ID) {
 func snapshotFormals(kind int, legacy bool) []sqltype.ID {
 	id, snapshot := snapshotTypes(legacy)
 	switch kind {
-	case snapshotCurrent:
+	case snapshotCurrent, snapshotExport:
 		return nil
 	case snapshotVisible:
 		return []sqltype.ID{id, snapshot}
@@ -116,6 +117,9 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if kind == snapshotCurrent {
 		properties.Volatility = expr.Stable
 	}
+	if kind == snapshotExport {
+		properties.Volatility = expr.Volatile
+	}
 	for i, arg := range operands {
 		args[i], err = b.CoerceArgument(arg, CoercionRequest{Intent: ConditionalArgument, Target: b.Type(formals[i]).Usage(), Label: name})
 		if err != nil {
@@ -134,6 +138,8 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		result = snapshot
 	} else if kind == snapshotVisible {
 		result = sqltype.Bool
+	} else if kind == snapshotExport {
+		result = sqltype.Text
 	}
 	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(result).Usage(), raw.Pos, properties), CatalogRoutineProvider, name, formals...)
 	if err != nil {
@@ -142,6 +148,17 @@ func bindSnapshot(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	return snapshotExpression{Info: info, kind: kind, legacy: legacy, args: args}, nil
 }
 func (n snapshotExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	if n.kind == snapshotExport {
+		runtime, ok := ctx.(interface{ ExportSnapshot() (string, error) })
+		if !ok {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: missing snapshot export runtime")
+		}
+		token, err := runtime.ExportSnapshot()
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return sqltype.String(n.Usage.Type, token), nil
+	}
 	if n.kind == snapshotCurrent {
 		runtime, err := transactionInquiryRuntime(ctx)
 		if err != nil {

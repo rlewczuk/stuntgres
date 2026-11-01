@@ -69,6 +69,7 @@ func FirstQueryRowMode(read catalog.Read, root plan.Node, leaves []exec.Leaf) (l
 // query reads a visibility snapshot.
 type QueryLockDemand struct {
 	Marked, Visibility bool
+	ExportRoots bool
 }
 
 // QueryLocks validates the stored view read graph under the query leaves and
@@ -131,6 +132,9 @@ func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLoc
 		return nil
 	}
 	for _, leaf := range leaves {
+		if !leaf.AnalysisOnly && leaf.Relation.RelationKind == catalog.ViewRelation {
+			demand.ExportRoots = demand.ExportRoots || stored.ReadExportRootDemand(read, stored.ViewOf(leaf.Relation))
+		}
 		if err := visit(leaf.Relation, leaf.Mark, leaf.DeleteReference || leaf.Query != nil && len(leaf.Query.Locking) != 0); err != nil {
 			return demand, err
 		}

@@ -128,6 +128,12 @@ builds a binder.
   transaction's private root, else the committed one), `AlterIndexBuild` and
   `RebindExclusionOperators`. The engine fills capture inputs under `Engine.Mu`
   after its epoch checks and holds the lock across the call.
+  `ValidateAlterIndexBuilds` invokes its owner's execution callback only after
+  the incumbent late selector chooses actual builds and admits their snapshot.
+  Table ALTER supplies the existing restricted table-owner environment for
+  key/predicate execution; empty selections do not enter it. Disclosure still
+  uses the separately captured initiating view, and physical root preparation
+  reuses produced entries without replaying callbacks.
   Key reconstruction resolves the destination type's default within the declared
   method and rejects an absent default before replacing the captured class;
   it never publishes a zero class for a later provider to interpret.

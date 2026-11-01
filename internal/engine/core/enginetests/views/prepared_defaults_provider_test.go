@@ -175,6 +175,7 @@ func TestPreparedAcceptedDefaultCurrentProvider(t *testing.T) {
 						state.SetDescriptor(patch.Address(), &patch)
 					}
 					auth.Recapture(auth.Catalog.WithState(state))
+					snapshotAcceptedPureDemand(t, &originalProgram, artifact, auth.Catalog)
 					ctx, cancel := context.WithCancel(scope.Op.Context())
 					defer cancel()
 					c := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: auth.Catalog, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, DefaultOccurrence: key}}
@@ -337,6 +338,7 @@ func TestPreparedAcceptedDefaultCurrentProviderIsolation(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		snapshotAcceptedPureDemand(t, p, artifact, auth.Catalog)
 		return p.Readmit(core.RoutineAccessOf(auth))
 	}
 	if err := readmit(&program); err != nil {
@@ -412,6 +414,7 @@ func TestPreparedAcceptedDefaultCurrentProviderBodyIsolation(t *testing.T) {
 			if err := exec.AdmitExpression(&c, root, auth.Catalog); err != nil {
 				return fmt.Errorf("outer current-provider admission failed: %w", err)
 			}
+			snapshotAcceptedPureDemand(t, &program, artifact, auth.Catalog)
 			if err := program.Readmit(core.RoutineAccessOf(auth)); err != nil {
 				return fmt.Errorf("outer current-provider readmission failed: %w", err)
 			}

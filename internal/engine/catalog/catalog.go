@@ -191,6 +191,7 @@ type State struct {
 	publicationRelations  util.PersistentMap[ids.ObjectAddress, *PublicationRelation]
 	publicationNamespaces util.PersistentMap[ids.ObjectAddress, *PublicationNamespace]
 	helperOwners          util.PersistentMap[ids.ObjectAddress, *Procedure]
+	foreignActionOwners foreignActionIndex
 	extensionMembers      util.PersistentMap[ids.ObjectAddress, ids.ObjectAddress] // See extension_member_index.go.
 	temporaryNamespaces   util.PersistentMap[ids.ObjectAddress, *Namespace]
 	oidCeiling            ids.OID                                           // See oid_ceiling.go.
@@ -301,6 +302,7 @@ func CloneState(s *State) *State {
 	n.publicationRelations = s.publicationRelations
 	n.publicationNamespaces = s.publicationNamespaces
 	n.helperOwners = s.helperOwners
+	n.foreignActionOwners = s.foreignActionOwners
 	n.extensionMembers = s.extensionMembers
 	n.temporaryNamespaces = s.temporaryNamespaces
 	n.oidCeiling = s.oidCeiling

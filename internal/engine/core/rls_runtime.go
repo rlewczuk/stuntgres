@@ -157,6 +157,7 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth
 	s.Inquiry.visibilityDemand = s.Inquiry.visibilityDemand || binding.VisibilitySnapshot
+	s.installExportDemand(binding)
 	if binding.Prepared.RegclassConcat {
 		if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 			return err

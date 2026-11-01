@@ -10,11 +10,17 @@ import (
 // at once, otherwise it gets a ready channel that resolution closes. Caller
 // holds Engine.mu and has enrolled ref.
 func (reg *Registry) CaptureSerializableLocked(ref ids.TxRef, readOnly, deferrable bool) *SerializableTx {
+	return reg.CaptureImportedSerializableLocked(ref, readOnly, deferrable, reg.commitSeq)
+}
+
+// CaptureImportedSerializableLocked separates the retained data frontier from
+// the current SSI finalization order. The importer is already enrolled.
+func (reg *Registry) CaptureImportedSerializableLocked(ref ids.TxRef, readOnly, deferrable bool, frontier ids.CommitSeq) *SerializableTx {
 	node := reg.Serializable.Nodes[ref]
 	node.Captured = true
 	node.ReadOnly = readOnly
 	node.Deferrable = deferrable
-	node.Frontier = reg.commitSeq
+	node.Frontier = frontier
 	node.SnapshotOrder = reg.Serializable.order
 	node.Resolved = false
 	node.Unsafe = false

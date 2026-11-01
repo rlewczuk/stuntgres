@@ -116,10 +116,15 @@ standard library. It never imports the root engine. Layering is in
     gate before installation. Detached owned roots survive compaction independently;
     old headers, values and end maps are never mutated.
   - The freezing cutoff (`VacuumCutoffLocked`) is the next canonical full XID
-    clamped by the actual in-progress assigned full XIDs. CommitSeq, writer
-    order and low-32 XIDs are separate ordering domains; special low-32 values
-    are skipped by the canonical allocator. Ticket liveness reads atomics only,
-    never manager metadata under `Engine.Mu`.
+    clamped by actual in-progress assigned full XIDs and the oldest retained
+    exported or imported public full-XID cut. Import adoption installs both
+    writer-order and full-XID horizons atomically; ending the exporter does not
+    release an importer's protection. Ordinary snapshots retain immutable roots,
+    not this additional freezing horizon: newer current headers may freeze,
+    while pg_visibility still checks every advertised CommitSeq frontier.
+    CommitSeq, writer order and public full XIDs are separate ordering domains;
+    special low-32 values are skipped by the canonical allocator. Ticket liveness
+    reads atomics only, never manager metadata under `Engine.Mu`.
   - The same safe cutoff initializes empty relation incarnations
     (`InitializeMaintenanceLocked`), because an already assigned older READ
     COMMITTED publisher may later insert into a newly created relation.
@@ -163,6 +168,19 @@ standard library. It never imports the root engine. Layering is in
   The root captures this value and the tuple commit frontier under the same
   admission lock. A stable SSI candidate owns both; rejecting or abandoning it
   discards the whole pair, while accepting it preserves both across safe waits.
+- **Export advertisement.** Active writer-order xmin and full-XID xmin stay
+  distinct from tuple CommitSeq. Retained export minima survive command drop,
+  withdrawal and phase reset; newer exports cannot advance them. Ordinary RC
+  acquisition still chooses a fresh current cut, not the oldest export.
+  Imported owners advertise their retained cut after the source is gone.
+  Whole end/fence removes the incarnation's advertisements.
+- **Imported SSI.** `CaptureImportedSerializableLocked` initializes the existing
+  enrolled node with the supplied old data Frontier and the tracker's current
+  SnapshotOrder. It neither clones a source graph nor chooses fresh tuple data.
+  Read-only candidates derive their exemption/possible-writer population from
+  current nodes. The root rejects READ ONLY DEFERRABLE imports before mutation.
+  `TestSnapshotSyncSSIImportedFrontier` separates these ordering domains and
+  witnesses creator selection for a BaseBorn strictly between old/current cuts.
 
 ## What stays in the engine
 

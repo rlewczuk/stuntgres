@@ -203,7 +203,11 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 		// View fixes it for that command; transaction-stable isolation still
 		// uses the transaction roots. Outer mutation-target pins are not this
 		// nested command's source snapshot.
-		in.Frontier = in.CommitSeq
+		in.Frontier = s.snapshotFrontier
+		if s.currentSnapshot == nil {
+			// Direct internal data-view callers have no SQL active pair.
+			in.Frontier = in.CommitSeq
+		}
 		in.Target, in.Targets = visibility.Root{}, nil
 	}
 	in.OwnWrites, in.OwnDeletes = s.OwnWrites, s.OwnDeletes

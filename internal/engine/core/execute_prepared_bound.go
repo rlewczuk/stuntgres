@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -79,6 +80,21 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	ctx := scope.executionContext()
 	var err error
 	b, auth := view.PhysicalBinding(execution.binding), execution.auth
+	scope.installExportDemandFor(&b,stmt)
+	switch stmt.(type) {
+	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Call:
+		// RC enters here after target admission without snapshotPhase. Pin
+		// this actual command's targets even when ordinary mutation scratch
+		// has no Statement (unlike CTE/rule commands).
+		previous := scope.snapshotTargetAdmission
+		scope.snapshotTargetAdmission = session.SnapshotTargetAdmission(stmt)
+		err := e.captureStatementSnapshotLocked(scope)
+		scope.snapshotTargetAdmission = previous
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+	}
 	queryRoot := execution.queryRoot
 	if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
 		e.Mu.Unlock()

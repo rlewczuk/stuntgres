@@ -84,7 +84,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env DisclosureEnv, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []ColumnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*AlterIndexBuild, error) {
+func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env DisclosureEnv, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []ColumnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool, withOwner func(func(*exec.Context) error) error) (map[string]*AlterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil
@@ -120,41 +120,57 @@ func ValidateAlterIndexBuilds(evaluation *exec.Context, view access.View, env Di
 		}
 		return 0
 	})
+	if host:=evaluation.LiveHost();host!=nil {
+		if err:=host.PrepareUtilityIndexSnapshot(candidate,indexes);err!=nil{return nil,err}
+	}
 	builds := make(map[string]*AlterIndexBuild, len(indexes))
 	validationStore, err := BuildVisibleStore(ctx, store, writes, deletes)
 	if err != nil {
 		return nil, err
 	}
 	view.Recapture(candidate)
-	evaluation.Catalog, evaluation.Output = candidate, output
-	named := false
-	for _, index := range indexes {
-		var capture *BuildCapture
-		if index.SQLIndex.HasRuntimeDomainConversion() && !named {
-			var err error
-			evaluation.Input.TypeDiagnosticName, err = env.TypeDiagnosticNames(view)
+	build := func(local *exec.Context) error {
+		local.Catalog, local.Output = candidate, output
+		named := false
+		for _, index := range indexes {
+			var capture *BuildCapture
+			if index.SQLIndex.HasRuntimeDomainConversion() && !named {
+				var err error
+				local.Input.TypeDiagnosticName, err = env.TypeDiagnosticNames(view)
+				if err != nil {
+					return err
+				}
+				named = true
+			}
+			if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 || index.SQLIndex.Method == catalog.BrinMethod {
+				capture = &BuildCapture{Index: index, Outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
+			}
+			root, err := BuildRelationIndexRoot(local, parent, index, validationStore, capture)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			named = true
-		}
-		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 || index.SQLIndex.Method == catalog.BrinMethod {
-			capture = &BuildCapture{Index: index, Outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
-		}
-		root, err := BuildRelationIndexRoot(evaluation, parent, index, validationStore, capture)
-		if err != nil {
-			return nil, err
-		}
-		if index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
-			if err := ValidateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
-				return nil, err
+			if index.SQLIndex.Valid || index.SQLIndex.Constraint != nil {
+				if err := ValidateUniqueRoot(ctx, parent, index, root, schema, output, &view, env, true); err != nil {
+					return err
+				}
 			}
+			built := &AlterIndexBuild{Index: index, Root: root, Store: validationStore}
+			if capture != nil {
+				built.Outputs = capture.Outputs
+			}
+			builds[index.Name()] = built
 		}
-		build := &AlterIndexBuild{Index: index, Root: root, Store: validationStore}
-		if capture != nil {
-			build.Outputs = capture.Outputs
-		}
-		builds[index.Name()] = build
+		return nil
+	}
+	// Selection and retention precede the restricted execution environment.
+	// Metadata-only/unselected indexes do not enter it or evaluate recipes.
+	if withOwner != nil {
+		err = withOwner(build)
+	} else {
+		err = build(evaluation)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return builds, nil
 }

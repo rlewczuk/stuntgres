@@ -996,6 +996,14 @@ host methods.
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission
   implementation; only the write route collects execution predicates.
   Metadata shape inspection neither allocates that vector nor evaluates it.
+  `ReadExportRootDemand` follows retained typed queries, current routine
+  dependencies, nested views and possible SELECT/ALL USING policy presentations
+  before canonical source-principal admission. Its active-path guard bounds
+  recursive definitions; it neither authorizes/selects policies nor evaluates
+  expressions or changes ordinary admission diagnostics.
+  `RelationReadExportRootDemand` shares that same active-path traversal for
+  already-bound ordinary query sources. REFRESH and ordinary query admission
+  consume this metadata instead of scanning unrelated catalog relations.
   Literal references use the existing typed-alias walkers, including
   regproc/regprocedure identities as well as type, operator and text-search
   aliases. NULLs, text spelling and unrepresented routine numbers create no

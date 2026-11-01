@@ -42,6 +42,13 @@ func (s *StatementScope) leaveSQLRoutine() {
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
 	txRef               ids.TxRef
+	currentSnapshot *sqltype.Snapshot
+	snapshotFrontier ids.CommitSeq
+	exportCapture *exportedSnapshot
+	exportRootDemand bool
+	snapshotTarget visibility.Root
+	snapshotTargets map[ids.ObjectAddress]visibility.Root
+	snapshotTargetAdmission bool
 	command             ruleCommandScratch
 	mutations           []StatementMutation
 	activeMutation      int
@@ -82,6 +89,9 @@ type sqlRoutineScratch struct {
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
 		txRef:   s.TxRef,
+		currentSnapshot: s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
+		exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
+		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.ViewCreationOrZero().Active, inheritance: s.Inheritance,
 		materialized: s.MaterializedSlot,
@@ -104,6 +114,9 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.installRuleScratch(c.command)
+	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
+	s.exportCapture, s.exportRootDemand = c.exportCapture, c.exportRootDemand
+	s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission = c.snapshotTarget, c.snapshotTargets, c.snapshotTargetAdmission
 	s.mutations, s.ActiveMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.setActiveViews(c.activeViews)
 	s.Inheritance = c.inheritance
@@ -168,7 +181,12 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	if policy.readOnly {
 		opening = saved.largeObjectOpening
 	}
-	s.installSQLRoutineScratch(sqlRoutineScratch{methods: saved.methods, input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead, largeObjectOpening: opening})
+	child := sqlRoutineScratch{methods: saved.methods, input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true, policy: policy}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead, largeObjectOpening: opening, exportRootDemand: saved.exportRootDemand}
+	if !policy.active || policy.readOnly || s.Owner.Isolation.Stable() {
+		child.currentSnapshot, child.snapshotFrontier, child.exportCapture = saved.currentSnapshot, saved.snapshotFrontier, saved.exportCapture
+		child.snapshotTarget, child.snapshotTargets, child.snapshotTargetAdmission = saved.snapshotTarget, saved.snapshotTargets, saved.snapshotTargetAdmission
+	}
+	s.installSQLRoutineScratch(child)
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
@@ -189,6 +207,14 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 		}
 		if saved.txRef != s.TxRef {
 			saved = s.rebaseRoutineScratch(saved)
+		} else if saved.currentSnapshot == nil && s.currentSnapshot != nil && s.Owner.Isolation.Stable() {
+			// A lazy stable successor may acquire its first owner snapshot in
+			// this child. Empty caller scratch must not hide that admitted
+			// pair; RC and already-admitted callers retain their lexical cut.
+			saved.currentSnapshot, saved.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
+			if saved.exportRootDemand {
+				saved.exportCapture = s.exportCapture
+			}
 		}
 		s.installSQLRoutineScratch(saved)
 		if policy.active && !exec.InParallelOperation(s.executionContext()) {
@@ -255,6 +281,8 @@ func (s *StatementScope) rebaseRoutineScratch(c sqlRoutineScratch) sqlRoutineScr
 	demand := c.sqlRoutine
 	demand.policy.base, demand.policy.writes, demand.policy.deletes = nil, nil, nil
 	return sqlRoutineScratch{txRef: s.TxRef, input: input, output: output,
+		currentSnapshot: s.currentSnapshot, snapshotFrontier: s.snapshotFrontier, exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
+		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		initialParameters: c.initialParameters, sqlRoutine: demand, expected: c.expected,
 		protocol: c.protocol, ownWrites: s.Owner.Writes, ownDeletes: s.Owner.Deletes}
 }

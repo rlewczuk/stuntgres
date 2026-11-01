@@ -111,6 +111,47 @@
   and survivor/index/maintenance cleanup assertions. PostgreSQL has no host
   pause counterpart; progress/stack observations alone do not reserve lifetime.
 
+- Add typed `pg_export_snapshot() → text` and literal SET TRANSACTION SNAPSHOT,
+  retaining immutable committed tuple/descriptor/index roots and public XID
+  cuts without copying rows or serializing native Dump. Typed export demand
+  propagates through stored expressions and executable closures; unrelated
+  READ COMMITTED commands do not allocate a complete root map.
+  Imports retain old data visibility with current SSI finalization bookkeeping,
+  exclude exporter private effects, and enforce timing/isolation/database rules.
+  Tokens follow top-level transaction lifetime, savepoint recovery, termination
+  and native epoch fences; the oldest export remains advertised between commands.
+  VACUUM retains exported/imported public full-XID minima independently of
+  assigned publishers; imports keep their horizon after exporter end. Ordinary
+  immutable readers keep existing freezing behavior and separate CommitSeq
+  visibility protection, without conflating either horizon with writer order.
+  A failed explicit block releases snapshot roots and running advertisements but
+  retains nonimportable token identities until block end, with PostgreSQL's
+  55000 source-liveness diagnostic before ROLLBACK and 42704 afterward.
+  Exporting makes PREPARE fail with whole-transaction rollback. Permanent
+  dual-mode synchronization, diagnostic, indirect-call and admission witnesses
+  replace the previous native unsupported PREPARE lane.
+  Already-admitted inherited mutation leaves contribute their own retained
+  recipes and incoming action closure before capture; unknown UPDATE columns
+  conservatively match UPDATE OF triggers.
+  Generated RI commands take fresh READ COMMITTED pairs before child defaults
+  and triggers; stable isolation and STABLE callees preserve their proper
+  transaction or generated-command pair, and unwind restores the parent pair.
+  REFRESH uses its retained typed query/current routine closure for demand,
+  excluding unexecuted WITH NO DATA sources. Direct unbound CTAS acquires source
+  grants before its conservative utility/event cut, without a second binder.
+  Ordinary read sources reuse retained view/SELECT-policy demand classification;
+  mutation demand consumes the live admitted occurrence even without AST scratch.
+  Matching enabled DDL event start/end closures contribute before utility
+  capture even WITH NO DATA; their later execution retains canonical selection
+  and fences newly export-bearing closures rather than recapturing roots.
+  Historical ALTER row scans retain their original frontier while executable
+  defaults, CHECKs, generations, USING and index recipes share a genuine typed
+  expression snapshot; descendant closure is collected before first evaluation
+  without an eager index scan or changed parent/child diagnostic ordering.
+  Restricted index callbacks reuse an exact declaration's session first-compile
+  PL diagnostic signature; only a cold executor captures the qualified safe-path
+  spelling, which remains cached after maintenance without mutating shared code.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

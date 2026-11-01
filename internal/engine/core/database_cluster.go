@@ -42,6 +42,9 @@ type DatabaseCluster struct {
 	replicationOrigins                  map[ids.OID]replicationOriginReservation
 	replicationOriginProgress           map[ids.OID]uint64
 	replicationOriginProgressGeneration map[ids.ObjectAddress]uint64
+	// Exported cuts share this cluster mutex with all runtime publication.
+	snapshotSerial uint64
+	snapshots map[string]*exportedSnapshot
 	// Seed initialization never holds mu and never invokes host callbacks.
 	SeedOnce  sync.Once
 	SeedError error

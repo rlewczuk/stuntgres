@@ -9,6 +9,8 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 )
 
 // EventCommand is lexical command scratch. The journal and row effects belong
@@ -210,6 +212,11 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 				}
 			}
 		}
+		if failure == nil && s.currentSnapshot != nil && s.exportCapture == nil && !s.Owner.Isolation.Stable() && exec.RoutineExportRootDemand(current.Catalog, d) {
+			// A later phase may select a changed/enabled opaque closure.
+			// Its old utility pair cannot acquire current roots retroactively.
+			failure = ids.ErrCatalogReplaced
+		}
 		if failure == nil {
 			d, failure = e.PreparePLRoutineLocked(s.Op, current, d)
 		}
@@ -256,4 +263,44 @@ func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.
 	s.sqlRoutine.plDiagnostic = identity
 	defer func() { s.sqlRoutine.plDiagnostic = previous }()
 	return s.newPLRun(d, frame, read).EventTrigger()
+}
+
+// The only utilities that select an early active pair here are CTAS, REFRESH
+// and CREATE TABLE PARTITION OF. They can execute start/end DDL event phases,
+// not sql_drop/table_rewrite. Use the existing event index/matcher; never
+// authorize, compile, create a frame or execute a body during classification.
+func (s *StatementScope) installUtilityEventExportDemandLocked(statement parser.Statement) {
+	if s.exportRootDemand { return }
+	switch command := statement.(type) {
+	case *parser.CreateQueryTable, *parser.RefreshMaterializedView:
+	case *parser.CreateTable:
+		if command.PartitionOf == nil { return }
+	default:
+		return
+	}
+	tag, eligible := session.EventCommand(statement)
+	if !eligible { return }
+	s.NoteUtilityEventDemandLocked(tag,true,false,false)
+}
+
+// Callers supply actual phase capabilities of their cooked utility program.
+// This is metadata demand, not a replacement for canonical phase selection.
+func (s *StatementScope) NoteUtilityEventDemandLocked(tag string, start, drop, rewrite bool) {
+	if s.exportRootDemand { return }
+	settings := s.Op.EffectiveSettings()
+	settings.Mu.Lock()
+	enabled := settings.TypedValue("event_triggers").Boolean
+	settings.Mu.Unlock()
+	if !enabled { return }
+	auth, err := s.RoutineAuthorizationLocked()
+	if err != nil { return } // Original event admission owns diagnostics.
+	replica := auth.RuleReplica()
+	for _, trigger := range auth.Catalog.EventTriggers() {
+		if trigger.Event != "ddl_command_end" && !(start && trigger.Event == "ddl_command_start") && !(drop && trigger.Event == "sql_drop") && !(rewrite && trigger.Event == "table_rewrite") { continue }
+		if !trigger.Matches(trigger.Event, tag, replica) { continue }
+		if routine, ok := auth.Catalog.Procedure(trigger.Function.Address); ok && exec.RoutineExportRootDemand(auth.Catalog, routine) {
+			s.exportRootDemand = true
+			return
+		}
+	}
 }

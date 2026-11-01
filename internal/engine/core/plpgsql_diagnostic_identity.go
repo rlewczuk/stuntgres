@@ -11,7 +11,9 @@ import (
 
 // CREATE validation and a session's first admitted invocation share the existing
 // routine-analysis owner. Diagnostic names are not part of persisted programs.
-// The caller holds Engine.mu; path changes alone do not invalidate a signature.
+// The caller holds Engine.mu. Neither ordinary path changes nor maintenance
+// entry invalidate an exact declaration's first-compile signature; a cold
+// maintenance invocation captures and retains its restricted-path spelling.
 func (e *Engine) retainPLDiagnosticIdentityLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure) (string, error) {
 	if d.Address().ObjectID == 0 {
 		return formatPLDiagnosticIdentity(auth.Catalog, auth.Definition, nil, d), nil

@@ -206,6 +206,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` opts into
   startup/authentication and typed pgproto3 messages; each received message is
   encoded into owned bytes before another receive can reuse its flyweight fields.
   Keep these helpers test-focused, without importing the sessions-private harness.
+  Accepted DEFAULT snapshot scenarios reuse this same real server/protocol owner:
+  Bind precedes replacement, SQL keeps its predecessor, and bounded PL uses its
+  current provider without changing original prepared arguments. Their advisory
+  barrier observes the actual Execute request before a peer commit; imported
+  cuts independently check unread/empty tables and exclude source-private rows.
+  Mixed written calls, exporting arguments, hidden defaults and body calls keep
+  their own modes and manifests. No embedded Prepare substitutes for prior Bind.
 - `fixture/regoperator.go` (`RegOperatorRows`, `Metadata`, `DiagnosticRoutes`,
   `Error`, `Literal`, `Context`) is shared with `reference/type_resolution`; after
   changing it, run both packages' alias selectors.

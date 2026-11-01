@@ -184,17 +184,6 @@ func TestReferencePreparedTransactionSessionBoundaries(t *testing.T) {
 					fixture.LockExec(t, p.Ctx, a, "BEGIN", 0)
 					if c.action != "" {
 						rows, err := a.QueryContext(p.Ctx, c.action)
-						if !b.PG && c.name == "export" {
-							if rows != nil {
-								rows.Close()
-								t.Fatal("unsupported export exposed rows")
-							}
-							want := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-							want.Position = "8"
-							fixture.AssertDiagnostic(t, err, &want)
-							fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
-							return
-						}
 						if err != nil {
 							t.Fatal(c.action, err)
 						}

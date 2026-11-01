@@ -803,6 +803,17 @@ func (c *Context) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	return host.TransactionInquiry().CurrentSnapshot()
 }
 
+func (c *Context) ExportSnapshot() (string, error) {
+	if err := EvaluationContext(c); err != nil {
+		return "", err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return "", fmt.Errorf("stuntgres: snapshot export lacks statement scope")
+	}
+	return host.ExportSnapshot()
+}
+
 func (c *Context) TransactionStatus(full uint64) (string, bool, error) {
 	host := c.LiveHost()
 	if host == nil {

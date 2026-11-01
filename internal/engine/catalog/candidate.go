@@ -223,6 +223,7 @@ func (c *Candidate) State() *State {
 	next.publicationRelations = base.publicationRelations
 	next.publicationNamespaces = base.publicationNamespaces
 	next.helperOwners = base.helperOwners
+	next.foreignActionOwners = base.foreignActionOwners
 	next.extensionMembers = base.extensionMembers
 	next.temporaryNamespaces = base.temporaryNamespaces
 	next.oidCeiling = base.oidCeiling
@@ -234,6 +235,7 @@ func (c *Candidate) State() *State {
 		next.updateReplicationOrigins(c.Base.Get(a), nil)
 		next.updatePublications(c.Base.Get(a), nil)
 		next.updateHelperOwners(c.Base.Get(a), nil)
+		next.updateForeignActionOwners(c.Base.Get(a), nil)
 		next.updateExtensionMembers(a, c.Base.Get(a), nil)
 		next.updateTemporaryNamespaces(c.Base.Get(a), nil)
 	}
@@ -244,6 +246,7 @@ func (c *Candidate) State() *State {
 		next.updateReplicationOrigins(c.Base.Get(a), d)
 		next.updatePublications(c.Base.Get(a), d)
 		next.updateHelperOwners(c.Base.Get(a), d)
+		next.updateForeignActionOwners(c.Base.Get(a), d)
 		next.updateExtensionMembers(a, c.Base.Get(a), d)
 		next.updateTemporaryNamespaces(c.Base.Get(a), d)
 		next.raiseOIDCeiling(a, d)

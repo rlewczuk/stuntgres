@@ -43,6 +43,8 @@ func (s *StatementScope) Finish(err error) error {
 		s.afterTriggers = nil
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0
+		s.exportCapture = nil
+		s.exportRootDemand = false
 		s.snapshotTarget = visibility.Root{}
 		s.snapshotTargets = nil
 		for _, program := range s.rlsPrograms {
@@ -295,7 +297,11 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	settleStatsLedger(e, t.Session, &t.Stats, false)
 	retireStatsObjects(e, t.Session, t.Ref.Epoch(), false, t.Catalog)
 	t.Session.Settings.FinishTransaction(false)
-	e.endSerializable(t.Ref, false)
+	e.Mu.Lock()
+	e.abortSnapshotsLocked(t.Ref)
+	e.Visibility.EndTransactionLocked(t.Ref, false)
+	e.IndexWaits.EndOwnerLocked(t.Ref)
+	e.Mu.Unlock()
 	endedTicket := t.Abort()
 	syncCharacteristics(t)
 	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))

@@ -57,4 +57,5 @@ type Returning struct {
 	Reads              []int
 	ReadRequired       bool // Whole-row references retain SELECT demand with zero members.
 	VisibilitySnapshot bool
+	ExportRoots bool
 }

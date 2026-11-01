@@ -47,6 +47,7 @@ type sqlCursor struct {
 	authority                                   *exec.Authority
 	currentSnapshot                             *sqltype.Snapshot
 	snapshotFrontier                            ids.CommitSeq
+	exportCapture *exportedSnapshot
 	foreignOwner                                *exec.ForeignScanOwner
 	rlsPrograms                                 []*rowSecurityProgram // Admitted clause state and nested source pins.
 	scroll                                      bool
@@ -110,6 +111,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.routineDependencies = nil
 	c.routineAuth = AuthorizationView{}
 	c.currentSnapshot, c.snapshotFrontier = nil, 0
+	c.exportCapture = nil
 	if c.authority != nil {
 		c.authority.Host = nil
 		c.authority.Expression = nil
@@ -226,6 +228,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog,
 		visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
+	c.exportCapture = s.exportCapture
 	c.plReadOnly = plLoopReadOnly(declaration.Query, root)
 	c.statement, c.created = declaration.Source, created
 	c.scroll = scroll
@@ -318,6 +321,7 @@ func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
 // admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
+	s.exportCapture = c.exportCapture
 	s.QuerySources, s.QueryLockContext = c.leaves, c.locks
 	s.Inquiry.CommentCatalog, s.Inquiry.commentRoles = c.catalog, c.roles
 	s.Inquiry.databaseName = c.databaseName

@@ -161,6 +161,8 @@ func (s *StatementScope) resetPLSegment() {
 	s.Catalog, s.CatalogAuthority = nil, nil
 	s.ProjectedRoots = false
 	s.currentSnapshot, s.snapshotFrontier = nil, 0
+	s.exportCapture = nil
+	s.exportRootDemand = false
 	s.snapshotTarget, s.snapshotTargets = visibility.Root{}, nil
 	s.notificationActions, s.notificationEvents = nil, nil
 	s.multiEvents, s.alterNames = nil, nil

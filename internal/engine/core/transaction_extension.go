@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
@@ -17,6 +18,10 @@ type ownerExtension struct {
 	cursorCleanup   []*sqlCursor // Detached under owner lock; drained unlocked.
 	largeObjects largeObjectDescriptors
 	largeObjectBase *catalog.State
+	// Snapshot token association is guarded by Engine.mu, not owner.mu:
+	// import/end/fence never acquire a peer owner mutex.
+	snapshotRef ids.TxRef
+	snapshotTokens []string
 }
 
 func (*ownerExtension) OwnerSlot() {}

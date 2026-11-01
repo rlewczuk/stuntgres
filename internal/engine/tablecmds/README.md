@@ -37,6 +37,12 @@ activates its sampling evaluator, not CREATE STATISTICS cooking. Generated, inde
 predicate and partition-bound binders remain dormant, including nested binding.
 Explicit row-generation context and evaluator context must agree.
 
+ALTER expression snapshot demand includes already typed candidate indexes before
+DEFAULT preflight, even when the parent's first-index history bit is normalized
+only at metadata transfer. Unresolved rewrite work retains its possible roots at
+that first boundary; actual index selection/building stays in the physical pass.
+A later phase cannot upgrade an already fixed pair with current roots.
+
 ## Entry points
 - `ExecuteCluster` validates current kind/MAINTAIN before ordinary heap ACCESS
   EXCLUSIVE, then resolves an eligible index in the parent namespace. It simulates
@@ -79,6 +85,11 @@ Explicit row-generation context and evaluator context must agree.
   metadata is installed privately before any rewrite callback or heap work.
   Physical work retains its original source layout and storage fences, and
   merges only into the latest private journal.
+  Parent DEFAULT runtime preflight precedes a later inherited-action selection
+  diagnostic. The prewalk retains that semantic diagnostic on its prepared
+  descendant and replays it only at the actual sole-stage visit; grants,
+  authorization, definition-reader validation and partition error timing keep
+  their existing boundaries. No later descendant is cooked after that failure.
   Sequence prephase admission checks exact grant-time originals without
   transferring effects. Ordinary metadata transfer installs sequence descriptors,
   generators and retirements once before identity or volatile physical recipes;

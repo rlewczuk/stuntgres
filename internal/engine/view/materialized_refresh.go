@@ -50,6 +50,10 @@ type MaterializedReplacement struct {
 // the refresh flag, the captured source descriptors and their visibility data.
 type MaterializedRefreshScope struct {
 	Refresh    bool
+	// Definition pairs pre-cut export demand with the defining authority
+	// checked at target grant. It is not a source/data authorization.
+	Definition *catalog.Relation
+	ExportRoots bool
 	Sources    []catalog.Descriptor
 	SourceView *visibility.Data
 }

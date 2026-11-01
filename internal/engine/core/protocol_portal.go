@@ -320,6 +320,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 		databaseName: s.Inquiry.databaseName,
 		deparseAuth:  s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
+	c.exportCapture = s.exportCapture
 	exec.AdmitScan(root, source)
 	c.state = exec.State{Methods: s.PlannerMethods, Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.CapturePlannerAdmission()

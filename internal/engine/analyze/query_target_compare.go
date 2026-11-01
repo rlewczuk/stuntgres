@@ -231,7 +231,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		if !ok || n.CTE != o.CTE || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) {
 			return false
 		}
-		if n.Query != nil && (n.Query.RegclassOutput != o.Query.RegclassOutput || n.Query.VisibilitySnapshot != o.Query.VisibilitySnapshot) {
+		if n.Query != nil && (n.Query.RegclassOutput != o.Query.RegclassOutput || n.Query.VisibilitySnapshot != o.Query.VisibilitySnapshot || n.Query.ExportRoots != o.Query.ExportRoots) {
 			return false
 		}
 	case *plan.SetNode:

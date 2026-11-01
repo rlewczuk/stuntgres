@@ -33,6 +33,20 @@ func TestReferenceAlterAddColumnDomainPreflight(t *testing.T) {
 						run(fixture.Exec("CREATE TABLE add_preflight(id INT)", 0))
 						run(fixture.Exec("INSERT INTO add_preflight VALUES(1),(2)", 2))
 						run(fixture.Exec("CREATE INDEX add_preflight_index ON add_preflight(add_index_key(id))", 0))
+						locators := func() [2][2]int64 {
+							t.Helper()
+							var result [2][2]int64
+							for i, name := range []string{"add_preflight", "add_preflight_index"} {
+								if err := conn.QueryRowContext(p.Ctx, "SELECT oid,relfilenode FROM pg_class WHERE oid=$1::regclass", name).Scan(&result[i][0], &result[i][1]); err != nil {
+									t.Fatal(err)
+								}
+								if result[i][0] <= 0 || result[i][1] <= 0 {
+									t.Fatal("fixture lacks an actual heap/index incarnation", name, result[i])
+								}
+							}
+							return result
+						}
+						beforeLocators := locators()
 						// Discard setup's legitimate index demands. No later query uses
 						// the index expression, so only ALTER can consume this marker.
 						run(fixture.Select("SELECT setval('add_index_steps',100,false) AS v", []string{"v"}, []string{"INT8"}, [][]any{{int64(100)}}))
@@ -55,6 +69,14 @@ func TestReferenceAlterAddColumnDomainPreflight(t *testing.T) {
 							fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: statement, SQL: query}, backend.Recorder, step)
 						} else {
 							run(step)
+						}
+						// Missing-value metadata preserves both physical incarnations;
+						// the volatile row rewrite replaces both, without changing OIDs.
+						for i, after := range locators() {
+							before := beforeLocators[i]
+							if after[0] != before[0] || (after[1] != before[1]) != volatile {
+								t.Fatal("ADD preflight misclassified heap/index replacement", before, after, volatile)
+							}
 						}
 						wantIndexNext := int64(100)
 						if volatile {

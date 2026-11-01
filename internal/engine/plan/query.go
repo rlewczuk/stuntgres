@@ -21,6 +21,7 @@ type Query struct {
 	RegclassOutput bool
 	// Local expression demand only; inherited view demand uses the current catalog.
 	VisibilitySnapshot bool
+	ExportRoots bool
 }
 
 type QuerySchema []catalog.Column

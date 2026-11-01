@@ -34,6 +34,13 @@ type SnapshotDemander interface {
 	SnapshotDemand(literalNull func(Expr) bool) (analysisCatalog, executionCatalogText, visibility bool)
 }
 
+// ExportRootDemander refines snapshot recipe demand for complete immutable
+// committed roots. Consumers collect it in their existing expression walk.
+type ExportRootDemander interface {
+	SnapshotDemander
+	ExportRootDemand() bool
+}
+
 // CallCoster supplies an existing builtin procost distinction to inline policy.
 type CallCoster interface{ CallCost() int }
 

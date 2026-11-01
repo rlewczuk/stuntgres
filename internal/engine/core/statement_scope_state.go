@@ -38,6 +38,8 @@ type StatementScope struct {
 	copyInputActive         context.Context // Invocation-private projection, retired at Finish.
 	currentSnapshot         *sqltype.Snapshot
 	snapshotFrontier        ids.CommitSeq
+	exportRootDemand bool
+	exportCapture *exportedSnapshot
 	snapshotTarget          visibility.Root
 	snapshotTargets         map[ids.ObjectAddress]visibility.Root
 	snapshotTargetAdmission bool // Actual snapshotPhase command, not CTE bookkeeping.

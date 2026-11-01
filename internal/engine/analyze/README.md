@@ -504,12 +504,16 @@ library, and never the root engine or `session`. The engine, the root driver
 - **Default evaluation** (`default_eval.go`): `ApplyDefaultOrigin` and
   `EvalDefault` over an `exec.Context`.
   `CaptureRetainedWriteInput` also walks retained defaults, generation plans and
-  enforced CHECKs for each node's `SnapshotDemander` visibility demand. These recipes skip
+  enforced CHECKs for each node's `SnapshotDemander` visibility demand and
+  `ExportRootDemander` complete committed-root demand. These recipes skip
   ordinary function binding: runtime demand must reach the consuming statement's
   captured snapshot even when the outer node (such as `pg_typeof`) needs none.
   This walk captures no catalog authority and evaluates no children. Non-binding
   COPY and foreign-key SET DEFAULT consumers forward the resulting demand to
   the same statement-owned snapshot capture used by bound commands.
+  `ConsumerContext`, `Binding`, query and RETURNING metadata retain the export
+  bit through ordinary analysis, set arms and modifying CTE scopes; the same
+  retained walk sees children even when an outer inquiry discards their values.
 
 ## Invariants
 

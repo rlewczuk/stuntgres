@@ -35,6 +35,7 @@ type Binding struct {
 	CTESelectBodies    bool
 	QuerySources       []exec.Leaf
 	VisibilitySnapshot bool
+	ExportRoots bool
 	SubqueryDemand     bool
 	CommandQuery       bool
 	CurrentOf          string // UPDATE and DELETE WHERE CURRENT OF.

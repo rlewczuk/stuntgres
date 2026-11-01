@@ -275,6 +275,16 @@ neither owns catalog authority.
   aggregate). `Descriptor`, `Lookup`, `LookupType` and
   `LookupArray` guard a nil state, as do the default-bucket cardinality
   predicates.
+  `IncomingForeignActionOwners` visits only enforced mutating FK owners for
+  one target. Its nested persistent index is derived incrementally from old/new
+  relation descriptors through the same write/candidate/clone/reset/bulk hooks.
+  Multiple matching FKs retain one exact child descriptor; changing a child's
+  recipes refreshes that pointer. The index stores neither executable demand
+  nor authorization: core resolves current typed defaults/triggers/routine
+  closure before an export-capable command's snapshot, without an ordinary-DML
+  whole-catalog scan or eager index-key/unique-binding preparation.
+  `HasIncomingForeignActionOwners` is the allocation-free missing-key gate:
+  consumers check it before constructing recursive or iterator closure state.
 - **Write API** (`state_write.go`, setters in `state_access.go`), only for a state
   still being built: the bootstrap seed, a `CloneState`, a candidate's merged
   state or a replacement before publication.

@@ -142,9 +142,12 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 	ownerAuth := auth.ActingAs(job.Child.Owner)
 	previous := h.SwapForeignActionAuthority(ownerAuth)
 	defer h.SwapForeignActionAuthority(previous)
+	restoreSnapshot,err:=h.BeginForeignActionSnapshot(job,event,action)
+	if err!=nil{return err}
+	if restoreSnapshot!=nil{defer restoreSnapshot()}
 	deletion := action == parser.ForeignKeyCascade && event.Next.Row == 0
 	var plan *ForeignActionPlan
-	var err error
+	err = nil
 	if !deletion {
 		plan, err = planForeignAction(ctx, h, ownerAuth, job, event, action)
 		if err != nil {

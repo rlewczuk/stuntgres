@@ -13,6 +13,9 @@ import (
 // order incarnations globally; CommitSeq continues to own data views.
 type Entry struct {
 	XID, Xmin             uint64
+	ExportXmin uint64 // Oldest retained export, independent of the active command.
+	ExportFullXmin uint64 // Public full-XID horizon, not writer order or CommitSeq.
+	ImportedFullXmin uint64 // Imported public full-XID horizon, not an ordinary immutable read.
 	AssignedXID           uint32
 	FullXID               uint64
 	AgeAnchor             uint32
@@ -168,8 +171,9 @@ func (reg *Registry) WithdrawSnapshotLocked(ref ids.TxRef) {
 // Engine.mu is held; PREPARE retains the detached incarnation's assigned XID.
 func (reg *Registry) DropSnapshotLocked(ref ids.TxRef) {
 	if v, ok := reg.Entries[ref]; ok {
+		v.ImportedFullXmin = 0
 		v.Xmin, v.Snapshot, v.SafeBuilder = 0, false, false
-		if v.XID == 0 && v.AssignedXID == 0 && v.Ticket == nil {
+		if v.XID == 0 && v.AssignedXID == 0 && v.Ticket == nil && v.ExportXmin == 0 {
 			delete(reg.Entries, ref)
 		} else {
 			reg.Entries[ref] = v
@@ -188,10 +192,10 @@ func (reg *Registry) ResetPhaseLocked(ref ids.TxRef) {
 			// through end(), including the publication-to-notification interval.
 			v.Ticket.MirrorFullXID(v.FullXID)
 		}
-		if v.AssignedXID == 0 && v.Ticket == nil {
+		if v.AssignedXID == 0 && v.Ticket == nil && v.ExportXmin == 0 {
 			delete(reg.Entries, ref)
 		} else {
-			reg.Entries[ref] = Entry{AssignedXID: v.AssignedXID, FullXID: v.FullXID, Ticket: v.Ticket}
+			reg.Entries[ref] = Entry{AssignedXID: v.AssignedXID, FullXID: v.FullXID, Ticket: v.Ticket, ExportXmin: v.ExportXmin, ExportFullXmin: v.ExportFullXmin}
 		}
 	}
 }
@@ -212,5 +216,27 @@ func (reg *Registry) OlderSnapshotsLocked(self ids.TxRef, xmin uint64) []ids.TxR
 // snapshot no newer than xmin. Caller holds Engine.mu.
 func (reg *Registry) SnapshotOlderLocked(ref ids.TxRef, xmin uint64) bool {
 	v, ok := reg.Entries[ref]
-	return ok && v.Snapshot && !v.SafeBuilder && v.Xmin <= xmin
+	return ok && (v.Snapshot && !v.SafeBuilder && v.Xmin <= xmin || v.ExportXmin != 0 && v.ExportXmin <= xmin)
+}
+
+// RetainExportSnapshotAtLocked keeps the captured cut advertised after the
+// command drops its own advertisement. EndTransactionLocked removes it.
+func (reg *Registry) RetainExportSnapshotAtLocked(ref ids.TxRef, xmin, fullXmin uint64) {
+	v := reg.Entries[ref]
+	if v.ExportXmin == 0 || xmin < v.ExportXmin {
+		v.ExportXmin = xmin
+	}
+	if v.ExportFullXmin == 0 || fullXmin < v.ExportFullXmin {
+		v.ExportFullXmin = fullXmin
+	}
+	reg.Entries[ref] = v
+}
+
+// AdoptSnapshotLocked installs validated imported writer and public full-XID
+// horizons. The imported cut remains protected independently of its exporter.
+func (reg *Registry) AdoptSnapshotLocked(ref ids.TxRef, xmin, fullXmin uint64) {
+	v := reg.Entries[ref]
+	v.Xmin, v.Snapshot, v.SafeBuilder = xmin, true, false
+	v.ImportedFullXmin = fullXmin
+	reg.Entries[ref] = v
 }

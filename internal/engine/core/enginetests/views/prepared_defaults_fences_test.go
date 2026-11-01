@@ -21,6 +21,10 @@ func TestPreparedAcceptedDefaultFences(t *testing.T) {
 		for _, kind := range []string{"copied-owner", "dependency-purpose", "dependency-revision", "dependency-ref", "copied-current-relation", "wrong-current-revision", "wrong-current-body", "wrong-result", "language-provider", "type-codec", "old-epoch", "missing-current", "unrelated-ddl", "recreated", "rollback-branch"} {
 			t.Run(language+"/"+kind, func(t *testing.T) {
 				e, s, owner, artifact, key, origin := acceptedDefaultFixture(t, language)
+				var demandProgram exec.RoutineProgram
+				if err := admitAcceptedDefault(t, e, artifact, key, origin, artifact.Expression(), "postgres", &demandProgram); err != nil {
+					t.Fatal(err)
+				}
 				if kind == "rollback-branch" {
 					enginetest.SessionSQL(t, s, "BEGIN")
 					enginetest.SessionSQL(t, s, "SAVEPOINT default_branch")
@@ -83,6 +87,7 @@ func TestPreparedAcceptedDefaultFences(t *testing.T) {
 				switch kind {
 				case "copied-owner":
 					copied := *owner
+					snapshotAcceptedPureDemand(t, &demandProgram, artifact, auth.Catalog)
 					if copied.Live() {
 						t.Fatal("copied set live")
 					}
@@ -128,6 +133,7 @@ func TestPreparedAcceptedDefaultFences(t *testing.T) {
 					state.RemoveDescriptor(ref.Address)
 				}
 				auth.Recapture(auth.Catalog.WithState(state))
+				snapshotAcceptedPureDemand(t, &demandProgram, artifact, auth.Catalog)
 				c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: auth.Catalog}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, DefaultOccurrence: key}}
 				analyze.ApplyDefaultOrigin(origin, &c)
 				if _, _, err := exec.PreflightCoercionsWithPolicy(&c, artifact.Expression(), true); err == nil {

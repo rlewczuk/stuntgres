@@ -423,6 +423,9 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				demand, _, _ := inquiry.SnapshotDemand(plan.NullLiteral)
 				b.Consumer.CatalogSnapshot = b.Consumer.CatalogSnapshot || demand
 			}
+			if demand, ok := node.(expr.ExportRootDemander); ok {
+				b.Consumer.ExportRoots = b.Consumer.ExportRoots || demand.ExportRootDemand()
+			}
 			if r.Window != nil {
 				// Live catalog selection can rebind ordinary FunctionExpr
 				// syntax to a window provider through its immutable symbol.

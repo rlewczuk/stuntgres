@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 )
 
 func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterializedView) error {
 	// Utility entry selects the pair before target/source lock waits. Direct
 	// internal callers share the same boundary as SQL execution.
-	if err := s.snapshotDataPhase(); err != nil {
+	if err := s.snapshotRefreshPhase(stmt); err != nil {
 		return err
 	}
 	e := s.Engine()
@@ -28,6 +29,9 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	}
 	if err == nil {
 		observed = auth.Catalog.MustRelation(ref.Address)
+		if captured := s.MaterializedOrZero().Definition; captured != nil && !view.MaterializedRefreshCompatible(captured, observed) {
+			err = ids.ErrCatalogReplaced
+		}
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -64,6 +68,9 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	}
 	if err == nil {
 		err = view.MaterializedRefreshAccess(auth.View, auth, ref)
+	}
+	if err == nil && !stmt.NoData && !s.MaterializedOrZero().ExportRoots && s.exportCapture == nil && !s.Owner.Isolation.Stable() && refreshExportRootDemand(auth.Catalog, current) {
+		err = ids.ErrCatalogReplaced
 	}
 	if err == nil && stmt.Concurrent.Character != 0 {
 		err = view.MaterializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
@@ -108,4 +115,30 @@ func (s *StatementScope) MaterializedOrZero() view.MaterializedRefreshScope {
 		return view.MaterializedRefreshScope{}
 	}
 	return *s.MaterializedSlot
+}
+
+func (s *StatementScope) snapshotRefreshPhase(stmt *parser.RefreshMaterializedView) error {
+	return s.snapshotDataPhaseForUtility(stmt)
+}
+
+// Pure metadata classification in the same Engine.mu window as the utility's
+// public/data cut. Ordinary resolution/ACL errors remain at their existing
+// admission sites; no authorization, preflight or expression is executed here.
+func (s *StatementScope) installRefreshExportDemandLocked(stmt *parser.RefreshMaterializedView) {
+	if stmt.NoData { return }
+	e := s.Engine()
+	auth, err := e.AuthorizationLocked(s.Op)
+	if err != nil { return }
+	ref, err := e.ResolveRelationReference(auth, stmt.Name, true)
+	if err != nil { return }
+	relation, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || relation.RelationKind != catalog.MaterializedViewRelation { return }
+	state := s.materialized()
+	state.Definition = relation
+	state.ExportRoots = refreshExportRootDemand(auth.Catalog, relation)
+	s.exportRootDemand = s.exportRootDemand || state.ExportRoots
+}
+
+func refreshExportRootDemand(read catalog.Read, relation *catalog.Relation) bool {
+	return stored.ReadExportRootDemand(read, stored.ViewOf(relation))
 }

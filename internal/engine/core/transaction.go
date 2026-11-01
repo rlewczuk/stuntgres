@@ -602,6 +602,14 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, err
 		}
 	}
+	if queryCreation {
+		// CTAS/MVAS source locks belong to analysis, before the utility's
+		// active snapshot and ddl_command_start callbacks. Acquire once,
+		// retaining the existing unbound-recipe conservative demand.
+		if err:=s.AcquireRelation(stmt,true);err!=nil{return Result{},err}
+		s.exportRootDemand=true
+		if err:=s.snapshotPhase(stmt);err!=nil{return Result{},err}
+	}
 	if tag, eligible := session.EventCommand(stmt); eligible {
 		if !earlyEligibility {
 			if err := s.executionEligibility(stmt); err != nil {
@@ -618,13 +626,15 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 		defer func() { err = s.FinishEventCommand(previous, err) }()
 	}
-	if err := s.AcquireRelation(stmt, true); err != nil {
-		return Result{}, err
+	if !queryCreation {
+		if err := s.AcquireRelation(stmt, true); err != nil {
+			return Result{}, err
+		}
 	}
 	// SELECT (including cursor and query COPY sources) acquires its RC pair
 	// in final source admission. Other commands need it before any expression.
 	switch stmt.(type) {
-	case *parser.Select, *parser.DeclareCursor:
+	case *parser.Select, *parser.DeclareCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge, *parser.Call:
 	default:
 		if err := s.snapshotPhase(stmt); err != nil {
 			return Result{}, err

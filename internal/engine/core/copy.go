@@ -54,11 +54,6 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.AcquireRelation(syntax, true); err != nil {
 		return
 	}
-	if syntax.Query == nil {
-		if err = s.snapshotPhase(syntax); err != nil {
-			return
-		}
-	}
 	if syntax.Query != nil {
 		rows, queryErr := s.prepareCopyQueryRows(syntax.Query)
 		if queryErr != nil {
@@ -92,12 +87,16 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	s.Input.LockedDomainInput = s
 	e.Mu.Lock()
 	b, auth, bindErr := e.bindCopyLocked(s, syntax)
+	if bindErr == nil && syntax.From {
+		s.installCopyExportDemand(auth.Catalog, &b)
+	}
 	e.Mu.Unlock()
 	s.Input.DomainChecks = s
 	s.Domains.InputCatalog = auth.Catalog
 	if bindErr != nil {
 		return 0, bindErr
 	}
+	if err = s.snapshotPhase(syntax); err != nil { return 0, err }
 	// Table COPY opens the target, validates columns and checks privileges
 	// before BeginCopy processes options. Query COPY processes options first.
 	if syntax.From {
@@ -397,6 +396,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 		s.Input = binder.Input
 		s.RoutineDependencies = b.Dependencies
 		predicateVisibilitySnapshot = binder.Consumer.VisibilitySnapshot
+		s.exportRootDemand = s.exportRootDemand || binder.Consumer.ExportRoots
 	}
 	b.Targets, err = copyfmt.ResolveColumns(b.Relation, syntax.Columns)
 	if err != nil {
@@ -428,6 +428,8 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 		return err
 	}
 	s.Input = binder.Input
+	s.exportRootDemand = s.exportRootDemand || binder.Consumer.ExportRoots
+	s.installExportDemand(b)
 	if binder.Consumer.VisibilitySnapshot {
 		if err := e.captureVisibilitySnapshotLocked(s); err != nil {
 			return err

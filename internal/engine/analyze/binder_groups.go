@@ -76,6 +76,7 @@ type ConsumerContext struct {
 	CopyWhere               bool
 	CheckDefinitionEquality bool
 	VisibilitySnapshot      bool
+	ExportRoots bool
 	CatalogSnapshot         bool // Demanded inquiry nodes after STRICT folding.
 	// Materialized definitions need frozen renderer metadata while retaining
 	// their distinct, post-analysis bound-parameter diagnostic.

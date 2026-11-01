@@ -7,7 +7,7 @@ import (
 )
 
 func (n snapshotExpression) validate() error {
-	if n.kind < snapshotCurrent || n.kind > snapshotVisible || !n.Usage.Valid() {
+	if n.kind < snapshotCurrent || n.kind > snapshotExport || n.legacy && n.kind == snapshotExport || !n.Usage.Valid() {
 		return fmt.Errorf("stuntgres: invalid snapshot provider")
 	}
 	formals := snapshotFormals(n.kind, n.legacy)
@@ -24,6 +24,8 @@ func (n snapshotExpression) validate() error {
 		result = snapshot
 	} else if n.kind == snapshotVisible {
 		result = sqltype.Bool
+	} else if n.kind == snapshotExport {
+		result = sqltype.Text
 	}
 	if n.Usage.Type.ID() != result {
 		return fmt.Errorf("stuntgres: invalid snapshot result")
@@ -56,13 +58,16 @@ func (n snapshotExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.
 	return rebuilt, nil
 }
 func (n snapshotExpression) IntrinsicVolatility() expr.Volatility {
+	if n.kind == snapshotExport {
+		return expr.Volatile
+	}
 	if n.kind == snapshotCurrent {
 		return expr.Stable
 	}
 	return expr.Immutable
 }
 func (n snapshotExpression) PlanningFold() expr.Fold {
-	if n.kind == snapshotCurrent || n.kind == snapshotXip {
+	if n.kind == snapshotCurrent || n.kind == snapshotXip || n.kind == snapshotExport {
 		return expr.FoldNever
 	}
 	return expr.FoldConstant
@@ -111,4 +116,14 @@ func (n snapshotExpression) Capture(kind expr.CaptureKind) (expr.CaptureOperands
 	result := expr.CaptureOperands{Count: len(n.args)}
 	copy(result.Inline[:], n.args)
 	return result, true, nil
+}
+
+func (n snapshotExpression) SnapshotDemand(func(expr.Expr) bool) (bool, bool, bool) {
+	return false, false, n.kind == snapshotExport
+}
+
+func (n snapshotExpression) ExportRootDemand() bool { return n.kind == snapshotExport }
+
+func (n snapshotExpression) ResultNullability(expr.ResultSite) (bool, bool) {
+	return false, n.kind == snapshotExport
 }

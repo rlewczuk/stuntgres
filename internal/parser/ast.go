@@ -1934,6 +1934,8 @@ type TransactionMode struct {
 type TransactionCharacteristics struct {
 	Session bool
 	Modes   []TransactionMode
+	// Snapshot is a literal-only alternative to Modes, including the empty literal.
+	Snapshot *string
 	Pos     Position
 }
 

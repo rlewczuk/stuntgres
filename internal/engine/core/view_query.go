@@ -54,6 +54,11 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 	if !ok || stored.ViewOf(consumer) != definition {
 		return nil, ids.ErrCatalogReplaced
 	}
+	if scope.MaterializedOrZero().Refresh && ref == scope.LockedRef && scope.currentSnapshot != nil && scope.exportCapture == nil && !scope.Owner.Isolation.Stable() && refreshExportRootDemand(catalog, consumer) {
+		// A source wait may have changed a selected routine closure. Never
+		// attach current roots retroactively to the utility's earlier cut.
+		return nil, ids.ErrCatalogReplaced
+	}
 	e.Mu.Unlock()
 	ctx = scope.ActivateRuntime(scope.executionContext())
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
@@ -98,6 +103,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 			return nil, err
 		}
 		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || definition.Query().VisibilitySnapshot
+		scope.exportRootDemand = scope.exportRootDemand || definition.Query().ExportRoots
 	}
 	sources, err := e.prepareQuerySourcesLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{})
 	if err != nil {

@@ -139,7 +139,10 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 			if err := s.executionEligibility(creation); err != nil {
 				return err
 			}
-			if err := s.snapshotDataPhase(); err != nil {
+			// Bounds are still unbound at this required prewait utility cut.
+			// Preserve canonical later binding/error timing, as for direct CTAS.
+			s.exportRootDemand = true
+			if err := s.snapshotDataPhaseForUtility(creation); err != nil {
 				return err
 			}
 		}

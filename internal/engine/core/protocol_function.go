@@ -39,6 +39,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 		return session.ProtocolField{}, err
 	}
 	s.worked = true
+	s.exportRootDemand = true // Identity is not decoded until after this boundary.
 	if err = s.snapshotDataPhase(); err != nil {
 		return session.ProtocolField{}, err
 	}

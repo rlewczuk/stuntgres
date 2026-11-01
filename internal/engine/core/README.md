@@ -420,6 +420,17 @@ enforces the genuine PL signature contract before parsing any reached source.
 declaration/program backing without publishing or caching it in the catalog.
 Ordinary calls and trigger frame creation use current language capabilities,
 never mutable names or captured USAGE.
+PL diagnostic signatures belong to the session's existing routine-analysis
+cache and the exact immutable Procedure, not persisted program backing or
+invocation authority. Validation or first invocation captures presentation once;
+ordinary search-path changes and restricted maintenance reuse that signature.
+A cold maintenance executor captures its safe-path-qualified spelling and retains
+it after unwind; a replacement Procedure recaptures independently per session.
+This follows released [PL compilation](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/pl/plpgsql/src/pl_comp.c)
+and [function-cache lifetime](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/cache/funccache.c):
+the compile callback formats the signature, while cache reuse checks the current
+declaration rather than search-path visibility. Invocation-private diagnostic
+scratch still restores across nested commands and failures.
 Immediate row triggers validate identity and current capability before WHEN,
 but prepare private PL code only after a true condition. WHEN evaluates unlocked;
 the firing path reacquires the engine mutex and revalidates current executable
@@ -497,7 +508,9 @@ envelope (`invokeNativeTrigger`, `native_trigger.go`) and implements
 
 Trigger-bearing admitted mutation targets also retain dynamic source roots at
 the calling command's initial data-view capture: lazy trigger-body reads are
-not outer expression dependencies. STABLE/IMMUTABLE trigger commands borrow
+not outer expression dependencies. The actual DML executor admits target-root
+retention at its snapshot boundary, including ordinary direct/prepared commands
+without CTE/rule mutation syntax scratch. STABLE/IMMUTABLE trigger commands borrow
 those fixed roots and frontier without recapturing after firing. Trigger-free
 DML does not retain an additional dynamic-root map.
 
@@ -696,9 +709,12 @@ not a new root statement; the statement budget and lexical PL frame remain.
 Saved routine scratch is qualified by TxRef and rebased after rotation rather
 than restoring obsolete snapshots, writes, catalog authority or completion.
 Nested relation admission selects a missing stable snapshot through the common
-isolation phase before analysis and source capture. Successor snapshots remain
-lazy: snapshot-free utilities preserve the immediate characteristics window,
-while read-committed commands keep their data-admission frontier.
+isolation phase before analysis and source capture. If a child admits the first
+stable owner pair, restoration carries that exact pair and demanded export
+backing into previously empty same-incarnation caller scratch. Already-admitted
+callers retain their own pair. Successor snapshots remain lazy: snapshot-free
+utilities preserve the immediate characteristics window, while read-committed
+commands keep their data-admission frontier and lexical restoration.
 Static PL SET TRANSACTION uses the common utility description and execution
 dispatch; characteristics have no result descriptor or lexical parameters and
 retain the existing owner mode checks and utility completion.
@@ -823,9 +839,14 @@ adapters and `PageinspectNotice`, and these host pieces:
 routine authority, activated execution, nested restricted frames and safe
 `pg_catalog, pg_temp` lookup. Callbacks run without `Engine.Mu`; all operation
 presentation/settings state is restored on success, error and cancellation.
-Logical heap replacements prepare fresh catalog locators alongside their
-existing publication candidates; ordinary descriptor-only edits preserve
-incarnation identity.
+Admitted physical heap rewrites prepare fresh catalog locators alongside their
+existing publication candidates: journal `StorageChange.Rewritten`, direct
+`RowShape.Rewritten`, or the direct materialized refresh replacement. A changed
+Go store pointer alone is not a new physical incarnation. Metadata-only column
+projections and ordinary descriptor-only edits preserve locators.
+The descriptor-owned ON COMMIT DELETE clear is likewise in-place: its empty
+heap/index transport preserves locators without claiming physical rewrite or
+uninterrupted TRUNCATE lineage.
 Actual heap replacements publish locator-only clones of their exact staged
 definitions rather than preserve descriptor pointer equality. Retained descriptors,
 tuple roots and defining metadata remain unchanged. REINDEX separately stages
@@ -1552,6 +1573,103 @@ with row effects; standalone utilities retain their ordinary publication boundar
   Source admission consumes those roots; it neither refreshes the frontier nor
   loses a candidate when a peer replaces its head before delayed capture.
   Latest-row arbitration remains responsible for the current committed successor.
+- Export-root demand is immutable bound recipe metadata, propagated through
+  query/RETURNING/CTE, retained writes, views, policies, triggers and consumed
+  routine closures. A demanded RC admission captures complete committed roots,
+  public XID value, tuple frontier and catalog in one publication-lock window;
+  ordinary RC retains its existing narrow target pins. Evaluation never takes a
+  newer root map. Stable isolation shares owner backing. Fastpath and genuinely
+  opaque executable boundaries conservatively demand before their active cut.
+  Before default preflight, Execute additionally borrows only its actual portal's
+  accepted set after transaction/fold-generation checks. Exec's pure selected
+  executable projection preserves SQL predecessor demand even when the current
+  catalog recipe is quiet; bounded PL demand follows its authenticated current
+  provider. This never grants execution, changes backing or retrofits a late cut.
+  Lexical routine scratch owns the active pair: readonly children borrow it,
+  volatile RC commands capture a fresh one, and unwind restores only the live
+  incarnation's pair.
+  Direct CTAS is the bounded unbound-utility exception: source grants are acquired
+  once before the utility/event pair. Conservative roots are captured after that
+  wait and before ddl_command_start or producer Eval, without a second binder.
+  Stable analysis retains its existing owner cut. REFRESH instead
+  classifies the stored query, nested views and current routine dependencies in
+  the capture lock window. WITH NO DATA adds no source demand. Target/source
+  grants revalidate defining authority and refuse newly export-bearing closures
+  rather than retrofitting roots onto the earlier cut.
+  CREATE TABLE PARTITION OF has the same enumerated unbound-expression
+  exception; unrelated utility families do not inherit it. Before canonical
+  source-principal admission, retained read demand includes possible SELECT/ALL
+  USING policy recipes on the consumed source graph. This pure, cycle-bounded
+  metadata classification never selects policies or changes runtime RLS bypass,
+  role checks, diagnostics, or effects.
+  Already-bound ordinary read sources reuse this retained view/policy closure
+  before final snapshot capture; analysis-only sources and disabled RLS add none.
+  Current routine closure is demand metadata, not permission to replace strict
+  retained routine declaration authority or to execute a new body through an
+  old callable carrier.
+  Matching enabled start/end DDL event closures also contribute before the
+  utility pair, using the current persistent event-trigger index, tag/replica
+  matcher and event_triggers setting. WITH NO DATA suppresses source execution,
+  not event execution. Each actual later phase fences newly export-bearing
+  closures when its old pair has no retained export roots.
+  ALTER's historical row-validation/rewrite frontier is separate from its
+  genuine executor-expression snapshot. Before runtime DEFAULT preflight or
+  row CHECK/generation/USING evaluation, the cooked possible closure includes
+  retained descendant preparations, domain checks and represented routines.
+  Still-unbound descendant executable phases and not-yet-selectable index
+  rebuild execution contribute bounded conservative demand without rebinding
+  children, moving parent evaluation, or adding an eager index catalog scan.
+  The existing late index selector acquires/validates the same active pair
+  before opening actual key/predicate recipes. Metadata-only and empty scans
+  do not enter merely because ALTER is their statement family.
+  Actual selected ALTER index builds enter the existing restricted table-owner
+  frame only after selection and snapshot admission. PL diagnostic visibility
+  retains the exact immutable Procedure's first-compilation signature in that
+  session: a warm signature is reused, while a cold restricted compilation
+  retains its qualified spelling after unwind. Returning restores the caller's
+  invocation authority and settings without rewriting that diagnostic cache.
+- `snapshot_sync.go` owns the lazy cluster token registry under the existing
+  shared engine mutex. Records contain committed authority only, never private
+  journals, locks or SSI graphs. Source end and import installation linearize
+  under that mutex without taking a peer owner mutex. Existing end/fence paths
+  retire source tokens; imported immutable references remain owned by importers.
+  Explicit whole-block abort drops roots and running advertisements immediately,
+  retaining only nonimportable identifier/source metadata until block cleanup.
+  Import then reports 55000 with the source backend identity; after explicit
+  ROLLBACK/COMMIT cleanup the identifier reports 42704. Implicit failure,
+  PREPARE refusal, physical end and native replacement clean up immediately.
+  An already admitted old incarnation returns the ordinary native epoch fence,
+  not a missing-token SQL diagnostic; only a fresh eligible transaction sees
+  42704 after replacement. Cancellation during staged Restore input leaves the
+  old epoch and its complete export authority intact.
+  Import installs the old data frontier but initializes SSI SnapshotOrder from
+  the current tracker. READ ONLY DEFERRABLE rejects instead of acquiring a fresh
+  safe candidate. Sticky owner export status participates in PrepareRefusal
+  after temporary-object refusal and survives child rollback.
+- Incoming FK action demand uses the catalog's persistent derived owner index.
+  Core inspects only matching enforced mutating UPDATE/DELETE actions and their
+  typed child defaults/generation/CHECK/trigger/routine closures, recursively
+  following cascades with exact relationship/action cycle identities. No
+  authorization or effect is executed early; NO ACTION/RESTRICT and unrelated
+  no-FK/no-row commands acquire no candidate/visited collection or new catalog
+  prewalk. Canonical direct/prepared admission passes the actual statement to
+  classify DELETE independently of suspended mutation scratch. Each reached
+  writable RI command takes its own fresh RC public/frontier/root pair before
+  default planning or trigger evaluation; STABLE callees borrow that generated
+  command pair. Stable isolation borrows the transaction pair. Balanced unwind
+  restores the parent's pair, target roots, view and current advertisement.
+  This is genuine nested command acquisition, never a retrofit onto an old cut.
+  Mutation demand also visits each already-admitted `InheritedTargets` leaf of
+  the matching command occurrence, including modifying CTEs. Descendant-owned
+  generation/CHECK recipes, triggers and incoming actions therefore participate
+  before capture without a second hierarchy/catalog walk. Known UPDATE columns
+  map by name to descendant attributes; unknown sets conservatively include
+  UPDATE OF triggers.
+- SQL EXECUTE actuals bind/count/type-check before obtaining their own demanded
+  pair, and capture before any runtime preflight or evaluation. Their consumed
+  routine manifest stays distinct from the prepared body's authority. On unwind,
+  current snapshot/target advertisement is restored without revoking actual
+  export records, so a later RC body source still chooses its own admission cut.
 - DML synthetic query roots are not stable AST owners: retain the original table
   occurrences. Writable views retain their logical target identity, not the
   translated physical base.
@@ -2570,8 +2688,13 @@ and selective maintenance, exact relation predecessor chains and rejected copied
 or abandoned receipts, and independently retained nonempty portal POINT artifacts
 and imported frames across authenticated relation transitions.
 Accepted command DEFAULT ownership and admission units use
-`RUN='^TestPreparedAcceptedDefault'` in `core/enginetests/views`; they inspect the
-actual private accepted owner separately from public wire lifetime scenarios.
+`RUN='^(TestPreparedAcceptedDefault.*|TestSnapshotSyncAcceptedDefault.*)$'`; they
+inspect the actual private accepted owner separately from public wire lifetime
+scenarios. The core protocol fixture compares selected DEFAULT exports with the
+actual acquired snapshot/root backing, while the views fixture probes pure
+retention before strict invocation, publication, current-authority and terminal
+fence checks. Demand must not mutate original source paths, prepared argument/
+assembly/signature backing or generations, or supply invocation authority.
 `TestPreparedAcceptedDefaultSourceDerivation` distinguishes genuine nested,
 sibling, hidden-default and pruned CASE recipes from substituted roots, changed
 arguments and wrong original mapper paths, including nil child slots.
@@ -2582,6 +2705,13 @@ readmission independent from the enclosing occurrence. The unchanged-slot index
 transport cases pair a clean construction with preexisting recipe debt across
 the same unrelated tail-column metadata remint, preserving physical payloads
 and historical provenance.
+Snapshot registry lifecycle units use
+`RUN='^TestSnapshotSync(AbortImportRace|EndImportRace|NativeEpoch.*Race|RestoreInFlightCancellation)$'`,
+also with `RACE=1`. They compose real independent session operations with
+canonical failure/end and native replacement, checking exact retained committed
+backing, atomic tombstones, visibility withdrawal and old-incarnation fences.
+Ordered controls bracket repeated concurrent starts; a gated external Restore
+reader distinguishes in-flight cancellation from an entry-only context check.
 The private session cache is observed by same-package handler units over seeded
 catalog descriptors and real session admission; composed external units assert
 checked bindings and compiler ownership. Neither requires an inspection export.

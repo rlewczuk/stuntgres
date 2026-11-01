@@ -67,6 +67,17 @@ func RoutineProgramOf(d *catalog.Procedure) (*RoutineProgram, error) {
 func (p *RoutineProgram) Len() int                                     { return len(p.actions) }
 func (p *RoutineProgram) Action(i int) RuleAction                      { return p.actions[i] }
 func (p *RoutineProgram) Dependencies() []catalog.ExpressionDependency { return p.dependencies }
+
+// ExportRootDemand is immutable recipe metadata, not execution authority.
+func (p *RoutineProgram) ExportRootDemand() bool {
+	for _, action := range p.actions {
+		b := action.binding
+		if b.ExportRoots || b.Query != nil && b.Query.ExportRoots || b.Returning != nil && b.Returning.ExportRoots {
+			return true
+		}
+	}
+	return false
+}
 func (p *RoutineProgram) StatementSQL(ctx context.Context, view catalog.Read, i int) (string, error) {
 	if err := p.ValidateAction(view, i); err != nil {
 		return "", err

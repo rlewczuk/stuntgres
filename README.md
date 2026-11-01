@@ -13,6 +13,21 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
+`pg_export_snapshot() → text` shares a transaction's real committed snapshot
+with a peer using `SET TRANSACTION SNAPSHOT 'identifier'`. Import before the
+first query in a REPEATABLE READ or SERIALIZABLE transaction. Tokens expire at
+exporter transaction end; an already imported cut survives that end and never
+contains the exporter's private writes. READ COMMITTED can export successive
+cuts; stable isolation exports distinct identifiers for the same cut. Active
+savepoints forbid export/import, and exporting prevents PREPARE TRANSACTION
+(the failed PREPARE rolls back the whole transaction). This is immutable
+in-memory retention, not native Dump serialization or filesystem transport.
+Native Reset/successful Restore fences the replaced runtime's old tokens;
+failed or canceled Restore leaves them intact. See
+[`reference/locking_transactions`](reference/locking_transactions/README.md)
+for independently expected PostgreSQL 18.6 reference scenarios.
+
+
 Relation-location functions use their PostgreSQL 18 typed signatures:
 `pg_relation_filenode(regclass) → oid`,
 `pg_relation_filepath(regclass) → text`, and

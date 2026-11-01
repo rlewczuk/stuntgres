@@ -57,6 +57,7 @@ func (t *TransactionOwner) Clear() {
 	clear(t.Savepoints)
 	t.Savepoints = nil
 	t.AccessedTemporary = false
+	t.ExportedSnapshots = false
 }
 
 // Abort marks an explicit block without savepoints failed: it restores the
@@ -119,6 +120,8 @@ func (t *TransactionOwner) PrepareRefusal(gid string, withHold, foreign bool) er
 		return sqlError("22023", `transaction identifier "`+gid+`" is too long`)
 	case t.AccessedTemporary:
 		return sqlError("0A000", "cannot PREPARE a transaction that has operated on temporary objects")
+	case t.ExportedSnapshots:
+		return sqlError("0A000", "cannot PREPARE a transaction that has exported snapshots")
 	case foreign:
 		return sqlError("0A000", "cannot PREPARE a transaction that has operated on foreign tables")
 	case len(t.NotificationActions) != 0 || len(t.NotificationEvents) != 0:

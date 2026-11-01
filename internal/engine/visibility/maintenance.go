@@ -6,7 +6,8 @@ import (
 )
 
 // VacuumCutoffLocked is the freezing cutoff: the next canonical full XID,
-// clamped by every assigned full XID whose ticket ownership has not ended.
+// clamped by assigned publishers and retained exported/imported full-XID cuts.
+// Ordinary snapshots retain immutable roots, not a public-XID freezing horizon.
 // Caller holds Engine.mu.
 func (reg *Registry) VacuumCutoffLocked() (uint64, error) {
 	cutoff, err := NextFullXID(reg.LastAssignedXID())
@@ -14,6 +15,12 @@ func (reg *Registry) VacuumCutoffLocked() (uint64, error) {
 		return 0, err
 	}
 	for _, entry := range reg.Entries {
+		if entry.ImportedFullXmin != 0 && entry.ImportedFullXmin < cutoff {
+			cutoff = entry.ImportedFullXmin
+		}
+		if entry.ExportFullXmin != 0 && entry.ExportFullXmin < cutoff {
+			cutoff = entry.ExportFullXmin
+		}
 		if entry.FullXID != 0 && (entry.Ticket == nil || !entry.Ticket.OwnershipEnded()) && entry.FullXID < cutoff {
 			cutoff = entry.FullXID
 		}
@@ -29,7 +36,7 @@ func (reg *Registry) VacuumRetirementAllowedLocked(self ids.TxRef) bool {
 		if ref == self || ref.Epoch() != self.Epoch() {
 			continue
 		}
-		if entry.Snapshot || entry.SafeBuilder || entry.XID != 0 || entry.Ticket != nil && !entry.Ticket.OwnershipEnded() {
+		if entry.Snapshot || entry.ExportXmin != 0 || entry.SafeBuilder || entry.XID != 0 || entry.Ticket != nil && !entry.Ticket.OwnershipEnded() {
 			return false
 		}
 	}

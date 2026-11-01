@@ -76,3 +76,4 @@
 3400	pg_config	11	12	1	23	0	0	f	false	false	true	true	s	r	0	0	2249		{25,25}	{o,o}	{name,setting}	false	\N	pg_config	\N	false	\N
 3329	pg_show_all_file_settings	11	12	1	1000	0	0	f	false	false	true	true	v	s	0	0	2249		{25,23,23,25,25,16,25}	{o,o,o,o,o,o,o}	{sourcefile,sourceline,seqno,name,setting,applied,error}	false	\N	show_all_file_settings	\N	false	\N
 6250	pg_ident_file_mappings	11	12	1	1000	0	0	f	false	false	true	true	v	s	0	0	2249		{23,25,23,25,25,25,25}	{o,o,o,o,o,o,o}	{map_number,file_name,line_number,map_name,sys_name,pg_username,error}	false	\N	pg_ident_file_mappings	\N	false	\N
+3809	pg_export_snapshot	11	12	1	0	0	0	f	false	false	true	false	v	u	0	0	25		\N	\N	\N	false	\N	pg_export_snapshot	\N	false	\N

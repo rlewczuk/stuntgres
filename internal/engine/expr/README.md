@@ -106,6 +106,10 @@ switch's generic behavior.
   execution-catalog-text and visibility demand, using the caller's literal-NULL
   predicate and never capturing authority; children keep independent demands.
   Stored `Replay` manifests are a separate contract.
+  `ExportRootDemander` refines that same protocol for a node needing the complete
+  immutable committed-root pair. Existing expression/retained-recipe walks
+  collect it independently of broad catalog/visibility demand; volatility alone
+  is not a root demand. The hook never captures, evaluates, or retains authority.
 - **`CallCoster`**: inline-policy procost without evaluation or catalog lookup.
 - **`GroupPropertyRewriter`**: merges already rewritten children at grouping
   only; substitution, preflight and retag never invoke it.

@@ -200,6 +200,7 @@ func (b *Binder) BindReturning(raw *parser.Returning, mode returningMode) (*Retu
 		output.RegclassOutput = output.RegclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
 	}
 	output.VisibilitySnapshot = b.Consumer.VisibilitySnapshot
+	output.ExportRoots = b.Consumer.ExportRoots
 	return output, nil
 }
 

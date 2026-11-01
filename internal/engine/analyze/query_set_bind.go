@@ -175,7 +175,7 @@ func (b *Binder) bindSetArms(s *parser.Select, leftQuery, rightQuery *plan.Query
 		bounds.QuerySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.FrameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.FrameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot, ExportRoots: leftQuery.ExportRoots || rightQuery.ExportRoots}, nil
 }
 
 func (b *Binder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]plan.SortKey, error) {

@@ -215,6 +215,7 @@ func TestPreparedAcceptedDefaultLineage(t *testing.T) {
 					case "foreign-owner":
 						selected.Fold.Owner = engine.New().Catalog.Domain.Ref(ref.Epoch, ref.Address)
 					}
+					snapshotAcceptedPureDemand(t, &program, artifact, e.CatalogRead())
 					if err := admitAcceptedDefault(t, e, artifact, occurrence, selected, node, "postgres", nil); err == nil {
 						t.Fatal("invalid accepted occurrence admitted", kind)
 					}

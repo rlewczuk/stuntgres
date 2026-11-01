@@ -74,6 +74,9 @@ type InheritancePreparedNode struct {
 	UsingNotNull                                   []InheritancePreparedAction
 	AfterDropOld, UsingCaptureOld                  *catalog.Relation
 	AfterDropError, UsingCaptureError, ChecksError error
+	// SelectionError is a cooked inherited-action diagnostic, replayed only
+	// when the sole-stage traversal actually reaches this descendant.
+	SelectionError error
 }
 
 // PrepareInheritanceNode cooks phases 0-6 of one inheritance node's actions

@@ -875,7 +875,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		}
 		if err == nil {
 			storage.PreserveUnchangedRelations(relations, currentStorage, e.Storage.Relations)
-			next, err = e.prepareReplacementLocatorsLocked(next, relations)
+			next, err = e.prepareReplacementLocatorsLocked(next, relations, func(address ids.ObjectAddress) bool {
+				return s.RowShapes[address].Rewritten || published.Refresh != nil && published.Refreshed == address
+			})
 		}
 		var sharedRoots catalog.SharedProjection
 		if err == nil {

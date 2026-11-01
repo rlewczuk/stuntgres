@@ -578,6 +578,14 @@ mode's executable: captured prepared descriptor for predecessor mode, freshly
 validated compatible current PL descriptor only for its sealed source mode. All
 source/prepared/readmission lanes reject zero, unknown or recombined modes. This
 choice never rewrites prepared arguments, call assembly, Usage or accepted backing.
+Retention uses the same closed source/prepared selection independently of
+invocation. `AcceptedDefaultExpressionExportRootDemand`, accepted-set demand and
+`RoutineProgram.ExportRootDemand` share one pure selector: the sealed SQL/host
+predecessor or the authenticated current PL provider. Prepared arguments keep
+ordinary traversal and independent nested/hidden/body manifests. Invalid lineage
+or retired ownership means conservative possible demand, never an invocation
+grant or an earlier diagnostic. No evaluation, preflight, ACL decision, snapshot,
+provider cache or mutable artifact is created by this projection.
 
 ## Expression preflight
 

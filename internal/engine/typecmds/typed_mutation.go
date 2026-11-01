@@ -271,7 +271,10 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	h := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 	if rewrite || len(mutation.Transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.Transforms, nil, nil, rewrite)
+		withIndexOwner := func(work func(*exec.Context) error) error {
+			return scope.WithMaintenanceOwner(next, work)
+		}
+		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.Transforms, nil, nil, rewrite, withIndexOwner)
 		if err != nil {
 			return index.DefaultClassDiagnostic(h, auth, err)
 		}

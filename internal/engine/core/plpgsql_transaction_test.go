@@ -159,6 +159,7 @@ func TestPLpgSQLTransactionChainSnapshotOwnership(t *testing.T) {
 				if _, err := s.Execute(modes, 0, nil); err != nil {
 					t.Fatal(err)
 				}
+				core.SetScopeExportRootDemand(s, true)
 				if err := core.ScopeSnapshotDataPhase(s); err != nil {
 					t.Fatal(err)
 				}
@@ -179,6 +180,9 @@ func TestPLpgSQLTransactionChainSnapshotOwnership(t *testing.T) {
 					if owner.SnapshotSet || owner.CurrentSnapshot != nil || core.ScopeCurrentSnapshot(s) != nil || owner.Roots != nil {
 						t.Fatal("successor inherited or eagerly acquired a snapshot")
 					}
+					if roots, _, value, _ := core.ScopeExportCapture(s); roots != nil || value != nil {
+						t.Fatal("successor inherited the prior export capture")
+					}
 					if owner.Isolation != expectedIsolation || !owner.ReadOnly || !owner.Deferrable {
 						t.Fatal("CHAIN lost effective characteristics")
 					}
@@ -187,6 +191,7 @@ func TestPLpgSQLTransactionChainSnapshotOwnership(t *testing.T) {
 					if _, err := s.Execute(modes, 0, nil); err != nil {
 						t.Fatal("fresh successor closed SET TRANSACTION window", err)
 					}
+					core.SetScopeExportRootDemand(s, true)
 					value, _, err := run.Host.Evaluate(run.Frame, statement, proc.PLOrigin{})
 					if err != nil {
 						t.Fatal("first nested expression in chained successor", err)
@@ -207,6 +212,9 @@ func TestPLpgSQLTransactionChainSnapshotOwnership(t *testing.T) {
 					}
 					if core.ScopeCurrentSnapshot(s) != snapshot || owner.CurrentSnapshot != snapshot || core.ScopeSnapshotFrontier(s) != frontier || s.Input.TransactionStart != owner.Start {
 						t.Fatal("nested restoration revived the prior snapshot or transaction start")
+					}
+					if roots, _, value, cut := core.ScopeExportCapture(s); roots == nil || value != snapshot || value == oldSnapshot || cut != frontier {
+						t.Fatal("nested restoration revived the prior export capture")
 					}
 					if core.ScopeStatementStart(s) != start || op.StatementDeadline != deadline {
 						t.Fatal("CHAIN refreshed the original statement budget")

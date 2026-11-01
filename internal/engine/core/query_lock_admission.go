@@ -13,6 +13,7 @@ import (
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []exec.Leaf) error {
 	demand, err := view.QueryLocks(e.PrivateCatalogLocked(scope.PendingCatalog()), root, leaves)
 	scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || demand.Visibility
+	scope.exportRootDemand = scope.exportRootDemand || demand.ExportRoots
 	if err != nil {
 		return err
 	}

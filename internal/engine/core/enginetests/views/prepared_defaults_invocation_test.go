@@ -82,7 +82,9 @@ func TestPreparedAcceptedDefaultInvocation(t *testing.T) {
 					if err != nil {
 						return err
 					}
+					var program exec.RoutineProgram
 					c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Catalog: auth.Catalog, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, DefaultOccurrence: key}}
+					c.RoutineProgram = &program
 					if kind == "query-prepared" {
 						c.Host = nil
 						c.Query = &exec.State{Source: &exec.Source{Host: core.HostOf(scope)}}
@@ -133,6 +135,7 @@ func TestPreparedAcceptedDefaultInvocation(t *testing.T) {
 							call.Property.Volatility = expr.Immutable
 						}
 						admission := exec.AdmitRoutineCall(local, call, true, false)
+						snapshotAcceptedPureDemand(t, &program, artifact, auth.Catalog)
 						value, invocation := local.EvalSQLRoutine(call)
 						if kind == "prepared" || kind == "query-prepared" || kind == "explicit-over-query" {
 							if admission != nil || invocation != nil {

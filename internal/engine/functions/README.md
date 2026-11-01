@@ -544,6 +544,12 @@ binding or execution authority; the selected descriptor and manifest are require
   Current/assigned/status reuse `TransactionInquiryRuntime` and never retain
   allocator or visibility authority. Reconstruction and semantic identity keep
   the selected nominal signature and SQL name.
+  `pg_export_snapshot()` is the zero-argument non-NULL TEXT variant (OID 3809),
+  STRICT/VOLATILE/PARALLEL UNSAFE and never folded. It declares complete-root demand
+  through `ExportRootDemander` and borrows `ExportSnapshot` only at execution;
+  no node or prepared handle retains a token, owner or snapshot. NULL is a wrong
+  argument count, not a strict NULL shortcut. Reconstruction, stored capture
+  and ordinary routine admission preserve the same selected identity.
 
 `ts_parse` and `ts_token_type` share one fixed-OUT source provider. Their text
 and OID formals select ordinary routine authority; text-name resolution borrows
