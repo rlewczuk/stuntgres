@@ -20,7 +20,7 @@ func (m *ViewQueryRemapper) retag(node expr.Expr, typ func(*sqltype.Descriptor) 
 		// not acquire destination principal or catalog provenance.
 		procedure = func(original *catalog.Procedure) (*catalog.Procedure, error) { return original, nil }
 	}
-	return mapExpressionWithProcedure(m.Catalog, nil, node, typ, nil, nil, false, nil, procedure, m.Collation)
+	return mapExpressionWithProcedure(m.Catalog, nil, node, typ, nil, nil, false, nil, procedure, nil, m.Collation)
 }
 
 func (m *ViewQueryRemapper) procedure(original *catalog.Procedure) (*catalog.Procedure, error) {

@@ -66,6 +66,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	scope.RoutineAuth = routineAuth
 	scope.RoutineDependencies = b.Dependencies
+	evaluation.DefaultOccurrence = exec.DefaultOccurrence{Statement: stmt, Expansion: scope.ActiveMutation}
 	if calling || inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
@@ -242,18 +243,28 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Demand immutable conversions even for an empty query source, while
 		// keeping the stored definition and any runtime-only producer unfolded.
 		var privateDefaults []expr.Expr
+		var privateOrigins []analyze.DefaultOrigin
 		for i, expression := range b.Insert.Defaults {
 			if expression == nil {
 				continue
 			}
 			defaultEvaluation := evaluation
-			analyze.ApplyDefaultOrigin(view.BindingDefaultOrigin(&b, i), &defaultEvaluation)
-			folded, changed, foldErr := exec.PreflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
+			folded, origin, changed, foldErr := analyze.PrepareDefault(&defaultEvaluation, expression, view.BindingDefaultOrigin(&b, i), exec.DefaultPreparationPolicy{})
 			if foldErr != nil {
 				return Result{}, foldErr
 			}
 			if err := view.ValidateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); err != nil {
 				return Result{}, err
+			}
+			if origin.Accepted != nil {
+				if privateOrigins == nil {
+					privateOrigins = make([]analyze.DefaultOrigin, len(b.Insert.Defaults))
+					for slot := range privateOrigins {
+						privateOrigins[slot] = view.BindingDefaultOrigin(&b, slot)
+					}
+				}
+				privateOrigins[i] = origin
+				changed = true
 			}
 			if changed {
 				if privateDefaults == nil {
@@ -264,6 +275,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 		if privateDefaults != nil {
 			b.Insert.Defaults = privateDefaults
+		}
+		if privateOrigins != nil {
+			b.Insert.DefaultOrigins = privateOrigins
 		}
 		b, queryRoot, err = view.PreflightRuleInsertDefaults(&evaluation, b, queryRoot)
 		if err != nil {

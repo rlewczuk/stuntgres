@@ -155,6 +155,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 			if err != nil {
 				return nil, err
 			}
+			root.Construction = transportConstruction(source.Root, source.Index, index)
 			roots[address] = root
 			continue
 		}
@@ -189,7 +190,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 			if err := hash.CaptureRowEntries(ctx, index.SQLIndex); err != nil {
 				return nil, err
 			}
-			roots[address] = &storage.IndexRoot{Hash: hash}
+			roots[address] = &storage.IndexRoot{Construction: transportConstruction(source.Root, source.Index, index), Hash: hash}
 		} else {
 			ordering, err := BindIndexKeys(view, parent, index.SQLIndex)
 			if err != nil {
@@ -227,7 +228,7 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 					return nil, err
 				}
 			}
-			roots[address] = NewLogicalIndexRoot(index.SQLIndex, entries)
+			roots[address] = logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))
 		}
 	}
 	return roots, ctx.Err()

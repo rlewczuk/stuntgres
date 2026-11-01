@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -59,6 +60,7 @@ func TestClusterMaintenanceEnvironment(t *testing.T) {
 				if !exists || currentProcedure == originalDefinition.Procedure {
 					t.Fatal("fixture did not replace the existing routine declaration")
 				}
+				originalIndex := e.CatalogRead().MustRelation(indexAddress)
 				for _, q := range []string{"RESET ROLE", "GRANT MAINTAIN ON public.t TO cluster_env_caller", "SET ROLE cluster_env_caller", "SET application_name='cluster caller'", "SET search_path=cluster_env_shadow,public,pg_catalog"} {
 					enginetest.SessionSQL(t, s, q)
 				}
@@ -95,6 +97,9 @@ func TestClusterMaintenanceEnvironment(t *testing.T) {
 				timers, roleAction := s.Timeouts, s.Settings.RoleAction
 				identity := op.RoleState()
 				_, err = scope.Execute(statement, 0, nil)
+				if err == nil && index.JournalIndexesOrZero(scope.PendingCatalog()).Rebuilds[indexAddress] != originalIndex {
+					t.Fatal("maintenance rebuild intent did not observe the exact pre-command index")
+				}
 				if op.Restricted != nil || !reflect.DeepEqual(op.RoleState(), identity) {
 					t.Error("maintenance identity/restriction escaped command", op.Restricted, op.RoleState(), identity)
 				}
@@ -136,6 +141,9 @@ func TestClusterMaintenanceEnvironment(t *testing.T) {
 					root := e.Storage.IndexRoots[idx]
 					if root == nil || len(root.Entries) != 3 {
 						t.Fatal("missing actual routine sibling", root)
+					}
+					if !index.ConstructionMatches(root, e.CatalogRead().MustRelation(idx)) {
+						t.Fatal("successful maintenance omitted current complete-build provenance")
 					}
 					for _, entry := range root.Entries {
 						row := store.Versions[entry.Position]

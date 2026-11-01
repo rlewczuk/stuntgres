@@ -196,6 +196,59 @@ Foreign plan/ref ownership is an error, not a reanalysis/adoption trigger. Local
 
 State: Unbound → Valid → NeedsReanalysis → Valid or RebindError; Close prevents reuse. Analyze unchanged original text with one current coherent view/context. Install only a complete successful binding; failure never executes stale pointers or mutates the public contract. Later use can reanalyze again, not automatically retry a statement. Public database/sql and SQL PREPARE retain parameter count/types and fixed result count/labels/type identity/typmod/collation when supported: incompatible shape gives **0A000**, `cached plan must not change result type`. Do not re-infer fixed parameters/NumInput. Direct statements analyze fresh; returned cursor metadata stays immutable. Prepared validity is ephemeral, never pg_depend and never a DROP RESTRICT blocker. Stored views follow identity; reanalyzed prepared text may fail or bind a new shadow.
 
+The existing accepted-portal owner has one narrow additional lifetime: its
+original owned typed DEFAULT recipe may invoke an authenticated predecessor
+body after a same-identity scalar replacement. Every exact mapper-output
+relation link and that same operation's before/after routine link must compose
+back to the saved source/default occurrence. Current ACL, owner, type/provider,
+native epoch and transaction/resource fences still apply. This does not adopt
+a foreign plan, omit or rewrite the relation dependency, permit arbitrary stale
+pointers, or publish accepted artifacts into a reusable definition. Ordinary
+reanalysis and declaration/remap/fold/index/output equality remain unchanged.
+
+The accepted candidate mints provenance only by reading its authentic canonical
+source and completing one real typed preparation. Original lexical paths, source
+calls and actual prepared calls remain distinct; current tree position or an
+equal-ABI sibling is not the original occurrence. Exact path resolution composes
+through each authenticated source/target publication. Harmless owner/ACL COW is
+allowed, but live owner environment and authorization never come from the saved
+executable descriptor. A narrow predecessor-body compatibility projection may
+restore executable `Display.Source` along with the other authenticated body
+fields; display language and unrelated declaration fields remain strict.
+Source-call lineage and actual-prepared invocation are independent proofs on the
+same sealed occurrence. Runtime accepts only the owned prepared descriptor and
+its exact immutable argument/assembly/signature backing; neither source-pointer
+equality nor declaration-equal copies identify that call. Source tagging and
+lookup share the incumbent mapper's direct-child slots, including nil slots,
+without retaining a mapper, context or authority callback.
+
+The exact **“1: Bounded current PL body”** authorization qualifies only the
+accepted occurrence's predecessor-body choice above. A private current-provider
+mode is minted by the canonical source owner from the authentic original typed
+PL definition and validated original language/handler capability, bound to that
+source token and the one actual prepared derivative. A language label, common
+RoutineDefinition projection, caller flag or current lookup cannot mint it.
+Standard and quoted SQL remain predecessor recipes.
+
+The same exact paired relation/routine chain must still compose original
+identity, revision, dependency purpose, attribute/default and lexical source path
+through actual completed mapper outputs. Missing, reversed, foreign, copied,
+rollback-discarded or recreated-identity links reject; mode does not suppress a
+dependency or authorize another slot. Current provider-to-SQL, language, handler,
+transform, ABI/result, strictness, volatility, security or configuration changes
+are not eligible body-only transitions. Harmless current owner/ACL COW remains
+subject to current principal and effective EXECUTE checks.
+
+Only the already authenticated invocation may select its freshly validated
+compatible current PL descriptor as executable and current environment, preserving
+all original prepared arguments/assembly/Usage and accepted ownership/backing.
+Current child-body dependencies use ordinary admission, not the saved DEFAULT's
+authority. All operation, native, transaction, savepoint, portal and retirement
+fences remain independent, including after readmission or waits; regrant cannot
+revive a terminal accepted owner. This is neither reusable reanalysis nor a new
+publication/plan/authority store, and every ordinary strict matcher remains intact.
+
+
 Inquiry nodes never retain a live Session/StatementScope or cache executable
 authority. A new execution borrows fresh captured identity/path/catalog authority;
 held prepared invalidation and native replacement fences remain engine policy.

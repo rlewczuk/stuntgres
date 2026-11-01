@@ -181,7 +181,7 @@ func TestSQLRoutineResultRemap(t *testing.T) {
 	if err := call.ValidateStoredProvider(); err != nil {
 		t.Fatal("original call provenance", err)
 	}
-	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, remap.Collation)
+	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, nil, remap.Collation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +321,7 @@ func TestSQLRoutineScalarRecordRemap(t *testing.T) {
 		if err := call.ValidateStoredProvider(); err != nil {
 			t.Fatal("original scalar RECORD occurrence", err)
 		}
-		node, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, remap.Collation)
+		node, _, err := mapExpressionWithProcedure(read, nil, call, remap.Type, nil, nil, false, nil, remap.Procedure, nil, remap.Collation)
 		if err != nil {
 			t.Fatal("scalar RECORD generation transport", err)
 		}
@@ -451,7 +451,7 @@ func TestSQLRoutineProcedureResultOwnership(t *testing.T) {
 	if err := call.ValidateStoredProvider(); err != nil {
 		t.Fatal("original procedure call provenance", err)
 	}
-	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, mapper.Type, nil, nil, false, nil, mapper.Procedure, mapper.Collation)
+	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, mapper.Type, nil, nil, false, nil, mapper.Procedure, nil, mapper.Collation)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,11 +17,11 @@ import (
 )
 
 func TestClusterPublicationAtomicity(t *testing.T) {
-	for _, change := range []string{"index", "routine", "epoch", "cancel"} {
+	for _, change := range []string{"index", "routine", "rebuild_index", "epoch", "cancel"} {
 		t.Run(change, func(t *testing.T) {
 			e, s, parent := clusterStorageSeed(t)
 			enginetest.SessionSQL(t, s, "ALTER TABLE t CLUSTER ON b")
-			if change == "routine" {
+			if change == "routine" || change == "rebuild_index" {
 				for _, q := range []string{
 					"CREATE FUNCTION public.cluster_fenced_key(integer) RETURNS integer LANGUAGE SQL IMMUTABLE AS $$SELECT 0; SELECT $1$$",
 					"CREATE INDEX fenced_idx ON t(public.cluster_fenced_key(k))",
@@ -40,6 +40,9 @@ func TestClusterPublicationAtomicity(t *testing.T) {
 			}
 			defer op.Done()
 			statement := enginetest.Statement(t, "CLUSTER t USING a")
+			if change == "rebuild_index" {
+				statement = enginetest.Statement(t, "CLUSTER t USING fenced_idx")
+			}
 			done := make(chan error, 1)
 			go func() { _, err := e.Execute(op, statement, 0, nil); done <- err }()
 			joined := false
@@ -54,7 +57,7 @@ func TestClusterPublicationAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch change {
-			case "index", "routine":
+			case "index", "routine", "rebuild_index":
 				view := e.CatalogRead()
 				var replacement catalog.Descriptor
 				if change == "routine" {
@@ -68,7 +71,11 @@ func TestClusterPublicationAtomicity(t *testing.T) {
 					next.ObjectRevision++
 					replacement = &next
 				} else {
-					ref := enginetest.CatalogRef(t, e, view, "b")
+					name := "b"
+					if change == "rebuild_index" {
+						name = "fenced_idx"
+					}
+					ref := enginetest.CatalogRef(t, e, view, name)
 					old := view.MustRelation(ref.Address)
 					next := *old
 					if err = table.BumpAlterRevision(old, &next); err != nil {

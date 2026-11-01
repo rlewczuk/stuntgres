@@ -176,6 +176,10 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.Mu.Unlock()
 			return err
 		}
+		if c != nil && !index.RoutineSourcesMatch(index.JournalIndexesOrZero(c).Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+			e.Mu.Unlock()
+			return catalog.Conflict{}
+		}
 		mergedRoles := c != nil && sourceCatalog != nil && c.Roles != sourceCatalog.Roles
 		currentRoles := e.RoleStore.Published
 		current, frontier := e.Catalog.State, e.Visibility.CommitSeq()
@@ -375,6 +379,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if err == nil && ref.Epoch() != e.Catalog.State.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
+		if err == nil && c != nil && !index.RoutineSourcesMatch(index.JournalIndexesOrZero(c).Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+			err = catalog.Conflict{}
+		}
 		if err == nil && e.Visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
@@ -512,7 +519,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		for _, p := range prepared {
 			for prior := p.NextRetained; prior != p.Retained; prior = prior.Next {
-				prior.End = e.Visibility.CommitSeq()+1
+				prior.End = e.Visibility.CommitSeq() + 1
 				prior.EndFullXID = e.Visibility.FullXIDLocked(ref)
 				if prior.Version.Born == 0 {
 					prior.Version.Born = prior.End

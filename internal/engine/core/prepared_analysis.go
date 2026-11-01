@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -52,7 +53,8 @@ type Analysis struct {
 	Types             map[ids.ObjectAddress]*catalog.Type
 	FoldTypes         map[ids.ObjectAddress]*sqltype.Descriptor // Executable codec identity, separate from analysis revisions.
 	FoldCallables     map[ids.ObjectAddress]*catalog.Procedure
-	FoldRoleSensitive bool // Represented RLS relations, not a global role Epoch.
+	FoldRelations     map[ids.ObjectAddress]*catalog.Relation // Exact accepted relation predecessors.
+	FoldRoleSensitive bool                                    // Represented RLS relations, not a global role Epoch.
 	Casts             map[catalog.CastPair]*catalog.Cast
 	NeedsReanalysis   bool // A granted definition evolved after this attempt resolved names.
 }
@@ -126,6 +128,16 @@ func (analysis *Analysis) DefinitionsValid(read catalog.Read, env PreparedEnviro
 // operand definition revisions still force analysis, but are not executable
 // dependencies. An executable purpose at the same address always wins.
 func (a *Analysis) FoldsValid(read catalog.Read, env PreparedEnvironment) bool {
+	return a.foldsValid(read, env, false)
+}
+
+// acceptedFoldsValid admits authenticated scalar relation transitions without
+// changing any accepted dependency, provider, expression or typed value.
+func (a *Analysis) acceptedFoldsValid(read catalog.Read, env PreparedEnvironment) bool {
+	return a.foldsValid(read, env, true)
+}
+
+func (a *Analysis) foldsValid(read catalog.Read, env PreparedEnvironment, accepted bool) bool {
 	if !a.EnvironmentValid(env) {
 		return false
 	}
@@ -145,6 +157,14 @@ func (a *Analysis) FoldsValid(read catalog.Read, env PreparedEnvironment) bool {
 		}
 		if DefinitionStamp(d, env) == dep.Revision {
 			continue
+		}
+		if accepted && dep.Purpose == catalog.DefinitionDependency {
+			if relation, ok := d.(*catalog.Relation); ok {
+				original := a.FoldRelations[dep.Ref.Address]
+				if original != nil && original.Revision() == dep.Revision && stored.ScalarRelationSuccessor(read, original, relation) {
+					continue
+				}
+			}
 		}
 		if dep.Purpose == catalog.AggregateSupportDependency {
 			return false

@@ -368,6 +368,11 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		local.RoutineAuthority = env
 		evaluation = &local
 	}
+	var err error
+	publications, err = preserveRoutineOutputs(publications, candidates, rebuildParents, rebuildIndexes)
+	if err != nil {
+		return nil, err
+	}
 	for a, index := range next.Relations() {
 		if index.SQLIndex == nil {
 			continue
@@ -409,6 +414,12 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		}
 		root := roots[a]
 		candidate, produced := candidates[a]
+		if produced && candidate.routineSource != nil && intent {
+			// An authenticated preservation receipt is not newly produced
+			// physical data for a genuine rebuild. The incumbent builder below
+			// supersedes it and evaluates the current executable recipes.
+			produced = false
+		}
 		if produced {
 			if candidate.Root == nil || !candidate.MatchesIndex(index, relations[parent.Address()]) {
 				return nil, catalog.Conflict{}
@@ -567,6 +578,11 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 				return nil, err
 			}
 			if merged != nil {
+				if !rebuild && root != nil {
+					merged.Construction = root.Construction
+				} else if rebuild {
+					merged.Construction = newConstruction(index.SQLIndex)
+				}
 				root = merged
 			}
 			break

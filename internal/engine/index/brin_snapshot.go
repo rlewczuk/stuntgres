@@ -56,5 +56,5 @@ func (snapshot *Snapshot) transportBrinRoot(ctx context.Context, view catalog.Re
 		}
 		next.Ranges[ordinal] = r
 	}
-	return &storage.IndexRoot{Brin: &next}, ctx.Err()
+	return &storage.IndexRoot{Construction: source.Root.Construction, Brin: &next}, ctx.Err()
 }

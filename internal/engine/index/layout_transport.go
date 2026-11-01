@@ -111,7 +111,7 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 			next := *root.Brin
 			next.Bindings, next.Storage, next.Generation = bindings, targetStore.IndexIdentity(), targetStore.Generation
 			next.Prefix, next.Ends = len(targetStore.Versions), targetStore.Ends
-			root = &storage.IndexRoot{Brin: &next}
+			root = &storage.IndexRoot{Construction: transportConstruction(root, lineage.Source, lineage.Target), Brin: &next}
 			RetainIndexBuild(changes, lineage.Target, targetStore, root)
 			continue
 		}
@@ -144,7 +144,7 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 			if err := next.CaptureRowEntries(evaluation.Context, lineage.Target.SQLIndex); err != nil {
 				return nil, false, err
 			}
-			root = &storage.IndexRoot{Hash: &next}
+			root = &storage.IndexRoot{Construction: transportConstruction(root, lineage.Source, lineage.Target), Hash: &next}
 		} else {
 			for _, entry := range root.Entries {
 				if err := evaluation.Context.Err(); err != nil {
@@ -159,7 +159,11 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 				}
 			}
 			if !indexLayoutSlotsUnchanged(lineage.Source, lineage.SourceParent, lineage.TargetParent) {
-				root = NewLogicalIndexRoot(lineage.Target.SQLIndex, root.Entries)
+				root = logicalIndexRoot(lineage.Target.SQLIndex, root.Entries, transportConstruction(root, lineage.Source, lineage.Target))
+			} else if !SameIndexKeySemantics(lineage.Source, lineage.Target) {
+				next := *root
+				next.Construction = transportConstruction(root, lineage.Source, lineage.Target)
+				root = &next
 			}
 		}
 		RetainIndexBuild(changes, lineage.Target, targetStore, root)
@@ -248,14 +252,14 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 			if err != nil {
 				return err
 			}
-			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+			root = &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else if index.SQLIndex.Method == catalog.BrinMethod {
 			bindings, err := BindBrinIndex(view, parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
 			width, _ := BrinOptions(index)
-			root = &storage.IndexRoot{Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+			root = &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
 			if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
 				return err

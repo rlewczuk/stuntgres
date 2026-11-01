@@ -151,5 +151,5 @@ func MergeBrinIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 	if !materialize {
 		return nil, evaluation.Context.Err()
 	}
-	return &storage.IndexRoot{Brin: root}, evaluation.Context.Err()
+	return &storage.IndexRoot{Construction: old.Construction, Brin: root}, evaluation.Context.Err()
 }

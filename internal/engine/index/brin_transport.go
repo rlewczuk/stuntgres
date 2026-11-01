@@ -49,5 +49,5 @@ func (b *AlterIndexBuild) brinBaselineRoot(evaluation *exec.Context, index *cata
 			}
 		}
 	}
-	return &storage.IndexRoot{Brin: root}, evaluation.Context.Err()
+	return &storage.IndexRoot{Construction: b.Root.Construction, Brin: root}, evaluation.Context.Err()
 }

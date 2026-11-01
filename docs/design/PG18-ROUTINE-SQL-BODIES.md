@@ -152,6 +152,48 @@ control in quoted functions receives the SQL-function restriction; utility
 commands in standard bodies fail at definition. Other unsupported utility
 paths retain the existing honest native boundary.
 
+The exact DEFAULT recipe retained by an accepted portal may select its original
+standard program only through paired authenticated routine/relation lineage and
+current invocation admission. It uses this same executor with fresh activation
+and frame, not a historical program registry or a second interpreter. Ordinary
+body/default manifests, current EXECUTE/type/provider checks and all unrelated
+declaration equality remain strict; no volatile result is evaluated at Bind.
+The retained recipe must be the complete result of source-bound typed preparation
+of that canonical DEFAULT, with original lexical call paths preserved separately
+from transformed argument trees. Current owner metadata controls any definer
+environment even when authenticated executable body lineage selects a predecessor.
+Body-source compatibility includes only `Display.Source` with the other body
+fields; no whole display record, language/provider contract or independent child
+manifest is substituted.
+Source-call/path lineage and runtime call identity are separately authenticated:
+dispatch uses only that sealed occurrence's actual prepared descriptor and
+immutable argument/assembly/signature backing. Genuine preparation may fold
+arguments without changing their original source paths or retaining a frame.
+
+The exact **“1: Bounded current PL body”** authorization supersedes predecessor
+body choice only for a closed source-owner-minted PL provider-call mode. The
+canonical DEFAULT owner validates its actual original typed PL definition and
+genuine language/handler authority before sealing that mode on the original
+source occurrence token. One real typed preflight binds it to the exact prepared
+derivative; spelling, display language, a caller flag, a common signature layout
+or a current lookup cannot confer mode. Standard and quoted SQL still execute
+their authenticated predecessor body.
+
+At the same existing invocation admission seam, complete original-source,
+actual-prepared/backing and paired routine/relation lineage proofs plus current
+ACL, owner, ABI/type/result, strictness, volatility, configuration, language,
+handler, provider, transform, native/transaction and live-owner checks select the
+current PL executable only for that sealed mode. The original prepared arguments,
+assembly/Usage/path/artifact and accepted generation are not rewritten. Existing
+PL specialization/compilation consumes the selected current definition through
+the same executor and fresh frame; no second interpreter/store is added.
+Current body commands and hidden argument defaults retain independent manifests;
+they never inherit the outer DEFAULT's privilege. Nested/sibling written calls
+have separate sealed modes. Provider-to-SQL or incompatible capability changes,
+forged/recombined mode/source/prepared/path, missing or discarded paired lineage,
+wrong phase/operation and retired owners reject, with no fallback or cached grant.
+
+
 Only the actual terminal nonvoid SELECT or DML RETURNING supplies a scalar.
 Its fresh executing binding must have one Assignment-compatible column before
 producers run, even with empty data. Eligible final SELECT selects first-row

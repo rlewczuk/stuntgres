@@ -147,7 +147,7 @@ func RemapVacuumIndex(ctx context.Context, root *IndexRoot, old []RowVersion, c 
 		}
 		return c.Positions[p], nil
 	}
-	next := &IndexRoot{}
+	next := &IndexRoot{Construction: root.Construction}
 	if root.Entries != nil {
 		next.Entries = make([]IndexEntry, 0, len(root.Entries))
 		for _, entry := range root.Entries {

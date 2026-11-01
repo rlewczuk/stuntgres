@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
@@ -127,9 +128,9 @@ func (r *clusterRecipeRefresh) definition(node expr.Expr, dependencies []ids.Obj
 	return stored.MapExpression(r.evaluation.Catalog, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, refresh)
 }
 
-func (r *clusterRecipeRefresh) expression(node expr.Expr, dependencies []ids.ObjectRef) (expr.Expr, expr.Expr, bool, error) {
+func (r *clusterRecipeRefresh) expression(node expr.Expr, dependencies []ids.ObjectRef, physicalChanged bool) (expr.Expr, expr.Expr, bool, error) {
 	definition, changed, err := r.definition(node, dependencies)
-	if err != nil || !changed {
+	if err != nil || !changed && !physicalChanged {
 		return node, nil, false, err
 	}
 	local := index.RecipeEvaluation(r.evaluation, dependencies, r.parent)
@@ -146,19 +147,23 @@ func (r *clusterRecipeRefresh) expression(node expr.Expr, dependencies []ids.Obj
 	return definition, execution, true, nil
 }
 
-func refreshClusterIndexRecipes(e *core.Engine, evaluation *exec.Context, parent *catalog.Relation, stage *core.CatalogStage) error {
+func refreshClusterIndexRecipes(e *core.Engine, evaluation *exec.Context, parent *catalog.Relation, stage *core.CatalogStage, journal *session.Journal) error {
 	refresh := clusterRecipeRefresh{evaluation: evaluation, parent: parent, stage: stage}
 	for address, relation := range stage.StageRead().Relations() {
 		if relation.SQLIndex == nil || relation.SQLIndex.Parent != parent.Address() {
 			continue
 		}
+		e.Mu.Lock()
+		root := index.EffectiveRoot(e.Storage.IndexRoots, journal, address)
+		e.Mu.Unlock()
+		physicalChanged := !index.ConstructionMatches(root, relation)
 		definition := *relation.SQLIndex
-		changed, keysCopied := false, false
+		changed, keysCopied := physicalChanged, false
 		for i, key := range definition.Keys {
 			if key.Derived == nil {
 				continue
 			}
-			source, execution, replaced, err := refresh.expression(key.Derived.Definition, key.Derived.Dependencies)
+			source, execution, replaced, err := refresh.expression(key.Derived.Definition, key.Derived.Dependencies, physicalChanged)
 			if err != nil {
 				return err
 			}
@@ -175,7 +180,7 @@ func refreshClusterIndexRecipes(e *core.Engine, evaluation *exec.Context, parent
 			changed = true
 		}
 		if predicate := definition.Predicate; predicate != nil {
-			source, execution, replaced, err := refresh.expression(predicate.Definition, predicate.Dependencies)
+			source, execution, replaced, err := refresh.expression(predicate.Definition, predicate.Dependencies, physicalChanged)
 			if err != nil {
 				return err
 			}
@@ -188,12 +193,20 @@ func refreshClusterIndexRecipes(e *core.Engine, evaluation *exec.Context, parent
 		if !changed {
 			continue
 		}
-		next := *relation
-		next.SQLIndex = &definition
 		base, ok := stage.Base.Relation(address)
 		if !ok {
 			return ids.ErrCatalogReplaced
 		}
+		next := *relation
+		if physicalChanged {
+			if stage.Indexes().Rebuilds == nil {
+				stage.Indexes().Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation)
+			}
+			// Rebuild intent observes the exact predecessor, not a candidate
+			// already changed by this command's clustering preference.
+			stage.Indexes().Rebuilds[address] = base
+		}
+		next.SQLIndex = &definition
 		if relation.Revision() == base.Revision() {
 			if err := table.BumpAlterRevision(relation, &next); err != nil {
 				return err

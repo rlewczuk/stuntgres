@@ -48,6 +48,24 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 	if err := EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
+	if call, ok := expression.(*defaultPreparationCall); ok {
+		return call.preflight(c, decisiveDefaults, false)
+	}
+	if root, ok := expression.(*acceptedDefaultRoot); ok {
+		return preflightAcceptedDefault(c, root, decisiveDefaults)
+	}
+	if call, ok := expression.(*acceptedDefaultCall); ok {
+		local := *c
+		local.defaultCall = call
+		if _, err := local.acceptedDefaultInvocation(call); err != nil {
+			return nil, false, err
+		}
+		if _, _, err := preflightCoercionNode(&local, call.original, decisiveDefaults); err != nil {
+			return nil, false, err
+		}
+		c.PreparedDomainChecks = local.PreparedDomainChecks
+		return call, false, nil
+	}
 	recipe, err := ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err

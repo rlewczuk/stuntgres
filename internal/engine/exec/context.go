@@ -120,6 +120,10 @@ type EvalAdmission struct {
 	RoutineConsumer    *catalog.Relation
 	RoutineProgram     *RoutineProgram // Borrowed serial preparation footprint, never row-owned.
 	RoutineBodyContext RoutineBodyContext
+	AcceptedDefault    *AcceptedDefault // Exact default origin only; never retained authority.
+	DefaultOccurrence  DefaultOccurrence
+	defaultActivation  *defaultActivation
+	defaultCall        *acceptedDefaultCall
 	DomainPhase        ids.CommandIdentity // Existing transaction/command identity, not a permission result.
 }
 

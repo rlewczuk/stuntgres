@@ -17,7 +17,7 @@ func RemapStatisticsExpressions(view catalog.Read, d *catalog.Statistics, ref fu
 		mapper.Collation = collations[0]
 	}
 	retag := func(node expr.Expr) (expr.Expr, bool, error) {
-		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, collations...)
+		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, nil, collations...)
 	}
 	return reownStatisticsExpressions(d, ref, retag)
 }

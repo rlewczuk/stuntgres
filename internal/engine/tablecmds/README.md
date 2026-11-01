@@ -49,12 +49,14 @@ Explicit row-generation context and evaluator context must agree.
   recipes require baseline targeted overlay rebuilding under the restricted
   table-owner environment, safe initial path and detached command-local settings.
   Every exit restores the caller's identity and presentation.
-  `cluster_recipes.go` follows original validated stored call identities to
-  current compatible routine declarations, privately refreshes both definition
-  and execution trees, and captures exact procedure read fences before cooking.
-  It preserves unrelated operator/type/provider carriers and does not weaken
-  ordinary stored-program or replacement lifetime checks. Existing-index
-  maintenance retains the current routine's actual volatility, recomputing exact
+  `cluster_recipes.go` compares index-owned physical construction provenance with
+  current logical recipes, including changes already reminted by routine
+  publication. It follows validated stored call identities to current compatible
+  declarations, cooks changed execution trees and records selected rebuild
+  intents with exact procedure read fences. Historical physical recipes supply
+  structural evidence only, never runtime providers. Unchanged siblings remain
+  untouched. Ordinary stored-program and replacement lifetime checks stay strict.
+  Existing-index maintenance retains the current routine's actual volatility, recomputing exact
   call properties even when an attribute transition lowers it back to IMMUTABLE.
   IMMUTABLE admission belongs to new CREATE/ALTER expressions and predicates,
   including cloned declarations, not an eligibility rule reapplied during CLUSTER.

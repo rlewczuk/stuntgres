@@ -39,8 +39,8 @@ type sqlRoutineAnalysis struct {
 }
 
 // InvokeSQLRoutine runs a SQL-language routine body inside the statement.
-func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) (sqltype.Value, error) {
-	return h.scope().invokeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, constantPlanning, nil)
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, accepted *exec.AcceptedDefaultInvocation) (sqltype.Value, error) {
+	return h.scope().executeSQLRoutine(d, frame, resultUsage, nil, inputCollation, assignmentPlanning, constantPlanning, nil, explicitSQLRoutineAdmission, accepted)
 }
 
 func (h *statementHost) InvokeSQLRoutineSet(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, collation sqltype.CollationRef, assignmentPlanning, constantPlanning bool) ([]sqltype.Value, error) {
@@ -87,24 +87,35 @@ const (
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires
 // a driver connection, starts a root command, calls Finish or ends the operation.
 func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value) (value sqltype.Value, err error) {
-	return parent.executeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, constantPlanning, values, explicitSQLRoutineAdmission)
+	return parent.executeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning, constantPlanning, values, explicitSQLRoutineAdmission, nil)
 }
 
 // executeSQLRoutine shares descriptor validation, body authority and unwind.
 // Catalog-selected FDW invocation omits only the explicit-call EXECUTE check.
-func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission) (value sqltype.Value, err error) {
+func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission, accepted *exec.AcceptedDefaultInvocation) (value sqltype.Value, err error) {
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}
 	defer parent.leaveSQLRoutine()
 	e := parent.Engine()
+	environment := d
 	e.Mu.Lock()
 	auth, err := parent.RoutineAuthorizationLocked()
 	if err == nil {
 		var current *catalog.Procedure
-		current, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
+		if accepted != nil {
+			environment, current, err = accepted.Validate(auth.routineAccess(), HostOf(parent), d)
+			if err == nil {
+				d = current
+			}
+		} else {
+			current, err = exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
+			if err == nil {
+				d = current
+				environment = current
+			}
+		}
 		if err == nil {
-			d = current
 			if supportOwner != nil {
 				current, failure := exec.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, supportOwner)
 				if failure != nil {
@@ -147,7 +158,7 @@ func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *pro
 	previousAtomic := parent.plAtomic
 	parent.plAtomic = previousAtomic || d.RoutineKind != catalog.ProcedureRoutine || d.SecurityDefiner || d.Configuration != nil || parent.plSubtransactionActive()
 	defer func() { parent.plAtomic = previousAtomic }()
-	leaveEnvironment, err := parent.enterRoutineEnvironment(d)
+	leaveEnvironment, err := parent.enterRoutineEnvironment(environment)
 	if err != nil {
 		return value, err
 	}

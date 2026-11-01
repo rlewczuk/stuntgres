@@ -43,6 +43,9 @@ type Preparation interface {
 	// ValidInstalledText reports whether an installed text call still names
 	// its captured extension provider.
 	ValidInstalledText(n plan.InstalledTextExpr) bool
+	AcceptedDefaultRoutine(catalog.Read, *AcceptedDefault, AcceptedDefaultCall) (*catalog.Procedure, error)
+	AcceptedDefaultSource(catalog.Read, *AcceptedDefault) error
+	MapAcceptedDefaultChildren(catalog.Read, expr.Expr, func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error)
 }
 
 // preparation is installed by the engine at package initialization; until
@@ -110,5 +113,16 @@ func (missingPreparation) StoredReferenceValid(catalog.Read, *catalog.Relation, 
 }
 
 func (missingPreparation) ValidInstalledText(plan.InstalledTextExpr) bool {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) AcceptedDefaultRoutine(catalog.Read, *AcceptedDefault, AcceptedDefaultCall) (*catalog.Procedure, error) {
+	panic("exec: preparation not installed")
+}
+func (missingPreparation) MapAcceptedDefaultChildren(catalog.Read, expr.Expr, func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) AcceptedDefaultSource(catalog.Read, *AcceptedDefault) error {
 	panic("exec: preparation not installed")
 }

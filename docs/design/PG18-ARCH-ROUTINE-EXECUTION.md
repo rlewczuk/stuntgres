@@ -18,10 +18,10 @@ The implemented baseline remains narrow: CREATE TABLE, INSERT VALUES and single-
 
 | Owner | Sole authority | Routine integration |
 |---|---|---|
-| CATALOG | ObjectRef/revision, descriptors, dependencies, BoundPlan validity and publication | Own routine definitions, invalidate programs/bindings after relevant changes; never retain a permission token or data snapshot in a plan |
+| CATALOG | ObjectRef/revision, descriptors, dependencies, BoundPlan validity and publication | Own routine definitions and exact publication lineage; invalidate ordinary programs/bindings after relevant changes, admitting only the exact accepted DEFAULT lifetime described in §5.1; its closed source-owner PL provider mode alone may choose the freshly validated current body instead of the predecessor; never retain a permission token or data snapshot |
 | TYPE / EXPR | sqltype.Usage/Value, coercions, callable/operator resolution, indexed EvalFrame evaluation | Resolve signatures and defaults, prepare coercions, expose a routine-call adapter; no PL-specific type system |
 | QUERY | ColumnDescriptor, FrameLayout, common RowCursor/RowResult, finite eager public output | Consume routine scalar/row/set adapters and internal statements; Rows.Schema() is authoritative |
-| SESSION | Physical session, pointer-owned *Operation, prepared records, portals and terminal cancellation | Admit once for the public request; no recursive connection acquisition or child Operation.Done |
+| SESSION | Physical session, pointer-owned *Operation, prepared records, portals and terminal cancellation | Own accepted typed DEFAULT artifacts separately from reusable definitions; admit once for the public request, with no recursive connection acquisition or child Operation.Done; per-occurrence mode/source/prepared evidence stays in that same accepted owner, never a retained activation, authority or replacement graph |
 | TX | Persistent TransactionOwner, current incarnation, conditional views, write stages, marks, participant/end lifecycle | Add child scopes, unnamed exception marks and eligible segment rotation (§6); no frame-owned TxState or publication |
 | AUTH | Immutable AuthorizationView, coherent ACL/owner/role checks and scoped identity | Ordinary call authorization or narrowly trusted manager entry (§7); no copied mutable RoleState |
 | Routine execution | Private invocation slots, lexical control, call-local status/handled diagnostic and result adaptation | Own balanced enter/pop and temporary resources only |
@@ -137,6 +137,76 @@ CATALOG BoundPlan owns reference/dependency/type/environment validity and reanal
 Retain original SQL/body text, occurrence spans and parameter coordinate/type recipes for reanalysis and diagnostics. Frozen public prepared parameter/output description remains authoritative; revalidation cannot silently change public prepared shape or types. Record shape/type changes preserve first-analysis expectations and release-defined errors; dynamic SQL is the fresh-analysis alternative, not a promise that all cached statements transparently retype.
 
 Relevant DDL/type/catalog revisions, resolution/search_path changes and statistics changes cause the shared PREPARE-consistent reanalysis/replan. Merely creating a same-name object earlier in an unchanged search_path does **not**, by itself, promise automatic rebinding of a previously resolved reference. Do not lookup every name afresh each invocation, nor execute stale pointer storage after ALTER/DROP/epoch replacement. Ordinary authorization is reevaluated at execution; namespace USAGE retains AUTH's previously-looked-up statement caveat. Preparation stores no permission token and no persistent data snapshot, although snapshot-requiring semantic analysis can establish TX's higher-isolation pin. Generic/custom physical planning heuristics are not routine architecture obligations.
+
+For an exact DEFAULT occurrence already prepared by successful protocol Bind,
+the existing accepted binding may retain only its owned immutable typed scalar
+recipe and original occurrence/source/dependency provenance. Authenticated paired
+relation-and-routine publication can admit the captured predecessor body through
+the same current invocation path; current EXECUTE, owner, ABI/type/language/
+provider/transform, native and transaction checks remain live. Private root/call
+identity seals and operation-local invocation capability prevent a copied recipe
+or an ordinary same-address call from borrowing this lifetime. It carries no
+permission decision, command graph, Context/Host/frame, storage or scratch.
+DEFAULT evaluation remains demand-driven at Execute, including volatile calls
+and empty sources. Hidden argument defaults and child-body calls keep their own
+independent manifests. Close, transaction/savepoint retirement and native
+replacement veto use; reusable-definition retirement independently prevents old
+accepted groups from republishing. All other stale-carrier rules remain strict.
+
+This lifetime requires a source-bound preparation operation, not a constructor
+that seals an arbitrary prepared expression. The owner reads the exact canonical
+DEFAULT root, annotates original calls and runs the existing typed preflight once
+before privately transferring its complete result. Lexical source tokens survive
+legitimate folding/pruning; they confer no invocation privilege during Bind and
+are removed from its ordinary result. Invocation resolves each recorded original
+path through paired publication rather than searching for an equal call. Current
+validated owner metadata supplies SECURITY DEFINER environment entry independently
+of the authenticated executable recipe; ownership transfer cannot preserve the
+old owner's execution authority. Ordinary declaration matching stays unchanged.
+That source-call/path proof does not select runtime call data. Invocation also
+authenticates the same occurrence's actual prepared descriptor, scalar metadata
+and immutable argument/assembly/signature backing; a legitimate value copy is
+expected, independently rebuilt same-provider input is not. The source and
+prepared argument trees may differ only because the one owned preparation
+derived them. Parent call selection is cleared while traversing/evaluating
+arguments and child bodies; written nested wrappers select their own occurrence,
+while hidden defaults retain ordinary declaration-owned admission.
+
+The exact authorization **“1: Bounded current PL body”** changes only executable
+body choice for a closed source-owner-minted provider mode. During canonical
+source-bound DEFAULT preparation, the existing owner validates the actual
+original typed PL definition, its catalog descriptor, language execution and
+genuine call handler. A private closed mode plus original definition identity
+is sealed on the exact source call token and transferred only through that one
+successful preflight to its actual prepared wrapper. Kind/spelling/Display,
+caller flags, common-layout projection and late current lookup grant no mode.
+The ordinary authenticated mode continues to execute its predecessor, including
+standard and quoted SQL. Unknown/zero mode rejects rather than choosing a body.
+
+The existing short-lived invocation validator returns separately current
+environment and selected executable after complete source/prepared, paired
+routine/relation lineage, accepted-owner/generation/operation and present
+ACL/principal/type/result/ABI/strictness/volatility/configuration/language/handler/
+provider/transform/native/transaction validation. Only closed PL mode selects
+that freshly validated compatible current descriptor as executable. The original
+argument frame, immutable call assembly and result Usage remain unchanged. Core
+makes this local choice inside existing admission, before strictness/policy/cache
+and body dispatch, then invokes the same specialization/compiler/executor with
+fresh activation. No new interpreter, historical program store or permission
+cache is introduced. Current SECURITY DEFINER owner is authoritative in either
+mode; a provider/language/handler/SQL-kind or incompatible declaration transition
+rejects rather than switching policy.
+
+RoutineProgram records, includes and deduplicates exact wrapper identity and its
+sealed mode, never same-address privilege. Readmit repeats paired and current
+authority checks under the actual recorded actor after waits; it retains no live
+invocation token. InitializePhase still rejects bounded evidence without the
+exact DEFAULT selection. Parent selection is cleared across actual arguments,
+hidden formal defaults and SQL/PL body entry: written nested/sibling wrappers
+choose their own modes, hidden/body manifests and CHECK/FK/other phases gain none.
+Copied or recombined source/mode/prepared/path/root/owner, invalid provider chains
+and retirement between planning, readmission or dispatch reject before effects.
+
 
 ### 5.2 Preproduction demand and mandatory effects
 

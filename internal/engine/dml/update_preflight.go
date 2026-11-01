@@ -17,6 +17,7 @@ func PreflightUpdate(c *exec.Context, original *analyze.UpdateBinding, sourceDem
 func PreflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBinding, planConstants bool, sourceDemand ...func(*analyze.UpdateBinding) (plan.Node, error)) (*analyze.UpdateBinding, error) {
 	result := original
 	var assignments []expr.Expr
+	var origins []analyze.DefaultOrigin
 	targets, err := exec.PreflightArrayTargetsWithPlanning(c, original.ArrayTargets, planConstants)
 	if err != nil {
 		return nil, err
@@ -27,14 +28,22 @@ func PreflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		result = &private
 	}
 	for i, expression := range original.Assignments {
-		owner := c
-		var recipe exec.Context
+		var folded expr.Expr
+		var changed bool
+		var err error
 		if len(original.DefaultOrigins) != 0 && original.DefaultOrigins[i].Requested {
-			recipe = *c
-			analyze.ApplyDefaultOrigin(original.DefaultOrigins[i], &recipe)
-			owner = &recipe
+			recipe := *c
+			recipe.DefaultOccurrence.Kind, recipe.DefaultOccurrence.Slot = 1, i
+			var selectedOrigin analyze.DefaultOrigin
+			folded, selectedOrigin, changed, err = analyze.PrepareDefault(&recipe, expression, original.DefaultOrigins[i], exec.DefaultPreparationPolicy{Update: true, PlanConstants: planConstants})
+			selectedOrigin.Occurrence = recipe.DefaultOccurrence
+			if origins == nil {
+				origins = append([]analyze.DefaultOrigin(nil), original.DefaultOrigins...)
+			}
+			origins[i] = selectedOrigin
+		} else {
+			folded, changed, err = exec.PreflightUpdateExpression(c, expression, planConstants)
 		}
-		folded, changed, err := exec.PreflightUpdateExpression(owner, expression, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -49,6 +58,13 @@ func PreflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBindin
 		private := *result
 		private.Assignments = assignments
 		result = &private
+	}
+	if origins != nil {
+		if result == original {
+			private := *original
+			result = &private
+		}
+		result.DefaultOrigins = origins
 	}
 	if original.Predicate != nil {
 		folded, changed, err := exec.PreflightUpdateExpression(c, original.Predicate, planConstants)

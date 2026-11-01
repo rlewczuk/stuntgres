@@ -39,5 +39,6 @@ type DDLHost interface {
 	BindSQLRoutine(auth ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment, validateBody bool) error
 	BindSQLDefaults(ddl.Authority, *catalog.Procedure, []parser.RoutineParameter, sqltype.InputEnvironment) error
 	MaterializeHostConversions() error
-	RefreshTransformConsumers(catalog.Read,*catalog.Transform) ([]catalog.Descriptor,error)
+	RefreshTransformConsumers(catalog.Read, *catalog.Transform) ([]catalog.Descriptor, error)
+	RefreshStoredRoutineConsumers(catalog.Read, *catalog.Procedure, *catalog.Procedure) error
 }

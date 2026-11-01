@@ -67,6 +67,43 @@ func routineDescriptorLifetime(auth RoutineAccess, dependencies []catalog.Expres
 // have their separate source/project demand point: a pruned FROM source must not
 // acquire EXECUTE merely because its arguments were inspected during planning.
 func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComputation bool) error {
+	if call, ok := node.(*defaultPreparationCall); ok {
+		if !call.valid() {
+			return ids.ErrCatalogReplaced
+		}
+		return AdmitRoutineCall(c, call.prepared, scalarPlanning, constantComputation)
+	}
+	if root, ok := node.(*acceptedDefaultRoot); ok {
+		local := *c
+		activation, err := root.artifact.activate(&local, root)
+		if err != nil {
+			return err
+		}
+		defer func() { activation.active = false }()
+		local.defaultActivation = activation
+		return AdmitRoutineCall(&local, root.children[0], scalarPlanning, constantComputation)
+	}
+	if call, ok := node.(*acceptedDefaultCall); ok {
+		local := *c
+		local.defaultCall = call
+		if _, err := local.acceptedDefaultInvocation(call); err != nil {
+			return err
+		}
+		return AdmitRoutineCall(&local, call.original, scalarPlanning, constantComputation)
+	}
+	// Only the wrapper's exact prepared value-copy may carry its selection
+	// through descriptor admission. Other lexical nodes have ordinary authority.
+	if c.defaultCall != nil {
+		local := *c
+		local.defaultCall = nil
+		if call, ok := node.(plan.SQLRoutineExpr); ok {
+			if !c.defaultCall.matchesPrepared(call) {
+				return ids.ErrCatalogReplaced
+			}
+			local.defaultCall = c.defaultCall
+		}
+		c = &local
+	}
 	recipe, recipeErr := ExpressionRecipeDescriptor(node)
 	if recipeErr != nil {
 		return recipeErr
@@ -177,6 +214,13 @@ func CheckRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies [
 }
 
 func checkRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, purpose catalog.DependencyPurpose) error {
+	if call := c.defaultCall; call != nil {
+		if purpose != catalog.DefinitionDependency || call.original.Procedure != captured {
+			return ids.ErrCatalogReplaced
+		}
+		_, err := c.acceptedDefaultInvocation(call)
+		return err
+	}
 	if c.RoutineChecks != nil {
 		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, purpose)
 	}
@@ -314,6 +358,7 @@ func evaluateAdmittedPlanningExpression(c *Context, node expr.Expr) (sqltype.Val
 // Only evaluator-local stack copies select graft ancestry. A user replacement
 // cannot inherit the enclosing stored node's manifest or relation owner.
 func SelectExpressionRecipe(c *Context, reference expr.RoutineRecipeReference) error {
+	c.AcceptedDefault, c.defaultActivation, c.defaultCall = nil, nil, nil
 	c.RoutineGraft = reference != nil
 	c.RoutineGraftSource = reference
 	c.RoutineRecipe = reference != nil
@@ -372,6 +417,14 @@ func StrictScalarRoutine(routine *catalog.Procedure) bool {
 // Expanded variadic elements form one non-NULL array argument. A NULL
 // element is not a NULL formal; explicit VARIADIC retains the array child.
 func StrictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
+	if wrapped, ok := node.(*defaultPreparationCall); ok {
+		StrictRoutineArguments(wrapped.prepared, visit)
+		return
+	}
+	if wrapped, ok := node.(*acceptedDefaultCall); ok {
+		StrictRoutineArguments(wrapped.original, visit)
+		return
+	}
 	if expression, ok := node.(plan.SQLRoutineExpr); ok {
 		for child, slot := range expression.ChildSlots {
 			if !expression.InputMap[slot].Expanded {

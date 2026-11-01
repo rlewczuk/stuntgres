@@ -30,7 +30,9 @@ type DefaultOrigin struct {
 	Definition catalog.ColumnDefault
 	Consumer   *catalog.Relation
 	Fold       exec.FoldOrigin
-	Requested  bool // UPDATE explicitly selected DEFAULT, including fresh NULL.
+	Requested  bool                  // UPDATE explicitly selected DEFAULT, including fresh NULL.
+	Accepted   *exec.AcceptedDefault // Exact accepted recipe, never current authority.
+	Occurrence exec.DefaultOccurrence
 }
 
 type RegtypeConstant struct {

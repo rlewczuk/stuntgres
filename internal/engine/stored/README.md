@@ -569,10 +569,12 @@ host methods.
   Quoted source stays soft/original; no SQL-source rewrite or alias registry.
   `ValidateRoutineCallIdentities` validates frozen SQL calls without replacing
   original handles: a captured descriptor and its dependency revision form one
-  lifetime. Admission checks the original manifest, current immutable declaration
-  and current EXECUTE; only hard recipes follow mutable revisions. Original-source
-  revision fences remain. `TestRoutineAlterFrozenManifestRetention` covers
-  retained handles/manifests and rejection of changed result/signature/SQL payloads.
+  lifetime. Ordinary admission checks the original manifest, current immutable
+  declaration and current EXECUTE; only hard recipes follow mutable revisions.
+  The exact accepted DEFAULT lifetime below additionally permits authenticated
+  predecessor execution or its closed source-owner current-PL provider mode,
+  never a general stale-call exception. Original-source and all ordinary
+  declaration/remap/fold revision fences remain.
   Frozen action planning/runtime sources borrow that original manifest.
   Rule conditions/actions select their exact live rule slot and original
   presentation before NEW substitution. Grafted scalar, window and declaration-
@@ -631,6 +633,48 @@ host methods.
   changing invoker authority.
   `TestRoutineAlterAggregateHardPhaseAuthority` checks renamed aggregate/support
   execution under a support-denied invoker and owner EXECUTE revoke/regrant.
+- **Scalar routine publication.** `RefreshStoredScalarRoutine` is an explicit
+  same-owner/epoch predecessor-to-successor operation for table DEFAULT/CHECK and
+  index definition/execution trees, including defaults reached by FK actions.
+  Both declarations and the original owning descriptors must validate; affected
+  occurrences retain their selected identity, argument/result usages and collation.
+  The existing scalar mapper rebuilds only authorized calls and enclosing
+  properties; CHECK dependency stamps move with their executable carriers.
+  Unaffected backing is shared. The complete private descriptor set validates
+  before return and joins the caller's catalog stage, without evaluating bodies,
+  rewriting rows/index entries or mutating either supplied read. This capability
+  is not available through ordinary remap or stale-carrier validation.
+  The returned opaque `ScalarRoutinePublication` retains immutable original and
+  completed reads and exact mapper outputs. Its `IndexSource` proof is consumed
+  by the index owner to authenticate physical-root preservation; same-address
+  copies and ordinary carrier validation cannot mint that capability.
+  Each exact mapper output also retains the opaque operation as relation lineage.
+  `ScalarRelationSuccessor` follows every exact output/predecessor link to a saved
+  original relation under the same owner/epoch; copied targets, missing links,
+  unrelated edits and abandoned rollback branches cannot consume that proof.
+  This relation proof alone grants no executable authority. For an original
+  accepted DEFAULT, `AcceptedDefaultRoutine` additionally authenticates the exact
+  attribute/default/source call at its sealed original lexical path and the same
+  operations' before/after routine chain. Paths come from the canonical source
+  before actual typed preparation, not final-tree positions or global call
+  equality. Prepared argument payloads derive only from that source-bound
+  operation; ABI assembly metadata alone is not derivation proof.
+  Original path resolution and source enumeration use the same mapper's
+  `MapExpressionChildren` slots as preparation tagging, including nil slots;
+  the callback owns each direct subtree and reports its actual changed outcome.
+  Ordinary recursive mapping retains its existing behavior. The prepared
+  descriptor/argument backing is authenticated separately at runtime, never
+  substituted for the original source call in this lineage check.
+  It returns current declaration identity for live provider/ACL, owner-environment
+  and sealed-mode validation, not independent authority to substitute a body.
+  The narrow executable comparison restores only authenticated body fields,
+  including `Display.Source`, never display language or unrelated declaration
+  fields. Harmless owner/ACL COW remains legal. The existing accepted binding owns
+  the original source-bound typed recipe, mode and exact definition association;
+  exec's authenticated invocation alone selects predecessor or compatible current
+  PL executable without changing original prepared arguments or backing.
+  Ordinary remap, current-carrier matching, fold dependencies and index/output
+  receipt consumers remain strict and independent.
 - **Historical routine remapping.** Raw mapping preserves original declaration
   carriers and exact dependency revisions; an address change is not SQL reanalysis.
   Each builtin aggregate slot, window and scalar/body capture uses the scoped

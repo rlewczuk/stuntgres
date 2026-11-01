@@ -68,7 +68,68 @@ analysis contracts above.
 
 Every executable kind contributes dependencies/properties and returns a valid Value matching its result descriptor. Usage carries occurrence typmod/collation; these are not per-cell descriptors. Zero Value is invalid, not NULL; SQL NULL retains a concrete type. Nullability is unknown unless proved. Deduplicate statement `PlanDependency` values for columns/types/casts/callables/providers/collations. Derived outputs invent no catalog identities. Stored definitions convert these to catalog edges; prepared dependencies remain ephemeral and cannot block DROP RESTRICT.
 
-Lifecycle: whole-input parse → private analysis → type/scope/parameter/dependency finalization → immutable plan/StatementDescription → catalog validity/reanalysis at prepared use → private execution → retained result or staged publication. Direct execution analyzes fresh. Prepared use follows catalog §6's owner/epoch/revision/environment validity and fixed parameter/result shape; complete replacement only, no stale execution or metadata mutation on failed reanalysis. Original SQL remains with statement/plan, never runtime substring evaluation.
+Lifecycle: whole-input parse → private analysis → type/scope/parameter/dependency finalization → immutable plan/StatementDescription → catalog validity/reanalysis at prepared use → private execution → retained result or staged publication. Direct execution analyzes fresh. Reusable prepared definitions follow catalog §6's owner/epoch/revision/environment validity and fixed parameter/result shape; install only complete replacements, with no stale execution or metadata mutation on failed reanalysis. Original SQL remains with the statement, never runtime substring evaluation.
+
+An existing accepted portal may additionally own the exact immutable typed
+DEFAULT recipe prepared by its successful Bind. This bounded lifetime retains
+original source, physical attribute/default identity, lexical call occurrences
+and dependency evidence, not a command/query graph, activation, frame, scratch,
+data root or authority. Exact paired routine-and-relation publication lineage
+can admit that occurrence's predecessor body through current authorization,
+type/provider/native/transaction checks. It does not change ordinary declaration
+or fold matching, suppress a dependency, replace an accepted SELECT graph/frame,
+or grant publication rights in a retired reusable definition. DEFAULT evaluation
+remains at actual Execute-time demand; volatile results are never saved at Bind.
+
+The source owner obtains the canonical column DEFAULT root from its exact
+descriptor and tags original lexical calls before running the incumbent typed
+preflight once. Only that operation's complete output can enter the candidate;
+an independently supplied tree, equal ABI or matching argument types cannot mint
+derivation. Source paths survive genuine argument folding and ancestor pruning;
+temporary preparation tokens grant no historical rights and never escape into
+the ordinary local expression. Explicit UPDATE/conflict-UPDATE DEFAULT legality
+uses that assignment's recorded origin, not an ambient mutation exception.
+Original paths use the existing scalar mapper's direct-child slots, including
+optional nil slots, consistently for tagging and source lookup. They are not
+generic walker ordinals or final prepared positions. Runtime separately
+authenticates the exact sealed prepared descriptor, scalar metadata and immutable
+argument/assembly/signature backing. The original source-call accessor proves
+lineage, not the identity of a transformed runtime call. Written nested calls
+select their own wrappers; arguments and child bodies cannot borrow a parent's
+selected call, and hidden defaults keep their independent manifests.
+
+### Bounded accepted PL provider invocation
+
+The exact authorization **“1: Bounded current PL body”** supersedes only
+predecessor-body selection for a closed, source-owner-minted accepted PL DEFAULT
+call mode. Standard and quoted SQL retain the authenticated predecessor recipe;
+PL uses a freshly validated same-identity current provider body only at the
+existing invocation seam. Neither choice replaces the accepted expression,
+arguments, assembly, Usage, lexical path, graph, frame, fold group or generation.
+
+The canonical DEFAULT source owner validates the original call and descriptor
+against its coherent catalog, including genuine language and call-handler
+capabilities, before tagging that exact source occurrence. Only an actual typed
+PL definition with its validated PL provider contract can mint current-provider
+mode; display language, SQL spelling, a caller-supplied kind/flag or a projected
+common signature cannot. A private closed mode and exact original definition
+identity travel on the existing self-sealed preparation token through the one
+incumbent typed preflight into its exact source-to-prepared wrapper. Invalid mode
+or incomplete/failed preparation cannot install or authorize a recipe. Preparation
+annotations still confer no invocation privilege during Bind.
+
+At demand, the existing invocation capability independently authenticates source
+and actual prepared metadata/backing, exact paired routine/relation publication
+lineage, live accepted owner and operation, then current ACL, owner, ABI/result,
+strictness, volatility, configuration, language/handler/provider, transforms,
+native and transaction lifetime. It returns both current environment and the
+selected executable: predecessor for the authenticated ordinary mode, freshly
+validated current PL descriptor only for the closed provider mode. No generic
+stale-call exemption or permission cache results. Written nested/sibling calls
+select independent modes; hidden defaults, body calls and unrelated phases retain
+their own manifests. Forged/copied/recombined mode/source/path/prepared/owner
+associations and terminal owners reject without fallback or effects.
+
 
 ## 3. Scope, policy and correlation
 

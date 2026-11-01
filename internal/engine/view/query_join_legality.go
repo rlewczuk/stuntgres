@@ -55,8 +55,12 @@ func ValidateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 		if err := validateTargets(action.ArrayTargets); err != nil {
 			return err
 		}
-		for _, expression := range action.Assignments {
-			if err := ValidateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+		for i, expression := range action.Assignments {
+			assignmentOwner := owner
+			if len(action.DefaultOrigins) != 0 && action.DefaultOrigins[i].Requested {
+				analyze.ApplyDefaultOrigin(action.DefaultOrigins[i], &assignmentOwner)
+			}
+			if err := ValidateExpressionJoinExecution(&assignmentOwner, expression, catalog); err != nil {
 				return err
 			}
 		}
@@ -89,6 +93,11 @@ func ValidateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressi
 func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, catalog catalog.Read) error {
 	if expression == nil {
 		return nil
+	}
+	if handled, err := exec.AdmitAcceptedDefault(c, expression, func(local *exec.Context, node expr.Expr) error {
+		return ValidateExpressionJoinExecution(local, node, catalog)
+	}); handled {
+		return err
 	}
 	recipe, err := exec.ExpressionRecipeDescriptor(expression)
 	if err != nil {

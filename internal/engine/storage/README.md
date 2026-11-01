@@ -47,6 +47,8 @@ and never the engine.
   key `HashBinding`, and `IndexOutput`, an index membership/key a private
   row already produced. `CaptureRowEntries` builds the per-row hash entry
   index for exclusion indexes with runtime domain key conversion.
+  `IndexRoot.Construction` is an opaque immutable index-owner provenance payload.
+  Storage transports preserve it; they cannot mint a new full-build recipe.
   Index roots contain only current logical membership; tuple/page statistics
   estimate physical metrics without retaining deleted index items.
   `brin.go` owns the immutable `BrinRoot`, per-key bindings and range summaries.

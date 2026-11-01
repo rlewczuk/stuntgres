@@ -45,3 +45,15 @@ func (enginePreparation) StoredReferenceValid(view catalog.Read, consumer *catal
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {
 	return analyze.ValidInstalledText(n)
 }
+
+func (enginePreparation) AcceptedDefaultRoutine(read catalog.Read, artifact *exec.AcceptedDefault, call exec.AcceptedDefaultCall) (*catalog.Procedure, error) {
+	return stored.AcceptedDefaultRoutine(read, artifact, call)
+}
+
+func (enginePreparation) MapAcceptedDefaultChildren(read catalog.Read, node expr.Expr, child func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+	return stored.MapExpressionChildren(read, node, child)
+}
+
+func (enginePreparation) AcceptedDefaultSource(read catalog.Read, artifact *exec.AcceptedDefault) error {
+	return stored.AcceptedDefaultSource(read, artifact)
+}

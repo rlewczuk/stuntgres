@@ -27,6 +27,26 @@ and exact typed OUT usages. Only the two relation-set operations enter SRF
 admission; scalar records never imply set cardinality.
 
 
+`DefaultOrigin` keeps the original consumer, stable physical attribute/default
+identity and fold provenance. `PrepareDefault` joins existing INSERT, shipped
+domain-column UPDATE DEFAULT and normalized rule/CTE preparation to the accepted
+binding's sole source-bound typed DEFAULT owner through the current statement
+host. That owner obtains the canonical catalog root itself and runs the incumbent
+lane's preflight once; a supplied prepared expression cannot mint provenance.
+The source owner also seals each call's closed mode and original code-definition
+identity from genuine provider validation. Only an authenticated ordinary scalar
+PL source permits current-provider body choice at invocation; SQL recipes retain
+their predecessor. Analysis callers cannot request a mode or replace prepared
+arguments, assembly, Usage or source paths.
+`ApplyDefaultOrigin`/`EvalDefault` install and restore only the exact selected
+artifact and original occurrence subkey. They do not replace current write,
+CHECK/FK or body authority, and do not retain a host, Context, frame or grant.
+Mutation legality installs each recorded explicit DEFAULT origin on a fresh local
+assignment context, including conflict UPDATE; ordinary assignments and predicates
+never borrow that origin.
+Actual evaluation stays at Execute-time demand; ordinary defaults and hidden
+routine argument recipes retain their independent admission rules.
+
 XML constructor analysis uses assignment conversions only for XML source and
 TEXT PI/version operands. Named operands bind before name inference/duplicate
 checks; element/forest retain actual SQL types for runtime mapping. Ordinary

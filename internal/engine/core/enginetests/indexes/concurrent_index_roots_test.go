@@ -89,9 +89,21 @@ func concurrentUnitRootMatchesStorage(t *testing.T, e *core.Engine, idx *catalog
 	if err != nil || root == nil || expected == nil {
 		t.Fatalf("could not compare installed logical root with live row-version build: %v", err)
 	}
-	if !reflect.DeepEqual(root, expected) {
-		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
+	if !concurrentUnitSameRoot(root, expected, idx) {
+		t.Fatal("installed logical root or construction provenance differs from actual live row-version build")
 	}
+}
+
+func concurrentUnitSameRoot(actual, expected *storage.IndexRoot, idx *catalog.Relation) bool {
+	if !index.ConstructionMatches(actual, idx) || !index.ConstructionMatches(expected, idx) {
+		return false
+	}
+	// Metadata-only readiness/validity publication retains the real full-build
+	// recipe. A new comparison build has a distinct history, not distinct data.
+	// Compare every logical root field without mutating either owned root.
+	logical, rebuilt := *actual, *expected
+	logical.Construction, rebuilt.Construction = nil, nil
+	return reflect.DeepEqual(logical, rebuilt)
 }
 
 func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
@@ -137,6 +149,9 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 	enginetest.SessionSQL(t, c, "UPDATE t SET n=5 WHERE n=2")
 	healthy, root = concurrentUnitIndex(t, e, "ix", true, true)
 	concurrentUnitRootMatchesStorage(t, e, healthy)
+	if root.Construction != beforeUpdate.Construction {
+		t.Fatal("incremental publication replaced complete-build recipe provenance")
+	}
 	// Replacement publishes current membership without mutating saved roots.
 	if root == beforeUpdate ||
 		!reflect.DeepEqual(enginetest.BtreeKeys(t, beforeUpdate), []string{"4", "2"}) || !reflect.DeepEqual(enginetest.BtreeKeys(t, root), []string{"5", "4"}) {
@@ -305,4 +320,60 @@ func TestConcurrentIndexU4GenericShapePreservesInvalidRoots(t *testing.T) {
 			enginetest.LockEmpty(t, e)
 		})
 	}
+}
+
+func TestConcurrentIndexConstructionValidity(t *testing.T) {
+	e := engine.New()
+	reader, builder := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	for _, query := range []string{"CREATE TABLE t(n INT)", "CREATE TABLE u(n INT)", "INSERT INTO t VALUES(1)", "BEGIN ISOLATION LEVEL REPEATABLE READ"} {
+		enginetest.SessionSQL(t, reader, query)
+	}
+	rows := enginetest.SessionSQL(t, reader, "SELECT n FROM u")
+	rows.Rows.Close()
+	_, await := indexMaintenanceAsync(t, e, builder, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)")
+	concurrentUnitCompletion(t, e, reader.Transactions.Ticket, builder)
+	ready, root := concurrentUnitIndex(t, e, "ui", true, false)
+	if !concurrentUnitSameRoot(root, root, ready) {
+		t.Fatal("actual ready root has no valid physical construction")
+	}
+	history := root.Construction
+	for _, kind := range []string{"missing", "forged", "stale_recipe", "version", "position", "membership", "row_entries"} {
+		t.Run(kind, func(t *testing.T) {
+			broken, current := *root, ready
+			switch kind {
+			case "missing":
+				broken.Construction = nil
+			case "forged":
+				broken.Construction = ready.SQLIndex
+			case "stale_recipe":
+				next, definition := *ready, *ready.SQLIndex
+				definition.Unique = !definition.Unique
+				next.SQLIndex, current = &definition, &next
+			case "version", "position":
+				broken.Entries = append([]storage.IndexEntry(nil), root.Entries...)
+				if kind == "version" {
+					broken.Entries[0].Version++
+				} else {
+					broken.Entries[0].Position++
+				}
+			case "membership":
+				broken.Membership = map[ids.RowID]ids.VersionID{root.Entries[0].Row: root.Entries[0].Version}
+			case "row_entries":
+				broken.RowEntries = map[ids.RowID]int{root.Entries[0].Row: 1}
+			}
+			if concurrentUnitSameRoot(&broken, root, current) {
+				t.Fatal("logical comparison suppressed invalid root data or construction", kind)
+			}
+		})
+	}
+	enginetest.SessionSQL(t, reader, "COMMIT")
+	if err := await(); err != nil {
+		t.Fatal(err)
+	}
+	valid, installed := concurrentUnitIndex(t, e, "ui", true, true)
+	if valid == ready || ready.SQLIndex.Valid || installed != root || installed.Construction != history {
+		t.Fatal("validity COW replaced full-build root/history or mutated predecessor")
+	}
+	concurrentUnitRootMatchesStorage(t, e, valid)
+	enginetest.LockEmpty(t, e)
 }

@@ -26,6 +26,10 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if prior == nil {
 		prior = scope.Owner.Catalog
 	}
+	if !index.RoutineSourcesMatch(stage.IndexesOrZero().Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+		e.Mu.Unlock()
+		return catalog.Conflict{}
+	}
 	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(prior).State(), scope.CatalogAuthority)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, changes)
@@ -69,6 +73,9 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	err = PublicationOperationLocked(e, scope.Op)
 	if err == nil && scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		err = ids.ErrCatalogReplaced
+	}
+	if err == nil && !index.RoutineSourcesMatch(index.JournalIndexesOrZero(changes).Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+		err = catalog.Conflict{}
 	}
 	// Descriptor predecessors retain conflict precedence when an ACL update
 	// also advances role authority. Both proofs remain required for transfer.

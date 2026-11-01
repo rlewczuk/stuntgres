@@ -29,8 +29,21 @@ var (
 	_ index.FamilyDDLHost = RoutineHost{}
 )
 
-func (h RoutineHost) RefreshTransformConsumers(source catalog.Read,pair *catalog.Transform)([]catalog.Descriptor,error) {
-	return stored.RefreshTransformRoutines(source,h.StageRead(),pair,h.Revision)
+func (h RoutineHost) RefreshTransformConsumers(source catalog.Read, pair *catalog.Transform) ([]catalog.Descriptor, error) {
+	return stored.RefreshTransformRoutines(source, h.StageRead(), pair, h.Revision)
+}
+
+func (h RoutineHost) RefreshStoredRoutineConsumers(source catalog.Read, before, after *catalog.Procedure) error {
+	changed, err := stored.RefreshStoredScalarRoutine(source, h.StageRead(), before, after, h.Revision)
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range changed.Descriptors() {
+		if err := h.Stage().Replace(descriptor); err != nil {
+			return err
+		}
+	}
+	return h.StageStoredRoutineIndexes(changed)
 }
 
 func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {

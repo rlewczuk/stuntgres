@@ -180,6 +180,12 @@ AFTER queues deliberately do not belong to this swapped command: core owns them
 by query effect identity, shared across writable CTEs and separate for nested SQL.
 `Insert.CopyFrom` points at the single `CopyFromState`; ordinary INSERT has none.
 
+`UpdateInput.DefaultOccurrence` carries the immutable original statement/expansion
+key from preparation into UPDATE's fresh query-backed evaluator. Assignment-local
+default origins supply only their own lane subkeys, never a replacement statement
+identity. Conflict UPDATE borrows the producer's existing evaluator instead.
+Neither path retains a preparation context, host or permission decision.
+
 ## Entry points
 
 | Area | Files | Entry points |

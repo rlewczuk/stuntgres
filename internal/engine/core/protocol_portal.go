@@ -298,6 +298,8 @@ func retireProtocolPortalsAfter(t *session.TransactionOwner, frontier uint64) {
 	for _, p := range PayloadOf(t.Session).PreparedSQL.Bindings() {
 		if p.Transaction == t.Ref && p.Birth > frontier {
 			p.Retired = true
+			p.defaults.Retire()
+			p.defaultCandidate.Retire()
 		}
 	}
 }

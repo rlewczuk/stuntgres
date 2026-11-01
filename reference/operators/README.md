@@ -222,9 +222,26 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` opts into
 Add `REFERENCE=1` for the oracle.
 
 - User-defined operators: `RUN='^TestReferenceUserOperator'`
-- Transactional routine/operator/aggregate protocol: `RUN='^TestReferenceTransactionalRoutinesProtocol$'`.
+- Transactional routine/operator/aggregate protocol: `RUN='^TestReferenceTransactionalRoutine(sProtocol|ReplacementPortal|DefaultDemand|DefaultArguments|UpdateDefaults|DefaultOwnerTransfer|QuotedDefault|CurrentProviderModes)$'`.
   Typed wire scenarios reuse `triggerProtocol*` helpers; the database/sql route
   matrix lives in [query_core](../query_core/README.md#testing), not a second operator fixture.
+  Replacement portal cases keep Parse/Describe/Bind before DDL: accepted standard
+  and quoted SQL DEFAULTs remain5 while PL DEFAULTs use current9; new Bind uses9
+  for both. Separate CHECK/FK actions use current authority. Commit/rollback and
+  protocol results are asserted independently.
+  Volatile sequence defaults distinguish original accepted recipes from cached
+  results: Bind and empty-source execution do not advance the sequence, while
+  demanded old and genuinely fresh bindings execute their respective bodies.
+  Folded, named, nested and sibling arguments exercise actual prepared-call
+  invocation separately from original source-path ownership. Owner transfer
+  includes current SECURITY DEFINER identity. Revoke/regrant consumers use actual
+  runtime calls, with a configured invoker and a definer body; a plain SQL body
+  may instead be inlined during Bind and is retained as a separate transfer
+  positive, not evidence of runtime ACL demand.
+  UPDATE and conflict-UPDATE distinguish assignment origins, multiple DEFAULTs and
+  current CHECK enforcement. Mixed SQL/PL cases distinguish per-occurrence body
+  modes with folded/named/variadic inputs, nested/sibling calls, Execute-time
+  volatile demand, current SECURITY DEFINER owner and revoke/regrant atomicity.
 - Operator option forms and checkpoints: `RUN='^TestReferenceUserOperator(Option|CreationCheckpoints|ParameterCheckpoints)'`
 - Comparison consumers of custom operators: `RUN='^TestReferenceUserOperatorComparisonConsumer'`
 - Polymorphic operator selection: `RUN='^TestReferenceUserOperatorPolymorphic'`

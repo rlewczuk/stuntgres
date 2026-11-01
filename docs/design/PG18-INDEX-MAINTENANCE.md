@@ -138,14 +138,26 @@ column usages, uniqueness presence, unique attributes and null policy are
 significant; a name-only unique wrapper change is not. It preserves the real
 root on backing rename without suppressing TYPE/shape/derived rebind work.
 
+Logical reminting can change a retained derived/predicate metadata identity even
+when referenced dense slots remain unchanged. Layout transport records the exact
+source-to-target construction mapping in that case too: shallow-COW only the
+provenance wrapper and share physical entries, order and membership. Recursive
+comparison against the saved source preserves clean construction without
+laundering existing debt. No key evaluation, scan, sort or physical rebuild is
+justified by that metadata-only mapping.
+
 ## Real rebuild publication
 
 The stage index slot (`index.Stage.Rebuilds`) records selected index addresses
-and their immutable observed descriptors. Parent observations and TABLE
-index-set counts are separate from the existing parent row-shape rebuild
-intents. A descriptor-unchanged stage is real work: no artificial descriptor
-revision or sibling rebuild flag is used.
-All existing publication/replacement callers pass no selected maintenance intent.
+and their exact immutable **stage-base predecessors**. A candidate already
+changed by the command's clustering preference/revision is not an observation.
+Current cooked index definitions remain separate candidate descriptors; final
+maintenance validation still requires the observed predecessor to match both
+base and current authority. Parent observations and TABLE index-set counts are
+separate from existing parent row-shape rebuild intents. A descriptor-unchanged
+stage is real work: no artificial descriptor revision or sibling rebuild flag
+is used.
+Ordinary publication/replacement callers without selected maintenance keep this intent empty.
 
 The existing catalog publication authority captures committed live parent heads
 and generation/end/length tuples, builds selected roots outside Engine.mu using

@@ -65,6 +65,21 @@
   Turkish uses its own dictionary for ASCII and non-ASCII words, with immutable
   prepared results, atomic runtime publication and edited-stock Dump/Restore.
 
+- Rebind retained table DEFAULT/CHECK and index recipes during checked
+  same-identity function replacement, including FK SET DEFAULT consumers.
+  Executable carriers and dependency stamps publish atomically with the routine;
+  rollback, peer visibility, current permissions and strict stale/foreign
+  carrier fences are preserved without replacement-time row or index rewrites.
+  Accepted column DEFAULTs derive from one source-bound preparation, preserving
+  original lexical paths separately from exact prepared-call backing. UPDATE
+  and conflict-UPDATE retain assignment-local origins, while routine entry uses
+  current owner authority independently of the authenticated captured body.
+  Compatible OUT tuples retain their exact declaration-owned result generations
+  for stored field consumers; incompatible output changes remain rejected.
+  Preserve physical index construction provenance separately from refreshed
+  logical captures, so later CLUSTER selectively performs still-required current
+  recipe maintenance without rebuilding during routine replacement.
+
 - Add the truthful empty shared security-label catalog `pg_shseclabel` (3592),
   exact four-column metadata, shared/type/index facts and ordinary PUBLIC SELECT
   with current prepared ACL checks. Bounded SECURITY LABEL on ROLE, DATABASE,

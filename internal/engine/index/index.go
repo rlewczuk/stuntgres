@@ -494,7 +494,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 			}
 		}
 		entries = append(entries, added...)
-		root := NewLogicalIndexRoot(d, entries)
+		root := logicalIndexRoot(d, entries, nil)
 		if validate {
 			if err := ValidateExclusionRoot(ctx, parent, index, root, schema, output, view, env, building); err != nil {
 				return nil, err
@@ -559,5 +559,5 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	return NewLogicalIndexRoot(d, entries), ctx.Err()
+	return logicalIndexRoot(d, entries, nil), ctx.Err()
 }

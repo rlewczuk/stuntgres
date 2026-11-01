@@ -523,10 +523,50 @@ columns, index expressions and predicates, partition admission, temporary
 commit, concurrent refresh), so they cannot hang off a nil-able host.
 `Preparation` is one stateless package value: `AdmitExpression`,
 `PreflightQuery`, `PrepareDomainConversion`, `SpecializeRuleParameters`,
-`CheckDomain`, `DomainCatalog`, `ReturnsSet`, `StoredReferenceValid` and
-`ValidInstalledText`. The engine installs its implementation from `init` with
-`InstallPreparation`; until then every method panics with
-`exec: preparation not installed`.
+`CheckDomain`, `DomainCatalog`, `ReturnsSet`, `StoredReferenceValid`,
+`ValidInstalledText`, `AcceptedDefaultSource`, `AcceptedDefaultRoutine` and
+`MapAcceptedDefaultChildren`. Core's `enginePreparation` installs it from `init`
+with `InstallPreparation`; until then every method panics with
+`exec: preparation not installed`. The DEFAULT methods reuse stored's existing
+scalar mapper and exact paired publication proof, not a second callback registry
+or executable store.
+
+`AcceptedDefaultSet` is owned by an accepted binding, not a reusable definition.
+`AcceptedDefaultSet.Prepare` obtains its canonical DEFAULT root from the exact
+current source descriptor. Private preparation-only tokens record original call
+paths and a closed invocation mode before one incumbent typed preflight; only its
+actual complete result is transferred into the candidate. Mode mint validates the
+authentic source declaration, actual code definition and genuine language/handler
+authority. Typed ordinary scalar PL sources select current-provider mode; other
+valid sources select predecessor mode. Spelling, display metadata and caller flags
+grant neither. Tokens retain exact original definition identity through legitimate
+argument COW, grant no invocation rights during Bind, and are stripped from the
+ordinary local result. Arbitrary output or ABI-only comparisons cannot mint
+derivation. Artifacts retain original source, actual prepared recipe, original
+lexical paths, mode/definition association and dependencies.
+Source-call/path access is solely lineage evidence. Dispatch separately
+authenticates the sealed actual prepared descriptor and its exact immutable
+argument, assembly and signature backing; a value copy is valid, an independently
+copied same-provider call is not. Source paths use stored's actual direct-child
+mapper slots, including nil slots, rather than generic walker order. That mapper
+returns actual changes and shares unchanged children. Closure validation includes
+hidden defaults without granting them the enclosing call's capability.
+Private root/call seals and a short-lived `AcceptedDefaultInvocation` constrain
+historical execution to that exact selected DEFAULT; ordinary copied nodes and
+other same-address calls do not acquire it. Activation and dispatch select the
+same actual invocation host: explicit statement host first, then the query
+source's live host. Foreign-host substitution cannot consume an active selection.
+Current provider/type/ACL and owner/native/transaction checks
+remain live. `RoutineProgram` records exact consumed occurrence evidence and
+readmits it under the actual actor after waits; it never saves a permission
+decision or carries that exception into an unrelated phase. Original argument
+default and child-body manifests stay independent. No Context/Host, activation,
+frame, data root, command graph or volatile result is retained in an artifact.
+Live dispatch returns independently validated current owner environment and the
+mode's executable: captured prepared descriptor for predecessor mode, freshly
+validated compatible current PL descriptor only for its sealed source mode. All
+source/prepared/readmission lanes reject zero, unknown or recombined modes. This
+choice never rewrites prepared arguments, call assembly, Usage or accepted backing.
 
 ## Expression preflight
 
@@ -856,7 +896,7 @@ Real-sort pause, ordering and cancellation units use
 Public controls belong to `reference/aggregates` and its family selector.
 
 ```sh
-make check RUN='^Test(MissingPreparation|InstallPreparation|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
+make check RUN='^Test(MissingPreparation|InstallPreparation|AcceptedDefault|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
 make check RUN='^Test(CreateAggregate|AggregateFinal|AggregateMoving|AggregateOrdered)'
 make check RUN='^Test(PLpgSQLQueryLoopLifetime|FTSQueryFunctionsBatch)'  # row owners
 make check RUN='^TestReferenceQuery'   # public query execution; add REFERENCE=1 for the oracle

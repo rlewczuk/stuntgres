@@ -72,6 +72,22 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	if err = EvaluationContext(c); err != nil {
 		return value, err
 	}
+	var accepted *AcceptedDefaultInvocation
+	if call := c.defaultCall; call != nil {
+		if !call.matchesPrepared(n) {
+			return value, ids.ErrCatalogReplaced
+		}
+		accepted, err = c.acceptedDefaultInvocation(call)
+		if err != nil {
+			return value, err
+		}
+	}
+	// Argument expressions do not borrow the parent's exact selected call.
+	// Written nested wrappers establish their own occurrence; hidden defaults
+	// additionally enter their independent declaration-owned manifest below.
+	selected := c.defaultCall
+	c.defaultCall = nil
+	defer func() { c.defaultCall = selected }()
 	frame := proc.NewFrame(n.Signature.Inputs)
 	defer frame.Close()
 	var tail []sqltype.Value
@@ -111,11 +127,7 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 			return value, err
 		}
 	}
-	// The statement's own host wins over a query source's host here.
-	host := c.Host
-	if host == nil && c.Query != nil && c.Query.Source != nil {
-		host = c.Query.Source.LiveHost()
-	}
+	host := c.sqlRoutineInvocationHost()
 	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
@@ -123,7 +135,7 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 		*values, err = host.InvokeSQLRoutineSet(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning)
 		return value, err
 	}
-	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage, n.InputCollation, c.PLAssignmentPlanning && !c.DomainValueActive, c.ConstantPlanning, accepted)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}
@@ -133,14 +145,28 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	return frame.Result(value, n.Usage)
 }
 
+// The explicit statement host wins over a query source's host for routine
+// invocation. Accepted DEFAULT activation must authenticate this same owner.
+func (c *Context) sqlRoutineInvocationHost() Host {
+	if c.Host != nil {
+		return c.Host
+	}
+	if c.Query != nil && c.Query.Source != nil {
+		return c.Query.Source.LiveHost()
+	}
+	return nil
+}
+
 // The declaration recipe, not the caller/table manifest, owns hidden defaults.
 func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, node expr.Expr, site expr.Info) (sqltype.Value, error) {
 	previousOrigin, recipe, graft := c.FoldOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
+	accepted, activation, call := c.AcceptedDefault, c.defaultActivation, c.defaultCall
 	c.SelectRoutineDefault(owner, slot, dependencies, site)
 	defer func() {
 		c.FoldOrigin, c.RoutineRecipe, c.RoutineGraft = previousOrigin, recipe, graft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
+		c.AcceptedDefault, c.defaultActivation, c.defaultCall = accepted, activation, call
 	}()
 	return node.Eval(c)
 }
@@ -149,6 +175,7 @@ func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies
 // recipe. Written arguments stay with their caller; this boundary is shared by
 // planning traversal, scalar admission and actual default evaluation.
 func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, site expr.Info) {
+	c.AcceptedDefault, c.defaultActivation, c.defaultCall = nil, nil, nil
 	c.FoldOrigin = FoldOrigin{Owner: owner, Attribute: int32(slot + 1), Expansion: site.Source, Site: site.Occurrence}
 	if c.Catalog.Owner() != nil {
 		if d := c.Catalog.Get(owner.Address); d != nil {

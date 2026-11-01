@@ -19,12 +19,13 @@ import (
 // sources (nil without FROM or subquery demand), the canonical parameters and
 // the target schema name. ExecuteUpdate closes Source and From.
 type UpdateInput struct {
-	Context    context.Context
-	Binding    analyze.Binding
-	Source     *exec.Source
-	From       *exec.Source
-	Parameters []sqltype.Value
-	Schema     string
+	Context           context.Context
+	Binding           analyze.Binding
+	Source            *exec.Source
+	From              *exec.Source
+	Parameters        []sqltype.Value
+	Schema            string
+	DefaultOccurrence exec.DefaultOccurrence // Original preparation ownership, not runtime row identity.
 }
 
 // ExecuteUpdate runs UPDATE after the root has captured the target and its
@@ -83,6 +84,7 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	defer state.ReleaseMemberships()
 	defer outcome.finishSources(&state, &err)
 	eval := state.Evaluation(ctx)
+	eval.DefaultOccurrence = in.DefaultOccurrence
 	var smallUpdateOutputs [4]sqltype.Value
 	if b.Update.OutputWidth != 0 {
 		if b.Update.OutputWidth <= len(smallUpdateOutputs) {

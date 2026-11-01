@@ -139,10 +139,26 @@ builds a binder.
   an explicit same-type key preserves the copied pair.
   Later ALTER policy changes intentionally update only the first simple match,
   without rebuilding executable roots.
-  CLUSTER preference changes reuse unchanged roots on the same storage. Only
-  genuinely changed compatible routine recipes require ordinary overlay builds,
-  uniqueness validation and retained candidates. Baseline private-write/domain
-  outputs remain authoritative; no CLUSTER-specific heap/output transport exists.
+  CLUSTER compares the immutable root-owned last-complete-construction recipe
+  with current logical semantics, not merely the logical descriptor's captured
+  routine. Routine publication preserves physical history while reminting logical
+  captures. Incremental merge/delete and vacuum retain that same history.
+  Readiness/validity-only COW also retains the original construction record.
+  A fresh comparison build may therefore have different history but identical
+  logical root data. Structural tests validate each root's construction against
+  current recipe semantics independently, then compare every logical root field;
+  missing, forged or indebted provenance never passes as equivalent history.
+  Layout and snapshot transport add exact source/destination logical context
+  without clearing prior recipe debt; stale physical providers are never executed
+  through provenance. Only a genuine full build starts clean history.
+  A reminted expression/predicate recipe gets that mapping even when its referenced
+  dense slots did not move. The btree path shallow-copies only the root's provenance
+  wrapper and shares physical entries/membership; recursive source checking keeps
+  clean histories clean and never launders existing debt.
+  CLUSTER selectively cooks and rebuilds changed recipes through ordinary overlay
+  builds, uniqueness validation and retained candidates; unchanged siblings and
+  heap storage remain untouched. Baseline private-write/domain outputs remain
+  authoritative; no CLUSTER-specific heap/output transport exists.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
   fence of catalog publication and of overlay capture; the caller picks each
@@ -152,6 +168,20 @@ builds a binder.
   `SelectOverlayCapturesLocked` (the indexes a transaction overlay rebuilds,
   with their read fences). They take no lock; the engine calls them under
   `Engine.Mu` and keeps the fence order and the `Conflict` it returns.
+  `PreserveRoutineRoot` additionally consumes the stored owner's opaque routine
+  publication proof and actual engine-owned source descriptor, parent, root and
+  row-storage window. Its private candidate receipt retains earliest committed
+  pins through authenticated private chains. `RoutineSourcesMatch` checks those
+  exact source/root/storage pins at capture and final installation, independently
+  of unchanged strict `MatchesIndex`/`SameIndexKeySemantics` checks. Replacement
+  does not rebuild populated entries; a genuine later builder explicitly
+  supersedes the receipt through ordinary candidate recording.
+  At `PrepareIndexPublication`, authenticated source lineage also permits a
+  lazy copy-on-write retag of already-produced pending-write index outputs.
+  Membership (including nonmembership), key backing and row/version identity
+  remain unchanged; absent outputs are never fabricated. Genuine rebuild
+  intents instead evaluate current recipes and cannot reuse transported output
+  as fresh truth. Ordinary `OutputMatches` remains strict.
 - **Write-time records and enforcement** (`write_candidate.go`, `insertion.go`,
   `unique*.go`, `exclusion_*.go`, `constraint.go`): `WriteCandidate`,
   `UniqueWriteBinding`, `UniqueKeyHash` (the opaque key the engine pins in the

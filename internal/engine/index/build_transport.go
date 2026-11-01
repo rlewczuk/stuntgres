@@ -52,7 +52,7 @@ func (b *AlterIndexBuild) BaselineRoot(evaluation *exec.Context, index *catalog.
 		if err := next.CaptureRowEntries(ctx, index.SQLIndex); err != nil {
 			return nil, err
 		}
-		return &storage.IndexRoot{Hash: next}, nil
+		return &storage.IndexRoot{Construction: b.Root.Construction, Hash: next}, nil
 	}
 	entries := make([]storage.IndexEntry, 0, len(b.Root.Entries))
 	for _, entry := range b.Root.Entries {
@@ -66,7 +66,7 @@ func (b *AlterIndexBuild) BaselineRoot(evaluation *exec.Context, index *catalog.
 		entry.Position = position
 		entries = append(entries, entry)
 	}
-	return NewLogicalIndexRoot(index.SQLIndex, entries), nil
+	return logicalIndexRoot(index.SQLIndex, entries, b.Root.Construction), nil
 }
 
 func RetainIndexBuild(changes *session.Journal, index *catalog.Relation, baseline *storage.Relation, root *storage.IndexRoot) {

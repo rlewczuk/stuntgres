@@ -174,7 +174,7 @@ func BuildHashIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *c
 	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &storage.IndexRoot{Hash: root}, ctx.Err()
+	return &storage.IndexRoot{Construction: newConstruction(d), Hash: root}, ctx.Err()
 }
 
 func PublicationSlot(p *RowPublication, i int) int {
@@ -391,5 +391,5 @@ func MergeHashIndexRoot(evaluation *exec.Context, parent, index *catalog.Relatio
 	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &storage.IndexRoot{Hash: root}, ctx.Err()
+	return &storage.IndexRoot{Construction: old.Construction, Hash: root}, ctx.Err()
 }

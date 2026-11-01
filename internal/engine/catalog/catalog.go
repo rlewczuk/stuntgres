@@ -64,12 +64,15 @@ type Relation struct {
 	RowType    sqltype.ID
 	OfType     ids.ObjectAddress
 
-	ColumnMeta      ColumnMetadata
-	Constraints     RelationConstraints
-	Security        RelationSecurity
-	History         PublicationHistory
-	StorageOptions  RelationOptions
-	ReplicaIdentity parser.ReplicaIdentityMode
+	ColumnMeta  ColumnMetadata
+	Constraints RelationConstraints
+	Security    RelationSecurity
+	History     PublicationHistory
+	// ScalarPublication is an opaque stored-owner receipt, not definition
+	// authority. A copied descriptor cannot consume its predecessor's receipt.
+	ScalarPublication any
+	StorageOptions    RelationOptions
+	ReplicaIdentity   parser.ReplicaIdentityMode
 
 	// Kind payloads.
 	SQLIndex          *IndexDefinition

@@ -18,8 +18,8 @@ import (
 // the installed action, syntax and catalog output retain their original binding.
 type ruleInsertDefaultExpr struct {
 	expr.Info
-	recipe expr.Expr
-	origin analyze.DefaultOrigin
+	recipe   expr.Expr
+	origin   analyze.DefaultOrigin
 	prepared bool
 }
 
@@ -30,10 +30,10 @@ func (n ruleInsertDefaultExpr) Eval(context expr.Context) (sqltype.Value, error)
 	}
 	return analyze.EvalDefault(c, n.recipe, n.origin)
 }
-func (ruleInsertDefaultExpr) Children() []expr.Expr { return nil }
-func (ruleInsertDefaultExpr) PlanningFold() expr.Fold { return expr.FoldNever }
+func (ruleInsertDefaultExpr) Children() []expr.Expr         { return nil }
+func (ruleInsertDefaultExpr) PlanningFold() expr.Fold       { return expr.FoldNever }
 func (ruleInsertDefaultExpr) PreflightFold() expr.Preflight { return expr.PreflightKeep }
-func (ruleInsertDefaultExpr) ExecutionDemand() {}
+func (ruleInsertDefaultExpr) ExecutionDemand()              {}
 func (n ruleInsertDefaultExpr) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if len(children) != 0 || info.Usage != n.recipe.ResultUsage() {
 		return nil, fmt.Errorf("stuntgres: invalid rule INSERT default recipe")
@@ -67,23 +67,31 @@ func ruleInsertDefaultRows(b analyze.Binding, schema plan.QuerySchema) [][]expr.
 			var resolved expr.Expr
 			if !discard && len(b.Insert.Defaults) > slot && b.Insert.Defaults[slot] != nil {
 				recipe := b.Insert.Defaults[slot]
+				origin := BindingDefaultOrigin(&b, slot)
+				origin.Occurrence.Kind, origin.Occurrence.Row, origin.Occurrence.Slot = 2, rowIndex, ordinal
 				resolved = ruleInsertDefaultExpr{
-					Info: expr.Info{Usage: recipe.ResultUsage(), Pos: recipe.SourcePosition(), Property: recipe.Properties()},
-					recipe: recipe, origin: BindingDefaultOrigin(&b, slot),
+					Info:   expr.Info{Usage: recipe.ResultUsage(), Pos: recipe.SourcePosition(), Property: recipe.Properties()},
+					recipe: recipe, origin: origin,
 				}
 			} else {
 				usage := schema[ordinal].Usage
 				resolved = plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Null(usage.Type)}
 			}
-			if values == nil { values = slices.Clone(row) }
+			if values == nil {
+				values = slices.Clone(row)
+			}
 			values[ordinal] = resolved
 		}
 		if values != nil {
-			if rows == nil { rows = slices.Clone(b.Expressions) }
+			if rows == nil {
+				rows = slices.Clone(b.Expressions)
+			}
 			rows[rowIndex] = values
 		}
 	}
-	if rows == nil { return b.Expressions }
+	if rows == nil {
+		return b.Expressions
+	}
 	return rows
 }
 
@@ -93,7 +101,9 @@ func ruleInsertDefaultRows(b analyze.Binding, schema plan.QuerySchema) [][]expr.
 // join admission, runtime evaluation and snapshot demand. Mutation CTEs prepare
 // their own command bindings through the same boundary.
 func PreflightRuleInsertDefaults(c *exec.Context, b analyze.Binding, root plan.Node) (analyze.Binding, plan.Node, error) {
-	if !b.Rule.Template { return b, root, nil }
+	if !b.Rule.Template {
+		return b, root, nil
+	}
 	if b.Query != nil && root != nil && b.Query.Root != root {
 		query := *b.Query
 		query.Root = root
@@ -102,18 +112,29 @@ func PreflightRuleInsertDefaults(c *exec.Context, b analyze.Binding, root plan.N
 	mapper := stored.NewRuleTreeMapper(c.Catalog, nil, 0, b.CTEs, stored.RuleTreeMapping{
 		Leaf: func(value expr.Expr) (expr.Expr, bool, error) {
 			n, ok := value.(ruleInsertDefaultExpr)
-			if !ok || n.prepared { return value, false, nil }
+			if !ok || n.prepared {
+				return value, false, nil
+			}
 			owner := *c
-			analyze.ApplyDefaultOrigin(n.origin, &owner)
-			prepared, _, err := exec.PreflightCoercionsWithPolicy(&owner, n.recipe, true)
-			if err != nil { return nil, false, err }
-			if err := ValidateExpressionJoinExecution(&owner, prepared, c.Catalog); err != nil { return nil, false, err }
+			owner.DefaultOccurrence.Kind, owner.DefaultOccurrence.Row, owner.DefaultOccurrence.Slot = n.origin.Occurrence.Kind, n.origin.Occurrence.Row, n.origin.Occurrence.Slot
+			prepared, origin, _, err := analyze.PrepareDefault(&owner, n.recipe, n.origin, exec.DefaultPreparationPolicy{})
+			if err != nil {
+				return nil, false, err
+			}
+			if err := ValidateExpressionJoinExecution(&owner, prepared, c.Catalog); err != nil {
+				return nil, false, err
+			}
+			n.origin = origin
 			n.recipe, n.prepared = prepared, true
 			return n, true, nil
 		},
 	})
 	mapped, err := stored.MapRuleBindingRecipes(b, mapper)
-	if err != nil { return b, root, err }
-	if root != nil && mapped.Query != nil { root = mapped.Query.Root }
+	if err != nil {
+		return b, root, err
+	}
+	if root != nil && mapped.Query != nil {
+		root = mapped.Query.Root
+	}
 	return mapped, root, nil
 }

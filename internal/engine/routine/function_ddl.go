@@ -167,6 +167,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return err
 	}
 	var previous *catalog.Procedure
+	var replacementSource catalog.Read
 	if address := h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)); address != (ids.ObjectAddress{}) {
 		if !s.Replace {
 			return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", name))
@@ -189,6 +190,13 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		}
 		if err := checkFunctionReplacement(h, auth, previous, d.Result, layout); err != nil {
 			return err
+		}
+		// A compatible OUT tuple keeps its exact declaration-owned result
+		// generation. Stored field consumers retain that Usage; replacement
+		// changes executable code, not the already-checked output contract.
+		if previous.RoutineDefinition().DerivedResult() {
+			result = previous.RoutineDefinition().Result
+			layout.Result, outputs[0] = result, result
 		}
 		d.ObjectAddress, d.Owner, d.ACL, d.Extension = previous.Address(), previous.Owner, previous.ACL, previous.Extension
 	}
@@ -248,12 +256,16 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		if previous == nil {
 			err = h.Stage().Create(d)
 		} else {
+			replacementSource = h.StageRead()
 			err = h.Stage().Replace(d)
 		}
 		if err != nil {
 			return err
 		}
 		ddl.RecordCommand(h.Stage(), "CREATE FUNCTION", d.Address())
+		if previous != nil && !s.Procedure {
+			return h.RefreshStoredRoutineConsumers(replacementSource, previous, d)
+		}
 		return nil
 	}
 	// Language validation follows replacement authority and compatibility.
@@ -340,6 +352,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	if previous == nil {
 		err = h.Stage().Create(d)
 	} else {
+		replacementSource = h.StageRead()
 		err = h.Stage().Replace(d)
 	}
 	if err != nil {
@@ -358,5 +371,11 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		copy.Context = ""
 		return &copy
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if previous != nil && !s.Procedure {
+		return h.RefreshStoredRoutineConsumers(replacementSource, previous, d)
+	}
+	return nil
 }

@@ -103,6 +103,10 @@ imports `view`.
   existing binding mapper and origin-aware coercion/join checks. Runtime uses
   `analyze.EvalDefault`; owned snapshot demand is forwarded, changed rows are
   private, and identity-discard generation stays with INSERT.
+  Stored-column preparation is source-bound: the accepted owner reads the exact
+  canonical root and runs the incumbent preflight once. Mutation legality copies
+  each explicit DEFAULT's recorded origin only onto that assignment's local
+  context; conflict UPDATE shares that rule, not an ambient mutation capability.
   Event producers union the caller's column demand with typed OLD/NEW references
   introduced by rule qualifications and actions before opening view sources.
   Assigned NEW fields retain RHS demand rather than demanding their old value.

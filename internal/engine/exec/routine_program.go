@@ -19,8 +19,9 @@ type RoutineCall struct {
 	Recipe           expr.RoutineRecipeReference
 	body             RoutineBodyContext
 	Actor            authorization.PrincipalRef
-	SupportAggregate *catalog.Procedure // Only top-level support EXECUTE uses its current owner.
-	followIdentity   bool               // Original checked recipe, not original SQL source.
+	SupportAggregate *catalog.Procedure   // Only top-level support EXECUTE uses its current owner.
+	followIdentity   bool                 // Original checked recipe, not original SQL source.
+	defaultCall      *acceptedDefaultCall // Consumed occurrence evidence, never a grant.
 }
 
 type RoutineProgram struct{ Calls []RoutineCall }
@@ -70,12 +71,22 @@ func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.Expressi
 	if ref.Address != (routine.Address()) {
 		return fmt.Errorf("stuntgres: missing consumed routine lifetime")
 	}
+	var bounded *acceptedDefaultCall
+	if c.defaultCall != nil {
+		if aggregate != nil || c.defaultCall.original.Procedure != routine {
+			return ids.ErrCatalogReplaced
+		}
+		if _, err := c.acceptedDefaultInvocation(c.defaultCall); err != nil {
+			return err
+		}
+		bounded = c.defaultCall
+	}
 	for _, call := range p.Calls {
-		if call.Reference == ref && call.Routine == routine && call.Recipe == recipe && call.Consumer == c.RoutineConsumer && call.Actor == actor && call.SupportAggregate == aggregate && call.followIdentity == followIdentity {
+		if call.Reference == ref && call.Routine == routine && call.Recipe == recipe && call.Consumer == c.RoutineConsumer && call.Actor == actor && call.SupportAggregate == aggregate && call.followIdentity == followIdentity && call.defaultCall == bounded {
 			return nil
 		}
 	}
-	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, Recipe: recipe, body: c.RoutineBodyContext, Actor: actor, SupportAggregate: aggregate, followIdentity: followIdentity})
+	p.Calls = append(p.Calls, RoutineCall{Routine: routine, Reference: ref, Consumer: c.RoutineConsumer, Recipe: recipe, body: c.RoutineBodyContext, Actor: actor, SupportAggregate: aggregate, followIdentity: followIdentity, defaultCall: bounded})
 	return nil
 }
 
@@ -93,6 +104,12 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return err
 		}
+		if call.defaultCall != nil {
+			if _, err := call.defaultCall.artifact.validate(current, AcceptedDefaultCall{node: call.defaultCall}); err != nil {
+				return call.body.Annotate(err)
+			}
+			continue
+		}
 		purpose := routineCapturePurpose(call.SupportAggregate)
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision(), Purpose: purpose}}
 		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity, purpose); err != nil {
@@ -106,6 +123,10 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 // after admitting the exact original consumed graph under its own actual actor.
 func (p *RoutineProgram) InitializePhase(original *RoutineProgram, auth RoutineAccess) error {
 	for _, call := range original.Calls {
+		// A different phase has no active selection of this accepted DEFAULT.
+		if call.defaultCall != nil {
+			return ids.ErrCatalogReplaced
+		}
 		current := auth
 		if call.SupportAggregate != nil {
 			aggregate, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, call.SupportAggregate)
@@ -129,7 +150,7 @@ func (p *RoutineProgram) Include(other *RoutineProgram) {
 	for _, call := range other.Calls {
 		found := false
 		for _, old := range p.Calls {
-			if old.Reference == call.Reference && old.Routine == call.Routine && old.Recipe == call.Recipe && old.Consumer == call.Consumer && old.Actor == call.Actor && old.SupportAggregate == call.SupportAggregate && old.followIdentity == call.followIdentity {
+			if old.Reference == call.Reference && old.Routine == call.Routine && old.Recipe == call.Recipe && old.Consumer == call.Consumer && old.Actor == call.Actor && old.SupportAggregate == call.SupportAggregate && old.followIdentity == call.followIdentity && old.defaultCall == call.defaultCall {
 				found = true
 				break
 			}

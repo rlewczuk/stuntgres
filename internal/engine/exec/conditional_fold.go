@@ -22,9 +22,12 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 	childIndex := -1
 	next, changed, err := expr.Map(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		childIndex++
-		if sqlCall && childIndex >= call.WrittenCount {
+		if sqlCall {
 			local := *c
-			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
+			local.defaultCall = nil
+			if childIndex >= call.WrittenCount {
+				local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
+			}
 			next, changed, err := SimplifyConditional(&local, child, decisiveDefaults)
 			c.PreparedDomainChecks = local.PreparedDomainChecks
 			return next, changed, err

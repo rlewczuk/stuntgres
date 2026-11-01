@@ -121,6 +121,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   The shared direct/held × autocommit/SQL/Go route helper retains actual handles;
   definition bodies, authorization, peer graphs, savepoints and native controls
   share independent expectations. Protocol phases live in operators.
+  Stored-replacement cases retain DEFAULT/CHECK/index and FK SET DEFAULT recipes
+  without reissuing their definitions; distinguish owner-private replacement,
+  peer authority, commit/rollback, and unrelated metadata-only ALTER preflight.
+  `TestReferenceTransactionalRoutineReplacementOutputShape` additionally retains
+  direct/preheld tuple-field defaults across quoted/standard replacement, rejects
+  incompatible OUT layouts, and preserves detached native output and metadata.
 - SQL overloads beside builtin, window and aggregate providers; rule qualifications: `RUN='^TestReferenceRoutine(Resolution|Window|Nesting|LateChild|Rule)'`
 - <a id="select-cte-verification"></a>WITH queries: `RUN='^TestReferenceQueryCTE'`
 - <a id="recursive-cte-verification"></a>Recursive CTEs: `RUN='^TestReferenceQueryRecursiveCTE'`

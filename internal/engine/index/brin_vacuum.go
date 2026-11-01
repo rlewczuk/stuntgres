@@ -23,7 +23,7 @@ func RebuildBrinVacuumRoot(ctx context.Context, index *catalog.Relation, old *st
 	next := *source
 	next.Storage, next.Generation, next.Prefix, next.Ends = store, generation, len(c.Versions), c.Ends
 	if c.Positions == nil {
-		return &storage.IndexRoot{Brin: &next}, nil
+		return &storage.IndexRoot{Construction: old.Construction, Brin: &next}, nil
 	}
 	if len(c.Positions) != len(rows) || source.EffectivePagesPerRange < 1 {
 		return nil, fmt.Errorf("stuntgres: invalid BRIN vacuum positions")
@@ -74,5 +74,5 @@ func RebuildBrinVacuumRoot(ctx context.Context, index *catalog.Relation, old *st
 			}
 		}
 	}
-	return &storage.IndexRoot{Brin: &next}, ctx.Err()
+	return &storage.IndexRoot{Construction: old.Construction, Brin: &next}, ctx.Err()
 }

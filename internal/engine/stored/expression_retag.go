@@ -40,16 +40,24 @@ func MapExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype
 	return MapExpressionReader(view, nil, node, retainedType, queryMapper, recipe, false, leaf, collations...)
 }
 
+// MapExpressionChildren uses the same stored mapper's direct-child slots,
+// including nil slots, without descending into a child handled by the caller.
+// The callback is borrowed only for this synchronous structural operation.
+func MapExpressionChildren(view catalog.Read, node expr.Expr, child func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+	retain := func(original *catalog.Procedure) (*catalog.Procedure, error) { return original, nil }
+	return mapExpressionWithProcedure(view, nil, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, false, nil, retain, child)
+}
+
 // substituteSources is only for equivalent-child query-stage rewrites. Catalog
 // generation remapping keeps Rebuild/Retag and their provider validation.
 func MapExpressionReader(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe expr.RoutineRecipeReference, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	// This entry is a structural type rewrite, not catalog reprovenance.
 	// Replacement callers supply their actual original-source policy below.
 	retain := func(original *catalog.Procedure) (*catalog.Procedure, error) { return original, nil }
-	return mapExpressionWithProcedure(view, reader, node, retainedType, queryMapper, recipe, substituteSources, leaf, retain, collations...)
+	return mapExpressionWithProcedure(view, reader, node, retainedType, queryMapper, recipe, substituteSources, leaf, retain, nil, collations...)
 }
 
-func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe expr.RoutineRecipeReference, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), procedure catalog.ProcedureRemapper, collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe expr.RoutineRecipeReference, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), procedure catalog.ProcedureRemapper, directChild func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -69,7 +77,7 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		return node, false, nil
 	}
 	info := expr.InfoOf(node)
-	if leaf != nil {
+	if leaf != nil || directChild != nil {
 		info.Property = RewrittenIntrinsicProperties(node)
 	}
 	typ := retainedType(info.Usage.Type)
@@ -251,9 +259,16 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		return next
 	}
 	mapChild := func(old expr.Expr) (expr.Expr, bool, error) {
-		next, replaced, failure := mapExpressionWithProcedure(view, reader, old, retainedType, queryMapper, recipe, substituteSources, leaf, procedure, collations...)
+		var next expr.Expr
+		var replaced bool
+		var failure error
+		if directChild != nil {
+			next, replaced, failure = directChild(old)
+		} else {
+			next, replaced, failure = mapExpressionWithProcedure(view, reader, old, retainedType, queryMapper, recipe, substituteSources, leaf, procedure, nil, collations...)
+		}
 		changed = changed || replaced
-		if next != nil && (leaf != nil || replaced) {
+		if next != nil && (leaf != nil || directChild != nil || replaced) {
 			info.Property = expr.MergeProperties(info.Property, next.Properties())
 		}
 		return next, replaced, failure

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestClusterIndexMetadataAfterRoutineReplacement(t *testing.T) {
@@ -26,6 +27,11 @@ func TestClusterIndexMetadataAfterRoutineReplacement(t *testing.T) {
 		enginetest.SessionSQL(t, s, q)
 	}
 	original := e.CatalogRead()
+	roots := make(map[string]*storage.IndexRoot)
+	for _, name := range []string{"metadata_key", "metadata_predicate"} {
+		ref := enginetest.CatalogRef(t, e, original, name)
+		roots[name] = e.Storage.IndexRoots[ref.Address]
+	}
 	enginetest.SessionSQL(t, s, "CREATE OR REPLACE FUNCTION public.cluster_metadata_key(integer) RETURNS integer LANGUAGE SQL IMMUTABLE AS $$SELECT 0; SELECT $1+20$$")
 	view := e.CatalogRead()
 	for _, name := range []string{"metadata_key", "metadata_predicate"} {
@@ -43,25 +49,36 @@ func TestClusterIndexMetadataAfterRoutineReplacement(t *testing.T) {
 				call := facts.IndexExpressions[0].(plan.SQLRoutineExpr)
 				stored := idx.SQLIndex.Keys[0].Derived.Definition.(plan.SQLRoutineExpr)
 				current, exists := view.Procedure(call.Ref.Address)
-				if !exists || call.Procedure != stored.Procedure || call.Info.RoutineReference != stored.Procedure || call.Procedure == current {
-					t.Fatal("metadata rebound or substituted original routine nodes", call, current)
+				if !exists || call.Procedure != stored.Procedure || call.Info.RoutineReference != stored.Procedure || call.Procedure != current {
+					t.Fatal("metadata lost authenticated current routine nodes", call, current)
 				}
 			} else if !reflect.DeepEqual(facts.Predicate, idx.SQLIndex.Predicate.Definition) {
 				t.Fatal("metadata replaced original predicate", facts.Predicate)
 			}
-			if idx != original.MustRelation(ref.Address) {
-				t.Fatal("function replacement mutated index descriptor")
+			predecessor := original.MustRelation(ref.Address)
+			if idx == predecessor || e.Storage.IndexRoots[ref.Address] != roots[name] || index.ConstructionMatches(roots[name], idx) {
+				t.Fatal("replacement lost reminted metadata or retained physical recipe debt")
 			}
-			if err := index.ValidateIndexDefinition(view, idx); err == nil || err.Error() != "stuntgres: stale routine declaration carrier" {
-				t.Fatal("metadata mode escaped into strict definition validation", err)
+			if err := index.ValidateIndexDefinition(view, idx); err != nil {
+				t.Fatal("authenticated logical definition failed strict validation", err)
 			}
-			strict, names, err := index.ProjectIndexMetadata(t.Context(), view, ref)
-			if err == nil || !reflect.DeepEqual(strict, index.Metadata{}) || !reflect.DeepEqual(names, index.IndexesMetadata{}) {
-				t.Fatal("combined deparse accepted stale executable declaration", strict, names, err)
+			if _, _, err := index.ProjectIndexMetadata(t.Context(), view, ref); err != nil {
+				t.Fatal("current metadata deparse rejected authenticated declaration", err)
+			}
+			if err := index.ValidateIndexDefinition(view, predecessor); err == nil || err.Error() != "stuntgres: stale routine declaration carrier" {
+				t.Fatal("historical metadata acquired current executable authority", err)
 			}
 			old, err := index.ProjectIndexFacts(t.Context(), original, ref)
-			if err != nil || !reflect.DeepEqual(old, facts) {
-				t.Fatal("facts changed original snapshot/node ownership", old, facts, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if name == "metadata_key" {
+				call := old.IndexExpressions[0].(plan.SQLRoutineExpr)
+				if call.Procedure != predecessor.SQLIndex.Keys[0].Derived.Definition.(plan.SQLRoutineExpr).Procedure || call.Procedure == facts.IndexExpressions[0].(plan.SQLRoutineExpr).Procedure {
+					t.Fatal("old saved metadata/capture was mutated")
+				}
+			} else if !reflect.DeepEqual(old.Predicate, predecessor.SQLIndex.Predicate.Definition) || reflect.DeepEqual(old.Predicate, facts.Predicate) {
+				t.Fatal("old predicate capture was mutated or substituted")
 			}
 		})
 	}

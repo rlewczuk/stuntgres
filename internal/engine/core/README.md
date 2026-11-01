@@ -1527,6 +1527,12 @@ with row effects; standalone utilities retain their ordinary publication boundar
   Successful analysis, complete fold planning and statement effects are separate
   publication boundaries: failure publishes no prefix, but later import or
   execution failure does not undo already accepted analysis or planning.
+  Accepted-portal relation admission additionally recognizes only an exact
+  stored-owner scalar-publication predecessor chain to the current relation.
+  Analysis retains the original relation pointers; ordinary `Valid`/`FoldsValid`
+  are unchanged. This admits no changed callable/type/provider or fold key and
+  never replaces an accepted graph, frame, dependency, group or generation.
+  Reusable-definition invalidation remains separate from accepted ownership.
 - `PreparedRegistry` owns actual physical-session definitions and bindings.
   Lookup/Install/Remove act on the definitions consumed by execution; replacement
   retires publication rights, not already accepted independent resources.
@@ -1538,9 +1544,10 @@ with row effects; standalone utilities retain their ordinary publication boundar
   and current catalog descriptors. Membership alone determines visibility, so
   native catalog replacement/pool reuse retain rows and physical end removes them.
   `PreparedBinding` retains accepted description/occurrences, transaction/birth
-  identity and immutable `exec.AcceptedFolds`. Its `PreparedResource.Root` is the
-  real graph consumed by the cursor, with the existing unlocked terminal close
-  capability, never an observation copy or a graph in a shared definition.
+  identity, immutable `exec.AcceptedFolds` and a private accepted DEFAULT set.
+  Its `PreparedResource.Root` is the real SELECT graph consumed by the cursor,
+  with the existing unlocked terminal close capability, never an observation
+  copy or a graph in a shared definition.
   Strict scalar read erasure removes invocation identity only from the private
   executable expression; original bound source and analysis manifests retain
   their routine lifetime. RECORD and set-returning file calls keep invocation
@@ -1554,6 +1561,35 @@ with row effects; standalone utilities retain their ordinary publication boundar
   Missing accepted groups for Bind-planned commands reject rather than silently
   recompute. Utility portals instead import inputs at Bind and use ordinary
   admission/planning at Execute.
+- Consumed column DEFAULTs transfer only their final owned typed scalar closure
+  and original source/attribute/dependency/lexical occurrence evidence at final
+  successful Bind admission. `prepared_defaults.go` selects the exact artifact
+  after ordinary current binding, replacing only transient local DEFAULT fields.
+  Direct INSERT, shipped domain-column UPDATE DEFAULT and normalized rule/CTE
+  consumers share source-bound `PrepareDefault` through `analyze.DefaultOrigin`.
+  The candidate reads its canonical source itself and records original lexical
+  tokens before one incumbent preflight; no caller-supplied output can mint a
+  retained recipe. Assignment legality uses each recorded DEFAULT's local origin.
+  UPDATE transports that immutable original statement/expansion key through
+  `dml.UpdateInput` into its fresh runtime evaluator; a default origin cannot
+  infer or overwrite source-command ownership.
+  Sealed root/call wrappers and the stateless preparation bridge authenticate
+  paired relation/routine lineage and each source-minted closed invocation mode.
+  Source mode binds the authentic original code definition and provider authority
+  through the one actual preparation, never a language spelling or caller flag.
+  `sql_routine.go` validates current authority and independently selects current
+  owner environment and executable before strictness, policy, caches or dispatch.
+  Standard/quoted SQL execute their authenticated predecessor; only the exact
+  current-PL mode selects the freshly validated compatible current body. Original
+  source-call/path lineage stays distinct from actual prepared call identity:
+  dispatch requires its exact descriptor, metadata and immutable argument/
+  assembly/signature backing. No prepared frame/input/Usage is replaced. Hidden
+  defaults and current child-body commands retain independent admission manifests.
+  Current CHECK/FK/index metadata and every ordinary declaration/fold dependency
+  remain current and strict. No command graph, PreparedCTEProgram, Context/Host,
+  frame, storage, grant or computed volatile result survives Bind. Close and
+  transaction/savepoint/native retirement veto use, independently of reusable
+  definition retirement and its publication rights.
 
 Dictionary DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
 Core supplies the shared compiled Snowball language runtimes, including Finnish, Catalan and French, to the catalog's
@@ -1597,9 +1633,11 @@ Reset retain it explicitly; destination Restore never borrows source bytes.
   remains separate and strict, including LIKE and newly synthesized partition
   indexes; structural publication does not relabel routines or waive current
   stored-program validation.
-  Compatible routine substitutions trigger only the baseline affected-index
-  overlay build; partial membership and later DML therefore use current recipes.
-  Original expression trees and retained roots remain immutable.
+  Physical construction provenance, independent of reminted logical captures,
+  determines necessary affected-index overlay work. Incremental updates and
+  transport preserve prior recipe debt; successful full reconstruction starts
+  new history. Unchanged roots and heap storage remain untouched. Original
+  expression trees and retained roots remain immutable.
   `CompleteClusterTarget` publishes and retires each bare target's ordinary
   transaction/ticket; earlier targets survive a later failure. Named CLUSTER
   retains its ordinary transaction/savepoint lifetime.
@@ -2452,6 +2490,36 @@ Composed effective-user and setting environment ownership uses
 `RUN='^TestRoutineEffectiveUser'`, also with `RACE=1`. These units exercise real
 entry/unwind, actor nesting, codecs/policy and partial-entry restoration;
 public SQL behavior remains in reference scenarios.
+`RUN='^TestRoutineStoredReplacementPublication$'` covers authenticated scalar
+publication, immutable source/backing and rejected predecessor, lifetime,
+dependency, type/collation and provider authority without partial installation.
+It uses populated expression/predicate roots, exact source/root/storage-window
+receipts, private replacement chains/rollback and genuine later rebuild intent.
+Pending INSERT witnesses independently distinguish old produced keys and false
+predicate membership from successor evaluations, preserve producer backing
+through repeated private replacements/commit/rollback, reject forged output
+lineage, and require current values and membership on a genuine later rebuild.
+`RUN='^TestRoutineStoredReplacementOutputShape$'` checks exact declaration-owned
+OUT tuple/member generations across compatible replacement, reminted stored
+field carriers, immutable predecessors and rejected incompatible publication.
+`RUN='^(TestRoutineIndexPhysicalRecipeProvenance|TestRoutineIndexUnchangedSlotConstructionTransport|TestRoutineScalarRelationPublicationReceipts|TestPreparedFoldProtocolRoutineReplacement)$'`
+checks physical last-build history across logical publication/merge/transport
+and selective maintenance, exact relation predecessor chains and rejected copied
+or abandoned receipts, and independently retained nonempty portal POINT artifacts
+and imported frames across authenticated relation transitions.
+Accepted command DEFAULT ownership and admission units use
+`RUN='^TestPreparedAcceptedDefault'` in `core/enginetests/views`; they inspect the
+actual private accepted owner separately from public wire lifetime scenarios.
+`TestPreparedAcceptedDefaultSourceDerivation` distinguishes genuine nested,
+sibling, hidden-default and pruned CASE recipes from substituted roots, changed
+arguments and wrong original mapper paths, including nil child slots.
+`TestPreparedAcceptedDefaultInvocation` drives the actual active delegation and
+body dispatch while rejecting copied descriptors and argument/assembly backing;
+`TestPreparedAcceptedDefaultHiddenIsolation` keeps hidden-default admission and
+readmission independent from the enclosing occurrence. The unchanged-slot index
+transport cases pair a clean construction with preexisting recipe debt across
+the same unrelated tail-column metadata remint, preserving physical payloads
+and historical provenance.
 The private session cache is observed by same-package handler units over seeded
 catalog descriptors and real session admission; composed external units assert
 checked bindings and compiler ownership. Neither requires an inspection export.

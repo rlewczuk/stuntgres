@@ -1,28 +1,29 @@
 package core
 
 import (
- "stuntgres/internal/engine/analyze"
- "stuntgres/internal/engine/catalog"
- "stuntgres/internal/engine/exec"
- "stuntgres/internal/engine/ids"
- "stuntgres/internal/engine/stored"
- "stuntgres/internal/parser"
- "stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // AnalysisInput carries the actual admitted occurrence identities and binder
 // manifest. Core owns dependency closure, effective stamps and purpose union.
 type AnalysisInput struct {
- Target ids.ObjectRef
- Targets map[parser.Statement]ids.ObjectRef
- TargetOrder []ids.ObjectRef
- Sources map[*parser.TableReference]analyze.PreparedSource
- AllSources []exec.Leaf
- Binding analyze.Binding
- NeedsReanalysis bool
+	Target          ids.ObjectRef
+	Targets         map[parser.Statement]ids.ObjectRef
+	TargetOrder     []ids.ObjectRef
+	Sources         map[*parser.TableReference]analyze.PreparedSource
+	AllSources      []exec.Leaf
+	Binding         analyze.Binding
+	NeedsReanalysis bool
 }
-func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisInput) (*Analysis,error) {
- cell := &Analysis{Domain:env.Domain, Epoch:env.Epoch, Session:env.Session, Private:env.Private, Path:env.Path, Namespace:env.Namespace, Target:input.Target, Targets:input.Targets, Sources:input.Sources, Casts:input.Binding.Prepared.Casts, NeedsReanalysis:input.NeedsReanalysis}
+
+func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisInput) (*Analysis, error) {
+	cell := &Analysis{Domain: env.Domain, Epoch: env.Epoch, Session: env.Session, Private: env.Private, Path: env.Path, Namespace: env.Namespace, Target: input.Target, Targets: input.Targets, Sources: input.Sources, Casts: input.Binding.Prepared.Casts, NeedsReanalysis: input.NeedsReanalysis}
 	type dependencyKey struct {
 		ref     ids.ObjectRef
 		purpose catalog.DependencyPurpose
@@ -60,6 +61,12 @@ func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisI
 		if !present {
 			seen[key] = len(cell.Dependencies)
 			cell.Dependencies = append(cell.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: DefinitionStamp(d, env), Purpose: purpose})
+		}
+		if relation, ok := d.(*catalog.Relation); ok {
+			if cell.FoldRelations == nil {
+				cell.FoldRelations = make(map[ids.ObjectAddress]*catalog.Relation)
+			}
+			cell.FoldRelations[ref.Address] = relation
 		}
 		if callable, ok := d.(*catalog.Procedure); ok {
 			if cell.FoldCallables == nil {
@@ -101,10 +108,14 @@ func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisI
 			}
 		}
 		if relation, ok := d.(*catalog.Relation); ok && relation.TableMethod != 0 {
-			if err := catalog.ValidateRelationTableMethod(read, relation); err != nil { return err }
+			if err := catalog.ValidateRelationTableMethod(read, relation); err != nil {
+				return err
+			}
 			method, _ := read.AccessMethod(relation.TableMethod)
 			for _, a := range [...]ids.ObjectAddress{{ClassID: ids.AccessMethodClassID, ObjectID: relation.TableMethod}, {ClassID: ids.ProcedureClassID, ObjectID: method.Handler}} {
-				if err := visitPurpose(env.Domain.Ref(read.Epoch(), a), purpose); err != nil { return err }
+				if err := visitPurpose(env.Domain.Ref(read.Epoch(), a), purpose); err != nil {
+					return err
+				}
 			}
 		}
 		if relation, ok := d.(*catalog.Relation); ok && purpose == catalog.DefinitionDependency && relation.Security.RLSEnabled {
@@ -135,8 +146,16 @@ func CollectAnalysis(read catalog.Read, env PreparedEnvironment, input AnalysisI
 	if err := visit(input.Target); err != nil {
 		return nil, err
 	}
- for _, ref := range input.TargetOrder { if err := visit(ref); err != nil { return nil, err } }
- for _, source := range input.AllSources { if err := visit(source.Ref); err != nil { return nil, err } }
+	for _, ref := range input.TargetOrder {
+		if err := visit(ref); err != nil {
+			return nil, err
+		}
+	}
+	for _, source := range input.AllSources {
+		if err := visit(source.Ref); err != nil {
+			return nil, err
+		}
+	}
 	for _, dep := range input.Binding.Dependencies {
 		if err := visitPurpose(dep.Ref, dep.Purpose); err != nil {
 			return nil, err

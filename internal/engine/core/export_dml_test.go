@@ -21,7 +21,7 @@ func ExecuteMerge(ctx context.Context, scope *StatementScope, b analyze.Binding,
 
 // ExecuteUpdate calls executeUpdate.
 func ExecuteUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source *exec.Source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
-	return executeUpdate(ctx, s, b, source, from, parameters, schema)
+	return executeUpdate(ctx, s, b, source, from, parameters, schema, exec.DefaultOccurrence{})
 }
 
 // OutcomeResult calls outcomeResult.

@@ -52,7 +52,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 	refresh := dependencyRefresh(routineRemap.RefreshDependency)
 	mapper := &ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef { return ref }, Type: typ, Collation: collation, Procedure: procedure, refreshDependency: refresh}
 	retag := func(node expr.Expr) (expr.Expr, bool, error) {
-		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, collation)
+		return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, procedure, nil, collation)
 	}
 	statisticsRetag := func(node expr.Expr) (expr.Expr, bool, error) {
 		if typesOnly && !routineExpressionChanged(view, node, typ) {
@@ -61,7 +61,7 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			// preflight proves it unchanged; the full mapper still checks hidden
 			// type/collation/provider fields and reports actual retag changes.
 			identity := func(p *catalog.Procedure) (*catalog.Procedure, error) { return p, nil }
-			return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, identity, collation)
+			return mapExpressionWithProcedure(view, nil, node, typ, mapper.Nested, nil, false, nil, identity, nil, collation)
 		}
 		return retag(node)
 	}
@@ -87,8 +87,12 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 			}
 			if validate {
 				provider, old := original.Owner().Provider(address.ClassID), original.Get(address)
-				if provider == nil || old == nil { return ids.ErrCatalogReplaced }
-				if err := provider.Validate(original, old); err != nil { return err }
+				if provider == nil || old == nil {
+					return ids.ErrCatalogReplaced
+				}
+				if err := provider.Validate(original, old); err != nil {
+					return err
+				}
 			}
 		}
 		if publication, ok := descriptor.(*catalog.PublicationRelation); ok {
@@ -269,7 +273,9 @@ func reownExpressions(view catalog.Read, next *catalog.State, mapping map[ids.Ob
 				for j := range c.Dependencies {
 					c.Dependencies[j].Ref = ref(c.Dependencies[j].Ref)
 				}
-				if err := refresh.apply(c.Dependencies); err != nil { return err }
+				if err := refresh.apply(c.Dependencies); err != nil {
+					return err
+				}
 			}
 			if err := RefreshGenerationChecks(&copy, view); err != nil {
 				return err

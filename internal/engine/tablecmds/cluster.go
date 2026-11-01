@@ -217,7 +217,7 @@ func clusterRelation(e *core.Engine, s *core.StatementScope, raw *parser.Cluster
 		return false, err
 	}
 	err = s.WithMaintenanceOwner(parent, func(evaluation *exec.Context) error {
-		if err := refreshClusterIndexRecipes(e, evaluation, parent, stage); err != nil {
+		if err := refreshClusterIndexRecipes(e, evaluation, parent, stage, s.PendingCatalog()); err != nil {
 			return err
 		}
 		if err := util.ExecutionCheckpoint(s.ActivateRuntime(s.Op.Context()), "cluster.publish"); err != nil {

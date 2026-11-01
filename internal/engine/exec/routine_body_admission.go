@@ -120,6 +120,7 @@ func admitRoutineBody(c *Context, node expr.Expr, outer *catalog.Procedure, cons
 			!p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion
 	}
 	local := *c
+	local.AcceptedDefault, local.defaultActivation, local.defaultCall = nil, nil, nil
 	local.RoutineBodyContext = bodyErrorContext(outer, constant)
 	for _, edge := range outer.Body {
 		if !bodyEdgeDemanded(node, outer, edge) {

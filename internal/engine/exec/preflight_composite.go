@@ -26,9 +26,12 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 	childIndex := -1
 	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		childIndex++
-		if sqlCall && childIndex >= call.WrittenCount {
+		if sqlCall {
 			local := *c
-			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
+			local.defaultCall = nil
+			if childIndex >= call.WrittenCount {
+				local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
+			}
 			next, changed, err := PreflightCoercionsWithPolicy(&local, child, decisiveDefaults)
 			c.PreparedDomainChecks = local.PreparedDomainChecks
 			return next, changed, err

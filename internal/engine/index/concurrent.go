@@ -8,12 +8,13 @@ import (
 // A supplied phase root is a detached candidate fenced against its exact source.
 // Catalog publication alone owns installation, revision and root-map authority.
 type RootCandidate struct {
-	Root       *storage.IndexRoot
-	Index      *catalog.Relation
-	Storage    *storage.Relation
-	Generation uint64
-	Ends       *storage.DeletionRoot
-	Length     int
+	Root          *storage.IndexRoot
+	Index         *catalog.Relation
+	Storage       *storage.Relation
+	Generation    uint64
+	Ends          *storage.DeletionRoot
+	Length        int
+	routineSource *routineRootSource
 }
 
 func (c RootCandidate) Matches(store *storage.Relation) bool {

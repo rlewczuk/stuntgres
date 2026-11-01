@@ -147,7 +147,13 @@ func (p *ExecutionPreparation) PredicateMatches(evaluation *exec.Context, parent
 }
 
 func NewLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {
-	root := &storage.IndexRoot{Entries: entries}
+	return logicalIndexRoot(d, entries, newConstruction(d))
+}
+
+// Merge/transport callers supply their real history; a new wrapper is not a
+// complete build merely because its membership vector is materialized.
+func logicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry, history any) *storage.IndexRoot {
+	root := &storage.IndexRoot{Construction: history, Entries: entries}
 	if d.Predicate != nil {
 		root.Membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {

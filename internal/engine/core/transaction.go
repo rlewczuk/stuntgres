@@ -43,6 +43,8 @@ func clearTransactionContents(t *session.TransactionOwner) {
 		for _, p := range PayloadOf(t.Session).PreparedSQL.Bindings() {
 			if p.Transaction == t.Ref {
 				p.Retired = true
+				p.defaults.Retire()
+				p.defaultCandidate.Retire()
 			}
 		}
 	}

@@ -689,6 +689,10 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			}
 		}
 		stageIndexes := s.IndexesOrZero()
+		if !index.RoutineSourcesMatch(stageIndexes.Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+			e.Mu.Unlock()
+			return ChangeSet{}, catalog.Conflict{}
+		}
 		if !index.CandidatesMatch(stageIndexes.Candidates, &s.Candidate, current, func(parent ids.ObjectAddress) *storage.Relation {
 			if shape, changed := s.RowShapes[parent]; changed {
 				return shape.Replacement
@@ -786,6 +790,9 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 			}
 		}
 		err := p.ctx.Err()
+		if err == nil && !index.RoutineSourcesMatch(stageIndexes.Candidates, e.Catalog.Current(), e.Storage.IndexRoots, e.Storage.Relations) {
+			err = catalog.Conflict{}
+		}
 		if err == nil && !e.Storage.IndexRootsCurrent(s.domainAlter.AlteredIndexRoots()) {
 			err = catalog.Conflict{}
 		}

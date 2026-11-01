@@ -17,11 +17,14 @@ type IndexEntry struct {
 // IndexRoot is one published logical index root. Hash indexes keep buckets in
 // Hash, BRIN keeps range summaries in Brin, and B-tree/GiST use Entries.
 type IndexRoot struct {
-	Entries    []IndexEntry // Ordered B-tree keys or unordered logical GiST membership.
-	Hash       *HashRoot
-	Brin       *BrinRoot
-	Membership map[ids.RowID]ids.VersionID // Immutable; partial roots only.
-	RowEntries map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
+	// Construction is the immutable recipe of the last complete build.
+	// Incremental writes and transport must preserve it, including recipe debt.
+	Construction any          // Opaque index-owner provenance; never executable authority.
+	Entries      []IndexEntry // Ordered B-tree keys or unordered logical GiST membership.
+	Hash         *HashRoot
+	Brin         *BrinRoot
+	Membership   map[ids.RowID]ids.VersionID // Immutable; partial roots only.
+	RowEntries   map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
 }
 
 // IndexOutput is an already produced index membership/key, not a CHECK
@@ -33,4 +36,3 @@ type IndexOutput struct {
 	Keys   []sqltype.Value
 	Key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
 }
-

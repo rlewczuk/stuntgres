@@ -242,8 +242,19 @@ and extension membership. Owner/kind/result checks, existing named inputs and
 trailing default compatibility precede tentative replacement; body-validation
 failure leaves the checked predecessor intact. SQL/PL language changes use the
 same conditional body policy and unconditional declaration checks.
+After exact OUT tuple compatibility succeeds, same-identity replacement retains
+the predecessor's declaration-owned result Usage and member generations. Stored
+field consumers therefore keep their exact type/collation authority while their
+executable declaration advances; incompatible output tuples still reject.
 Builtin/externally implemented function replacement and
 language lifecycle retain their separate admission contracts.
+Function replacement finishes binding before the family host's
+`RefreshStoredRoutineConsumers` publication hook. The hook authenticates the
+pre-mutation declaration and checked same-identity successor, then stages affected
+table DEFAULT/CHECK/index recipes together with that successor. It never evaluates
+the function or rewrites rows/index entries solely because a function changed.
+Rollback and peer visibility remain the existing catalog journal's responsibility;
+ordinary retained-carrier validation and historical remapping stay strict.
 
 ## Routine ALTER contract
 

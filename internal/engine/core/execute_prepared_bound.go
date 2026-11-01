@@ -220,7 +220,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.Mu.Unlock()
 		ctx = scope.ActivateRuntime(ctx)
-		return executeUpdate(ctx, scope, b, source, from, canonical, schema)
+		return executeUpdate(ctx, scope, b, source, from, canonical, schema, execution.evaluation.DefaultOccurrence)
 	case *parser.Insert:
 		return e.executeInsertLocked(scope, execution, canonical)
 	case *parser.Delete:
