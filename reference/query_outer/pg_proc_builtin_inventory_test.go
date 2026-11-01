@@ -194,8 +194,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Statistics definition introspection adds the one-OID TEXT declaration3415.
 	// The two truncate declarations add strict VOLATILE/parallel-unsafe
 	// INT4 results and their released signed descriptor/length formals.
-	if len(facts) != 2184 {
-		t.Fatalf("released represented overloads: got %d, want 2184", len(facts))
+	// Nullable registry lookups add released one-TEXT scalar declarations
+	// OIDs4093/4195 with strict/STABLE/parallel-safe metadata and unnamed inputs.
+	if len(facts) != 2186 {
+		t.Fatalf("released represented overloads: got %d, want 2186", len(facts))
 	}
 	return facts
 }

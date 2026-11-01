@@ -102,6 +102,9 @@ The two input-validity declarations add released OIDs6210/6211 with exact
 strict/STABLE/parallel-safe scalar metadata. Only error-info has named inputs
 and four TEXT OUT fields; the boolean formals are unnamed. Membership and all
 28 direct/prepared property assertions include both records.
+The nullable registry lookups retain released OIDs4093/4195, one unnamed TEXT
+input, REGROLE/REGCOLLATION results and strict/STABLE/parallel-safe scalar
+metadata in complete membership and all 28 direct/prepared projections.
 The four function/operator/opclass/opfamily visibility inquiries retain released
 OIDs 2081/2082/2083/3829, strict STABLE parallel-safe OID-to-BOOL signatures and
 cost 10 in the exact inventory and all projected metadata fields.
@@ -140,7 +143,7 @@ policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2181 rows, all backed
+supplements. The complete released inventory contains 2186 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. Large-object
 descriptor OIDs952–955 retain strict VOLATILE/parallel-unsafe scalar signatures,
 unnamed inputs and the released internal implementation symbols. XML aggregate

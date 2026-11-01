@@ -17,6 +17,22 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` passes an explicit
 text-search file manifest to `fixture.Main(m)`. `name_external_test.go` and `diagnostics_postgres_test.go`
 carry the `reference` build tag (PostgreSQL-only complements).
 
+### Nullable registry lookups
+
+`TestReferenceRegLookupCollRoleValues`, `Binding`, `Diagnostics`, `Lifecycle`,
+`Stored` and `Smoke` share independent direct, fresh-prepared and held TEXT
+expectations for `to_regcollation` and `to_regrole`. They assert raw alias codecs
+and metadata, strict/missing/producer-soft NULL versus hard errors, complete
+diagnostics, quoted and numeric identities, effective collation paths and
+runtime identity after rename/drop/recreation. Stored callable views/defaults
+remain expressions, including role lookup without a regrole constant dependency.
+Native control phases consume actual Dump bytes through Reset/Restore and retain
+already-open rows; real mode also replays the emitted SQL on PostgreSQL. No
+registry-lookup state or role DDL serialization is introduced.
+Select this family with
+`make check RUN='^TestReferenceRegLookupCollRole(Values|Binding|Diagnostics|Lifecycle|Stored|Smoke)$'`
+and repeat with `REFERENCE=1`.
+
 ### Input validity diagnostics
 
 `TestReferenceInputValidityValues`, `NullRecords`, `Typmods`, `HardErrors`,

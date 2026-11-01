@@ -962,6 +962,8 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	1686: {Language: catalog.InternalRoutineLanguage, Source: "pg_get_keywords", Cost: 10},
 	6210: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_is_valid"},
 	6211: {Language: catalog.InternalRoutineLanguage, Source: "pg_input_error_info"},
+	4195: {Language: catalog.InternalRoutineLanguage, Source: "to_regcollation"},
+	4093: {Language: catalog.InternalRoutineLanguage, Source: "to_regrole"},
 	2614: {Language: catalog.InternalRoutineLanguage, Source: "xmlexists"},
 	3813: {Language: catalog.InternalRoutineLanguage, Source: "xmltext"},
 	2895: {Language: catalog.InternalRoutineLanguage, Source: "xmlcomment"},

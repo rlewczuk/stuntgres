@@ -45,6 +45,8 @@ func CaptureRetainedExpressionInput(node expr.Expr, element, parserInput func() 
 		}
 	}
 	switch node := node.(type) {
+	case functions.RegLookup:
+		return element()
 	case functions.FTSParser:
 		if !node.OID {
 			return parserInput()

@@ -18,6 +18,12 @@ formal and nullable TEXT result, strict STABLE and parallel-safe under the
 ordinary catalog inquiry provider. Its internal display source matches its SQL
 name; no named formal or pretty overload is declared.
 
+The executable nullable registry lookups are routines 4195 (`to_regcollation`,
+result 4191) and 4093 (`to_regrole`, result 4096). Both have one unnamed TEXT
+formal, strict STABLE/parallel-safe scalar declarations and ordinary catalog
+provider membership. Display and seeded descriptors share these declarations;
+the identity ledger alone never grants execution.
+
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
 row estimate describe the backing view routine, not a callable SRF. Its explicit
@@ -668,6 +674,8 @@ Statistics I/O declaration/display and complete seed materialization use
 and strict calls belong to the statistics family in `reference/catalogs`.
 Settings/options declaration, display and complete seed materialization use
 `RUN='^TestSettingsOptionsRoutineDeclarations$'`.
+Nullable registry lookup declaration, display and complete seed materialization
+use `RUN='^TestRegLookupCollRoleDeclarations$'`.
 XML row-mapping declaration/display/input-name ownership uses
 `RUN='^TestXMLMapRowsRoutineDeclarations$'`.
 

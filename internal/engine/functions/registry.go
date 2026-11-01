@@ -93,6 +93,7 @@ var definitions = [...]Definition{
 	{Names: []string{"pg_get_userbyid", "pg_get_catalog_foreign_keys"}, Bind: bindCatalogRelation},
 	{Names: []string{"pg_char_to_encoding", "pg_encoding_to_char", "pg_get_keywords"}, Bind: bindEncodingKeywords},
 	{Names: []string{"pg_input_is_valid", "pg_input_error_info"}, Bind: bindInputValidity, NamedCall: namedInputValidity},
+	{Names: []string{"to_regcollation", "to_regrole"}, ExactSpelling: true, SharedGates: true, Bind: bindRegLookup},
 	{Names: []string{"pg_tablespace_location", "pg_tablespace_databases"}, Bind: bindTablespaceInfo},
 	{Names: sizeNames[:], Bind: bindRelationSize},
 	{Names: databaseFilesNames[:], ExactSpelling: true, Bind: bindDatabaseFiles},

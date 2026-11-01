@@ -77,6 +77,19 @@ members and emits one row even for a whole-NULL record, without declaring an
 SRF. Generic record transport, stored protocols and native replay require no
 adapter special case.
 
+`RegLookup` binds the two unnamed TEXT signatures `to_regcollation` and
+`to_regrole` through ordinary routine admission. Its one typed child and exact
+alias result use the existing descriptor's complete input codec, including dash
+and numeric identities, against the current statement input environment.
+Only that direct destination conversion may recover `InputSoftError` as typed
+NULL; child, cancellation, setup and hard lookup errors propagate unchanged.
+Strict NULL does not borrow input authority. STABLE recipes never planning-fold
+and retain no resolved OID, catalog snapshot, session or lookup cache. Checked
+reconstruction preserves provider generations; ordinary retag maps descriptors
+and routine provenance for stored replay. Retained views/defaults recapture
+destination input through the common analyzer owner; there is no builtin-specific
+serializer.
+
 `VisibilityInquiry` retains one typed OID operand and the selected descriptor
 class. Text-search configuration, dictionary, parser, template and statistics
 inquiries share its strict BOOL, STABLE, non-folding protocol. Evaluation borrows
@@ -1466,6 +1479,9 @@ XPath frozen-provider and accepted-fold ownership use `RUN='^TestXMLXPath'`.
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.
 Public SQL and metadata scenarios live in `reference/domain_types`.
+Nullable registry lookup binding, codec recovery and immutable protocol units use
+`RUN='^TestRegLookupCollRole(Binding|Evaluation|Protocol)$'`; public dual-mode
+scenarios live in `reference/type_resolution`.
 Compression inquiry declaration, immutable protocol and demand units use
 `RUN='^TestColumnCompressionProtocol$'`; public scenarios live in
 `reference/session_state`.
