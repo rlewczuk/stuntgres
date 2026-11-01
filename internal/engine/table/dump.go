@@ -89,9 +89,15 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 		row := version.Values
 		line.Reset()
 		var replayCells []typedef.DomainReplayCell
+		// Generated columns replay as DEFAULT and recompute their bounds, so
+		// they never take a bounded target.
+		bounded := func(i int) bool {
+			_, generated := t.Descriptor.ColumnMeta.Generations[t.Attributes[i]]
+			return !generated && !typedef.ContainsStoredDomainNull(row[i]) && regobj.ConstructorArrayTargetBounds(row[i]) != ""
+		}
 		boundedConstructor := false
-		for _, value := range row {
-			boundedConstructor = boundedConstructor || !typedef.ContainsStoredDomainNull(value) && regobj.ConstructorArrayTargetBounds(value) != ""
+		for i := range row {
+			boundedConstructor = boundedConstructor || bounded(i)
 		}
 		if len(t.Columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
@@ -109,7 +115,7 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 					line.WriteString(", ")
 				}
 				line.WriteString(catalog.QuoteIdentifier(column.Name))
-				if boundedConstructor && !typedef.ContainsStoredDomainNull(row[i]) {
+				if bounded(i) {
 					line.WriteString(regobj.ConstructorArrayTargetBounds(row[i]))
 				}
 			}
@@ -161,7 +167,7 @@ func (t *DumpRelation) EmitRows(ctx context.Context, catalogView catalog.Read, e
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
 				literalContext := ctx
-				if boundedConstructor && regobj.ConstructorArrayTargetBounds(v) != "" {
+				if bounded(i) {
 					literalContext = regobj.ConstructorBoundedInputContext(ctx)
 				}
 				literal, err = regobj.Literal(literalContext, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.Columns[i].Usage}, Value: v})

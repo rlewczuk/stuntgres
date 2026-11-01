@@ -26,7 +26,7 @@ func TestRegtypeInventoryCapability(t *testing.T) {
 	if charArray == nil || !charArray.Concrete() || !charArray.Usage().Valid() || !charArray.IsArray() || charArray.Element() != types[Char] || charArray.IsUserDefined() {
 		t.Fatal("internal char array lost executable identity", charArray)
 	}
-	for _, id := range []ID{2287, 1041, 143, 6155, 1017, 1020, 629, 1019} {
+	for _, id := range []ID{2287, 1041, 6155, 1017, 1020, 629, 1019} {
 		d := types[id]
 		if d == nil || d.Concrete() || d.Usage().Valid() || d.IsUserDefined() {
 			t.Fatal("lookup identity became executable", id, d)

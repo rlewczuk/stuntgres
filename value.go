@@ -198,7 +198,7 @@ func frameImporter(values []driver.Value) core.FrameImporter {
 				var diagnostic *Error
 				if errors.As(err, &diagnostic) {
 					// XML's input owner already attached exact portal provenance.
-					if parameters.Types[i].Type.BaseType().ID() == sqltype.XML && diagnostic.Context != "" {
+					if (parameters.Types[i].Type.BaseType().ID() == sqltype.XML || parameters.Types[i].Type.IsXMLArray()) && diagnostic.Context != "" {
 						return err
 					}
 					copy := *diagnostic

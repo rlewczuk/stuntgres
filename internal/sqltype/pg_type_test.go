@@ -53,7 +53,7 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 			t.Fatal("unsupported family metadata", id, got)
 		}
 	}
-	for _, id := range []ID{143, 1017, 1020, 1006, 1013} {
+	for _, id := range []ID{1017, 1020, 1006, 1013} {
 		if types[id].Concrete() {
 			t.Fatal("metadata-only companion enabled an array codec", id)
 		}

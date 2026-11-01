@@ -18,7 +18,7 @@ func ConstructorBoundedInputContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, constructorBoundsKey{}, true)
 }
 func ConstructorArrayTargetBounds(v sqltype.Value) string {
-	if v.IsNull() || !v.Type().BaseType().IsArray() || !(ContainsCustomRange(v.Type()) || v.RequiresCircleConstructorReplay() || NeedsFloat4RawReplay(v) && v.Type().BaseType().Element().BaseType().ID() != sqltype.Float4) {
+	if v.IsNull() || !v.Type().BaseType().IsArray() || !(ContainsCustomRange(v.Type()) || v.RequiresCircleConstructorReplay() || NeedsFloat4RawReplay(v) && v.Type().BaseType().Element().BaseType().ID() != sqltype.Float4 || v.Type().IsXMLArray()) {
 		return ""
 	}
 	needed := false
@@ -221,6 +221,14 @@ func constructorLiteral(ctx context.Context, view catalog.Read, reader catalog.D
 				first, e := literalWithACLAt(ctx, view, reader, plan.LiteralExpr{Info: expr.Info{Usage: u.Type.Element().Usage()}, Value: v.ArrayElement(0)}, acl, false)
 				if e != nil {
 					return "", e
+				}
+				if first == "NULL" {
+					// An untyped NULL cannot resolve array_fill's element type.
+					element, e := TypeDeclarationAt(view, reader, u.Type.Element().Usage())
+					if e != nil {
+						return "", e
+					}
+					first = "CAST(NULL AS " + element + ")"
 				}
 				seed := "pg_catalog.array_fill(" + first + ", ARRAY[1], ARRAY[" + strconv.FormatInt(int64(v.ArrayDimension(0).Lower), 10) + "])"
 				if v.ArrayLen() == 1 {

@@ -96,7 +96,8 @@ admission and removes it before nested binding.
   results are not empty CONTENT. `SameDatum` preserves acceptance backing identity;
   `SamePayload` compares modes and original spelling in cancellable chunks.
   Generated declaration metadata records construction facts, not a successful parse.
-  Neither grants XML SQL comparison or executable companion arrays.
+  Neither grants XML SQL comparison. `xml[]` is an ordinary generic array;
+  its text input reparses each leaf under the session mode (`IsXMLArray`).
   `XMLInput` overrides the session mode for explicit parse operations;
   `XMLSerialize` owns raw character conversion and this-call parser notices.
   `XMLIsDocument`, `XMLIsWellFormed` and `XMLExists` bridge BOOL providers without

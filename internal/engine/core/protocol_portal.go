@@ -193,7 +193,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 						}
 					}
 				}
-				if slot > 0 && slot <= len(formal.Types) && formal.Types[slot-1].Type.BaseType().ID() == sqltype.XML {
+				if slot > 0 && slot <= len(formal.Types) && (formal.Types[slot-1].Type.BaseType().ID() == sqltype.XML || formal.Types[slot-1].Type.IsXMLArray()) {
 					// The XML input adapter supplies native provenance too; the
 					// wire owner replaces that label with this portal's name.
 					copy.Context = context

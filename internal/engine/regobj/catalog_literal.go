@@ -134,12 +134,14 @@ func literalWithACLAt(ctx context.Context, view catalog.Read, reader catalog.Def
 		n.Usage = u.BaseUsage()
 		n.Value = value
 		literal, err := literalWithACLAt(ctx, view, reader, n, aclOutput, bounded)
-		if err != nil {
-			return "", err
+		if err != nil || bounded {
+			// The bounded INSERT destination applies the column's domains to the
+			// assigned value at its real bounds, not to the one-based source.
+			return literal, err
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
-	if ContainsCustomRange(u.Type) || ExactFloat4Dump(ctx) && NeedsFloat4RawReplay(n.Value) || n.Value.RequiresCircleConstructorReplay() && (u.Type.IsArray() || u.Type.IsComposite()) {
+	if ContainsCustomRange(u.Type) || ExactFloat4Dump(ctx) && NeedsFloat4RawReplay(n.Value) || n.Value.RequiresCircleConstructorReplay() && (u.Type.IsArray() || u.Type.IsComposite()) || u.Type.IsXMLArray() {
 		return constructorLiteral(ctx, view, reader, n, aclOutput, bounded)
 	}
 	if !n.Value.IsNull() && u.Type.ID() == sqltype.ACLItemArray && n.Value.ArrayRank() == 1 && n.Value.ArrayDimension(0) == (sqltype.ArrayDimension{Lower: 1, Length: 0}) {

@@ -54,7 +54,16 @@ func (d *Descriptor) ContainsRegclass() bool {
 // ArrayElementAdmitted is the scalar admission surface shared by generic array
 // codecs and storage. Internal char does not widen scalar annotations.
 func ArrayElementAdmitted(id ID) bool {
-	return id != XML && id != PgLSN && (id == Char || StoredScalarCastType(id) || id == Regclass)
+	return id != PgLSN && (id == Char || StoredScalarCastType(id) || id == Regclass)
+}
+
+// IsXMLArray reports an array, possibly behind domains, whose leaves are XML.
+// Their text input reparses each leaf under the session xmloption.
+func (d *Descriptor) IsXMLArray() bool {
+	if d == nil || !d.BaseType().IsArray() {
+		return false
+	}
+	return d.BaseType().element.BaseType().ID() == XML
 }
 
 func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {

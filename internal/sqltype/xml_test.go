@@ -14,8 +14,8 @@ func TestXMLSQLValueOwnership(t *testing.T) {
 	ctx := context.Background()
 	types, foreign := testTypes(), testTypes()
 	d := types[XML]
-	if !d.Concrete() || d.Usage().Collation.ID != 0 || IsCharacter(XML) || foreign[143].Concrete() {
-		t.Fatal("XML identity grants unrelated capabilities")
+	if !d.Concrete() || d.Usage().Collation.ID != 0 || IsCharacter(XML) || !foreign[143].Concrete() || foreign[143].Element() != foreign[XML] {
+		t.Fatal("XML identity or its companion array has unexpected capabilities")
 	}
 	empty, err := d.Input(ctx, "", -1)
 	if err != nil || !empty.ValidResult(d.Usage()) {

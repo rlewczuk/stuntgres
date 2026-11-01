@@ -137,14 +137,19 @@ import it.
   only with exact catalog-owned provider pointers and reciprocal companions.
   This does not admit those usages as executable codecs or stored values.
   Deep constructor literals reuse `float4_dump.go` for exact raw FLOAT4 and
-  negative-circle leaves. Custom ranges and companions use genuine type-owned
-  calls from `range_constructor_literal.go`, recursively rendering finite
-  endpoints and normalized members through the same leaf renderer. Reference
-  discovery, output capture and remap also visit these typed endpoints.
+  negative-circle leaves, and for XML-element arrays (`IsXMLArray`), whose text
+  would reparse leaves under the destination `xmloption`; XML leaves render
+  through their owner, and a bare NULL rank-one seed leaf gets its element
+  type. Custom ranges and companions use
+  genuine type-owned calls from `range_constructor_literal.go`, recursively
+  rendering finite endpoints and normalized members through the same leaf
+  renderer. Reference discovery, output capture and remap also visit these
+  typed endpoints.
   `ConstructorArrayTargetBounds`
   and `ConstructorBoundedInputContext` preserve non-one-based array dimensions
   through ordinary INSERT targets without native-only sidecars. That authority
-  addresses only the literal's root array (through domain wrappers); recursive
+  addresses only the literal's root array; its domain wrappers emit no source
+  CAST because the destination applies them at the real bounds. Recursive
   ROW fields and array elements never inherit it. Nested rank-one constructor
   arrays retain their own bounds through closed qualified `array_fill`/`array_cat`
   SQL; non-one-based multidimensional nested arrays need their own bounded INSERT

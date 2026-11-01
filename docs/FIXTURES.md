@@ -91,6 +91,8 @@ ignores the native comment rather than importing its historical catalog state.
   They do not use typed transport output, so declaration normalization and
   output warnings cannot change the dump. Restore is independent of the
   destination `xmloption`; a failed XML input leaves the old catalog intact.
+  XML array leaves use the same recipe inside per-element ARRAY constructors;
+  table cells keep exact lower bounds through subscripted INSERT targets.
 - Not dumped: roles or their shared comments, passwords, memberships, settings,
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
