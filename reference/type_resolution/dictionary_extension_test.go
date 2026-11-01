@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -80,7 +79,7 @@ func TestReferenceDictionaryExtensionControls(t *testing.T) {
 					// The initialized dictionary is cluster-global, unlike public
 					// scenario objects. Restore it even if a proof assertion fails.
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						for _, q := range []string{"SET SESSION AUTHORIZATION DEFAULT", "RESET ROLE", "DROP EXTENSION IF EXISTS unaccent CASCADE"} {
 							if _, err := c.ExecContext(ctx, q); err != nil {

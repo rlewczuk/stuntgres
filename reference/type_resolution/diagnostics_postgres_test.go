@@ -58,7 +58,7 @@ func TestReferencePermissionAndCancellationFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := fixture.Admin.ExecContext(cleanupCtx, "DROP OWNED BY error_fields_denied; DROP ROLE IF EXISTS error_fields_denied"); err != nil {
 			t.Errorf("drop reference role: %v", err)
@@ -73,7 +73,7 @@ func TestReferencePermissionAndCancellationFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := roleConn.ExecContext(cleanupCtx, "RESET ROLE"); err != nil {
 			t.Errorf("reset reference role: %v", err)
@@ -96,13 +96,13 @@ func TestReferencePermissionAndCancellationFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := cancelConn.ExecContext(cleanupCtx, "SET statement_timeout=0"); err != nil {
 			t.Errorf("reset reference statement timeout: %v", err)
 		}
 	}()
-	timeoutCtx, timeoutCancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	timeoutCtx, timeoutCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	_, err = cancelConn.ExecContext(timeoutCtx, "SELECT pg_sleep(10)")
 	timeoutCancel()
 	fixture.AssertDiagnostic(t, fmt.Errorf("wrapped: %w", err), &fixture.Diagnostic{
@@ -123,7 +123,7 @@ func TestReferencePermissionAndCancellationFields(t *testing.T) {
 		_, queryErr := cancelConn.ExecContext(queryCtx, "SELECT pg_sleep(10)")
 		result <- queryErr
 	}()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(fixture.Liveness)
 	active := false
 	for time.Now().Before(deadline) {
 		var waitEvent sql.NullString
