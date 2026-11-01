@@ -30,7 +30,7 @@ func TestVacuumF1SelectionSkipLocked(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Bound a broken blocking selection; success must be genuine NoWait omission.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 	defer cancel()
 	op, err := worker.Acquire(ctx)
 	if err != nil {

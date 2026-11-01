@@ -32,7 +32,7 @@ func TestUpdateCoreRowDeadlinesAndExplicitAbort(t *testing.T) {
 				if !errors.As(err, &diagnostic) || diagnostic.Code != setting.state || diagnostic.Message != setting.message || diagnostic.Position != "" {
 					t.Fatal(err)
 				}
-			case <-time.After(time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Fatal("SQL deadline did not stop row wait")
 			}
 			if b.TransactionState() != session.TxAborted {

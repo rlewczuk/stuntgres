@@ -34,7 +34,7 @@ func notificationUnitUtility(t *testing.T, s *session.Session, stmt parser.State
 }
 func notificationUnitReceive(t *testing.T, s *session.Session) session.Notification {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 	defer cancel()
 	op, err := s.AcquireActivity(ctx)
 	if err != nil {
@@ -337,7 +337,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-			case <-time.After(time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Fatal("prepared completion waited for live origin admission")
 			}
 			if err := scope.Finish(executeErr); err != nil {

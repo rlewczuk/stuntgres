@@ -64,7 +64,7 @@ func pgLocksUnitRequest(t *testing.T, e *core.Engine, ticket *lock.Ticket, resou
 		if r != nil {
 			select {
 			case <-r.Done():
-			case <-time.After(time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Error("pending request did not join")
 			}
 		}

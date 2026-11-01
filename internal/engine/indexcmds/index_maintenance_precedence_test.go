@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
@@ -47,7 +46,7 @@ func TestIndexMaintenanceMalformedControlBeforeDeniedWait(t *testing.T) {
 			{"verbose false, unknown", `unrecognized REINDEX option "unknown"`, "25"},
 		} {
 			q := "REINDEX (" + c.option + ") " + target
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 			op, err := actor.Acquire(ctx)
 			if err != nil {
 				cancel()

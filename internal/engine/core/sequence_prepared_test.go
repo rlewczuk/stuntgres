@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/core"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
@@ -571,7 +570,7 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 			} else if len(got) != 1 || got[0][0] != nil {
 				t.Fatal("strict NULL result", got)
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 			defer cancel()
 			op, err := a.Acquire(ctx)
 			if err != nil {

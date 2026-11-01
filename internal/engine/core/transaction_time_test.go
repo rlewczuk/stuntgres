@@ -317,7 +317,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 func TestTransactionTimeAdmissionWait(t *testing.T) {
 	e := engine.New()
 	sess := enginetest.StartSession(t, e, nil)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 	defer cancel()
 	sess.Settings.Mu.Lock()
 	locked := true

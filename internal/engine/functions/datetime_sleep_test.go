@@ -115,7 +115,7 @@ func TestDatetimeSleepWait(t *testing.T) {
 			if err != context.Canceled {
 				t.Fatal("cancel identity", err)
 			}
-		case <-time.After(time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("active wait did not join")
 		}
 	}

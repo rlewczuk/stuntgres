@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/core"
@@ -18,6 +19,11 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+// Liveness bounds a test's wait for an outcome that must eventually happen.
+// It is a hang guard sized for parallel suites on a loaded machine; waits
+// return as soon as the outcome occurs, so it never slows a passing test.
+const Liveness = 30 * time.Second
 
 // sessionID numbers the sessions the helpers start, unique per test binary.
 var sessionID atomic.Uint64

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"testing"
-	"time"
 )
 
 type detachLockOwner struct{ ids.TxOwnerMarker }
@@ -65,7 +65,7 @@ func TestPartitionDetachConcurrentCohort(t *testing.T) {
 			if slices.Contains(cohort, later) {
 				t.Fatal("later reader enlarged frozen cohort")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 			defer cancel()
 			wait, err := m.StartAcquire(ctx, self, lock.CompletionOf(original), lock.TransactionCompletion, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 			if err != nil || wait == nil {

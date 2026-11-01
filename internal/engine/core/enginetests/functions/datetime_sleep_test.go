@@ -93,7 +93,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 		cancel()
 		select {
 		case err = <-done:
-		case <-time.After(time.Second):
+		case <-time.After(enginetest.Liveness):
 			t.Fatal("admitted wait did not join")
 		}
 		if err != context.Canceled || scope.Finish(err) != context.Canceled || op.CommandError(err) != context.Canceled {

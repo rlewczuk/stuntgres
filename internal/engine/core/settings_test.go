@@ -105,7 +105,7 @@ func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 	go func() { _, err := e.Execute(op, ast, 0, nil); finished <- err }()
 	select {
 	case <-op.Context().Done():
-	case <-time.After(time.Second):
+	case <-time.After(enginetest.Liveness):
 		e.Mu.Unlock()
 		t.Fatal("timer did not fire")
 	}
@@ -285,7 +285,7 @@ func TestSettingAdmissionCapturesNoticeFilter(t *testing.T) {
 	defer op.Done()
 	select {
 	case <-op.Context().Done():
-	case <-time.After(time.Second):
+	case <-time.After(enginetest.Liveness):
 		t.Fatal("actual admission timer did not fire")
 	}
 	_, err = e.Execute(op, &parser.Set{Name: parser.Identifier{Text: "application_name"}, Values: []string{strings.Repeat("b", 64)}}, 0, nil)

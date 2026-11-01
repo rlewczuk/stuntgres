@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
@@ -227,7 +228,7 @@ func TestPartitionDetachConcurrentPublication(t *testing.T) {
 				if !joined {
 					select {
 					case <-done:
-					case <-time.After(time.Second):
+					case <-time.After(enginetest.Liveness):
 						t.Error("detach publication worker failed to join")
 					}
 				}

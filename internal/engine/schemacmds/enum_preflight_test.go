@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
@@ -27,7 +26,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, resource, lock.TypeExclusive); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(op.Ctx, time.Second)
+	ctx, cancel := context.WithTimeout(op.Ctx, enginetest.Liveness)
 	defer cancel()
 	op.Ctx = ctx
 	for _, rename := range []bool{false, true} {
