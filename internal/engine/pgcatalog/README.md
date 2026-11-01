@@ -9,7 +9,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
-`role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
+`role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`, `parameters`, `element_types`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -20,6 +20,20 @@ projection for pg_proc arrays, information_schema parameters and routine inquiry
 They retain all-formal order separately from input/default slots, including OUT,
 INOUT, VARIADIC and TABLE modes. Invocation expansion and inferred call results
 cannot replace these descriptor-owned facts.
+
+`element_types` projects actual array declarations into 28 nullable source-owned
+domain cells. Nominal `TypeFacts.Element` and variable length determine admission;
+declaration domains are not flattened. Relation/composite attributes retain actual
+ordinals, domains describe only their immediate base, and routines use all-formal
+positions plus the declared result. Captured object collation, element identity,
+database, type-name path and effective object-specific rights share one coherent
+catalog/role frontier. Metadata never scans stored arrays or invokes routines or
+foreign handlers. Missing declarations remain absent; cancellation or invalid
+authority publishes no prefix. Native source16256 links row13516/array13515 through
+the common bootstrap. Symbolic view text supplies presentation, not execution.
+Metadata admission is independent of codecs and lookup identity: canonical
+array/domain links are validated before consulting the existing type-fact
+inventory. A lookup-only identity cannot fabricate facts or hide malformed links.
 
 
 ## Imports
@@ -1566,6 +1580,8 @@ a hash root alone does not select that access method.
 - View-column dependency producer units (`core/enginetests/infoschema`): `RUN='^TestInfoViewColumnUsage'`
 - View-routine dependency producer/capture/cancellation and stored-call identity
   units (`enginetests/`): `RUN='^TestInfoViewRoutineUsage'`
+- Element declaration producer, nominal boundaries, captured generations and
+  cancellation units (`enginetests/`): `RUN='^TestInfoElementTypes'`
 - Stored-view consumer and retained TEMP reference authority:
   `RUN='^(TestCatalogSourceRuntimeViewReferencesConsumer|TestCatalogSourceRuntimeViewReferencesRetainedTemporary)$'`
 - View-routine public scenarios: `RUN='^TestReferenceInfoViewRoutineUsage'`

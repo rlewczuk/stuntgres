@@ -1,7 +1,7 @@
 # reference/information_schema
 
 `information_schema` object views: `views` (including builtin view definitions,
-shared with `pg_views`), `view_table_usage`, `view_column_usage`, `view_routine_usage`, `triggers`, `routines`, `parameters`,
+shared with `pg_views`), `view_table_usage`, `view_column_usage`, `view_routine_usage`, `triggers`, `routines`, `parameters`, `element_types`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`,
@@ -47,6 +47,18 @@ cover metadata, role/identity publication, replacement/drop and full diagnostics
 Native-only control phases retain returned rows/types and reconstruct dependencies
 and owners through Reset/Restore, including an independent Driver destination.
 The complete provider inventory and all six builtin definition maps include it.
+
+Element declaration inquiry asserts the complete nullable 28-domain projection,
+raw NAME/VARCHAR/INT4 metadata and exact bags across ordinary/composite attributes,
+immediate domain bases and all-formal/result routine positions. Nominal domains
+and actual ordinals survive array nesting, sparse attributes and schema moves;
+modifiers and cardinality remain NULL. Object-specific rights, inherited versus
+SET-only authority and physical temporary ownership govern represented rows
+independently of schema or element-type USAGE. Direct, fresh-prepared and held
+consumers cover typed empty/NULL results, complete diagnostics and current display
+settings. Native controls retain old rows/types and rebuild declarations without
+serializing provider rows. The exhaustive column and six definition inventories
+include this source without narrowing their other candidates.
 
 ## Testing
 
@@ -135,6 +147,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Catalog-name inquiry: `RUN='^TestReferenceInfoInformationSchemaCatalogName'`
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
 - Routine parameter inquiry: `RUN='^TestReferenceInfoParameters'`
+- Element declaration inquiry: `RUN='^TestReferenceInfoElementTypes'`
 - Referential constraints: `RUN='^TestReferenceInfoReferentialConstraints'`
 - View-column dependencies: `RUN='^TestReferenceInfoViewColumnUsage'`
 - View-routine dependencies: `RUN='^TestReferenceInfoViewRoutineUsage'`

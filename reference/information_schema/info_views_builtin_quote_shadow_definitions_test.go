@@ -2,6 +2,7 @@ package reference_test
 
 // Independent PostgreSQL 18.6 quote_all_identifiers definition expectations.
 var ivBuiltinQuoteShadowDefinitions = map[string]string{
+	"information_schema.element_types":                   etInventoryShadowDefinition(true),
 	"information_schema.information_schema_catalog_name": ` SELECT ("current_database"())::"information_schema"."sql_identifier" AS "catalog_name";`,
 	"information_schema.foreign_tables": ` SELECT "foreign_table_catalog",
     "foreign_table_schema",

@@ -2,6 +2,7 @@ package pgcatalog
 
 var infoBuiltinViews = [...]builtinView{
 	parametersBuiltinView,
+	elementTypesBuiltinView,
 	infoUsagePrivilegesView,
 	infoUdtPrivilegesView,
 	{oid: InfoInformationSchemaCatalogNameOID, parts: []builtinViewPart{

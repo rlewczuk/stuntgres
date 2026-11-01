@@ -3,6 +3,7 @@ package reference_test
 // Independent released PostgreSQL 18.6 pg_get_viewdef presentation expectations.
 // These consumer expectations are independent of the native builtin inventory.
 var ivBuiltinShadowDefinitions = map[string]string{
+	"information_schema.element_types":                   etInventoryShadowDefinition(false),
 	"information_schema.information_schema_catalog_name": ` SELECT (current_database())::information_schema.sql_identifier AS catalog_name;`,
 	"information_schema.foreign_tables": ` SELECT foreign_table_catalog,
     foreign_table_schema,
