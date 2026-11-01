@@ -20,6 +20,11 @@ import this package directly.
   `SessionDefaultProvider`. Validation errors use the same `"stuntgres: "`
   prefix as the engine's `RegistrationError`, which stays in the engine
   because foreign-data registration shares it.
+- **Bounded library definitions** (`pgtrgm.go`): `PgTrgmDefinitions` borrows the
+  three immutable released threshold descriptors, including exact widened FLOAT
+  boot values and library-only descriptions. They are not global registry
+  entries. The session store owns activation, prefix reservation and values;
+  public registration validation remains unchanged.
 - **Builtins** (`builtins.go`, `developer.go`, `logging.go`, `messages.go`, `format_encoding.go`): the
   private builtin table in PostgreSQL 18 English `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),

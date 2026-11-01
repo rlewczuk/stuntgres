@@ -286,6 +286,14 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`
 - fuzzystrmatch: `RUN='^TestReferenceDaitchMokotoff'`, `RUN='^TestReferenceLevenshtein'`, `RUN='^TestReferenceMetaphone'`, `RUN='^TestReferenceSoundex'`
+- pg_trgm: `RUN='^TestReferencePgTrgm'`. Settings scenarios create fresh physical
+  notice-enabled sessions; resetting schemas or using DISCARD does not unload a
+  library. Stored identity and native replay assertions retain independent
+  destination recorders and distinguish provider declarations from SQL shadows.
+  Fractional threshold SET inputs use quoted configuration strings, retaining
+  released REAL validation, precision and journal behavior without expanding the
+  parser's deliberate decimal-integer-only bare SET numeric syntax. Bare integer
+  endpoints zero and one remain exercised.
 - tablefunc Gaussian sources: `RUN='^TestReferenceTablefuncNormal'`
 - BRIN pageinspect: `RUN='^TestReferencePageinspectBrin'`
 - GIN pageinspect: `RUN='^TestReferencePageinspectGIN'`

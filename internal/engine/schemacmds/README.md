@@ -188,6 +188,12 @@ capture and publication: CREATE, UPDATE, membership mutation and schema
 relocation share `publishExtensionStage`, whose provider validation runs with
 the mutex released, fenced by `extensionAuthorityFence`. Destination resolution
 includes CREATE admission before extension ownership and same-target handling.
+The narrow pg_trgm script capability delegates to core's physical settings owner
+after early CREATE admission and extension-header staging, before the released
+script's initial C-validation boundary. This loads even when a later member
+collides, but never for IF NOT EXISTS or earlier privilege/schema/version errors.
+Settings/session locks are released before owned warnings are queued; no external
+notice callback runs under publication locks.
 Successful membership ADD/DROP and real schema movement annotate one outer
 `ALTER EXTENSION` address on the gated command stage; recursive members and
 internal namespace movers do not emit separate command receipts. Publication

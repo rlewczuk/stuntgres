@@ -25,6 +25,9 @@ func captureSavepoint(t *session.TransactionOwner, name string) session.Savepoin
 // statements and PL/pgSQL exception blocks. t.Mu is held. Enrollment follows
 // the characteristic rules, which only re-enroll before the first snapshot.
 func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
+	if mark.Invocation != nil {
+		mark.Invocation.PrepareRestore()
+	}
 	e := EngineOf(t.Session)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -122,6 +125,9 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			mark = t.Savepoints[position]
 			if control.Kind == parser.RollbackSavepoint {
 				settings = t.Session.Settings.PrepareSavepointRestore(mark.Settings)
+				if mark.Invocation != nil {
+					mark.Invocation.PrepareRestore()
+				}
 			}
 		}
 	}

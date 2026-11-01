@@ -192,6 +192,18 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 			return err
 		}
 	}
+	if captured.Implementation == extension.StockPgTrgm {
+		current, err := ValidateStoredRoutineDescriptor(auth.Catalog, captured)
+		if err != nil {
+			return err
+		}
+		if err := extension.StockPgTrgm.ValidateProcedure(auth.Catalog, current); err != nil {
+			return err
+		}
+		if err := c.InitializePgTrgm(); err != nil {
+			return err
+		}
+	}
 	if inquiryRoutine(captured) {
 		return validateInquiryBodyLifetime(c, node, captured)
 	}

@@ -1,6 +1,8 @@
 package session
 
 import (
+	"slices"
+
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -84,22 +86,39 @@ func promoteIsnImage(values map[string]string, typed map[string]settings.Value, 
 	return warning
 }
 
-// VisitDefinitionsLocked exposes the immutable registry plus recognized module
-// metadata to SHOW ALL and pg_settings without copying or mutating the registry.
+// VisitDefinitionsLocked merges the bounded recognized module names with
+// borrowed registry order, without copying or mutating the registry.
 func (s *SettingsStore) VisitDefinitionsLocked(registry settings.Registry, visit func(settings.Definition) error) error {
-	loaded, inserted := s.IsnLoaded(), false
-	for _, name := range registry.Order() {
-		if loaded && !inserted && name >= "isn.weak" {
-			if err := visit(IsnDefinition()); err != nil { return err }
-			inserted = true
-		}
-		if loaded && name == "isn.weak" {
-			continue
-		}
-		if err := visit(registry.Definitions()[name]); err != nil { return err }
+	s.reconcilePgTrgmLocked()
+	var overlay [4]string
+	names := overlay[:0]
+	if s.IsnLoaded() {
+		names = append(names, IsnDefinition().Name)
 	}
-	if loaded && !inserted {
-		return visit(IsnDefinition())
+	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
+		for _, d := range settings.PgTrgmDefinitions() {
+			names = append(names, d.Name)
+		}
+	}
+	slices.Sort(names)
+	order := registry.Order()
+	for i, j := 0, 0; i < len(order) || j < len(names); {
+		var name string
+		if j == len(names) || i < len(order) && order[i] < names[j] {
+			name = order[i]
+			i++
+		} else if i == len(order) || names[j] < order[i] {
+			name = names[j]
+			j++
+		} else {
+			name = order[i]
+			i++
+			j++
+		}
+		d, _ := s.EffectiveDefinitionLocked(registry, name)
+		if err := visit(d); err != nil {
+			return err
+		}
 	}
 	return nil
 }

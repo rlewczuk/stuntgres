@@ -8,37 +8,61 @@ type InvocationMark struct {
 	frame     *RestrictedInvocation
 	operation *Operation
 	image     *SettingsStore
+	prepared  *SettingsStore
 	safePath  bool
 }
 
 func cloneInvocationSettings(source *SettingsStore) *SettingsStore {
 	source.Mu.Lock()
 	defer source.Mu.Unlock()
-	return &SettingsStore{
+	image := &SettingsStore{
 		Session: source.Session, Invocation: true,
 		temporaryBufferOwner: source.temporaryBufferAuthority(),
 		clientEncodingOwner:  source.clientEncodingAuthority(),
 		isnOwner:             source.isnAuthority(),
 		isnPromoted:          source.isnPromoted,
+		pgTrgmOwner:          source.pgTrgmAuthority(),
+		pgTrgmParent:         source,
+		pgTrgmPromoted:       source.pgTrgmPromoted,
 		TempTablespaces:      cloneTempTablespaceAssignment(source.TempTablespaces, source.Value("temp_tablespaces")),
 		statsOwner:           source.statsAuthority(),
-		Defaults:             maps.Clone(source.Defaults), Values: maps.Clone(source.Values),
-		Typed: maps.Clone(source.Typed), DefaultTyped: maps.Clone(source.DefaultTyped),
-		Placeholders: maps.Clone(source.Placeholders), ProviderDefaults: maps.Clone(source.ProviderDefaults),
-		DefaultSources: maps.Clone(source.DefaultSources),
-		Actions:        maps.Clone(source.Actions), RoleAction: source.RoleAction, NestLevel: source.NestLevel,
+		RoleAction:           source.RoleAction, NestLevel: source.NestLevel,
 		CurrentIsolation: source.CurrentIsolation, CurrentReadOnly: source.CurrentReadOnly, CurrentDeferrable: source.CurrentDeferrable,
 	}
+	if !source.pgTrgmPromoted && source.pgTrgmAuthority().pgTrgmLoaded.Load() {
+		candidate, _ := preparePgTrgmSettings(source, false)
+		image.installPgTrgm(candidate)
+	} else {
+		image.Defaults, image.DefaultTyped = maps.Clone(source.Defaults), maps.Clone(source.DefaultTyped)
+		image.Values, image.Typed = maps.Clone(source.Values), maps.Clone(source.Typed)
+		image.Placeholders, image.Actions = maps.Clone(source.Placeholders), maps.Clone(source.Actions)
+		image.ProviderDefaults, image.DefaultSources = maps.Clone(source.ProviderDefaults), maps.Clone(source.DefaultSources)
+	}
+	return image
 }
 func (op *Operation) CaptureInvocation() *InvocationMark {
 	if op.Restricted == nil {
 		return nil
 	}
-	return &InvocationMark{frame: op.Restricted, operation: op, image: cloneInvocationSettings(op.EffectiveSettings()), safePath: op.Restricted.SafePath}
+	source := op.EffectiveSettings()
+	image := cloneInvocationSettings(source)
+	image.pgTrgmParent = source.pgTrgmParent
+	return &InvocationMark{frame: op.Restricted, operation: op, image: image, safePath: op.Restricted.SafePath}
+}
+
+// PrepareRestore reconciles a retained exception image into an independent
+// typed candidate before the final callback-free publication window.
+func (m *InvocationMark) PrepareRestore() {
+	m.prepared = cloneInvocationSettings(m.image)
+	m.prepared.pgTrgmParent = m.image.pgTrgmParent
 }
 func (m *InvocationMark) Restore() {
 	// One unnamed exception checkpoint is consumed once. Its complete image is
 	// independent of its frame, including recognition and setting action state.
+	if m.prepared != nil {
+		m.image = m.prepared
+		m.prepared = nil
+	}
 	beforeRole := m.operation.EffectiveSettings().TypedValue("session_replication_role").Text
 	beforeStats := m.operation.EffectiveSettings().Value("stats_fetch_consistency")
 	m.frame.settings, m.frame.SafePath = m.image, m.safePath

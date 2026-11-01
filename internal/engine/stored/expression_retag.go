@@ -159,6 +159,11 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 					return nil, false, failure
 				}
 			}
+			if call, installed := node.(functions.PgTrgm); installed {
+				if failure := remapPgTrgmRoutine(view, reader, captured, current, call, retainedType); failure != nil {
+					return nil, false, failure
+				}
+			}
 			if call, isHstore := node.(functions.HstoreArray); isHstore {
 				if failure := remapHstoreArrayRoutine(view, reader, captured, current, call, retainedType); failure != nil {
 					return nil, false, failure
@@ -1290,8 +1295,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		rebound = n
 	case plan.SelectedOperatorExpr:
 		n.Provider = child(n.Provider)
+		if err != nil {
+			return nil, false, err
+		}
 		if view.State() != nil {
 			if current, ok := view.Operator(n.Ref.Address); ok {
+				if failure := catalog.ValidateInstalledClassOrigin(view, current); failure != nil {
+					return nil, false, failure
+				}
 				changed = changed || current != n.Operator
 				n.Operator = current
 			}

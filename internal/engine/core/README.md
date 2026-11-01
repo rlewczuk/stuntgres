@@ -810,6 +810,25 @@ The public resource Lifecycle definition additionally isolates first use of
 empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
 owners, separately from populated shared PostgreSQL preservation witnesses.
 
+## pg_trgm initialization and thresholds
+
+`pgtrgm.go` owns the admitted physical-session transition shared by the reached
+extension script and actual routine fold/residual initialization. Activation
+locks Engine, physical SettingsStore, any distinct effective store, then Session;
+the settings owner promotes active physical and detached images once. Returned
+warnings enter the ordinary operation notice buffer outside settings/session
+locks. A skipped CREATE or analysis alone never loads the overlay. Threshold
+evaluation takes Engine, effective SettingsStore, then Session, validates the
+current invocation and reads the typed REAL definition without implicit loading.
+Catalog replacement, extension removal, rollback and DISCARD do not unload a
+physical session or reset its threshold values.
+
+Routine and persisted setting validation use the same effective definition
+lookup as SET/SHOW rather than bypassing loaded definitions through the shared
+engine registry. Savepoint and exception rollback prepare InvocationMark images
+before final publication locks; final restoration only installs already typed
+independent candidates and cannot parse, allocate or re-emit load warnings.
+
 ## Contrib runtimes
 
 The amcheck, `verify_heapam`, pageinspect, pgrowlocks, pgstattuple,

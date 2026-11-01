@@ -402,6 +402,12 @@ typmods; naming is captured only on failure and is never retained in result tupl
   borrowing the current owner; initialization errors are not soft input data.
   Runtime text casts overlay live `IsnWeak`, while closed evaluation retains
   its detached input policy.
+  The released pg_trgm provider also initializes its physical library at this
+  actual fold/residual admission boundary, after current EXECUTE and declaration
+  checks but before operands. A strict literal-NULL call erased by planning does
+  not initialize; surviving dynamic-NULL and zero-row expressions do. The narrow
+  `InitializePgTrgm`/`PgTrgmThreshold` live-host bridge retains no settings image
+  or actor; thresholds are typed live reads, never parsed SHOW text or folded BOOLs.
   `CheckProgram` owns ordinary CHECK cooked expressions plus command/actor/RI
   phases, each holding a stable `RoutineProgram` pointer. The live statement
   retains that same pointer through lazy truth and existing wait/publication

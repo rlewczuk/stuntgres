@@ -66,7 +66,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 		}
 	}
 	s.Touch(d.Name, action)
-	if _, registered := registry.Definitions()[d.Name]; !registered && !(d.Name == "isn.weak" && s.IsnLoaded()) {
+	if _, registered := s.EffectiveDefinitionLocked(registry, d.Name); !registered {
 		s.Placeholders[d.Name] = true
 	}
 	if value == nil {
@@ -93,11 +93,12 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 // placeholder recognition remain intact; the default provider is never
 // invoked again. Caller holds Settings.Mu then Session.Mu of s.Session.
 func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
+	s.reconcilePgTrgmLocked()
 	beforeRole := s.TypedValue("session_replication_role").Text
 	beforeStats := s.Value("stats_fetch_consistency")
 	timeoutChanged, transactionAssignment := false, false
 	for key := range s.Values {
-		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && !(d.Access == settings.Privileged && parameterGrantSetting(d.Name)) {
+		if d, ok := s.EffectiveDefinitionLocked(registry, key); ok && d.Access != settings.Session && !(d.Access == settings.Privileged && parameterGrantSetting(d.Name)) {
 			continue
 		}
 		s.Touch(key, SettingSet)

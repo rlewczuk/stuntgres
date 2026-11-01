@@ -121,9 +121,9 @@ func (r *catalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.Setti
 	if err != nil {
 		return nil, err
 	}
-	facts := make([]pgcatalog.SettingsFact, 0, len(r.registry.Order()))
 	s := r.settings
 	s.Mu.Lock()
+	facts := make([]pgcatalog.SettingsFact, 0, len(r.registry.Order()))
 	err = s.VisitDefinitionsLocked(r.registry, func(d settings.Definition) error {
 		name := d.Name
 		if d.ReadRestricted && !readRestricted {

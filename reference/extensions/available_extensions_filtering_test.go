@@ -119,6 +119,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"sslinfo", "1.2", false, true, false, true, nil, nil, "information about SSL certificates"})
 				wantAvailable = append(wantAvailable, []any{"bloom", "1.0", nil, "bloom access method - signature file based index"})
 				wantVersions = append(wantVersions, []any{"bloom", "1.0", false, true, false, true, nil, nil, "bloom access method - signature file based index"})
+				wantAvailable = append(wantAvailable, []any{"pg_trgm", "1.6", nil, "text similarity measurement and index searching based on trigrams"})
+				wantVersions = append(wantVersions, []any{"pg_trgm", "1.6", false, true, true, true, nil, nil, "text similarity measurement and index searching based on trigrams"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

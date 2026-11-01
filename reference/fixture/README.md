@@ -388,6 +388,11 @@ production dependency is involved.
   driver object; `BatchSet`, `BatchReadSet` and `BatchSets` assert multi-result
   direct-message batches; `NoticeWitnesses` and `NoticesInternalDebug` keep SQL
   notices exact while treating PostgreSQL DEBUG tracing as incidental.
+  `NoticeReferencePool` owns a fresh physical connection and recorder. Its
+  optional `NoticeReferenceOption.AuthenticatedRole` uses the existing
+  role-attributes login password on PostgreSQL and the owning Driver's
+  `OpenConnectorAs` natively, preserving captured startup defaults and notice
+  ownership; empty keeps the ordinary bootstrap connection.
 - **Transactional definitions.** `DefinitionLockOperation` uses the existing
   joined worker/native scheduler observer and checks the oracle's exact queued
   relation, transaction-ID or object lock, mode and blocker. `DefinitionLockCall`

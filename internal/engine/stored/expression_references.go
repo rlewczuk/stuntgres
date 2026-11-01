@@ -90,6 +90,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Citext != nil {
 			r.Add(n.Citext.Ref.Address)
 		}
+	case functions.PgTrgm:
+		r.Add(n.Ref.Address)
 	case functions.HstoreArray:
 		r.Add(n.Ref.Address)
 	case functions.HstoreJSON:

@@ -23,6 +23,7 @@ func (h DDLHost) ValidateRoutineSetting(actor ddl.Authority, clause *parser.Set)
 	store := h.Op.EffectiveSettings()
 	store.Mu.Lock()
 	d, err := store.LookupDefinition(h.E.Settings, clause.Name.Text, !clause.FromCurrent)
+	_, registered := store.EffectiveDefinitionLocked(h.E.Settings, d.Name)
 	store.Mu.Unlock()
 	if err != nil {
 		return "", "", false, err
@@ -33,7 +34,7 @@ func (h DDLHost) ValidateRoutineSetting(actor ddl.Authority, clause *parser.Set)
 	}
 	// PostgreSQL's declaration array admission does not give unknown custom
 	// placeholders the generic user-settable privilege of ordinary SET.
-	if _, registered := h.E.Settings.Definitions()[d.Name]; !registered && !(d.Name == "isn.weak" && store.IsnLoaded()) {
+	if !registered {
 		ok, err := allowed(d.Name)
 		if err != nil {
 			return "", "", false, err

@@ -53,7 +53,7 @@ func (s *SettingsStore) CapturePersistedDefaults(ctx context.Context, registry s
 			s.DefaultTyped = maps.Clone(s.DefaultTyped)
 			s.defaultsShared = false
 		}
-		if _, registered := registry.Definitions()[name]; !registered {
+		if _, registered := s.EffectiveDefinitionLocked(registry, name); !registered {
 			s.Placeholders[name] = true
 		}
 		s.Defaults[name], s.DefaultTyped[name] = d.Format(v), v

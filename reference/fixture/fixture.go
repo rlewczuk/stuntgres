@@ -14,6 +14,7 @@ import (
 	"github.com/ngrok/sqlmw"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"io"
+	"net/url"
 	"os"
 	"reflect"
 	"runtime"
@@ -853,10 +854,20 @@ func (d NoticeReferenceDriver) Open(string) (driver.Conn, error) {
 type NoticeReferenceOption struct {
 	Handler func(Diagnostic)
 	Joined  func() bool
+	// AuthenticatedRole selects a fresh login using the role-attributes fixture
+	// password on PostgreSQL and OpenConnectorAs on the owning native engine.
+	// Empty preserves the ordinary bootstrap notice connection.
+	AuthenticatedRole string
 }
 
 func NoticeReferencePool(t *testing.T, p *Pair, postgres bool, records *[]Diagnostic, options ...NoticeReferenceOption) (*sql.DB, *sql.Conn, *Recorder) {
 	t.Helper()
+	role := ""
+	for _, option := range options {
+		if option.AuthenticatedRole != "" {
+			role = option.AuthenticatedRole
+		}
+	}
 	deliver := func(diagnostic Diagnostic) {
 		*records = append(*records, diagnostic)
 		for _, option := range options {
@@ -867,7 +878,16 @@ func NoticeReferencePool(t *testing.T, p *Pair, postgres bool, records *[]Diagno
 	}
 	var connector driver.Connector
 	if postgres {
-		base, err := pq.NewConnector(DSN)
+		dsn := DSN
+		if role != "" {
+			u, err := url.Parse(dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			u.User = url.UserPassword(role, "role-attributes-fixture")
+			dsn = u.String()
+		}
+		base, err := pq.NewConnector(dsn)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -877,8 +897,15 @@ func NoticeReferencePool(t *testing.T, p *Pair, postgres bool, records *[]Diagno
 		if base == nil {
 			t.Fatal("notice pool has no owning native connector")
 		}
-		if p.MemoryRecord.RawBackend == RawLegacy {
-			legacy, err := base.Driver().(*stuntgres.Driver).OpenConnector("reference/" + t.Name())
+		if p.MemoryRecord.RawBackend == RawLegacy || role != "" {
+			dsn := p.NativeDSN
+			if p.MemoryRecord.RawBackend == RawLegacy {
+				dsn = "reference/" + t.Name()
+			}
+			if role == "" {
+				role = "postgres"
+			}
+			legacy, err := base.Driver().(*stuntgres.Driver).OpenConnectorAs(dsn, role)
 			if err != nil {
 				t.Fatal(err)
 			}

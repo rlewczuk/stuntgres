@@ -72,7 +72,7 @@ type Engine struct {
 	TextSearchFiles                 *functions.DictionaryFiles // Immutable Driver startup capability, never catalog state.
 	IdentFile                       *identfile.Source          // Immutable destination startup filesystem authority.
 	DatabaseFrozenXID               uint64
-	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	VacuumProgress                  map[ids.TxRef]VacuumProgress  // Engine.mu; only actual work.
 	ClusterProgress                 map[ids.TxRef]ClusterProgress // Engine.mu; actual FULL work only.
 	Statistics                      statistics.Provider
 	catalogCaptures                 catalogrt.CaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.
@@ -228,7 +228,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	for _, registration := range []struct {
 		name           string
 		implementation extension.Installer
-	}{{"autoinc", extension.StockAutoinc}, {"insert_username", extension.StockInsertUsername}, {"pageinspect", extension.StockPageinspect}, {"pgstattuple", extension.StockPgstattuple}, {"pg_visibility", extension.StockPgvisibility}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"isn", extension.StockIsn}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"seg", extension.StockSeg}, {"intarray", extension.StockIntarray}, {"ltree", extension.StockLtree}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"tablefunc", extension.StockTablefunc}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}, {"sslinfo", extension.StockSSLInfo}} {
+	}{{"autoinc", extension.StockAutoinc}, {"insert_username", extension.StockInsertUsername}, {"pageinspect", extension.StockPageinspect}, {"pgstattuple", extension.StockPgstattuple}, {"pg_visibility", extension.StockPgvisibility}, {"amcheck", extension.StockAmcheck}, {"hstore", extension.StockHstore}, {"isn", extension.StockIsn}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"seg", extension.StockSeg}, {"intarray", extension.StockIntarray}, {"ltree", extension.StockLtree}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"pg_trgm", extension.StockPgTrgm}, {"intagg", extension.StockIntagg}, {"pgrowlocks", extension.StockPgrowlocks}, {"tablefunc", extension.StockTablefunc}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}, {"sslinfo", extension.StockSSLInfo}} {
 		if err := e.registerExtension(registration.name, registration.implementation); err != nil {
 			return nil, err
 		}

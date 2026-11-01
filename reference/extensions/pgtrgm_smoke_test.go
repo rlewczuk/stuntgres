@@ -1,0 +1,126 @@
+package reference_test
+
+import (
+	"database/sql"
+	"strings"
+	"testing"
+
+	"stuntgres/reference/fixture"
+)
+
+func TestReferencePgTrgmFeatureSmoke(t *testing.T) {
+	pgTrgmCase(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, notices *[]fixture.Diagnostic) {
+		check := pgTrgmStored(t, p, b, c)
+		run := pgTrgmRun(t, p, b, c)
+		q := "SELECT trgm_addon.show_trgm($1)"
+		stmt, err := c.PrepareContext(p.Ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+		array := pgTrgmArray("  c", " ca", "at ", "cat")
+		run(pgTrgmScalar(b, "SELECT trgm_addon.show_trgm('cat')", "show_trgm", "_TEXT", array))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTrgmScalar(b, q, "show_trgm", "_TEXT", array, "cat"))
+		fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTrgmScalar(b, q, "show_trgm", "_TEXT", nil, nil))
+		run(pgTrgmSelect(b,
+			"SELECT trgm_addon.similarity('a','aa'),trgm_addon.word_similarity('word','two words'),trgm_addon.strict_word_similarity('word','two words'),trgm_addon.similarity('café','caf') AS composed,trgm_addon.similarity('é','é') AS nonword,trgm_addon.similarity(NULL::text,'cat') AS absent",
+			[]string{"similarity", "word_similarity", "strict_word_similarity", "composed", "nonword", "absent"},
+			[]string{"FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"},
+			[][]any{{float64(0.25), pgTrgmReal(b.PG, 4, 5), pgTrgmReal(b.PG, 4, 7), float64(1), float64(0), nil}},
+		))
+		for _, threshold := range []string{"0", "1"} {
+			for _, setting := range pgTrgmSettings {
+				run(fixture.Exec("SET "+setting.name+"="+threshold, 0))
+			}
+			left, right := "'cat'", "'cat'"
+			if threshold == "0" {
+				left, right = "'!!!'", "''"
+			}
+			parts, names, types := []string{}, []string{}, []string{}
+			values := []any{}
+			for _, op := range pgTrgmOperators {
+				parts = append(parts, left+" OPERATOR(trgm_addon."+op.token+") "+right+" AS \""+op.routine+"\"")
+				names = append(names, op.routine)
+				types = append(types, op.result)
+				var value any = true
+				if op.result == "FLOAT4" {
+					value = float64(0)
+					if threshold == "0" {
+						value = float64(1)
+					}
+				}
+				values = append(values, value)
+			}
+			run(pgTrgmSelect(b, "SELECT "+strings.Join(parts, ","), names, types, [][]any{values}))
+		}
+		for _, setting := range pgTrgmSettings {
+			run(fixture.Exec("RESET "+setting.name, 0))
+		}
+		boolSQL := "SELECT $1::text OPERATOR(trgm_addon.%) $2::text AS result"
+		boolStmt, err := c.PrepareContext(p.Ctx, boolSQL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer boolStmt.Close()
+		heldBool := fixture.HeldStatement{Executor: c, Statement: boolStmt, SQL: boolSQL}
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", false, "a", "aa"))
+		run(fixture.Exec("SET pg_trgm.similarity_threshold='0.25'", 0))
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", true, "a", "aa"))
+		run(fixture.Exec("RESET pg_trgm.similarity_threshold", 0))
+		fixture.RunStep(t, p.Ctx, heldBool, b.Recorder, pgTrgmScalar(b, boolSQL, "result", "BOOL", false, "a", "aa"))
+		for _, op := range pgTrgmOperators {
+			if op.result != "BOOL" || op.kernel == 0 {
+				continue
+			}
+			predicateSQL := "SELECT $1::text OPERATOR(trgm_addon." + op.token + ") $2::text AS predicate,trgm_addon." + op.routine + "($1,$2) AS backing"
+			predicateStmt, err := c.PrepareContext(p.Ctx, predicateSQL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer predicateStmt.Close()
+			predicate := fixture.HeldStatement{Executor: c, Statement: predicateStmt, SQL: predicateSQL}
+			checkPredicate := func(left, right string, want bool) {
+				t.Helper()
+				if op.reverse {
+					left, right = right, left
+				}
+				s := pgTrgmSelect(b, predicateSQL, []string{"predicate", "backing"}, []string{"BOOL", "BOOL"}, [][]any{{want, want}}, left, right)
+				run(s)
+				fixture.RunStep(t, p.Ctx, predicate, b.Recorder, s)
+			}
+			setting := pgTrgmSettings[op.kernel].name
+			run(fixture.Exec("SET "+setting+"='1'", 0))
+			checkPredicate("a", strings.Repeat("a ", 64), true)
+			run(fixture.Exec("SET "+setting+"='0.5'", 0))
+			// Arbitrary extent1/2 qualifies; complete-word extent1/4 does not.
+			checkPredicate("a", strings.Repeat("aa ", 64), op.kernel == 1)
+			run(fixture.Exec("SET "+setting+"='0.5000000000000001'", 0))
+			checkPredicate("a", strings.Repeat("aa ", 64), false)
+			run(fixture.Exec("RESET "+setting, 0))
+			checkPredicate("a", strings.Repeat("aa ", 64), false)
+		}
+		run(fixture.Exec("SET pg_trgm.word_similarity_threshold='0.25'", 0))
+		run(fixture.Exec("SET pg_trgm.strict_word_similarity_threshold='0.25'", 0))
+		laterSQL := "SELECT trgm_addon.word_similarity($1,$2) AS word,trgm_addon.strict_word_similarity($1,$2) AS strict,trgm_addon.word_similarity_dist_op($1,$2) AS forward,trgm_addon.word_similarity_dist_commutator_op($2,$1) AS reverse,trgm_addon.strict_word_similarity_dist_op($1,$2) AS strict_forward,trgm_addon.strict_word_similarity_dist_commutator_op($2,$1) AS strict_reverse"
+		later := pgTrgmSelect(b, laterSQL,
+			[]string{"word", "strict", "forward", "reverse", "strict_forward", "strict_reverse"},
+			[]string{"FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4", "FLOAT4"},
+			[][]any{{float64(1), float64(1), float64(0), float64(0), float64(0), float64(0)}},
+			"word", "two words word")
+		run(later)
+		run(fixture.Prepared(later))
+		run(fixture.Exec("RESET pg_trgm.word_similarity_threshold", 0))
+		run(fixture.Exec("RESET pg_trgm.strict_word_similarity_threshold", 0))
+		// Directional representative: arbitrary and strict extents differ.
+		run(pgTrgmSelect(b,
+			"SELECT 'word' OPERATOR(trgm_addon.<<->) 'two words' AS forward,'word' OPERATOR(trgm_addon.<->>) 'two words' AS reverse",
+			[]string{"forward", "reverse"}, []string{"FLOAT4", "FLOAT4"},
+			[][]any{{pgTrgmFloat(b.PG, 1-float32(4)/float32(5)), pgTrgmFloat(b.PG, 1-float32(2)/float32(5))}},
+		))
+		if !b.PG {
+			pgTrgmControls(t, p, b, c, check, false)
+		}
+		pgTrgmNotices(t, notices)
+	})
+}

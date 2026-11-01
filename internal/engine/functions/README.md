@@ -673,6 +673,31 @@ routine declaration supplies signature, namespace, strictness and volatility;
 and explicitness arguments remain evaluated operands. Rebuild, capture, grouping
 and rendering preserve the selected call rather than reinterpreting it as a
 typename shortcut. No procedure becomes callable from type-catalog presence alone.
+`PgTrgm` retains the selected TEXT formal, exact result generation, routine
+reference and immutable member slot for four functions and ten operator backers.
+Capture, reconstruction, grouping and qualified replay preserve both ordered
+operands; no physical session, scratch or threshold value enters the recipe.
+The C/UTF8 kernel classifies ASCII letters/digits, lowercases ASCII and packs
+two-left/one-right padded trigrams. Distinct-set similarity divides in float4;
+word kernels scan positional extents without repadding, with whole-word edges
+only for strict similarity. Invocation-local arrays own extraction and matching
+scratch, and returned TEXT arrays own actual-generation elements. Score and
+distance routines always calculate the full maximum; distances subtract the
+already-rounded float4 score. STABLE predicates fetch the live typed float64
+threshold after demanded operands and strict NULL handling, then compare the
+widened float4 score inclusively. Word predicates reuse the positional scan in
+check-only mode, returning at the first qualifying extent with legal boundaries;
+extraction and cancellation remain invocation-local. Common routine admission
+owns physical initialization before surviving operands, not the non-NULL kernel.
+All fourteen declarations also use explicit scalar-once source admission:
+`OpenSource` evaluates once into the shared `expr.ScalarSource` cursor, emitting
+one row even for strict NULL or an empty TEXT array. The cursor retains only its
+typed datum; common source admission still owns routine initialization and access.
+`TestPgTrgmKernels` supplies a separate literal extractor and exhaustive short
+extent oracle; `TestPgTrgmWordPredicateWork` distinguishes check-only traversal
+with deterministic cancellation budgets. Expression and remap ownership proofs
+live in stored/enginetests.
+
 `HstoreArray` and the shared JSON/JSONB `HstoreJSON` node each retain one selected
 installed conversion declaration and one owned typed operand. Reconstruction,
 retagging, grouping and qualified replay preserve formal/result generations,

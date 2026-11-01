@@ -232,6 +232,25 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   `PrepareSavepointRestore` canonicalizes an independent rollback candidate
   before final preflight, including masked action tails; retained marks are
   unchanged and final installation remains allocation- and callback-free.
+  `pgtrgm_settings.go` owns the bounded physical library overlay: loading admits
+  three immutable FLOAT definitions and reserves `pg_trgm` without changing the
+  shared registry or recalling startup providers. `ActivatePgTrgmLocked` requires
+  Engine -> physical settings -> distinct effective settings -> Session locking;
+  it prepares reset/current values and the full SET/LOCAL/SAVE journal before
+  nonfallible publication, returning warnings for emission outside those locks.
+  Active detached ancestors are serial invocation-owned and promoted together.
+  Invalid historical assignments retain the prior typed value; unknown prefix
+  placeholders are removed permanently. `EffectiveDefinitionLocked` resolves
+  recognized ISN metadata before the registry, then loaded pg_trgm definitions.
+  `VisitDefinitionsLocked` and `EffectiveSettingNamesLocked` enumerate that
+  same effective union in order without duplicates or placeholder definitions.
+  `PgTrgmThresholdLocked` reads typed numbers and never activates the library.
+  Marks retain their original immutable reset image and journal tails.
+  `SettingsMark.Clone` and `InvocationMark.PrepareRestore` reconcile independent
+  typed candidates against sticky physical recognition before final restoration;
+  they neither mutate retained sources nor repeat load warnings. Transaction,
+  exception, routine and catalog restoration cannot unload the physical overlay;
+  only physical session retirement releases it.
   Command admission captures `plan.PlannerMethods` under the effective store's
   mutex. Disabled bits make detached zero values preserve enabled algorithms;
   the value retains no settings owner. Core separately captures effective
@@ -632,6 +651,9 @@ before reading settings; a zero or incomplete role view is not a visibility gran
 Routine configuration journal units live in `enginetests/` and use
 `RUN='^TestRoutineConfiguration'`, also with `RACE=1`; they assert typed action
 ownership, immutable checkpoint backing and transaction versus SAVE boundaries.
+Physical library-overlay and promotion ownership units use
+`RUN='^TestPgTrgmSettingOwnership$'`, also with `RACE=1`; public SQL behavior stays
+in the shared `reference/extensions` pg_trgm family.
 Consistency-generation restoration/authority units use `RUN='^TestStatsSnapshot'`,
 also with `RACE=1`; they retain a real reader across detached no-read round trips.
 XML diagnostic ownership and real protocol output codec units use

@@ -92,6 +92,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case functions.PgTrgm:
+		n.Args = args(n.Args)
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case functions.HstoreArray:
 		n.Arg = child(n.Arg)
 		if ref != nil {
@@ -493,7 +499,9 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		next = n
 	case plan.InstalledPgvisibilityExpr:
 		n.Args = args(n.Args)
-		if ref != nil { n.Ref = ref(n.Ref) }
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
 	case plan.InstalledPgstattupleExpr:
 		n.Args = args(n.Args)

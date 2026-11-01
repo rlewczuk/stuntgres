@@ -16,10 +16,7 @@ import (
 // a placeholder string definition.
 func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string, create bool) (settings.Definition, error) {
 	key := settings.FoldName(name)
-	if key == "isn.weak" && s.IsnLoaded() {
-		return IsnDefinition(), nil
-	}
-	if d, ok := registry.Definitions()[key]; ok {
+	if d, ok := s.EffectiveDefinitionLocked(registry, key); ok {
 		return d, nil
 	}
 	if !s.Placeholders[key] {
@@ -30,14 +27,23 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 			return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
 		}
 	}
+	if create && s.pgTrgmAuthority().pgTrgmLoaded.Load() && strings.HasPrefix(key, "pg_trgm.") {
+		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pg_trgm" is a reserved prefix.`}
+	}
 	return settings.Definition{Name: key, Type: settings.String}, nil
 }
 
 // SettingFlagsLocked reads only existing recognition under the store mutex.
 // Registry and identity metadata take precedence over custom placeholders.
 func (s *SettingsStore) SettingFlagsLocked(registry settings.Registry, name string) (settings.Flags, bool) {
+	s.reconcilePgTrgmLocked()
 	if settings.FoldName(name) == "isn.weak" && s.IsnLoaded() {
 		return 0, true
+	}
+	if s.pgTrgmAuthority().pgTrgmLoaded.Load() {
+		if _, ok := pgTrgmDefinition(settings.FoldName(name)); ok {
+			return 0, true
+		}
 	}
 	if flags, ok := registry.LookupFlags(name); ok {
 		return flags, true

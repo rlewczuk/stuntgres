@@ -302,6 +302,21 @@ preserve original provider authority while using the destination's current
 declaration and labels; no session setting value is transported.
 
 
+Installed pg_trgm recipes retain exact TEXT/result generations, ordered operands,
+current catalog references and original sealed release/member slots. Remapping
+authenticates the source declaration before reprovenancing references, principals,
+formals and results against the genuine destination installation. It preserves
+the captured revision instead of substituting a newer descriptor. Qualified
+rendering resolves the checked current namespace/name, including renamed, moved
+and detached originals; neither member links nor equal numeric OIDs confer
+authority. `TestPgTrgmExpressionOwnership`, `TestPgTrgmProviderIdentity` and
+`TestPgTrgmStoredRemap` exercise these private ownership boundaries in addition
+to the public reference controls.
+Selected-operator retagging validates the actual destination descriptor through
+`catalog.ValidateInstalledClassOrigin` before replacing its captured pointer.
+The sealed canonical backer and reciprocal fields must match; mutable labels,
+owners, ACLs and lawful membership changes remain independent of that authority.
+
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,
 conversion mode and selected procedure/member references. Comparison and hash
 nodes retain every strict operand, operation, selected declaration and catalog

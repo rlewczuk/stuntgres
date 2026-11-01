@@ -41,7 +41,13 @@ type SettingsStore struct {
 	temporaryBufferOwner *SettingsStore
 	clientEncoding       clientEncodingState
 	clientEncodingOwner  *SettingsStore
-	TempTablespaces      *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
+	// Library recognition is physical and sticky; detached logical images
+	// reconcile their values under their own mutex before use.
+	pgTrgmLoaded    atomic.Bool
+	pgTrgmOwner     *SettingsStore
+	pgTrgmParent    *SettingsStore // Serial invocation ancestry, not retained by expressions.
+	pgTrgmPromoted  bool
+	TempTablespaces *TempTablespaceAssignment // Immutable setting-specific check-hook identity.
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -367,6 +373,10 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.Typed = nil
 	s.DefaultTyped = nil
 	s.defaultsShared = false
+	s.pgTrgmLoaded.Store(false)
+	s.pgTrgmOwner = nil
+	s.pgTrgmParent = nil
+	s.pgTrgmPromoted = false
 	s.Placeholders = nil
 	s.ProviderDefaults = nil
 	s.DefaultSources = nil

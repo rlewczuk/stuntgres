@@ -29,7 +29,11 @@ func (e *Engine) PersistedSettingPermission(op *session.Operation, name string) 
 	if err != nil {
 		return err
 	}
-	if _, registered := e.Settings.Definitions()[name]; !registered && !(name == "isn.weak" && op.EffectiveSettings().IsnLoaded()) {
+	owner := op.EffectiveSettings()
+	owner.Mu.Lock()
+	_, registered := owner.EffectiveDefinitionLocked(e.Settings, name)
+	owner.Mu.Unlock()
+	if !registered {
 		allowed, err := parameterSetAllowed(op, name)
 		if err != nil {
 			return err
@@ -162,8 +166,7 @@ func (e *Engine) PersistedSettingCurrent(op *session.Operation, name string) (st
 	owner := op.EffectiveSettings()
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
-	if _, registered := e.Settings.Definitions()[key]; !registered && !owner.Placeholders[key] && !(key == "isn.weak" && owner.IsnLoaded()) {
-		_, err = e.Settings.Lookup(name)
+	if _, err := owner.LookupDefinition(e.Settings, name, false); err != nil {
 		return "", "", err
 	}
 	return d.Name, owner.Value(d.Name), nil

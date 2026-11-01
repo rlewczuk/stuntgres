@@ -16,15 +16,15 @@ import (
 // Marks retain immutable logical roots and held lock contributions, not
 // generator counters or snapshots. The outer block keeps the same ticket.
 type SavepointMark struct {
-	Name                string
-	Internal            bool   // unnamed procedural boundary, never SQL name lookup
-	Serial              uint64 // the owner's savepointSerial at capture; names foreign savepoints
+	Name         string
+	Internal     bool   // unnamed procedural boundary, never SQL name lookup
+	Serial       uint64 // the owner's savepointSerial at capture; names foreign savepoints
 	LargeObjects uint64 // Opening ordinal; cursor motion and explicit closes never roll back.
-	Writes              map[ids.ObjectAddress][]storage.RowVersion
-	Deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
-	Stats statistics.Ledger
-	StatsLevel int // actual child nesting, including internal exception marks
-	Catalog             *Journal
+	Writes       map[ids.ObjectAddress][]storage.RowVersion
+	Deletes      map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Stats        statistics.Ledger
+	StatsLevel   int // actual child nesting, including internal exception marks
+	Catalog      *Journal
 	// Internal exception marks also retain the enclosing statement's COW
 	// journal; it is not the transaction journal restored by RollbackToLocked.
 	StatementCatalog    *Journal
@@ -42,17 +42,31 @@ type SavepointMark struct {
 }
 
 type SettingsMark struct {
-	Values          map[string]string
-	Typed           map[string]settings.Value
-	Actions         map[string]settingAction
-	RoleAction      roleSettingAction
-	CurrentRole     roleSetting
-	NestLevel       int
-	TempTablespaces *TempTablespaceAssignment
+	Values             map[string]string
+	Typed              map[string]settings.Value
+	Actions            map[string]settingAction
+	RoleAction         roleSettingAction
+	CurrentRole        roleSetting
+	NestLevel          int
+	TempTablespaces    *TempTablespaceAssignment
+	pgTrgmOwner        *SettingsStore
+	pgTrgmPromoted     bool
+	pgTrgmDefaults     map[string]string // Immutable bounded pre-load reset capture.
+	pgTrgmPlaceholders map[string]bool
 }
 
 func (m SettingsMark) Clone() SettingsMark {
-	m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
+	if m.pgTrgmOwner != nil && !m.pgTrgmPromoted && m.pgTrgmOwner.pgTrgmLoaded.Load() {
+		candidate, _ := preparePgTrgmSettings(&SettingsStore{
+			Defaults: m.pgTrgmDefaults,
+			Values:   m.Values, Typed: m.Typed, Actions: m.Actions,
+			Placeholders: m.pgTrgmPlaceholders,
+		}, false)
+		m.Values, m.Typed, m.Actions = candidate.Values, candidate.Typed, candidate.Actions
+		m.pgTrgmPromoted = true
+	} else {
+		m.Values, m.Typed, m.Actions = maps.Clone(m.Values), maps.Clone(m.Typed), maps.Clone(m.Actions)
+	}
 	return m
 }
 
@@ -61,6 +75,25 @@ func (s *SettingsStore) Savepoint() SettingsMark {
 	defer s.Mu.Unlock()
 	m := SettingsMark{Values: s.Values, Typed: s.Typed, Actions: s.Actions, RoleAction: s.RoleAction, NestLevel: s.NestLevel}
 	m.TempTablespaces = s.TempTablespaces
+	m.pgTrgmOwner, m.pgTrgmPromoted = s.pgTrgmAuthority(), s.pgTrgmPromoted
+	if !s.pgTrgmPromoted {
+		for _, d := range settings.PgTrgmDefinitions() {
+			if text, exists := s.Defaults[d.Name]; exists {
+				if m.pgTrgmDefaults == nil {
+					m.pgTrgmDefaults = make(map[string]string, 3)
+				}
+				m.pgTrgmDefaults[d.Name] = text
+			}
+		}
+		for name := range s.Placeholders {
+			if len(name) >= len("pg_trgm.") && name[:len("pg_trgm.")] == "pg_trgm." {
+				if m.pgTrgmPlaceholders == nil {
+					m.pgTrgmPlaceholders = make(map[string]bool)
+				}
+				m.pgTrgmPlaceholders[name] = true
+			}
+		}
+	}
 	if s.Session != nil {
 		s.Session.Mu.Lock()
 		if s.Session.Authorization != nil {

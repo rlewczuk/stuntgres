@@ -63,6 +63,18 @@ func extensionNamespaceOf(stage *core.CatalogStage) ids.ObjectAddress {
 
 func (h *extensionHost) Context() context.Context { return h.Op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.Op.EmitNotice(session.LevelNotice, n) }
+
+// ActivatePgTrgm runs at the released script's first C-validation boundary.
+// Engine.Mu is held; the core helper releases settings/session locks before
+// these owned warnings enter the ordinary operation queue (no user callback).
+func (h *extensionHost) ActivatePgTrgm() error {
+	warnings, err := h.Engine.ActivatePgTrgmLocked(h.Op)
+	for _, warning := range warnings {
+		h.Op.EmitNotice(session.LevelWarning, *warning)
+	}
+	return err
+}
+
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
 	path, _, err := core.ExplicitPath(h.Auth)
 	return path, err

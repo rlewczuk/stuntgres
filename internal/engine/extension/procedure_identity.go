@@ -93,6 +93,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if p.Installed != declaration {
 			return invalid()
 		}
+	case StockPgTrgm:
+		count = PgTrgmMemberCount
+		if ext.Version != "1.6" || slot >= len(functions.PgTrgmMembers) {
+			return invalid()
+		}
+		member := functions.PgTrgmMembers[slot]
+		name, signature, result, volatility = member.Name, catalog.ProcedureSignature(member.Signature), member.Result, member.Volatility
+		if p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_trgm", HasBinary: true}) {
+			return invalid()
+		}
 	case StockFuzzystrmatch:
 		count = len(FuzzystrmatchMembers)
 		index := slot

@@ -120,6 +120,18 @@ func StageCreate(host Host, auth ddl.Authority, view access.View, s *parser.Crea
 	if err := stage.Create(ext); err != nil {
 		return nil, err
 	}
+	if implementation == StockPgTrgm {
+		// The released base script's first C validator loads the library
+		// before show_trgm, including a later show_trgm collision. The
+		// deprecated initial helper itself is not a bounded recipe member.
+		loader, ok := host.(interface{ ActivatePgTrgm() error })
+		if !ok {
+			return nil, fmt.Errorf("stuntgres: pg_trgm script lacks initialization authority")
+		}
+		if err := loader.ActivatePgTrgm(); err != nil {
+			return nil, err
+		}
+	}
 	if err := installer.Stage(stage, ext, memberOwner); err != nil {
 		return nil, err
 	}

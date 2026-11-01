@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
 earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
-moddatetime, pageinspect, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+moddatetime, pageinspect, pg_trgm, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -343,6 +343,17 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   not an interchangeable execution capability. `RemapDescriptor` delegates class,
   family and member relocation to the typed catalog remappers, preserving the
   actual owner kind and immutable source descriptors.
+- **pg_trgm** (`pgtrgm_provider.go`, `pgtrgm_stage.go`): trusted relocatable
+  release 1.6 has exactly fourteen scalar procedures (four functions and ten
+  operator backers) and ten reciprocal operators. The single member table
+  supplies C symbols, signatures, result types and volatility; sealed slots,
+  not current names or membership, authorize execution and native replay.
+  Predicates are STABLE; scores, distances and trigram extraction are IMMUTABLE.
+  All declarations are STRICT and PARALLEL SAFE. Deprecated threshold helpers,
+  index support and version-update paths are not installed. After early CREATE
+  admission and the new extension header, StageCreate invokes the narrow host
+  activation before member staging: this represents the released script's first
+  C validator, including later declaration collisions, but not skipped CREATE.
 - **hstore** (`hstore_provider.go`, `hstore_stage.go`): trusted, relocatable 1.8
   installation of the scalar, strict immutable parallel-safe C-language codecs,
   `hstore_to_array(hstore)` and `hstore_to_matrix(hstore)` with prefix
