@@ -10,14 +10,14 @@ is in `git log` and in this file at `7b262861a`
 (`git show 7b262861a:docs/ENGINE-SPLIT-STATUS.md`). Item 205, closing review 5,
 is superseded by this plan.
 
-Last verified against `master` at `e8933d2fb` (item 217 rebased on it).
+Last verified against `master` at `6a5061b23` (item 219 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 219.
+- 220.
 
 ## Linear plan
 
@@ -218,9 +218,25 @@ is the §1 projection in MiB. Phase C (221–229) is gated by item 220.
      wall, load ~160), REFERENCE=1 `^TestReference(Pg|PG|Info|Catalog)`,
      `layers.py` 0 violations, `revcheck.py`, `frames.py`, deps. Racecheck and
      finalcheck skipped at user request.
-219. [ ] Inquiry runtime —
+219. [x] Inquiry runtime —
      [core](ENGINE-SPLIT-core.md#item-219--inquiry-runtime) · needs 213, 218 ·
-     P, bench · core after 7.35
+     P, bench · core after 7.35 (`3391a8258`, `d2c46daa0`, `4666a5b14`, docs
+     commit) · the catalog-object, session and transaction inquiry bodies (the
+     three `exec.Host` capability groups of item 213: 14 files plus the new
+     `host.go`, 45 KiB) move to the leaf `core/inquiry` (L14.5, imports
+     `core/catalogrt`) over `inquiry.CatalogHost` (18 methods) and
+     `inquiry.SessionHost` (21), both on `statementHost`'s shared method set;
+     core keeps the inquiry snapshot and its captures, lazy body admission
+     (`routine_inquiry.go`), the cluster size captures and every
+     authorization-dependent answer as host methods
+     (`inquiry_statement_host.go`), plus the 34 capability adapters. The other
+     B-inquiry files (ACL, advisory, blocking, large objects, sequences,
+     settings, …) are not capability groups and are recorded for item 220. No
+     test moves. Core 7.67 → 7.64 MiB. Bench: startup and 24 inquiry probe
+     allocations unchanged; `escdiff` shows no new heap object. Passed:
+     quickcheck, REFERENCE=1 selections of the moved groups, `layers.py` 0,
+     `frames.py list` unchanged, `revcheck.py`, deps. Racecheck and finalcheck
+     skipped at user request.
 220. [ ] Closing review 6 (checkpoint, docs only) —
      [ENGINE-SPLIT.md §4](ENGINE-SPLIT.md#item-220--closing-review-6) · needs
      207–219

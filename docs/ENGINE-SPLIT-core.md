@@ -1428,7 +1428,69 @@ Needs 228. Mode S. Gated.
   testcontainers reaper deadline); `layers.py` 0 violations; `revcheck.py` (test
   names and literals unchanged); `frames.py list` unchanged; deps (only the new
   package). Racecheck and finalcheck skipped (user decision).
-- 219: not started.
+- 219: - 219: done (`3391a8258`, `d2c46daa0`, `4666a5b14`), at `6a5061b23`. -
+  **Moved** to `internal/engine/core/inquiry` (replay `move.sh`, cmdmv 0
+  VIOLATION/SEAM/T6; token-equal to the cut modulo qualifiers, 14/14 files):
+  `type_inquiry`, `catalog_inquiry_runtime`, `database_files_runtime`,
+  `partition_info_runtime`, `publication_info_runtime`, `index_property`,
+  `comment_inquiry`, `object_address`, `relation_size_runtime`,
+  `deparse_function`, `deparse_routine`, `visibility_inquiry`,
+  `session_inquiry_runtime` (with `IdentityValue` from `session_identity.go`),
+  `transaction_inquiry_runtime`, plus the seam file `host.go`. These are the
+  bodies of `exec.CatalogInquiryRuntime`, `SessionInquiryRuntime` and
+  `TransactionInquiryRuntime`, the spec's two groups. - **Hosts.**
+  `inquiry.CatalogHost` (18 methods) and `inquiry.SessionHost` (21) on
+  `statementHost` (`core/inquiry_statement_host.go`). Reused: `Operation`, the
+  `ReacquireEngine`/`ReleaseEngineLocked` pair (at the old `Engine.Mu` windows),
+  `InquiryCatalog`, `CatalogEpochLocked`, `PendingCatalog`,
+  `PrivateCatalogLocked`, `TransactionRef`, `CatalogDomain`, `LockManager`,
+  `Ticket`. New: `CommentSnapshot`, `RoleDomain`, `VisibilitySnapshot`,
+  `DeparsePath`, `DeparseInputs`, `DeparseView`, `LookupAddress`,
+  `AdmitInquiryBody`, `RelationAllocationLocked`, `AggregateAllocationsLocked`,
+  `ImportSystemCollationsLocked`; `ExpressionIdentity`, `InquiryCacheable`,
+  `CurrentSchemaResult`, `SearchPathResults`, `CurrentSchemaPathLocked`,
+  `SearchPathsLocked`, `TemporaryNamespaceLocked`, `NamespaceSessionLocked`,
+  `ListeningChannelsLocked`, `NotificationQueueUsageLocked`, `VisibilityLocked`,
+  `TransactionAgeLocked`, `AssignTransactionXIDLocked`, `CurrentSnapshotLocked`.
+  No authorization value crosses the seam, so the package is not generic. The
+  staged name `SessionInquiryHost` avoided core's `SessionHost` test accessor. -
+  **Stays in core:** the statement's `inquirySnapshot` and its captures
+  (`captureVisibilitySnapshotLocked`), `catalogInquiryCatalog` (shared with
+  contrib's `InquiryCatalog`), `addressLookup` and `deparseInputs` (closures
+  over the captured deparse authority; the `ScopeDeparseInputs` accessor),
+  `captureAllocationLocked` and the database/tablespace admission over the
+  cluster's target runtimes, `admitInquiryBody` (`routine_inquiry.go`: routine
+  admission state, rule 4; deviation from the spec's catalog group list), and
+  the 34 one-line capability adapters. `CurrentUserValue` (item 217) still calls
+  `sessionInquiryHost.IdentityValue` statically. - **Exported:** `CatalogHost`,
+  `SessionHost`, and one entry function per runtime method, named like it
+  (`FormatType`, `SizeInquiry`, `DeparseInquiry`, `IdentityValue`,
+  `CurrentSnapshot`, …). - **Tests (T3–T7).** Census: item 209's re-run at
+  `e6e052a5f`; its one rule-1 B-inquiry test,
+  `TestPublicationInquiryUsesCapturedRelationFacts`, is an engine test and stays
+  in core (a one-test `core/inquiry/enginetests` binary is not worth it, 214
+  precedent); the rule-3 ones stay too. No accessor reaches moved names (T6:
+  none); no test moved or deleted; `frames.py list` identical. `revcheck.py`
+  against master: test names unchanged, literals +2 `"ERROR"` (the leaf's
+  `sqlError`). - **Measured.** Core 8,043,172 → 8,013,772 bytes (7.67 → 7.64
+  MiB); `core/inquiry` 44.6 KiB (52.6 KiB with the README); no new test binary.
+  Interleaved binaries (`bench.txt`, 3 rounds × 2): `BenchmarkOpenDatabase`
+  3,417–3,541 vs 3,414–3,539 allocs/op; a temporary 24-case probe (every moved
+  function family, including error paths) has identical allocs/op in every case.
+  `escdiff` over the moved and host files: one gained line, the leaf's
+  `sqlError` constructor. - **Docs.** New `core/inquiry/README.md`; the core
+  README's file-inquiry, routine declaration, size and type inquiry paragraphs
+  moved there; core's "Catalog inquiry and session identity" section now points
+  to it. - **Not moved (notes for item 220).** The rest of census group B
+  inquiry is not a capability group: `statementHost`'s `exec.Host` methods in
+  `acl_runtime`, `advisory_runtime` (item 225), `blocking_runtime`,
+  `largeobject_*`, `uuid_generation`, `random_expression`, `regex_execution`,
+  `input_validity`, `pg_locks_capture`, `pg_sequences`, `setting_calls`,
+  `setting_inquiry`, `namespace_inquiry`, `conversion_execution`, and
+  `routine_inquiry`; closure puts 637 lines behind `statementHost`. Finding:
+  `partitioncmds` `TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity`
+  fails when run alone ("duplicate advisory session"), also on master; it passes
+  in its package (order-dependent session IDs).
 - 221: not started.
 - 222: not started.
 - 223: not started.
