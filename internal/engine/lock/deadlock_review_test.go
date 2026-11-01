@@ -80,7 +80,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				// establishes queue membership or the cancellation observation.
 				select {
 				case <-gate.observed:
-				case <-time.After(3 * time.Second):
+				case <-time.After(lockLiveness):
 					close(gate.resume)
 					<-finished
 					t.Fatal("detector did not reach initial normalization")
@@ -92,7 +92,7 @@ func TestRelationDeadlockInterruptionDuringDetection(t *testing.T) {
 				close(gate.resume)
 				select {
 				case <-finished:
-				case <-time.After(3 * time.Second):
+				case <-time.After(lockLiveness):
 					t.Fatal("detector did not finish")
 				}
 				f.m.mu.Lock()

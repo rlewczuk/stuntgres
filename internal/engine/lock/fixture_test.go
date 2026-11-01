@@ -72,11 +72,15 @@ func (f *lockFixture) typeResource() Resource {
 	return Resource{ObjectRef: f.domain.Ref(f.epoch, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(16384 + f.next)})}
 }
 
+// lockLiveness bounds waits for an outcome that must eventually happen. It is
+// a hang guard sized for a loaded machine; waits return as soon as it occurs.
+const lockLiveness = 30 * time.Second
+
 // request acquires with a bounded context: nil when granted at once,
 // otherwise the queued request.
 func (f *lockFixture) request(ticket *Ticket, resource Resource, mode Mode) *relationRequest {
 	f.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), lockLiveness)
 	f.t.Cleanup(cancel)
 	r, err := f.m.StartAcquire(ctx, ticket, resource, mode, Policy{CompletionPurpose: CompletionVirtual})
 	if err != nil {
@@ -94,7 +98,7 @@ func (f *lockFixture) result(r *relationRequest) error {
 	select {
 	case <-r.done:
 		return r.err
-	case <-time.After(time.Second):
+	case <-time.After(lockLiveness):
 		f.t.Fatal("request did not terminate before failure guard")
 		return nil
 	}

@@ -48,14 +48,14 @@ func deadlockPublicationRun(t *testing.T, m *Manager, request *relationRequest, 
 	case <-observed:
 		advance()
 		close(resume)
-	case <-time.After(3 * time.Second):
+	case <-time.After(lockLiveness):
 		close(resume)
 		<-finished
 		t.Fatal("detector did not reach observation barrier")
 	}
 	select {
 	case <-finished:
-	case <-time.After(3 * time.Second):
+	case <-time.After(lockLiveness):
 		t.Fatal("detector did not finish after observation barrier")
 	}
 }

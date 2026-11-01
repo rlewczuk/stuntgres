@@ -16,7 +16,7 @@ func TestRelationDeadlockGraphFeeder(t *testing.T) {
 	y := f.relation()
 	f.request(tickets[0], x, AccessExclusive)
 	f.request(tickets[1], y, AccessExclusive)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), lockLiveness)
 	t.Cleanup(cancel)
 	pending := make([]*relationRequest, 2)
 	// A disconnected already-live A<->B cycle must be diagnosed on an actual
@@ -101,7 +101,7 @@ func TestRelationDeadlockLifecycleFirstTerminal(t *testing.T) {
 	}
 	select {
 	case <-survivor.Done():
-	case <-time.After(time.Second):
+	case <-time.After(lockLiveness):
 		t.Fatal("survivor terminal cleanup missing")
 	}
 	f.empty()

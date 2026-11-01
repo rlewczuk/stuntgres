@@ -104,7 +104,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 	f.request(tickets[0], resources[0], AccessShare)
 	f.request(tickets[2], resources[1], AccessShare)
 	f.request(tickets[0], resources[2], AccessExclusive)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), lockLiveness)
 	t.Cleanup(cancel)
 	var requests []*relationRequest
 	f.m.mu.Lock()
@@ -156,7 +156,7 @@ func TestRelationDeadlockSoftGlobalSearch(t *testing.T) {
 		if r != nil {
 			select {
 			case <-r.Done():
-			case <-time.After(time.Second):
+			case <-time.After(lockLiveness):
 				t.Fatal("ended request not notified")
 			}
 		}
