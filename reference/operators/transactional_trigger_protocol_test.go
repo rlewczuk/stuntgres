@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgproto3"
@@ -292,7 +291,7 @@ func triggerProtocolConnect(t *testing.T, ctx context.Context, dsn string) *trig
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if err := conn.Close(ctx); err != nil {
 			t.Error(err)

@@ -8,7 +8,6 @@ import (
 	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -67,7 +66,7 @@ func TestReferenceTransactionalTriggerControls(t *testing.T) {
 						}
 						defer pg.Close()
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							if _, err := pg.ExecContext(ctx, "SET check_function_bodies=true; DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {
 								t.Error(err)

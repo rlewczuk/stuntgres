@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -75,7 +74,7 @@ func TestReferencePLpgSQLAssignmentDiagnostics(t *testing.T) {
 				"CREATE TYPE pa_fail_source AS ENUM ('42')",
 				"CREATE FUNCTION pa_fail_cast(pa_fail_source) RETURNS integer LANGUAGE SQL AS 'SELECT 1/0'")
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := c.ExecContext(ctx, "DROP CAST IF EXISTS (pa_fail_source AS integer)"); err != nil {
 					t.Error(err)

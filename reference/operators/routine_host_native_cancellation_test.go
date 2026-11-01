@@ -43,7 +43,7 @@ func hostCancelAdmitted(t *testing.T, p *fixture.Pair, native *hostNativeRuntime
 		if !joined {
 			select {
 			case <-done:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("native canceled callback worker did not join")
 			}
 		}
@@ -71,7 +71,7 @@ func hostCancelAdmitted(t *testing.T, p *fixture.Pair, native *hostNativeRuntime
 		if errors.As(err, &state) {
 			t.Errorf("native cancellation fabricated SQLSTATE: %v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("native callback did not unwind")
 	}
 	select {
@@ -79,7 +79,7 @@ func hostCancelAdmitted(t *testing.T, p *fixture.Pair, native *hostNativeRuntime
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("callback context=%v", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("callback cancellation observation missing")
 	}
 }
@@ -130,7 +130,7 @@ func hostNativeCancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 			ended := false
 			defer func() {
 				if !ended {
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					if _, err := c.ExecContext(cleanup, "ROLLBACK"); err != nil {
 						t.Error(err)

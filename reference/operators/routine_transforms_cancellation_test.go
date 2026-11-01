@@ -39,9 +39,9 @@ func transformsPGCancel(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.Co
  var pid int
  if err=c.QueryRowContext(ctx,"SELECT pg_backend_pid()").Scan(&pid);err!=nil{t.Fatal(err)}
  if _,err=observer.ExecContext(ctx,"SELECT pg_advisory_lock(638127)");err!=nil{t.Fatal(err)}
- defer func(){cleanup,stop:=context.WithTimeout(context.Background(),5*time.Second);defer stop();if _,err:=observer.ExecContext(cleanup,"SELECT pg_advisory_unlock(638127)");err!=nil{t.Error(err)}}()
+ defer func(){cleanup,stop:=context.WithTimeout(context.Background(),fixture.Liveness);defer stop();if _,err:=observer.ExecContext(cleanup,"SELECT pg_advisory_unlock(638127)");err!=nil{t.Error(err)}}()
  done:=make(chan error,1);joined:=false
- defer func(){if !joined{cancel();select{case <-done:case <-time.After(5*time.Second):t.Error("transform cancel worker failed to join")}}}()
+ defer func(){if !joined{cancel();select{case <-done:case <-time.After(fixture.Liveness):t.Error("transform cancel worker failed to join")}}}()
  go func(){rows,err:=exec.QueryContext(ctx,q);if rows!=nil{rows.Close()};done<-err}()
  for {
   var admitted bool
