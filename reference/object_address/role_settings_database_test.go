@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -21,7 +20,7 @@ func rsDatabaseCases(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.
 			for _, b := range p.Backends() {
 				t.Run(b.Name, func(t *testing.T) {
 					t.Cleanup(func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						if _, err := b.DB.ExecContext(ctx, "ALTER ROLE ALL RESET ALL"); err != nil {
 							t.Error(err)

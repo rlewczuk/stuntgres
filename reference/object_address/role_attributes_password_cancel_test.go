@@ -59,7 +59,7 @@ func TestReferenceRoleAttributesSelfPasswordCancellation(t *testing.T) {
 				budget := 40 * time.Millisecond
 				if b.PG {
 					run(fixture.Exec("SET statement_timeout='40ms'", 0))
-					budget = 5 * time.Second // watchdog, not the PostgreSQL cancel trigger
+					budget = fixture.Liveness // watchdog, not the PostgreSQL cancel trigger
 				}
 				ctx, cancel := context.WithTimeout(p.Ctx, budget)
 				started := time.Now()
@@ -74,8 +74,8 @@ func TestReferenceRoleAttributesSelfPasswordCancellation(t *testing.T) {
 				if result != nil {
 					t.Fatal("canceled password alteration exposed a result")
 				}
-				if elapsed > 2*time.Second {
-					t.Fatalf("password derivation cancellation took %s, want at most 2s", elapsed)
+				if elapsed > fixture.Liveness {
+					t.Fatalf("password derivation cancellation took %s, want at most %s", elapsed, fixture.Liveness)
 				}
 				if b.PG {
 					fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to statement timeout"})
@@ -98,7 +98,7 @@ func TestReferenceRoleAttributesSelfPasswordCancellation(t *testing.T) {
 				if err := c.Close(); err != nil {
 					t.Fatal(err)
 				}
-				if time.Since(closed) > 2*time.Second {
+				if time.Since(closed) > fixture.Liveness {
 					t.Fatal("physical teardown retained canceled password work")
 				}
 				// Limit one proves teardown releases the original physical slot;

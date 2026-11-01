@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -51,7 +50,7 @@ func TestReferenceRoleSettingsPrivilegesParameterGrants(t *testing.T) {
 		run := func(s fixture.Step) { rsActionRun(t, p, b, c, route, s) }
 		run(fixture.Exec("CREATE ROLE rs_parameter_login LOGIN PASSWORD 'role-attributes-fixture'", 0))
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			c.ExecContext(ctx, "RESET ROLE")
 			if _, err := c.ExecContext(ctx, "REVOKE SET ON PARAMETER log_statement_stats, rs_custom.value FROM rs_parameter_login"); err != nil {
