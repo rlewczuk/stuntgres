@@ -27,7 +27,7 @@ func itrScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Back
 			_, c, r := fixture.NoticeReferencePool(t, p, b.PG, &notices)
 			t.Cleanup(func() {
 				defer c.Close()
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, q := range []string{"ROLLBACK", "RESET ROLE", "RESET SESSION AUTHORIZATION", "DROP SCHEMA IF EXISTS it_scope CASCADE", "DROP SCHEMA IF EXISTS it_moved CASCADE", "DROP SCHEMA IF EXISTS it_shadow CASCADE", "DROP SCHEMA IF EXISTS it_function CASCADE", "DROP SCHEMA IF EXISTS it_renamed CASCADE"} {
 					if _, err := c.ExecContext(ctx, q); err != nil {

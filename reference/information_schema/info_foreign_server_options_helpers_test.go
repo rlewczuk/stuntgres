@@ -6,7 +6,6 @@ import (
 	"math"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -40,7 +39,7 @@ func fsopScenario(t *testing.T, body func(*fsopCase)) {
 			}
 			defer conn.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, q := range []string{"RESET SESSION AUTHORIZATION", "DROP SCHEMA IF EXISTS fsop_scope CASCADE", "DROP SERVER IF EXISTS fsop_server CASCADE", "DROP SERVER IF EXISTS fsop_second CASCADE", "DROP SERVER IF EXISTS fsop_empty CASCADE", "DROP SERVER IF EXISTS fsop_renamed CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fsop_wrapper CASCADE"} {
 					if _, err := conn.ExecContext(ctx, q); err != nil {
