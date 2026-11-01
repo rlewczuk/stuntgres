@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceQueryRecursiveCTEScope(t *testing.T) {
@@ -68,7 +67,7 @@ func TestReferenceQueryRecursiveCTEScope(t *testing.T) {
 				name := "recursive_merge_" + route
 				run(fixture.Exec("CREATE TABLE "+name+"(n INT)", 0))
 				t.Cleanup(func() {
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					if _, err := c.ExecContext(cleanup, "DROP TABLE IF EXISTS "+name); err != nil {
 						t.Error("MERGE target cleanup", err)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -18,7 +17,7 @@ func transactionalRoutineObjectWait(t *testing.T, p *fixture.Pair, b fixture.Bac
 		fixture.RelationLockPending(t, p, b, 0, 0, 0, "", finished)
 		return
 	}
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		select {

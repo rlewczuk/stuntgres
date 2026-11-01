@@ -6,7 +6,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceExpressionIndexAlterTypeDependency(t *testing.T) {
@@ -63,7 +62,7 @@ func TestReferenceExpressionIndexLifecycle(t *testing.T) {
 			// The shared fixture resets public only; own this custom schema even
 			// when a lifecycle assertion fails or the scenario context expires.
 			t.Cleanup(func() {
-				cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := backend.DB.ExecContext(cleanup, "DROP SCHEMA IF EXISTS moved CASCADE"); err != nil {
 					t.Error("expression index lifecycle schema cleanup", err)
