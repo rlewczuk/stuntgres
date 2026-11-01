@@ -173,7 +173,8 @@ func referenceReleaseResources() error {
 		}
 	}
 	if container != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		// A hang guard: Docker teardown under parallel suites can take minutes.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if err := container.Terminate(ctx); err != nil {
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("reference terminate: %w", err))
