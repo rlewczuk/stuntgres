@@ -34,6 +34,12 @@ OpenSSL provider
 ([fixture README](../fixture/README.md#test-only-legacy-crypto-oracle)).
 The rules below apply to every catalog package.
 
+Materialized-view summary scenarios use `make check RUN='^TestReferencePGMatviews'`
+and the same selector with `REFERENCE=1` for pinned PostgreSQL. They assert full
+typed rows across index history, catalog admission, public metadata visibility
+and database boundaries; owning view scenarios cover population, identity,
+transaction frontiers and native-control round trips.
+
 Identity-file scenarios use `make check RUN='^TestReferencePGIdentFileMappings'`
 and the same selector with `REFERENCE=1`: Rows, Includes, Privileges, Diagnostics,
 Freshness, StartupSQL, Lifecycle, Controls, Smoke, PathResolution, PhysicalLines

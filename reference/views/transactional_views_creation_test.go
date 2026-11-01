@@ -32,6 +32,8 @@ func TestReferenceTransactionalViewsCreation(t *testing.T) {
 				run(fixture.Exec("INSERT INTO txv_source VALUES(1,'a'),(1,'a'),(2,NULL)", 3))
 				fixture.RunStep(t, p.Ctx, executors[0], b.Recorder, fixture.Exec(queries[0], 0))
 				fixture.RunStep(t, p.Ctx, executors[1], b.Recorder, fixture.Exec(queries[1], 3))
+				matviewFrontier(t, p, b, e, "txv_m", " SELECT id,\n    txt\n   FROM txv_source;", true)
+				matviewFrontier(t, p, b, peer, "txv_m", " SELECT id,\n    txt\n   FROM txv_source;", mode == "autocommit")
 				run(transactionalViewsBag("txv_v", false))
 				run(transactionalViewsBag("txv_m", false))
 				run(fixture.Select("SELECT relname,relkind::TEXT AS kind FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ('txv_v','txv_m') ORDER BY relname", []string{"relname", "kind"}, []string{"NAME", "TEXT"}, [][]any{{"txv_m", "m"}, {"txv_v", "v"}}))
@@ -58,6 +60,9 @@ func TestReferenceTransactionalViewsCreation(t *testing.T) {
 				run(transactionalViewsBag("txv_v", true))
 				run(transactionalViewsBag("txv_m", false))
 				finish(commit)
+				for _, x := range []fixture.Executor{c, peer} {
+					matviewFrontier(t, p, b, x, "txv_m", " SELECT id,\n    txt\n   FROM txv_source;", commit || mode == "autocommit")
+				}
 				prun := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, peer, b.Recorder, s) }
 				if commit || mode == "autocommit" {
 					prun(transactionalViewsBag("txv_source", true))

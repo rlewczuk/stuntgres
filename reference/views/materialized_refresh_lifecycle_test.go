@@ -64,6 +64,17 @@ func TestReferenceMaterializedRefreshPopulation(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			conn, run := fixture.QueryTableCreateSession(t, p, b)
 			refreshSeed(run)
+			metadata, err := conn.PrepareContext(p.Ctx, matviewProbeSQL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer metadata.Close()
+			check := func(name string, populated bool) {
+				s := matviewProbe(b, "public", name, fixture.PGTableViewsOwner(b), populated, " SELECT i,\n    s\n   FROM mv_base;")
+				run(s)
+				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: metadata, SQL: matviewProbeSQL}, b.Recorder, s)
+			}
+			check("refresh_mv", true)
 			q := "SELECT * FROM refresh_mv"
 			held, err := conn.PrepareContext(p.Ctx, q)
 			if err != nil {
@@ -73,22 +84,27 @@ func TestReferenceMaterializedRefreshPopulation(t *testing.T) {
 			for range 2 {
 				run(fixture.Prepared(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv WITH NO DATA", 0)))
 				fixture.MaterializedViewPopulation(run, "refresh_mv", false)
+				check("refresh_mv", false)
 				run(fixture.MaterializedViewUnpopulated("refresh_mv"))
 				run(fixture.Prepared(fixture.MaterializedViewUnpopulated("refresh_mv")))
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: conn, Statement: held, SQL: q}, b.Recorder, fixture.MaterializedViewUnpopulated("refresh_mv"))
 				run(fixture.Prepared(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv WITH DATA", 0)))
 				fixture.MaterializedViewPopulation(run, "refresh_mv", true)
+				check("refresh_mv", true)
 				run(materializedViewBag("refresh_mv"))
 			}
 			run(fixture.Exec("DELETE FROM mv_base", 3))
 			run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv", 0))
 			fixture.MaterializedViewPopulation(run, "refresh_mv", true)
+			check("refresh_mv", true)
 			run(refreshBag("refresh_mv", nil))
 			fixture.TableDDLMetadata(t, p.Ctx, conn, b.PG, true, q, []string{"i", "s"}, []string{"INT4", "TEXT"}, []bool{true, true}, 0)
 			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_initial AS SELECT i,s FROM mv_base WITH NO DATA", 0))
+			check("refresh_initial", false)
 			run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_initial", 0))
 			run(refreshBag("refresh_initial", nil))
 			fixture.MaterializedViewPopulation(run, "refresh_initial", true)
+			check("refresh_initial", true)
 		})
 	}
 }
@@ -102,6 +118,10 @@ func TestReferenceMaterializedRefreshAtomicity(t *testing.T) {
 			run(fixture.Exec("INSERT INTO refresh_fail_base VALUES(1)", 1))
 			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_fail AS SELECT 1/i AS x FROM refresh_fail_base", 1))
 			run(fixture.Exec("INSERT INTO refresh_fail_base VALUES(0)", 1))
+			check := func(populated bool) {
+				matviewCheck(run, b, "public", "refresh_fail", fixture.PGTableViewsOwner(b), populated, " SELECT (1 / i) AS x\n   FROM refresh_fail_base;")
+			}
+			check(true)
 			var before bytes.Buffer
 			if !b.PG {
 				if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
@@ -114,6 +134,7 @@ func TestReferenceMaterializedRefreshAtomicity(t *testing.T) {
 				run(s)
 				run(fixture.Select("SELECT x FROM refresh_fail", []string{"x"}, []string{"INT4"}, [][]any{{int64(1)}}))
 				fixture.MaterializedViewPopulation(run, "refresh_fail", true)
+				check(true)
 				if !b.PG {
 					var after bytes.Buffer
 					if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
@@ -125,12 +146,15 @@ func TestReferenceMaterializedRefreshAtomicity(t *testing.T) {
 				}
 			}
 			run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_fail WITH NO DATA", 0))
+			check(false)
 			run(fixture.ErrorDiagnostic("REFRESH MATERIALIZED VIEW refresh_fail", fixture.ControlsReferenceDiagnostic("22012", "division by zero")))
 			fixture.MaterializedViewPopulation(run, "refresh_fail", false)
 			run(fixture.MaterializedViewUnpopulated("refresh_fail"))
+			check(false)
 			run(fixture.Exec("DELETE FROM refresh_fail_base WHERE i=0", 1))
 			run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_fail", 0))
 			run(fixture.Select("SELECT x FROM refresh_fail", []string{"x"}, []string{"INT4"}, [][]any{{int64(1)}}))
+			check(true)
 		})
 	}
 }

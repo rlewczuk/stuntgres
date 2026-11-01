@@ -32,9 +32,10 @@ No parallel language-permission table or cached grant decision exists.
   roots themselves are never written.
   - Checks: `Effective`, `Check`, `CanUse`, `CheckCreate` and `CheckColumns`,
     each taking an `Environment`. `Object` resolves a reference.
-    Virtual catalog views use the same effective ACL and column authority as
-    stored views and report the view noun in authorization diagnostics. Source
-    production never substitutes original authentication for current authority.
+    Catalog views use the same effective ACL and column authority as stored
+    views. ACL denial diagnostics use the view noun for their SQL `CatalogView`
+    kind independently of virtual-source dispatch. Source production never
+    substitutes original authentication for current authority.
     Routine EXECUTE denials distinguish procedures using canonical `RoutineKind`,
     not the shared `ProcedureObject` class or the presence of a SQL body.
     Generic routine ownership denials retain the function noun used by

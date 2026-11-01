@@ -53,7 +53,7 @@ func TestReferenceMaterializedAlterAuthorization(t *testing.T) {
 			alterError(t, p, c, "ALTER MATERIALIZED VIEW alter_mv RENAME TO saved", fixture.ControlsReferenceDiagnostic("42501", "must be owner of materialized view alter_mv"), "execute")
 			run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			run(fixture.Exec(`ALTER MATERIALIZED VIEW alter_mv OWNER TO "CURRENT_USER"`, 0))
-			run(fixture.Select("SELECT matviewowner FROM pg_matviews WHERE matviewname='alter_mv'", []string{"matviewowner"}, []string{"NAME"}, [][]any{{"CURRENT_USER"}}))
+			matviewCheck(run, b, "public", "alter_mv", "CURRENT_USER", true, " SELECT i AS key,\n    s\n   FROM mv_base;")
 		})
 	}
 }

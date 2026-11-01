@@ -16,6 +16,14 @@ var PGViewColumns = []string{"schemaname", "viewname", "viewowner", "definition"
 
 var PGViewTypes = []string{"NAME", "NAME", "NAME", "TEXT"}
 
+var PGMatviewColumns = []string{"schemaname", "matviewname", "matviewowner", "tablespace", "hasindexes", "ispopulated", "definition"}
+
+var PGMatviewTypes = []string{"NAME", "NAME", "NAME", "NAME", "BOOL", "BOOL", "TEXT"}
+
+func PGMatviewRow(schema, name, owner string, indexed, populated bool, definition string) []any {
+	return []any{schema, name, owner, nil, indexed, populated, definition}
+}
+
 func PGTableViewsOwner(b Backend) string {
 	if b.PG {
 		return "stuntgres"

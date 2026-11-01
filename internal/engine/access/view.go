@@ -447,7 +447,7 @@ func (v View) Check(env Environment, req Requirement) error {
 	} else if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.ForeignRelation {
 		kind = "foreign table"
 	}
-	if r, ok := d.(*catalog.Relation); ok && (r.RelationKind == catalog.ViewRelation || r.VirtualView) {
+	if r, ok := d.(*catalog.Relation); ok && (r.RelationKind == catalog.ViewRelation || r.VirtualView || r.CatalogView) {
 		kind = "view"
 	}
 	if r, ok := d.(*catalog.Relation); ok && r.RelationKind == catalog.MaterializedViewRelation {

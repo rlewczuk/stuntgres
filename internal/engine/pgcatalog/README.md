@@ -51,6 +51,15 @@ type Input struct {
 type Producer func(Input) ([][]sqltype.Value, error)
 ```
 
+- `pg_matviews` (12006) projects captured materialized descriptors and paired
+  roles, using the runtime's current definition presentation. Population is
+  independent of stored row count; index presence follows sticky publication
+  history, not a live-index count. Default placement is NAME-typed NULL.
+  Represented-object ACLs, schema USAGE and search_path do not filter rows.
+  Core owns the transaction/database catalog frontier and ordinary admission to
+  the catalog view; the producer neither scans materialized contents nor borrows
+  current global state.
+
 - `pg_config` (12130) captures the immutable embedded distribution identity as
   the `VERSION` row, reusing `functions.EmbeddedVersionBanner`. Its two nullable
   TEXT columns retain captured descriptors, origins and ordinary TEXT collation.

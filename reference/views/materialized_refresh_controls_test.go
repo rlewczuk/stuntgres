@@ -52,6 +52,7 @@ func TestReferenceMaterializedRefreshControls(t *testing.T) { refreshControls(t)
 func refreshControls(t *testing.T) {
 	p := fixture.NewScenario(t)
 	var dump []byte
+	var dumpOwner string
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
 			conn, run := fixture.QueryTableCreateSession(t, p, b)
@@ -62,7 +63,13 @@ func refreshControls(t *testing.T) {
 			run(fixture.Exec("INSERT INTO mv_base VALUES(4,'diverged')", 1))
 			run(four)
 			run(fixture.Exec("CREATE MATERIALIZED VIEW refresh_control_no AS SELECT i FROM mv_base WITH NO DATA", 0))
+			metadataOwner := fixture.PGTableViewsOwner(b)
+			metadata := func(populated bool) {
+				matviewCheck(run, b, "public", "refresh_mv", metadataOwner, populated, " SELECT i,\n    s\n   FROM mv_base;")
+				matviewCheck(run, b, "public", "refresh_control_no", metadataOwner, false, " SELECT i\n   FROM mv_base;")
+			}
 			check := func() {
+				metadata(true)
 				run(four)
 				run(fixture.Prepared(four))
 				fixture.MaterializedViewPopulation(run, "refresh_mv", true)
@@ -78,6 +85,7 @@ func refreshControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				dump = bytes.Clone(saved.Bytes())
+				dumpOwner = metadataOwner
 				for range 2 {
 					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 						t.Fatal(err)
@@ -93,6 +101,14 @@ func refreshControls(t *testing.T) {
 				}
 				fixture.RunStep(t, p.Ctx, fresh.Memory, fresh.MemoryRecord, four)
 				fixture.RunStep(t, p.Ctx, fresh.Memory, fresh.MemoryRecord, fixture.MaterializedViewUnpopulated("refresh_control_no"))
+				for _, spec := range []struct {
+					name, definition string
+					populated bool
+				}{{"refresh_mv", " SELECT i,\n    s\n   FROM mv_base;", true}, {"refresh_control_no", " SELECT i\n   FROM mv_base;", false}} {
+					s := matviewProbe(b, "public", spec.name, fixture.PGTableViewsOwner(b), spec.populated, spec.definition)
+					fixture.RunStep(t, p.Ctx, fresh.Memory, fresh.MemoryRecord, s)
+					fixture.RunStep(t, p.Ctx, fresh.Memory, fresh.MemoryRecord, fixture.Prepared(s))
+				}
 				run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv WITH NO DATA", 0))
 				var empty bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &empty); err != nil {
@@ -103,6 +119,7 @@ func refreshControls(t *testing.T) {
 				}
 				run(fixture.MaterializedViewUnpopulated("refresh_mv"))
 				fixture.MaterializedViewPopulation(run, "refresh_mv", false)
+				metadata(false)
 				// Restore's SQL replay whitelist is unchanged: REFRESH is not import authority.
 				var before bytes.Buffer
 				if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
@@ -118,6 +135,7 @@ func refreshControls(t *testing.T) {
 				if !bytes.Equal(before.Bytes(), after.Bytes()) {
 					t.Fatal("refused Restore changed catalog")
 				}
+				metadata(false)
 			} else if dump != nil {
 				// Replay actual native emitted SQL, not a surrogate dump or PG Restore API.
 				run(fixture.Exec("DROP MATERIALIZED VIEW refresh_mv,refresh_control_no", 0))
@@ -125,11 +143,14 @@ func refreshControls(t *testing.T) {
 				if _, err := conn.ExecContext(p.Ctx, string(dump)); err != nil {
 					t.Fatal("PG rejected native dump", err)
 				}
+				metadataOwner = dumpOwner
 				run(fixture.MaterializedViewUnpopulated("refresh_mv"))
 				run(fixture.MaterializedViewUnpopulated("refresh_control_no"))
 				fixture.MaterializedViewPopulation(run, "refresh_mv", false)
+				metadata(false)
 				run(fixture.Exec("REFRESH MATERIALIZED VIEW refresh_mv", 0))
 				run(refreshBag("refresh_mv", [][]any{{int64(1), "a"}, {int64(1), "a"}, {int64(2), nil}, {int64(3), "c"}, {int64(4), "diverged"}}))
+				metadata(true)
 			}
 		})
 	}

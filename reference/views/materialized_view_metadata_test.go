@@ -19,16 +19,29 @@ func TestReferenceMaterializedViewMetadata(t *testing.T) {
 				t.Fatal(err)
 			}
 			definition := " SELECT i,\n    s\n   FROM mv_base;"
-			s := fixture.Select("SELECT * FROM pg_matviews WHERE matviewname='mv_meta'", []string{"schemaname", "matviewname", "matviewowner", "tablespace", "hasindexes", "ispopulated", "definition"}, []string{"NAME", "NAME", "NAME", "NAME", "BOOL", "BOOL", "TEXT"}, [][]any{{"public", "mv_meta", owner, nil, false, true, definition}})
-			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-				cols, err := rows.ColumnTypes()
-				if err != nil {
-					t.Fatal(err)
-				}
-				fixture.TableDDLColumnTypes(t, b.PG, cols, s.Columns, s.Types, []bool{true, true, true, true, true, true, true})
-			}
+			s := matviewProbe(b, "public", "mv_meta", owner, true, definition)
 			run(s)
 			run(fixture.Prepared(s))
+			qualified := fixture.PGTableViewSelect(b, "SELECT * FROM pg_matviews WHERE matviewname='mv_meta'", fixture.PGMatviewColumns, fixture.PGMatviewTypes, s.Rows)
+			run(qualified)
+			run(fixture.Prepared(qualified))
+			for _, probe := range []fixture.Step{
+				fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_matviews WHERE FALSE", fixture.PGMatviewColumns, fixture.PGMatviewTypes, nil),
+				fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_matviews LIMIT 0", fixture.PGMatviewColumns, fixture.PGMatviewTypes, nil),
+				fixture.PGTableViewSelect(b, matviewProbeSQL, fixture.PGMatviewColumns, fixture.PGMatviewTypes, nil, "public", "mv_absent"),
+				fixture.PGTableViewSelect(b, matviewProbeSQL, fixture.PGMatviewColumns, fixture.PGMatviewTypes, nil, "public", nil),
+			} {
+				run(probe)
+				run(fixture.Prepared(probe))
+			}
+			matviewCheck(run, b, "public", "mv_meta_no", owner, false, definition)
+			run(fixture.Exec("CREATE VIEW mv_ordinary AS SELECT i FROM mv_base", 0))
+			run(fixture.Exec("CREATE SEQUENCE mv_sequence", 0))
+			run(fixture.Exec("CREATE INDEX mv_base_index ON mv_base(i)", 0))
+			kinds := fixture.Select("SELECT matviewname FROM pg_catalog.pg_matviews WHERE schemaname='public' AND matviewname IN ('mv_base','mv_ordinary','mv_sequence','mv_base_index','mv_meta','mv_meta_no') ORDER BY matviewname", []string{"matviewname"}, []string{"NAME"}, [][]any{{"mv_meta"}, {"mv_meta_no"}})
+			run(kinds)
+			run(fixture.Prepared(kinds))
+			matviewCheck(run, b, "public", "mv_meta", owner, true, definition)
 			fixture.MaterializedViewPopulation(run, "mv_meta", true)
 			fixture.MaterializedViewPopulation(run, "mv_meta_no", false)
 			run(fixture.Select("SELECT matviewname,ispopulated FROM pg_matviews WHERE matviewname='mv_meta_no'", []string{"matviewname", "ispopulated"}, []string{"NAME", "BOOL"}, [][]any{{"mv_meta_no", false}}))
@@ -40,6 +53,7 @@ func TestReferenceMaterializedViewMetadata(t *testing.T) {
 			run(fixture.Exec("ALTER TABLE mv_renamed RENAME COLUMN i TO key", 0))
 			run(materializedViewBag("mv_meta"))
 			run(fixture.Select("SELECT pg_get_viewdef('mv_meta'::regclass,true) AS d", []string{"d"}, []string{"TEXT"}, [][]any{{" SELECT key AS i,\n    s\n   FROM mv_renamed;"}}))
+			matviewCheck(run, b, "public", "mv_meta", owner, true, " SELECT key AS i,\n    s\n   FROM mv_renamed;")
 			run(fixture.Exec("CREATE TABLE mv_notnull(i INT NOT NULL)", 0))
 			run(fixture.Exec("INSERT INTO mv_notnull VALUES(1)", 1))
 			run(fixture.Exec("CREATE MATERIALIZED VIEW mv_nullable AS SELECT i FROM mv_notnull", 1))

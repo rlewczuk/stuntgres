@@ -24,6 +24,9 @@ func TestReferenceTransactionalViewsDrop(t *testing.T) {
 				} {
 					base(s)
 				}
+				for _, x := range []fixture.Executor{c, peer} {
+					matviewFrontier(t, p, b, x, "txv_stored", " SELECT id\n   FROM txv_source;", true)
+				}
 				before := transactionalViewsIdentity(t, p, c, "txv_v")
 				prepared := make(map[string]*sql.Stmt)
 				if held {
@@ -68,9 +71,21 @@ func TestReferenceTransactionalViewsDrop(t *testing.T) {
 					run(fixture.Exec("ROLLBACK TO drops", 0))
 				}
 				run(transactionalViewsCount("txv_stored", 1))
+				matviewFrontier(t, p, b, e, "txv_stored", " SELECT id\n   FROM txv_source;", true)
 				ddl(fixture.Exec("DROP VIEW txv_v CASCADE", 0))
 				ddl(fixture.Exec("DROP VIEW txv_standalone", 0))
 				ddl(fixture.Exec("DROP MATERIALIZED VIEW txv_stored", 0))
+				matviewFrontier(t, p, b, e, "txv_stored", "", false)
+				// pg_get_viewdef locks the MV and would wait for our uncommitted
+				// DROP. Probe its catalog fields without invoking that renderer;
+				// full definitions are checked before DROP and after finish.
+				var peerRows [][]any
+				if mode != "autocommit" {
+					peerRows = [][]any{{"public", "txv_stored", fixture.PGTableViewsOwner(b), nil, false, true}}
+				}
+				peerCatalog := fixture.PGTableViewSelect(b, "SELECT schemaname,matviewname,matviewowner,tablespace,hasindexes,ispopulated FROM pg_catalog.pg_matviews WHERE schemaname='public' AND matviewname='txv_stored'", fixture.PGMatviewColumns[:6], fixture.PGMatviewTypes[:6], peerRows)
+				fixture.RunStep(t, p.Ctx, peer, b.Recorder, peerCatalog)
+				fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Prepared(peerCatalog))
 				for _, name := range []string{"txv_v", "txv_w", "txv_m", "txv_z", "txv_standalone", "txv_stored"} {
 					fixture.QueryTableCreateAbsent(t, run, name)
 				}
@@ -80,6 +95,9 @@ func TestReferenceTransactionalViewsDrop(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, peer, b.Recorder, transactionalViewsCount("txv_v", 1))
 				}
 				finish(commit)
+				for _, x := range []fixture.Executor{c, peer} {
+					matviewFrontier(t, p, b, x, "txv_stored", " SELECT id\n   FROM txv_source;", !commit && mode != "autocommit")
+				}
 				if !commit && mode != "autocommit" {
 					if got := transactionalViewsIdentity(t, p, c, "txv_v"); !reflect.DeepEqual(before, got) {
 						t.Fatal(before, got)

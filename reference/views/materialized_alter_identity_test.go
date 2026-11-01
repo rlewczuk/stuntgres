@@ -38,6 +38,7 @@ func TestReferenceMaterializedAlterIdentity(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			c, run := fixture.QueryTableCreateSession(t, p, b)
 			alterSeed(run)
+			matviewCheck(run, b, "public", "alter_mv", fixture.PGTableViewsOwner(b), true, " SELECT i,\n    s\n   FROM mv_base;")
 			run(fixture.Exec("CREATE VIEW alter_dependent AS SELECT i,s FROM alter_mv", 0))
 			ids := alterIdentity(t, p, c, "alter_mv")
 			run(fixture.Exec("INSERT INTO mv_base VALUES(3,'c')", 1))
@@ -51,9 +52,14 @@ func TestReferenceMaterializedAlterIdentity(t *testing.T) {
 				defer retained.Close()
 			}
 			run(fixture.Prepared(fixture.Exec("ALTER MATERIALIZED VIEW alter_mv RENAME COLUMN i TO key", 0)))
+			matviewCheck(run, b, "public", "alter_mv", fixture.PGTableViewsOwner(b), true, " SELECT i AS key,\n    s\n   FROM mv_base;")
 			run(fixture.Exec("ALTER MATERIALIZED VIEW alter_mv RENAME TO saved", 0))
+			matviewCheck(run, b, "public", "saved", fixture.PGTableViewsOwner(b), true, " SELECT i AS key,\n    s\n   FROM mv_base;")
+			matviewFrontier(t, p, b, c, "alter_mv", "", false)
 			run(fixture.Exec("CREATE SCHEMA alter_s2", 0))
 			run(fixture.Exec("ALTER MATERIALIZED VIEW saved SET SCHEMA alter_s2", 0))
+			matviewCheck(run, b, "alter_s2", "saved", fixture.PGTableViewsOwner(b), true, " SELECT i AS key,\n    s\n   FROM mv_base;")
+			matviewFrontier(t, p, b, c, "saved", "", false)
 			if got := alterIdentity(t, p, c, "alter_s2.saved"); got != ids {
 				t.Fatalf("identity changed: %v -> %v", ids, got)
 			}
@@ -90,9 +96,11 @@ func TestReferenceMaterializedAlterDefinition(t *testing.T) {
 			run(fixture.Exec("INSERT INTO mv_base VALUES(99,'shadow')", 1))
 			run(fixture.Exec("INSERT INTO alter_source.producer VALUES(3,'c')", 1))
 			run(alterBag("alter_mv", alterThree))
+			matviewCheck(run, b, "public", "alter_mv", fixture.PGTableViewsOwner(b), true, " SELECT source_key AS key,\n    s\n   FROM alter_source.producer;")
 			for range 2 {
 				run(fixture.Exec("REFRESH MATERIALIZED VIEW alter_mv", 0))
 				run(alterBag("alter_mv", alterFour))
+				matviewCheck(run, b, "public", "alter_mv", fixture.PGTableViewsOwner(b), true, " SELECT source_key AS key,\n    s\n   FROM alter_source.producer;")
 			}
 			run(fixture.Select("SELECT pg_get_viewdef('alter_mv'::regclass,true) AS d", []string{"d"}, []string{"TEXT"}, [][]any{{" SELECT source_key AS key,\n    s\n   FROM alter_source.producer;"}}))
 		})
