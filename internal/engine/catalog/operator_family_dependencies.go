@@ -110,7 +110,7 @@ func FamilyMemberInternalOwner(view Read, method, family, left, right ids.OID, n
 		}
 		return ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: family}
 	}
-	if left != right || fact.Native != BtreeAccessMethod && fact.Native != HashAccessMethod && fact.Native != BrinAccessMethod || function && (fact.Native != BrinAccessMethod && number != 1 || fact.Native == BrinAccessMethod && (number < 1 || number > 4)) {
+	if left != right || fact.Native != BtreeAccessMethod && fact.Native != HashAccessMethod && fact.Native != BrinAccessMethod && fact.Native != BloomAccessMethod || function && (fact.Native != BrinAccessMethod && number != 1 || fact.Native == BrinAccessMethod && (number < 1 || number > 4)) {
 		return ids.ObjectAddress{}
 	}
 	if creating != nil && creating.Method == method && creating.Family == family && creating.InputType == left {
@@ -122,6 +122,9 @@ func FamilyMemberInternalOwner(view Read, method, family, left, right ids.OID, n
 	}
 	if fact.Native == BrinAccessMethod {
 		physical = 3580
+	}
+	if fact.Native == BloomAccessMethod {
+		physical = method
 	}
 	for _, row := range view.OperatorClasses() {
 		if row.Method == physical && row.Family == family && row.InputType == left {

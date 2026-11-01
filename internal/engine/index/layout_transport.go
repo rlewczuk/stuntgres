@@ -115,6 +115,23 @@ func TransportCapturedIndexLayouts(evaluation *exec.Context, changes *session.Jo
 			RetainIndexBuild(changes, lineage.Target, targetStore, root)
 			continue
 		}
+		if root.Bloom != nil {
+			for _, entry := range root.Entries {
+				if err := evaluation.Context.Err(); err != nil {
+					return nil, false, err
+				}
+				if entry.Position < 0 || entry.Position >= len(sourceStore.Versions) || sourceStore.Versions[entry.Position].Row != entry.Row || sourceStore.Versions[entry.Position].Version != entry.Version {
+					return nil, false, ids.ErrCatalogReplaced
+				}
+			}
+			next, err := bloomRoot(evaluation.Context, evaluation.Catalog, lineage.TargetParent, lineage.Target, root.Entries, targetStore, targetStore.Generation, len(targetStore.Versions), targetStore.Ends, root)
+			if err != nil {
+				return nil, false, err
+			}
+			next.Construction = transportConstruction(root, lineage.Source, lineage.Target)
+			RetainIndexBuild(changes, lineage.Target, targetStore, next)
+			continue
+		}
 		if root.Hash != nil && SameIndexKeySemantics(lineage.Source, lineage.Target) && root.Hash.Storage == targetStore.IndexIdentity() && root.Hash.Generation == targetStore.Generation && root.Hash.Ends == targetStore.Ends && root.Hash.Prefix == len(targetStore.Versions) {
 			RetainIndexBuild(changes, lineage.Target, targetStore, root)
 			continue
@@ -260,6 +277,12 @@ func TransportEmptyIndexStorage(ctx context.Context, view catalog.Read, changes 
 			}
 			width, _ := BrinOptions(index)
 			root = &storage.IndexRoot{Construction: newConstruction(index.SQLIndex), Brin: &storage.BrinRoot{EffectivePagesPerRange: width, Bindings: bindings, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+		} else if index.SQLIndex.Method == catalog.BloomMethod {
+			var err error
+			root, err = bloomRoot(ctx, view, parent, index, nil, store, store.Generation, 0, store.Ends, nil)
+			if err != nil {
+				return err
+			}
 		} else {
 			if err := bindIndexProvider(view, parent, index.SQLIndex); err != nil {
 				return err

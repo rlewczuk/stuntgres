@@ -48,7 +48,7 @@ func (ProcedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 		return catalog.ValidateSnowballHelper(v, d)
 	}
 	if ok && d.Implementation != nil {
-		if d.AccessMethod != catalog.NoAccessMethod {
+		if d.AccessMethod != catalog.NoAccessMethod && (d.AccessMethod != catalog.BloomAccessMethod || d.Implementation != extension.StockBloom) {
 			return extension.InvalidProviderDescriptor()
 		}
 		return extension.CatalogProvider{ids.ProcedureClassID}.Validate(v, d)

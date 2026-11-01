@@ -363,12 +363,14 @@ func remapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.Extension = e
 		return &n
 	case *catalog.AccessMethod:
-		e := address(d.Extension)
-		if e == d.Extension {
+		n := *d
+		n.ObjectAddress = address(d.Address())
+		n.Handler = address(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Handler}).ObjectID
+		n.Extension = address(d.Extension)
+		n.Origin = origin(d.Origin)
+		if n.ObjectAddress == d.ObjectAddress && n.Handler == d.Handler && n.Extension == d.Extension && n.Origin == d.Origin {
 			return d
 		}
-		n := *d
-		n.Extension = e
 		return &n
 	case *catalog.Collation:
 		e := address(d.Extension)

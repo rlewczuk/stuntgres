@@ -322,7 +322,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
-	if t.AccessMethod != catalog.NoAccessMethod || t.BrinSupport != 0 {
+	if t.AccessMethod != catalog.NoAccessMethod && t.Origin == nil || t.BrinSupport != 0 {
 		if err := catalog.Validate(stored.ProcedureProvider{}, c.CatalogView, t); err != nil {
 			return err
 		}
@@ -486,7 +486,7 @@ func collectAccessMethodDump(_ context.Context, c *dumpCollection, _ ids.ObjectA
 	if err := catalog.Validate(catalog.AccessMethodProvider{}, c.CatalogView, method); err != nil {
 		return err
 	}
-	if !catalog.AccessMethodSeeded(method) {
+	if !catalog.AccessMethodSeeded(method) && method.Origin == nil {
 		c.AccessMethods = append(c.AccessMethods, method)
 	}
 	return nil

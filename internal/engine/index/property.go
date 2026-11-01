@@ -75,7 +75,7 @@ func ColumnCapability(view catalog.Read, index *catalog.IndexDefinition, ordinal
 		}
 		return false, false
 	}
-	if index.Method == catalog.HashMethod {
+	if index.Method == catalog.HashMethod || index.Method == catalog.BloomMethod {
 		switch property {
 		case "asc", "desc", "nulls_first", "nulls_last", "orderable", "distance_orderable", "returnable", "search_array", "search_nulls":
 			return false, true
@@ -118,7 +118,7 @@ func Property(view catalog.Read, def *catalog.IndexDefinition, whole bool, ordin
 	if !whole {
 		return ColumnCapability(view, def, ordinal, property)
 	}
-	if def.Method == catalog.BrinMethod {
+	if def.Method == catalog.BrinMethod || def.Method == catalog.BloomMethod {
 		switch property {
 		case "clusterable", "index_scan", "backward_scan":
 			return false, true

@@ -21,6 +21,9 @@ func bindIndexProvider(view catalog.Read, parent *catalog.Relation, d *catalog.I
 	case catalog.HashMethod:
 		_, err := BindHashIndex(view, parent, d)
 		return err
+	case catalog.BloomMethod:
+		_, err := BindBloomIndex(view, parent, d)
+		return err
 	case catalog.GistMethod, catalog.SpgistMethod:
 		_, err := bindLogicalKeys(view, parent, d)
 		return err

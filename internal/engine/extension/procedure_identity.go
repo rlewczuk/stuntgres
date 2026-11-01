@@ -58,6 +58,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	kind, volatility, strict := catalog.FunctionRoutine, expr.Immutable, true
 	count := 0
 	switch p.Implementation {
+	case StockBloom:
+		count = 6
+		name, signature, result, volatility, strict = "blhandler", "2281", 325, expr.Volatile, false
+		if ext.Provider != "bloom" || ext.Version != "1.0" || slot != 0 || p.AccessMethod != catalog.BloomAccessMethod || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.BrinSupport != 0 || p.PLHandler != catalog.NoPLHandler || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || p.DeclarationBody != nil || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'u'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/bloom", HasBinary: true}) {
+			return invalid()
+		}
 	case StockPgcrypto:
 		count = len(functions.PgcryptoMembers)
 		if slot >= count {

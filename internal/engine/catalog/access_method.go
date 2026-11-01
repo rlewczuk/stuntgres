@@ -11,6 +11,7 @@ import (
 type AccessMethod struct {
 	ObjectAddress  ids.ObjectAddress
 	Extension      ids.ObjectAddress
+	Origin         *InstalledOrigin
 	ObjectRevision ids.DefinitionRevision
 	ObjectName     string
 	Handler        ids.OID
@@ -35,13 +36,14 @@ const (
 	GistAccessMethod
 	BrinAccessMethod
 	SpgistAccessMethod
+	BloomAccessMethod
 )
 
 func (n NativeAccessMethod) MethodKind() string {
 	if n == HeapAccessMethod {
 		return "t"
 	}
-	if n >= BtreeAccessMethod && n <= SpgistAccessMethod {
+	if n >= BtreeAccessMethod && n <= BloomAccessMethod {
 		return "i"
 	}
 	return ""
@@ -58,6 +60,8 @@ func (n NativeAccessMethod) IndexImplementation() (IndexMethod, bool) {
 		return BrinMethod, true
 	case SpgistAccessMethod:
 		return SpgistMethod, true
+	case BloomAccessMethod:
+		return BloomMethod, true
 	}
 	return 0, false
 }
@@ -141,14 +145,20 @@ func (AccessMethodProvider) Validate(v Read, d Descriptor) error {
 	if !ok || m.Address().ClassID != ids.AccessMethodClassID || m.Address().ObjectID == 0 || m.Address().SubID != 0 || m.Revision() == 0 || m.Name() == "" || m.Native.MethodKind() == "" || v.NameAddress(DescriptorNameKey(m)) != m.Address() {
 		return fmt.Errorf("stuntgres: invalid access method descriptor")
 	}
+	if err := ValidateExtensionMembership(v, m); err != nil {
+		return err
+	}
 	p, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: m.Handler})
-	if !ok || p.AccessMethod != m.Native || NativeHandler(m.Handler) != m.Native {
+	if !ok || p.AccessMethod != m.Native || NativeHandler(m.Handler) != m.Native && !(m.Native == BloomAccessMethod && p.Origin.Valid(p.Address())) {
 		return fmt.Errorf("stuntgres: invalid access method handler capability")
 	}
 	if v.Owner() == nil || v.Owner().Provider(ids.ProcedureClassID) == nil {
 		return fmt.Errorf("stuntgres: missing native handler provider")
 	}
 	if err := v.Owner().Provider(ids.ProcedureClassID).Validate(v, p); err != nil {
+		return err
+	}
+	if err := ValidateInstalledClassOrigin(v, m); err != nil {
 		return err
 	}
 	return nil

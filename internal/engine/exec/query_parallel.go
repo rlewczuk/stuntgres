@@ -67,7 +67,7 @@ func ParallelQueryPlan(root plan.Node, source *Source) (*plan.ProjectNode, *plan
 func parallelQueryGraph(root plan.Node, source *Source) (*plan.ProjectNode, *plan.SortNode, bool) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok || source == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.Sources != nil || source.StoredRef != (ids.ObjectRef{}) ||
-		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
+		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.BloomIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
 		source.Singleton || source.RlsDenied || source.RLS != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
 		source.NestedRoot != nil || source.NestedInputs != nil || source.NestedStage != nil || source.Window || source.JoinLeft != nil || source.JoinRight != nil ||
 		source.Scratch != nil || source.Layout != nil || source.Versions != nil || source.invocationLineage != nil ||

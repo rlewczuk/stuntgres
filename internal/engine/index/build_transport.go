@@ -66,6 +66,18 @@ func (b *AlterIndexBuild) BaselineRoot(evaluation *exec.Context, index *catalog.
 		entry.Position = position
 		entries = append(entries, entry)
 	}
+	if index.SQLIndex.Method == catalog.BloomMethod {
+		parent, ok := evaluation.Catalog.Relation(index.SQLIndex.Parent)
+		if !ok {
+			return nil, ids.ErrCatalogReplaced
+		}
+		root, err := bloomRoot(ctx, evaluation.Catalog, parent, index, entries, baseline, baseline.Generation, len(baseline.Versions), baseline.Ends, b.Root)
+		if err != nil {
+			return nil, err
+		}
+		root.Construction = b.Root.Construction
+		return root, nil
+	}
 	return logicalIndexRoot(index.SQLIndex, entries, b.Root.Construction), nil
 }
 

@@ -2496,6 +2496,11 @@ trigger-free producer ownership units use `RUN='^TestTriggerTransition'`.
 Installed statistics provider, expression and capture ownership units use
 `RUN='^TestPgstat(index|hashindex)'`.
 
+Bloom installed identity, immutable root publication, visible capture, collision
+consumption, cancellation and control backing units use `RUN='^TestBloom'`.
+They retain genuine production roots and current command admission, never fake
+signatures or injected candidates; SQL result witnesses remain in reference.
+
 Low-level relation-admission owner tests must pass the statement through `Gate`
 before acquiring its relation: `StartStatement` alone does not attach the
 transaction incarnation or lock ticket. Wait witnesses inspect the real grant

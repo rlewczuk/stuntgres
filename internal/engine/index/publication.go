@@ -473,6 +473,35 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		if root != nil {
 			entries = root.Entries
 		}
+		if index.SQLIndex.Method == catalog.BloomMethod {
+			var err error
+			if rebuild {
+				if err := ValidateIndexDefinition(view, index); err != nil {
+					return nil, err
+				}
+				capture := BuildCapture{Index: index, Progress: progress.ObserverFor(a)}
+				root, err = BuildBloomIndexRoot(evaluation, parent, index, relations[parent.Address()], materialize, &capture)
+				if err != nil {
+					return nil, err
+				}
+			}
+			for i := range publications {
+				if publications[i].Address != parent.Address() {
+					continue
+				}
+				reconstruct := !produced && (rebuildParents[parent.Address()] || old == nil) && index.SQLIndex.Valid
+				root, err = MergeBloomIndexRoot(evaluation, parent, index, root, &publications[i], reconstruct, materialize)
+				if err != nil {
+					return nil, err
+				}
+				break
+			}
+			progress.Complete(a)
+			if materialize {
+				result[a] = root
+			}
+			continue
+		}
 		if index.SQLIndex.Method == catalog.BrinMethod {
 			var err error
 			if rebuild {

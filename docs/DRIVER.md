@@ -740,6 +740,15 @@ do not apply their effects; Execute checks current role, schema and provider
 authority. Held handles participate in the executing owner's transaction and can
 be reused after savepoint recovery. SQL `PREPARE` retains its own syntax policy.
 
+`CREATE EXTENSION bloom` registers the stock integer/text signature index method.
+Bloom equality candidates are lossy; queries always recheck the original
+predicate on captured visible rows, retaining duplicates and SQL NULL behavior.
+`length` and `col1`…`col32` are validated at CREATE and ALTER; native Dump/Restore
+preserves their lexical values, explicit classes, expressions and predicates
+while rebuilding signatures against destination identities. The implementation
+uses process-local logical roots, not PostgreSQL shared-library loading, physical
+index files/WAL or a durable AM ABI.
+
 Routine identity and attribute DDL has no parameter/result signature; Prepare stays
 effect-free and Execute owns authorization and read-only/transaction admission.
 Affected original Go/SQL prepared source reanalyzes: an old spelling may fail

@@ -104,7 +104,7 @@ func (c *catalogKeyColumn) positions(key uint32) []int {
 // without error: its cell has the column's exact type, which equals both
 // operand types. Any doubt, including a failing probe, returns nil and keeps
 // the full scan, which then raises the probe's error in place.
-func catalogKeyCandidates(ctx context.Context, state *State, n *plan.FilterNode, child *Stage) *hashCandidateSelection {
+func catalogKeyCandidates(ctx context.Context, state *State, n *plan.FilterNode, child *Stage) *candidateSelection {
 	if _, ok := n.Child.(*plan.SourceNode); !ok {
 		return nil
 	}
@@ -142,13 +142,13 @@ func catalogKeyCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 		return nil
 	}
 	if value.IsNull() {
-		return &hashCandidateSelection{Occurrences: []int{}}
+		return &candidateSelection{Occurrences: []int{}}
 	}
 	key, err := value.OID()
 	if err != nil {
 		return nil
 	}
-	return &hashCandidateSelection{Occurrences: keys.positions(key)}
+	return &candidateSelection{Occurrences: keys.positions(key)}
 }
 
 // statementConstant admits a literal or parameter, optionally under casts that

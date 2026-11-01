@@ -37,14 +37,23 @@ func ValidateInstalledClassOrigin(v Read, d Descriptor) error {
 		ownerIDPrincipal = live.Owner.ID() != 0 && live.Owner == v.Owner().Principals.Principal(live.Owner.ID())
 	case *OperatorFamily:
 		ownerIDPrincipal = live.Owner.ID() != 0 && live.Owner == v.Owner().Principals.Principal(live.Owner.ID())
-	case *Cast:
-		ownerIDPrincipal = true // Casts have no owner or ACL.
+	case *Cast, *AccessMethod:
+		ownerIDPrincipal = true // These global objects have no owner or ACL.
 	}
 	if !ownerIDPrincipal {
 		return invalid()
 	}
 	canonical := i.Declarations[o.Declaration]
 	switch live := d.(type) {
+	case *AccessMethod:
+		original, ok := canonical.(*AccessMethod)
+		if !ok || live.Native != original.Native || live.Handler != original.Handler {
+			return invalid()
+		}
+		procedure, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: live.Handler})
+		if !ok || !SameInstallation(procedure, i) {
+			return invalid()
+		}
 	case *Operator:
 		original, ok := canonical.(*Operator)
 		if !ok || live.Function != original.Function || live.Left != original.Left || live.Right != original.Right || live.Result != original.Result || live.Commutator != original.Commutator || live.Negator != original.Negator || live.Hash != original.Hash || live.Merge != original.Merge || live.Restriction != original.Restriction || live.Join != original.Join {

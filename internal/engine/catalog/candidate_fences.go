@@ -115,7 +115,8 @@ func (c *Candidate) AccessMethodsCurrent(current Read) bool {
 		}
 	}
 	for a := range c.Removals() {
-		if a.ClassID != ids.AccessMethodClassID && (a.ClassID != ids.ProcedureClassID || NativeHandler(a.ObjectID) == NoAccessMethod) {
+		procedure, handler := c.Base.Procedure(a)
+		if a.ClassID != ids.AccessMethodClassID && (a.ClassID != ids.ProcedureClassID || !handler || procedure.AccessMethod == NoAccessMethod) {
 			continue
 		}
 		for address, d := range current.Descriptors() {

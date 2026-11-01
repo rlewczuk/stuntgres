@@ -115,7 +115,7 @@ func validateIndexMethod(s *parser.CreateIndex, physical catalog.IndexMethod, me
 			return sqlError("0A000", "partial indexes are unsupported")
 		}
 		return nil
-	case catalog.BrinMethod:
+	case catalog.BrinMethod, catalog.BloomMethod:
 		if s.Unique {
 			return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support unique indexes`, methodName))
 		}

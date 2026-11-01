@@ -39,7 +39,7 @@ it. It never builds a binder.
 - **DDL helpers** (`create.go`, `attach.go`, `detach.go`, `exclusion.go`,
   `constraint_drop.go`) and **admission** (`locks.go`): `ConsumerBoundary`
   rejects statements hierarchies do not accept; `Ancestors` returns ancestors
-  root first, for the caller to lock before the leaf. Ordinary GiST/SP-GiST CREATE INDEX,
+  root first, for the caller to lock before the leaf. Ordinary GiST/SP-GiST/bloom CREATE INDEX,
   including aliases identified by the captured catalog's native method authority,
   uses the existing partitioned-index propagation path in `index`.
   Hierarchy DELETE, MERGE and ON CONFLICT capability refusals belong to

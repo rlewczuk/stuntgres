@@ -71,7 +71,7 @@ func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.
 	case *parser.CreateIndex:
 		if d.Partition != nil && !s.Unique {
 			method, ok := read.LookupAccessMethod(s.Method)
-			if !ok || method.Native != catalog.GistAccessMethod && method.Native != catalog.SpgistAccessMethod {
+			if !ok || method.Native != catalog.GistAccessMethod && method.Native != catalog.SpgistAccessMethod && method.Native != catalog.BloomAccessMethod {
 				message = "partitioned indexes are unsupported"
 			}
 		}

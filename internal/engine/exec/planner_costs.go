@@ -41,12 +41,15 @@ func AdmitScan(root plan.Node, source *Source) {
 		frame = project.Frame
 	}
 	indexes := source.HashIndexes
+	bloom := source.BloomIndexes
 	if source.RLS != nil || source.RlsDenied || source.Input != nil || source.Final != nil || source.Materialized || source.NestedRoot != nil || len(source.Own) != 0 || source.Sources != nil {
 		indexes = nil
+		bloom = nil
 	}
 	fraction := source.ScanFraction
 	if fraction == 0 {
 		fraction = 1
 	} // Sources constructed without cursor admission are ordinary.
 	source.ScanDecision = ChooseScan(filter, source.Ref, 1, frame, sourcePlannerMethods(source), source.PlannerCosts, source.PlannerRows, fraction, indexes)
+	source.ScanDecision = ChooseBloomScan(source.ScanDecision, filter, source.Ref, 1, frame, sourcePlannerMethods(source), source.PlannerCosts, source.PlannerRows, fraction, bloom)
 }

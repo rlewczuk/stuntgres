@@ -328,6 +328,9 @@ func BuildIndexRoot(evaluation *exec.Context, parent *catalog.Relation, d *catal
 	if d.Method == catalog.HashMethod {
 		return BuildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
+	if d.Method == catalog.BloomMethod {
+		return nil, fmt.Errorf("stuntgres: bloom requires descriptor-aware signature construction")
+	}
 	entries, err := BuildIndexEntries(evaluation, parent, d, store, capture)
 	if err != nil {
 		return nil, err
@@ -481,7 +484,7 @@ func MergeIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, o
 		// No changed root to install; the publisher keeps its actual predecessor.
 		return nil, ctx.Err()
 	}
-	if d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod {
+	if d.Method == catalog.GistMethod || d.Method == catalog.SpgistMethod || d.Method == catalog.BloomMethod {
 		// Preserve immutable predecessor entries and cached produced keys.
 		// Validation needs the complete candidate membership even in PREPARE.
 		entries := make([]storage.IndexEntry, 0, len(old)+len(added))

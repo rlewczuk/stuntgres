@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 )
@@ -48,8 +49,15 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 		return full
 	}
 	var indexes []exec.CapturedHashIndex
+	var bloom []exec.CapturedBloomIndex
 	for address, carrier := range engineStore.IndexRoots {
 		idx, ok := r.auth.Catalog.Relation(address)
+		if ok && idx.SQLIndex != nil && idx.SQLIndex.Parent == leaf.Ref.Address && index.BloomRootCompatible(r.auth.Catalog, relation, idx, carrier) {
+			root := carrier.Bloom
+			if root.Storage == store && root.Generation == store.Generation && root.Prefix == len(store.Versions) && root.Ends == store.Ends {
+				bloom = append(bloom, exec.CapturedBloomIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: carrier})
+			}
+		}
 		if !ok || idx.SQLIndex == nil || idx.SQLIndex.Method != catalog.HashMethod || idx.SQLIndex.Parent != leaf.Ref.Address || !idx.SQLIndex.Ready || !idx.SQLIndex.Valid || !idx.SQLIndex.Live || carrier == nil || carrier.Hash == nil {
 			continue
 		}
@@ -60,7 +68,9 @@ func (r *Renderer) explainScan(filter *plan.FilterNode, frame uint32) plan.ScanD
 		indexes = append(indexes, exec.CapturedHashIndex{Address: address, Name: idx.Name(), Definition: idx.SQLIndex, Root: root, Usage: root.Binding.Usage})
 	}
 	slices.SortFunc(indexes, func(a, b exec.CapturedHashIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
+	slices.SortFunc(bloom, func(a, b exec.CapturedBloomIndex) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	// OrdinaryEquality/EqualityFor inspect concrete typed metadata only;
 	// neither invokes the class's hash/equality implementation.
-	return exec.ChooseScan(filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, indexes)
+	decision := exec.ChooseScan(filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, indexes)
+	return exec.ChooseBloomScan(decision, filter, leaf.Ref, 1, frame, r.host.AdmittedPlannerMethods(), costs, rows, 1, bloom)
 }

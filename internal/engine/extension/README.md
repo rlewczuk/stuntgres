@@ -1,7 +1,7 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for bundled extensions (amcheck, autoinc, citext, cube,
+and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
 earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
@@ -32,6 +32,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   or parallel safety from current membership. The sealed recipe retains those
   declaration facts while current owner/ACL, cost and parallel overrides remain
   independent and survive native replay.
+  Bloom installs its released six-member handler/method/family/class graph.
+  Its C declaration describes a registered Go implementation, not a loaded
+  shared library. The global AM is ownerless; its handler and int4/text classes
+  are schema-owned. Sealed origin authenticates the native capability and exact
+  builtin equality/support1 links independently of current e-membership.
+  Symbolic control replay creates genuine declarations through CREATE EXTENSION;
+  aliases remain ordinary separately deparsed access methods.
+  Existing generic DDL can give a genuine handler alias ordinary int4/text
+  classes: binding requires the actual matching family, builtin equality1 and
+  exact native support1. Neither alias nor class acquires stock origin by name.
   Initial privileges are separate historical catalog records, not recipe ACLs.
   Providers call `Stage.RecordInitialPrivilege` only for genuine script ACL
   events: amcheck's eight implemented final REVOKE declarations capture the

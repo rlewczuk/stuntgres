@@ -222,8 +222,33 @@ func emitDumpDefaults(ctx context.Context, s *dumpScript, w *dumpWriter, event d
 }
 
 func emitDumpRows(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	t := s.table(event.OID)
-	return t.EmitRows(ctx, s.OriginalCatalog, w.emit)
+	if t.Owner == "postgres" && w.currentOwner == t.Owner {
+		// The established bootstrap authority already reconstructs these rows.
+		return t.EmitRows(ctx, s.OriginalCatalog, w.emit)
+	}
+	started := false
+	if err := t.EmitRows(ctx, s.OriginalCatalog, func(text string) error {
+		if !started {
+			// Captured ownership does not imply schema USAGE. Reconstruct
+			// data as the authenticated restorer without changing owner/ACLs.
+			if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
+				return err
+			}
+			w.currentOwner = ""
+			started = true
+		}
+		return w.emit(text)
+	}); err != nil {
+		return err
+	}
+	if started {
+		return w.setOwner(t.Owner)
+	}
+	return nil
 }
 
 func emitDumpInvalidConstraints(ctx context.Context, s *dumpScript, w *dumpWriter, event dump.Event) error {

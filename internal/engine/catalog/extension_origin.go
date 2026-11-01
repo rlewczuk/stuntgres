@@ -48,6 +48,8 @@ func (o *InstalledOrigin) Valid(address ids.ObjectAddress) bool {
 
 func DescriptorOrigin(d Descriptor) *InstalledOrigin {
 	switch d := d.(type) {
+	case *AccessMethod:
+		return d.Origin
 	case *Procedure:
 		return d.Origin
 	case *Type:
@@ -74,6 +76,10 @@ func DescriptorOrigin(d Descriptor) *InstalledOrigin {
 // implementation or manufactures a declaration from a public SQL label.
 func WithInstalledOrigin(d Descriptor, origin *InstalledOrigin) Descriptor {
 	switch d := d.(type) {
+	case *AccessMethod:
+		n := *d
+		n.Origin = origin
+		return &n
 	case *Procedure:
 		n := *d
 		n.Origin = origin

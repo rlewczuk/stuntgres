@@ -228,7 +228,16 @@ func (snapshot *Snapshot) TransportRows(ctx context.Context, view catalog.Read, 
 					return nil, err
 				}
 			}
-			roots[address] = logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))
+			if index.SQLIndex.Method == catalog.BloomMethod {
+				rebuilt, err := bloomRoot(ctx, view, parent, index, entries, store, store.Generation, len(store.Versions), store.Ends, nil)
+				if err != nil {
+					return nil, err
+				}
+				rebuilt.Construction = transportConstruction(source.Root, source.Index, index)
+				roots[address] = rebuilt
+			} else {
+				roots[address] = logicalIndexRoot(index.SQLIndex, entries, transportConstruction(source.Root, source.Index, index))
+			}
 		}
 	}
 	return roots, ctx.Err()

@@ -291,10 +291,11 @@ call live here.
   `VacuumWarning`s, which [`tablecmds`](../tablecmds/README.md#vacuum) emits
   after unlocking, in order. The pass's `phase` callback takes `Engine.Mu`
   once per progress update, so callers hold nothing.
-  Index work remaps current positions after compaction or rebinds hash/BRIN
-  generation when heap roots change. No physical index archive is maintained.
-  Heap predecessor retirement still respects protected horizons and immutable
-  old captures.
+  Index work remaps current positions after compaction or rebinds hash/BRIN/bloom
+  generation when heap roots change, including freeze-only work and retained
+  predecessor retirement without current-row compaction. No physical index
+  archive is maintained. Heap predecessor retirement still respects protected
+  horizons and immutable old captures.
   Targets carry immutable occurrence columns; selection already encodes ONLY.
   FULL uses the same retirement/index capture fences but forces a new heap
   incarnation and genuinely rebuilds indexes rather than remapping produced keys.

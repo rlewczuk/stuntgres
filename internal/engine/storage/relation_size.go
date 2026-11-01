@@ -230,6 +230,15 @@ func (a Allocation) indexForks(ctx context.Context) (ForkSizes, error) {
 		return err
 	}
 	switch {
+	case a.Index.Bloom != nil:
+		for _, entry := range a.Index.Bloom.Entries {
+			if err := ctx.Err(); err != nil {
+				return ForkSizes{}, err
+			}
+			if err := add(int64(24+len(entry.Signature)*2), nil); err != nil {
+				return ForkSizes{}, err
+			}
+		}
 	case a.Index.Hash != nil:
 		for _, bucket := range a.Index.Hash.Buckets {
 			for _, entry := range bucket {

@@ -85,6 +85,12 @@ func (g *MaintenanceGrant) CollectGroup(view access.View, env access.Environment
 	for _, ref := range g.Targets {
 		d := g.Descriptors[ref.Address]
 		switch v := stmt.(type) {
+		case *parser.AlterIndex:
+			if (v.Action == "set" || v.Action == "reset") && d.SQLIndex.Method == catalog.BloomMethod {
+				parent := d.SQLIndex.Parent
+				g.Parents = append(g.Parents, ref.Domain().Ref(ref.Epoch, parent))
+				g.Descriptors[parent] = current.MustRelation(parent)
+			}
 		case *parser.DropIndex:
 			g.Indexes = append(g.Indexes, ref)
 			parent := d.SQLIndex.Parent

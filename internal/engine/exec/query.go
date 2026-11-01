@@ -57,6 +57,7 @@ type Source struct {
 	Foreign          *ForeignQuerySource
 	Visible          []int
 	HashIndexes      []CapturedHashIndex
+	BloomIndexes     []CapturedBloomIndex
 	PlannerCosts     plan.PlannerCosts
 	PlannerRows      float64 // Detached maintenance estimate, or the logical default.
 	PlannerColumns   int
@@ -228,6 +229,7 @@ func (s *Source) Close() {
 	sources := s.Sources
 	s.Sources = nil
 	s.HashIndexes = nil
+	s.BloomIndexes = nil
 	s.CatalogKeys = nil
 	s.BranchPruner = nil
 	if s.NestedStage != nil {
@@ -376,7 +378,7 @@ func (s *State) ReleaseMemberships() {
 type Stage struct {
 	Source             *Source
 	Selection          []int
-	HashCandidates     *hashCandidateSelection
+	HashCandidates     *candidateSelection
 	Permutation        []int
 	OrderValues        []sqltype.Value
 	CacheOccurrences   []int
@@ -791,13 +793,20 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			child.Close()
 			return Stage{}, err
 		}
-		var candidates *hashCandidateSelection
+		var candidates *candidateSelection
 		keyed := false
 		if !branches.selection.Applied {
 			candidates, err = hashFilterCandidates(ctx, state, n, child.Source)
 			if err != nil {
 				child.Close()
 				return Stage{}, err
+			}
+			if candidates == nil {
+				candidates, err = bloomFilterCandidates(ctx, state, n, child.Source)
+				if err != nil {
+					child.Close()
+					return Stage{}, err
+				}
 			}
 			if candidates == nil {
 				candidates = catalogKeyCandidates(ctx, state, n, &child)
@@ -818,7 +827,7 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 					return false, err
 				}
 				// Catalog key positions belong to the child's previous rows.
-				if branches.selection.Applied || keyed {
+				if branches.selection.Applied || keyed || out.HashCandidates != nil && out.HashCandidates.Bloom != nil {
 					candidates, out.HashCandidates = nil, nil
 				}
 			} else {
@@ -841,6 +850,9 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		out.Produce = func(ctx context.Context, out *Stage) (bool, error) {
 			defer func() { evaluation.Context = nil }()
 			for {
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
 				var i int
 				if candidates := out.HashCandidates; candidates != nil {
 					if candidates.Position == len(candidates.Occurrences) {

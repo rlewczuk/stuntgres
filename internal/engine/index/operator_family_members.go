@@ -203,7 +203,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 		}
 		maximum := int64(5)
 		kind := "operator"
-		if physical == catalog.HashMethod {
+		if physical == catalog.HashMethod || physical == catalog.BloomMethod {
 			maximum = 1
 		} else if physical == catalog.GistMethod || physical == catalog.SpgistMethod {
 			maximum = 32767
@@ -219,6 +219,9 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 				maximum = 12
 			case 4000:
 				maximum = 7
+			}
+			if physical == catalog.BloomMethod {
+				maximum = 2
 			}
 		}
 		number, err := strconv.ParseInt(item.Number, 10, 64)

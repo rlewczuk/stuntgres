@@ -68,11 +68,17 @@ func CaptureSnapshot(ctx context.Context, c SnapshotCapture) (*Snapshot, error) 
 		if store == nil || root == nil || store != c.Store(parent.Address()) || root != c.Root(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) || (root.Brin != nil) != (idx.SQLIndex.Method == catalog.BrinMethod) {
+		if (root.Hash != nil) != (idx.SQLIndex.Method == catalog.HashMethod) || (root.Brin != nil) != (idx.SQLIndex.Method == catalog.BrinMethod) || (root.Bloom != nil) != (idx.SQLIndex.Method == catalog.BloomMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if root.Hash != nil && (root.Hash.Storage != store.IndexIdentity() || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends || root.Hash.Prefix != len(store.Versions)) {
 			return nil, ids.ErrCatalogReplaced
+		}
+		if root.Bloom != nil {
+			b := root.Bloom
+			if b.Storage != store.IndexIdentity() || b.Generation != store.Generation || b.Ends != store.Ends || b.Prefix != len(store.Versions) || b.Options != BloomOptions(idx) || len(b.Bindings) != len(idx.SQLIndex.Keys) || len(b.Entries) != len(root.Entries) {
+				return nil, ids.ErrCatalogReplaced
+			}
 		}
 		if root.Brin != nil {
 			b := root.Brin

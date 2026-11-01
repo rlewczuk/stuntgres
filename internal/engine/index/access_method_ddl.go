@@ -43,8 +43,13 @@ func StageCreateAccessMethod(h FamilyDDLHost, auth ddl.Authority, s *parser.Crea
 	if !known || result != expected {
 		return familyError("42809", fmt.Sprintf(`function %s must return type %s`, identity.Name, resultName))
 	}
-	if !installed || routine.AccessMethod == catalog.NoAccessMethod || catalog.NativeHandler(identity.ID) != routine.AccessMethod {
+	if !installed || routine.AccessMethod == catalog.NoAccessMethod || catalog.NativeHandler(identity.ID) != routine.AccessMethod && !(routine.AccessMethod == catalog.BloomAccessMethod && routine.Origin.Valid(routine.Address())) {
 		return familyError("0A000", `access method handler has no registered native implementation`)
+	}
+	if provider := v.Catalog.Owner().Provider(ids.ProcedureClassID); provider == nil {
+		return familyError("0A000", `access method handler has no registered native implementation`)
+	} else if err := provider.Validate(v.Catalog, routine); err != nil {
+		return err
 	}
 	oid, err := h.AllocateOID()
 	if err != nil {

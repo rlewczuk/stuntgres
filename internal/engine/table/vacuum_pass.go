@@ -134,7 +134,7 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 	}
 	indexWork := 0
 	for _, root := range c.Indexes {
-		if changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil) {
+		if changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil || root.Bloom != nil) {
 			indexWork++
 		}
 	}
@@ -143,7 +143,7 @@ func PrepareVacuumPass(ctx context.Context, c VacuumCapture, store *storage.Rela
 		progress(state)
 		pass.Roots = make(map[ids.ObjectAddress]*storage.IndexRoot, indexWork)
 		for address, root := range c.Indexes {
-			if !(changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil)) {
+			if !(changed && (candidate.Positions != nil || root.Hash != nil || root.Brin != nil || root.Bloom != nil)) {
 				continue
 			}
 			var remapped *storage.IndexRoot

@@ -40,6 +40,11 @@ func bindClassSupport(view catalog.Read, class sqltype.IndexClass, method *catal
 	if !ok || family.Method != fact.Method {
 		return class, fmt.Errorf("stuntgres: invalid index family method")
 	}
+	if class.IsBloom() {
+		if err := extension.ValidateBloomClassBindings(view, fact); err != nil {
+			return class, err
+		}
+	}
 	if class.IsSPGiST() {
 		supported := false
 		switch sqltype.ID(class.InputOID()) {

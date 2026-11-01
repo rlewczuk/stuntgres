@@ -51,10 +51,11 @@ No parallel language-permission table or cached grant decision exists.
     implicit owner options, and scans only live positive columns for any-column
     checks. Requested rights are not clipped to grant-admission class masks.
   - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global access
-    methods and genuine type/language conversion pairs have no owner or ACL:
-    `ValidateACL` classifies them with the other ownerless descriptors, while
-    their catalog providers validate structural, handler and referenced-object
-    authority. Owning descriptors reject every zero or foreign principal.
+    methods have no owner, ACL or grant mask; owner metadata therefore carries
+    no fabricated grants. Genuine type/language conversion pairs likewise have
+    no owner or ACL. `ValidateACL` classifies them with the other ownerless
+    descriptors, while their catalog providers validate structural, handler and
+    referenced-object authority. Owning descriptors reject every zero or foreign principal.
     Publication relation/schema mappings likewise have no independent principal,
     ACL, grant mask or role dependency; their providers validate real endpoints.
     The publication itself retains normal owner validation and role dependencies.

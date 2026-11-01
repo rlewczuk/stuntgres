@@ -91,6 +91,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				expected := map[string][]any{
 					"autoinc":         {"autoinc", "1.0", nil, "functions for autoincrementing fields"},
 					"amcheck":         {"amcheck", "1.5", nil, "functions for verifying relation integrity"},
+					"bloom":           {"bloom", "1.0", nil, "bloom access method - signature file based index"},
 					"citext":          {"citext", "1.8", nil, "data type for case-insensitive character strings"},
 					"cube":            {"cube", "1.5", nil, "data type for multidimensional cubes"},
 					"earthdistance":   {"earthdistance", "1.2", nil, "calculate great-circle distances on the surface of the Earth"},
@@ -120,6 +121,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				if oid == 12085 {
 					expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
 					expected["amcheck"] = []any{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}
+					expected["bloom"] = []any{"bloom", "1.0", false, true, false, true, nil, nil, "bloom access method - signature file based index"}
 					expected["citext"] = []any{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}
 					expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 					expected["earthdistance"] = []any{"earthdistance", "1.2", false, true, false, true, nil, "{cube}", "calculate great-circle distances on the surface of the Earth"}

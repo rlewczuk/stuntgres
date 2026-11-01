@@ -189,11 +189,17 @@ func emitDumpIndexOptions(ctx context.Context, s *dumpScript, w *dumpWriter) err
 		if err != nil {
 			return err
 		}
-		if err := w.setOwner(owner.Name); err != nil {
+		// Reloptions complete the same captured index reconstruction as CREATE.
+		// Its table-derived owner may have no schema lookup or creation rights.
+		if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
 			return err
 		}
+		w.currentOwner = ""
 		qualified := catalog.QuoteIdentifier(s.OriginalCatalog.Get(r.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.Name())
 		if err := w.emit("ALTER INDEX " + qualified + " SET (" + index.OptionsSQL(r.StorageOptions.Base) + ");\n"); err != nil {
+			return err
+		}
+		if err := w.setOwner(owner.Name); err != nil {
 			return err
 		}
 	}

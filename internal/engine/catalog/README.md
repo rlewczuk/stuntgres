@@ -560,8 +560,14 @@ neither owns catalog authority.
   same authority Candidate publication uses; compiled seeds are bootstrap inputs
   shared between engines. Immutable OID indexes classify original class/family
   seeds and validate exact original member payloads without repeated inventory
-  scans; they never select live runtime providers. BRIN descriptors retain released minmax and
-  diagnostic-only excluded algorithm identities, including inet's actual
+  scans; they never select live runtime providers.
+  Installed bloom methods retain sealed declaration origin independently of
+  mutable SQL labels/current membership. The ownerless global method's native
+  capability must agree with its genuine installed handler; ordinary aliases
+  retain separate SQL identities without acquiring an origin. Canonical recipe
+  and live handler addresses remap together. Builtin handler gates remain exact.
+  BRIN descriptors retain released minmax and diagnostic-only excluded algorithm
+  identities, including inet's actual
   inclusion default. Four `BrinSupport` procedure capabilities declare internal
   summary signatures separately from scalar routines; the index owner executes
   summaries. `CastDependencies` is the shared pg_depend/DROP/dump authority.

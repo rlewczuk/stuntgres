@@ -235,8 +235,9 @@ type CapturedHashIndex struct {
 
 // This state is consumed by the real filter producer, not exported telemetry.
 // Occurrences are local to the captured source's selected visibility mapping.
-type hashCandidateSelection struct {
+type candidateSelection struct {
 	Root        *storage.HashRoot
+	Bloom       *storage.BloomRoot
 	Occurrences []int
 	Position    int
 }
@@ -266,7 +267,7 @@ func HashQueryFilter(root plan.Node) *plan.FilterNode {
 	}
 }
 
-func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode, source *Source) (*hashCandidateSelection, error) {
+func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode, source *Source) (*candidateSelection, error) {
 	state.CapturePlannerAdmission()
 	if state.Methods.NoIndexScan || state.HashFilter != n || source == nil || source.ScanDecision.Method != plan.HashCandidates {
 		return nil, nil
@@ -294,7 +295,7 @@ func hashFilterCandidates(ctx context.Context, state *State, n *plan.FilterNode,
 		if err != nil {
 			return nil, err
 		}
-		selection := &hashCandidateSelection{Root: capture.Root, Occurrences: []int{}}
+		selection := &candidateSelection{Root: capture.Root, Occurrences: []int{}}
 		if value.IsNull() {
 			return selection, ctx.Err()
 		}

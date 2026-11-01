@@ -1,7 +1,7 @@
 # internal/engine/storage
 
 The engine's physical data layer: committed relation storage and row
-versions, deletion roots, logical B-tree/hash/GiST/BRIN index roots, sequence
+versions, deletion roots, logical B-tree/hash/GiST/SP-GiST/BRIN/bloom index roots, sequence
 generator state, and the `Store` that owns them. The package sits at layer
 L4 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `ids`, `sqltype` and the standard library,
@@ -55,6 +55,14 @@ and never the engine.
   It retains effective width and storage/generation/prefix/end captures, not
   a row-key list. Logical pages are authoritative version-vector slots; datum
   comparison, summary publication and candidate consistency belong to `index`.
+  `BloomRoot` owns per-occurrence immutable uint16 signatures aligned with the
+  shared exact key/version memberships, typed hash bindings, effective options
+  and storage/generation/prefix/end authority. Local signature scratch never
+  escapes into a root. Delta publication shares only unchanged immutable
+  signature backing; vacuum moves signatures with their exact versions.
+  These are process-local logical artifacts, not physical pages/WAL or a durable
+  PostgreSQL index format. Native controls rebuild destination signatures rather
+  than serializing roots, live pointers or session resources.
 - **Sequence generators** (`sequence.go`): `SequenceGenerator`.
 - **Catalog publication values** (`row_shape.go`, `publication.go`): a
   stage's planned heap replacement `RowShape`, whose `Matches` fences store,
@@ -304,9 +312,10 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   preserving survivor payloads and old roots. The engine owns the conservative
   snapshot gate and final fence. `RemapVacuumIndex` preserves keys and existing
   index state, remaps positions/membership/RowEntries and rebuilds hash pointers
-  against new buckets. Hash prefix coverage is preserved, never upgraded to a
-  complete index; freeze-only work rebinds hash/BRIN generation without needless
-  B-tree remapping. BRIN compaction dispatches through the index owner's
+  against new buckets. Hash/bloom prefix coverage is preserved, never upgraded to
+  a complete index; freeze-only work and predecessor retirement rebind hash/BRIN/
+  bloom generation without needless B-tree remapping or signature recomputation.
+  BRIN compaction dispatches through the index owner's
   conservative destination-range reconstruction, never generic entry remapping.
   No-change passes retain roots; no row/version IDs are minted.
   `InspectRetainedVacuum` applies the same conservative snapshot gate to real

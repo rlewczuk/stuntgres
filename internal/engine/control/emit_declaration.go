@@ -174,12 +174,20 @@ func emitDumpStatement(s *dumpScript, w *dumpWriter, oid ids.OID, declaration du
 // emitDumpIndex writes an index definition, the physical primary-key
 // cleanup that follows it, and records its name as occupied.
 func emitDumpIndex(s *dumpScript, w *dumpWriter, oid ids.OID, idx OwnedStatement) error {
-	if err := w.setOwner(idx.Owner); err != nil {
+	// Ownership follows the already-restored parent. Its owner need not retain
+	// schema USAGE/CREATE; reconstruct as the authenticated administrator, not
+	// with invented grants or a named bootstrap principal.
+	if err := w.emit("SET SESSION AUTHORIZATION DEFAULT;\n"); err != nil {
 		return err
 	}
+	w.currentOwner = ""
 	if err := s.emitBound(w, castConsumer{Event: dump.Event{OID: oid}}, idx.SQL); err != nil {
 		return err
 	}
+	if err := w.setOwner(idx.Owner); err != nil {
+		return err
+	}
+	// All following cleanup and dependent events use the captured owner again.
 	original := s.OriginalCatalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 	if original.SQLIndex != nil && original.SQLIndex.Constraint != nil && original.SQLIndex.Constraint.Primary {
 		parent := s.OriginalCatalog.MustRelation(original.SQLIndex.Parent)

@@ -660,6 +660,10 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 			tree.details = append(tree.details, "Access Method: Hash Candidates", "Index: "+r.scanDecision.IndexName)
 			r.property(tree, "Access Method", "Hash Candidates")
 			r.property(tree, "Index", r.scanDecision.IndexName)
+		} else if r.scanDecision.Method == plan.BloomCandidates {
+			tree.details = append(tree.details, "Access Method: Bloom Candidates", "Index: "+r.scanDecision.IndexName)
+			r.property(tree, "Access Method", "Bloom Candidates")
+			r.property(tree, "Index", r.scanDecision.IndexName)
 		} else {
 			tree.details = append(tree.details, "Access Method: Full Scan")
 			r.property(tree, "Access Method", "Full Scan")

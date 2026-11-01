@@ -199,8 +199,15 @@ typmods; naming is captured only on failure and is never retained in result tupl
   methods off or no eligible index retain the required full-scan fallback.
   Default-on selection and all numeric cost estimates remain cost-based.
   Core EXPLAIN uses the same metadata-only eligibility, method policy and
-  arithmetic and labels these paths Hash Candidates or Full Scan, not physical
-  disk scans. Cursors/portals retain their opening decision; prepared execution
+  arithmetic and labels these paths Hash Candidates, Bloom Candidates or Full
+  Scan, not physical disk scans. Bloom admits only typed same-source equality
+  conjuncts against retained current roots; unsupported query predicates fall
+  back without excluding rows. Signature matches map exact row/version/position
+  identities to captured visible occurrences, with no pre-recheck key comparison.
+  The shared FilterNode producer always evaluates its original predicate.
+  Sources and stages release retained roots on close, invalidate stale selection
+  on reset, and preserve terminal cancellation rather than returning partial
+  success. Cursors/portals retain their opening decision; prepared execution
   admits current command methods/costs without mutating shared IR.
   `FinalizeSelect` compares serial work with setup+work/workers+tuple-delivery
   before either local query or partial-aggregate dispatch, after existing

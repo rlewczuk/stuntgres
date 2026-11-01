@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-// HashCapture is the committed engine state a query source's hash index
-// capture is checked against. The engine fills it under Engine.mu.
+// HashCapture is the committed engine state shared by hash and bloom source
+// capture. The engine fills it under Engine.mu.
 type HashCapture struct {
 	Eligible  bool                                    // An implicit statement without a private catalog.
 	Live      *catalog.State                          // The published catalog.

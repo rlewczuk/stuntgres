@@ -122,7 +122,7 @@ type IndexHash struct {
 }
 
 func validateHashClass(u Usage, c IndexClass) error {
-	if !c.hash {
+	if !c.hash && !c.bloom {
 		return fmt.Errorf("non-hash class has no hash provider")
 	}
 	if !c.Accepts(u.Type) {

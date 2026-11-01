@@ -55,7 +55,7 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid operator family operator")
 		}
 		method, exists := v.AccessMethod(f.Method)
-		if !exists || p.Class != ids.AccessMethodOperatorClassID || (method.Native == BtreeAccessMethod || method.Native == BrinAccessMethod) && d.Number > 5 || method.Native == HashAccessMethod && d.Number > 1 || d.Purpose == 'o' && (method.Native != GistAccessMethod && method.Native != SpgistAccessMethod || d.SortFamily == 0) {
+		if !exists || p.Class != ids.AccessMethodOperatorClassID || (method.Native == BtreeAccessMethod || method.Native == BrinAccessMethod) && d.Number > 5 || (method.Native == HashAccessMethod || method.Native == BloomAccessMethod) && d.Number > 1 || d.Purpose == 'o' && (method.Native != GistAccessMethod && method.Native != SpgistAccessMethod || d.SortFamily == 0) {
 			return fmt.Errorf("stuntgres: invalid family operator method")
 		}
 		if original, seeded := builtinFamilyOperatorsByOID[d.Address().ObjectID]; seeded {
@@ -91,6 +91,8 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 			maximum = 15
 		} else if method.Native == SpgistAccessMethod {
 			maximum = 7
+		} else if method.Native == BloomAccessMethod {
+			maximum = 2
 		}
 		if d.Number > maximum {
 			return fmt.Errorf("stuntgres: invalid family support number")

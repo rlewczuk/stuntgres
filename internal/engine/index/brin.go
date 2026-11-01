@@ -91,11 +91,14 @@ func BrinOptions(index *catalog.Relation) (width int, autosummarize bool) {
 	return
 }
 
-// BuildRelationIndexRoot is the descriptor-aware root dispatcher: BRIN needs
-// reloption build intent in addition to the shared immutable key definition.
+// BuildRelationIndexRoot is the descriptor-aware root dispatcher: BRIN and
+// bloom need reloption build intent as well as the immutable key definition.
 func BuildRelationIndexRoot(evaluation *exec.Context, parent, index *catalog.Relation, store *storage.Relation, capture *BuildCapture) (*storage.IndexRoot, error) {
 	if index.SQLIndex.Method == catalog.BrinMethod {
 		return BuildBrinIndexRoot(evaluation, parent, index, store, true, capture)
+	}
+	if index.SQLIndex.Method == catalog.BloomMethod {
+		return BuildBloomIndexRoot(evaluation, parent, index, store, true, capture)
 	}
 	return BuildIndexRoot(evaluation, parent, index.SQLIndex, store, capture)
 }

@@ -54,6 +54,9 @@ func StageMaintenance(h Host, g *MaintenanceGrant, stmt parser.Statement) error 
 		}
 		next := *original
 		next.StorageOptions = options
+		if original.SQLIndex.Method == catalog.BloomMethod && BloomOptions(original) != BloomOptions(&next) {
+			st.Rebuilds = map[ids.ObjectAddress]*catalog.Relation{original.Address(): original}
+		}
 		if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
 			return fmt.Errorf("stuntgres: index revision exhausted")
 		}

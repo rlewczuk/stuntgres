@@ -1,8 +1,9 @@
 # internal/engine/index
 
-Index records and algorithms: B-tree, hash, GiST and SP-GiST keys and roots, BRIN min/max
-range summaries, unique and exclusion enforcement, publication and snapshots,
-write-time maintenance, operator-family/access-method DDL and partition propagation.
+Index records and algorithms: B-tree, hash, GiST and SP-GiST keys and roots, BRIN
+min/max range summaries, bloom signatures, unique and exclusion enforcement,
+publication and snapshots, write-time maintenance, operator-family/access-method
+DDL and partition propagation.
 
 ## Imports
 
@@ -48,6 +49,17 @@ builds a binder.
   BRIN uses `BindBrinIndex`, `BuildBrinIndexRoot`, `MergeBrinIndexRoot` and
   `BrinConsistent`; `BuildRelationIndexRoot` carries descriptor reloption intent
   into method dispatch. Summary support is not B-tree comparator support.
+  Bloom uses the descriptor-aware builder, typed registered support1 hashes and
+  immutable per-version signatures over the shared produced-key memberships.
+  `length` and `col1`…`col32` retain lexical reloptions separately from effective
+  16-bit-word build intent. Effective option changes atomically rebuild roots.
+  Delta publication shares unchanged signature backing; layout, vacuum and
+  replacement preserve exact row/version/position ownership or rebuild against
+  destination bindings. `CaptureBloomIndexesLocked` proves the same committed
+  catalog/storage/generation/prefix/end frontier as the retained query source.
+  Signatures select lossy candidates, never exact equality: the executor must
+  evaluate the original predicate on each captured visible stored row.
+  No PostgreSQL C AM ABI, physical pages, WAL or durable signature format is used.
   GiST and SP-GiST roots share unsorted exact live membership extraction and
   immutable delta maintenance; scalar predicates and distances remain query authority.
   They contain original typed values, not bounding boxes or signatures.
@@ -315,8 +327,9 @@ Entry points:
   `TestIndexRecipeLiveHostCatalog` lives with composed stored-definition tests in
   `core/enginetests/stored`, using the current statement Host adapter.
   `TransformIndexOptions` owns immutable logical option validation/ordering;
-  metadata-only edits retain identity/providers/key roots and do not rebuild
-  pages or change enforcement. Binding: `LookupClass`, `BindKey`,
+  metadata-only edits retain identity/providers/key roots. Bloom's effective
+  signature-option changes instead use the existing fenced rebuild publication.
+  Binding: `LookupClass`, `BindKey`,
   `BindAttributes`, `RejectVirtualUses`.
 - Constraint indexes, called by `table`: `StageUniqueDefinitions`,
   `StageCreateUniques`, `StageExclusion`, `StageCreateExclusions`,
@@ -499,6 +512,11 @@ SP-GiST structural coverage includes destination-domain ownership and exact
 RowID/VersionID/position/value membership after real Dump/Restore with a retained
 TEMP relation collision. Source, removed target and subsequently replaced roots
 remain immutable; later writes in either engine cannot alter the other engine.
+Bloom composed owner units live beside core and use actual published roots,
+command-admitted scan preferences and deterministic context boundaries. The
+collision proof finds a real one-bit collision in the production 17-value root,
+then consumes the nonmatching candidate through the original predicate. Native
+controls assert destination bindings/backing and unchanged source ownership.
 Run concurrency,
 exclusion and unique-claim selections with `RACE=1`. Private units assert
 support IDs/routines and root membership, never ORDER BY results as evidence of
@@ -517,6 +535,7 @@ make check RUN='^Test(CandidatesMatch|DriverBatch|PartitionAttachPublicationFenc
 make check RACE=1 RUN='^Test(Unique|Exclusion|UsingIndex|ConcurrentIndex|HashIndex)'   # enforcement
 make check RUN='^TestBrinIndex'   # range summaries, consistency, publication and transport
 make check RUN='^TestSPGiST'   # genuine method, membership, publication and destination transport
+make check RUN='^TestBloom'   # installed identity, real signatures, capture/recheck and controls
 ```
 
 Operator families, classes and access methods:

@@ -486,11 +486,14 @@ type inquirySnapshot struct {
 	searchPathResults         [2]sqltype.Value
 }
 
-// captureHashIndexesLocked fills index.HashCapture from the published engine
-// state. The caller holds e.mu, the same owner as visibility-prefix capture.
+// captureHashIndexesLocked captures hash and bloom roots from one published
+// engine state under the same e.mu window as visibility-prefix capture.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf, source *exec.Source, mark plan.RowMark) error {
 	in := index.HashCapture{Eligible: scope.implicit && scope.Catalog == nil, Live: e.Catalog.State, Relations: e.Storage.Relations, Roots: e.Storage.IndexRoots, Commit: e.Visibility.CommitSeq()}
-	return index.CaptureHashIndexesLocked(in, leaf, source, mark)
+	if err := index.CaptureHashIndexesLocked(in, leaf, source, mark); err != nil {
+		return err
+	}
+	return index.CaptureBloomIndexesLocked(in, leaf, source, mark)
 }
 
 func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {

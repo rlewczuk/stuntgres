@@ -676,6 +676,16 @@ No physical WAL position or flush guarantee is serialized.
   uses `dump.Statement.PrivilegedCreation` and `DEFAULT` (the authenticated
   administrator), emits `FollowingSQL` with the actual owner transfer, then
   restores tracked owner authority before any dependent event.
+  Index definitions and their separately replayed reloptions run under
+  authenticated `DEFAULT`: ownership derives from their already-restored parent,
+  whose owner may lack current schema USAGE/CREATE. Captured row replay likewise
+  uses `DEFAULT`, scoped from the first emitted row block through the last INSERT,
+  without separating row directives from their INSERT or changing cast windows.
+  Empty row streams need no authority switch. An already-established bootstrap
+  owner needs no redundant DEFAULT transition, preserving the canonical
+  bootstrap-owned row stream. Each emitter restores the captured owner before
+  subsequent cleanup and events; no namespace grants, owner/ACL changes or
+  ordinary SQL permission exemptions are introduced.
   When FK snapshot records exist, the writer incrementally hashes successfully
   emitted ordinary bytes using bounded scratch. After every section and final
   comparison-context RESET it emits the allocation-independent native FK footer,

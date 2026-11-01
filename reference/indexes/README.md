@@ -1,7 +1,7 @@
 # reference/indexes
 
 Indexes and index-backed constraints: access-method definitions (`CREATE ACCESS
-METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/BRIN indexes, partial,
+METHOD`), operator classes and families, B-tree/hash/GiST/SP-GiST/BRIN/bloom indexes, partial,
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX`,
@@ -97,6 +97,16 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Use `RACE=1` for the transactional lock/savepoint/cancellation/name selections
   and `TestTransactionalIndexLocks`/`TestTransactionalIndexReplacementFences`.
 - Hash indexes: `RUN='^TestReferenceHashIndex'`
+- Bloom installation, signatures' logical equality/recheck outcomes, options,
+  diagnostics, fallback, maintenance and controls: `RUN='^TestReferenceBloom'`.
+  The shared scenario owns global extension/method cleanup; alternate schemas
+  and roles use the common fixture cleanup. Public collision witnesses use
+  seventeen distinct values in a one-bit, sixteen-effective-bit signature and
+  independently assert every equality's multiplicity; engine tests must also
+  prove actual candidate consumption and recheck. Controls use recorded
+  independent Driver destinations and PostgreSQL logical replay. Only native
+  Dump/Reset/Restore and eager-handle phases are native-specific; physical
+  pages/WAL, native AM ABI and live session resources are not replay artifacts.
 - BRIN min/max indexes, diagnostics and controls (including callable/partial CREATE-plus-ALTER replay and later writes): `RUN='^TestReferenceBrinIndex'`
 - GiST classes, exact predicates, options and lifecycle: `RUN='^TestReferenceGiST'`.
   Text-search predicate rows assert scalar match behavior independently of index use.

@@ -23,6 +23,7 @@ type ScanMethod uint8
 const (
 	FullScan ScanMethod = iota
 	HashCandidates
+	BloomCandidates
 )
 
 // ScanDecision owns only detached facts. Estimates are display-saturated only
@@ -34,9 +35,14 @@ type ScanDecision struct {
 	FullCost, HashCost       float64
 	FullStartup, HashStartup float64
 	FullScore, HashScore     float64
+	BloomCost, BloomStartup, BloomScore float64
+	candidateWork            float64 // Unsaturated normalized work for method comparisons.
 }
 
 func (d ScanDecision) Cost() float64 {
+	if d.Method == BloomCandidates {
+		return d.BloomCost
+	}
 	if d.Method == HashCandidates {
 		return d.HashCost
 	}
@@ -69,6 +75,35 @@ func (c PlannerCosts) Scan(rows, fraction float64, index ids.ObjectAddress, name
 	d.HashStartup = displayPlannerCost(operator, scale)
 	d.FullScore = displayPlannerCost(fullScore, scale)
 	d.HashScore = displayPlannerCost(hashScore, scale)
+	d.candidateWork = hashScore
+	return d
+}
+
+func (d ScanDecision) CandidateScore() float64 {
+	return d.candidateWork
+}
+
+func (c PlannerCosts) BloomScan(rows, fraction float64, index ids.ObjectAddress, name string, words, probes int) ScanDecision {
+	d := c.Scan(rows, fraction, ids.ObjectAddress{}, "")
+	d.Index, d.IndexName = index, name
+	scale := max(c.Tuple, c.IndexTuple, c.Operator)
+	if scale == 0 {
+		return d
+	}
+	if fraction == 0 {
+		fraction = 1e-10
+	}
+	rows = max(0, rows)
+	tuple, entry, operator := c.Tuple/scale, c.IndexTuple/scale, c.Operator/scale
+	startup := float64(probes)*operator
+	work := rows*(entry+float64(words)*operator) + rows/2*(tuple+operator)
+	d.BloomStartup = displayPlannerCost(startup, scale)
+	d.BloomCost = displayPlannerCost(startup+work, scale)
+	d.BloomScore = displayPlannerCost(startup+fraction*work, scale)
+	d.candidateWork = startup + fraction*work
+	if startup+fraction*work < fraction*rows*(tuple+operator) {
+		d.Method = BloomCandidates
+	}
 	return d
 }
 

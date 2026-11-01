@@ -19,6 +19,7 @@ type IndexClass struct {
 	gist                    bool
 	brin                    bool
 	spgist                  bool
+	bloom                   bool
 	support                 [4]IndexSupport
 }
 
@@ -41,19 +42,20 @@ func (c IndexClass) InputOID() uint32 {
 type IndexClassDefinition struct {
 	OID, Method, Family, Input, Storage uint32
 	Name, FamilyName                    string
-	Hash, GiST, Brin, SPGiST            bool
+	Hash, GiST, Brin, SPGiST, Bloom     bool
 }
 
 func NewIndexClass(d IndexClassDefinition) IndexClass {
 	return IndexClass{Name: d.Name, Family: d.FamilyName, oid: d.OID,
 		method: d.Method, family: d.Family, storage: d.Storage,
-		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin, spgist: d.SPGiST}
+		input: ID(d.Input), enum: d.Input == 3500, hash: d.Hash, gist: d.GiST, brin: d.Brin, spgist: d.SPGiST, bloom: d.Bloom}
 }
 
 func (c IndexClass) IsHash() bool   { return c.hash }
 func (c IndexClass) IsGiST() bool   { return c.gist }
 func (c IndexClass) IsBrin() bool   { return c.brin }
 func (c IndexClass) IsSPGiST() bool { return c.spgist }
+func (c IndexClass) IsBloom() bool  { return c.bloom }
 
 // SameIdentity compares the declared class, independently of the catalog
 // members captured for execution or current presentation names.
@@ -87,7 +89,7 @@ func (c IndexClass) OIDKeyValue(v Value, oid *Descriptor) (Value, error) {
 // Inference compares the declared input and family, not class aliases or
 // CREATE's broader binary-compatible admission set.
 func (c IndexClass) SameInferenceIdentity(other IndexClass) bool {
-	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin && c.spgist == other.spgist
+	return c.family == other.family && c.method == other.method && c.input == other.input && c.enum == other.enum && c.hash == other.hash && c.gist == other.gist && c.brin == other.brin && c.spgist == other.spgist && c.bloom == other.bloom
 }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
