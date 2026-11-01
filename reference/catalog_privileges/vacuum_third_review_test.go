@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func vacuumPhaseWarning(code, message string) fixture.Diagnostic {
@@ -36,7 +35,7 @@ func vacuumPhaseExecute(t *testing.T, p *fixture.Pair, c *sql.Conn, rec *fixture
 // holder/blocking edge. It never queries PostgreSQL Admin for native work.
 func vacuumPhaseWait(t *testing.T, p *fixture.Pair, observer *sql.Conn, table string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var waiter, holder int

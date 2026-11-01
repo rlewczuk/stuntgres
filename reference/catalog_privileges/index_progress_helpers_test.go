@@ -53,7 +53,7 @@ func indexProgressRead(t *testing.T, p *fixture.Pair, c fixture.Executor, pid in
 
 func indexProgressAwait(t *testing.T, p *fixture.Pair, c fixture.Executor, pid int64, phase string, done int64, currentPID ...int64) indexProgressSnapshot {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()

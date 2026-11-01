@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -63,7 +62,7 @@ func spScenario(t *testing.T, roles bool, body func(*spCase)) {
 			}
 			t.Cleanup(func() {
 				defer conn.Close()
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, q := range []string{"ROLLBACK", "RESET ROLE", "RESET SESSION AUTHORIZATION"} {
 					if _, err := conn.ExecContext(ctx, q); err != nil {

@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -78,7 +77,7 @@ func vacuumCount(t *testing.T, ctx context.Context, c *sql.Conn, table string, w
 
 func vacuumStatistic(t *testing.T, ctx context.Context, c *sql.Conn, table, column string, want int64) int64 {
 	t.Helper()
-	deadline, cancel := context.WithTimeout(ctx, 5*time.Second)
+	deadline, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var got int64
