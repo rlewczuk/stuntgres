@@ -74,21 +74,21 @@ The native-private `TestTypedPublicationCallbackReplacement` retains five real
 registered-provider routes: ALTER, DROP with a surviving holder, CREATE,
 temporary CREATE and attachment. Each child builds its fixture and installs the
 delegating provider before READY; an explicit START admits execution. Startup
-has a separate 10-second bound. The unchanged 8-second child watchdog and
-10-second parent operation bound then cover actual callback Restore,
+has a separate 30-second bound. The unchanged 25-second child watchdog and
+30-second parent operation bound then cover actual callback Restore,
 `ErrCatalogReplaced`, epoch/descriptor displacement, no old relations, sentinel
 91, empty locks, released replacement admission and operation/session teardown.
 Phase records diagnose progress; neither READY nor a completion record replaces
 the assertions and successful process exit. The operation clock never refreshes.
-Every started-child exit cancels and waits, with a 2-second reap bound and
-2-second pipe-copy bound; a missed bound is a failure, not a successful cleanup.
+Every started-child exit cancels and waits, with a 15-second reap bound that
+outlasts the 10-second pipe-copy bound; a missed bound is a failure, not a successful cleanup.
 
 `TestTypedCallbackProcessOwnership` independently exercises real-process startup,
 admission, early exit, protocol errors, operation/watchdog/assertion failures,
 stalled teardown and stalled terminal exit. Pipe-held controls and injected
 deadline signals exercise ownership and cancel/reap without sleeping or waiting
-out budgets. Injected signals supplement, never replace, real 10-second startup
-and operation safety bounds; expected injected failures must name their injected
+out budgets. Injected signals supplement, never replace, real 30-second startup
+and operation safety bounds (hang guards sized for a loaded machine); expected injected failures must name their injected
 owner, not pass because a real safety deadline eventually expires.
 
 The `phase-copy` control independently streams fragmented records through actual

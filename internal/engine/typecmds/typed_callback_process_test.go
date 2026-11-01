@@ -28,6 +28,19 @@ func typedCallbackPhase(phase string) {
 	fmt.Fprintln(os.Stdout, typedCallbackPrefix+phase)
 }
 
+// Real safety bounds for callback children. Expected failures are driven by
+// injected signals, never by these clocks, so they are hang guards sized for a
+// loaded machine: re-executing the test binary alone can take seconds there.
+// The child watchdog expires before the parent's operation bound so a stalled
+// child reports its stacks; reaping outlasts the pipe-copy delay it includes.
+const (
+	typedCallbackStartupBound   = 30 * time.Second
+	typedCallbackOperationBound = 30 * time.Second
+	typedCallbackWatchdogBound  = 25 * time.Second
+	typedCallbackPipeCopyBound  = 10 * time.Second
+	typedCallbackReapBound      = 15 * time.Second
+)
+
 // READY owns no operation time. The parent must explicitly admit START after
 // observing that the fixture and registered callback are installed.
 func typedCallbackAdmit(t *testing.T) func() {
@@ -37,7 +50,7 @@ func typedCallbackAdmit(t *testing.T) func() {
 	if _, err := io.ReadFull(os.Stdin, start[:]); err != nil || start[0] != 'S' {
 		t.Fatalf("callback admission: %q, %v", start, err)
 	}
-	timer := time.NewTimer(8 * time.Second)
+	timer := time.NewTimer(typedCallbackWatchdogBound)
 	stop := typedCallbackWatchdog(timer.C)
 	return func() {
 		stop()
@@ -143,7 +156,7 @@ func runTypedCallbackChild(binary, selector, kind string, budgets typedCallbackB
 	cmd.Env = append(os.Environ(), "STUNTGRES_TYPED_CALLBACK_CASE="+kind)
 	// Bound pipe-copy cleanup as well as process cancellation. This is not an
 	// extra success budget: any expiry remains a failure.
-	cmd.WaitDelay = 2 * time.Second
+	cmd.WaitDelay = typedCallbackPipeCopyBound
 	stdout := &typedCallbackOutput{phases: make(chan string, 32)}
 	var stderr typedCallbackLog
 	cmd.Stdout, cmd.Stderr = stdout, &stderr
@@ -153,7 +166,7 @@ func runTypedCallbackChild(binary, selector, kind string, budgets typedCallbackB
 		return
 	}
 	defer input.Close()
-	startupTimer := time.NewTimer(10 * time.Second)
+	startupTimer := time.NewTimer(typedCallbackStartupBound)
 	defer startupTimer.Stop()
 	if err := cmd.Start(); err != nil {
 		result.err = err
@@ -167,7 +180,7 @@ func runTypedCallbackChild(binary, selector, kind string, budgets typedCallbackB
 		cancel()
 		input.Close()
 		if !result.reaped {
-			reap := time.NewTimer(2 * time.Second)
+			reap := time.NewTimer(typedCallbackReapBound)
 			defer reap.Stop()
 			select {
 			case <-wait:
@@ -219,7 +232,7 @@ func runTypedCallbackChild(binary, selector, kind string, budgets typedCallbackB
 			startupTimer.Stop()
 			startup = nil
 			injectedStartup = nil
-			timer := time.NewTimer(10 * time.Second)
+			timer := time.NewTimer(typedCallbackOperationBound)
 			operation = timer.C
 			stopOperation = func() { timer.Stop() }
 			if budgets.operation != nil {
@@ -315,7 +328,7 @@ func TestTypedCallbackProcessOwnership(t *testing.T) {
 		defer func() {
 			reader.Close()
 			writer.Close()
-			deadline := time.NewTimer(2 * time.Second)
+			deadline := time.NewTimer(typedCallbackPipeCopyBound)
 			defer deadline.Stop()
 			for copyDone != nil || writeDone != nil {
 				select {
@@ -329,7 +342,7 @@ func TestTypedCallbackProcessOwnership(t *testing.T) {
 				}
 			}
 		}()
-		deadline := time.NewTimer(2 * time.Second)
+		deadline := time.NewTimer(typedCallbackPipeCopyBound)
 		defer deadline.Stop()
 		select {
 		case phase := <-output.phases:
