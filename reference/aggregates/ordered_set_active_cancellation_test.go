@@ -29,16 +29,20 @@ func TestReferenceOrderedSetAggregateActiveCancellation(t *testing.T) {
 					fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("SET lc_monetary='C'",0))
 		fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("CREATE TABLE os_active(x INT)",0))
 		fixture.RunStep(t,p.Ctx,c,b.Recorder,fixture.Exec("INSERT INTO os_active SELECT generate_series(1,64)",64))
-		// Reuse a small stored seed. Active input has 64^3 nonconstant sums,
-		// while the SAME held statement recovers with 2^3 deterministically
-		// ordered inputs instead of completing another large successful sort.
+		// Reuse a small stored seed. PostgreSQL's active input has 64^3
+		// nonconstant sums so its sort outlives real cancel admission. Native
+		// holds the real comparator with the sort pause, so 8^3 inputs keep
+		// source CPU time from deciding the admission deadline under load.
+		// The SAME held statement recovers with 2^3 deterministically ordered
+		// inputs instead of completing another large successful sort.
 		q:="SELECT percentile_cont(.5) WITHIN GROUP(ORDER BY a.x+b.x+c.x DESC) AS v FROM (SELECT x FROM os_active ORDER BY x LIMIT $1) AS a CROSS JOIN (SELECT x FROM os_active ORDER BY x LIMIT $1) AS b CROSS JOIN (SELECT x FROM os_active ORDER BY x LIMIT $1) AS c"
 		stmt,err:=c.PrepareContext(p.Ctx,q);if err!=nil {t.Fatal(err)};defer stmt.Close()
 			// Each route owns its cancellation budget. Native requires the real
 			// sort comparator in the owned operation's labeled goroutine profile.
 			orderedSetActiveCancel(t,p,b,c,q,func(ctx context.Context) fixture.RelationOutcome {
 				var rows *sql.Rows;var err error
-				if prepared {rows,err=stmt.QueryContext(ctx,int64(64))} else {rows,err=c.QueryContext(ctx,q,int64(64))}
+				bind:=int64(8);if b.PG {bind=64}
+				if prepared {rows,err=stmt.QueryContext(ctx,bind)} else {rows,err=c.QueryContext(ctx,q,bind)}
 				return fixture.RelationOutcome{Rows:rows,Err:err}
 			})
 			fixture.RunStep(t,p.Ctx,c,b.Recorder,orderedSetValue("SELECT count(*) AS v FROM os_active","INT8",int64(64)))

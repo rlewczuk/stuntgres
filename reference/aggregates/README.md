@@ -88,8 +88,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
     samples never prove that sort did not run between captures.
   - Native cancellation returns nil Rows/Result/Stmt and `context.Canceled`.
     Cleanup shares one 5-second join with normal cancellation handling.
-  - The stored seed remains 64 and active bind64 generates 64³ nonconstant
-    inputs. After cancellation, source count is still 64; recovery uses the
+  - The stored seed remains 64. PostgreSQL's active bind64 generates 64³
+    nonconstant inputs so its sort outlives cancel admission; native binds 8
+    (8³ inputs), because the pause, not input size, keeps its comparator live
+    and source CPU time must not decide the admission deadline under load.
+    After cancellation, source count is still 64; recovery uses the
     SAME physical connection and SAME preheld statement with bind2, requiring
     exact FLOAT8/raw `float64` median 4.5. PostgreSQL retains actual PID/query
     admission, real `pg_cancel_backend` and joined ERROR/57014
