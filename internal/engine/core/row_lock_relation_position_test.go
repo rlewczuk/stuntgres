@@ -3,7 +3,6 @@ package core_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
@@ -30,7 +29,7 @@ func TestRowLockRelationWaitPosition(t *testing.T) {
 					ar := enginetest.TransactionBegin(t, a)
 					defer enginetest.TransactionEnd(t, a, ar, false)
 					enginetest.SessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 					defer cancel()
 					op, _, err = b.AcquireCommand(ctx)
 					if err != nil {

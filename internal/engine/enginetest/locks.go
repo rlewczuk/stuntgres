@@ -29,7 +29,7 @@ func LockEmpty(t testing.TB, e *core.Engine) {
 // pending.
 func LockPending(t testing.TB, e *core.Engine, n int) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(Liveness)
 	for {
 		lockState := e.Locks.Inspect()
 		got := 0
@@ -55,7 +55,7 @@ func LockAwait(t testing.TB, done <-chan error, want error) {
 		if !errors.Is(err, want) {
 			t.Fatalf("got %v want %v", err, want)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(Liveness):
 		t.Fatal("lock operation did not terminate")
 	}
 }
@@ -100,7 +100,7 @@ func LockStatement(q string) parser.Statement {
 // cleanup, even when an assertion ends the test early.
 func ExecuteAsync(t testing.TB, e *core.Engine, s *session.Session, parent context.Context, q string) func() (core.Result, error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, Liveness)
 	type outcome struct {
 		result core.Result
 		err    error
@@ -122,7 +122,7 @@ func ExecuteAsync(t testing.TB, e *core.Engine, s *session.Session, parent conte
 		case o := <-done:
 			joined = true
 			return o.result, o.err
-		case <-time.After(5 * time.Second):
+		case <-time.After(Liveness):
 			t.Fatal("mixed DML worker not joined")
 			return core.Result{}, context.DeadlineExceeded
 		}
@@ -141,7 +141,7 @@ func ExecuteAsync(t testing.TB, e *core.Engine, s *session.Session, parent conte
 // holds it.
 func RowLockPending(t testing.TB, e *core.Engine, ref ids.ObjectRef, row ids.RowID, worker *session.Session, blocker *lock.Ticket, mode lock.Mode) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(Liveness)
 	for {
 		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]

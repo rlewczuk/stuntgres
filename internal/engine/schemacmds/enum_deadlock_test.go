@@ -103,7 +103,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 
 func deadlockRequest(t *testing.T, e *core.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode) *lock.Request {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 	t.Cleanup(cancel)
 	r, err := e.Locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 	if err != nil {

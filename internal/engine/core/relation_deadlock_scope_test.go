@@ -19,7 +19,7 @@ import (
 
 func deadlockCommand(t *testing.T, e *core.Engine, s *session.Session, q string, prepare bool) func() error {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), enginetest.Liveness)
 	done := waitsCommandAsync(e, s, ctx, q, prepare)
 	joined := false
 	await := func() error {
