@@ -78,19 +78,31 @@ reuse their supplied context without per-row activation or context allocation.
   Foreign trigger inserts use the existing participant row by row, making each
   accepted insertion available before the next BEFORE invocation without
   introducing another transaction or changing participant rollback guarantees.
-- `AfterRow` queues an accepted physical image after successful staging and before
-  RETURNING. WHEN evaluates at admission on completed generated values; bodies
-  run through the query owner's completion, never in retryable staging windows.
-  `AfterStatement` registers logical target/event independently of row count,
-  without selecting replication-role modes before row production. Successful
-  producers report exhaustion through `CompleteAfterStatement`, where core checks
-  current mode eligibility before WHEN, without draining the shared query.
+- `AfterRow` ingests an accepted physical image after successful staging and
+  before RETURNING. Physical ROW metadata or an explicitly registered logical
+  transition segment demands ingestion; an unnamed leaf statement definition
+  does not. Irrelevant metadata retains the no-hook/no-allocation path.
+  Hierarchy producers separately call demand-gated `AfterTransition` after
+  acceptance when the named target differs from the physical leaf, projecting
+  through the admitted layout. That path neither fires ROW triggers nor announces
+  a new producer. Routed batches, incremental inserts and both DELETE paths share
+  this attribution; child statement opportunities are not ancestor broadcasts.
+  Collection is independent of ROW WHEN and trigger count; WHEN qualifies row
+  invocations on completed generated values. `AfterStatement` registers logical
+  target/event independently of row count. Successful producers report exhaustion
+  through `CompleteAfterStatement`, where core checks current mode before WHEN.
   Core qualifies exhausted modifiers immediately;
   a suspended RETURNING source retains candidates until consumer EOF or auxiliary
   exhaustion. Repeated target/event completions replace prior decisions, including FALSE.
+  Conflict UPDATE registers and qualifies its AFTER statement opportunity before
+  INSERT, including an empty UPDATE image set. MERGE registers and qualifies each
+  declared action in DELETE, UPDATE, INSERT order, independently of accepted rows;
+  actual row actions alone populate each event-specific transition segment.
   Physical movement emits DELETE and INSERT row events while the named command
-  retains its UPDATE statement event. Explicit timing/level filters keep AFTER
-  definitions out of BEFORE generation and suppression decisions.
+  captures logical UPDATE OLD at accepted deletion and NEW at accepted insertion.
+  A destination INSERT veto retains the deletion and OLD-only UPDATE set; source
+  veto captures neither side. Explicit timing/level filters keep AFTER definitions
+  out of BEFORE generation and suppression decisions.
 - Logical INSTEAD OF producers reuse the immediate host chain with explicit
   logical admission. They freeze complete OLD/source occurrences without heap
   identities or deduplication, evaluate simultaneous assignments against the
@@ -105,15 +117,16 @@ reuse their supplied context without per-row activation or context allocation.
   Statement BEFORE admission, AFTER registration/completion and the shared journal
   remain independent of handled-row counts.
 
-`FinishHost` adds `ForeignKeys`, the FK runtime's engine side
-(`statement_host_foreign_key.go`). Mutating RI commands register statements even
-for zero matches and qualify each producer at exhaustion. Like SPI execution
-without a separate trigger boundary, their AFTER bodies remain in the caller's
-query frame: all RI changes precede draining, and later same-target/event statement
-sets supersede earlier ones. Helper SQL still owns independent nested frames.
-Each admitted RI action or check separately borrows the host's paired
-internal-trigger scope. The scope covers action defaults, child BEFORE bodies
-and producer qualification, and ends before queued AFTER bodies drain.
+`FinishHost` adds `ForeignKeys` and the segment-exposure callback
+`ExposeAfterStatement`. Mutating RI commands register statements even
+for zero matches and qualify each producer at exhaustion. Their AFTER bodies
+remain in the caller's query frame. Unexposed same-target/event statement sets
+supersede earlier ones; a pending ROW transition consumer can expose its segment
+after RI exhaustion and internal-trigger unwind, before the next action. Only the
+next accepted image rotates that frozen set and creates a successor statement
+opportunity. Helper SQL owns independent nested frames. Each admitted action/check
+borrows the paired internal trigger scope for defaults, child BEFORE bodies and
+producer qualification; transition exposure follows that scope's exit.
 Post-action validation does not manufacture a second invocation.
 `Staged` never locks; the job, authority and
 row-image captures and the internal action windows each lock once and never

@@ -13,7 +13,7 @@ func QueryTreeOccurrences(node plan.Node, inputs *Source, dst []int) []int {
 	switch n := node.(type) {
 	case *plan.SourceNode:
 		return AppendQueryOccurrences(dst, QuerySourceAt(inputs, n.Occurrence))
-	case *plan.SingletonNode, *plan.ValuesNode, *plan.FunctionFromNode, *plan.WorktableScanNode:
+	case *plan.SingletonNode, *plan.ValuesNode, *plan.FunctionFromNode, *plan.WorktableScanNode, *plan.NamedRelationScanNode:
 		return dst
 	case *plan.JoinNode:
 		return QueryTreeOccurrences(n.Right, inputs, QueryTreeOccurrences(n.Left, inputs, dst))

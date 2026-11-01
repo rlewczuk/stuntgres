@@ -26,6 +26,10 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if _, ordinaryView := stmt.(*parser.CreateView); ordinaryView {
+		restoreRelations := s.installNamedRelations(nil)
+		defer restoreRelations()
+	}
 	if explanation, ok := stmt.(*parser.Explain); ok {
 		// Describe and effective ANALYZE FALSE retain metadata-only authority.
 		// Invalid options also cannot acquire execution rights; their diagnostics
@@ -234,6 +238,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	name, mode, ownerOnly := target.Name, target.Mode, target.OwnerOnly
 	rename, ifExists, tableRename := target.Rename, target.IfExists, target.TableRename
 	viewReplacement := target.ViewReplacement
+	if !source && parser.ModifyingStatement(stmt) && len(name.Parts) == 1 {
+		if _, named := s.Engine().AnalysisHost(s.Op).LookupNamedRelation(name.Parts[0].Text); named {
+			return SQLError("0A000", fmt.Sprintf(`relation "%s" cannot be the target of a modifying statement`, name.Parts[0].Text))
+		}
+	}
 	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	e := s.Engine()
 	e.Mu.Lock()

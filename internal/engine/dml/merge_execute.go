@@ -47,6 +47,32 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 			return Outcome{}, err
 		}
 	}
+	// AFTER opportunities follow declared actions, even when none of that
+	// kind is accepted. Their order is DELETE, UPDATE, INSERT, not row order.
+	for _, event := range [...]stored.TriggerEvent{stored.TriggerDelete, stored.TriggerUpdate, stored.TriggerInsert} {
+		if events&event == 0 {
+			continue
+		}
+		binding := b
+		if event == stored.TriggerUpdate {
+			binding.Targets = b.Merge.UpdateTargets
+		}
+		if err := RegisterAfterStatement(h, binding, event); err != nil {
+			return Outcome{}, err
+		}
+	}
+	defer func() {
+		for _, event := range [...]stored.TriggerEvent{stored.TriggerDelete, stored.TriggerUpdate, stored.TriggerInsert} {
+			if events&event == 0 {
+				continue
+			}
+			binding := b
+			if event == stored.TriggerUpdate {
+				binding.Targets = b.Merge.UpdateTargets
+			}
+			CompleteAfterStatement(h, binding, event, &outcome, &err)
+		}
+	}()
 	unique, err := BindUniqueWrite(h, b.Ref)
 	if err != nil {
 		return Outcome{}, err

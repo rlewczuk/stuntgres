@@ -43,6 +43,23 @@ clone from a later attached leaf without one across two replay rounds.
 PostgreSQL replay checks ordinary SQL firing; native-only phases check reverse
 ROW replacement exactly once, dependency retirement and failed-import preservation
 of live data, eager results and held writers.
+Transition-relation scenarios exercise query-owned accepted image bags, complete
+ROW/STATEMENT visibility, empty typed sets, actual-event grouping, RI exposure
+rotation and invocation-private SQL aliases. Hierarchy witnesses distinguish
+named-target projection from physical ROW attribution, including routed movement
+and its separately accepted OLD/NEW sides. Correlated outer joins distinguish
+absent whole rows from present all-null tuples. RI witnesses separate qualification
+authority/depth from exposed-body identity, diagnostics and atomic failure recovery.
+Alias tests retain ordinary CTE,
+qualification, nested-routine and independent-scan semantics, reject writes and
+materialized-view dependencies, and assert complete diagnostics and catalog
+metadata. Ordinary VIEW analysis uses the catalog namespace, while untargeted
+locking scans still read transition values; an explicit locking OF target
+rejects the transition relation.
+The same definitions drive two native replacement rounds and unchanged-stream
+PostgreSQL replay, preserving original parameterized I/U/D handles and eager
+results across successful and failed imports. Native controls remain distinct
+from PostgreSQL physical tuplestore, backend-memory and storage mechanisms.
 Lifetime witnesses combine supported routine/relation/column rename with
 dependency RESTRICT/CASCADE/drop-recreate routes. A competing function reusing
 the original name must not retarget an installed trigger, including two native
@@ -178,6 +195,12 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` opts into
   handles alongside direct execution; select the family with
   `make check RUN='^TestReferenceTriggerBeforeStatement'` (and `REFERENCE=1`).
   The foreign participant half of `ViewForeign` lives in `reference/tables`.
+- Transition families reuse `afterRoutes`/`afterStep`, `triggerScenario`,
+  `parametersReplay` and fixture lock workers/observers. `transitionSetup`,
+  `transitionAudit`, `transitionCounts` and `transitionMetadata` share the actual
+  definitions and independent expectations across value, replay and smoke cases.
+  Select the family with `make check RUN='^TestReferenceTriggerTransition'`
+  and the same selector with `REFERENCE=1`.
 - Trigger protocol helpers use `fixture.NewServerFixture` for process, backend
   and credential ownership. The local `triggerProtocolWire` uses public pgconn
   startup/authentication and typed pgproto3 messages; each received message is

@@ -13,6 +13,8 @@ func SupportsBackwardCursor(root plan.Node, inputs *Source) bool {
 	switch n := root.(type) {
 	case *plan.SourceNode:
 		return backwardCursorSource(QuerySourceAt(inputs, n.Occurrence))
+	case *plan.NamedRelationScanNode:
+		return true
 	case *plan.SingletonNode:
 		return false
 	case *plan.ValuesNode:

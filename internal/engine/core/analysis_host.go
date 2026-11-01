@@ -29,8 +29,9 @@ import (
 // rather than a scope. A nil op means no definition reader, no notices, no
 // plan owner and no Restore replay, as before the seam.
 type BindingHost struct {
-	Engine *Engine
-	Op     *session.Operation
+	Engine         *Engine
+	Op             *session.Operation
+	namedRelations []namedRelation
 }
 
 var _ analyze.Host = (*BindingHost)(nil)

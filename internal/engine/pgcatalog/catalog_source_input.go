@@ -155,6 +155,7 @@ type TriggerFact struct {
 type TriggerCatalogFact struct {
 	OID, Relation, Function, Parent ids.OID
 	Name                            string
+	OldTable, NewTable              string
 	Mode                            catalog.TriggerMode
 	Type                            int16
 	Attributes                      []int32

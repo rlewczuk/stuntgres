@@ -135,7 +135,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if err := w.stageDeletionLocked(e, candidate, original); err != nil {
 		return false, err
 	}
-	if dml.HasRowTriggers(relation, stored.TriggerDelete, stored.TriggerAfter) {
+	if s.needsAfterRow(candidate.Ref, relation, stored.TriggerDelete) {
 		afterOld = original.Values
 	}
 	return true, nil

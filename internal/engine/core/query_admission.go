@@ -24,7 +24,7 @@ import (
 )
 
 func (s *StatementScope) AcquireQueryRelations(statement parser.Statement, authorityStmt parser.Statement, execute bool) error {
-	admission, tables, queries, err := analyze.NewLockAdmission(statement)
+	admission, tables, queries, err := analyze.NewLockAdmission(statement, s.Engine().AnalysisHost(s.Op).LookupNamedRelation)
 	if err != nil {
 		return err
 	}
@@ -34,6 +34,9 @@ func (s *StatementScope) AcquireQueryRelations(statement parser.Statement, autho
 func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
 	s.QueryLockAdmission = admission
 	for i, table := range tables {
+		if admission.NamedRelations[table] {
+			continue
+		}
 		mark := admission.TableMark(table)
 		selection := &parser.Select{From: table}
 		if mark.Mode != 0 {

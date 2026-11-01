@@ -153,6 +153,11 @@ func ExecuteDelete(h Host, in DeleteInput) (outcome Outcome, err error) {
 			return Outcome{}, err
 		}
 		if deleted {
+			if candidate.Ref != b.Ref && NeedsTransition(b.Relation, stored.TriggerDelete) {
+				if err := captureTransition(h, b, stored.TriggerDelete, physical.Values(current), nil); err != nil {
+					return Outcome{}, err
+				}
+			}
 			count++
 			if rows != nil {
 				evaluation.Row = physical.Values(current)

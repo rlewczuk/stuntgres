@@ -74,6 +74,42 @@ func HasRowTriggers(relation *catalog.Relation, event stored.TriggerEvent, timin
 	return false
 }
 
+// NeedsTransition gates logical hierarchy capture without an irrelevant host
+// call. Physical ROW firing remains at the storage acceptance boundary.
+func NeedsTransition(relation *catalog.Relation, event stored.TriggerEvent) bool {
+	old, next := transitionDemand(relation, event)
+	return old || next
+}
+
+func transitionDemand(relation *catalog.Relation, event stored.TriggerEvent) (old, next bool) {
+	for _, definition := range stored.TriggersOf(relation) {
+		p := definition.Parts()
+		if p.Timing == stored.TriggerAfter && p.Events&event != 0 {
+			old, next = old || p.OldTable != "", next || p.NewTable != ""
+		}
+	}
+	return old, next
+}
+
+// The producer gates demand before projecting either image.
+func captureTransition(h Host, b analyze.Binding, event stored.TriggerEvent, old, next []sqltype.Value) error {
+	var targets []int32
+	if event == stored.TriggerUpdate {
+		targets = UpdateTargetAttributes(h, b.Ref, b.Relation, b.Targets, nil)
+	}
+	return h.AfterTransition(BeforeRow{Relation: b.Ref, Event: BeforeEvent(event), Old: old, New: next, Targets: targets})
+}
+
+func HasTransitionRowTriggers(relation *catalog.Relation, event stored.TriggerEvent) bool {
+	for _, definition := range stored.TriggersOf(relation) {
+		p := definition.Parts()
+		if p.Timing == stored.TriggerAfter && p.Level == stored.TriggerRow && p.Events&event != 0 && (p.OldTable != "" || p.NewTable != "") {
+			return true
+		}
+	}
+	return false
+}
+
 // BeforeStatement is gated only by metadata relevance. Mode, WHEN and UPDATE OF
 // belong to the host after it marks this query's first relation/event producer.
 // Trigger-free and irrelevant metadata paths call no host and allocate nothing.

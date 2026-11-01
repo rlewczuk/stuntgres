@@ -46,6 +46,10 @@ imports `view`.
   a genuine installed native helper does not require a PL program.
   View INSTEAD OF definitions are checked ROW INSERT/UPDATE/DELETE only, without
   WHEN or column lists; view BEFORE/AFTER STATEMENT I/U/D definitions stay local.
+  Ordered REFERENCING validation follows ordinary kind/level restrictions and
+  precedes OF-column and routine lookup. Semantic errors have no invented
+  position; ROW naming retains its hint. Only valid immutable aliases reach the
+  atomic relation replacement; failed CREATE OR REPLACE leaves its predecessor.
 - **Trigger partition synchronization** (`trigger_sync.go`):
   `SynchronizeTriggersLocked` keeps row-level partition trigger clones in step
   with their parents at every catalog publication (CREATE, ATTACH, DETACH and
@@ -71,6 +75,8 @@ imports `view`.
   the `Validate*JoinExecution` and `ValidateMarkedQueryJoin` checks. They run on
   execution-owned parameters, never at Prepare, and are the bodies behind the
   root's `exec` preparation forwarders.
+  Symbolic named-relation leaves pass through unchanged: preflight neither opens
+  invocation rows nor replaces their immutable schema/name recipe.
   Retained CTE definition edges are not separately admitted as invocations:
   referenced CTEs admit their actual preflighted roots, including arm elimination.
   Named-window key expressions still demand current-invoker EXECUTE even when
@@ -389,6 +395,8 @@ catalog-stage owners for retired roots, payloads and independent reach flags.
 lives in [reference/views](../../../reference/views/README.md#testing) and RLS in
 [reference/roles](../../../reference/roles/README.md#testing); add `REFERENCE=1`
 for the oracle.
+Symbolic named-relation preflight identity and cancellation ownership use
+`RUN='^TestNamedRelationPreflightOwnership$'` in `enginetests/`.
 
 ```sh
 make check RUN='^Test(ViewHostSeam|DropReaderSeam|DropClosure|ViewTargetAdmission|BindingSlots|ViewWriteSlot|MaterializedViewSnapshot)'

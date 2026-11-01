@@ -35,6 +35,7 @@ type Host interface {
 	AuthorizationStorage(auth Authority, address ids.ObjectAddress) *storage.Relation
 	AdmittedReference(auth Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error)
 	ResolveReference(auth Authority, name parser.ObjectName) (ids.ObjectRef, error)
+	LookupNamedRelation(name string) (plan.NamedRelation, bool)
 
 	// Catalog.
 	CatalogOwner() *catalog.Owner

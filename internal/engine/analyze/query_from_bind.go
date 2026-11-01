@@ -391,6 +391,16 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 					return b.bindCTEScan(n, binding)
 				}
 			}
+			if named, ok := b.Host.LookupNamedRelation(n.Name.Parts[0].Text); ok {
+				columns := make([]QueryColumn, len(named.Schema))
+				for i, column := range named.Schema {
+					columns[i] = QueryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1}
+				}
+				q := QueryQualifier{Name: named.Name, Original: named.Name, Columns: columns}
+				b.Query.Hidden = append(b.Query.Hidden, q)
+				scan := &plan.NamedRelationScanNode{QuerySchema: named.Schema, Name: named.Name, RangeName: named.Name}
+				return scan, QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{q}, Frame: named.Schema}, nil
+			}
 		}
 		ref, err := b.Host.AdmittedReference(b.Query.Auth, n.Name, b.Query.lockAdmission.TableQueries[n].Ref)
 		if err != nil {
@@ -498,6 +508,8 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			return names
 		}
 		switch source := root.(type) {
+		case *plan.NamedRelationScanNode:
+			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
 		case *plan.DerivedNode:
 			source.RangeName, source.ColumnAliases = n.Name.Text, aliases()
 		case *plan.WorktableScanNode:

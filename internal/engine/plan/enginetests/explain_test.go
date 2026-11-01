@@ -107,6 +107,7 @@ func TestExplainNodeCoverage(t *testing.T) {
 	// binds these families through supported queries and DML commands.
 	for _, node := range []plan.Node{
 		&plan.SourceNode{}, &plan.SingletonNode{}, &plan.ValuesNode{}, &plan.FilterNode{},
+		&plan.NamedRelationScanNode{},
 		&plan.SortNode{}, &plan.ProjectNode{}, &plan.EvaluationNode{}, &plan.AggregateNode{},
 		&plan.DistinctNode{}, &plan.DistinctOnNode{}, &plan.JoinNode{}, &plan.DerivedNode{},
 		&plan.SetNode{Operation: "UNION"}, &plan.RecursiveUnionNode{}, &plan.WorktableScanNode{},

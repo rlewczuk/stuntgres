@@ -275,6 +275,10 @@ func (r *Renderer) node(root plan.Node) (*Tree, error) {
 		return err
 	}
 	switch n := root.(type) {
+	case *plan.NamedRelationScanNode:
+		tree.label = "Named Tuplestore Scan on " + catalog.Identifier(n.RangeName)
+		tree.nodeType = "Named Tuplestore Scan"
+		r.property(tree, "Tuplestore Name", n.Name)
 	case *plan.SourceNode:
 		r.occurrences[n.Occurrence] = n
 		relation, ok := r.auth.Catalog.Relation(n.Ref.Address)

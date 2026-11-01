@@ -31,6 +31,8 @@ type Host interface {
 	StatementStart() time.Time
 	// CTEInvocation is the innermost data-modifying CTE owner of the statement.
 	CTEInvocation() *CTEInvocation
+	// OpenNamedRelation resolves current invocation data, never retained rows.
+	OpenNamedRelation(name string, schema plan.QuerySchema) (*Source, error)
 
 	// Row locks: lock waits and current row versions at grant time.
 	AcquireQueryRow(leaf Leaf, row ids.RowID, mark plan.RowMark) (bool, error)

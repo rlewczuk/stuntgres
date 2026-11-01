@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/sqltype"
 )
@@ -95,6 +96,14 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	if err != nil || !deleted {
 		return false, err
 	}
+	// Movement is one logical UPDATE, with separately accepted sides. In
+	// particular, an INSERT veto must not erase the already accepted OLD set.
+	captureOld, captureNext := transitionDemand(named.Relation, stored.TriggerUpdate)
+	if captureOld {
+		if err := captureTransition(h, named, stored.TriggerUpdate, physical.Values(old), nil); err != nil {
+			return false, err
+		}
+	}
 	// Destination BEFORE INSERT observes the source deletion, just as a
 	// volatile function called by the physical INSERT would.
 	ref := named.Ref.Domain().Ref(named.Ref.Epoch, destination.Address())
@@ -134,6 +143,11 @@ func moveUpdateRow(h Host, named analyze.Binding, physical exec.QueryPhysicalRow
 	batch.Append(candidate)
 	if err := ApplyValidated(evaluation.Context, h, ref, batch); err != nil {
 		return false, err
+	}
+	if captureNext {
+		if err := captureTransition(h, named, stored.TriggerUpdate, nil, proposal); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
 }

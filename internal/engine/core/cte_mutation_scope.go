@@ -56,7 +56,7 @@ func (s *StatementScope) mutationIndex(statement parser.Statement) int {
 // remains lexical authority; target occurrences cannot become virtual scans.
 func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute bool) error {
 	// Validate duplicate/nesting restrictions before resolving any body target.
-	admission, tables, queries, err := analyze.NewLockAdmission(statement)
+	admission, tables, queries, err := analyze.NewLockAdmission(statement, s.Engine().AnalysisHost(s.Op).LookupNamedRelation)
 	if err != nil {
 		return err
 	}

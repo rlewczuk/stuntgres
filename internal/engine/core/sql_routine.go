@@ -93,6 +93,8 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 // executeSQLRoutine shares descriptor validation, body authority and unwind.
 // Catalog-selected FDW invocation omits only the explicit-call EXECUTE check.
 func (parent *StatementScope) executeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning, constantPlanning bool, values *[]sqltype.Value, admission sqlRoutineAdmission, accepted *exec.AcceptedDefaultInvocation) (value sqltype.Value, err error) {
+	restoreRelations := parent.installNamedRelations(nil)
+	defer restoreRelations()
 	if err = parent.enterSQLRoutine(); err != nil {
 		return value, err
 	}

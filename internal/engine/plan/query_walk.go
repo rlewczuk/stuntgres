@@ -141,7 +141,7 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 		}
 	case *WorktableScanNode:
 		return node, nil
-	case *SourceNode, *SingletonNode:
+	case *SourceNode, *NamedRelationScanNode, *SingletonNode:
 		return node, nil
 	case *ProjectNode:
 		input, expressions := child(n.Child), args(n.Expressions)

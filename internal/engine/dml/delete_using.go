@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -142,6 +143,11 @@ func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluatio
 		}
 		if !deleted {
 			continue
+		}
+		if candidate.Ref != b.Ref && NeedsTransition(b.Relation, stored.TriggerDelete) {
+			if err := captureTransition(h, b, stored.TriggerDelete, pair.Physical.Values(current), nil); err != nil {
+				return Outcome{}, err
+			}
 		}
 		deletedIDs[identity] = true
 		count++

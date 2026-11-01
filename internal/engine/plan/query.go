@@ -9,7 +9,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Node is a closed, immutable bound tree. Execution never resolves names.
+// Node is a closed, immutable bound tree. Execution never resolves catalog names;
+// named relation leaves resolve only their checked invocation-local shape.
 type Node interface {
 	logicalNode()
 	Schema() []catalog.Column
@@ -57,7 +58,7 @@ type SortKey struct {
 	Expression        expr.Expr
 	Comparison        sqltype.Comparison
 	Ordering          *catalog.CapturedIndexOrdering // Immutable original installed class/support/declaration authority.
-	EqualityRoutine   ids.ObjectRef // Caller-checked window peers only; ordinary ordering uses support functions.
+	EqualityRoutine   ids.ObjectRef                  // Caller-checked window peers only; ordinary ordering uses support functions.
 	EqualityProcedure *catalog.Procedure
 	EqualityRecipe    expr.RoutineRecipeReference // Original peer-equality occurrence, not the key expression's ancestry.
 	Position          int                         // Original ORDER reference character position, not reused output syntax.

@@ -99,7 +99,13 @@ func capturePGTrigger(in Input) ([][]sqltype.Value, error) {
 				return err
 			}
 			row[16] = f.Qual
-			row[17], row[18] = sqltype.Null(source.Columns[17].Usage.Type), sqltype.Null(source.Columns[18].Usage.Type)
+			for i, name := range [...]string{f.OldTable, f.NewTable} {
+				typ := source.Columns[17+i].Usage.Type
+				row[17+i] = sqltype.Null(typ)
+				if name != "" {
+					row[17+i] = sqltype.String(typ, name)
+				}
+			}
 			rows = append(rows, row)
 			return nil
 		})

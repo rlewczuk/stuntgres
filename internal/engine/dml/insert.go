@@ -45,6 +45,9 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 		}
 		return Outcome{}, err
 	}
+	// Completion is deferred before the alternate event so conflict UPDATE
+	// qualifies before INSERT, matching their AFTER statement registration.
+	defer CompleteAfterStatement(h, b, stored.TriggerInsert, &outcome, &failure)
 	if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
 		update := b
 		update.Targets = b.Insert.Conflict.UpdateTargets
@@ -54,6 +57,13 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 			}
 			return Outcome{}, err
 		}
+		if err := RegisterAfterStatement(h, update, stored.TriggerUpdate); err != nil {
+			if in.Query != nil {
+				in.Query.Close()
+			}
+			return Outcome{}, err
+		}
+		defer CompleteAfterStatement(h, update, stored.TriggerUpdate, &outcome, &failure)
 	}
 	if err := RegisterAfterStatement(h, b, stored.TriggerInsert); err != nil {
 		if in.Query != nil {
@@ -61,7 +71,6 @@ func ExecuteInsert(h Host, in InsertInput) (outcome Outcome, failure error) {
 		}
 		return Outcome{}, err
 	}
-	defer CompleteAfterStatement(h, b, stored.TriggerInsert, &outcome, &failure)
 	if in.Query != nil {
 		input, output := h.Environments()
 		rows, err := EvaluateInsertQuery(ctx, b, in.Query, in.Parameters, in.Schema, input, output, h)

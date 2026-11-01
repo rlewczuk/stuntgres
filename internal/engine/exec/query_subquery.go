@@ -91,6 +91,8 @@ func markPresenceTopology(root plan.Node, slots []int) int {
 		slot = n.PresenceSlot
 	case *plan.WorktableScanNode:
 		slot = n.PresenceSlot
+	case *plan.NamedRelationScanNode:
+		slot = n.PresenceSlot
 	case *plan.FunctionFromNode:
 		slot = n.PresenceSlot
 	case *plan.JoinNode:

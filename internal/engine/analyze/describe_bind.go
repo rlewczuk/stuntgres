@@ -67,7 +67,7 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 		return b, err
 	}
 	if binder.Query.lockAdmission == nil {
-		manifest, _, _, err := NewLockAdmission(stmt)
+		manifest, _, _, err := NewLockAdmission(stmt, host.LookupNamedRelation)
 		if err != nil {
 			return b, err
 		}

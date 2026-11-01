@@ -151,9 +151,9 @@ func applyForeignAction(ctx context.Context, h FinishHost, auth Authority, job *
 			return foreignActionError(h, err, job, event, action, view)
 		}
 	}
-	// RI executes with SPI's fire_triggers=false: each generated command owns
-	// producer qualification, but queues AFTER bodies at the caller's query
-	// depth. Do not drain here or split same-target statement supersession.
+	// RI commands retain the caller's query depth. Completion qualifies their
+	// statement group; a pending ROW transition consumer can expose that segment
+	// before the next action, while unexposed groups retain supersession.
 	statementEvent := stored.TriggerUpdate
 	binding := analyze.Binding{Ref: ref, Relation: job.Child}
 	if deletion {

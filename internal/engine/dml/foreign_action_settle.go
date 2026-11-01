@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -116,6 +117,18 @@ func SettleForeignActions(ctx context.Context, h FinishHost) error {
 				}
 				if err = applyForeignAction(ctx, h, auth, job, event, action); err != nil {
 					return err
+				}
+				statementEvent := stored.TriggerUpdate
+				if action == parser.ForeignKeyCascade && event.Next.Row == 0 {
+					statementEvent = stored.TriggerDelete
+				}
+				// Expose only relevant ROW transition consumers, after the
+				// action's EOF qualification, actor and trigger-depth unwind.
+				if action != parser.ForeignKeyRestrict && HasTransitionRowTriggers(job.Child, statementEvent) {
+					ref := auth.Access().Catalog.Domain().Ref(auth.Access().Catalog.Epoch(), job.Child.Address())
+					if err = h.ExposeAfterStatement(ref, statementEvent); err != nil {
+						return err
+					}
 				}
 			}
 		}

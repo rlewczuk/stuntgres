@@ -151,7 +151,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 	if !ok || e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil || len(old) != len(rows) {
 		return false, errors.New("stuntgres: invalid update stage")
 	}
-	after = dml.HasRowTriggers(relation, stored.TriggerUpdate, stored.TriggerAfter)
+	after = s.needsAfterRow(ref, relation, stored.TriggerUpdate)
 	for i, row := range rows {
 		if old[i].Row == 0 || old[i].Version == 0 || len(row) != len(relation.Columns) {
 			return false, errors.New("stuntgres: invalid staged row")
@@ -291,7 +291,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 	if !ok {
 		return false, errors.New("stuntgres: invalid relation descriptor")
 	}
-	after = dml.HasRowTriggers(relation, stored.TriggerInsert, stored.TriggerAfter)
+	after = s.needsAfterRow(ref, relation, stored.TriggerInsert)
 	for _, row := range rows {
 		if len(row) != len(relation.Columns) {
 			return false, errors.New("stuntgres: invalid staged row width")
@@ -388,7 +388,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if !ok || !index.SameRelationRowShape(s.UniqueBinding.Parent, parent) {
 		return false, false, ids.ErrCatalogReplaced
 	}
-	after = dml.HasRowTriggers(parent, stored.TriggerInsert, stored.TriggerAfter)
+	after = s.needsAfterRow(ref, parent, stored.TriggerInsert)
 	if e.PrivateStorageLocked(s.PendingCatalog(), ref.Address) == nil {
 		return false, false, errors.New("stuntgres: relation storage is missing")
 	}

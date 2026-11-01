@@ -284,6 +284,8 @@ func validateViewLeaves(catalog catalog.Read, definition *View, modifier func(*p
 					}
 				}
 			}
+		case *plan.NamedRelationScanNode:
+			return sqlError("0A000", fmt.Sprintf("transition table %q cannot be referenced in a persistent object", n.Name))
 		case *plan.SourceNode:
 			if n.Occurrence < 0 || n.Occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")

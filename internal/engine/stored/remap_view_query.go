@@ -45,18 +45,18 @@ func remapViewQueryMapped(view catalog.Read, node plan.Node, ref func(ids.Object
 // several query and mutation roots. Keep its policy and source graph fixed for
 // that operation; use Fresh before changing any policy or catalog snapshot.
 type ViewQueryRemapper struct {
-	Ref            func(ids.ObjectRef) ids.ObjectRef
-	Type           func(*sqltype.Descriptor) *sqltype.Descriptor
-	queries        map[*plan.ProjectNode]plan.Node
-	queryDepth     int // Only the outermost failure discards the operation memo.
-	Collation      typedef.CollationRemapper
-	Catalog        catalog.Read
-	Procedure      catalog.ProcedureRemapper
-	referencesOnly bool
-	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
-	Mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
-	routineFormals int // Private provenance from a frozen routine presentation.
-	addressMapper  func(ids.ObjectAddress) ids.ObjectAddress
+	Ref               func(ids.ObjectRef) ids.ObjectRef
+	Type              func(*sqltype.Descriptor) *sqltype.Descriptor
+	queries           map[*plan.ProjectNode]plan.Node
+	queryDepth        int // Only the outermost failure discards the operation memo.
+	Collation         typedef.CollationRemapper
+	Catalog           catalog.Read
+	Procedure         catalog.ProcedureRemapper
+	referencesOnly    bool
+	ctes              map[*plan.CTEDefinition]*plan.CTEDefinition
+	Mutation          func(*plan.CTEDefinition) (analyze.Binding, error)
+	routineFormals    int // Private provenance from a frozen routine presentation.
+	addressMapper     func(ids.ObjectAddress) ids.ObjectAddress
 	refreshDependency dependencyRefresh // Exact stamps only for explicit transform refresh.
 }
 
@@ -228,6 +228,10 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		next = &plan.RowLockNode{QuerySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
 	case *plan.SourceNode:
 		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases}
+	case *plan.NamedRelationScanNode:
+		copy := *n
+		copy.QuerySchema = schema
+		next = &copy
 	case *plan.JoinNode:
 		next = &plan.JoinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, CorrelationIdentityPrefix: n.CorrelationIdentityPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
 	case *plan.SingletonNode:
@@ -337,7 +341,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 			copy.Keys[i] = equality(key)
 			copy.Keys[i].Expression = expression(key.Expression)
 			if err == nil && !copy.Keys[i].Expression.CollationIndeterminate() {
-				copy.Keys[i].Comparison,copy.Keys[i].Ordering,err = m.ordering(key,copy.Keys[i].Expression.ResultUsage())
+				copy.Keys[i].Comparison, copy.Keys[i].Ordering, err = m.ordering(key, copy.Keys[i].Expression.ResultUsage())
 			}
 		}
 		next = &copy
@@ -360,7 +364,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 				spec.Order[j] = equality(key)
 				spec.Order[j].Expression = expression(key.Expression)
 				if err == nil {
-					spec.Order[j].Comparison,spec.Order[j].Ordering,err = m.ordering(key,spec.Order[j].Expression.ResultUsage())
+					spec.Order[j].Comparison, spec.Order[j].Ordering, err = m.ordering(key, spec.Order[j].Expression.ResultUsage())
 				}
 			}
 			for _, bound := range []*plan.WindowBound{&spec.Frame.Start, &spec.Frame.End} {

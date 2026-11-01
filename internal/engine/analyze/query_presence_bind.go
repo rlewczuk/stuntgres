@@ -31,6 +31,8 @@ unwrap:
 	switch n := root.(type) {
 	case *plan.SourceNode:
 		slot = &n.PresenceSlot
+	case *plan.NamedRelationScanNode:
+		slot = &n.PresenceSlot
 	case *plan.ValuesNode:
 		slot = &n.PresenceSlot
 	case *plan.DerivedNode:

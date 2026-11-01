@@ -59,6 +59,9 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if s.Row {
 		p.Level = stored.TriggerRow
 	}
+	if err := triggerTransitions(&p, old, s); err != nil {
+		return RelationChange{}, err
+	}
 	if err := triggerEvents(&p, old, s.Events); err != nil {
 		return RelationChange{}, err
 	}
@@ -131,6 +134,9 @@ func triggerKind(old *catalog.Relation, s *parser.CreateTrigger) error {
 		if s.Timing == "instead" {
 			kind, detail = "table", "Tables cannot have INSTEAD OF triggers."
 		}
+		if detail == "" && s.Row && old.RelationKind == catalog.PartitionedRelation && len(s.Transitions) != 0 {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("%q is a partitioned table", old.Name()), Detail: "ROW triggers with transition tables are not supported on partitioned tables."}
+		}
 	case catalog.ForeignRelation:
 		if s.Timing == "instead" {
 			kind, detail = "foreign table", "Foreign tables cannot have INSTEAD OF triggers."
@@ -140,6 +146,11 @@ func triggerKind(old *catalog.Relation, s *parser.CreateTrigger) error {
 	}
 	if detail != "" {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("%q is a %s", old.Name(), kind), Detail: detail}
+	}
+	for _, event := range s.Events {
+		if s.Row && event.Name == "truncate" {
+			return sqlError("0A000", "TRUNCATE FOR EACH ROW triggers are not supported")
+		}
 	}
 	if s.Timing == "instead" {
 		if !s.Row {

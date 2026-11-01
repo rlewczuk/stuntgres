@@ -221,6 +221,8 @@ func (r *Renderer) slot(root plan.Node, slot int) (string, bool, error) {
 	switch n := root.(type) {
 	case *plan.SourceNode:
 		return explainSchemaSlot(n.Schema(), slot, n.RangeName, n.ColumnAliases)
+	case *plan.NamedRelationScanNode:
+		return explainSchemaSlot(n.Schema(), slot, n.RangeName, n.ColumnAliases)
 	case *plan.JoinNode:
 		if slot < n.LeftWidth {
 			return r.slot(n.Left, slot)

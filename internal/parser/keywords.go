@@ -448,7 +448,7 @@ var keywords = [...]keyword{
 	{"recursive", Unreserved, true, RECURSIVE},
 	{"ref", Unreserved, true, 0},
 	{"references", Reserved, true, REFERENCES},
-	{"referencing", Unreserved, true, 0},
+	{"referencing", Unreserved, true, REFERENCING},
 	{"refresh", Unreserved, true, REFRESH},
 	{"reindex", Unreserved, true, REINDEX},
 	{"relative", Unreserved, true, RELATIVE},

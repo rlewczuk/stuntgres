@@ -75,7 +75,7 @@ func EstimateExplainNode(node Node, children []ExplainEstimate, sourceRows float
 	out := ExplainEstimate{Rows: left.Rows, Cost: left.Cost + right.Cost}
 	local := left.Rows * .01
 	switch n := node.(type) {
-	case *SourceNode, *WorktableScanNode, *FunctionFromNode:
+	case *SourceNode, *NamedRelationScanNode, *WorktableScanNode, *FunctionFromNode:
 		out.Rows, local = explainFinite(sourceRows), explainFinite(sourceRows)
 	case *SingletonNode:
 		out.Rows, local = 1, 1

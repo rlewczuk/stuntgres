@@ -129,7 +129,7 @@ func PreflightQuery(c *exec.Context, node plan.Node) (plan.Node, error) {
 		return n, nil
 	case *plan.JoinNode:
 		return preflightJoin(c, n)
-	case *plan.SourceNode, *plan.SingletonNode:
+	case *plan.SourceNode, *plan.SingletonNode, *plan.NamedRelationScanNode:
 		return n, nil
 	case *plan.ValuesNode:
 		var rows [][]expr.Expr

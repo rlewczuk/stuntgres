@@ -171,6 +171,9 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 			return false
 		}
 		return c.expressions(b, n.Expressions, o.Expressions) && c.expressions(b, n.AnalysisExpressions, o.AnalysisExpressions)
+	case *plan.NamedRelationScanNode:
+		o, ok := d.(*plan.NamedRelationScanNode)
+		return ok && n.Name == o.Name && slices.Equal(n.QuerySchema, o.QuerySchema)
 	case *plan.SourceNode:
 		o, ok := d.(*plan.SourceNode)
 		return ok && n.Ref == o.Ref && c.PairOccurrence(n.Occurrence, o.Occurrence)

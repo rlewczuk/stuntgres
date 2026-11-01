@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"time"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -623,6 +623,18 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 		return replacement, failure
 	}
 	switch n := node.(type) {
+	case *plan.NamedRelationScanNode:
+		host := state.Source.LiveHost()
+		if host == nil {
+			return Stage{}, fmt.Errorf("stuntgres: missing named relation invocation")
+		}
+		source, err := host.OpenNamedRelation(n.Name, n.QuerySchema)
+		if err != nil {
+			return Stage{}, err
+		}
+		source.Host, source.Authority = state.Source.Host, state.Source.Authority
+		EstablishSourcePresence(source, n.PresenceSlot)
+		return Stage{Source: source, Columns: n.Schema()}, nil
 	case *plan.FunctionFromNode:
 		return OpenFunctionFromNode(ctx, state, n)
 	case *plan.SetProjectNode:

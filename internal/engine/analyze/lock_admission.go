@@ -43,6 +43,7 @@ type LockAdmission struct {
 	TableQueries    map[*parser.TableReference]PreparedSource // Query and exact pre-wait identity.
 	FutureCTE       map[*parser.TableReference]string
 	VirtualCTE      map[*parser.TableReference]bool
+	NamedRelations  map[*parser.TableReference]bool
 	MutationTargets []MutationTarget
 }
 
@@ -85,6 +86,7 @@ func RowLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtua
 		join        bool
 		cte         bool
 		function    bool
+		named       bool
 	}
 	indices := make(map[*parser.TableReference]int)
 	_ = parser.VisitQuerySources(&parser.Select{From: from}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
@@ -94,7 +96,9 @@ func RowLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtua
 	visit = func(item parser.FromItem, alias string) {
 		switch n := item.(type) {
 		case *parser.XMLTable:
-			if alias == "" { alias = "xmltable" }
+			if alias == "" {
+				alias = "xmltable"
+			}
 			targets = append(targets, target{name: alias, function: true})
 		case *parser.JSONTable:
 			if alias == "" {
@@ -110,6 +114,10 @@ func RowLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtua
 			if len(virtual) != 0 && virtual[0][n] {
 				targets[len(targets)-1].occurrences = nil
 				targets[len(targets)-1].cte = true
+			}
+			if len(virtual) > 1 && virtual[1][n] {
+				targets[len(targets)-1].occurrences = nil
+				targets[len(targets)-1].named = true
 			}
 		case *parser.FunctionTable:
 			name := alias
@@ -182,6 +190,9 @@ func RowLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtua
 					continue
 				}
 				found = true
+				if target.named {
+					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a named tuplestore", name.Parts[0].Pos)
+				}
 				if target.function {
 					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
 				}
@@ -242,12 +253,13 @@ func RowLockMode(clause string) lock.Mode {
 
 // NewLockAdmission computes the admission of statement and returns it with
 // its locked table occurrences and SELECT levels in admission order.
-func NewLockAdmission(statement parser.Statement) (LockAdmission, []*parser.TableReference, []*parser.Select, error) {
+func NewLockAdmission(statement parser.Statement, lookup func(string) (plan.NamedRelation, bool)) (LockAdmission, []*parser.TableReference, []*parser.Select, error) {
 	admissions := make(map[*parser.Select]*LockAdmission)
 	var ordered []*LockAdmission
 	tableQueries := make(map[*parser.TableReference]PreparedSource)
 	future := make(map[*parser.TableReference]string)
 	virtual := make(map[*parser.TableReference]bool)
+	var named map[*parser.TableReference]bool
 	admit := func(query *parser.Select) *LockAdmission {
 		if prior := admissions[query]; prior != nil {
 			return prior
@@ -275,10 +287,22 @@ func NewLockAdmission(statement parser.Statement) (LockAdmission, []*parser.Tabl
 	}); err != nil {
 		return LockAdmission{}, nil, nil, err
 	}
-	for _, a := range ordered {
-		a.Marks, a.Err = RowLockTargets(a.SelectQuery.From, a.SelectQuery.Locking, virtual)
+	if lookup != nil {
+		for _, table := range tables {
+			if !virtual[table] && len(table.Name.Parts) == 1 {
+				if _, found := lookup(table.Name.Parts[0].Text); found {
+					if named == nil {
+						named = make(map[*parser.TableReference]bool)
+					}
+					named[table] = true
+				}
+			}
+		}
 	}
-	return LockAdmission{Queries: admissions, Ordered: ordered, TableQueries: tableQueries, FutureCTE: future, VirtualCTE: virtual}, tables, queries, nil
+	for _, a := range ordered {
+		a.Marks, a.Err = RowLockTargets(a.SelectQuery.From, a.SelectQuery.Locking, virtual, named)
+	}
+	return LockAdmission{Queries: admissions, Ordered: ordered, TableQueries: tableQueries, FutureCTE: future, VirtualCTE: virtual, NamedRelations: named}, tables, queries, nil
 }
 
 // The original table pointer is stable for every occurrence. Only real SELECT

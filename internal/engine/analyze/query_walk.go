@@ -277,7 +277,7 @@ func CanSimplifyExists(query *plan.Query) bool {
 			return false // Target sets, including terminal attempts, own cardinality.
 		case *plan.SetNode, *plan.RecursiveUnionNode:
 			return false // Set keys determine presence, not just projected payload.
-		case *plan.SourceNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.FunctionFromNode:
+		case *plan.SourceNode, *plan.NamedRelationScanNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.FunctionFromNode:
 			return true // FROM inputs retain their own demand and clause fences.
 		case *plan.WindowNode:
 			return false // Keep real window-key demand and eager failure frontiers.

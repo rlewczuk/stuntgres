@@ -123,7 +123,9 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 			if p.Events&TriggerTruncate != 0 {
 				events = append(events, "TRUNCATE")
 			}
-			sql.WriteString(strings.Join(events, " OR ") + " ON " + table + " FOR EACH " + level)
+			sql.WriteString(strings.Join(events, " OR ") + " ON " + table)
+			writeTriggerTransitions(&sql, p, catalog.QuoteIdentifier)
+			sql.WriteString(" FOR EACH " + level)
 			if p.When != nil {
 				renderer := Deparser{View: read, ShowImplicit: true}
 				renderer.ColumnSQL = func(column plan.ColumnExpr) (string, error) {

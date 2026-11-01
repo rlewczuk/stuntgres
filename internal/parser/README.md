@@ -227,6 +227,10 @@ ordinary assignments to an unreserved `security` variable.
   while a quoted `'NULL'` preserves uppercase spelling; neither is a null datum.
   Parsing does not reinterpret the default statement kind as ROW; execution
   admits the supported timing and target kind.
+  REFERENCING retains ordered OLD/NEW, TABLE/ROW, decoded aliases and declaration/
+  alias positions, with optional AS. Timing, event mapping, duplicate names and
+  ROW naming are DDL decisions. Negative-only CONSTRAINT syntax rejects
+  REFERENCING at its token; it never produces executable constraint definitions.
   Embedded PL SQL retains full INSERT VALUES expression trees and original
   statement boundaries; it does not replay cells through the ordinary SQL
   input-only scalar frontier. Ordinary SQL parsing and prewalk remain unchanged.
@@ -532,7 +536,8 @@ Text-search parser utility AST/options/full-input ownership uses `RUN='^TestTSPa
 Publication utility AST, source positions and complete-input units use
 `RUN='^TestPublicationGrammar$'`.
 
-Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
+Trigger declaration/lifecycle AST, positions and full-input units use
+`RUN='^TestParseTrigger'`.
 Literal lo_manage argument spelling units use `RUN='^TestParseLoManageArguments$'`.
 Constraint enforcement AST/property/full-input units use `RUN='^TestConstraintEnforcement(Parser|PropertySyntax|UsingIndexParser)$'`.
 Trigger-mode selectors, quoted names and complete-input AST units use

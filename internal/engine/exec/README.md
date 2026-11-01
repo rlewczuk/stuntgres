@@ -136,6 +136,17 @@ typmods; naming is captured only on failure and is never retained in result tupl
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
   recursive unions, windows, aggregates, DISTINCT, LIMIT/WITH TIES and subqueries
   live here.
+  `NamedRelationScanNode` opens through `Source.LiveHost().OpenNamedRelation`,
+  which validates the retained shape against the current invocation. The live
+  authority slot is authoritative, including its detached nil host; no direct
+  host fallback restores invocation access. Each open owns its Source and cursor,
+  borrowing immutable accepted backing without copying the rowset; empty scans
+  retain their typed schema. These leaves have no physical lineage, row locks or
+  captured catalog authority.
+  Demanded named whole-row presence participates in deferred correlated topology
+  before an enclosing join borrows its packed layout. Null extension is distinct
+  from a present all-null tuple. Physical-occurrence traversal treats the named
+  scan as a leaf with no storage occurrence.
   Runtime work admission consumes one `WorkAggregateInput` grant per aggregate
   support/input initialization before child materialization, not per sort or
   complete child drain. Recursive union consumes one `WorkRecursiveUnion` grant
@@ -852,6 +863,8 @@ for query, DML, row-lock and foreign parallel scan units, in
 `exec.OpenNode`); run row-lock, cursor,
 foreign-scan, CTE and detach selections with `RACE=1`. `InputDomainChecks`
 changes must keep the COPY filter and JSONB record reference tests passing.
+Named-leaf packed topology and physical-occurrence ownership units use
+`RUN='^TestNamedRelation'`, also with `RACE=1`.
 
 Semantic routine descriptor identity and immutable retained configuration use
 `RUN='^TestRoutineAttribute'`, also with `RACE=1`.

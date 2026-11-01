@@ -393,6 +393,11 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 				return Outcome{}, err
 			}
 			batch.staged = len(h.PrivateRows(ref.Address).Staged)
+			if ref != b.Ref && NeedsTransition(b.Relation, stored.TriggerUpdate) {
+				if err := captureTransition(h, b, stored.TriggerUpdate, candidate.Physical.Values(old), row); err != nil {
+					return Outcome{}, err
+				}
+			}
 		}
 		if output != nil {
 			eval.Row, eval.OldRow = row, oldValues

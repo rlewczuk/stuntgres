@@ -329,7 +329,7 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err := foreign.Begin(s.Op.Context(), s.foreignWrites()); err != nil {
 			return 0, err
 		}
-		rowByRow := dml.HasRowTriggers(b.Relation, stored.TriggerInsert, stored.TriggerAfter)
+		rowByRow := s.needsAfterRow(b.Ref, b.Relation, stored.TriggerInsert)
 		accept := func(actual []sqltype.Value) error {
 			s.copyProgress.tuples.Processed.Add(1)
 			if rowByRow {

@@ -19,6 +19,7 @@ type TriggerPresentation struct {
 	Condition, Statement   string
 	HasCondition           bool
 	Timing, Orientation    string
+	OldTable, NewTable     string
 }
 
 // VisitTriggerDefinitions validates real definitions against the captured root.
@@ -113,7 +114,7 @@ func triggerPresentation(ctx context.Context, p TriggerParts, renderer Deparser,
 		statement.WriteByte('\'')
 	}
 	statement.WriteByte(')')
-	fact := TriggerPresentation{OID: p.OID, Name: p.Name, Insert: p.Events&TriggerInsert != 0, Update: p.Events&TriggerUpdate != 0, Delete: p.Events&TriggerDelete != 0, Statement: statement.String()}
+	fact := TriggerPresentation{OID: p.OID, Name: p.Name, Insert: p.Events&TriggerInsert != 0, Update: p.Events&TriggerUpdate != 0, Delete: p.Events&TriggerDelete != 0, Statement: statement.String(), OldTable: p.OldTable, NewTable: p.NewTable}
 	fact.Timing, err = triggerTimingSQL(p.Timing)
 	if err != nil {
 		return TriggerPresentation{}, err
@@ -187,7 +188,9 @@ func TriggerDefinitionSQL(ctx context.Context, relation *catalog.Relation, defin
 			}
 		}
 	}
-	sql.WriteString(" ON " + target + " FOR EACH " + fact.Orientation)
+	sql.WriteString(" ON " + target)
+	writeTriggerTransitions(&sql, p, renderer.Identifier)
+	sql.WriteString(" FOR EACH " + fact.Orientation)
 	if fact.HasCondition {
 		sql.WriteString(" WHEN (" + fact.Condition + ")")
 	}

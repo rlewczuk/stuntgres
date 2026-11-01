@@ -45,6 +45,8 @@ type Host interface {
 	// before source or row effects, with unlocked eligibility and invocation.
 	BeforeStatement(ids.ObjectRef, stored.TriggerEvent, []int32) error
 	AfterRow(BeforeRow) error
+	// AfterTransition captures accepted named-target images without ROW firing.
+	AfterTransition(BeforeRow) error
 	AfterStatement(ids.ObjectRef, stored.TriggerEvent, []int32) error
 	CompleteAfterStatement(ids.ObjectRef, stored.TriggerEvent) error
 }
@@ -54,6 +56,7 @@ type Host interface {
 type FinishHost interface {
 	Host
 	ForeignKeys
+	ExposeAfterStatement(ids.ObjectRef, stored.TriggerEvent) error
 }
 
 // Authority is the statement authority that FK enforcement and actions check

@@ -2,6 +2,7 @@ package stored
 
 import (
 	"context"
+	"fmt"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -17,6 +18,17 @@ import (
 // The session token is the consumer's TEMP owner, or zero without a session;
 // rule is passed as is, never allocated.
 func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*View, error) {
+	var namedRelationError error
+	plan.VisitCTEQuery(b.Query.Root, func(node plan.Node) {
+		if namedRelationError == nil {
+			if relation, ok := node.(*plan.NamedRelationScanNode); ok {
+				namedRelationError = sqlError("0A000", fmt.Sprintf("transition table %q cannot be referenced in a persistent object", relation.Name))
+			}
+		}
+	}, func(expr.Expr) {}, true)
+	if namedRelationError != nil {
+		return nil, namedRelationError
+	}
 	dependencies, err := frozenQueryDependencies(view, b)
 	if err != nil {
 		return nil, err

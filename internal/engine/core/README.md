@@ -461,6 +461,33 @@ attributes; queued events own an immutable target copy shared by the definitions
 accepted in one queue call and forward it unchanged to native firing. Earlier
 row rewrites never widen that lexical target set.
 
+AFTER accepted images belong to the existing query effect frame, keyed by
+relation and actual event. Lazy transition segments collect each accepted tuple
+once, independently of ROW WHEN and consumer count. Each demanded OLD/NEW image
+is detached once and shared with qualifying scalar queued events; an unused
+counterpart is not copied. Capture-only hierarchy ingestion uses the explicitly
+named target's layout without manufacturing a physical ROW event. Movement
+collects UPDATE OLD after deletion and NEW after insertion, so a destination veto
+can leave an OLD-only set. Initial zero-row sets retain the relation schema.
+Statement-only physical capture requires that relation/event's actual producer
+registration; definitions on unnamed leaves create no hook or unused segment.
+ROW exposure freezes a segment; only a later accepted image rotates it and
+creates its successor statement group. After RI exhaustion and paired internal
+trigger unwind, ROW consumers may expose it; unrelated and statement-only sets
+remain pending. Checkpoints detach maps/event references and exposure progress,
+with copy-on-append vectors over immutable payloads. Finish and nested command
+retirement discard all capture state.
+
+Transition aliases occupy a balanced one-trigger-invocation namespace, shared
+by its static/dynamic commands, shadowed by nested triggers and cleared for
+separately called functions. CTEs take precedence; qualified names bypass it.
+Binding retains only a symbolic scan name/schema. Opening resolves current data
+into an ordinary private scan over shared immutable rows, with no catalog
+identity, locks, privileges or extra evaluator. Modifying targets cannot fall
+back to a hidden physical table. Ordinary CREATE VIEW reanalysis is catalog-only;
+other persistent capture rejects invocation relations. Blanket row locking skips
+these sources; explicit OF targets reject them without acquiring physical locks.
+
 Native trigger bodies (tcn, refint, autoinc, insert_username, moddatetime,
 lo_manage, suppression and the tsvector triggers) are the leaf
 [`core/nativetrig`](nativetrig/README.md). Core keeps the invocation
@@ -2274,6 +2301,9 @@ Snowball provider authority, prepared ownership and publication units in
 `enginetests/functions` use the shared `enginetest` prepared-fold and catalog-stage
 helpers; retain accepted generations, backing and operand provenance separately
 from public SQL outcomes in `reference/`.
+
+Transition capture, checkpoint, exposure, invocation, prepared-shape and
+trigger-free producer ownership units use `RUN='^TestTriggerTransition'`.
 
 Installed statistics provider, expression and capture ownership units use
 `RUN='^TestPgstat(index|hashindex)'`.

@@ -263,8 +263,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   definition, including row/statement timing, event bits, real function and clone
   identities, ordered UPDATE attributes and zero-terminated argument bytes.
   The represented ordinary definitions are enabled `O`, noninternal and
-  nonconstraint; absent transitions and WHEN remain typed NULLs. Persistent
-  FK-owned RI triggers retain actual identities, INTERNAL constraint links,
+  nonconstraint; transition names retain NAME values and absence/WHEN typed NULLs.
+  Persistent FK-owned RI triggers retain actual identities, INTERNAL constraint links,
   opposite relation/index, action-selected functions and AFTER ROW events.
   Check slots and NO ACTION slots project the FK's persistent timing defaults;
   other action slots remain nondeferrable. Empty args/vector and absent
@@ -656,7 +656,8 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Enabled ownership or non-SELECT table/column write/reference/trigger privileges
   expose rows; only enabled owners see WHEN expressions. Target-schema USAGE
   is not required; other-session temporary relations are excluded. All seventeen
-  cells retain source-owned domains, including NULL transition/creation fields.
+  cells retain source-owned domains, including transition alias identifiers and
+  typed NULLs for absent aliases and creation time.
   Reading metadata neither admits trigger declarations nor executes routines.
 - `table_constraints` projects actual CHECK/NOT NULL, UNIQUE/PRIMARY KEY and
   foreign-key records on ordinary and partitioned tables. Same-name constraints

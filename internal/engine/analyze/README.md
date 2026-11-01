@@ -294,6 +294,12 @@ library, and never the root engine or `session`. The engine, the root driver
 - **`Host`** (`host.go`): the engine services the binder calls (name and type
   resolution, privileges, definition reads, captures, stored views). The engine
   implements it as `BindingHost`.
+  Unqualified FROM resolution is lexical CTE, invocation named relation, then
+  catalog. Named scans use the ordinary alias/column/whole-row namespace but
+  retain only schema and symbolic name; qualified names bypass them. Admission
+  classifies the same occurrences before physical lookup. Blanket row marks
+  ignore named sources, while explicit OF targets reject them at the target
+  position; sibling physical sources retain their marks.
   Relabelled builtin/installed calls select through current catalog name buckets,
   then bind their checked immutable provider symbol. COW source/destination
   provider-name overrides prevent registry fallback from resurrecting vacated

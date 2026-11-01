@@ -193,7 +193,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	}
 	s.foreignActions().Admissions[ref.Address].Mutated = true
 	relation, _ := e.PrivateCatalogLocked(s.PendingCatalog()).Relation(ref.Address)
-	afterDelete = dml.HasRowTriggers(relation, stored.TriggerDelete, stored.TriggerAfter)
+	afterDelete = s.needsAfterRow(ref, relation, stored.TriggerDelete)
 	return nil
 }
 

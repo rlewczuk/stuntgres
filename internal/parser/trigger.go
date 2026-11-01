@@ -3,22 +3,32 @@ package parser
 // CreateTrigger retains declaration syntax; semantic admission belongs to the
 // catalog owner, including the timing and explicit row-kind boundary.
 type CreateTrigger struct {
-	Name      Identifier
-	Table     ObjectName
-	Replace   bool
-	Timing    string
-	Row       bool
-	Events    []TriggerEvent
-	When      Expr
-	Function  ObjectName
-	Arguments []string
-	Pos       Position
+	Name        Identifier
+	Table       ObjectName
+	Replace     bool
+	Timing      string
+	Row         bool
+	Events      []TriggerEvent
+	Transitions []TriggerTransition
+	When        Expr
+	Function    ObjectName
+	Arguments   []string
+	Pos         Position
 }
 
 type TriggerEvent struct {
 	Name    string
 	Columns []Identifier
 	token   lexeme
+}
+
+// TriggerTransition preserves declaration order for semantic diagnostic precedence.
+// Row remains syntax here: the catalog owner rejects unsupported ROW naming.
+type TriggerTransition struct {
+	New   bool
+	Row   bool
+	Alias Identifier
+	Pos   Position
 }
 
 func appendTriggerEvent(l *lexer, events []TriggerEvent, event TriggerEvent) ([]TriggerEvent, bool) {

@@ -15,17 +15,17 @@ import (
 // to StatementScope until Finish; nested SQL utilities borrow that same owner.
 // Only actual non-internal deletion consumption sets Dropped.
 type EventCommand struct {
-	Tag          string
-	Dropped      bool
-	Records      []catalog.DroppedObject
-	positions    map[ids.ObjectAddress]int
-	Phase        string
-	RewriteOID   ids.OID
+	Tag           string
+	Dropped       bool
+	Records       []catalog.DroppedObject
+	positions     map[ids.ObjectAddress]int
+	Phase         string
+	RewriteOID    ids.OID
 	RewriteReason int32
-	captureError error
-	CollectDDL   bool
-	Commands     []sqltype.DDLCommand
-	holdsEffects bool
+	captureError  error
+	CollectDDL    bool
+	Commands      []sqltype.DDLCommand
+	holdsEffects  bool
 }
 
 // BeginEventCommand enters a lexical utility boundary, retaining its journal
@@ -236,6 +236,8 @@ func (s *StatementScope) fireEventTrigger(event string) error {
 }
 
 func (s *StatementScope) invokePLEventTrigger(d *catalog.Procedure, frame *proc.PLFrame, read catalog.Read) (err error) {
+	restoreRelations := s.installNamedRelations(nil)
+	defer restoreRelations()
 	previousAtomic := s.plAtomic
 	s.plAtomic = true
 	defer func() { s.plAtomic = previousAtomic }()

@@ -392,13 +392,13 @@ func (r Runtime) VisitRewriteCatalog(ctx context.Context, view catalog.Read, rel
 
 func (r Runtime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, disclose bool, visit func(pgcatalog.TriggerFact) error) error {
 	return stored.VisitTriggerDefinitions(ctx, view, relation, r.Presentation, disclose, func(f stored.TriggerPresentation) error {
-		return visit(pgcatalog.TriggerFact{OID: f.OID, Name: f.Name, Insert: f.Insert, Update: f.Update, Delete: f.Delete, Timing: f.Timing, Orientation: f.Orientation, Condition: f.Condition, HasCondition: f.HasCondition, Statement: f.Statement})
+		return visit(pgcatalog.TriggerFact{OID: f.OID, Name: f.Name, Insert: f.Insert, Update: f.Update, Delete: f.Delete, Timing: f.Timing, Orientation: f.Orientation, OldTable: f.OldTable, NewTable: f.NewTable, HasOldTable: f.OldTable != "", HasNewTable: f.NewTable != "", Condition: f.Condition, HasCondition: f.HasCondition, Statement: f.Statement})
 	})
 }
 
 func (r Runtime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
 	return stored.VisitTriggerCatalog(ctx, view, relation, typ, func(f stored.TriggerCatalogDefinition) error {
-		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
+		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, OldTable: f.OldTable, NewTable: f.NewTable, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
 	})
 }
 func (r Runtime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {

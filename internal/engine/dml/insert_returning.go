@@ -87,6 +87,7 @@ func finishInsertReturning(h Host) (Outcome, error) {
 // Revalidate the proposal before output, never output before possible filtering.
 func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candidate *index.WriteCandidate, evaluation *exec.Context) (bool, error) {
 	command := h.Command()
+	named := ref
 	row := candidate.Values
 	if command.InsertConflict != nil && command.InsertConflict.Update != nil {
 		return false, admitInsertConflictUpdate(h, ref, candidate, evaluation)
@@ -115,6 +116,11 @@ func acceptInsertReturning(ctx context.Context, h Host, ref ids.ObjectRef, candi
 		}
 		if retry {
 			continue
+		}
+		if accepted && command.PartitionInsert != nil && named != ref && NeedsTransition(command.InsertReturning.Binding.Relation, stored.TriggerInsert) {
+			if err := captureTransition(h, command.InsertReturning.Binding, stored.TriggerInsert, nil, row); err != nil {
+				return false, err
+			}
 		}
 		return accepted, nil
 	}

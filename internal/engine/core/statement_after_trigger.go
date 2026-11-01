@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
@@ -29,6 +30,7 @@ type afterTriggerFrame struct {
 	producers        []afterStatementProducer
 	producer         int
 	before           map[afterStatementKey]struct{}
+	segments         map[afterStatementKey]*transitionSegment
 }
 
 type afterStatementKey struct {
@@ -40,6 +42,7 @@ type afterStatementKey struct {
 type afterStatementProducer struct {
 	key        afterStatementKey
 	candidates []afterTriggerEvent
+	segment    *transitionSegment
 }
 
 type afterTriggerEvent struct {
@@ -52,6 +55,7 @@ type afterTriggerEvent struct {
 	actor      *AuthorizationView // Immutable RI authority; live grants are recaptured.
 	qualified  bool               // Statement WHEN is decided once at producer completion.
 	skip       bool
+	segment    *transitionSegment
 }
 
 func (s *StatementScope) afterFrame() *afterTriggerFrame {
@@ -67,11 +71,24 @@ func (s *StatementScope) afterFrame() *afterTriggerFrame {
 }
 
 func (h *statementHost) AfterRow(request dml.BeforeRow) error {
-	return h.queueAfter(request.Relation, stored.TriggerEvent(request.Event), stored.TriggerRow, request.Targets, request.Old, request.New)
+	return h.queueAfter(request.Relation, stored.TriggerEvent(request.Event), stored.TriggerRow, request.Targets, request.Old, request.New, false)
+}
+
+// Only an explicitly registered logical producer demands statement images.
+// A definition on an unnamed physical leaf alone is not a capture consumer.
+func (s *StatementScope) needsAfterRow(ref ids.ObjectRef, relation *catalog.Relation, event stored.TriggerEvent) bool {
+	return dml.HasRowTriggers(relation, event, stored.TriggerAfter) ||
+		s.registeredTransition(afterStatementKey{ref, event}) != nil
+}
+
+// AfterTransition records the named target's accepted images without inventing
+// a physical ROW event (including the two separate halves of a moved UPDATE).
+func (h *statementHost) AfterTransition(request dml.BeforeRow) error {
+	return h.queueAfter(request.Relation, stored.TriggerEvent(request.Event), stored.TriggerRow, request.Targets, request.Old, request.New, true)
 }
 
 func (h *statementHost) AfterStatement(ref ids.ObjectRef, event stored.TriggerEvent, targets []int32) error {
-	return h.queueAfter(ref, event, stored.TriggerStatement, targets, nil, nil)
+	return h.queueAfter(ref, event, stored.TriggerStatement, targets, nil, nil, false)
 }
 
 func (h *statementHost) CompleteAfterStatement(ref ids.ObjectRef, event stored.TriggerEvent) error {
@@ -82,9 +99,9 @@ func (h *statementHost) CompleteAfterStatement(ref ids.ObjectRef, event stored.T
 			return nil
 		}
 		f := s.afterTriggers.frames[s.effectCommand]
-		producer := afterStatementProducer{key: key}
+		producer := afterStatementProducer{key: key, segment: f.segments[key]}
 		for _, candidate := range f.statements {
-			if !candidate.qualified && candidate.definition.Parts().Relation == ref && candidate.event == event {
+			if !candidate.qualified && candidate.definition.Parts().Relation == ref && candidate.event == event && candidate.segment == producer.segment {
 				producer.candidates = append(producer.candidates, candidate)
 			}
 		}
@@ -94,16 +111,25 @@ func (h *statementHost) CompleteAfterStatement(ref ids.ObjectRef, event stored.T
 	return s.qualifyAfterStatementsFor(&key)
 }
 
-func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent, level stored.TriggerLevel, targets []int32, old, next []sqltype.Value) error {
+// ExposeAfterStatement is called only after an RI producer and its paired
+// internal trigger scope have both completed. It never borrows that scope's actor.
+func (h *statementHost) ExposeAfterStatement(ref ids.ObjectRef, event stored.TriggerEvent) error {
+	return h.scope().exposeAfterTransitions(afterStatementKey{ref, event})
+}
+
+func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent, level stored.TriggerLevel, targets []int32, old, next []sqltype.Value, captureOnly bool) error {
 	s := h.scope()
 	if err := s.Active(); err != nil {
 		return err
 	}
 	e := s.Engine()
-	if level == stored.TriggerRow {
+	if level == stored.TriggerRow && !captureOnly {
 		if target, _ := e.Locks.ReplacementGrants(s.LockTicket, ref, nil); !target {
 			return fmt.Errorf("stuntgres: trigger invocation requires the admitted physical write target")
 		}
+	}
+	if captureOnly && !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, lock.RowExclusive) {
+		return fmt.Errorf("stuntgres: transition capture requires the admitted named write target")
 	}
 	e.Mu.Lock()
 	auth, err := s.RoutineAuthorizationLocked()
@@ -119,15 +145,58 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 	definitions := stored.TriggersOf(relation)
 	e.Mu.Unlock()
 
+	// Collection belongs to the accepted event, not to an invocation or WHEN.
+	// A statement-only transition definition still demands row ingestion.
+	var segment *transitionSegment
+	successor := false
+	var wantOld, wantNext bool
+	registered := s.registeredTransition(afterStatementKey{ref, event}) != nil
+	for _, definition := range definitions {
+		p := definition.Parts()
+		if p.Timing == stored.TriggerAfter && (level == stored.TriggerStatement || p.Level == stored.TriggerRow || registered) && definition.Mode().Fires(auth.RuleReplica()) && definition.Fires(event, targets) {
+			wantOld = wantOld || p.OldTable != ""
+			wantNext = wantNext || p.NewTable != ""
+		}
+	}
+	if wantOld || wantNext {
+		frame := s.afterFrame()
+		prior := frame.segments[afterStatementKey{ref, event}]
+		segment = frame.transition(afterStatementKey{ref, event}, relation.Columns, wantOld, wantNext, level == stored.TriggerRow)
+		successor = prior != nil && prior != segment
+		if level == stored.TriggerStatement {
+			segment.statement = true
+		}
+	}
 	var f *afterTriggerFrame
 	key := afterStatementKey{ref, event}
-	var ownedOld, ownedNext []sqltype.Value
-	owned := false
+	var images afterRowImages
 	var ownedTargets []int32
 	targetsOwned := false
+	if level == stored.TriggerRow && segment != nil {
+		images.detach(old, next, segment.wantOld, segment.wantNext)
+		segment.append(images.old, images.next)
+		if successor {
+			// Zero-match RI registrations retain the exposed set. Only its
+			// first successor image creates another statement opportunity.
+			for _, definition := range definitions {
+				p := definition.Parts()
+				if p.Timing != stored.TriggerAfter || p.Level != stored.TriggerStatement || !definition.Fires(event, targets) {
+					continue
+				}
+				if !targetsOwned {
+					ownedTargets, targetsOwned = slices.Clone(targets), true
+				}
+				queued := afterTriggerEvent{definition: definition, relation: relation, read: auth.Catalog, event: event, actor: s.ForeignActionAuth, segment: segment, targets: ownedTargets}
+				s.afterFrame().registerStatement(key, queued)
+			}
+		}
+	}
+	if captureOnly {
+		return nil
+	}
 	if level == stored.TriggerStatement && s.afterTriggers != nil {
 		if prior := s.afterTriggers.frames[s.effectCommand]; prior != nil {
-			prior.cancelStatements(key)
+			prior.cancelStatements(key, segment)
 		}
 	}
 	for _, definition := range definitions {
@@ -141,6 +210,7 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 		queued := afterTriggerEvent{
 			definition: definition, relation: relation, read: auth.Catalog,
 			event: event, old: old, next: next, actor: s.ForeignActionAuth,
+			segment: segment,
 		}
 		if level == stored.TriggerRow {
 			// ROW WHEN belongs to acceptance; STATEMENT WHEN to producer completion.
@@ -151,10 +221,8 @@ func (h *statementHost) queueAfter(ref ids.ObjectRef, event stored.TriggerEvent,
 			if !pass {
 				continue
 			}
-			if !owned {
-				ownedOld, ownedNext, owned = slices.Clone(old), slices.Clone(next), true
-			}
-			queued.old, queued.next = ownedOld, ownedNext
+			images.detach(old, next, true, true)
+			queued.old, queued.next = images.old, images.next
 		}
 		if !targetsOwned {
 			ownedTargets, targetsOwned = slices.Clone(targets), true
@@ -218,7 +286,7 @@ func (s *StatementScope) qualifyAfterStatements() error {
 
 func (s *StatementScope) qualifyAfterProducer(producer afterStatementProducer) error {
 	f := s.afterFrame()
-	f.cancelStatements(producer.key)
+	f.cancelStatements(producer.key, producer.segment)
 	for _, candidate := range producer.candidates {
 		f.registerStatement(producer.key, candidate)
 	}
@@ -274,6 +342,11 @@ func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 	s.ForeignActionAuth = event.actor
 	defer func() { s.ForeignActionAuth = previous }()
 	p := event.definition.Parts()
+	if event.segment != nil && (p.OldTable != "" || p.NewTable != "") {
+		event.segment.frozen = true
+	}
+	restoreRelations := s.installTriggerRelations(p, event.segment)
+	defer restoreRelations()
 	e := s.Engine()
 	e.Mu.Lock()
 	auth, err := s.RoutineAuthorizationLocked()
@@ -362,6 +435,9 @@ func (s *StatementScope) drainAfter() error {
 				continue
 			}
 		}
+		if event.skip {
+			continue
+		}
 		if err := s.fireTrigger(event); err != nil {
 			return err
 		}
@@ -380,6 +456,7 @@ func cloneAfterState(state *afterTriggerState) *afterTriggerState {
 		f.rows, f.statements = slices.Clone(frame.rows), slices.Clone(frame.statements)
 		f.producers = slices.Clone(frame.producers)
 		f.before = maps.Clone(frame.before)
+		f.cloneTransitions()
 		copy.frames[id] = &f
 	}
 	return copy
@@ -397,10 +474,10 @@ func (s *StatementScope) restoreAfter(state *afterTriggerState) {
 	s.afterTriggers = state
 }
 
-func (f *afterTriggerFrame) cancelStatements(key afterStatementKey) {
+func (f *afterTriggerFrame) cancelStatements(key afterStatementKey, segment *transitionSegment) {
 	for i := range f.statements {
 		event := &f.statements[i]
-		if event.definition.Parts().Relation == key.relation && event.event == key.event {
+		if event.definition.Parts().Relation == key.relation && event.event == key.event && (event.segment == nil || !event.segment.frozen && (segment == nil || event.segment == segment)) {
 			event.qualified, event.skip = true, true
 		}
 	}
@@ -411,10 +488,13 @@ func (f *afterTriggerFrame) cancelStatements(key afterStatementKey) {
 func (f *afterTriggerFrame) registerStatement(key afterStatementKey, event afterTriggerEvent) {
 	at := len(f.statements)
 	for i, prior := range f.statements {
-		if prior.definition.Parts().Relation != key.relation || prior.event != key.event {
+		if prior.definition.Parts().Relation != key.relation || prior.event != key.event || prior.segment != event.segment {
 			continue
 		}
 		if prior.definition.OID() == event.definition.OID() {
+			if event.segment != nil && event.segment.frozen {
+				return
+			}
 			f.statements[i] = event
 			return
 		}

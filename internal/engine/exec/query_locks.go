@@ -81,7 +81,7 @@ func QueryLockRecheckWidth(node plan.Node, inputs *Source) int {
 		return QueryLockRecheckWidth(n.Query.Root, inputs)
 	case *plan.SourceNode:
 		return queryLockSourceWidth(QuerySourceAt(inputs, n.Occurrence))
-	case *plan.SingletonNode, *plan.ValuesNode:
+	case *plan.SingletonNode, *plan.ValuesNode, *plan.NamedRelationScanNode:
 		return 0
 	case *plan.RowLockNode:
 		return QueryLockRecheckWidth(n.Child, inputs)
@@ -174,7 +174,7 @@ func RecheckLockedQuery(node plan.Node, inputs *Source, rows [][]sqltype.Value, 
 			return nil, false, fmt.Errorf("stuntgres: missing derived rowmark lineage")
 		}
 		return RecheckLockedSource(evaluation.Query.derived[n], rows, evaluation, scratch, offset)
-	case *plan.ValuesNode:
+	case *plan.ValuesNode, *plan.NamedRelationScanNode:
 		return frozen, true, nil
 	case *plan.FunctionFromNode:
 		// PostgreSQL 18.6 keeps the function-scan tuple a row was produced

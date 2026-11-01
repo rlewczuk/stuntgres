@@ -27,6 +27,8 @@ package parser
  trigger *CreateTrigger
  triggerEvent TriggerEvent
  triggerEvents []TriggerEvent
+ triggerTransition TriggerTransition
+ triggerTransitions []TriggerTransition
  eventFilters []EventTriggerFilter
  eventFilter EventTriggerFilter
  foreignDDL *ForeignDDL
@@ -282,7 +284,7 @@ package parser
 %token <tok> PL_TARGETS_ENTRY
 %token <tok> PL_THEN PL_WHEN PL_WHEN_COMMA
 %token <tok> PL_ASSERT PL_RAISE_LEVEL PL_MESSAGE_COMMA PL_RAISE_USING
-%token <tok> TRIGGER EVENT
+%token <tok> TRIGGER EVENT REFERENCING
 %token <tok> PL_OPEN PL_LOOP PL_WHILE PL_NEXT PL_PRIOR PL_LAST PL_EXIT PL_CONTINUE
 %token <tok> PL_FOREACH PL_SLICE
 %token <tok> PL_INTEGER_FOR PL_REVERSE PL_BY
@@ -517,6 +519,10 @@ package parser
 %type <trigger> trigger_head
 %type <triggerEvent> trigger_event
 %type <triggerEvents> trigger_events
+%type <triggerTransition> trigger_transition
+%type <triggerTransitions> trigger_referencing trigger_transitions
+%type <tok> trigger_transition_side trigger_constraint_timing
+%type <desc> trigger_transition_kind
 %type <tok> trigger_timing trigger_function trigger_each trigger_statement
 %type <desc> trigger_row
 %type <expr> trigger_when
@@ -1196,9 +1202,38 @@ trigger_head: CREATE TRIGGER name trigger_timing trigger_events ON relation_name
 } | CREATE OR replace_word TRIGGER name trigger_timing trigger_events ON relation_name {
  $$=&CreateTrigger{Name:Identifier{Text:$5.text,Pos:$5.pos},Timing:$6.text,Events:$7,Table:$9,Replace:true,Pos:$1.pos}
 } ;
-create_trigger: trigger_head trigger_row trigger_when EXECUTE trigger_function relation_name '(' trigger_arguments ')' {
- $1.Row=$2;$1.When=$3;$1.Function=$6;$1.Arguments=$8;$$=$1
+create_trigger: trigger_head trigger_referencing trigger_row trigger_when EXECUTE trigger_function relation_name '(' trigger_arguments ')' {
+ $1.Transitions=$2;$1.Row=$3;$1.When=$4;$1.Function=$7;$1.Arguments=$9;$$=$1
+} | CREATE CONSTRAINT TRIGGER name trigger_constraint_timing trigger_events ON relation_name trigger_constraint_options REFERENCING {
+ /* Negative-only boundary: constraint execution is not admitted by this rule. */
+ sqllex.(*lexer).syntax($10);return 1
+} | CREATE OR replace_word CONSTRAINT TRIGGER name trigger_constraint_timing trigger_events ON relation_name trigger_constraint_options REFERENCING {
+ sqllex.(*lexer).syntax($12);return 1
 } ;
+trigger_constraint_timing: name {
+ if $1.keyword==nil || $1.text!="after" {sqllex.(*lexer).syntax($1);return 1};$$=$1
+} ;
+trigger_constraint_options: /* empty */
+ | trigger_constraint_options FROM relation_name
+ | trigger_constraint_options DEFERRABLE
+ | trigger_constraint_options NOT_DEFERRABLE_LA DEFERRABLE
+ | trigger_constraint_options INITIALLY name {
+ if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($3);return 1}
+} ;
+trigger_referencing: /* empty */ {$$=nil}
+ | REFERENCING trigger_transitions {$$=$2} ;
+trigger_transitions: trigger_transition {$$=[]TriggerTransition{$1}}
+ | trigger_transitions trigger_transition {$$=append($1,$2)} ;
+trigger_transition: trigger_transition_side trigger_transition_kind name {
+ $$=TriggerTransition{New:$1.text=="new",Row:$2,Alias:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}
+} | trigger_transition_side trigger_transition_kind AS name {
+ $$=TriggerTransition{New:$1.text=="new",Row:$2,Alias:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos}
+} ;
+/* OLD/NEW use KW_U, not name: EXECUTE must end the declaration list when FOR is omitted. */
+trigger_transition_side: KW_U {
+ if $1.keyword==nil || ($1.text!="old" && $1.text!="new") {sqllex.(*lexer).syntax($1);return 1};$$=$1
+} ;
+trigger_transition_kind: TABLE {$$=false} | ROW {$$=true} ;
 trigger_timing: name {
  if $1.keyword==nil || ($1.text!="before" && $1.text!="after") {sqllex.(*lexer).syntax($1);return 1};$$=$1
 } | INSTEAD OF {$$=$1} ;
@@ -3949,7 +3984,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST | MERGE_ACTION ;
 string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
- | ENFORCED | CLUSTER
+ | ENFORCED | CLUSTER | REFERENCING
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
@@ -4016,7 +4051,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
  | PL_SLICE
  | EXPLAIN
  | FDW_SERVER | FDW_MAPPING | FDW_HANDLER | FDW_VALIDATOR | FDW_IMPORT
- | TRIGGER | EVENT
+ | TRIGGER | EVENT | REFERENCING
  | LANGUAGE_TRUSTED | LANGUAGE_PROCEDURAL | LANGUAGE_INLINE
  | TS_CONFIGURATION | TS_TEMPLATE | TS_PARSER
  | SQLJSON_PARSE

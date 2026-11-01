@@ -25,6 +25,11 @@ func AppendQueryTree(ctx context.Context, out *strings.Builder, root Node) error
 	fmt.Fprintf(out, " {query %T", root)
 	var err error
 	switch n := root.(type) {
+	case *NamedRelationScanNode:
+		if n == nil {
+			return fmt.Errorf("stuntgres: nil structural query node %T", root)
+		}
+		fmt.Fprintf(out, " named_relation %q", n.Name)
 	case *SourceNode:
 		if n == nil {
 			return fmt.Errorf("stuntgres: nil structural query node %T", root)

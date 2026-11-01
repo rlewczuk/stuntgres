@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -158,7 +159,38 @@ func ApplyInsertValidated(ctx context.Context, h Host, ref ids.ObjectRef, rows i
 		if err := ApplyValidated(ctx, h, group.Ref, group.Rows); err != nil {
 			return 0, err
 		}
+		if err := capturePartitionInsert(h, ref, group.Ref, group.Rows.Values); err != nil {
+			return 0, err
+		}
 		count += len(group.Rows.Values)
 	}
 	return count, nil
+}
+
+// Capture projects only a demanded logical set; physical ROW hooks have already
+// run in the accepted storage window. Routing layouts map leaf slots to target.
+func capturePartitionInsert(h Host, named, physical ids.ObjectRef, rows [][]sqltype.Value) error {
+	state := h.Command().PartitionInsert
+	if named == physical || !NeedsTransition(state.Target, stored.TriggerInsert) {
+		return nil
+	}
+	binding := analyze.Binding{Ref: named, Relation: state.Target}
+	var scratch []sqltype.Value
+	segment := state.Layouts[physical.Address]
+	if segment != nil {
+		scratch = make([]sqltype.Value, len(state.Target.Columns))
+	}
+	for _, row := range rows {
+		projected := row
+		if segment != nil {
+			projected = scratch
+			for physicalSlot, namedSlot := range segment.Layout {
+				projected[namedSlot] = row[physicalSlot]
+			}
+		}
+		if err := captureTransition(h, binding, stored.TriggerInsert, nil, projected); err != nil {
+			return err
+		}
+	}
+	return nil
 }

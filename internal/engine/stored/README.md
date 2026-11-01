@@ -25,6 +25,12 @@ to copy the configuration without accepted query/CTE roots. The fresh operation
 runs the ordinary source/current provider validation, including exact destination
 generations and reference authority, rather than trusting an earlier accepted
 root. An outermost failure discards partial operation memo state.
+Invocation-local named-relation scans retain only symbolic names, immutable
+column shape and ordinary range aliases through query remap/type retagging.
+They have no catalog identity or invocation rows to remap. Persistent query
+capture rejects them before dependency/presentation publication, including
+subqueries and unused CTE definitions; stored-view validation rejects forged
+captures rather than inventing a serializable source.
 
 Frozen WAL summary, replication-slot lifecycle and recovery-promotion view recipes
 retain written named operands and their formal destinations when rendering both
@@ -304,6 +310,13 @@ never activation values. Checked kinds are BEFORE/AFTER ROW I/U/D,
 BEFORE/AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D.
 Views otherwise admit BEFORE/AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
 WHEN, UPDATE OF or partition provenance; statement definitions cannot be clones.
+Transition aliases are immutable `OldTable`/`NewTable` strings (empty means absent),
+checked for AFTER single-event I/U/D mapping, distinct names and no column list.
+Relation validation excludes views/foreign tables and ROW hierarchy endpoints;
+cloning and retained-clone replay cannot introduce transition declarations.
+Equality, envelope replacement and destination remapping retain aliases without
+retaining relation rows or invocation state. Display and native post-data replay
+share quoted canonical OLD-then-NEW REFERENCING spelling.
 Routine capability is shared with DDL and runtime: genuine zero-input PL DML
 programs or the three checked builtin DML declarations. Provider/provenance checks
 remain mandatory. Builtin string arguments stay literal owned strings, without
@@ -1284,6 +1297,10 @@ Rewrite definition ownership, range-slot identity and cancellation use
 `make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.
 Installed visibility recipe, declaration and retained backing ownership use
 `RUN='^TestPgvisibility'`.
+Trigger definition invariants, alias identity and remap ownership use
+`RUN='^TestTriggerTransition(Definition|Remap)$'`.
+Symbolic query-leaf remap/retag ownership and persistent capture rejection use
+`RUN='^TestNamedRelationStored'`.
 
 
 XML frozen target/operand occurrence authority, selected conversion association

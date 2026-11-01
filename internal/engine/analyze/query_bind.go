@@ -38,7 +38,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		return nil, insertError("42601", "SELECT ... INTO is not allowed here", s.Into.Parts[0].Pos)
 	}
 	if b.Query.lockAdmission == nil || b.Query.lockAdmission.Queries == nil {
-		admission, _, _, err := NewLockAdmission(s)
+		admission, _, _, err := NewLockAdmission(s, b.Host.LookupNamedRelation)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		b.Query.rowDiagnosticMode = RowLockMode(s.Locking[0].Mode)
 	}
 	if disallowParent {
-		selected, _ := RowLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.Query.lockAdmission.VirtualCTE)
+		selected, _ := RowLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}}, b.Query.lockAdmission.VirtualCTE, b.Query.lockAdmission.NamedRelations)
 		index := 0
 		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].Mode != 0 {
@@ -586,7 +586,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		if admission != nil {
 			local, err = admission.Marks, admission.Err
 		} else {
-			local, err = RowLockTargets(s.From, s.Locking, b.Query.lockAdmission.VirtualCTE)
+			local, err = RowLockTargets(s.From, s.Locking, b.Query.lockAdmission.VirtualCTE, b.Query.lockAdmission.NamedRelations)
 		}
 		if err != nil {
 			return nil, err

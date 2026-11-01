@@ -56,7 +56,7 @@ type StatementScope struct {
 	rlsPrograms             []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
 	rlsAdmissionDepth       int                       // Whole target/source admission, including recursive policies.
 	rlsCommand              *preparedCommandExecution // Active original logical command, lexical scratch.
-	catalogKeep             *catalogrt.KeepQuery                // Set only while a SELECT captures its own leaves.
+	catalogKeep             *catalogrt.KeepQuery      // Set only while a SELECT captures its own leaves.
 	rlsImportWaits          uint64                    // Scope-monotonic actual policy-source waits, never row work.
 	rlsDataRefs             []ids.ObjectRef           // Complete prepared physical union before the first snapshot.
 	authority               *exec.Authority
@@ -110,6 +110,7 @@ type StatementScope struct {
 	expressionLive              *plExpressionLive
 	effectCommand, effectSerial uint64 // admission-private command event ownership; never rewound
 	afterTriggers               *afterTriggerState
+	namedRelations              []namedRelation            // Balanced one-function invocation namespace, not command scratch.
 	deferAfterProducers         bool                       // Lexical eager-CTE materialization boundary.
 	deferredAfterCommand        uint64                     // Nested routine queries never borrow that boundary.
 	FoldCaptures                *exec.FoldCaptureCandidate // sealed before executor/source publication
@@ -117,7 +118,7 @@ type StatementScope struct {
 	foreignConstructions        map[ids.ObjectAddress]*ForeignConstruction // Statement-owned, never lexical routine scratch.
 	EventCommand                *EventCommand                              // Borrowed lexical boundary; never publication authority.
 	largeObjectRead             catalog.Read                               // Immutable active-query READ view, saved/restored by SQL body activation.
-	largeObjectOpening catalog.Read // Descriptor-only active frontier, including stable isolation base.
+	largeObjectOpening          catalog.Read                               // Descriptor-only active frontier, including stable isolation base.
 	CatalogAuthority            *session.CatalogAuthority
 	ProjectedRoots              bool // Stage owns complete private roots, not append-only suffixes.
 	ForeignActionAuth           *AuthorizationView

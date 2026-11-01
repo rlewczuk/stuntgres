@@ -13,6 +13,9 @@ import (
 // definition identity rather than searching parent names at firing time.
 func CloneTrigger(read catalog.Read, t Trigger, parent, child *catalog.Relation, oid ids.OID, procedure catalog.ProcedureRemapper) (Trigger, error) {
 	p := t.Parts()
+	if p.OldTable != "" || p.NewTable != "" {
+		return Trigger{}, fmt.Errorf("stuntgres: cannot clone trigger transition relations")
+	}
 	p.OID = oid
 	p.Parent = ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}
 	p.ParentRevision = parent.Revision()

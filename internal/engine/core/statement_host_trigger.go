@@ -18,6 +18,8 @@ import (
 // body expressions retain the ordinary effective DML/RI authority.
 func (h *statementHost) BeforeRow(request dml.BeforeRow) (dml.BeforeResult, error) {
 	s := h.scope()
+	restoreRelations := s.installNamedRelations(nil)
+	defer restoreRelations()
 	e := s.Engine()
 	result := dml.BeforeResult{Row: request.New, Proceed: true}
 	if err := s.Active(); err != nil {

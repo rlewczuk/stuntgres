@@ -63,6 +63,8 @@ type TriggerParts struct {
 	Timing         TriggerTiming
 	Level          TriggerLevel
 	UpdateColumns  []int32
+	OldTable       string // Empty means no OLD transition relation.
+	NewTable       string // Empty means no NEW transition relation.
 	Arguments      []string
 	When           expr.Expr
 	Presentation   *View
@@ -85,6 +87,11 @@ func validateTriggerParts(p TriggerParts) error {
 	}
 	if p.Timing == TriggerInstead && (p.Level != TriggerRow || p.Events&TriggerTruncate != 0 || p.When != nil || p.Presentation != nil || p.Binding != nil || len(p.UpdateColumns) != 0 || p.Parent != (ids.ObjectAddress{}) || p.ParentRevision != 0) {
 		return fmt.Errorf("stuntgres: invalid INSTEAD OF trigger definition")
+	}
+	if p.OldTable != "" || p.NewTable != "" {
+		if p.Timing != TriggerAfter || p.Events != TriggerInsert && p.Events != TriggerUpdate && p.Events != TriggerDelete || len(p.UpdateColumns) != 0 || p.OldTable != "" && p.Events == TriggerInsert || p.NewTable != "" && p.Events == TriggerDelete || p.OldTable == p.NewTable || p.Level == TriggerRow && p.Parent.ObjectID != 0 {
+			return fmt.Errorf("stuntgres: invalid trigger transition relations")
+		}
 	}
 	if p.When != nil && (p.When.ResultUsage().Type == nil || p.When.ResultUsage().Type.ID() != sqltype.Bool) {
 		return fmt.Errorf("stuntgres: nonboolean trigger condition")
@@ -134,7 +141,7 @@ func (t Trigger) WithParentRevision(revision ids.DefinitionRevision) Trigger {
 
 func (t Trigger) SameExecutable(other Trigger) bool {
 	a, b := t.parts, other.parts
-	return a.OID == b.OID && a.Name == b.Name && a.Relation == b.Relation && a.Procedure == b.Procedure && a.Parent == b.Parent && a.Events == b.Events && a.Timing == b.Timing && a.Level == b.Level && a.Binding == b.Binding && a.Presentation == b.Presentation && slices.Equal(a.UpdateColumns, b.UpdateColumns) && slices.Equal(a.Arguments, b.Arguments) && slices.Equal(a.References, b.References) && slices.Equal(a.AutoExtensions, b.AutoExtensions)
+	return a.OID == b.OID && a.Name == b.Name && a.Relation == b.Relation && a.Procedure == b.Procedure && a.Parent == b.Parent && a.Events == b.Events && a.Timing == b.Timing && a.Level == b.Level && a.OldTable == b.OldTable && a.NewTable == b.NewTable && a.Binding == b.Binding && a.Presentation == b.Presentation && slices.Equal(a.UpdateColumns, b.UpdateColumns) && slices.Equal(a.Arguments, b.Arguments) && slices.Equal(a.References, b.References) && slices.Equal(a.AutoExtensions, b.AutoExtensions)
 }
 func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 	if t.parts.Events&event == 0 {
@@ -174,6 +181,11 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 		p := definition.parts
 		if err := validateTriggerParts(p); err != nil {
 			return err
+		}
+		if p.OldTable != "" || p.NewTable != "" {
+			if owner.RelationKind != catalog.TableRelation && owner.RelationKind != catalog.PartitionedRelation || p.Level == TriggerRow && (owner.RelationKind == catalog.PartitionedRelation || owner.Membership != nil || owner.Inheritance != nil && len(owner.Inheritance.Parents) != 0) {
+				return fmt.Errorf("stuntgres: trigger transition relations on invalid relation kind")
+			}
 		}
 		if owner.RelationKind == catalog.ViewRelation {
 			if p.Events&TriggerTruncate != 0 || p.Timing != TriggerInstead && p.Level != TriggerStatement {

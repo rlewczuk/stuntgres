@@ -212,7 +212,7 @@ func pushCTEInput(host Host, view catalog.Read, node plan.Node, predicate expr.E
 		return node, false, nil
 	}
 	switch n := node.(type) {
-	case *plan.SourceNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.JoinNode, *plan.FilterNode, *plan.FunctionFromNode:
+	case *plan.SourceNode, *plan.NamedRelationScanNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.JoinNode, *plan.FilterNode, *plan.FunctionFromNode:
 		return &plan.FilterNode{QuerySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
 	case *plan.WindowNode, *plan.SetProjectNode:
 		// Filter completed stage rows: windows and set expansion must retain

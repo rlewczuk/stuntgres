@@ -21,7 +21,7 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
 - **Plan IR** (`query.go`, `query_nodes.go`, `query_set.go`): `Node` (a closed
   interface: every implementation lives here), `Query` (a bound query and its
   output demands) and `QuerySchema`, which every node embeds for `Schema()`.
-  Nodes: `SourceNode`, `SingletonNode`, `ValuesNode`, `FilterNode`, `SortNode`,
+  Nodes: `SourceNode`, `NamedRelationScanNode`, `SingletonNode`, `ValuesNode`, `FilterNode`, `SortNode`,
   `ProjectNode`, `AggregateNode`, `DerivedNode`, `DistinctNode`,
   `DistinctOnNode`, `JoinNode`, `LimitNode`, `EvaluationNode`,
   `WorktableScanNode`, `RecursiveUnionNode`, `RowLockNode`, `SetNode`,
@@ -29,6 +29,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   Source, derived, function and alias-bound VALUES projection occurrences retain
   immutable range names and column aliases for presentation; these labels never
   change schemas, expression slots, provenance or execution authority.
+  Invocation-local named relations retain only symbolic name, typed schema and
+  normal presentation/presence labels. They never retain rows, frame identity,
+  catalog references or authority; execution resolves their current backing.
 - **Planner method values** (`planner_methods.go`): `PlannerMethods` carries
   only operative method discouragement bits, copied at statement admission.
   Its zero value preserves enabled detached/internal algorithms, without
