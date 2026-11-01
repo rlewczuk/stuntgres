@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
@@ -24,7 +23,7 @@ func transactionalPrivilegesLanguageDeclaration(t *testing.T) {
 				t.Run(fmt.Sprintf("language-declaration/goTx=%v/held=%v/commit=%v", goTx, held, commit), func(t *testing.T) {
 					objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), _ bool) {
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							c.ExecContext(ctx, "ROLLBACK")
 							c.ExecContext(ctx, "RESET ROLE")
@@ -102,7 +101,7 @@ func transactionalPrivilegesConnect(t *testing.T) {
 					quoted := pq.QuoteIdentifier(database)
 					public := objectGrantDatabasePublic(t, p.Ctx, c)
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						c.ExecContext(ctx, "ROLLBACK")
 						objectGrantDatabaseCleanup(t, ctx, b.DB, database, []string{"og_object_reader"}, public)

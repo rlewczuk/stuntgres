@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -231,7 +230,7 @@ func TestReferenceTransactionalPrivilegesConflicts(t *testing.T) {
 							}
 						}
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							a.ExecContext(ctx, "ROLLBACK")
 							c.ExecContext(ctx, "ROLLBACK")
@@ -355,7 +354,7 @@ func transactionalPrivilegesExistingDefaultWriter(t *testing.T) {
 			}
 			defer peer.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				c.ExecContext(ctx, "ROLLBACK")
 				peer.ExecContext(ctx, "ROLLBACK")

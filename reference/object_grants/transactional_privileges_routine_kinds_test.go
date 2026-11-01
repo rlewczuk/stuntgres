@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -58,7 +57,7 @@ func transactionalPrivilegeBlock(t *testing.T, p *fixture.Pair, b fixture.Backen
 				statement.Close()
 			}
 		} else if !ended {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			c.ExecContext(ctx, "ROLLBACK")
 		}
@@ -96,7 +95,7 @@ func TestReferenceTransactionalPrivilegesRoutineKinds(t *testing.T) {
 					run := func(e fixture.Executor, s fixture.Step) { fixture.RunStep(t, p.Ctx, e, b.Recorder, s) }
 					defer objectGrantRoutineCleanup(t, p, c, []string{sum.signature, window.signature})
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						c.ExecContext(ctx, "ROLLBACK")
 						c.ExecContext(ctx, "RESET ROLE")

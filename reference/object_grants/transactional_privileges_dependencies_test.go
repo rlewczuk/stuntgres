@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -31,7 +30,7 @@ func TestReferenceTransactionalPrivilegesNonTableDelegation(t *testing.T) {
 						objectGrantStep(t, p.Ctx, e, b.Recorder, s)
 					}
 					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						c.ExecContext(ctx, "ROLLBACK")
 						c.ExecContext(ctx, "RESET ROLE")
