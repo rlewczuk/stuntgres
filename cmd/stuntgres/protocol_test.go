@@ -436,19 +436,19 @@ func TestServerProtocolCancellation(t *testing.T) {
 			closePhysical()
 			select {
 			case <-done:
-			case <-time.After(2 * time.Second):
+			case <-time.After(testLiveness):
 				t.Error("COPY frame reader did not join")
 			}
 		})
 		// Receiving and releasing Flush establishes actual frame-read progress.
 		select {
 		case messages <- frontendMessage{tag: 'H'}:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not receive Flush")
 		}
 		select {
 		case <-c.freeBuffers:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not release Flush")
 		}
 		cancel(session.UserCancelCause)
@@ -456,7 +456,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		case messages <- frontendMessage{tag: 'd', body: []byte("1\n")}:
 		case out := <-result:
 			t.Fatalf("logical cancel ended physical frame read: %+v", out)
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not await Data")
 		}
 		select {
@@ -464,7 +464,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 			if out.data != "1\n" || out.err != nil {
 				t.Fatalf("fulfilled frame: %+v", out)
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not return fulfilled bytes")
 		}
 	})
@@ -490,18 +490,18 @@ func TestServerProtocolCancellation(t *testing.T) {
 			closePhysical()
 			select {
 			case <-done:
-			case <-time.After(2 * time.Second):
+			case <-time.After(testLiveness):
 				t.Error("terminal COPY reader did not join")
 			}
 		})
 		select {
 		case messages <- frontendMessage{tag: 'H'}:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not receive Flush")
 		}
 		select {
 		case <-c.freeBuffers:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("COPY reader did not release Flush")
 		}
 		terminal <- fatal
@@ -510,7 +510,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 			if err != fatal || context.Cause(ctx) != session.UserCancelCause {
 				t.Fatalf("terminal priority lost: %v / %v", err, context.Cause(ctx))
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("later fatal waited for CopyData")
 		}
 	})
@@ -529,7 +529,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		if err != nil {
 			cancelOperation(nil)
 			sess.RequestEnd(session.InitFailure)
-			joined, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			joined, cancel := context.WithTimeout(context.Background(), testLiveness)
 			cleanupErr := sess.WaitEnd(joined)
 			cancel()
 			t.Fatal(errors.Join(err, cleanupErr))
@@ -542,7 +542,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 			cancelOperation(nil)
 			sess.RequestEnd(session.InvalidConnection)
 			op.Done()
-			joined, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			joined, cancel := context.WithTimeout(context.Background(), testLiveness)
 			defer cancel()
 			if err := sess.WaitEnd(joined); err != nil {
 				t.Error(err)
@@ -559,7 +559,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		// Physical retirement must therefore use independent session authority.
 		select {
 		case <-sess.EndRequested():
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("physical close waited for operation lease")
 		}
 		if context.Cause(op.Context()) != session.UserCancelCause {
@@ -567,7 +567,7 @@ func TestServerProtocolCancellation(t *testing.T) {
 		}
 		select {
 		case <-c.sessionDone:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testLiveness):
 			t.Fatal("physical watcher waited for cleanup")
 		}
 	})

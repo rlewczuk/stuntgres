@@ -15,10 +15,10 @@ import (
 	"time"
 )
 
-// signalWriterLiveness bounds waits that return as soon as the writer or peer
-// acts. It covers the production 1 s FATAL budget plus scheduling delay on a
-// loaded machine; only a hang reaches it.
-const signalWriterLiveness = 10 * time.Second
+// testLiveness bounds waits for an outcome that must eventually happen, such
+// as a writer's production 1 s FATAL budget expiring. Waits return as soon as
+// it occurs; the bound is a hang guard sized for a loaded machine.
+const testLiveness = 30 * time.Second
 
 // Observation wraps an actual synchronous pipe write; it does not replace I/O.
 type signalObservedConn struct {
@@ -81,7 +81,7 @@ func TestSessionSignalTerminalWriter(t *testing.T) {
 			}()
 			select {
 			case <-socket.entered:
-			case <-time.After(signalWriterLiveness):
+			case <-time.After(testLiveness):
 				t.Fatal("writer never entered real socket")
 			}
 			signalWriterTerminate(c)
@@ -91,7 +91,7 @@ func TestSessionSignalTerminalWriter(t *testing.T) {
 				if err == nil {
 					t.Fatal("blocked write succeeded without reader")
 				}
-			case <-time.After(signalWriterLiveness):
+			case <-time.After(testLiveness):
 				t.Fatal("termination did not wake socket write")
 			}
 			select {
@@ -126,7 +126,7 @@ func TestSessionSignalTerminalWriter(t *testing.T) {
 			fatal := <-c.sessionEnded
 			reply <- c.writeContextError(context.Background(), session.ProtocolContext{}, fatal)
 		}()
-		peer.SetReadDeadline(time.Now().Add(signalWriterLiveness))
+		peer.SetReadDeadline(time.Now().Add(testLiveness))
 		var header [5]byte
 		if _, err := io.ReadFull(peer, header[:]); err != nil {
 			t.Fatal(err)
@@ -178,7 +178,7 @@ func TestSessionSignalTerminalWriter(t *testing.T) {
 			if err == nil {
 				t.Fatal("unread pipe accepted FATAL")
 			}
-		case <-time.After(signalWriterLiveness):
+		case <-time.After(testLiveness):
 			t.Fatal("terminal output held physical retirement indefinitely")
 		}
 	})
