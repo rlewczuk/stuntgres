@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -48,7 +47,7 @@ func sslInfoCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Back
 			defer c.Close()
 			if backend.PG {
 				clean := func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "RESET ROLE", "DROP EXTENSION IF EXISTS sslinfo CASCADE", "DROP SCHEMA IF EXISTS ssl_part CASCADE"} {
 						if _, err := c.ExecContext(ctx, q); err != nil {

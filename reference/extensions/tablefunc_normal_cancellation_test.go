@@ -39,7 +39,7 @@ func normalAdmittedCancel(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.
 	done:=make(chan normalCancelResult,1)
 	go normalCancelWorker(ctx,c,st,q,done)
 	joined:=false
-	defer func(){if !joined{cancel();timer:=time.NewTimer(5*time.Second);defer timer.Stop();select{case <-done:case <-timer.C:t.Error("normal worker failed to join")}}}()
+	defer func(){if !joined{cancel();timer:=time.NewTimer(fixture.Liveness);defer timer.Stop();select{case <-done:case <-timer.C:t.Error("normal worker failed to join")}}}()
 	buffer:=make([]byte,1<<20)
 	for {
 		admitted:=false
@@ -55,7 +55,7 @@ func normalAdmittedCancel(t *testing.T,p *fixture.Pair,b fixture.Backend,c *sql.
 		select{case r:=<-done:joined=true;t.Fatal("completed before provider admission",r.err);case <-p.Ctx.Done():t.Fatal(p.Ctx.Err());default:runtime.Gosched()}
 	}
 	if b.PG {var canceled bool;if err:=observer.QueryRowContext(p.Ctx,"SELECT pg_cancel_backend($1)",pid).Scan(&canceled);err!=nil||!canceled{t.Fatal(canceled,err)}} else {cancel()}
-	timer:=time.NewTimer(5*time.Second);defer timer.Stop()
+	timer:=time.NewTimer(fixture.Liveness);defer timer.Stop()
 	select{
 	case r:=<-done:
 		joined=true

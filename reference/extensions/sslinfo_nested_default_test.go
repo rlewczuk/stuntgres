@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -17,7 +16,7 @@ func TestReferenceSSLInfoNestedDefault(t *testing.T) {
 		// pgcrypto is an existing installed consumer, not another sslinfo member.
 		if b.PG {
 			clean := func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := c.ExecContext(ctx, "DROP EXTENSION IF EXISTS pgcrypto CASCADE"); err != nil { t.Error(err) }
 			}

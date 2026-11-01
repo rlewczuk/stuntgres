@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -32,7 +31,7 @@ func pvCase(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, 
 			defer c.Close()
 			if b.PG {
 				clean := func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION", "DROP EXTENSION IF EXISTS pg_visibility CASCADE", "DROP SCHEMA IF EXISTS pv_part CASCADE", "DROP SCHEMA IF EXISTS pv_moved CASCADE"} {
 						if _, err := c.ExecContext(ctx, q); err != nil { t.Error(q, err) }
@@ -175,7 +174,7 @@ func pvOID(t *testing.T, p *fixture.Pair, c *sql.Conn, name string) int64 {
 }
 
 func pvRollback(c *sql.Conn) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	c.ExecContext(ctx, "ROLLBACK")
 }
@@ -183,7 +182,7 @@ func pvRollback(c *sql.Conn) {
 func pvPreparedCleanup(t *testing.T, c *sql.Conn, gid string, active *bool) {
 	t.Helper()
 	if !*active { return }
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	if _, err := c.ExecContext(ctx, fmt.Sprintf("ROLLBACK PREPARED '%s'", gid)); err != nil { t.Error(err) }
 }
