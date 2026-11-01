@@ -86,7 +86,14 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.Catalog.State.Get(ref.Address) != candidate || scope.Owner.Catalog != nil || snapshot.Get(ref.Address) != old || old.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
+					if drop {
+						if e.Catalog.State.Get(ref.Address) != candidate {
+							t.Fatal("metadata-only DROP replaced its candidate")
+						}
+					} else {
+						enginetest.RelationLocatorReplacement(t, e.CatalogRead(), candidate)
+					}
+					if scope.Owner.Catalog != nil || snapshot.Get(ref.Address) != old || old.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.Versions {

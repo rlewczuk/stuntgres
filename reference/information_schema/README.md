@@ -84,6 +84,8 @@ columns (`oid`, `pnpubid`, `pnnspid`), with PUBLIC visibility from table SELECT.
 The maintenance provider inventory includes `pg_stat_progress_cluster` as a view
 with all twelve release-ordered columns, checked through direct and prepared
 information-schema consumers alongside the other progress sources.
+These include the cluster index OID and five bigint counters. Presence belongs
+to the complete native provider bag, not a filter or a fabricated runtime worker.
 The administrator provider inventory classifies `pg_config` as a view with its
 two ordered TEXT columns, `name` and `setting`, without weakening the complete
 native provider-name bag.

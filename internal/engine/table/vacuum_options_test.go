@@ -56,3 +56,22 @@ func TestVacuumOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestVacuumFullOptions(t *testing.T) {
+	for _, q := range []string{"VACUUM FULL", "VACUUM FULL FREEZE", "VACUUM (FULL,ANALYZE,BUFFER_USAGE_LIMIT 0) t(id)", "VACUUM (FULL,PARALLEL 0,INDEX_CLEANUP OFF,TRUNCATE false,DISABLE_PAGE_SKIPPING false)"} {
+		o, err := NormalizeVacuum(admissionStatement(t, q).(*parser.Vacuum))
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		if !o.Full {
+			t.Fatal("effective FULL lost", q)
+		}
+		if err := CheckVacuumEntry(o, false); err != nil {
+			t.Fatal(q, err)
+		}
+		var d *sqlstate.Error
+		if err := CheckVacuumEntry(o, true); !errors.As(err, &d) || d.Code != "25001" || d.Message != "VACUUM cannot run inside a transaction block" {
+			t.Fatal("transaction precedence", q, err)
+		}
+	}
+}

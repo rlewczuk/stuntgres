@@ -259,8 +259,10 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	enginetest.SessionSQL(t, peer, "TRUNCATE ce_cleanup_storage")
 	enginetest.SessionSQL(t, peer, "INSERT INTO ce_cleanup_storage VALUES('あ')")
 	current := e.Storage.Relations[address]
-	if current == oldStore || e.CatalogRead().State() != base.State() || len(current.Versions) != 1 || len(oldStore.Versions) != 1 {
-		t.Fatal("peer did not replace the actual heap without catalog replacement")
+	currentView := e.CatalogRead()
+	currentDescriptor := enginetest.RelationLocatorReplacement(t, currentView, base.MustRelation(address))
+	if current == oldStore || currentView.State() == base.State() || currentView.Epoch() != base.Epoch() || len(current.Versions) != 1 || len(oldStore.Versions) != 1 {
+		t.Fatal("peer did not replace the actual heap and only locator metadata")
 	}
 	newText, newErr := current.Versions[0].Values[0].Text()
 	oldText, oldErr := oldStore.Versions[0].Values[0].Text()
@@ -277,8 +279,8 @@ func TestClientEncodingTemporaryPublication(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("maintenance publication did not finish", ctx.Err())
 	}
-	if e.Storage.Relations[address] != current {
-		t.Fatal("maintenance reinstalled the retired encoded-text heap")
+	if e.Storage.Relations[address] != current || e.CatalogRead().Get(address) != currentDescriptor {
+		t.Fatal("maintenance reinstalled a retired heap or locator descriptor")
 	}
 	result := enginetest.SessionSQL(t, peer, "SELECT v FROM ce_cleanup_storage")
 	if got := enginetest.Tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{"あ"}}) {

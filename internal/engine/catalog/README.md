@@ -45,6 +45,12 @@ neither owns catalog authority.
   including none after its index is dropped. Same-parent logical replacement
   preserves selection; LIKE and newly constructed partition indexes start
   unselected. Adopting an existing child index preserves that child's own bit.
+  `Relation.StorageLocator` is an optional logical incarnation, projected by
+  `EffectiveStorageLocator`: native heaps/materialized heaps/nonpartitioned
+  indexes initially use object identity; providers and storage-less roots use
+  zero. Actual rewrites replace this field on cloned descriptors; metadata-only
+  edits retain it, and foreign import remints destination identity. It grants no
+  physical file/path mapping capability.
   `Procedure.Display` holds immutable creation-owned language/source, optional
   dynamic-library provenance, support, leakproof and transform-list facts.
   Invalid zero language differs from legitimate empty source; explicit binary

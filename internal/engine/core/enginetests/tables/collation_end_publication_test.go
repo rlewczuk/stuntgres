@@ -191,10 +191,12 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 	current := e.Storage.Relations[address]
 	committed := e.Visibility.CommitSeq()
 	rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
-	unchangedCatalog := e.Catalog.State == gate.catalog.State() && e.Catalog.Current().Epoch() == gate.catalog.Epoch() && e.Catalog.State.Get(address) == peerDescriptor && e.Catalog.State.MustRelation(address).Revision() == peerDescriptor.Revision()
+	currentCatalog := e.Catalog.Current()
+	compatibleCatalog := currentCatalog.State() != gate.catalog.State() && currentCatalog.Epoch() == gate.catalog.Epoch() && gate.catalog.Get(address) == peerDescriptor
 	e.Mu.Unlock()
-	if !unchangedCatalog || current == oldPeer || len(current.Versions) != 1 {
-		t.Fatal("peer did not replace only its physical heap")
+	currentDescriptor := enginetest.RelationLocatorReplacement(t, currentCatalog, peerDescriptor)
+	if !compatibleCatalog || current == oldPeer || len(current.Versions) != 1 {
+		t.Fatal("peer did not replace its heap and only locator metadata")
 	}
 	row := current.Versions[0]
 	text, err := row.Values[0].Text()
@@ -226,7 +228,7 @@ func TestClientEncodingTemporaryEndMaintenancePublication(t *testing.T) {
 	if !retainedPeer {
 		t.Fatal("maintenance reinstalled the retired peer heap instead of committed фоо")
 	}
-	if !frontiers || !peerKept || !capturedUnchanged || !removed || owner.TemporaryNamespace != (ids.ObjectAddress{}) || final.Get(address) != peerDescriptor {
+	if !frontiers || !peerKept || !capturedUnchanged || !removed || owner.TemporaryNamespace != (ids.ObjectAddress{}) || final.Get(address) != currentDescriptor {
 		t.Fatal("maintenance lost frontiers, borrowed map, peer identity or owned removals")
 	}
 	if shape == oldShape || len(shape.Versions) != 1 || len(shape.Versions[0].Values) != 2 || len(shapeDescriptor.Columns) != 2 || shapeDescriptor.Columns[1].Name != "z" || len(shapeDescriptor.ColumnMeta.Generations) != 0 || root == nil || root == oldIndex || len(root.Entries) != 1 || len(root.Entries[0].Keys) != 1 || !final.MustRelation(idx.Address()).SQLIndex.Valid {

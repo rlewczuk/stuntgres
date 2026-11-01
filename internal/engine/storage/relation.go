@@ -21,7 +21,13 @@ type Relation struct {
 	// Successful concurrent MV publication stamps both incarnations atomically.
 	// It does not share TRUNCATE's current-root/birth-filter semantics.
 	MaterializedLineage *MaterializedLineage
-	Maintenance         Maintenance
+	// Read-routing provenance, immutable once published. Preserving FULL/MV
+	// replacements carry the family; genuine TRUNCATE advances only the new
+	// store's boundary to its actual commit frontier. Destructive replacements
+	// and imports start a new family. Neither field retains predecessor memory.
+	RetainedOrigin   ids.OID
+	TruncateBoundary ids.CommitSeq
+	Maintenance      Maintenance
 }
 
 // IndexIdentity is the storage an index root was built from: the origin for a

@@ -73,6 +73,7 @@ type Engine struct {
 	IdentFile                       *identfile.Source          // Immutable destination startup filesystem authority.
 	DatabaseFrozenXID               uint64
 	VacuumProgress                  map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	ClusterProgress                 map[ids.TxRef]ClusterProgress // Engine.mu; actual FULL work only.
 	Statistics                      statistics.Provider
 	catalogCaptures                 catalogrt.CaptureCache // Engine.mu; latest shared pg_type/pg_proc rows.
 	Statements                      Statements             // Family dispatch; set by the composition, shared by every target.

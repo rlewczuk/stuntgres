@@ -34,15 +34,22 @@ type DataViewInput struct {
 	OwnWrites  map[ids.ObjectAddress][]storage.RowVersion
 	OwnDeletes map[ids.ObjectAddress]*visibility.PrivateDeletes
 
-	// SameLineage is view.SameMaterializedLineage and SameRowShape is
-	// index.SameRelationRowShape; session imports neither package.
-	SameLineage  func(old, current *catalog.Relation, a, b *storage.Relation) bool
-	SameRowShape func(a, b *catalog.Relation) bool
+	// SameLineage validates an already-captured view with strict defining
+	// authority. SameStableReadLineage selects actual retained roots for a new
+	// currently resolved/authorized query, allowing name/owner/equal backing
+	// changes but retaining view-definition, row-type and table-method identity.
+	// CrossedTruncate selects current roots with the original-frontier birth
+	// filter. Neither read-routing policy grants publication authority.
+	// Static callbacks avoid importing view/index here.
+	SameLineage           func(old, current *catalog.Relation, a, b *storage.Relation) bool
+	SameStableReadLineage  func(old, current *catalog.Relation, a, b *storage.Relation) bool
+	CrossedTruncate       func(old, current *catalog.Relation, a, b *storage.Relation) bool
+	SameRowShape          func(a, b *catalog.Relation) bool
 }
 
 // ValidateView checks that existing, the statement's already captured view,
 // still covers refs: each relation was captured and its storage incarnation
-// is current or continues the same materialized lineage.
+// is current or continues strictly compatible captured-view lineage.
 func (in *DataViewInput) ValidateView(existing *visibility.View, refs []ids.ObjectRef) error {
 	data := existing.Load()
 	if data == nil {
@@ -204,12 +211,12 @@ func (in *DataViewInput) stableRoot(address ids.ObjectAddress, c *rootCapture) e
 	}
 	if root.Storage == live {
 		c.versions, c.ends = root.Versions, root.Ends
-	} else if in.SameLineage(root.Relation, current, root.Storage, live) {
-		// Concurrent MV publication retains the actual RR root and
-		// its end markers, not the new incarnation with a birth filter.
+	} else if in.SameStableReadLineage(root.Relation, current, root.Storage, live) {
+		// A new query uses current name/ACL with the actual retained RR roots.
+		// This routing does not validate an already-bound view or query leaf.
 		c.versions, c.ends = root.Versions, root.Ends
 	} else {
-		if !root.Storage.SameTruncateLineage(live) {
+		if !in.CrossedTruncate(root.Relation, current, root.Storage, live) {
 			return ids.ErrCatalogReplaced
 		}
 		c.needsBirthFilter = true

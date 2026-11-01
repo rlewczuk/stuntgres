@@ -21,7 +21,10 @@ func remapReplacementRelation(current catalog.Read, mapping map[ids.ObjectAddres
 	}
 	n := *r
 	n.ObjectAddress = target
-	if destination, ok := mapping[ids.ObjectAddress{ClassID:ids.AccessMethodClassID,ObjectID:r.TableMethod}]; ok {
+	// Imported heap/index incarnations belong to the destination identity
+	// universe, even when an import happens to retain the same object OID.
+	n.StorageLocator = 0
+	if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: r.TableMethod}]; ok {
 		n.TableMethod = destination.ObjectID
 	}
 	if r.Foreign != nil {

@@ -272,6 +272,53 @@ The existing generic core/util pause tests retain deadline, release and nested
 transport authority. See
 [cooperative pauses](../../../docs/DRIVER.md#cooperative-execution-pauses).
 
+Effective FULL acquires AccessExclusive after transient root selection, with the
+same current maintenance ACL, kind and TEMP gates. `vacuum_full.go` forces a new
+heap and owner-restricted genuine index builds, then atomically publishes heap,
+index roots, logical `pg_class.relfilenode` locators and rewrite facts. Work and
+callbacks are detached; the final current-authority/cancellation gate precedes
+the first install. Immutable predecessor roots remain owned by retained readers.
+Captured genuine UPDATE predecessors use existing `InspectRetainedVacuum`, not a
+new history authority. Protected roots transfer unchanged; quiescent work retires
+the captured history with checked dead/removed counts. Final capture fences both
+that root and the conservative retirement decision. Native Storage, Retention
+and Publication witnesses cover exact counts/current-copy sizing, saved private
+savepoint/prepared roots, immutable node/link/header/end/full-XID/payload ownership
+and cancellation/recapture/Reset/Restore with nonempty committed history.
+Each completed target stays committed if a later target fails. FULL ANALYZE
+releases that rewrite's contribution before the same captured occurrence's
+analysis, so an invalid analysis column does not retract its preceding rewrite.
+Explicit column lists refresh selected facts, row estimates and analyze count/time
+but preserve `n_mod_since_analyze`; only a successful no-list ANALYZE resets it.
+Both forms preserve FULL's ordinary-vacuum history and inserts-since-vacuum.
+FULL progress belongs only to the actual `pg_stat_progress_cluster` worker;
+ordinary VACUUM counters and progress remain separate. Disk shrinking and file
+paths are external, not effects of the native logical rewrite.
+
+FULL preserves the predecessor's grounded `RetainedOrigin`/`TruncateBoundary`
+pair and genuine materialized-refresh/TRUNCATE tokens, without modifying that
+published predecessor. Genuine concurrent materialized refresh propagates the
+same family in both direct and journal publication. A pure committed TRUNCATE
+preserves that family but advances its boundary to the actual publication commit
+sequence, including prepared completion, never to a staged command count.
+New stable queries resolve the current name and current SELECT authority, then
+retain exact old roots for grounded family/equal boundary, actual row shape and
+unchanged View definition/RowType/TableMethod identity. Valid name/owner changes
+and equal-valued layout backing may pass, not structural identity/value changes.
+Current SQL name/schema/ACL admission remains separate. Captured-view, admitted
+query-source and publication defining authority remain strict; new-read
+continuity retains no old permission. Crossing a newer TRUNCATE instead selects
+current roots with the original-frontier birth filter, not pre-TRUNCATE rows.
+Nonconcurrent refresh, real row-shape rewrites and restore/import establish new
+families. No family relation grants publication permission or retires old roots.
+`TestVacuumFullMixedRetention` covers repeated mixed chains, both concurrent
+publication paths, exact retained roots/index maps/frontiers, own writes,
+actual commit and prepared-completion boundaries, and destructive controls.
+`TestVacuumFullMetadataRetention` separately covers both rename/FULL and owner/
+FULL orders, exact old roots/payloads/pair/locators, strict captured-source
+rejection, current ACL denial and actual shape/domain/epoch boundaries.
+
+
 
 ## ANALYZE
 

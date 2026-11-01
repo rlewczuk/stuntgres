@@ -45,7 +45,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("value carrier", i, value)
 		}
 	}
-	for i, want := range map[int]uint32{0: 200001, 2: uint32(ids.PublicNamespaceOID), 3: 200002, 4: 200003, 5: 10, 6: 2, 7: 0, 8: 0, 13: 0, 28: 0} {
+	for i, want := range map[int]uint32{0: 200001, 2: uint32(ids.PublicNamespaceOID), 3: 200002, 4: 200003, 5: 10, 6: 2, 7: 200001, 8: 0, 13: 0, 28: 0} {
 		got, err := row[i].OID()
 		if err != nil || got != want {
 			t.Fatal("OID", i, got, want, err)

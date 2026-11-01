@@ -63,16 +63,20 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	generation, ends := store.Generation, store.Ends
 	enginetest.Run(t, e, "REINDEX INDEX ni")
 	_, newN := btreeRoot(t, e, "ni")
-	if newN == oldN || !reflect.DeepEqual(newN.Entries, oldN.Entries) || e.Catalog.State.Get(ni.Address()) != ni || e.Storage.IndexRoots[si.Address()] != oldS || e.Storage.IndexRoots[ei.Address()] != oldE || e.Storage.IndexRoots[unique.Address()] != oldU {
+	currentN := enginetest.ReindexRelationReplacement(t, e.CatalogRead(), ni)
+	if newN == oldN || !reflect.DeepEqual(newN.Entries, oldN.Entries) || e.Storage.IndexRoots[si.Address()] != oldS || e.Storage.IndexRoots[ei.Address()] != oldE || e.Storage.IndexRoots[unique.Address()] != oldU {
 		t.Fatal("selected rebuild is not fresh, identity-preserving and sibling-isolated")
 	}
 	btreeWantKeys(t, e, "ni", "1", "2", "2", "3", "NULL")
 	enginetest.Run(t, e, "ALTER INDEX ni RENAME TO new_ni")
 	renamed, root := btreeRoot(t, e, "new_ni")
-	if root != newN || renamed.Address() != ni.Address() || renamed.SQLIndex != ni.SQLIndex || e.Catalog.State.Get(ni.SQLIndex.Parent) != parent {
+	if root != newN || renamed.Address() != ni.Address() || renamed.SQLIndex != currentN.SQLIndex || e.Catalog.State.Get(ni.SQLIndex.Parent) != parent {
 		t.Fatal("simple rename rebuilt roots or changed parent/key identity")
 	}
 	enginetest.Run(t, e, "REINDEX TABLE t")
+	for _, previous := range []*catalog.Relation{renamed, si, ei} {
+		enginetest.ReindexRelationReplacement(t, e.CatalogRead(), previous)
+	}
 	if e.Storage.IndexRoots[renamed.Address()] == newN || e.Storage.IndexRoots[si.Address()] == oldS || e.Storage.IndexRoots[ei.Address()] == oldE || e.Storage.IndexRoots[unique.Address()] != oldU {
 		t.Fatal("table rebuild is partial or touched another table")
 	}

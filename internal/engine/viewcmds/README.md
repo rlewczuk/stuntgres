@@ -60,6 +60,28 @@ Materialized snapshot row execution activates its supplied current invocation
 after description/capture unlocks; import capture itself remains dormant.
 Concurrent refresh key reconciliation uses only the eligible direct-column keys,
 not arbitrary predicate/expression recipes, and preserves ordinary cancellation.
+Genuine concurrent refresh preserves the compatible read-history family, while
+ordinary refresh constructs a fresh storage header without `RetainedOrigin`,
+`TruncateBoundary` or materialized/TRUNCATE lineage tokens. Native controls that
+model an ordinary incarnation by copying row/root contents must clear all four
+provenance fields: clearing only the concurrent-refresh token accidentally models
+a compatible-family successor rather than a destructive replacement.
+`TestMaterializedRefreshConcurrentSnapshots/reject_ordinary_incarnation` retains
+the exact catalog-replaced rejection and checks both unanchored replacement and
+still-anchored predecessor.
+
+SnapshotPhase establishes retained transaction roots, not an already-captured
+statement view. `TestMaterializedRefreshConcurrentSnapshots` distinguishes first
+demand from an actual AcquireDataView before replacement. New SQL reads allow
+valid current rename/owner/equal-valued layout changes only with identical View,
+RowType and TableMethod plus actual row shape/family/equal boundary; ordinary
+SQL name/schema/ACL admission remains independent. Synthetic zero-owner/invalid-
+namespace controls are strict captured-view/source negatives, not promises of
+SQL validity. Captured negatives retain their exact original view/root/frontier
+without releasing it or recapturing QuerySources. First-demand structural and
+column/attribute-value changes still reject; unchanged captured authority and
+equal-valued backing have their own positive controls. The existing
+ReaderAdmission alias/source/publication contract remains strict and separate.
 
 `ViewHost{tablecmds.TableHost}` (`view_host.go`, `policy_expression.go`)
 implements `view.Host` and `view.StageHost`; only these executors build it.

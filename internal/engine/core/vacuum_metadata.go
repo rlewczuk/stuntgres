@@ -51,7 +51,9 @@ func (r *catalogRuntime) Maintenance(address ids.ObjectAddress) (pgcatalog.Maint
 		}
 	}
 	imported := session.ResolveRelationStatistics(r.auth.PendingCatalog(), address, metadata)
-	if imported != nil { fact.Imported = *imported }
+	if imported != nil {
+		fact.Imported = *imported
+	}
 	return fact, store != nil || metadata != nil || imported != nil
 }
 func (r *catalogRuntime) DatabaseFrozenXID() uint64 { return r.engine.DatabaseFrozenXID }
@@ -71,4 +73,27 @@ func (r *catalogRuntime) VisitVacuumProgress(ctx context.Context, visit func(pgc
 		}
 	}
 	return nil
+}
+
+type ClusterProgress struct {
+	Fact  pgcatalog.ClusterProgressFact
+	Owner authorization.PrincipalRef
+}
+
+func (r *catalogRuntime) VisitClusterProgress(ctx context.Context, visit func(pgcatalog.ClusterProgressFact) error) error {
+	if len(r.engine.ClusterProgress) == 0 {
+		return nil
+	}
+	viewer, err := pgcatalog.NewProgressViewer(ctx, r.auth.Roles, r.auth.State.CurrentUser)
+	if err != nil {
+		return err
+	}
+	for _, p := range r.engine.ClusterProgress {
+		fact := p.Fact
+		fact.Visible = viewer.Visible(p.Owner)
+		if err := visit(fact); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
 }

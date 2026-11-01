@@ -155,7 +155,7 @@ func pgClassRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, name
 func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_heap(id integer,note text)", "CREATE INDEX pc18_phys_idx ON pc18_phys_heap(id)", "CREATE SEQUENCE pc18_phys_seq", "CREATE VIEW pc18_phys_view AS SELECT id FROM pc18_phys_heap", "CREATE MATERIALIZED VIEW pc18_phys_mv AS SELECT id FROM pc18_phys_heap WITH NO DATA", "CREATE TYPE pc18_phys_pair AS(id integer)", "CREATE TABLE pc18_phys_root(id integer PRIMARY KEY) PARTITION BY RANGE(id)")
-		q := "SELECT relfilenode,relpages,reltuples,relallvisible,relallfrozen,reltoastrelid,relrewrite,CASE WHEN relkind IN ('r','m') THEN relfrozenxid::text::bigint>=3 ELSE relfrozenxid='0'::xid END AS valid_freeze,relminmxid FROM pg_class WHERE relname=$1"
+		q := "SELECT relfilenode<>0::oid AS has_storage,relpages,reltuples,relallvisible,relallfrozen,reltoastrelid,relrewrite,CASE WHEN relkind IN ('r','m') THEN relfrozenxid::text::bigint>=3 ELSE relfrozenxid='0'::xid END AS valid_freeze,relminmxid FROM pg_class WHERE relname=$1"
 		held := fixture.ViewHold(t, p, b, q)
 		check := func() {
 			for _, name := range []string{"pc18_phys_heap", "pc18_phys_idx", "pc18_phys_seq", "pc18_phys_view", "pc18_phys_mv", "pc18_phys_pair", "pc18_phys_root", "pc18_phys_root_pkey"} {
@@ -175,7 +175,8 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 					if b.PG && name == "pc18_phys_root_pkey" {
 						tuples = 0
 					}
-					s := fixture.Select(q, []string{"relfilenode", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relrewrite", "valid_freeze", "relminmxid"}, []string{"OID", "INT4", "FLOAT4", "INT4", "INT4", "OID", "OID", "BOOL", "XID"}, [][]any{{int64(0), pages, tuples, int64(0), int64(0), int64(0), int64(0), true, "0"}}, name)
+					hasStorage := name == "pc18_phys_heap" || name == "pc18_phys_idx" || name == "pc18_phys_mv"
+					s := fixture.Select(q, []string{"has_storage", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relrewrite", "valid_freeze", "relminmxid"}, []string{"BOOL", "INT4", "FLOAT4", "INT4", "INT4", "OID", "OID", "BOOL", "XID"}, [][]any{{hasStorage, pages, tuples, int64(0), int64(0), int64(0), int64(0), true, "0"}}, name)
 					// A real sequence has a physical file. Compare its other fields,
 					// while independently asserting the file is actually present.
 					if b.PG && name == "pc18_phys_seq" {
@@ -197,7 +198,7 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 		if !b.PG {
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT reltoastrelid,relpages,reltuples FROM pg_class WHERE relname='pc18_phys_heap'", []string{"reltoastrelid", "relpages", "reltuples"}, []string{"OID", "INT4", "FLOAT4"}, [][]any{{int64(0), int64(0), float64(-1)}}))
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relkind='t' OR relkind='f'", []string{"relname"}, []string{"NAME"}, nil))
-			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relfilenode,relpages,reltuples,relispopulated FROM pg_class WHERE relname='pc18_phys_mv'", []string{"relfilenode", "relpages", "reltuples", "relispopulated"}, []string{"OID", "INT4", "FLOAT4", "BOOL"}, [][]any{{int64(0), int64(0), float64(-1), true}}))
+			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relfilenode<>0::oid AS has_storage,relpages,reltuples,relispopulated FROM pg_class WHERE relname='pc18_phys_mv'", []string{"has_storage", "relpages", "reltuples", "relispopulated"}, []string{"BOOL", "INT4", "FLOAT4", "BOOL"}, [][]any{{true, int64(0), float64(-1), true}}))
 		}
 		if b.PG {
 			fixture.PGClassExec(t, p, b, b.DB, "ANALYZE pc18_phys_heap")

@@ -324,6 +324,36 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   derived from frozen headers, not from positive flags: coverage rounds the
   highest intersected frozen block to a 32672-block VM page. Unknown catalog
   provenance uses actual producer allocation with conservative false bits.
+  FULL instead uses `RewriteVacuum` and `NewRewriteRelation`: always fresh
+  incarnation/header/end containers, dense surviving placement, stable row,
+  version and insertion identities, and shared immutable datum backing.
+  New stores carry bounded read-routing provenance: `RetainedOrigin` is the
+  predecessor's grounded family (initially its actual logical locator), and
+  `TruncateBoundary` is the latest real committed TRUNCATE frontier in that family.
+  FULL and genuine concurrent MV refresh preserve the pair; successful pure
+  TRUNCATE sets only its new store's boundary at actual commit. FULL also carries
+  the predecessor's existing command-specific lineage tokens without stamping it.
+  For a newly SQL-admitted stable query, equal grounded family/boundary, actual
+  row shape and unchanged View/RowType/TableMethod identity permit retained
+  roots despite valid name/owner changes or equal-valued layout backing.
+  Current SQL schema/ACL and catalog-validity checks stay outside read routing.
+  Already-captured views and query sources retain their strict defining gate.
+  A newer boundary requires
+  the distinct current-root/birth-filter policy. Nonconcurrent refresh, destructive
+  shape rewrites and imports clear continuity. No heap-incarnation predecessor
+  chains/maps/counters are introduced; these fields never authorize publication
+  or vacuum retirement.
+  Separately, FULL captures the existing `Relation.Retained` root of genuine
+  superseded UPDATE headers and invokes `InspectRetainedVacuum` with that same
+  conservative snapshot gate. Protected roots transfer unchanged; safe retirement
+  drops only the captured obsolete history. Checked dead/removed totals include
+  it after current-head sizing and dense position mapping, never as copy slots.
+  Final preflight fences the original root and retirement decision. Saved
+  committed/private nodes, links, end/full-XID facts and payloads stay immutable.
+  `Maintenance.RecordRewrite` retains cumulative live/dead estimates, DML,
+  inserts-since-vacuum and ordinary vacuum count/time while recording class
+  tuple/frozen facts, separately from cumulative statistics.
+  Index recipes are rebuilt by the index owner, never `RemapVacuumIndex`.
 - **Imported relation estimates.** `RelationMetadata.Imported` owns immutable
   INT4/FLOAT4/INT4/INT4 values with independent presence bits. Partial imports
   merge without changing heaps, scan cardinality, live/dead counts or allocator

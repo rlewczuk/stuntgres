@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 )
 
 // VacuumTarget is one selected relation. It retains identity and the name it
@@ -16,8 +17,9 @@ import (
 // database-wide candidates have no name and silently skip an unavailable or
 // disappeared work target.
 type VacuumTarget struct {
-	Ref  ids.ObjectRef
-	Name string
+	Ref     ids.ObjectRef
+	Name    string
+	Columns []parser.Identifier
 }
 
 // VacuumWarning is one WARNING of a VACUUM statement. Callers emit warnings
@@ -90,7 +92,7 @@ func (s *VacuumSelection) AddRoot(ctx context.Context, view access.View, env acc
 			continue
 		}
 		seen[child.Address()] = true
-		s.Targets = append(s.Targets, VacuumTarget{view.Ref(child.Address()), ""})
+		s.Targets = append(s.Targets, VacuumTarget{Ref: view.Ref(child.Address())})
 		queue = append(queue, vacuumChildren(view.Catalog, child.Address())...)
 	}
 	return nil
@@ -107,7 +109,7 @@ func (s *VacuumSelection) addRoot(ctx context.Context, view access.View, env acc
 		return err
 	}
 	if allowed {
-		s.Targets = append(s.Targets, VacuumTarget{view.Ref(d.Address()), name})
+		s.Targets = append(s.Targets, VacuumTarget{Ref: view.Ref(d.Address()), Name: name})
 	} else {
 		s.Warnings = append(s.Warnings, VacuumPermissionWarning(d.Name()))
 	}

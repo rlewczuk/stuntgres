@@ -32,6 +32,10 @@ it. It never builds a binder.
 - **Key recipes** (`routine.go`): `EvaluateRecipe` evaluates a key expression
   through `RecipeHost` (the root `statementHost`); `Scope` is the statement's
   partition slot in the root `StatementScope`.
+  ATTACH validation can borrow only this live host, with no explicit evaluation
+  catalog. Shared index-recipe preparation resolves the host's canonical routine
+  admission catalog locally before callable lookup; it does not substitute a
+  published catalog for an explicit capture or mutate the enclosing evaluation.
 - **DDL helpers** (`create.go`, `attach.go`, `detach.go`, `exclusion.go`,
   `constraint_drop.go`) and **admission** (`locks.go`): `ConsumerBoundary`
   rejects statements hierarchies do not accept; `Ancestors` returns ancestors

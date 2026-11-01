@@ -873,12 +873,15 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if err == nil && s.RoleCandidateRecord != nil {
 			roleRevision, err = e.RoleStore.RevisionCandidateLocked()
 		}
+		if err == nil {
+			storage.PreserveUnchangedRelations(relations, currentStorage, e.Storage.Relations)
+			next, err = e.prepareReplacementLocatorsLocked(next, relations)
+		}
 		var sharedRoots catalog.SharedProjection
 		if err == nil {
 			sharedRoots = e.Catalog.ProjectSharedLocked(next, e.Cluster.Catalogs)
 		}
 		if err == nil {
-			storage.PreserveUnchangedRelations(relations, currentStorage, e.Storage.Relations)
 			relationMetadata := e.prepareRelationMetadataLocked(next, nil)
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
@@ -900,6 +903,11 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 					replacement.Storage.Maintenance.Dead = 0
 					replacement.Storage.StampPublishedBirth(frontier, fullXID)
 					if replacement.Concurrent {
+						replacement.Storage.RetainedOrigin = replacement.Predecessor.RetainedOrigin
+						if replacement.Storage.RetainedOrigin == 0 {
+							replacement.Storage.RetainedOrigin = replacement.Original.EffectiveStorageLocator(e.Catalog.Current())
+						}
+						replacement.Storage.TruncateBoundary = replacement.Predecessor.TruncateBoundary
 						lineage := replacement.Predecessor.MaterializedLineage
 						if lineage == nil {
 							lineage = &storage.MaterializedLineage{}
@@ -1357,6 +1365,7 @@ func (e *Engine) installReplacementLocked(next *catalog.State, relations map[ids
 	e.Storage.RelationMetadata = metadata
 	e.DatabaseFrozenXID = 0
 	e.VacuumProgress = nil
+	e.ClusterProgress = nil
 	for address, store := range relations {
 		if relation, ok := next.Relation(address); ok && relation.RelationKind.Stored() {
 			e.Visibility.InitializeMaintenanceLocked(store)

@@ -16,6 +16,15 @@ import (
 // maps, so principal remapping does not need another catalog clone.
 func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapshot authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) (*catalog.State, catalog.ProcedureRemapper, error) {
 	e.Catalog.RetainDatabasesLocked(state)
+	// Foreign storage is reminted into the destination ownership universe.
+	// Preserve object OIDs, not a source heap/index incarnation locator.
+	for address, relation := range state.Relations() {
+		if relation.StorageLocator != 0 {
+			next := *relation
+			next.StorageLocator = 0
+			state.SetDescriptor(address, &next)
+		}
+	}
 	// Resolve configured destination capabilities before the principal graph
 	// memoizes private declarations. A later provider COW copy would otherwise
 	// look like a foreign-source declaration to that same strict source policy.

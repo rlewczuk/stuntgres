@@ -125,7 +125,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	}
 	in := session.DataViewInput{
 		Published: e.Catalog.State, Owner: &e.Catalog.Owner, Store: &e.Storage, Journal: s.PendingCatalog(),
-		SameLineage: view.SameMaterializedLineage, SameRowShape: index.SameRelationRowShape,
+		SameLineage: view.SameRetainedLineage, SameStableReadLineage: view.SameStableReadLineage, CrossedTruncate: view.CrossedTruncate, SameRowShape: index.SameRelationRowShape,
 	}
 	// Runtime-named nested SQL captures its admitted source/RLS closure from
 	// the outer frontier without borrowing the outer source's membership set.

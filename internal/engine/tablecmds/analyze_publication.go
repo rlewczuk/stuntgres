@@ -397,12 +397,16 @@ func analyzeRelation(e *core.Engine, s *core.StatementScope, target analyzeTarge
 	if maintenance != nil {
 		maintenance.Maintenance.Scanned = true
 		maintenance.Maintenance.Tuples = int64(rows)
-		maintenance.Maintenance.Modifications = 0
+		if len(target.columns) == 0 {
+			maintenance.Maintenance.Modifications = 0
+		}
 	}
 	if store != nil && store != maintenance {
 		store.Maintenance.Scanned = true
 		store.Maintenance.Tuples = int64(rows)
-		store.Maintenance.Modifications = 0
+		if len(target.columns) == 0 {
+			store.Maintenance.Modifications = 0
+		}
 	}
 	// Live population comes from the actual captured collector, including own
 	// visible writes. The core reporter subtracts unresolved/current deltas and

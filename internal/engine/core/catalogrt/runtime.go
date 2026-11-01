@@ -62,6 +62,7 @@ type Host interface {
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(pgcatalog.VacuumProgressFact) error) error
+	VisitClusterProgress(context.Context, func(pgcatalog.ClusterProgressFact) error) error
 	VisitCopyProgress(context.Context, func(pgcatalog.CopyProgressFact) error) error
 	VisitCreateIndexProgress(context.Context, func(pgcatalog.CreateIndexProgressFact) error) error
 }

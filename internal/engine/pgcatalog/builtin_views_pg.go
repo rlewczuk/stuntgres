@@ -5,7 +5,7 @@ var pgBuiltinViews = [...]builtinView{
 	{oid: PoliciesOID, parts: policiesViewParts(false), prettyParts: policiesViewParts(true)},
 	{oid: StatsOID, parts: statisticsViewParts(false), prettyParts: statisticsViewParts(true)},
 	{oid: ProgressCreateIndexOID, returnRule: ProgressCreateIndexRuleOID, parts: createIndexProgressViewParts(false), prettyParts: createIndexProgressViewParts(true)},
-	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts()},
+	{oid: ProgressClusterOID, returnRule: ProgressClusterRuleOID, parts: clusterProgressViewParts(false), prettyParts: clusterProgressViewParts(true)},
 	{oid: ShmemAllocationsOID, parts: shmemAllocationViewParts, prettyParts: shmemAllocationViewParts},
 	{oid: ShmemAllocationsNUMAOID, parts: shmemAllocationNUMAViewParts, prettyParts: shmemAllocationNUMAViewParts},
 	{oid: AIOSOID, parts: aiosViewParts, prettyParts: aiosViewParts},

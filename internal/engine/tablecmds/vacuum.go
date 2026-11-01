@@ -112,7 +112,12 @@ func vacuumTargets(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, s
 				if lookupErr != nil || current != ref || !ok || ref.Epoch != auth.Catalog.Epoch() {
 					err = ids.ErrCatalogReplaced
 				} else {
+					start := len(selection.Targets)
 					err = selection.AddRoot(s.Op.Context(), auth.View, auth, d, name, target.Only)
+					columns := append([]parser.Identifier(nil), target.Columns...)
+					for i := start; i < len(selection.Targets); i++ {
+						selection.Targets[i].Columns = columns
+					}
 				}
 			}
 			e.Mu.Unlock()
@@ -158,10 +163,15 @@ func ExecuteVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, c
 		return core.Result{}, err
 	}
 	for _, target := range targets {
+		analyze := false
 		checkpoint := e.Locks.Checkpoint(s.LockTicket)
 		err = func() error {
 			defer e.Locks.Restore(s.LockTicket, checkpoint)
-			if err := vacuumAcquire(s, target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
+			mode := lock.ShareUpdateExclusive
+			if options.Full {
+				mode = lock.AccessExclusive
+			}
+			if err := vacuumAcquire(s, target.Ref, mode, options.SkipLocked); err != nil {
 				if err == lock.ErrUnavailable && options.SkipLocked {
 					if target.Name != "" {
 						vacuumNotice(s, table.VacuumLockWarning(target.Name))
@@ -170,10 +180,34 @@ func ExecuteVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, c
 				}
 				return err
 			}
+			if options.Full {
+				var workErr error
+				analyze, workErr = vacuumFullRelation(e, s, target, options)
+				return workErr
+			}
 			return vacuumRelation(e, s, target, options)
 		}()
 		if err != nil {
 			return core.Result{}, err
+		}
+		if options.Full && options.Analyze && analyze {
+			checkpoint := e.Locks.Checkpoint(s.LockTicket)
+			err = func() error {
+				defer e.Locks.Restore(s.LockTicket, checkpoint)
+				if err := vacuumAcquire(s, target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
+					if err == lock.ErrUnavailable && options.SkipLocked {
+						if target.Name != "" {
+							analyzeWarning(s, "55P03", fmt.Sprintf(`skipping analyze of "%s" --- lock not available`, target.Name))
+						}
+						return nil
+					}
+					return err
+				}
+				return analyzeRelation(e, s, analyzeTarget{ref: target.Ref, columns: target.Columns, named: target.Name != "", name: target.Name}, table.AnalyzeOptions{Verbose: options.Verbose, SkipLocked: options.SkipLocked, Buffer: options.Buffer})
+			}()
+			if err != nil {
+				return core.Result{}, err
+			}
 		}
 	}
 	if !options.SkipDatabase {

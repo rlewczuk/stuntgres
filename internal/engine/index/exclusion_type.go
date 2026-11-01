@@ -127,6 +127,7 @@ func RebuildAlterExclusions(h Host, parent *catalog.Relation, transformations []
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
 		copy := *evolved
 		copy.ObjectAddress = c.Index
+		copy.StorageLocator = 0
 		copy.ObjectRevision, err = h.Revision()
 		if err != nil {
 			return nil, err

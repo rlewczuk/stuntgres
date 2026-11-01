@@ -2,6 +2,7 @@ package enginetest
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -56,6 +57,49 @@ func ValidateObjectRef(e *core.Engine, view catalog.Read, ref ids.ObjectRef) err
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return e.Catalog.ValidateObjectRefLocked(view, ref)
+}
+
+// RelationLocatorReplacement requires an immutable current clone whose only
+// change from expected is a fresh, nonzero logical storage locator. It does not
+// relax defining metadata, revisions, ACLs, providers or retained-root ownership.
+func RelationLocatorReplacement(t testing.TB, view catalog.Read, expected *catalog.Relation) *catalog.Relation {
+	t.Helper()
+	current := view.MustRelation(expected.Address())
+	if current == expected || current.StorageLocator == 0 || current.StorageLocator == expected.EffectiveStorageLocator(view) {
+		t.Fatal("replacement did not publish a fresh descriptor/locator", expected.Address())
+	}
+	want := *expected
+	want.StorageLocator = current.StorageLocator
+	if !catalog.RelationDefiningAuthorityCompatible(expected, current) || current.SQLIndex != expected.SQLIndex || !reflect.DeepEqual(current, &want) {
+		t.Fatal("locator replacement changed unrelated descriptor authority", expected.Address())
+	}
+	return current
+}
+
+// ReindexRelationReplacement checks StageMaintenance's exact REINDEX transition:
+// revision+1, an owned ready/valid/live definition clone and a fresh locator.
+// All key/constraint/predicate providers and remaining descriptor authority stay
+// identical. Heap locator-only assertions deliberately remain stricter.
+func ReindexRelationReplacement(t testing.TB, view catalog.Read, expected *catalog.Relation) *catalog.Relation {
+	t.Helper()
+	current := view.MustRelation(expected.Address())
+	if current == expected || expected.SQLIndex == nil || current.SQLIndex == nil || current.SQLIndex == expected.SQLIndex {
+		t.Fatal("REINDEX did not own fresh descriptor/definition clones", expected.Address())
+	}
+	definition := *expected.SQLIndex
+	definition.Ready, definition.Valid, definition.Live = true, true, true
+	if current.SQLIndex.Constraint != definition.Constraint || current.SQLIndex.Predicate != definition.Predicate || !reflect.DeepEqual(current.SQLIndex, &definition) {
+		t.Fatal("REINDEX changed unrelated index definition authority", expected.Address())
+	}
+	if len(definition.Keys) != 0 && &current.SQLIndex.Keys[0] != &definition.Keys[0] ||
+		len(definition.Include) != 0 && &current.SQLIndex.Include[0] != &definition.Include[0] ||
+		len(definition.Exclusion) != 0 && &current.SQLIndex.Exclusion[0] != &definition.Exclusion[0] {
+		t.Fatal("REINDEX replaced immutable key/include/exclusion recipe backing", expected.Address())
+	}
+	want := *expected
+	want.ObjectRevision++
+	want.SQLIndex = current.SQLIndex // The exact definition transition was checked above.
+	return RelationLocatorReplacement(t, view, &want)
 }
 
 // ExpressionBinder is a scalar binder over a postgres session, with real

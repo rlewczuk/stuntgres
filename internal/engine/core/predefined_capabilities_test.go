@@ -147,7 +147,8 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
 	next := e.Storage.IndexRoots[address]
-	if next == root || !reflect.DeepEqual(next.Entries, root.Entries) || e.Catalog.State.Get(address) != index || e.Storage.Relations[index.SQLIndex.Parent] != storage {
+	enginetest.ReindexRelationReplacement(t, e.CatalogRead(), index)
+	if next == root || !reflect.DeepEqual(next.Entries, root.Entries) || e.Storage.Relations[index.SQLIndex.Parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})

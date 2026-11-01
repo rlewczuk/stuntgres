@@ -72,7 +72,7 @@ func TestTruncateGeneration(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
 			originalP, originalQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
 			versions, ends, generation := originalP.Versions, originalP.Ends, originalP.Generation
-			descriptor, frontier := e.Catalog.State.Get(p.Address), e.Visibility.CommitSeq()
+			descriptor, frontier := e.Catalog.State.MustRelation(p.Address), e.Visibility.CommitSeq()
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			for _, ref := range []ids.ObjectRef{p, q} {
 				shape := scope.Catalog.Storage[ref.Address]
@@ -93,14 +93,15 @@ func TestTruncateGeneration(t *testing.T) {
 			if got := scope.Finish(err); !errors.Is(got, err) {
 				t.Fatal(got, err)
 			}
-			if !storage.SameVersionRoot(originalP.Versions, versions) || originalP.Ends != ends || originalP.Generation != generation || e.Catalog.State.Get(p.Address) != descriptor {
+			if !storage.SameVersionRoot(originalP.Versions, versions) || originalP.Ends != ends || originalP.Generation != generation {
 				t.Fatal("retained predecessor/definition changed")
 			}
 			if commit {
+				enginetest.RelationLocatorReplacement(t, e.CatalogRead(), descriptor)
 				if e.Storage.Relations[p.Address] == originalP || e.Storage.Relations[q.Address] == originalQ || !originalP.SameTruncateLineage(e.Storage.Relations[p.Address]) || e.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one atomic frontier")
 				}
-			} else if e.Storage.Relations[p.Address] != originalP || e.Storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || e.Visibility.CommitSeq() != frontier {
+			} else if e.Catalog.State.Get(p.Address) != descriptor || e.Storage.Relations[p.Address] != originalP || e.Storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || e.Visibility.CommitSeq() != frontier {
 				t.Fatal("rollback changed committed lineage/roots")
 			}
 		})

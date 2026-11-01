@@ -54,6 +54,7 @@ type Relation struct {
 	RelationKind                   RelationKind
 	Persistence                    string  // Empty is logged; TEMP provenance remains namespace-owned.
 	TableMethod                    ids.OID // Exact table AM; partition roots alone may have no explicit default (zero).
+	StorageLocator                 ids.OID // Explicit logical incarnation; zero uses initial object identity.
 	Owner                          authorization.PrincipalRef
 	Comment                        string
 	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.

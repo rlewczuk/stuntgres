@@ -493,13 +493,26 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
 - **Statement data views** (`data_view.go`, `snapshot_roots.go`):
   `DataViewInput` with `ValidateView` (an already captured view still covers
   the refs) and `Capture` (a new immutable `visibility.View`: RC target roots,
-  stable owner roots with materialized and TRUNCATE lineage, projected
-  snapshots, dynamic pgrowlocks roots, own writes and deletes);
+  stable owner roots with retained FULL/materialized and TRUNCATE lineage,
+  projected snapshots, dynamic pgrowlocks roots, own writes and deletes);
   `PrivateStorage`, `CommittedRoots` and
   `TransactionOwner.NeedsSnapshotProjection`. The root fills the input under
   `Engine.Mu` after its epoch checks and snapshot step and passes it by
-  pointer; `SameLineage` and `SameRowShape` are static func fields because
-  `session` imports neither `view` nor `index`.
+  pointer; `SameLineage`, `SameStableReadLineage`, `CrossedTruncate` and
+  `SameRowShape` are static callbacks because `session` imports neither `view`
+  nor `index`. New stable queries use current SQL name/schema/ACL admission,
+  then `SameStableReadLineage` selects actual old headers/end roots only for equal
+  grounded family/boundary, actual row shape and identical View definition,
+  RowType and TableMethod. Valid rename/owner changes and equal-valued layout
+  backing do not change those structural demands. This predicate is not catalog
+  validity or privilege checking. `SameLineage` remains the strict defining-
+  authority predicate for already-captured `ValidateView`, not new query routing.
+  A strictly newer
+  genuine TRUNCATE boundary selects current roots with the original-frontier
+  birth filter, never pre-TRUNCATE rows. Neither new-read policy licenses captured
+  query completion or publication; query-leaf, domain/epoch and destructive
+  replacement fences remain independent. Projected roots and own writes continue
+  through the existing capture paths.
   The existing stable owner's `SequenceCatalog` is shared with the core's narrow
   pending-detach eligibility accessor. It does not become general name-resolution
   or permission authority, and no second snapshot catalog is retained.

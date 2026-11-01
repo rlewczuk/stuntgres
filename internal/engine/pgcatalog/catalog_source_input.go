@@ -188,6 +188,7 @@ type Runtime interface {
 	VisitAttributeStatistics(context.Context, *catalog.Relation, func([]sqltype.Value) error) error
 	DatabaseFrozenXID() uint64
 	VisitVacuumProgress(context.Context, func(VacuumProgressFact) error) error
+	VisitClusterProgress(context.Context, func(ClusterProgressFact) error) error
 	VisitCopyProgress(context.Context, func(CopyProgressFact) error) error
 	VisitCreateIndexProgress(context.Context, func(CreateIndexProgressFact) error) error
 	TimezoneInput() sqltype.InputEnvironment

@@ -201,6 +201,26 @@
   publication; overcapacity rejects without changing destination state. Physical
   WAL flushing remains an explicit `0A000` boundary.
 
+- Add VACUUM FULL logical heap/index rewrites with real AccessExclusive admission,
+  current maintenance authority, immutable retained ownership and atomic logical
+  locator publication. Compose per-occurrence FULL ANALYZE after each committed
+  rewrite, preserve ordinary vacuum history and expose actual authenticated
+  cluster-progress work. Preserve pre-/between-rewrite snapshots through repeated
+  FULL/concurrent materialized refresh and later DML without predecessor heap
+  chains. Keep TRUNCATE's current-root birth filtering through subsequent FULL,
+  using the actual committed boundary rather than reviving old rows.
+  Newly SQL-admitted stable reads preserve old values across valid rename/owner
+  changes around FULL only with unchanged view definition, row type, table
+  method, actual row shape and family/equal boundary. Current schema/SELECT
+  authority stays independent; already-captured query/publication authority
+  retains its strict defining fences.
+  Real superseded UPDATE headers use existing immutable retained storage and the
+  conservative retirement gate; FULL preserves protected roots and later retires
+  obsolete history with exact rewrite counts, without changing cumulative facts.
+  Maintenance-owner execution and cluster progress each retain their single
+  current authority. Explicit-column ANALYZE preserves modification counters;
+  no-list ANALYZE resets them. Physical disk shrinking remains external.
+
 - Add the PostgreSQL 18 relation-location signatures through typed binding,
   strict NULLs, catalog authority and ordinary EXECUTE/schema admission.
   Storage-less and missing relations return NULL; stored forward inquiries

@@ -813,11 +813,41 @@ adapters and `PageinspectNotice`, and these host pieces:
   releasing the cohort and Engine mutexes.
 - `WithMaintenanceOwner` (`maintenance_environment.go`), the serial
   operation-local table-owner frame that amcheck (`CheckBtreeAsOwner`) and
-  CLUSTER share, and `refreshRestrictedPresentation`
+  CLUSTER and FULL index rebuilding share, and `refreshRestrictedPresentation`
   (`amcheck_presentation.go`);
 - `GenericFileAuthority`: the routine principal's `pg_read_server_files`
   membership and the path settings, borrowed in Engine -> Settings ->
   Session order.
+
+`WithMaintenanceOwner` supplies this one scoped owner environment: current
+routine authority, activated execution, nested restricted frames and safe
+`pg_catalog, pg_temp` lookup. Callbacks run without `Engine.Mu`; all operation
+presentation/settings state is restored on success, error and cancellation.
+Logical heap replacements prepare fresh catalog locators alongside their
+existing publication candidates; ordinary descriptor-only edits preserve
+incarnation identity.
+Actual heap replacements publish locator-only clones of their exact staged
+definitions rather than preserve descriptor pointer equality. Retained descriptors,
+tuple roots and defining metadata remain unchanged. REINDEX separately stages
+revision+1 and an owned ready/valid/live index-definition clone alongside its fresh
+locator; key/include/exclusion backing and constraint/predicate providers stay
+identical. Native assertions check these two exact transitions separately.
+Foreign catalog replacement clears source locator overrides on its private
+principal-remapped descriptor projection, before retained TEMP owners are merged;
+the source catalog is never mutated. Imported heaps construct zero retained family
+and truncate boundary. FULL and both genuine concurrent-MV publication paths
+preserve actual predecessor read provenance; pure TRUNCATE assigns its new boundary
+only at the successful canonical commit/prepared-completion frontier. A preceding
+private destructive rewrite cannot inherit the old family through TRUNCATE.
+Stable new commands distinguish same-boundary old-root continuity from crossed
+TRUNCATE current-root birth filtering. `captureDataRootsAtLocked` supplies
+`SameStableReadLineage` only for new stable-root routing by current name/current
+ACL; valid rename/owner changes preserve that read only when family, equal
+boundary, actual row shape and View/RowType/TableMethod identities still match.
+Current SQL schema/privilege/catalog admission stays outside the predicate.
+The separate `SameLineage` callback retains
+strict defining authority for `ValidateView`. Bound query-source/publication and
+domain/epoch fences remain separate and unchanged.
 
 ## Event-trigger command ownership
 

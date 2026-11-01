@@ -29,17 +29,20 @@ func StageMaintenance(h Host, g *MaintenanceGrant, stmt parser.Statement) error 
 		for _, ref := range g.Indexes {
 			st.Rebuilds[ref.Address] = g.Descriptors[ref.Address]
 			original := g.Descriptors[ref.Address]
-			if !original.SQLIndex.Ready || !original.SQLIndex.Valid || !original.SQLIndex.Live {
-				next, definition := *original, *original.SQLIndex
-				definition.Ready, definition.Valid, definition.Live = true, true, true
-				next.SQLIndex = &definition
-				if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
-					return fmt.Errorf("stuntgres: index revision exhausted")
-				}
-				next.ObjectRevision++
-				if err := h.Stage().Replace(&next); err != nil {
-					return err
-				}
+			next, definition := *original, *original.SQLIndex
+			definition.Ready, definition.Valid, definition.Live = true, true, true
+			next.SQLIndex = &definition
+			locator, err := h.AllocateOID()
+			if err != nil {
+				return err
+			}
+			next.StorageLocator = locator
+			if next.Revision() == ids.DefinitionRevision(^uint64(0)) {
+				return fmt.Errorf("stuntgres: index revision exhausted")
+			}
+			next.ObjectRevision++
+			if err := h.Stage().Replace(&next); err != nil {
+				return err
 			}
 		}
 	}

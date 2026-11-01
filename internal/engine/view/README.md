@@ -184,6 +184,21 @@ imports `view`.
   and row-lock legality and returns a `QueryLockDemand`; `CurrentQuerySource`
   revalidates an admitted leaf's exact identity. They read the statement's
   private `catalog.Read`; the root acquires the locks.
+  `SameStableReadLineage` (`retained_lineage.go`) routes a newly SQL-admitted
+  stable query to actual retained roots only for grounded `RetainedOrigin`, equal
+  `TruncateBoundary`, actual row shape and identical View definition, RowType and
+  TableMethod. Valid newly resolved name/owner changes and equal-valued layout
+  backing may pass; changed definition/row-type/method or column/attribute values
+  may not. Current SQL name/schema/ACL admission is outside this predicate, which
+  does not validate synthetic catalog corruption. `SameRetainedLineage` separately
+  retains strict defining authority
+  for already-captured views/query sources; new-read success never validates
+  captured authority or publication. FULL and genuine concurrent refresh preserve
+  the family through repeated alternation. `CrossedTruncate` instead requires a
+  newer actual boundary and selects current roots plus the original-frontier
+  birth filter, never pre-TRUNCATE rows. Actual shape rewrites, nonconcurrent
+  refresh and imports break continuity. Callers enforce exact object/domain/epoch
+  admission and current SQL permissions.
   New or changed stored views also admit their checked routine dependencies
   through the root's shared definition-provider collector: permanent views use
   the ordinary publication hook; explicit and inferred TEMP views admit before

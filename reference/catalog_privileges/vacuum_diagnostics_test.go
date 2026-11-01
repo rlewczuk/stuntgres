@@ -94,12 +94,8 @@ func TestReferenceVacuumDiagnostics(t *testing.T) {
 			for _, option := range []string{"FULL", "ANALYZE", "FULL,ANALYZE", "ANALYZE,BUFFER_USAGE_LIMIT '128kB'"} {
 				q := "VACUUM (" + option + ") vacuum_diag"
 				s := fixture.Exec(q, 0)
-				if !b.PG {
-					message := "VACUUM ANALYZE is not supported"
-					if strings.Contains(option, "FULL") {
-						message = "VACUUM FULL is not supported"
-					}
-					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: message})
+				if !b.PG && !strings.Contains(option, "FULL") {
+					s = fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "VACUUM ANALYZE is not supported"})
 				}
 				vacuumRun(t, p, b, c, s)
 				vacuumRun(t, p, b, vacuumHeld(t, p, c, q), s)

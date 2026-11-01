@@ -142,8 +142,8 @@ func QueryLocks(read catalog.Read, root plan.Node, leaves []exec.Leaf) (QueryLoc
 // against read without resolving SQL names again: the reference's catalog
 // domain and epoch, the relation's address, namespace, name, kind and row
 // shape, and either its storage (current is the leaf relation's storage now;
-// a materialized view may have been refreshed within its lineage) or, for a
-// sequence, its plan stamp. A mismatch is ids.ErrCatalogReplaced.
+// FULL or concurrent materialized refresh may preserve its retained lineage)
+// or, for a sequence, its plan stamp. A mismatch is ids.ErrCatalogReplaced.
 //
 // Metadata revisions may refresh authority before binding, never an already
 // bound layout.
@@ -158,7 +158,7 @@ func CurrentQuerySource(read catalog.Read, domain *ids.Domain, epoch ids.Catalog
 		if relation.Sequence == nil || source.Storage != nil || relation.SequencePlanStamp != source.Relation.SequencePlanStamp {
 			return nil, ids.ErrCatalogReplaced
 		}
-	} else if current != source.Storage && !SameMaterializedLineage(source.Relation, relation, source.Storage, current) {
+	} else if current != source.Storage && !SameRetainedLineage(source.Relation, relation, source.Storage, current) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return relation, nil

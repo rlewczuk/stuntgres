@@ -180,16 +180,13 @@ func vacuumBuffer(v parser.VacuumOption) error {
 	return nil
 }
 
-// CheckVacuumEntry rejects VACUUM inside a transaction block, then FULL, then
-// ANALYZE, which the engine does not perform.
+// CheckVacuumEntry rejects explicit transaction blocks before feature admission.
+// FULL ANALYZE composes the existing per-relation analysis collector.
 func CheckVacuumEntry(o VacuumOptions, inBlock bool) error {
 	if inBlock {
 		return sqlError("25001", "VACUUM cannot run inside a transaction block")
 	}
-	if o.Full {
-		return sqlError("0A000", "VACUUM FULL is not supported")
-	}
-	if o.Analyze {
+	if o.Analyze && !o.Full {
 		return sqlError("0A000", "VACUUM ANALYZE is not supported")
 	}
 	return nil

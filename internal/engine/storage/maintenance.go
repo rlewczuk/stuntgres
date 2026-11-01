@@ -35,3 +35,14 @@ func (m *Maintenance) RecordVacuum(c VacuumCandidate, completed time.Time) {
 		m.FrozenXID = c.Horizon
 	}
 }
+
+// RecordRewrite records FULL's heap facts, not an ordinary vacuum event.
+// Cumulative live/dead estimates, DML totals, inserts-since-vacuum and ordinary
+// vacuum timing/count remain unchanged; they are not copied heap cardinality.
+func (m *Maintenance) RecordRewrite(c VacuumCandidate) {
+	m.Scanned = true
+	m.Tuples = c.Live + c.Dead
+	if c.Horizon != 0 && c.Horizon > m.FrozenXID {
+		m.FrozenXID = c.Horizon
+	}
+}

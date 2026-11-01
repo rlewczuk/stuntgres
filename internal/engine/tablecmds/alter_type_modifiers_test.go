@@ -51,14 +51,15 @@ func TestAlterTypeIdentityRetainsStorageAndRevision(t *testing.T) {
 	enginetest.Run(t, e, "CREATE TABLE t(c INT DEFAULT 7)")
 	enginetest.Run(t, e, "INSERT INTO t DEFAULT VALUES")
 	ref := enginetest.RoleTableRef(t, e, "t")
-	old, storage := e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
+	old, storage := e.Catalog.State.MustRelation(ref.Address), e.Storage.Relations[ref.Address]
 	enginetest.Run(t, e, "ALTER TABLE t ALTER c TYPE INT")
 	if e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage {
 		t.Fatal("identity TYPE copied definition/data")
 	}
 	enginetest.Run(t, e, "ALTER TABLE t ALTER c TYPE INT USING c+1")
-	if e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] == storage {
-		t.Fatal("same definition USING failed to rewrite only data")
+	enginetest.RelationLocatorReplacement(t, e.CatalogRead(), old)
+	if e.Storage.Relations[ref.Address] == storage {
+		t.Fatal("same definition USING failed to replace data/locator")
 	}
 	if rows := enginetest.Tuples(enginetest.Run(t, e, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(8)}}) {
 		t.Fatal(rows)

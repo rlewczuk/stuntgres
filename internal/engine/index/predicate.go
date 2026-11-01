@@ -32,6 +32,10 @@ func RecipeEvaluation(evaluation *exec.Context, dependencies []ids.ObjectRef, pa
 func PrepareIndexRecipe(evaluation *exec.Context, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *exec.RoutineProgram, executable bool) (expr.Expr, error) {
 	local := RecipeEvaluation(evaluation, dependencies, parent)
 	local.RoutineProgram = admission
+	expression, err := refreshIndexRecipe(&local, parent, dependencies, expression)
+	if err != nil {
+		return nil, err
+	}
 	prepared, _, err := exec.PreflightCoercionsWithPolicy(&local, expression, true)
 	evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 	if err != nil {

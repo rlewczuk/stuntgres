@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -30,9 +31,11 @@ func newDataViewFixture(t *testing.T, id ids.OID) *dataViewFixture {
 	f := &dataViewFixture{table: table, ref: ids.ObjectRef{Address: table.Address()}, stored: stored}
 	f.in = DataViewInput{
 		Published: state, Store: &storage.Store{Relations: map[ids.ObjectAddress]*storage.Relation{table.Address(): stored}},
-		Read:         catalog.NewRead(nil, state),
-		SameLineage:  func(_, _ *catalog.Relation, _, _ *storage.Relation) bool { return false },
-		SameRowShape: func(a, b *catalog.Relation) bool { return a == b },
+		Read:            catalog.NewRead(nil, state),
+		SameLineage:     func(_, _ *catalog.Relation, _, _ *storage.Relation) bool { return false },
+		SameStableReadLineage: func(_, _ *catalog.Relation, _, _ *storage.Relation) bool { return false },
+		CrossedTruncate: func(_, _ *catalog.Relation, _, _ *storage.Relation) bool { return false },
+		SameRowShape:    func(a, b *catalog.Relation) bool { return a == b },
 	}
 	return f
 }
@@ -76,6 +79,22 @@ func TestDataViewValidate(t *testing.T) {
 	}
 	if err := f.in.ValidateView(captured(old), []ids.ObjectRef{f.ref}); err != nil {
 		t.Fatalf("same materialized lineage: %v", err)
+	}
+	for _, metadata := range []string{"name", "owner"} {
+		changed := *f.table
+		if metadata == "name" {
+			changed.ObjectName = "renamed"
+		} else {
+			changed.Owner = (&authorization.Domain{}).Principal(10)
+		}
+		f.in.Published = journalTestState(&changed)
+		f.in.SameStableReadLineage = func(_, _ *catalog.Relation, _, _ *storage.Relation) bool {
+			t.Fatal("ValidateView consulted new-query routing")
+			return true
+		}
+		if err := f.in.ValidateView(captured(old), []ids.ObjectRef{f.ref}); !errors.Is(err, ids.ErrCatalogReplaced) {
+			t.Fatal("compatible new-read metadata licensed an already captured view", metadata, err)
+		}
 	}
 }
 
@@ -124,6 +143,51 @@ func TestDataViewCaptureStable(t *testing.T) {
 	f.in.Roots = map[ids.ObjectAddress]visibility.Root{f.ref.Address: {Storage: f.stored, Relation: &catalog.Relation{}}}
 	if _, err := f.in.Capture([]ids.ObjectRef{f.ref}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("changed row shape error = %v, want ErrCatalogReplaced", err)
+	}
+	// The new-command policy is distinct from validating an already captured
+	// view: a genuine newer TRUNCATE boundary uses current roots, not old rows.
+	f.in.Roots = map[ids.ObjectAddress]visibility.Root{f.ref.Address: root}
+	f.in.Frontier = 4
+	f.stored.RetainedOrigin = 20220
+	current := &storage.Relation{Versions: make([]storage.RowVersion, 1), Ends: &storage.DeletionRoot{}, RetainedOrigin: 20220, TruncateBoundary: 5}
+	f.in.Store.Relations[f.ref.Address] = current
+	f.in.SameStableReadLineage = func(_, _ *catalog.Relation, a, b *storage.Relation) bool {
+		return a.RetainedOrigin == b.RetainedOrigin && a.TruncateBoundary == b.TruncateBoundary
+	}
+	f.in.CrossedTruncate = func(o, c *catalog.Relation, a, b *storage.Relation) bool {
+		return o == f.table && c == f.table && a == root.Storage && b == current && a.RetainedOrigin == b.RetainedOrigin && b.TruncateBoundary > a.TruncateBoundary
+	}
+	data = f.capture(t, f.ref)
+	if !storage.SameVersionRoot(data.Committed[f.ref.Address], current.Versions) || data.Ends[f.ref.Address] != current.Ends || !data.SingleNeedsBirthFilter || data.Frontier != 4 {
+		t.Fatal("crossed TRUNCATE did not retain frontier with current roots", data)
+	}
+	oldView := visibility.NewView(&visibility.Data{Catalog: f.in.Read, Committed: map[ids.ObjectAddress][]storage.RowVersion{f.ref.Address: root.Versions}, SingleGeneration: root.Storage})
+	defer oldView.Release()
+	if err := f.in.ValidateView(oldView, []ids.ObjectRef{f.ref}); !errors.Is(err, ids.ErrCatalogReplaced) {
+		t.Fatal("current-root query policy licensed an old captured view", err)
+	}
+	sameBoundary := *current
+	sameBoundary.TruncateBoundary = 0
+	current = &sameBoundary
+	f.in.Store.Relations[f.ref.Address] = current
+	data = f.capture(t, f.ref)
+	if !storage.SameVersionRoot(data.Committed[f.ref.Address], root.Versions) || data.Ends[f.ref.Address] != root.Ends || data.SingleNeedsBirthFilter {
+		t.Fatal("equal boundary did not retain actual old roots", data)
+	}
+	// Equal-boundary new binding tolerates compatible name metadata without
+	// consulting strict captured-view authority or selecting current rows.
+	renamed := *f.table
+	renamed.ObjectName = "renamed"
+	f.in.Published = journalTestState(&renamed)
+	f.in.Read = catalog.NewRead(nil, f.in.Published)
+	f.in.SameRowShape = func(a, b *catalog.Relation) bool { return a.Address() == b.Address() }
+	f.in.SameLineage = func(_, _ *catalog.Relation, _, _ *storage.Relation) bool {
+		t.Fatal("new stable query consulted captured-view authority")
+		return false
+	}
+	data = f.capture(t, f.ref)
+	if !storage.SameVersionRoot(data.Committed[f.ref.Address], root.Versions) || data.Ends[f.ref.Address] != root.Ends || data.Frontier != 4 || data.SingleNeedsBirthFilter {
+		t.Fatal("compatible new query did not select exact old root/frontier", data)
 	}
 }
 

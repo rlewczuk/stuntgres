@@ -281,6 +281,33 @@ Entry points:
   relation rename owner. Ordinary DROP/rename/options use the existing private
   Journal and combined DDL/DML publication path in explicit and retained
   transactions. REINDEX retains its separate transaction boundary.
+  A genuine REINDEX reserves a fresh logical locator, advances descriptor revision
+  exactly once and owns a new ready/valid/live SQLIndex definition. Its immutable
+  key/include/exclusion backing and constraint/predicate providers are retained.
+  A later rename retains that newly published recipe, not its pre-REINDEX pointer.
+  FULL uses ordinary genuine root builders against its new heap,
+  including expression/domain/predicate evaluation and unique/exclusion checks;
+  it never substitutes ordinary VACUUM's produced-key remapping.
+  Genuine FULL builds mint current `Construction` provenance; ordinary vacuum
+  remapping still preserves its existing physical history without recipe
+  evaluation or laundering declaration debt.
+  `PrepareIndexRecipe` refreshes SQL callable declarations structurally through
+  that exact recipe's dependency manifest before executable preflight. A current
+  CREATE OR REPLACE body is executed under current authority without mutating
+  stored expressions, rebinding SQL names, or relaxing retained-statement carrier
+  checks; incompatible signatures, foreign references and unowned calls fail.
+  Manifests without SQL callable dependencies keep their exact cooked executable
+  and provider seam; they do not enter the structural refresh pass. In particular,
+  prepared body-free index recipes still execute at the real completion boundary.
+  Internal recipe callers may provide only a live statement host, without an
+  explicit catalog. Procedure lookup then resolves the canonical routine-admission
+  catalog once on the local recipe context; refresh, coercion and executable
+  admission share it. Missing/ended authority fails, explicit captured catalogs
+  remain real fences, and the outer evaluation's authority is never overwritten.
+  SQL call reconstruction updates `Info.Property` and uses the existing
+  `Rebuild`/provider-validation contract; it never mutates stored argument arrays.
+  `TestIndexRecipeLiveHostCatalog` lives with composed stored-definition tests in
+  `core/enginetests/stored`, using the current statement Host adapter.
   `TransformIndexOptions` owns immutable logical option validation/ordering;
   metadata-only edits retain identity/providers/key roots and do not rebuild
   pages or change enforcement. Binding: `LookupClass`, `BindKey`,

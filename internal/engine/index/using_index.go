@@ -165,6 +165,7 @@ func CaptureUsingIndexes(h Host, parent *catalog.Relation, actions []parser.Alte
 			}
 			clone := *idx
 			clone.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
+			clone.StorageLocator = 0
 			clone.ObjectRevision = revision
 			clone.Columns = slices.Clone(idx.Columns)
 			for i, attribute := range attributes {

@@ -404,8 +404,13 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.Catalog.State.Get(ref.Address) != &next || e.Storage.IndexRoots[index.Address()] == oldRoot {
-				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
+			if name == "ix" {
+				enginetest.ReindexRelationReplacement(t, e.CatalogRead(), &next)
+			} else if e.Catalog.State.Get(ref.Address) != &next {
+				t.Fatal("rebuild replaced the compatible parent descriptor")
+			}
+			if e.Storage.IndexRoots[index.Address()] == oldRoot {
+				t.Fatal("grant did not publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")
 			enginetest.LockEmpty(t, e)

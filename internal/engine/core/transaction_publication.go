@@ -479,6 +479,14 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			e.Mu.Unlock()
 			return err
 		}
+		if c != nil {
+			nextCatalog, err = e.prepareReplacementLocatorsLocked(nextCatalog, nextStorage)
+			if err != nil {
+				sess.Mu.Unlock()
+				e.Mu.Unlock()
+				return err
+			}
+		}
 		var sharedRoots catalog.SharedProjection
 		if c != nil {
 			sharedRoots = e.Catalog.ProjectSharedLocked(nextCatalog, e.Cluster.Catalogs)
@@ -579,9 +587,19 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		if c != nil {
 			for address, shape := range c.Storage {
 				if shape.Truncated && shape.Original != nil {
+					shape.Replacement.RetainedOrigin = shape.Original.RetainedOrigin
+					if shape.Replacement.RetainedOrigin == 0 {
+						shape.Replacement.RetainedOrigin = current.MustRelation(address).EffectiveStorageLocator(e.Catalog.Current())
+					}
+					shape.Replacement.TruncateBoundary = e.Visibility.CommitSeq() + 1
 					shape.Original.TruncateLineage = shape.Replacement.TruncateLineage
 				}
 				if token := materializedTokens[address]; token != nil {
+					shape.Replacement.RetainedOrigin = shape.Original.RetainedOrigin
+					if shape.Replacement.RetainedOrigin == 0 {
+						shape.Replacement.RetainedOrigin = current.MustRelation(address).EffectiveStorageLocator(e.Catalog.Current())
+					}
+					shape.Replacement.TruncateBoundary = shape.Original.TruncateBoundary
 					shape.Original.MaterializedLineage = token
 					shape.Replacement.MaterializedLineage = token
 				}

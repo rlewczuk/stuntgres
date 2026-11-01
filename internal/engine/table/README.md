@@ -276,7 +276,9 @@ call live here.
   and `RelationOptionsCandidate`, which transforms each option namespace
   independently, base first.
 - **VACUUM** (`vacuum_*.go`): `NormalizeVacuum`, then `CheckVacuumEntry`
-  (transaction block, FULL, ANALYZE); target selection over `access.View`
+  (transaction block, then the ordinary ANALYZE boundary); effective FULL uses
+  the same option precedence and admits per-occurrence FULL ANALYZE. Selection
+  over `access.View`
   (`VacuumSelection.AddDatabase` and `AddRoot`, whose descendants are
   breadth-first and OID-ordered per root) with `VacuumAllowed`, and the
   post-grant gates `VacuumWork`; the detached work pass `PrepareVacuumPass`
@@ -289,6 +291,9 @@ call live here.
   generation when heap roots change. No physical index archive is maintained.
   Heap predecessor retirement still respects protected horizons and immutable
   old captures.
+  Targets carry immutable occurrence columns; selection already encodes ONLY.
+  FULL uses the same retirement/index capture fences but forces a new heap
+  incarnation and genuinely rebuilds indexes rather than remapping produced keys.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding,
   diagnostics over `access.View`, the probe (`FindForeignKeyParent`,
   `ProbeForeignKeyIndex`), OID-ordered provider walks, initial row scans and

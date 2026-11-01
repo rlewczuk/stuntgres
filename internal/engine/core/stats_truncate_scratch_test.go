@@ -121,22 +121,25 @@ func TestStatsSnapshotTruncateScratchOwnership(t *testing.T) {
 			t.Fatal("missing admitted manifest")
 		}
 		original := admitted.Relations[0].Storage
-		// Real storage-only host publication after admission is not a new SQL
-		// command. Keep the exact descriptor and reject the stale store pointer.
+		// Real host storage remint after admission is not a new SQL command.
+		// It publishes only a fresh locator descriptor; the admitted object and
+		// defining shape stay compatible, but the stale store must still reject.
 		replacement := *original
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
-		// Match the existing host storage-remint path used by
-		// TestAnalyzePreparedAuthorityRejection. AlterRelation instead requires
-		// a descriptor revision, which would veto this storage-only fixture.
+		// Match TestAnalyzePreparedAuthorityRejection's host storage-remint
+		// path. AlterRelation instead requires a defining revision, which would
+		// add an unrelated authority change to this stale-storage fixture.
 		stage.RowShapes = map[ids.ObjectAddress]storage.RowShape{p.Address: {
 			Original: original, Root: original.Versions, Replacement: &replacement,
 			ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation,
 		}}
 		truncateUnitPublish(t, e, stage)
-		if e.CatalogRead().MustRelation(p.Address) != base.MustRelation(p.Address) || e.Storage.Relations[p.Address] != &replacement {
-			t.Fatal("host publication did not remint storage under the same descriptor")
+		current := e.CatalogRead()
+		descriptor := enginetest.RelationLocatorReplacement(t, current, base.MustRelation(p.Address))
+		if current.Epoch() != base.Epoch() || enginetest.ValidateObjectRef(e, current, p) != nil || descriptor.Namespace() != admitted.Relations[0].Relation.Namespace() || e.Storage.Relations[p.Address] != &replacement {
+			t.Fatal("host publication did not remint storage with only locator metadata")
 		}
 		err := core.ScopeStageTruncate(scope)
 		if !errors.Is(err, ids.ErrCatalogReplaced) || core.ScopeTruncateSlot(scope) != admitted {
@@ -147,7 +150,7 @@ func TestStatsSnapshotTruncateScratchOwnership(t *testing.T) {
 		}
 		scope.Op.Done()
 		enginetest.LockEmpty(t, e)
-		if e.Storage.Relations[p.Address] != &replacement || original.TruncateLineage != nil || len(original.Versions) != 2 {
+		if e.CatalogRead().Get(p.Address) != descriptor || e.Storage.Relations[p.Address] != &replacement || original.TruncateLineage != nil || len(original.Versions) != 2 {
 			t.Fatal("failed guard changed committed storage")
 		}
 	})

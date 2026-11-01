@@ -984,7 +984,7 @@ backing use `make check RUN='^TestPGPolicies'`.
 | `ValidateACL`, `ObjectACL` | ACL validation and raw object ACLs (`access` is not imported here) |
 | `ValidateType` | type descriptor validation, including installed extension types |
 | `TypeOutput` | regclass, regrole and aclitem formatters for type defaults |
-| `Maintenance`, `TableStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | physical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
+| `Maintenance`, `TableStatistics`, `DatabaseFrozenXID`, `VisitVacuumProgress`, `VisitClusterProgress`, `VisitCopyProgress`, `VisitCreateIndexProgress` | immutable logical maintenance, transaction-owned cumulative facts, and authenticated active-work redaction |
 | `ExpressionTree` | structural `pg_node_tree` output of bound expressions |
 | `PolicyTree`, `PolicyDisplay` | validated relation-owned policy carriers and current-identity display without evaluation |
 | `VisitPublicationTables` | authoritative captured presented-relation metadata shared with the inquiry; core owns expansion/projection, producers own typed row serialization |
@@ -1146,6 +1146,10 @@ catalog writes or bypass a provider's independent backing-source checks.
   Progress views report real active phases with authenticated-owner visibility:
   unavailable CREATE INDEX totals are zero for authorized observers, while
   restricted work details are typed NULL.
+  FULL uses the actual cluster-progress source, not the ordinary vacuum source.
+  Tuple prefixes and completed rebuilt roots are genuine logical work; absent
+  physical block work reports zero. `pg_class.relfilenode` projects the catalog's
+  current logical storage incarnation without adding physical file inquiries.
 - `information_schema.user_mappings`: real mapping identities; server owner or
   effective USAGE exposes all mappings. It never copies options or reuses
   `ForeignServerVisible`, which governs `pg_user_mappings` option redaction.
@@ -1468,13 +1472,18 @@ column and relation aliases remain identifier-only annotations. Its structural
 update and insert flags are NO; this does not change rule visitation or DDL.
 `SummaryViewDefinition` supplies canonical default metadata;
 `BuiltinViewDefinition` selects explicit default or pretty fragments and formats
-their occurrences using captured naming and identifier formatters. UDT, COPY
-and CREATE INDEX progress inquiries own both released forms; absent pretty
+their occurrences using captured naming and identifier formatters. UDT, COPY,
+CLUSTER/FULL and CREATE INDEX progress inquiries own both released forms; absent pretty
 fragments never become a synthesized definition. The same runtime authority
 renders `pg_views` and `views` in default
 format and serves the boolean `pg_get_viewdef` presentation selector.
-COPY and CREATE INDEX progress are the two builtin entries declaring native
-`_RETURN` identities, stamped into immutable relation descriptors during bootstrap.
+`cluster_progress.go` owns the single CLUSTER/FULL source, canonical relation
+OID12208/rule OID12209 and REL_18_6 default/pretty projection, including command/
+phase CASEs, OID cast and parameter aliases. Its real FULL visitor uses the
+current private catalog runtime and authenticated viewer; this metadata grants
+no simulated CLUSTER execution provider. COPY, CLUSTER/FULL and CREATE INDEX
+progress declare native `_RETURN` identities, stamped into immutable relation
+descriptors during bootstrap.
 Rewrite projection, object-name/address lookup and dependency ownership use `ReturnRuleOID`; the
 rule has an internal edge to its view. Released backing catalog/routine references
 are bootstrap-pinned, not fabricated dependency objects or executable payloads.

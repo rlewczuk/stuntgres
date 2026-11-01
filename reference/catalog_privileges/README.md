@@ -187,6 +187,46 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   not emulated by index locks. Run this definition natively, with `REFERENCE=1`,
   and selected `RACE=1`; the complete dual-mode ActiveWorkers lifecycle below
   remains the independent simultaneous-worker lifetime proof.
+- Full vacuum: `RUN='^TestReferenceVacuumFull'`; direct and held utility routes
+  assert real locator/heap/index rewrites, per-target analysis/commit boundaries,
+  authority and exact diagnostics. Actual index-expression advisory waits expose
+  admitted cluster-progress workers, exclusive read/write blockers, cancellation
+  and target turnover without cost-delay tuning or fabricated work rows. Native
+  scan/final-install ownership barriers supplement these shared public proofs.
+  Metadata distinguishes flushed cumulative history from copied tuple estimates;
+  selected-column analysis preserves modifications while no-list analysis resets
+  them. Retention covers snapshots before/between repeated FULL plus later DML,
+  detached results and current held executions.
+  `TestReferenceVacuumFullMetadataRetention` is the independent new-binding smoke:
+  both rename/FULL and owner/FULL orders retain reader1,2 versus current2,3,
+  for ordinary tables and after genuine concurrent MV refresh. Every FULL
+  refreshes heap/index locators; metadata preserves its current baseline, while
+  concurrent refresh promises only valid nonzero locators/stable logical identity.
+  Current SELECT revocation yields exact42501 then25P02, including materialized-
+  view English diagnostics. Reader binding occurs only after writer work, with
+  an anchor-only old snapshot. Native structural negatives independently fence
+  changed View/RowType/TableMethod and column/attribute values; strict captured
+  sources also reject name/owner/backing changes. Run the exact public definition
+  in native and `REFERENCE=1` modes.
+  `TestReferenceVacuumFullMixedRetention` adds repeated concurrent-refresh→FULL,
+  FULL→concurrent-refresh and FULL/TRUNCATE chains, independent old/middle/current
+  row witnesses, stable defining identities, fresh heap/index locators at every
+  FULL, and compatible rename/owner changes across TRUNCATE. PostgreSQL concurrent
+  refresh need not swap heap locators; both engines must keep real nonzero
+  locators and stable defining identity there. Readers first touch targets after
+  all writer operations and roll back before quiescent reclaim. Native
+  `TestVacuumFullMixedRetention` separately checks actual replacement locators,
+  immutable old root/index maps and snapshot frontiers, both concurrent
+  publication paths, actual commit/prepared-completion TRUNCATE boundaries, own
+  writes, rejected publication, and nonconcurrent-refresh/ALTER/import breaks.
+  Active FULL progress/cancellation pins an explicit unrelated pre-DELETE RR
+  snapshot, so exact scanned3/written3 is justified independently in both engines:
+  observation queries cannot race an assumed observer-free retirement window.
+  The retained reader touches the target only after worker AX ends, proves old
+  rows1/2/3 versus current2/3, then rolls back before retry/quiescent rewrite.
+  Progress also checks independent default/pretty `pg_get_viewdef` definitions
+  through direct and held calls; the canonical source definition participates in
+  whole information-schema/view inventories, not just the active worker reader.
 - VACUUM progress: `RUN='^TestReferenceVacuumProgress'`; Active, Privileges,
   ActiveWorkers and ActiveTargets require real second-session SQL rows from
   executing workers. Their shared setup uses public COPY for 262144 rows with

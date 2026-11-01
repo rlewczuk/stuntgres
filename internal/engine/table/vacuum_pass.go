@@ -185,6 +185,13 @@ func VacuumReport(view catalog.Read, d *catalog.Relation, c storage.VacuumCandid
 	return fmt.Sprintf("vacuuming %s (native logical storage): %d live rows, %d retained dead versions, %d dead versions removed, %d versions frozen", qualified, c.Live, c.Dead, c.Removed, c.Frozen)
 }
 
+// VacuumFullReport reports genuine native rewrite facts, not physical file I/O.
+func VacuumFullReport(view catalog.Read, d *catalog.Relation, c storage.VacuumCandidate, indexes int64) string {
+	ns, _ := view.Namespace(d.Namespace())
+	qualified := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name())
+	return fmt.Sprintf("rewriting %s (native logical storage): %d live rows, %d retained dead versions, %d dead versions removed, %d versions frozen, %d indexes rebuilt", qualified, c.Live, c.Dead, c.Removed, c.Frozen, indexes)
+}
+
 // DatabaseFrozenXIDLocked is the database frozen-XID bound: cutoff clamped by
 // the bound of every heap of state in relations. It reports false while any
 // such bound is unknown. Caller holds Engine.mu.

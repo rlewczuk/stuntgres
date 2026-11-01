@@ -275,6 +275,7 @@ func RebuildAlterUniques(h Host, parent *catalog.Relation, transformations []Col
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *idx
 		clone.ObjectAddress = c.Index
+		clone.StorageLocator = 0
 		clone.ObjectRevision, err = h.Revision()
 		if err != nil {
 			return nil, err

@@ -1228,6 +1228,58 @@ termination, restart or plugin-loading effects. Logical data and constraints
 remain active. `DriverConfig.TrackCommitTimestamp` and its genuine native
 commit-timestamp tracking remain unchanged.
 
+## Full vacuum
+
+`VACUUM FULL` performs a logical heap-incarnation rewrite under an actual
+AccessExclusive relation lock, preserving values and logical table/index
+identities. It compacts safely obsolete versions, preserves retained visibility
+obligations and rebuilds attached indexes under restricted relation-owner
+authority. Heap and index `pg_class.relfilenode` values identify current logical
+incarnations; they do not name disk files. File shrinking, physical paths, pages
+and WAL are external mechanisms, not native rewrite effects.
+
+Actual superseded UPDATE versions remain in the existing immutable retained
+header store while the canonical snapshot gate prohibits retirement. FULL
+transfers that exact protected root, or removes its safely obsolete prefix on
+quiescent work, without mutating old links, headers, end/XID facts or payloads.
+Copied live plus retained-dead versions contribute to the class estimate and
+native VERBOSE facts; cumulative DML/live/dead and ordinary vacuum history remain
+unchanged. This physical-version storage is not a chain of FULL heap incarnations
+and does not grant read-routing or publication authority.
+
+Each target publishes atomically; cancellation/error before publication leaves
+that target's heap/index/locator set unchanged, without retracting earlier
+targets. FULL ANALYZE publishes each rewrite before analyzing that occurrence's
+selected columns. Explicit-column ANALYZE preserves the modification counter;
+no-list ANALYZE resets it after successful collection. FULL does not count as
+ordinary VACUUM or reset its insert counter. Effective FULL false retains ordinary
+VACUUM behavior. Snapshots acquired before or between alternating FULL/concurrent
+materialized refreshes retain actual old visibility through later DML, without
+predecessor heap chains. Genuine TRUNCATE preserves its distinct policy across
+later FULL: old snapshots read the current incarnation through their original
+birth frontier, never resurrecting pre-TRUNCATE rows. Nonconcurrent refresh,
+destructive shape rewrites and database replacement/import remain fenced.
+New stable reads resolve the current name and check current privileges before
+selecting their already-owned rows. Valid rename/owner changes around FULL
+preserve retained values only when object identity, actual row shape, View
+definition, row type, table method and grounded family/equal boundary still match.
+Equal-valued layout backing alone is not a structural change. Current SQL schema
+and privilege admission remains independent; revoking SELECT yields ordinary
+permission denial, not retained access. Already-captured queries and publication
+keep their stricter defining-authority fences independently of this new binding.
+
+`pg_catalog.pg_stat_progress_cluster` reports actual admitted FULL workers only.
+Its nullable columns are `pid integer`, `datid oid`, `datname name`, `relid oid`,
+`command text`, `phase text`, `cluster_index_relid oid`, followed by bigint
+`heap_tuples_scanned`, `heap_tuples_written`, `heap_blks_total`,
+`heap_blks_scanned`, `index_rebuild_count`. Native heap counters count completed
+copy prefixes and rebuilt indexes; block counters and cluster index are zero.
+Phases describe entered native work, including detached index rebuild before
+the atomic swap. Authenticated-role/statistics-reader redaction follows ordinary
+vacuum progress. Queued requests have no row; success, error, cancellation,
+session end and database replacement remove actual progress. FULL never appears
+as an ordinary vacuum-progress worker.
+
 ## VACUUM progress
 
 `pg_catalog.pg_stat_progress_vacuum` is a read-only, unordered view of actual
