@@ -166,7 +166,7 @@ func copyOwnerReservation(t *testing.T, format copyfmt.Format) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal("reserved waiter cancellation", entry, err)
 				}
-			case <-time.After(5 * time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Fatal("reservation waiter could not cancel")
 			}
 			sess.Transactions.Mu.Lock()
@@ -539,13 +539,18 @@ func copyTimeoutTest(t *testing.T, csv bool) {
 	for _, setting := range []string{"statement_timeout", "transaction_timeout"} {
 		t.Run(setting, func(t *testing.T) {
 			e := engine.New()
-			session := enginetest.StartSession(t, e, nil)
-			enginetest.SessionSQL(t, session, "CREATE TABLE t(v INT)")
-			enginetest.SessionSQL(t, session, "SET "+setting+" TO '100ms'")
+			sess := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, sess, "CREATE TABLE t(v INT)")
+			// Expire the budget only after the COPY callback barrier: a short
+			// configured timer can elapse before the reader is entered. The
+			// exact cause and its diagnostic stay those of the real timeouts.
+			source, fire := context.WithCancelCause(context.Background())
+			defer fire(context.Canceled)
 			if setting == "transaction_timeout" {
-				enginetest.SessionSQL(t, session, "BEGIN")
+				enginetest.SessionSQL(t, sess, "SET transaction_timeout TO '1h'")
+				enginetest.SessionSQL(t, sess, "BEGIN")
 			}
-			op, _, err := session.AcquireCommand(context.Background())
+			op, _, err := sess.AcquireCommand(source)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -580,11 +585,25 @@ func copyTimeoutTest(t *testing.T, csv bool) {
 			case err := <-done:
 				released = true
 				close(reader.release)
-				t.Fatal("COPY timed out before callback barrier", err)
+				t.Fatal("COPY ended before callback barrier", err)
+			}
+			if setting == "statement_timeout" {
+				fire(session.StatementTimeoutCause)
+			} else {
+				sess.Mu.Lock()
+				slot := &sess.Timeouts.Transaction
+				if slot.Timer == nil {
+					sess.Mu.Unlock()
+					t.Fatal("no real transaction budget to expire")
+				}
+				slot.Timer.Stop()
+				slot.Deadline = time.Now().Add(-time.Second)
+				sess.ExpireTimeoutLocked(slot, slot.Generation, sess.Token(), "25P04", time.Now())
+				sess.Mu.Unlock()
 			}
 			select {
 			case <-op.Context().Done():
-			case <-time.After(5 * time.Second):
+			case <-time.After(enginetest.Liveness):
 				t.Fatal("timeout could not cancel blocked COPY")
 			}
 			close(reader.release)
@@ -609,7 +628,7 @@ func copyTimeoutTest(t *testing.T, csv bool) {
 				t.Fatal("timeout leaked COPY reservation/stage")
 			}
 			if setting == "transaction_timeout" {
-				if err = session.WaitEnd(context.Background()); err != nil {
+				if err = sess.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
 			}
