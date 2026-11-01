@@ -173,9 +173,11 @@ func TestReferenceSerializableDeferrableTimeout(t *testing.T) {
 			serializableReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				a, c, r := serializableReferenceWriters(t, p, b)
 				run := func(x fixture.Executor, s fixture.Step) { serializableReferenceRun(t, p, b, x, s) }
-				run(r, fixture.Exec("SET statement_timeout='200ms'", 0))
 				run(r, fixture.Exec("SET lock_timeout='1ms'", 0))
 				run(r, fixture.Exec("BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE", 0))
+				// Arm the timer last: SET takes no snapshot, so the deferrable
+				// wait still starts at the SELECT.
+				run(r, fixture.Exec("SET statement_timeout='200ms'", 0))
 				want := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
 				if prepare {
 					stmt, err := r.PrepareContext(p.Ctx, "SELECT v FROM x")
