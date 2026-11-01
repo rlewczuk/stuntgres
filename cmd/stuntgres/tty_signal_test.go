@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 	"unsafe"
 )
 
@@ -100,7 +99,7 @@ func TestServerUsersTTYSignals(t *testing.T) {
 			ttyTestIoctl(t, slave, syscall.TCGETS, unsafe.Pointer(&original))
 			original.Lflag |= syscall.ECHO | syscall.ECHONL | syscall.ICANON
 			ttyTestIoctl(t, slave, syscall.TCSETS, unsafe.Pointer(&original))
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), testLiveness)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestServerUsersTTYSignalChild$")
 			cmd.Env = append(os.Environ(), "STUNTGRES_TTY_PROMPT_CHILD="+test.mode)
