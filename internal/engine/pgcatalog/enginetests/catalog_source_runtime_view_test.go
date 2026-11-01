@@ -14,12 +14,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
@@ -30,14 +32,19 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	target.TableMethod = 2
 	state.SetDescriptor(target.Address(), target)
 	ref := f.e.Catalog.Domain.Ref(state.Epoch(), target.Address())
+	integer, _ := f.e.Catalog.Read(state).LookupType(sqltype.Int4)
+	routine := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 20302}, ObjectNamespace: f.schema, ObjectName: "runtime_routine", ObjectRevision: 1, Owner: f.owner}
+	state.SetDescriptor(routine.Address(), routine)
+	routineRef := f.e.Catalog.Domain.Ref(state.Epoch(), routine.Address())
+	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: integer.Usage(), RoutineReference: routine}, Procedure: routine, Ref: routineRef}
 	consumer := *target
 	consumer.ObjectAddress.ObjectID++
 	consumer.ObjectName = "runtime_consumer"
 	consumer.RelationKind = catalog.ViewRelation
 	consumer.View = stored.NewView(stored.ViewParts{
-		Query:        &plan.Query{Root: &plan.SourceNode{Ref: ref}},
+		Query:        &plan.Query{Root: &plan.ProjectNode{Child: &plan.SourceNode{Ref: ref}, Expressions: []expr.Expr{call, call}}},
 		Sources:      []stored.ViewLeaf{{Ref: ref}},
-		Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: 1}},
+		Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: 1}, {Ref: routineRef, Revision: 1}},
 	})
 	state.SetDescriptor(consumer.Address(), &consumer)
 	view := f.e.Catalog.Read(state)
@@ -94,7 +101,12 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 			}()
 			refs, err := runtime.ViewReferences(t.Context(), tc.view, tc.consumer)
 			if tc.valid {
-				if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{target.Address()}) {
+				want := map[ids.ObjectAddress]int{target.Address(): 1, routine.Address(): 1}
+				got := make(map[ids.ObjectAddress]int)
+				for _, ref := range refs {
+					got[ref]++
+				}
+				if err != nil || !reflect.DeepEqual(got, want) {
 					t.Fatal("valid live definition lost direct references", refs, err)
 				}
 			} else if refs != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -120,7 +132,14 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 	e := engine.New()
 	owner := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, owner, "CREATE TEMP TABLE runtime_retained_base(v INT)")
-	enginetest.SessionSQL(t, owner, "CREATE TEMP VIEW runtime_retained_view AS SELECT v FROM runtime_retained_base")
+	enginetest.SessionSQL(t, owner, "CREATE FUNCTION pg_temp.runtime_retained_f() RETURNS integer LANGUAGE SQL AS 'SELECT 1'")
+	routine := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: owner.TemporaryNamespace, Name: "runtime_retained_f"})
+	if routine.ObjectID == 0 {
+		t.Fatal("missing retained routine")
+	}
+	// The private fixture already owns the exact routine address. Store its
+	// regprocedure datum directly, without depending on a TEMP name-input path.
+	enginetest.SessionSQL(t, owner, fmt.Sprintf("CREATE TEMP VIEW runtime_retained_view AS SELECT v, '%d'::regprocedure AS f FROM runtime_retained_base", routine.ObjectID))
 	before := e.CatalogRead()
 	address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "runtime_retained_view"})
 	consumer := before.MustRelation(address)
@@ -131,7 +150,9 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 		replace func() error
 	}{
 		{"reset", func() error { return engine.Reset(t.Context(), e) }},
-		{"restore", func() error { return engine.Restore(t.Context(), e, strings.NewReader("CREATE TABLE runtime_marker(v INT);")) }},
+		{"restore", func() error {
+			return engine.Restore(t.Context(), e, strings.NewReader("CREATE TABLE runtime_marker(v INT);"))
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.replace(); err != nil {
@@ -145,8 +166,22 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 			if len(definition.Sources()) != 1 || definition.Sources()[0].Ref.Epoch != before.Epoch() {
 				t.Fatal("fixture lost the retained source manifest")
 			}
+			retainedRoutine := false
+			for _, dependency := range definition.Dependencies() {
+				if dependency.Ref.Address == routine && dependency.Ref.Epoch == before.Epoch() {
+					retainedRoutine = true
+				}
+			}
+			if !retainedRoutine || current.Get(routine) == nil {
+				t.Fatal("fixture lost retained routine identity/frontier")
+			}
 			refs, err := (core.NewCatalogRuntime(core.CatalogRuntimeFields{})).ViewReferences(t.Context(), current, consumer)
-			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{target}) {
+			want := map[ids.ObjectAddress]int{target: 1, routine: 1}
+			got := make(map[ids.ObjectAddress]int)
+			for _, ref := range refs {
+				got[ref]++
+			}
+			if err != nil || !reflect.DeepEqual(got, want) {
 				t.Fatal("retained TEMP definition lost direct references", refs, err)
 			}
 			ctx, cancel := context.WithCancel(t.Context())

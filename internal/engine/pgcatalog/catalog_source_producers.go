@@ -166,6 +166,7 @@ var producers = [...]Registration{
 	{ConstraintTableUsageOID, captureConstraintTableUsage},
 	{InfoUdtPrivilegesOID, captureInfoUdtPrivileges},
 	{InfoViewColumnUsageOID, captureInfoViewColumnUsage},
+	{InfoViewRoutineUsageOID, captureInfoViewRoutineUsage},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

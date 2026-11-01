@@ -1,7 +1,7 @@
 # reference/information_schema
 
 `information_schema` object views: `views` (including builtin view definitions,
-shared with `pg_views`), `view_table_usage`, `view_column_usage`, `triggers`, `routines`, `parameters`,
+shared with `pg_views`), `view_table_usage`, `view_column_usage`, `view_routine_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`,
@@ -35,6 +35,18 @@ definition matrices include this provider without narrowing other candidates.
 Native catalog replacement preserves returned rows/types but retires previously
 held domain-result statement signatures with the existing `0A000` lifetime fence;
 fresh held statements continue the current-lifetime metadata assertions.
+
+View-routine inquiry prescribes all six nullable identifier domains and raw NAME
+metadata, direct stored dependency bags, repeated-call collapse and distinct
+overload identities. Functions, procedure identity constants and user aggregates
+are real targets; called bodies, aggregate/operator implementation routines,
+pinned objects and non-defining rules do not invent routine edges. Enabled
+referenced-routine ownership alone controls disclosure, independently of view,
+schema and EXECUTE permissions. Direct, prepared, transactional and held consumers
+cover metadata, role/identity publication, replacement/drop and full diagnostics.
+Native-only control phases retain returned rows/types and reconstruct dependencies
+and owners through Reset/Restore, including an independent Driver destination.
+The complete provider inventory and all six builtin definition maps include it.
 
 ## Testing
 
@@ -123,6 +135,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Routine parameter inquiry: `RUN='^TestReferenceInfoParameters'`
 - Referential constraints: `RUN='^TestReferenceInfoReferentialConstraints'`
 - View-column dependencies: `RUN='^TestReferenceInfoViewColumnUsage'`
+- View-routine dependencies: `RUN='^TestReferenceInfoViewRoutineUsage'`
 
 Domain/base usage scenarios assert the complete six-column nullable
 `sql_identifier`/NAME shape, exact immediate-base bags for unused, nested,

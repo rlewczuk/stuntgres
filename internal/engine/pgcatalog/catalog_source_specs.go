@@ -1085,6 +1085,14 @@ var Specs = [...]Spec{
 		{"table_name", 13248, true, 950, 0, -1},
 		{"column_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing view column usage identifier domain"},
+	{InfoViewRoutineUsageOID, 13229, "view_routine_usage", []ColumnSpec{
+		{"table_catalog", 13248, true, 950, 0, -1},
+		{"table_schema", 13248, true, 950, 0, -1},
+		{"table_name", 13248, true, 950, 0, -1},
+		{"specific_catalog", 13248, true, 950, 0, -1},
+		{"specific_schema", 13248, true, 950, 0, -1},
+		{"specific_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing view routine usage identifier domain"},
 	{InfoTriggersOID, 13229, "triggers", infoTriggersColumns, true, false, false, false, "stuntgres: missing triggers metadata domain"},
 	{InfoColumnColumnUsageOID, 13229, "column_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},

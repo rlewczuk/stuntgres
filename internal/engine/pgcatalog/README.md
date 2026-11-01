@@ -1251,6 +1251,21 @@ catalog writes or bypass a provider's independent backing-source checks.
   domain generations and origins belong to one immutable statement frontier;
   errors and cancellation discard every row, including an already-built prefix.
   Native source16254 links the existing row13491/array13490 identities.
+- `view_routine_usage`: six nullable capture-owned `sql_identifier` fields,
+  identifying the defining ordinary view and its directly referenced routine.
+  Stored SELECT-rule queries supply edges through `ViewReferences` and the
+  shared `QueryDependRefs` collector, which deduplicates addresses and omits
+  pinned objects. Routine identity constants and aggregate identities qualify
+  without a routine-kind filter; called bodies, operator/aggregate support
+  implementations and non-defining rewrite rules do not invent direct edges.
+  Enabled ownership of the referenced routine alone controls disclosure, not
+  defining-view ownership, SELECT, EXECUTE, schema USAGE or search path.
+  Source descriptor, catalog, role authority, database name and canonical
+  identifier-domain generation share the captured inquiry frontier. Invalid
+  authority, missing providers and cancellation discard every row, including
+  an already-built prefix; valid empty captures remain non-nil. Native
+  source16255 links the existing row13496/array13495 identities. The builtin
+  definition inventory owns displayed SQL, not executable dependency authority.
 - `routine_sequence_usage`: direct stored SQL-body relation references to real
   sequences, validated before duplicate suppression; sequence-owner role
   inheritance is the only visibility predicate.
@@ -1539,6 +1554,11 @@ a hash root alone does not select that access method.
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|ConstraintTableUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (`core/enginetests/infoschema`): `RUN='^TestInfoColumnDomainUsage'`
 - View-column dependency producer units (`core/enginetests/infoschema`): `RUN='^TestInfoViewColumnUsage'`
+- View-routine dependency producer/capture/cancellation and stored-call identity
+  units (`enginetests/`): `RUN='^TestInfoViewRoutineUsage'`
+- Stored-view consumer and retained TEMP reference authority:
+  `RUN='^(TestCatalogSourceRuntimeViewReferencesConsumer|TestCatalogSourceRuntimeViewReferencesRetainedTemporary)$'`
+- View-routine public scenarios: `RUN='^TestReferenceInfoViewRoutineUsage'`
 - Foreign-wrapper option producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrappers'`
 - Foreign-server producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignServers'`
