@@ -67,10 +67,8 @@ func (p OperatorFamilyProvider) Validate(v Read, d Descriptor) error {
 			if !ok || operator.Left != d.Left || operator.Right != d.Right || d.Purpose == 's' && operator.Result != 16 {
 				return fmt.Errorf("stuntgres: invalid family operator reference")
 			}
-			for _, other := range v.Descriptors() {
-				if member, ok := other.(*OperatorFamilyOperator); ok && member.Address() != d.Address() && member.Family == d.Family && member.Operator == d.Operator && member.Purpose == d.Purpose {
-					return fmt.Errorf("stuntgres: duplicate family operator identity")
-				}
+			if duplicateFamilyOperator(v, d, method.Native) {
+				return fmt.Errorf("stuntgres: duplicate family operator identity")
 			}
 		}
 	case *OperatorFamilySupport:
@@ -138,4 +136,37 @@ func OperatorFamilySeedName(id ids.OID) (string, bool) {
 func OperatorFamilySeedModified(d *OperatorFamily) bool {
 	name, seeded := OperatorFamilySeedName(d.Address().ObjectID)
 	return seeded && (d.Name() != name || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID || d.Owner.ID() != 10)
+}
+
+// duplicateFamilyOperator reports another member of d's family that binds the
+// same operator for the same purpose. A valid member's left and right types are
+// its operator's, so such a member shares d's (family, left, right) name
+// prefix: methods with a fixed strategy count probe those names instead of
+// walking the whole catalog once per member.
+func duplicateFamilyOperator(v Read, d *OperatorFamilyOperator, native NativeAccessMethod) bool {
+	duplicate := func(other Descriptor) bool {
+		member, ok := other.(*OperatorFamilyOperator)
+		return ok && member.Address() != d.Address() && member.Family == d.Family && member.Operator == d.Operator && member.Purpose == d.Purpose
+	}
+	var strategies int16
+	switch native {
+	case BtreeAccessMethod, BrinAccessMethod:
+		strategies = 5
+	case HashAccessMethod, BloomAccessMethod:
+		strategies = 1
+	default:
+		for _, other := range v.Descriptors() {
+			if duplicate(other) {
+				return true
+			}
+		}
+		return false
+	}
+	for number := int16(1); number <= strategies; number++ {
+		key := ids.NameKey{ClassID: ids.AccessMethodOperatorClassID, Name: familyMemberName(d.Family, d.Left, d.Right, number, 0)}
+		if a, ok := v.LookupName(key); ok && duplicate(v.Get(a)) {
+			return true
+		}
+	}
+	return false
 }
