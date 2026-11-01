@@ -109,8 +109,8 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
-	// Installed pgstattuple calls use catalog overload selection before binding.
-	if name == "pgstatindex" || name == "pgstathashindex" || name == "pgstattuple" || name == "pgstattuple_approx" || name == "pg_relpages" {
+	// Installed statistics calls use catalog overload selection before binding.
+	if name == "pgstatindex" || name == "pgstathashindex" || name == "pgstattuple" || name == "pgstattuple_approx" || name == "pg_relpages" || name == "pg_visibility_map" || name == "pg_visibility" || name == "pg_visibility_map_summary" {
 		providerOverride = true
 	}
 	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))

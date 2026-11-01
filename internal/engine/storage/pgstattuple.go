@@ -13,6 +13,9 @@ type HeapTupleFact struct {
 	Version RowVersion
 	Inserter, Ender ids.TxRef
 	End ids.CommitSeq
+	// LockMaintenance is detached exact-version raw xmax evidence. It is
+	// independent of update/delete Ender and is retired by real maintenance.
+	LockMaintenance bool
 }
 
 // HeapTupleLive implements Dirty (exact) and Vacuum (approximate) admission.

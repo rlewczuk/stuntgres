@@ -114,6 +114,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.AutoincProviderOf(proc) == extension.StockAutoinc
 	case functions.PgstattupleExtension:
 		installed = extension.PgstattupleProviderOf(proc) == extension.StockPgstattuple
+	case functions.PgvisibilityExtension:
+		installed = extension.PgvisibilityProviderOf(proc) == extension.StockPgvisibility
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
 	case functions.UUIDOsspExtension:
@@ -162,6 +164,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockAutoinc.ValidateProcedure(r.catalog, p)
 	case extension.PgstattupleProviderOf(p) != nil:
 		return extension.StockPgstattuple.ValidateProcedure(r.catalog, p)
+	case extension.PgvisibilityProviderOf(p) != nil:
+		return extension.StockPgvisibility.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
@@ -227,6 +231,16 @@ func (r installedExtensionRoutine) PgstattupleDeclaration() (functions.HeapStati
 		}
 	}
 	return kind, input, formal, members
+}
+
+func (r installedExtensionRoutine) PgvisibilityDeclaration() (functions.PgvisibilityKind, []sqltype.CompositeMember) {
+	member := extension.PgvisibilityMembers[r.procedure.Origin.Declaration]
+	outputs := r.procedure.OutputDeclaration()
+	members := make([]sqltype.CompositeMember, outputs.Len())
+	for i := range outputs.Len() {
+		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+	}
+	return member.Kind, members
 }
 
 func (r installedExtensionRoutine) CubeDescriptor() *sqltype.Descriptor {
@@ -298,6 +312,17 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgstattupleExpr{Pgstattuple: c, Procedure: p, Ref: ref}, nil
+	case functions.Pgvisibility:
+		if err := extension.ValidatePgvisibilityIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		if c.Kind.Set() {
+			if b.Params.ExecuteParameters { return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos) }
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 { return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions") }
+			if err := b.AdmitSetReturning(c.Pos); err != nil { return nil, err }
+		}
+		c.RoutineReference = p
+		if err := extension.ValidatePgvisibilityCall(r.catalog, p, c); err != nil { return nil, err }
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgvisibilityExpr{Pgvisibility: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
 		if err := extension.ValidatePageinspectIdentity(r.catalog, p, ref); err != nil {
 			return nil, err

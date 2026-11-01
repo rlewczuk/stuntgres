@@ -373,6 +373,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
+- **pg_visibility** (`pgvisibility_provider.go`) owns five read declarations:
+  the block and relation overloads of `pg_visibility_map` and `pg_visibility`,
+  and `pg_visibility_map_summary`. Immutable slots retain their released C
+  symbols, unnamed first input, typed OUT fields and scalar/set cardinality.
+  The relocatable 1.2 provider is superuser-required and untrusted; members are
+  STRICT VOLATILE PARALLEL UNSAFE invokers. Installation preserves unrelated
+  default grants, revokes PUBLIC EXECUTE, grants the genuine scan principal and
+  records the final initial ACLs. Current membership never selects execution.
 - **pgstattuple** (`pgstattuple_provider.go`): the superuser, untrusted,
   relocatable 1.5 provider installs eight declarations: `pgstatindex(text/regclass)`,
   `pgstathashindex(regclass)`, `pgstattuple(text/regclass)`,
@@ -718,6 +726,8 @@ DDL and catalogs),
 [reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
+Visibility provider and expression ownership use `RUN='^TestPgvisibility'`.
+
 Autoinc installation and forgery units in `enginetests` use
 `RUN='^TestAutoincProviderIdentity$'`; its public scenarios live in `reference/operators`.
 

@@ -173,6 +173,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   reconstruction and source opening. Generic completion supplies an anonymous
   record usage; fixed wrappers retain their genuine named composite generation.
   Source/group equality includes both selected identity and result shape.
+  `InstalledPgvisibilityExpr` retains its authentic procedure/reference,
+  operation, lexical formal slots and result shape through rebuilding and source
+  occurrence matching. Its runtime distinguishes scalar-once NULL records from
+  empty STRICT sets; neither analyzed nodes nor cursors retain live authority.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`, `Unknown`
   and `TruthOf`.
 - **Structural NULL** (`structural_null.go`): `StructuralNull` recognizes a
@@ -361,6 +365,9 @@ the query reference packages and cast definitions in
 `REFERENCE=1` for the oracle.
 Routine source occurrence reconstruction uses
 `RUN='^TestSQLRoutineResultSourceOccurrence$'`, also with `RACE=1`.
+Installed visibility identity, source shape and retained ownership use
+`RUN='^TestPgvisibility'`.
+
 
 ```sh
 make check RUN='^TestCastDefinitionIO'

@@ -381,6 +381,13 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		return false
 	}
 	switch n := node.(type) {
+	case plan.InstalledPgvisibilityExpr:
+		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure { return false }
+		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
+		if err != nil || extension.ValidatePgvisibilityIdentity(view, current, n.Ref) != nil { return false }
+		call := n.Pgvisibility
+		call.RoutineReference = current
+		if extension.ValidatePgvisibilityCall(view, current, call) != nil { return false }
 	case plan.InstalledPgstattupleExpr:
 		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

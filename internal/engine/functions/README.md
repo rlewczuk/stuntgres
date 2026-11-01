@@ -818,6 +818,11 @@ reviewed decision:
   eight-field hash RecordShape for scalar, field and one-row FROM usage
   (including an all-NULL row for STRICT NULL). It is VOLATILE, stage dependent
   and never folded; only the installed plan wrapper can execute it.
+  `Pgvisibility` carries a selected block/map/page/summary operation and typed
+  OUT shape. REGCLASS/INT8 inputs use the shared callable/coercion hooks; lexical
+  children and checked formal slots preserve evaluation order. Scalar records
+  and relation sets have separate source cardinality. Calls remain VOLATILE,
+  stage dependent and nonfolding; authority precedes runtime STRICT handling.
   `Pageinspect` binds the installed BRIN, B-tree, FSM, GIN, hash, heap and raw
   header/checksum byte decoders through the same handle. Children remain in
   native written order with six checked formal slots; flags use two INT4 formals,
@@ -1341,6 +1346,8 @@ publication and lock-manager tickets stay in the engine.
 
 Encoding-name and keyword binding, protocol and cursor units use
 `RUN='^TestEncodingKeywords'`; public scenarios live in `reference/catalogs`.
+Installed visibility recipe and composed owner units use `RUN='^TestPgvisibility'`.
+
 Visibility inquiry binding/protocol and composed capture ownership use
 `RUN='^Test(VisibilityInquiry|BooleanCall)'`; public scenarios live in
 `reference/catalog_objects`.

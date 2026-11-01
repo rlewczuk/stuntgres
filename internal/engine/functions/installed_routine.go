@@ -26,6 +26,7 @@ const (
 	TcnExtension
 	AutoincExtension
 	PgstattupleExtension
+	PgvisibilityExtension
 )
 
 // InstalledRoutine is an installed extension routine resolved by the engine.

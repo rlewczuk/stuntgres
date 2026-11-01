@@ -185,6 +185,13 @@ Native replacement failure clears explicit-transaction savepoints and requires
 full rollback before starting a fresh transaction on the same physical owner.
 
 
+`CaptureTupleMaintenance` samples exact `(ObjectRef, RowID, VersionID)` raw xmax
+maintenance facts into caller-owned detached scratch. It does not inherit
+pgrowlocks' SELECT/private-updater filtering and never assigns XIDs, advances
+MultiXact counters, settles queues or changes contributions/history. Callers hold
+no Engine/owner mutex; the method takes Manager.mu only. Real owner/savepoint
+retirement remains the authority for clearing represented evidence.
+
 ## Mutex ownership and lock order
 
 `Manager.mu` guards every map, queue, journal and counter above. Engine code
@@ -291,6 +298,8 @@ locks, waits and deadlocks) or `internal/engine` and read lock state only
 through the diagnostic seam.
 Publication name/definition resource admission and object-tag ownership use
 `RUN='^TestPublicationDefinitionLockResources$'`.
+Exact visibility maintenance facts use `RUN='^TestPgvisibility'`, also with `RACE=1`.
+
 
 ```sh
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'

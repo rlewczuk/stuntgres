@@ -41,6 +41,15 @@ simulations, not PostgreSQL page storage. `pgstattuple` index metrics count
 currently represented logical items: committed deletions leave no physical
 archive, and this model reports zero dead index tuples.
 
+`CREATE EXTENSION pg_visibility` installs the block and relation forms of
+`pg_visibility_map` and `pg_visibility`, plus `pg_visibility_map_summary`.
+Their typed records report deterministic native heap-page visibility, not
+PostgreSQL byte-page parity. Positive flags require genuine frozen tuple facts
+safe for actual protected snapshots; open/prepared writers and represented tuple
+locks remain conservative. Calls use routine EXECUTE (initially
+`pg_stat_scan_tables`), without an additional table SELECT requirement. Returned
+records own their values across later writes and native catalog controls.
+
 
 Storage and native Go text remain UTF8/Unicode. The optional server supports
 bidirectional `client_encoding` through actual registered PostgreSQL conversion

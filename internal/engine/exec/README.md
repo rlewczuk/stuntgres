@@ -610,6 +610,13 @@ Closed literal-NULL array random defaults retain their original nextval leaves
 for stored rendering and lifetime validation, not as executable demand. This
 does not admit nonNULL volatile array defaults or fold nonNULL volatile calls.
 
+`pgvisibility.go` admits current sealed identity and routine/schema ACLs before
+evaluating lexical children once into formal slots. It obtains one detached
+capture from `ContribRuntime`, then constructs typed records or an owned source.
+Scalar STRICT NULL retains one scalar-source row; a STRICT relation set retains
+its declared metadata with no rows. No child, context or physical root is retained
+by the completed result.
+
 ## Invariants
 
 - **No mutexes.** The package adds no lock. Lock order, modes and waits belong to
@@ -786,6 +793,9 @@ Execution-only XML provider composition through enclosing planning frontiers use
 
 Type inquiry datum identity, ordinary cancellation and detached-authority units
 use `RUN='^TestTypeDescribeExecutionOwnership$'` in `enginetests`.
+Installed visibility runtime and composed capture ownership use
+`RUN='^TestPgvisibility'`.
+
 
 Crosstab pivot, directional type compatibility and source cleanup units share
 `RUN='^TestTablefuncCrosstab'`; the cursor owner asserts error precedence and

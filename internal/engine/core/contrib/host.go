@@ -101,6 +101,11 @@ type Host[A Authority] interface {
 	// the cohort's and prepared transactions' versions of store.
 	HeapStatisticsFactsLocked(owners []*session.TransactionOwner, store *storage.Relation, address ids.ObjectAddress, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) []storage.HeapTupleFact
 	HeapStatisticsPrivateWritesLocked(owners []*session.TransactionOwner, store *storage.Relation, address ids.ObjectAddress, writes []storage.RowVersion) []storage.RowVersion
+	// PgvisibilityHorizonLocked shares the same cohort/Engine capture window.
+	PgvisibilityHorizonLocked(owners []*session.TransactionOwner) storage.VisibilityHorizon
+	// PgvisibilityCatalogBytes enters with no mutex and consumes a real
+	// registered catalog producer, without inheriting SQL projection filters.
+	PgvisibilityCatalogBytes(ref ids.ObjectRef, target *catalog.Relation) (int64, error)
 
 	// CheckBtreeAsOwner runs the B-tree checks in parent's restricted
 	// maintenance-owner environment.

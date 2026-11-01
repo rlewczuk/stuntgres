@@ -291,6 +291,10 @@ func (h *contribHost) Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype
 	return contrib.Pgstattuple[AuthorizationView](h.host(), n, input)
 }
 
+func (h *contribHost) Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error) {
+	return contrib.Pgvisibility[AuthorizationView](h.host(), n, oid, block)
+}
+
 func (h *contribHost) Pageinspect(n plan.InstalledPageinspectExpr, oid uint32) ([]sqltype.BrinStoredColumn, error) {
 	return contrib.Pageinspect[AuthorizationView](h.host(), n, oid)
 }

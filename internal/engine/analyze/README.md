@@ -20,6 +20,12 @@ stage-sensitive properties. Their bounded closure authenticates the installed
 declaration and every caller argument; supported scalar wrappers do not admit
 row/parameter-dependent arguments or unrelated volatile producers. Execution
 uses the normal DEFAULT statement owner and live routine/schema ACL admission.
+Visibility calls use the same bounded scalar-statistics closure and live
+admission. Shared catalog overload selection supplies five authentic read
+declarations, ordinary REGCLASS/INT8 coercions, unnamed-first/named-block formals
+and exact typed OUT usages. Only the two relation-set operations enter SRF
+admission; scalar records never imply set cardinality.
+
 
 XML constructor analysis uses assignment conversions only for XML source and
 TEXT PI/version operands. Named operands bind before name inference/duplicate
@@ -602,6 +608,9 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 ## Testing
 
 Workload-policy binder isolation units use `RUN='^TestWorkAdmission'`.
+Installed visibility binding, remap and retained definition ownership use
+`RUN='^TestPgvisibility'`.
+
 
 Pure selected aggregate-mode invariants use `RUN='^TestAggregateMovingSelection$'`;
 the public SQL log witnesses live in `reference/aggregates`.

@@ -1208,6 +1208,15 @@ descriptor pointer after rename, relocation or ACL changes. Reference domain,
 epoch, overload and scalar/OUT usage authority remain mandatory at both boundaries.
 `pg_relpages` has no scalar OUT declaration: its range alias supplies the column
 label unless an explicit column alias overrides it, including folded NULL calls.
+`InstalledPgvisibilityExpr` follows the same closed scalar-statistics admission
+and complete reference/literal/dependency/remap/retag traversal. Scalar and set
+operations retain distinct result usages and genuine sealed overloads.
+Stored carrier validation requires current domain/epoch reference authority;
+zero or future epochs cannot borrow an otherwise genuine installed declaration.
+Rendering uses current authentic names while preserving the unnamed first input
+and lexical argument order; only named formals receive `=>`. Views, scalar
+defaults/checks and independent destination remapping never retain execution ACLs.
+
 
 Scalar type reownership visits current rows, their private predecessor roots
 and committed retained heap headers through the same datum mapper. Compatible
@@ -1220,6 +1229,9 @@ unchanged, including when a later datum conversion fails.
 
 Rewrite definition ownership, range-slot identity and cancellation use
 `make check RUN='^TestPGRewrite'`; add `RACE=1` for concurrent retained output.
+Installed visibility recipe, declaration and retained backing ownership use
+`RUN='^TestPgvisibility'`.
+
 
 XML frozen target/operand occurrence authority, selected conversion association
 and hidden conversion generations use

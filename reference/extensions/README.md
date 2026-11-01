@@ -139,6 +139,16 @@ Rows; rejected/canceled Restore and independent destinations check atomicity.
 ## Testing
 
 Installed statistics scenarios use `RUN='^TestReferencePgstat(index|hashindex)'`.
+Visibility inquiry scenarios use `RUN='^TestReferencePgvisibility'`. Their
+`pgvisibility_fixture_test.go` helper owns isolated installation, exact typed
+metadata and full diagnostics. Physical flags use independently specified
+ownership/maintenance fixtures; quiescent summary/scalar/SRF consistency is an
+additional invariant, never a substitute for those expectations. Native control
+witnesses remain phases of the same public dual-mode definitions.
+Genuine partitioned-index and TOAST construction are oracle-only setup phases.
+Native partitioned-index rejection additionally uses real published descriptors
+and the current installed host, preserving kind-before-block diagnostics without
+adding public construction machinery.
 
 Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 [reference/catalogs](../catalogs/README.md#testing). `TestMain` is

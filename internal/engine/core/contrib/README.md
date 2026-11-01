@@ -20,7 +20,7 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
 ## Contract
 
 - `Amcheck`, `VerifyHeapam`, `Pageinspect`, `PageinspectHeap`, `Pgrowlocks`,
-  `PgstattupleStats` (pgstatindex, pgstathashindex), `Pgstattuple`,
+  `PgstattupleStats` (pgstatindex, pgstathashindex), `Pgstattuple`, `Pgvisibility`,
   `TablefuncCrosstab`, `Connectby`, `GenericFileList`, `GenericFileRead` and
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
@@ -104,6 +104,24 @@ outputs; no index archive is prepared, stamped, published or transported.
 Physical estimates can shrink immediately after logical DELETE, unlike
 PostgreSQL's retained on-page items. Heap logical history is unchanged.
 
+
+### pg_visibility
+
+`pgvisibility_capture.go` validates current sealed identity and ordinary routine
+and schema authority before and after scoped AccessShare admission. Descriptor
+kind precedes block bounds; target SELECT/ownership is not an inquiry gate.
+The shared owner cohort supplies genuine heads, ends, private predecessors and
+detached prepared versions together with actual advertised snapshot protection.
+Exact tuple-maintenance sampling runs outside owner/Engine mutexes, before the
+single detached storage kernel and final identity/cancellation readmission.
+
+Valid catalog heaps consume their registered immutable catalog/RoleRead producer,
+without outer projection pruning or synthesized ownership. The checked stateless
+layout derives VM coverage from genuine frozen headers even when conservative
+proof clears bits. Foreign TEMP buffer restrictions depend on represented VM
+coverage and actual heap EOF; the page-reading relation source requires buffer
+authority even when empty. No provider path mutates a freezer, VM store or lock
+owner. Every exit releases only its own relation contribution.
 
 ### pageinspect
 

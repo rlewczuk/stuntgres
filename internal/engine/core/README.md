@@ -777,6 +777,13 @@ adapters and `PageinspectNotice`, and these host pieces:
 - pgstattuple's heap-statistics owner cohort (`heap_statistics_cohort.go`):
   live owners locked in session-token order, then `Engine.Mu`, with the
   prepared transactions' roots;
+- visibility capture (`pgvisibility_capture.go`) shares that genuine owner cohort
+  and pairs advertised snapshots with actual CommitSeq frontiers. Caller RC uses
+  its statement pair; stable peers use retained pairs, and unknown advertised
+  peers prohibit positive universal proof. Catalog heaps use the existing
+  immutable catalog/RoleRead producer capture with zero Keep, not SQL or
+  fabricated version headers. Exact tuple-maintenance sampling happens only after
+  releasing the cohort and Engine mutexes.
 - `WithMaintenanceOwner` (`maintenance_environment.go`), the serial
   operation-local table-owner frame that amcheck (`CheckBtreeAsOwner`) and
   CLUSTER share, and `refreshRestrictedPresentation`
@@ -2230,6 +2237,11 @@ and queued owner, and fail immediately if the worker completes before admission.
 Retained heap version, logical index publication, capture and expression ownership
 units use `RUN='^TestPgstattupleHeap'`; public outcomes remain in
 `reference/extensions`.
+Visibility owner, snapshot, lock-admission and declaration units use
+`RUN='^TestPgvisibility'`, with `RACE=1` for concurrent capture lifetimes.
+Installed record-source fixtures use `BindFunctionSource` with the ordinary
+`FROM` clause and query namespace, preserving scalar/set admission checks.
+
 
 
 TEMP tablespace preparation, admission and composed-creation units use

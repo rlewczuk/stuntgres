@@ -20,7 +20,7 @@ import (
 // without Engine.mu held.
 
 // ContribRuntime is the contrib function runtime: amcheck, pageinspect,
-// pgrowlocks, pgstattuple, tablefunc and the generic file functions.
+// pgrowlocks, pgstattuple, pg_visibility, tablefunc and generic file functions.
 type ContribRuntime interface {
 	GenericFileList(functions.GenericFileListKind, string) error
 	GenericFileRead(functions.GenericFileReadKind, string, int64, bool) error
@@ -37,6 +37,7 @@ type ContribRuntime interface {
 	Amcheck(n plan.InstalledAmcheckExpr, oid uint32, options [3]bool) error
 	PgstattupleStats(n plan.InstalledPgstattupleStatsExpr, input sqltype.Value) ([8]int64, [2]float64, error)
 	Pgstattuple(n plan.InstalledPgstattupleExpr, input sqltype.Value) (storage.HeapStatistics, error)
+	Pgvisibility(n plan.InstalledPgvisibilityExpr, oid uint32, block int64) (storage.VisibilityMap, error)
 	Pageinspect(n plan.InstalledPageinspectExpr, index uint32) ([]sqltype.BrinStoredColumn, error)
 	PageinspectHeap(n plan.InstalledPageinspectExpr, relation uint32) ([]sqltype.HeapStoredColumn, error)
 	PageinspectNotice(notice sqlstate.Error)

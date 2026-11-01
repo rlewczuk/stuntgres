@@ -463,6 +463,16 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		if changed {
 			rebound, err = n.Rebuild(info, n.Args[:])
 		}
+	case plan.InstalledPgvisibilityExpr:
+		n.Args = children(n.Args)
+		if err != nil { return node, false, err }
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.PgvisibilityProviderOf(proc) != extension.StockPgvisibility { return nil, false, fmt.Errorf("stuntgres: missing remapped pg_visibility function") }
+		changed = changed || n.Procedure != proc
+		n.Procedure, info.RoutineReference = proc, proc
+		n.Info = info
+		if err = ValidateInstalledPgvisibility(n, view); err != nil { return nil, false, err }
+		rebound = n
 	case plan.InstalledPgstattupleExpr:
 		n.Args = children(n.Args)
 		if err != nil {

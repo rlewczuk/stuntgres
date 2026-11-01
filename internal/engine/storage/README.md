@@ -312,6 +312,16 @@ nonserialized auxiliary allocation history are not a replay identity contract.
   collection only borrows these roots. Index roots have no physical-item archive.
   `pgstattuple.go` owns Dirty/Vacuum classification and checked deterministic
   page/byte/percentage arithmetic, not a second statistics store.
+  `pgvisibility.go` consumes detached facts in genuine VersionID order, deduplicates
+  only physical identity, and packs checked `RowAllocation+4` weights into
+  8168-byte page payloads. Compressed immutable runs supply probes, relation rows
+  and exact flag counts without expanding pages for scalar/summary calls.
+  Universal proof requires genuine committed frozen provenance, no unresolved end
+  and every known protected CommitSeq; unknown snapshots clear positive flags.
+  Raw tuple-maintenance evidence independently clears all-frozen. VM layout is
+  derived from frozen headers, not from positive flags: coverage rounds the
+  highest intersected frozen block to a 32672-block VM page. Unknown catalog
+  provenance uses actual producer allocation with conservative false bits.
 - **Imported relation estimates.** `RelationMetadata.Imported` owns immutable
   INT4/FLOAT4/INT4/INT4 values with independent presence bits. Partial imports
   merge without changing heaps, scan cardinality, live/dead counts or allocator
@@ -359,6 +369,8 @@ recipes live in external `enginetests/`, avoiding a storage→plan→storage tes
 variant import cycle. Pure collector and snapshot-codec units remain local.
 Heap tuple classification and allocation units use `RUN='^TestPgstattupleHeap'`;
 composed retention, publication and race witnesses live with core.
+Visibility layout/classification and composed owner proofs use `RUN='^TestPgvisibility'`.
+
 MCV collection, full marginals, typed collision chains and immutable construction
 facts use `make check RUN='^TestStatisticsMCVCollection$'`.
 Sample-versus-population scalar counts, singleton estimation and empty/canceled
