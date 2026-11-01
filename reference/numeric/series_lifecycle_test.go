@@ -62,7 +62,7 @@ func seriesNativeCancel(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, pr
 	defer func() {
 		if !joined {
 			cancel()
-			timer := time.NewTimer(5 * time.Second)
+			timer := time.NewTimer(fixture.Liveness)
 			defer timer.Stop()
 			select {
 			case r := <-done:
@@ -159,7 +159,7 @@ func seriesServerCancel(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 	defer func() {
 		if !joined {
 			cancel()
-			timer := time.NewTimer(5 * time.Second)
+			timer := time.NewTimer(fixture.Liveness)
 			defer timer.Stop()
 			select {
 			case <-done:
