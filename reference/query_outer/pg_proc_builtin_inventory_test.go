@@ -192,8 +192,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Four XPath declarations add the two internal implementations and two
 	// released SQL wrapper bodies.
 	// Statistics definition introspection adds the one-OID TEXT declaration3415.
-	if len(facts) != 2182 {
-		t.Fatalf("released represented overloads: got %d, want 2182", len(facts))
+	// The two truncate declarations add strict VOLATILE/parallel-unsafe
+	// INT4 results and their released signed descriptor/length formals.
+	if len(facts) != 2184 {
+		t.Fatalf("released represented overloads: got %d, want 2184", len(facts))
 	}
 	return facts
 }

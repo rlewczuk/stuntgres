@@ -11,7 +11,8 @@ the authority behind evaluation capabilities in the root
 `LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
 and descriptor functions. Descriptor IDs/modes use signed INT4 formals, while
 only object identities use OID; `loread` returns BYTEA and descriptor open/close/
-write return INT4. Shared strict planning replaces a planning-known NULL call
+write/truncate return INT4. `lo_truncate` takes an INT4 length; `lo_truncate64`
+takes INT8. Shared strict planning replaces a planning-known NULL call
 with typed NULL after required child planning; runtime-only siblings are erased,
 but demanded child arithmetic errors remain. A reached runtime call evaluates
 written arguments once before typed NULL handling, preserving sibling errors

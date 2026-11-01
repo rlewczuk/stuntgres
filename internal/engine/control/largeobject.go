@@ -74,7 +74,12 @@ func emitDumpLargeObjects(ctx context.Context, s *dumpScript, w *dumpWriter) err
 		})
 		sort.Slice(chunks, func(i, j int) bool { return chunks[i].offset < chunks[j].offset })
 		for _, part := range chunks {
-			q := fmt.Sprintf("SELECT pg_catalog.lo_put(%d::pg_catalog.oid,%d::pg_catalog.int8,pg_catalog.decode('%s','hex'));\n", oid, part.offset, hex.EncodeToString(part.data))
+			var q string
+			if len(part.data) == 0 {
+				q = fmt.Sprintf("SELECT pg_catalog.lo_truncate64(pg_catalog.lo_open(%d::pg_catalog.oid,131072::pg_catalog.int4),%d::pg_catalog.int8);\n", oid, part.offset)
+			} else {
+				q = fmt.Sprintf("SELECT pg_catalog.lo_put(%d::pg_catalog.oid,%d::pg_catalog.int8,pg_catalog.decode('%s','hex'));\n", oid, part.offset, hex.EncodeToString(part.data))
+			}
 			if err := w.emit(q); err != nil {
 				return err
 			}

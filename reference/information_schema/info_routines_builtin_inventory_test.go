@@ -126,9 +126,11 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{1291, "suppress_redundant_updates_trigger", "suppress_redundant_updates_trigger", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3752, "tsvector_update_trigger", "tsvector_update_trigger_byid", "INTERNAL", "INVOKER"},
 		irBuiltinFact{3753, "tsvector_update_trigger_column", "tsvector_update_trigger_bycolumn", "INTERNAL", "INVOKER"},
+		irBuiltinFact{1004, "lo_truncate", "be_lo_truncate", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3172, "lo_truncate64", "be_lo_truncate64", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1795 {
-		t.Fatalf("released represented inventory: got %d, want 1795", len(facts))
+	if len(facts) != 1797 {
+		t.Fatalf("released represented inventory: got %d, want 1797", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

@@ -715,6 +715,11 @@ No physical WAL position or flush guarantee is serialized.
   before writer I/O; otherwise omitted TEMP descriptors never become replay state.
 - **Large objects** (`largeobject.go`): a fixed-OID-sorted list outside the
   relation graph; owner and ACL formatting is preflighted before writer I/O.
+  Chunks replay in offset order: nonempty pages use `lo_put`; every empty page
+  uses a qualified literal `lo_truncate64(lo_open(...,131072),offset)` endpoint.
+  Interior empty pages therefore survive later puts/endpoints. Replay opens
+  are private-stage resources, never serialized source handles; only the exact
+  generated shape receives statement-local object-byte replay authority.
 
 ### Ordering and replay rules
 

@@ -2278,12 +2278,18 @@ restores the exact outer frontier on success, failure and nested unwind,
 without rewinding the live journal, retaining views in prepared recipes or
 changing convenience-function visibility.
 Object ACL admission occurs only at open; subsequent operations retain mode,
-not actor or role graphs. Savepoints retain opening ordinals, never cursor/table
-copies: rollback closes younger openings without rewinding cursors or undoing
-explicit close. Successful local unlink closes matching handles. Canonical
-transaction/error disposal releases the table and stable base, and native
-replacement uses the ordinary active-transaction epoch fence. Neither dump nor
-prepared definitions own descriptor IDs, offsets or content snapshots.
+not actor or role graphs. Truncation validates readonly mode, descriptor, write
+mode and length in that order, journals an immutable replacement/revision and
+never changes the int64 cursor. Savepoints retain opening ordinals, never
+cursor/table copies: rollback restores catalog bytes and closes younger
+openings without rewinding cursors or undoing explicit close. Successful local
+unlink closes matching handles. Canonical transaction/error disposal releases
+the table and stable base, and native replacement uses the ordinary
+active-transaction epoch fence. Prepared definitions own no descriptor IDs,
+offsets or content snapshots. Dump's generated endpoint opens are fresh replay
+handles, not serialized source cursors; admitted statement-local byte-replay
+authority bypasses only their object ACL check, not callable authorization,
+existence, mode, readonly or catalog/transaction fences.
 
 
 amcheck's restricted-owner boundary enters that capture seam before replacing

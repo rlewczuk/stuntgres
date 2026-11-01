@@ -13,6 +13,10 @@ grants, default privileges, membership and ownership in `reference/roles`;
 FDW wrapper/server grants (`TestReferenceFDWObjectGrants`) in `reference/tables`;
 the `pg_largeobject` page catalog in `reference/catalog_objects` and ACL inquiry functions in
 `reference/catalog_privileges`.
+Truncate-family bytes, sparse endpoints and replay scenarios are owned by
+[reference/large_objects](../large_objects/README.md#testing). Existing byte and
+descriptor scenarios and their private package-local helpers remain here;
+neither package exports those helpers to the other.
 
 Strict scalar demand covers post-child literal and fresh bound NULL elimination,
 including volatile `array_sample` with a discarded `nextval` sibling. Planning

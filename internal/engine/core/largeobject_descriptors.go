@@ -107,16 +107,19 @@ func (s *StatementScope) largeObjectDescriptorLocked(e *Engine, r functions.Larg
 		a := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: r.OID}
 		d, _ := view.Get(a).(*catalog.LargeObject)
 		if d == nil { return out, LargeObjectMissingError(r.OID) }
-		auth.Recapture(view)
-		privileges := authorization.SelectPrivilege
-		if writable { privileges |= authorization.UpdatePrivilege }
-		if err := auth.Check(access.Requirement{Object: auth.Ref(a), Privileges: privileges}); err != nil { return out, err }
+		if !OperationReplayOrZero(s.Op).LargeObjectAuthority {
+			auth.Recapture(view)
+			privileges := authorization.SelectPrivilege
+			if writable { privileges |= authorization.UpdatePrivilege }
+			if err := auth.Check(access.Requirement{Object: auth.Ref(a), Privileges: privileges}); err != nil { return out, err }
+		}
 		entry := largeObjectDescriptor{oid: r.OID, writable: writable}
 		if !writable { entry.content = d.Content }
 		out.Integer, err = table.open(entry)
 		return out, err
 	}
-	if r.Name == "lowrite" && s.Op.EffectiveReadOnly() { return out, SQLError("25006", "cannot execute lowrite() in a read-only transaction") }
+	truncate := r.Name == "lo_truncate" || r.Name == "lo_truncate64"
+	if (r.Name == "lowrite" || truncate) && s.Op.EffectiveReadOnly() { return out, SQLError("25006", "cannot execute "+r.Name+"() in a read-only transaction") }
 	if r.Name == "loread" {
 		r.Length = max(r.Length, 0)
 		if r.Length > largeobject.MaximumRead { return out, SQLError("XX000", fmt.Sprintf("invalid memory alloc request size %d", r.Length+4)) }
@@ -124,7 +127,7 @@ func (s *StatementScope) largeObjectDescriptorLocked(e *Engine, r functions.Larg
 	d, err := table.lookup(r.Descriptor)
 	if err != nil { return out, err }
 	if r.Name == "lo_close" { *d = largeObjectDescriptor{}; return out, nil }
-	if r.Name == "lowrite" && !d.writable { return out, SQLError("55000", fmt.Sprintf("large object descriptor %d was not opened for writing", r.Descriptor)) }
+	if (r.Name == "lowrite" || truncate) && !d.writable { return out, SQLError("55000", fmt.Sprintf("large object descriptor %d was not opened for writing", r.Descriptor)) }
 	content := d.content
 	var object *catalog.LargeObject
 	if d.writable {
@@ -138,9 +141,13 @@ func (s *StatementScope) largeObjectDescriptorLocked(e *Engine, r functions.Larg
 		if err == nil { d.offset += int64(len(out.Data)) }
 		return out, err
 	}
-	content, err = content.Write(d.offset, r.Data)
+	if truncate {
+		content, err = content.Truncate(r.Length)
+	} else {
+		content, err = content.Write(d.offset, r.Data)
+	}
 	if err != nil { return out, err }
-	if len(r.Data) != 0 {
+	if truncate || len(r.Data) != 0 {
 		n := *object
 		n.Content = content
 		n.ObjectRevision, err = e.Catalog.RevisionLocked()
@@ -150,7 +157,9 @@ func (s *StatementScope) largeObjectDescriptorLocked(e *Engine, r functions.Larg
 		e.CatalogChangeLocked(changes, n.Address(), &n)
 		s.Catalog = changes
 	}
-	d.offset += int64(len(r.Data))
-	out.Integer = int32(len(r.Data))
+	if !truncate {
+		d.offset += int64(len(r.Data))
+		out.Integer = int32(len(r.Data))
+	}
 	return out, nil
 }

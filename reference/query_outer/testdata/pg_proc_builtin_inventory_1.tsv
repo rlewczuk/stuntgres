@@ -458,6 +458,7 @@
 997	lseg_vertical	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	601	\N	\N	\N	false	\N	lseg_vertical	\N	false	\N
 998	lseg_horizontal	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	16	601	\N	\N	\N	false	\N	lseg_horizontal	\N	false	\N
 999	lseg_eq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	601 601	\N	\N	\N	false	\N	lseg_eq	\N	false	\N
+1004	lo_truncate	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	23	23 23	\N	\N	\N	false	\N	be_lo_truncate	\N	false	\N
 1026	timezone	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	1114	1186 1184	\N	\N	\N	false	\N	timestamptz_izone	\N	false	\N
 1037	aclcontains	11	12	1	0	0	0	f	false	false	true	false	i	s	2	0	16	1034 1033	\N	\N	\N	false	\N	aclcontains	\N	false	\N
 1048	bpchareq	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	16	1042 1042	\N	\N	\N	false	\N	bpchareq	\N	false	\N

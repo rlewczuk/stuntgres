@@ -361,6 +361,7 @@
 3166	pg_size_pretty	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	25	1700	\N	\N	\N	false	\N	pg_size_pretty_numeric	\N	false	\N
 3167	array_remove	11	12	1	0	0	0	f	false	false	false	false	i	s	2	0	5078	5078 5077	\N	\N	\N	false	\N	array_remove	\N	false	\N
 3168	array_replace	11	12	1	0	0	0	f	false	false	false	false	i	s	3	0	5078	5078 5077 5077	\N	\N	\N	false	\N	array_replace	\N	false	\N
+3172	lo_truncate64	11	12	1	0	0	0	f	false	false	true	false	v	u	2	0	23	23 20	\N	\N	\N	false	\N	be_lo_truncate64	\N	false	\N
 3175	json_agg	11	12	1	0	0	0	a	false	false	false	false	s	s	1	0	114	2283	\N	\N	\N	false	\N	aggregate_dummy	\N	false	\N
 3176	to_json	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	114	2283	\N	\N	\N	false	\N	to_json	\N	false	\N
 3179	cardinality	11	12	1	0	0	0	f	false	false	true	false	i	s	1	0	23	2277	\N	\N	\N	false	\N	array_cardinality	\N	false	\N

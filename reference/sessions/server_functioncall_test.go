@@ -5,6 +5,7 @@ package reference_test
 import (
 	"bytes"
 	"encoding/binary"
+	"strconv"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -128,6 +129,62 @@ func TestReferenceServerFunctionCall(t *testing.T) {
 				serverWantReady(t, frames, 'I')
 				serverScalar(t, w, "SELECT 42", "42")
 			})
+			for _, tc := range []struct {
+				name string
+				oid uint32
+				format int
+			}{
+				{"lo_truncate_text", 1004, 0},
+				{"lo_truncate64_binary", 3172, 1},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					w := serverAuthenticated(t, dsn)
+					defer w.Close()
+					defer func() { serverWantCode(t, w.query(t, "ROLLBACK"), "") }()
+					serverWantCode(t, w.query(t, "BEGIN"), "")
+					serverScalar(t, w, "SELECT lo_from_bytea(928312::oid,decode('616263646566','hex'))::bigint", "928312")
+					serverScalar(t, w, "SELECT lo_open(928312::oid,131072)", "0")
+					integer := func(v int64, wide bool) []byte {
+						if tc.format == 0 { return []byte(strconv.FormatInt(v, 10)) }
+						if wide {
+							b := make([]byte, 8)
+							binary.BigEndian.PutUint64(b, uint64(v))
+							return b
+						}
+						return serverPut32(nil, uint32(v))
+					}
+					wantResult := func(args [][]byte, null bool) {
+						w.send(t, serverFunction(tc.oid, []int{tc.format}, args, tc.format))
+						frames := w.ready(t)
+						serverWantTags(t, frames, "VZ")
+						serverWantReady(t, frames, 'T')
+						want := []byte{0, 0, 0, 1, '0'}
+						if tc.format == 1 { want = []byte{0, 0, 0, 4, 0, 0, 0, 0} }
+						if null { want = []byte{255, 255, 255, 255} }
+						if !bytes.Equal(frames[0].body, want) { t.Fatalf("function result %x, want %x", frames[0].body, want) }
+					}
+					wide := tc.oid == 3172
+					wantResult([][]byte{integer(0, false), integer(2, wide)}, false)
+					serverScalar(t, w, "SELECT encode(lo_get(928312::oid),'hex')", "6162")
+					serverScalar(t, w, "SELECT pageno::text||':'||octet_length(data)::text||':'||encode(data,'hex') FROM pg_largeobject WHERE loid=928312::oid ORDER BY pageno", "0:2:6162")
+					wantResult([][]byte{integer(0, false), integer(7, wide)}, false)
+					serverScalar(t, w, "SELECT encode(lo_get(928312::oid),'hex')", "61620000000000")
+					wantResult([][]byte{nil, integer(-1, wide)}, true)
+					wantResult([][]byte{integer(-1, false), nil}, true)
+					wantResult([][]byte{nil, nil}, true)
+					serverScalar(t, w, "SELECT encode(lo_get(928312::oid),'hex')", "61620000000000")
+					serverWantCode(t, w.query(t, "SAVEPOINT fastpath_truncate"), "")
+					w.send(t, serverFunction(tc.oid, []int{tc.format}, [][]byte{integer(-1, false), integer(-1, wide)}, tc.format))
+					frames := w.ready(t)
+					serverWantTags(t, frames, "EZ")
+					serverNotificationError(t, frames, "42704", "invalid large-object descriptor: -1", "")
+					serverWantReady(t, frames, 'E')
+					serverWantCode(t, w.query(t, "ROLLBACK TO SAVEPOINT fastpath_truncate"), "")
+					serverScalar(t, w, "SELECT encode(lo_get(928312::oid),'hex')", "61620000000000")
+					serverScalar(t, w, "SELECT pageno::text||':'||octet_length(data)::text||':'||encode(data,'hex') FROM pg_largeobject WHERE loid=928312::oid ORDER BY pageno", "0:7:61620000000000")
+					serverWantReady(t, w.query(t, "RELEASE SAVEPOINT fastpath_truncate"), 'T')
+				})
+			}
 		})
 	}
 }

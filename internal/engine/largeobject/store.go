@@ -36,7 +36,7 @@ func (v Value) Validate() error {
 	}
 	var end int64
 	for page, data := range v.pages {
-		if page < 0 || page >= MaximumSize/PageSize || len(data) == 0 || int64(len(data)) > PageSize || page*PageSize+int64(len(data)) > v.size {
+		if page < 0 || page > MaximumSize/PageSize || int64(len(data)) > PageSize || page*PageSize+int64(len(data)) > v.size {
 			return fmt.Errorf("stuntgres: invalid large object page")
 		}
 		end = max(end, page*PageSize+int64(len(data)))
@@ -75,6 +75,39 @@ func (v Value) Write(offset int64, data string) (Value, error) {
 		data = data[count:]
 		offset += count
 	}
+	return n, nil
+}
+
+// Truncate retains sparse lower pages and stores the exact physical endpoint,
+// including an empty page at aligned EOF. Neither gaps nor discarded pages are
+// materialized; immutable payloads outside the changed endpoint remain shared.
+func (v Value) Truncate(length int64) (Value, error) {
+	if length < 0 || length > MaximumSize {
+		return Value{}, failure("22023", fmt.Sprintf("invalid large object truncation target: %d", length))
+	}
+	page, within := length/PageSize, length%PageSize
+	old, present := v.pages[page]
+	if v.size == length && present && int64(len(old)) == within {
+		return v, nil
+	}
+	count := 1
+	for index := range v.pages {
+		if index < page {
+			count++
+		}
+	}
+	n := Value{size: length, pages: make(map[int64][]byte, count)}
+	for index, data := range v.pages {
+		if index < page {
+			n.pages[index] = data
+		}
+	}
+	endpoint := old
+	if int64(len(old)) != within {
+		endpoint = make([]byte, within)
+		copy(endpoint, old)
+	}
+	n.pages[page] = endpoint
 	return n, nil
 }
 

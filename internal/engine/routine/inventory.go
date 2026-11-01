@@ -476,6 +476,8 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{955, ids.PGCatalogNamespaceOID, "lowrite", "23,17"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{957, ids.PGCatalogNamespaceOID, "lo_creat", "23"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{964, ids.PGCatalogNamespaceOID, "lo_unlink", "26"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{1004, ids.PGCatalogNamespaceOID, "lo_truncate", "23,23"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
+	{catalog.RoutineIdentity{3172, ids.PGCatalogNamespaceOID, "lo_truncate64", "23,20"}, catalog.FunctionRoutine, 23, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{3457, ids.PGCatalogNamespaceOID, "lo_from_bytea", "26,17"}, catalog.FunctionRoutine, 26, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{3458, ids.PGCatalogNamespaceOID, "lo_get", "26"}, catalog.FunctionRoutine, 17, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},
 	{catalog.RoutineIdentity{3459, ids.PGCatalogNamespaceOID, "lo_get", "26,20,23"}, catalog.FunctionRoutine, 17, true, expr.Volatile, 'u', false, 0, 0, functions.LargeObjectRoutineProvider, nil},

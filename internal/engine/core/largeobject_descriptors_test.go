@@ -3,13 +3,16 @@ package core
 import (
 	"errors"
 	"math"
+	"sync"
 	"testing"
 	"unsafe"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 )
 
 func descriptorTestValue(t *testing.T, text string) largeobject.Value {
@@ -168,4 +171,76 @@ func TestLargeObjectDescriptorSnapshots(t *testing.T) {
 			if err := restore(nil); err != nil || scope.largeObjectOpening != opening { t.Fatal("peer-view restoration", err) }
 		})
 	}
+}
+
+func TestLargeObjectDescriptorTruncate(t *testing.T) {
+	a := ids.ObjectAddress{ClassID:ids.LargeObjectClassID, ObjectID:42}
+	old := &catalog.LargeObject{ObjectAddress:a, ObjectRevision:1, Content:descriptorTestValue(t, "abcdef")}
+	e := &Engine{Mu:new(sync.Mutex), Catalog:catalog.NewStore(catalog.Owner{}, 16384, 2)}
+	e.Catalog.State = catalog.NewState(1)
+	e.Catalog.State.SetDescriptor(a, old)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	owner := &session.TransactionOwner{Catalog:session.NewJournal()}
+	backend := &session.Session{Transactions:owner}
+	op := &session.Operation{Session:backend}
+	scope := &StatementScope{Op:op, Owner:owner}
+	table := &ownerExtensionOf(owner).largeObjects
+	read, err := table.open(largeObjectDescriptor{oid:42, content:old.Content})
+	if err != nil { t.Fatal(err) }
+	write, err := table.open(largeObjectDescriptor{oid:42, writable:true, offset:1<<33})
+	if err != nil { t.Fatal(err) }
+	mark, ordinal := owner.Catalog, table.ordinal
+	call := func(name string, fd int32, length int64) (functions.LargeObjectResult, error) {
+		return scope.largeObjectDescriptorLocked(e, functions.LargeObjectRequest{Name:name, Descriptor:fd, Length:length})
+	}
+	assertFailure := func(name string, fd int32, length int64, code, message string) {
+		t.Helper()
+		candidate, revision, cursor := scope.Catalog, e.Catalog.NextRevision(), table.slots[write].offset
+		out, err := call(name, fd, length)
+		var d *sqlstate.Error
+		if !errors.As(err, &d) || d.Code != code || d.Message != message { t.Fatal("truncate diagnostic", err) }
+		if out != (functions.LargeObjectResult{}) || scope.Catalog != candidate || e.Catalog.NextRevision() != revision || table.slots[write].offset != cursor || e.Catalog.State.Get(a) != old { t.Fatal("failure published or moved cursor") }
+	}
+	for _, name := range []string{"lo_truncate", "lo_truncate64"} {
+		owner.ReadOnly = true
+		assertFailure(name, -1, -1, "25006", "cannot execute "+name+"() in a read-only transaction")
+		owner.ReadOnly = false
+		assertFailure(name, -1, -1, "42704", "invalid large-object descriptor: -1")
+		assertFailure(name, read, -1, "55000", "large object descriptor 0 was not opened for writing")
+		assertFailure(name, write, -1, "22023", "invalid large object truncation target: -1")
+		out, err := call(name, write, 2)
+		if err != nil || out.Integer != 0 { t.Fatal("truncate result", out, err) }
+		changed, ok := scope.Catalog.Descriptors[a].(*catalog.LargeObject)
+		if !ok || changed == old || changed.Revision() <= old.Revision() || descriptorTestPage(changed.Content) == descriptorTestPage(old.Content) { t.Fatal("replacement did not own new descriptor/endpoint/revision") }
+		if scope.Catalog == mark || len(mark.Descriptors) != 0 || scope.Catalog.Originals[a] != old || e.Catalog.State.Get(a) != old { t.Fatal("candidate mutated owner journal or committed catalog") }
+		if got, err := changed.Content.Read(0, -1); err != nil || got != "ab" { t.Fatal("candidate bytes", got, err) }
+		if got, err := table.slots[read].content.Read(0, -1); err != nil || got != "abcdef" || descriptorTestPage(table.slots[read].content) != descriptorTestPage(old.Content) { t.Fatal("frozen opening backing changed", got, err) }
+		if table.slots[write].offset != 1<<33 { t.Fatal("truncate narrowed or moved int64 cursor") }
+		// Savepoint marks retain journals and opening ordinals, not cursors.
+		table.slots[write].offset++
+		scope.Catalog = nil
+		owner.Catalog = mark
+		table.rollback(ordinal)
+		if e.PrivateCatalogLocked(scope.PendingCatalog()).Get(a) != old || table.slots[write].offset != (1<<33)+1 { t.Fatal("rollback lost old descriptor or rewound cursor") }
+		table.slots[write].offset = 1<<33
+	}
+	out, err := call("lo_truncate64", write, largeobject.MaximumSize)
+	if err != nil || out.Integer != 0 || table.slots[write].offset != 1<<33 { t.Fatal("large truncate changed cursor", out, err) }
+	huge := scope.Catalog.Descriptors[a].(*catalog.LargeObject)
+	chunks := 0
+	huge.Content.Chunks(func(offset int64, data []byte) bool {
+		chunks++
+		if offset == largeobject.MaximumSize && len(data) != 0 { t.Fatal("maximum endpoint nonempty") }
+		return true
+	})
+	if chunks != 2 || descriptorTestPage(huge.Content) != descriptorTestPage(old.Content) { t.Fatal("extension copied lower payload or materialized gap") }
+	// A failed statement discards its candidate without publishing it.
+	scope.Catalog = nil
+	if e.PrivateCatalogLocked(scope.PendingCatalog()).Get(a) != old || e.Catalog.State.Get(a) != old { t.Fatal("failed statement retained private bytes") }
+	e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(math.MaxUint64))
+	if _, err := call("lo_truncate64", write, 1); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || scope.Catalog != nil || table.slots[write].offset != 1<<33 || len(mark.Descriptors) != 0 { t.Fatal("failed revision reservation published", err) }
+	// Reject a foreign transaction owner before changing any resource.
+	scope.TxRef = e.Catalog.Domain.Tx(ids.SessionToken{}, 1, 1, nil, 0)
+	if _, err := call("lo_truncate64", write, 1); !errors.Is(err, ids.ErrCatalogReplaced) || scope.Catalog != nil || table.slots[write].offset != 1<<33 { t.Fatal("foreign owner changed descriptor", err) }
 }

@@ -22,8 +22,19 @@ func oidLiteral(raw parser.Expr) (uint32, bool) {
 	return uint32(v.Integer), ok && v.Kind == parser.IntegerValue && v.Integer > 0 && v.Integer <= 4294967295
 }
 
-// RestoresBytes admits only the fixed-OID literal create and bounded literal
-// put emitted by Dump. No parameters, subqueries, labels or arbitrary functions.
+func plainCall(call parser.FunctionExpr) bool {
+	return len(call.ArgNames) == 0 && !call.Variadic && call.Window == nil && !call.Star && !call.Distinct && !call.All && len(call.Order) == 0 && call.Filter == nil
+}
+
+// The parser marks these ordinary generic calls as composite candidates.
+// Require that raw generated representation, never a stored/bound recipe.
+func endpointCall(call parser.FunctionExpr) bool {
+	return plainCall(call) && !call.ProcedureCall && !call.ResolutionOnly && call.CompositeCandidate && !call.StoredSQLRoutine && !call.StoredProviderRoutine && call.StoredProviderSymbol == "" && call.Syntax == parser.OrdinaryFunctionSyntax && call.StringSyntax == parser.OrdinaryStringSyntax && !call.Within && len(call.ColumnDefinitions) == 0
+}
+
+// RestoresBytes admits only fixed-OID literal create, bounded literal put, and
+// aligned nested open/truncate endpoints emitted by Dump. No runtime operands
+// or widened SELECT/call envelopes acquire replay authority.
 func RestoresBytes(s *parser.Select) bool {
 	if s == nil || len(s.With) != 0 || s.WithRecursive || s.From != nil || s.Values != nil || s.Where != nil || s.GroupBy != nil || s.Having != nil || len(s.Windows) != 0 || s.Order != nil || s.Into != nil || len(s.Locking) != 0 || s.Bounds != nil || s.Distinct != nil || s.Set != nil || s.Parenthesized || len(s.Targets) != 1 {
 		return false
@@ -34,12 +45,27 @@ func RestoresBytes(s *parser.Select) bool {
 		}
 	}
 	call, ok := s.Targets[0].(parser.FunctionExpr)
-	if !ok || len(call.ArgNames) != 0 || call.Variadic || call.Window != nil || call.Star || call.Distinct || call.All || len(call.Order) != 0 || call.Filter != nil {
+	if !ok || !plainCall(call) {
 		return false
 	}
 	if qualified(call.Name, "lo_create") && len(call.Args) == 1 {
 		_, ok := oidLiteral(call.Args[0])
 		return ok
+	}
+	if qualified(call.Name, "lo_truncate64") && len(call.Args) == 2 && endpointCall(call) {
+		open, ok := call.Args[0].(parser.FunctionExpr)
+		if !ok || !endpointCall(open) || !qualified(open.Name, "lo_open") || len(open.Args) != 2 {
+			return false
+		}
+		if _, ok := oidLiteral(open.Args[0]); !ok {
+			return false
+		}
+		mode, ok := castLiteral(open.Args[1], "int4", false)
+		if !ok || mode.Kind != parser.IntegerValue || mode.Integer != 131072 {
+			return false
+		}
+		length, ok := castLiteral(call.Args[1], "int8", false)
+		return ok && length.Kind == parser.IntegerValue && length.Integer >= 0 && length.Integer <= MaximumSize && length.Integer%PageSize == 0
 	}
 	if !qualified(call.Name, "lo_put") || len(call.Args) != 3 {
 		return false

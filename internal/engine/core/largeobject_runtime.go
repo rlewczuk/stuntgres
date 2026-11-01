@@ -24,7 +24,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		return out, ids.ErrCatalogReplaced
 	}
 	switch r.Name {
-	case "lo_open", "lo_close", "loread", "lowrite":
+	case "lo_open", "lo_close", "loread", "lowrite", "lo_truncate", "lo_truncate64":
 		return s.largeObjectDescriptorLocked(e, r)
 	}
 	if r.Name == "lo_get" && r.Fragment && r.Length < 0 {

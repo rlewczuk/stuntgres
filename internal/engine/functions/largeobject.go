@@ -50,6 +50,12 @@ func bindLargeObject(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	case "lowrite":
 		count, result = 2, sqltype.Int4
 		formal[0], formal[1] = sqltype.Int4, sqltype.Bytea
+	case "lo_truncate":
+		count, result = 2, sqltype.Int4
+		formal[0], formal[1] = sqltype.Int4, sqltype.Int4
+	case "lo_truncate64":
+		count, result = 2, sqltype.Int4
+		formal[0], formal[1] = sqltype.Int4, sqltype.Int8
 	case "lo_creat":
 		formal[0] = sqltype.Int4
 	case "lo_from_bytea":
@@ -115,7 +121,7 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	r := LargeObjectRequest{Name: x.Name, Length: -1}
-	if x.Name == "lo_close" || x.Name == "loread" || x.Name == "lowrite" {
+	if x.Name == "lo_close" || x.Name == "loread" || x.Name == "lowrite" || x.Name == "lo_truncate" || x.Name == "lo_truncate64" {
 		fd, err := values[0].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -128,7 +134,7 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		r.OID = ids.OID(oid)
 	}
-	if x.Name == "lo_open" || x.Name == "loread" {
+	if x.Name == "lo_open" || x.Name == "loread" || x.Name == "lo_truncate" || x.Name == "lo_truncate64" {
 		n, err := values[1].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
@@ -180,7 +186,7 @@ func (x LargeObjectCall) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.VoidValue(x.Usage.Type), nil
 	case "lo_unlink":
 		return sqltype.Integer(x.Usage.Type, 1)
-	case "lo_open", "lo_close", "lowrite":
+	case "lo_open", "lo_close", "lowrite", "lo_truncate", "lo_truncate64":
 		return sqltype.Integer(x.Usage.Type, int64(out.Integer))
 	default:
 		return sqltype.OIDValue(x.Usage.Type, uint32(out.OID))
