@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
-	"time"
 )
 
 // DefinitionLockOperation starts a joined worker and observes the independently
@@ -35,7 +34,7 @@ func DefinitionLockCall(t *testing.T, ctx context.Context, p *Pair, b Backend, c
 		RelationLockPending(t, p, b, 0, 0, 0, mode, finished)
 		return join
 	}
-	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+	bounded, cancel := context.WithTimeout(ctx, Liveness)
 	defer cancel()
 	for {
 		select {

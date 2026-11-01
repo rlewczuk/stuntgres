@@ -57,7 +57,7 @@ func LockWaitBehind(t *testing.T, ctx context.Context, waiter, holder int, relat
 	if waiter <= 0 || holder <= 0 || waiter == holder {
 		t.Fatal("invalid blocker identities", waiter, holder)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, Liveness)
 	defer cancel()
 	var done <-chan struct{}
 	if len(completed) != 0 {
@@ -114,7 +114,7 @@ func RelationLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, r
 		if relation != 0 {
 			LockWaitBehind(t, p.Ctx, waiter, holder, relation, mode)
 		} else {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 			defer cancel()
 			for {
 				var pending bool
@@ -128,7 +128,7 @@ func RelationLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, r
 		}
 		return
 	}
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	stacks := make([]byte, 64<<10)
 	poll := time.NewTicker(time.Millisecond)

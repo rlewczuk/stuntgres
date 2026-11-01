@@ -81,7 +81,7 @@ func OutputGateCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, requireSmal
 			polls, elapsed(phases.firstQuery), elapsed(phases.lastQueryStart),
 			elapsed(phases.lastQueryEnd), queryTotal, queryMax, queryInFlight, lastAdmitted, lastQueryErr)
 	}()
-	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	defer func() {
 		if t.Failed() {
@@ -257,7 +257,7 @@ func OutputGateCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, requireSmal
 	}
 	// Inspect requests AND grants using a live idle observer, never the canceled
 	// worker context. Check both keys even when read order was unspecified.
-	cleanupCtx, cleanupCancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	cleanupCtx, cleanupCancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cleanupCancel()
 	const gateLocks = `SELECT count(*) FROM pg_locks WHERE pid IN ($1,$2)
 		AND locktype='advisory'

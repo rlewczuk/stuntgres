@@ -27,7 +27,7 @@ func RowExecute(ctx context.Context, x Executor, query string, prepared bool) Re
 }
 func RowAsync(t *testing.T, ctx context.Context, x Executor, query string, prepared, selectRows bool, raw ...referenceRawBackend) <-chan RelationOutcome {
 	t.Helper()
-	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+	bounded, cancel := context.WithTimeout(ctx, Liveness)
 	done := make(chan RelationOutcome, 1)
 	backend := RawLegacy
 	if len(raw) != 0 {
@@ -53,7 +53,7 @@ func RowAsync(t *testing.T, ctx context.Context, x Executor, query string, prepa
 			if outcome.Stmt != nil {
 				outcome.Stmt.Close()
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(Liveness):
 			t.Error("row-lock asynchronous operation did not join")
 		}
 	})
@@ -79,7 +79,7 @@ type RelationOutcome struct {
 
 func LockResult(t *testing.T, done <-chan RelationOutcome, limit ...time.Duration) RelationOutcome {
 	t.Helper()
-	timeout := 5 * time.Second
+	timeout := Liveness
 	if len(limit) != 0 {
 		timeout = limit[0]
 	}
@@ -255,7 +255,7 @@ func RowPIDs(t *testing.T, ctx context.Context, a, b *sql.Conn) (int, int) {
 // hook; exact native queued-request ownership is proved by engine tests.
 func LimitSequenceCapture(t *testing.T, parent context.Context, holder *sql.Tx) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, Liveness)
 	defer cancel()
 	for {
 		var called bool

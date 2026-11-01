@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
@@ -180,7 +179,7 @@ func RoleTransactionPID(t *testing.T, p *Pair, b Backend, c *sql.Conn) int {
 
 func RoleTransactionWait(t *testing.T, p *Pair, b Backend, waiter, holder int, completed <-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	for {
 		var blocked bool

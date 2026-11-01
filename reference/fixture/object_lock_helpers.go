@@ -4,7 +4,6 @@ import (
 	"context"
 	"runtime"
 	"testing"
-	"time"
 )
 
 // ObjectLockPending requires the actual nonpinned dependency endpoint wait.
@@ -12,7 +11,7 @@ import (
 // Callers retain cancellation/join ownership on every exit.
 func ObjectLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, class, object int64, mode string, finished <-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	stacks := make([]byte, 64<<10)
 	for {
@@ -55,7 +54,7 @@ func ObjectLockPending(t *testing.T, p *Pair, b Backend, waiter, holder int, cla
 // running or waiting on an unrelated object/name. The caller owns release/join.
 func TransactionLockPending(t *testing.T, p *Pair, waiter, holder int, finished <-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	for {
 		select {

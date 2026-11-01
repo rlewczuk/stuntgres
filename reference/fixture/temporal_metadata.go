@@ -177,7 +177,7 @@ func TemporalRecorded(t *testing.T, recorder *Recorder, s Step) {
 
 func TemporalAdvanceClock(t *testing.T, ctx context.Context, stamp time.Time) {
 	t.Helper()
-	wait, cancel := context.WithTimeout(ctx, time.Second)
+	wait, cancel := context.WithTimeout(ctx, Liveness)
 	defer cancel()
 	for !time.Now().After(stamp.Add(time.Microsecond)) {
 		select {

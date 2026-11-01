@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TEMP tests keep physical owners explicit; every selected pool uses its shipped recorder.
@@ -176,7 +175,7 @@ func (s *TempReferenceSession) Retire() {
 	if !s.Postgres {
 		return
 	}
-	ctx, cancel := context.WithTimeout(s.P.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(s.P.Ctx, Liveness)
 	defer cancel()
 	for {
 		var live bool

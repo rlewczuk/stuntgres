@@ -80,7 +80,7 @@ func concurrentIndexState(ctx context.Context, p *Pair, b Backend, name string) 
 
 func ConcurrentIndexWait(t *testing.T, p *Pair, b Backend, name string, want stuntgres.IndexState, pid, holder int, phase string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	var s stuntgres.IndexState
 	var found, observed bool
@@ -199,7 +199,7 @@ func concurrentIndexStart(t *testing.T, p *Pair, c *sql.Conn, q string, held boo
 		cancel()
 		select {
 		case <-w.Done:
-		case <-time.After(5 * time.Second):
+		case <-time.After(Liveness):
 			t.Error("index worker did not join")
 		}
 	})

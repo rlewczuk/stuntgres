@@ -29,7 +29,7 @@ func PartitionDetachPending(t *testing.T, p *Pair, b Backend, parent, child stri
 // It also serves FINALIZE's older-snapshot barrier without requiring relation AS.
 func VirtualCompletionPending(t *testing.T, p *Pair, b Backend, waiter, holder int, finished <-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()

@@ -130,6 +130,12 @@ func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 	return newFixture(t, withPostgres, nativeRaw, nil)
 }
 
+// Liveness bounds a fixture wait for an outcome that must eventually happen:
+// an observer condition, a worker join or an operation that should complete.
+// It is a hang guard sized for a loaded machine; waits return as soon as the
+// outcome occurs, so it never slows a passing test.
+const Liveness = 30 * time.Second
+
 // ScenarioBudget bounds one scenario's context. It is a hang and runaway guard
 // sized for an oversubscribed machine (parallel suites), not a performance
 // target; scenarios never refresh or extend it.
@@ -960,7 +966,7 @@ func SequenceRows(t *testing.T, rows *sql.Rows, label string, want int64) {
 // rename/drop changes names while an already executing operation keeps its OID.
 func SequenceWaitBehind(t *testing.T, ctx context.Context, waiter, holder int, oid int64) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, Liveness)
 	defer cancel()
 	for {
 		var waiting bool
@@ -1343,7 +1349,7 @@ func IsolationReferenceDiagnostic(t *testing.T, err error, want Diagnostic) {
 // cleanup and the shared fixture's schema reset, including on assertion failure.
 func LockOperation(t *testing.T, ctx context.Context, call func(context.Context) RelationOutcome, limit ...time.Duration) func() RelationOutcome {
 	t.Helper()
-	timeout := 5 * time.Second
+	timeout := Liveness
 	if len(limit) != 0 {
 		timeout = limit[0]
 	}
@@ -1386,7 +1392,7 @@ func SessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepare
 // Existing callers retain their pg_sleep barrier through SessionCancel.
 func SessionCancelQuery(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool, query string, queryCursor bool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	ctx, cancel := context.WithTimeout(parent, Liveness)
 	defer cancel()
 	var pid int
 	if err := conn.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
@@ -1399,7 +1405,7 @@ func SessionCancelQuery(t *testing.T, parent context.Context, conn *sql.Conn, pr
 		if !joined {
 			select {
 			case <-result:
-			case <-time.After(5 * time.Second):
+			case <-time.After(Liveness):
 				t.Error("cancellation worker failed to join")
 			}
 		}
@@ -1447,7 +1453,7 @@ func SessionCancelQuery(t *testing.T, parent context.Context, conn *sql.Conn, pr
 			case err := <-result:
 				joined = true
 				return err
-			case <-time.After(5 * time.Second):
+			case <-time.After(Liveness):
 				t.Fatal("cancellation worker failed to join after deadline")
 				return ctx.Err()
 			}

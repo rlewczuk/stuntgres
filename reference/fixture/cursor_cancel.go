@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 )
 
 // SQLCursorCancelDemand cancels an admitted oracle query and checks its complete diagnostic.
 func SQLCursorCancelDemand(t *testing.T, p *Pair, c *sql.Conn, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	var pid int
 	if err := c.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {

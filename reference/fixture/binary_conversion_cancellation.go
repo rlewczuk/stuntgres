@@ -31,7 +31,7 @@ func binaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 		activeProviderCancel(t, p, b, c, query, "", "", postgresContext, nil, operation)
 		return
 	}
-	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	entered := make(chan struct{}, 1)
 	ctx = stuntgres.WithWorkAdmission(ctx, func(effective context.Context, actual stuntgres.WorkClass) error {
@@ -104,7 +104,7 @@ func SleepActiveCancelWithContext(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 
 func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider, waitEvent, postgresContext string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, Liveness)
 	defer cancel()
 	pid := 0
 	if b.PG {
@@ -266,7 +266,7 @@ func NativeUniqueKeyWait(t *testing.T, ctx context.Context, completed <-chan str
 
 func nativeOperationRowWait(t *testing.T, ctx context.Context, completed <-chan struct{}, owner, worker string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, Liveness)
 	defer cancel()
 	stacks := make([]byte, 64<<10)
 	symbols := [][]byte{[]byte("(*relationRequest).wait"), []byte(owner), []byte(worker)}
