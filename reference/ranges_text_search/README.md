@@ -238,6 +238,10 @@ COPY test in reference/dml.
   copied configurations and owned seed replay: `RUN='^TestReferenceFTSFinnishSnowball'`.
   All six word aliases use Finnish; thirteen use simple. Stopwords retain positions
   and terminate chains; replay consumes actual native-emitted SQL.
+- French Snowball configuration maps, typed vector/debug results, first-recognizer
+  and stopword chains, copied configurations and actual emitted seed replay:
+  `RUN='^TestReferenceFTSFrenchSnowball'`. All six word aliases select French;
+  independent stopword positions and recursive REGCONFIG carriers retain identity.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and

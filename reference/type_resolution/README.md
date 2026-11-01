@@ -357,6 +357,10 @@ language-only stock identity, optional English stops, full diagnostics, admitted
 output-gated cancellation and owned dictionary/seed replay:
 `RUN='^TestReferenceCatalanSnowball'`. Expectations are independently traced from
 REL_18_6, not computed from provider tables. Replay requires the native producer.
+French released morphology, case/elision/byte boundaries, all 155 independent
+stopwords, resource isolation, typed prepared output, full diagnostics, admitted
+cancellation and actual emitted dictionary/seed replay:
+`RUN='^TestReferenceFrenchSnowball'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

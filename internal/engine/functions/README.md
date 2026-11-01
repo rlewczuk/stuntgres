@@ -1004,7 +1004,7 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
-  `english.stop`, `danish.stop`, `dutch.stop`, `finnish.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop`, `spanish.stop`, `swedish.stop` and `turkish.stop` are verbatim released PostgreSQL resources.
+  `english.stop`, `danish.stop`, `dutch.stop`, `french.stop`, `finnish.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop`, `spanish.stop`, `swedish.stop` and `turkish.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
   publish no cache entry. Lists are not reread per evaluation.
@@ -1012,13 +1012,14 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Catalan, Danish, historical Dutch Porter, Estonian, Finnish, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Catalan, Danish, historical Dutch Porter, Estonian, Finnish, French, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
   is empty retains its lowercased input. Arabic, Armenian, Basque, Catalan, Estonian, Greek, Hindi, Indonesian, Irish, Lithuanian, Romanian, Serbian, Tamil and Yiddish have no stock
   stopword resource. English, Danish, Dutch, German, Hungarian, Italian, Nepali and Norwegian stock lists contain 127, 94, 101, 231, 199, 279, 304 and 176 entries (Hungarian and Norwegian retain released duplicates).
   Finnish's stock list retains all 235 released input lines, including duplicates.
+  French's stock list contains all 155 released entries.
   Any resource can be explicitly configured with any supported provider.
   Swedish's stock list contains all 114 released entries, including `sitta`;
   lookup precedes stemming, so resource-free `sitta` becomes `sitt`.
@@ -1179,6 +1180,12 @@ publication and lock-manager tickets stay in the engine.
   39/200/283/22 tables select the longest suffix before checking original R1/R2
   byte offsets, with no shorter retry. Region vowels exclude `ì`; cleaning maps
   it to `i` and `·` to `.` without Unicode normalization or accented case folding.
+  French keeps original RV/R1/R2 after its ordered consonantal markings and
+  ë/ï expansion. One ASCII elision precedes region marking. Longest standard
+  suffix selection precedes region guards; amment/emment/ment mutations continue
+  into the verb stages even after changing the word. Residual processing,
+  undoubling, final accent repair and postlude reuse invocation-local scratch.
+  Its released rules do not include later z' elision, ni-RV or -oux changes.
   `SynonymDictionary` compiles the real `synonym_sample.syn` resource into an
   immutable sorted table. Its first two C-whitespace-delimited words per line
   are source and replacement; case-insensitive mode lowers both with C semantics.

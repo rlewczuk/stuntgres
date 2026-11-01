@@ -120,7 +120,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 	extensionCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(28)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(29)}}))
 		}
 		run(fixture.Select("SELECT oid::bigint,dictname,dictnamespace::bigint,dictowner::bigint,dicttemplate::bigint,dictinitoption FROM pg_catalog.pg_ts_dict WHERE oid=3765", tsDictNames, []string{"INT8", "NAME", "INT8", "INT8", "INT8", "TEXT"}, [][]any{{int64(3765), "simple", int64(11), int64(10), int64(3727), nil}}))
 		for _, prepared := range []bool{false, true} {
@@ -128,6 +128,12 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 			s.Prepared = prepared
 			run(s)
 		}
+		seeds := fixture.Select("SELECT dictname FROM pg_catalog.pg_ts_dict WHERE dictname IN ('arabic_stem','armenian_stem','basque_stem','catalan_stem','danish_stem','dutch_stem','english_stem','estonian_stem','finnish_stem','french_stem','german_stem','greek_stem','hindi_stem','hungarian_stem','indonesian_stem','irish_stem','italian_stem','lithuanian_stem','nepali_stem','norwegian_stem','portuguese_stem','romanian_stem','serbian_stem','simple','spanish_stem','swedish_stem','tamil_stem','turkish_stem','yiddish_stem') AND dictnamespace=11 ORDER BY dictname", []string{"dictname"}, []string{"NAME"}, [][]any{{"arabic_stem"}, {"armenian_stem"}, {"basque_stem"}, {"catalan_stem"}, {"danish_stem"}, {"dutch_stem"}, {"english_stem"}, {"estonian_stem"}, {"finnish_stem"}, {"french_stem"}, {"german_stem"}, {"greek_stem"}, {"hindi_stem"}, {"hungarian_stem"}, {"indonesian_stem"}, {"irish_stem"}, {"italian_stem"}, {"lithuanian_stem"}, {"nepali_stem"}, {"norwegian_stem"}, {"portuguese_stem"}, {"romanian_stem"}, {"serbian_stem"}, {"simple"}, {"spanish_stem"}, {"swedish_stem"}, {"tamil_stem"}, {"turkish_stem"}, {"yiddish_stem"}})
+		run(seeds)
+		run(fixture.Prepared(seeds))
+		linked := fixture.Select("SELECT d.dicttemplate=t.oid AS template,t.tmplinit=(SELECT oid FROM pg_proc WHERE proname='dsnowball_init' AND pronamespace=11) AS init,t.tmpllexize=(SELECT oid FROM pg_proc WHERE proname='dsnowball_lexize' AND pronamespace=11) AS lexize FROM pg_ts_dict d JOIN pg_ts_template t ON t.oid=d.dicttemplate WHERE d.dictname='french_stem' AND d.dictnamespace=11 AND t.tmplname='snowball'", []string{"template", "init", "lexize"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
+		run(linked)
+		run(fixture.Prepared(linked))
 		held, err := c.PrepareContext(p.Ctx, tsDictQuery)
 		if err != nil {
 			t.Fatal(err)
@@ -139,7 +145,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 				run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))
 				tsDictLinked(t, p, c, r, pg)
 				if !pg {
-					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(29)}}))
+					run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(30)}}))
 				}
 			}
 			tsDictAvailability(t, p, c, r, installed)
@@ -206,7 +212,7 @@ func TestReferenceTSDictMetadata(t *testing.T) {
 		run(fixture.Exec("DROP EXTENSION unaccent", 0))
 		tsDictAvailability(t, p, c, r, false)
 		if !pg {
-			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(28)}}))
+			run(fixture.Select("SELECT count(*) FROM pg_catalog.pg_ts_dict", []string{"count"}, []string{"INT8"}, [][]any{{int64(29)}}))
 		}
 	})
 }
