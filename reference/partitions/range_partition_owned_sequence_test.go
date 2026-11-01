@@ -6,7 +6,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRangePartitionManualOwnedSequences(t *testing.T) {
@@ -70,7 +69,7 @@ func TestReferenceRangePartitionManualOwnedSequences(t *testing.T) {
 				}
 				defer oracle.Close()
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, query := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "DROP TABLE IF EXISTS rp_owned_root CASCADE", "DROP SCHEMA IF EXISTS rp_owned_wrong_schema CASCADE"} {
 						if _, err := oracle.ExecContext(ctx, query); err != nil {

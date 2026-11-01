@@ -142,7 +142,7 @@ func partitionAttachProofWaitOrder(t *testing.T) {
 				q := "ALTER TABLE pa_proof_parent ATTACH PARTITION pa_proof_candidate FOR VALUES FROM(1) TO(3)"
 				if b.PG {
 					pid := fixture.LockPID(t, p.Ctx, conn)
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					type outcome struct {
 						result sql.Result
@@ -157,7 +157,7 @@ func partitionAttachProofWaitOrder(t *testing.T) {
 						if !joined {
 							select {
 							case <-done:
-							case <-time.After(5 * time.Second):
+							case <-time.After(fixture.Liveness):
 								t.Error("ATTACH worker did not join")
 							}
 						}

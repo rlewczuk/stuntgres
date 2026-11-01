@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Keep SQL oracle discovery separate from the native-control definition: the
@@ -224,7 +223,7 @@ func TestReferencePartitionConstraintsRegclassControls(t *testing.T) {
 			}
 			defer oracle.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET SESSION AUTHORIZATION", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 					if _, err := oracle.ExecContext(ctx, query); err != nil {

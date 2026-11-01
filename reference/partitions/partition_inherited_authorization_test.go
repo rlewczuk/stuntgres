@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -22,7 +21,7 @@ func TestReferencePartitionInheritedAuthorization(t *testing.T) {
 		s.exec("CREATE TABLE pi_lo PARTITION OF pi_mid DEFAULT", 0)
 		old := s.oid("pi_lo", "pi_ck")
 		s.t.Cleanup(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := s.conn.ExecContext(ctx, "RESET ROLE"); err != nil {
 				s.t.Error(err)

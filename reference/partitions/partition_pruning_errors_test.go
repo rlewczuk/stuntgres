@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferencePartitionPruningErrors(t *testing.T) {
@@ -15,7 +14,7 @@ func TestReferencePartitionPruningErrors(t *testing.T) {
 		}
 		defer conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				t.Error(err)

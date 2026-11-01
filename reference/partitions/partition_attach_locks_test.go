@@ -75,7 +75,7 @@ func TestReferencePartitionAttachLocks(t *testing.T) {
 							if !joined {
 								select {
 								case <-done:
-								case <-time.After(5 * time.Second):
+								case <-time.After(fixture.Liveness):
 									t.Error("ATTACH worker did not join")
 								}
 							}
@@ -100,7 +100,7 @@ func TestReferencePartitionAttachLocks(t *testing.T) {
 							// A compatible AccessShare probe cannot time out behind the
 							// original reader; only a genuinely queued candidate AX can
 							// exclude it through the real native manager's fairness rule.
-							probeCtx, stopProbe := context.WithTimeout(ctx, 3*time.Second)
+							probeCtx, stopProbe := context.WithTimeout(ctx, fixture.Liveness)
 							defer stopProbe()
 							for {
 								rows, e := probe.QueryContext(probeCtx, "SELECT k FROM pa_lock_candidate")

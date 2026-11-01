@@ -28,7 +28,7 @@ func partitionDetachWait(t *testing.T, ctx context.Context, p *fixture.Pair, b f
 		return
 	}
 	fixture.RunStep(t, ctx, probe, b.Recorder, fixture.Exec("SET lock_timeout='50ms'", 0))
-	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	q := "SELECT k FROM ONLY " + relation
 	for {
@@ -130,7 +130,7 @@ func TestReferencePartitionDetachLocks(t *testing.T) {
 						if !joined {
 							select {
 							case <-done:
-							case <-time.After(5 * time.Second):
+							case <-time.After(fixture.Liveness):
 								t.Error("DETACH worker failed to join")
 							}
 						}
@@ -290,7 +290,7 @@ func partitionDetachLateLocks(t *testing.T) {
 					if !joined {
 						select {
 						case <-done:
-						case <-time.After(5 * time.Second):
+						case <-time.After(fixture.Liveness):
 							t.Error("late DETACH did not join")
 						}
 					}

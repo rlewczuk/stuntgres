@@ -42,7 +42,7 @@ func partitionAttachProofLeafWait(t *testing.T, c partitionAttachProofCase) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			type outcome struct {
 				result sql.Result
@@ -56,7 +56,7 @@ func partitionAttachProofLeafWait(t *testing.T, c partitionAttachProofCase) {
 				if !joined {
 					select {
 					case <-done:
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("leaf ATTACH worker did not join")
 					}
 				}

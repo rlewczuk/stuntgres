@@ -14,7 +14,7 @@ func partitionAttachReaderGrowth(t *testing.T) {
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run("reader_growth/"+b.Name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			run := func(s fixture.Step) { fixture.RunStep(t, ctx, b.DB, b.Recorder, s) }
 			run(fixture.Exec("CREATE TABLE pa_growth_parent(k INT) PARTITION BY RANGE(k)", 0))
@@ -58,7 +58,7 @@ func partitionAttachReaderGrowth(t *testing.T) {
 							if got.rows != nil {
 								got.rows.Close()
 							}
-						case <-time.After(5 * time.Second):
+						case <-time.After(fixture.Liveness):
 							t.Error("growth reader did not join")
 						}
 					}

@@ -81,7 +81,7 @@ func TestReferenceListPartitionCancellation(t *testing.T) {
 			if err := waiter.QueryRowContext(p.Ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			type outcome struct {
 				result sql.Result
@@ -95,7 +95,7 @@ func TestReferenceListPartitionCancellation(t *testing.T) {
 				if !joined {
 					select {
 					case <-result:
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("CREATE cancellation worker did not join")
 					}
 				}

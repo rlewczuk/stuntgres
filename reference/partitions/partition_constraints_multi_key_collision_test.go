@@ -7,7 +7,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // The postgres-only route specifies names and NULL policies independently using
@@ -186,7 +185,7 @@ func TestReferencePartitionConstraintsMultiKeyCollision(t *testing.T) {
 			}
 			defer oracle.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET SESSION AUTHORIZATION", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 					if _, err := oracle.ExecContext(ctx, query); err != nil {
@@ -262,7 +261,7 @@ func TestReferencePartitionConstraintsMultiKeyNestedOrder(t *testing.T) {
 			}
 			defer oracle.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET SESSION AUTHORIZATION", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 					if _, err := oracle.ExecContext(ctx, query); err != nil {

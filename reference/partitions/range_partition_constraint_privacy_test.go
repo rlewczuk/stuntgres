@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // REL_18_0 execMain.c: ExecPartitionCheckEmitError uses the named target's
@@ -21,7 +20,7 @@ func TestReferenceRangePartitionConstraintPrivacy(t *testing.T) {
 		}
 		defer conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				t.Error(err)
@@ -132,7 +131,7 @@ func TestReferenceRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 		}
 		defer conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				t.Error(err)

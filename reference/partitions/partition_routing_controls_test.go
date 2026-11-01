@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ngrok/sqlmw"
 	"stuntgres"
@@ -167,7 +166,7 @@ func TestReferencePartitionRoutingControls(t *testing.T) {
 			}
 			defer oracle.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, q := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 					if _, err := oracle.ExecContext(ctx, q); err != nil {

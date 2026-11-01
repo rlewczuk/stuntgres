@@ -10,7 +10,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRangePartitionDeferredControls(t *testing.T) {
@@ -25,7 +24,7 @@ func referenceRangeDeferredControlBody(t *testing.T, p *fixture.Pair, b fixture.
 	}
 	defer conn.Close()
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 			t.Error(err)
@@ -106,7 +105,7 @@ func referenceRangeDeferredControlBody(t *testing.T, p *fixture.Pair, b fixture.
 			// Provision the real importing owner before consuming the unmodified
 			// emitted stream. Cleanup restores the complete fixture schema first.
 			cleanup := func() {
-				cleanupContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanupContext, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public", "DROP ROLE IF EXISTS rp_defer_owner"} {
 					if _, err := oracle.ExecContext(cleanupContext, query); err != nil {

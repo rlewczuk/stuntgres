@@ -38,7 +38,7 @@ func TestReferencePartitionRenameColumnLocks(t *testing.T){
     if b.PG{workerPID=fixture.LockPID(t,ctx,worker);if e:=holder.QueryRowContext(ctx,"SELECT pg_backend_pid()").Scan(&holderPID);e!=nil{t.Fatal(e)}}
     wc,stop:=context.WithCancel(ctx);defer stop()
     type outcome struct{r sql.Result;e error};done:=make(chan outcome,1);joined:=false
-    defer func(){stop();holder.Rollback();if !joined{select{case <-done:case <-time.After(2*time.Second):t.Error("rename worker not joined")}}}()
+    defer func(){stop();holder.Rollback();if !joined{select{case <-done:case <-time.After(fixture.Liveness):t.Error("rename worker not joined")}}}()
     go func(){r,e:=call(wc);done<-outcome{r,e}}()
     if b.PG{fixture.LockWaitBehind(t,ctx,workerPID,holderPID,fixture.LockOID(t,ctx,"pr_h1"),"AccessExclusiveLock")}else{
      probe,e:=b.DB.Conn(ctx);if e!=nil{t.Fatal(e)};defer probe.Close();fixture.RunStep(t,ctx,probe,b.Recorder,fixture.Exec("SET lock_timeout='10ms'",0))

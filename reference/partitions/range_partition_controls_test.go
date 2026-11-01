@@ -151,7 +151,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		// Smoke composes this body with other RANGE witnesses in the same
 		// native catalog, so replay cleanup owns the complete fixture schema.
 		cleanup := func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, query := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 				if _, err := oracle.ExecContext(ctx, query); err != nil {
@@ -218,7 +218,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		if !joined {
 			select {
 			case <-result:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("blocked import did not join")
 			}
 		}
@@ -226,10 +226,10 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	go func() { result <- stuntgres.Restore(ctx, p.Native, gate) }()
 	select {
 	case <-gate.Entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("import never entered reader")
 	}
-	readCtx, readCancel := context.WithTimeout(p.Ctx, time.Second)
+	readCtx, readCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer readCancel()
 	var count int
 	if err := b.DB.QueryRowContext(readCtx, "SELECT COUNT(*) FROM rp_control").Scan(&count); err != nil || count != 5 {
@@ -244,7 +244,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("canceled reader did not join")
 	}
 	check(b.DB, b.Recorder, false, "postgres")
@@ -265,7 +265,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		if !dumpJoined {
 			select {
 			case <-dumpResult:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("blocked dump did not join")
 			}
 		}
@@ -273,10 +273,10 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 	go func() { dumpResult <- stuntgres.Dump(dumpCtx, p.Native, writer) }()
 	select {
 	case <-writer.entered:
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("dump never entered writer")
 	}
-	writeCtx, writeCancel := context.WithTimeout(p.Ctx, time.Second)
+	writeCtx, writeCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer writeCancel()
 	if _, err := b.DB.ExecContext(writeCtx, "INSERT INTO rp_control VALUES(6,'concurrent')"); err != nil {
 		t.Fatal("dump writer held target locks", err)
@@ -289,7 +289,7 @@ func referenceRangeControlBody(t *testing.T, p *fixture.Pair, b fixture.Backend)
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("dump writer did not join")
 	}
 	if snapshot.String() != dump.String() {

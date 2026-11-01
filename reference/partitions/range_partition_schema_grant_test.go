@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Schema expansion must include virtual roots and intermediate partitions, not
@@ -16,7 +15,7 @@ func TestReferenceRangePartitionSchemaGrantExpansion(t *testing.T) {
 		t.Run(direction, func(t *testing.T) {
 			fixture.RoleGrantScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := c.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 						t.Errorf("reset schema-grant actor: %v", err)

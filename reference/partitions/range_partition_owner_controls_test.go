@@ -9,7 +9,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRangePartitionOwnerControls(t *testing.T) {
@@ -23,7 +22,7 @@ func TestReferenceRangePartitionOwnerControls(t *testing.T) {
 		}
 		defer conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				t.Error(err)
@@ -50,7 +49,7 @@ func TestReferenceRangePartitionOwnerControls(t *testing.T) {
 			// rights needed to reach the genuine parent-owner denial below.
 			// Register cleanup before granting, including failed prepared routes.
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET SESSION AUTHORIZATION", "REVOKE USAGE,CREATE ON SCHEMA public FROM rp_owned_b"} {
 					if _, err := conn.ExecContext(ctx, query); err != nil {
@@ -148,7 +147,7 @@ func TestReferenceRangePartitionOwnerControls(t *testing.T) {
 			// requires explicitly provisioned reconstruction rights; native derives
 			// only parent lookup/ownership from its private importer capability.
 			cleanup := func() {
-				cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanupCtx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				for _, query := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "REVOKE rp_owned_b FROM rp_owned_c", "REVOKE rp_owned_a FROM rp_owned_b", "DROP SCHEMA IF EXISTS rp_owned_a_schema CASCADE", "DROP SCHEMA IF EXISTS rp_owned_b_schema CASCADE", "DROP SCHEMA IF EXISTS rp_owned_c_schema CASCADE", "DROP TABLE IF EXISTS public.rp_owned_gate"} {
 					if _, err := oracle.ExecContext(cleanupCtx, query); err != nil {

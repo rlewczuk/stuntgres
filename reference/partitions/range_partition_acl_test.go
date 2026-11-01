@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRangePartitionACL(t *testing.T) {
@@ -28,7 +27,7 @@ func referenceRangePartitionACLCase(t *testing.T, prepared bool) {
 		}
 		defer conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				t.Error(err)
@@ -132,7 +131,7 @@ func TestReferenceRangePartitionQuotedKeyPrivacy(t *testing.T) {
 						}
 						defer conn.Close()
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							if _, err := conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 								t.Error(err)

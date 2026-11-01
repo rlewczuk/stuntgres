@@ -153,7 +153,7 @@ func partitionAttachQueuedValidationSnapshot(t *testing.T) {
 				defer owner.ExecContext(p.Ctx, "ROLLBACK")
 				fixture.RunStep(t, p.Ctx, owner, b.Recorder, referenceRangeRows("SELECT k FROM pa_snapshot_candidate", 1))
 				fixture.RunStep(t, p.Ctx, writer, b.Recorder, fixture.Exec("INSERT INTO pa_snapshot_candidate VALUES(3)", 1))
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				q := "ALTER TABLE pa_snapshot_parent ATTACH PARTITION pa_snapshot_candidate FOR VALUES FROM(1) TO(3)"
 				type outcome struct {
@@ -168,7 +168,7 @@ func partitionAttachQueuedValidationSnapshot(t *testing.T) {
 					if !joined {
 						select {
 						case <-done:
-						case <-time.After(5 * time.Second):
+						case <-time.After(fixture.Liveness):
 							t.Error("queued validation worker did not join")
 						}
 					}

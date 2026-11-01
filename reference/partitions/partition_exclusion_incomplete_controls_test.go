@@ -6,7 +6,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // These expectations are specified independently of native replay. The initial
@@ -151,7 +150,7 @@ func TestReferencePartitionExclusionIncompleteControls(t *testing.T) {
 				}
 				defer oracle.Close()
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{"RESET ROLE", "RESET SESSION AUTHORIZATION", "RESET search_path", "DROP SCHEMA public CASCADE", "CREATE SCHEMA public"} {
 						if _, err := oracle.ExecContext(ctx, q); err != nil {

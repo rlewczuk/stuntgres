@@ -21,7 +21,7 @@ func referenceRoutingConcurrentExec(ctx context.Context, x fixture.Executor, que
 // metadata or an unrelated session. PostgreSQL instead observes the exact blocker.
 func referenceRoutingNativeRowWait(t *testing.T, parent context.Context) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, fixture.Liveness)
 	defer cancel()
 	buffer := make([]byte, 1<<20)
 	for {
@@ -88,7 +88,7 @@ func TestReferencePartitionRoutingConcurrency(t *testing.T) {
 					if !joined {
 						select {
 						case <-done:
-						case <-time.After(5 * time.Second):
+						case <-time.After(fixture.Liveness):
 							t.Error("routing worker did not join")
 						}
 					}
