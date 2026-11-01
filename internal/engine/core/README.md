@@ -1809,12 +1809,16 @@ Producers, the OID registry and descriptor specs live in
   presentation and unlock timing; it is not a second dispatcher. Only `pg_locks`
   and lazy `pg_sequences` bypass producers.
   Information-schema domain and column inquiry sources use the statement's
-  paired catalog and authorization roots, including `column_domain_usage` and
-  `domain_udt_usage`; source opening preserves that pair rather than resampling
-  publication. The latter uses the captured current principal and database name
-  to report immediate domain bases under enabled base-owner authority.
-  Its database name is an inquiry-owned scalar captured with CommentCatalog,
-  not a later read through the retained authorization's mutable Session pointer.
+  paired catalog and authorization roots, including `column_domain_usage`,
+  `domain_udt_usage` and `information_schema_catalog_name`; source opening
+  preserves that pair rather than resampling publication. Domain/base usage
+  applies enabled base-owner authority; catalog-name inquiry has no row filter.
+  Both consume the inquiry-owned database scalar captured with CommentCatalog,
+  not the retained authorization's mutable Session pointer. A legitimate empty
+  captured name remains a non-NULL empty identifier, never a live-name fallback.
+  Catalog-name inquiry also resolves its source descriptor and column generation
+  from that captured root, even after live descriptor replacement. This row-input
+  ownership does not replace ordinary current source SELECT admission.
   SQL cursors and protocol portals retain/restore that scalar with their inquiry
   authority and release it on producer teardown; unrelated source policies stay
   unchanged.

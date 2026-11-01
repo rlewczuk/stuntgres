@@ -4,7 +4,7 @@ Row producers for the system relations: the `pg_catalog` tables and views and
 the producer-backed `information_schema` tables and views (`sql_features`,
 `sql_sizing`, `sql_implementation_info`, `sql_parts`, `table_privileges`,
 `data_type_privileges`, `user_mappings`, `user_mapping_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`, `key_column_usage`,
-`constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`, `domain_udt_usage`,
+`constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`, `domain_udt_usage`, `information_schema_catalog_name`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
@@ -531,6 +531,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
   are not substitutes. Names and source-owned NAME/domain generations come
   from the paired immutable catalog/role capture. Cancellation or malformed
   authority discards every row, while successful empty captures stay typed.
+- `information_schema_catalog_name` projects one nullable `sql_identifier`
+  column, `catalog_name`, and exactly one non-NULL captured database scalar,
+  including an internal empty string. Source16251 reuses canonical row13251
+  and array13250 and the capture-owned NAME/domain generations. PUBLIC SELECT
+  admits ordinary readers without a row-ownership filter; normal source ACL
+  denial remains an error even under a false predicate. Its structured builtin
+  definition uses ordinary display-path, quoting and disclosure rules.
 - `domain_udt_usage` projects six nullable `sql_identifier` columns in released
   UDT-catalog/schema/name, domain-catalog/schema/name order. Both catalogs use
   the captured current database. Real domain descriptors, including unused and
@@ -1411,7 +1418,7 @@ Represented catalog relations classified as ordinary tables supply ordinary
 base-table structural events; this does not change catalog write admission.
 
 `builtin_views*.go` owns one closed inventory of builtin view definitions,
-including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`,
+including `information_schema.columns`, `information_schema.domains`, `information_schema.domain_udt_usage`, `information_schema.information_schema_catalog_name`,
 `information_schema.user_defined_types`, `information_schema.tables`,
 `information_schema.usage_privileges`, `pg_catalog.pg_policies` and
 `pg_catalog.pg_rules`, with classification and per-output capability facts.

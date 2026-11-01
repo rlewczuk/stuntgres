@@ -162,6 +162,7 @@ var producers = [...]Registration{
 	{InfoForeignTablesOID, captureInfoForeignTables},
 	{InfoDomainUdtUsageOID, captureInfoDomainUdtUsage},
 	{PreparedStatementsOID, capturePGPreparedStatements},
+	{InfoInformationSchemaCatalogNameOID, captureInfoInformationSchemaCatalogName},
 	{ConstraintTableUsageOID, captureConstraintTableUsage},
 }
 

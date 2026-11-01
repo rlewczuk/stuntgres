@@ -3,6 +3,9 @@ package pgcatalog
 var infoBuiltinViews = [...]builtinView{
 	parametersBuiltinView,
 	infoUsagePrivilegesView,
+	{oid: InfoInformationSchemaCatalogNameOID, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("catalog_name"), viewText(";"),
+	}},
 	// information_schema.domain_udt_usage — REL_18_6 information_schema.sql.
 	{oid: InfoDomainUdtUsageOID, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("udt_catalog"), viewText(",\n"),

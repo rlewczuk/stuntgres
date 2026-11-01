@@ -1101,6 +1101,9 @@ var Specs = [...]Spec{
 		{"domain_schema", 13248, true, 950, 0, -1},
 		{"domain_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing domain udt usage identifier domain"},
+	{InfoInformationSchemaCatalogNameOID, 13229, "information_schema_catalog_name", []ColumnSpec{
+		{"catalog_name", 13248, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing catalog name identifier domain"},
 	{InfoCheckConstraintRoutineUsageOID, 13229, "check_constraint_routine_usage", []ColumnSpec{
 		{"constraint_catalog", 13248, true, 950, 0, -1},
 		{"constraint_schema", 13248, true, 950, 0, -1},
