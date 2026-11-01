@@ -6,13 +6,12 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceAlterSchemaCancellation(t *testing.T) {
 	p := fixture.NewPair(t)
 	fixture.SchemaReferenceCleanup(t, "s1", "s2")
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	a, b := fixture.LockConnections(t, ctx, p.Postgres)
 	r := &fixture.Recorder{}

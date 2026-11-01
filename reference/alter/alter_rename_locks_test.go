@@ -6,14 +6,13 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceAlterRenameLock(t *testing.T) {
 	for _, q := range []string{"ALTER TABLE t RENAME a TO renamed", "ALTER TABLE t RENAME TO newtable"} {
 		t.Run(q, func(t *testing.T) {
 			p := fixture.NewPair(t)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			a, b := fixture.LockConnections(t, ctx, p.Postgres)
 			fixture.LockExec(t, ctx, a, "CREATE TABLE t(a INT)", 0)

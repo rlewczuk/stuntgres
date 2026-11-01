@@ -37,7 +37,7 @@ func TestReferenceAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			if _, err = tx.ExecContext(p.Ctx, "ALTER TABLE t DROP b"); err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			type outcome struct {
 				err           error
@@ -82,7 +82,7 @@ func TestReferenceAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				}
 				done <- got
 			}()
-			deadline := time.Now().Add(5 * time.Second)
+			deadline := time.Now().Add(fixture.Liveness)
 			for {
 				var pending int
 				if err = fixture.Admin.QueryRowContext(p.Ctx, "SELECT count(*) FROM pg_locks WHERE pid=$1 AND relation='t'::regclass AND NOT granted", pid).Scan(&pending); err != nil {
@@ -147,7 +147,7 @@ func TestReferenceAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 			}
 			defer shadow.Close()
 			defer func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				if _, err := p.Postgres.ExecContext(cleanup, "DROP SCHEMA IF EXISTS early, late CASCADE"); err != nil {
 					t.Error("schema cleanup", err)

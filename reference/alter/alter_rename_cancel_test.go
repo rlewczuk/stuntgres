@@ -6,7 +6,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceAlterRenameCancellation(t *testing.T) {
@@ -16,7 +15,7 @@ func TestReferenceAlterRenameCancellation(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			p := fixture.NewPair(t)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			a, b := fixture.LockConnections(t, ctx, p.Postgres)
 			fixture.LockExec(t, ctx, a, "CREATE TABLE t(a INT CONSTRAINT nn NOT NULL,b TEXT)", 0)

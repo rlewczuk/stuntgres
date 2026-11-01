@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -34,7 +33,7 @@ func TestReferenceTransactionalSchemaCompanionConflicts(t *testing.T) {
 						result, err := c.ExecContext(ctx, "CREATE TYPE tx_companion.collision AS(v INT)")
 						return fixture.RelationOutcome{Result: result, Err: err}
 					})
-					ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					for {
 						select {

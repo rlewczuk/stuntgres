@@ -7,7 +7,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func transactionalSchemaPID(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) int {
@@ -30,7 +29,7 @@ func transactionalSchemaPID(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 // Observe the actual pending request on either public backend, never elapsed time.
 func transactionalSchemaPending(t *testing.T, p *fixture.Pair, b fixture.Backend, waiter int, relation int64, finished ...<-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		if len(finished) > 0 {

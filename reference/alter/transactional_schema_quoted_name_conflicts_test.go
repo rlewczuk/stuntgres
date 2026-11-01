@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -38,7 +37,7 @@ func TestReferenceTransactionalSchemaQuotedNameConflicts(t *testing.T) {
 							result, err := peer.ExecContext(ctx, "CREATE TABLE "+target+"(v INT DEFAULT 9)")
 							return fixture.RelationOutcome{Result: result, Err: err}
 						})
-						ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						for {
 							select {

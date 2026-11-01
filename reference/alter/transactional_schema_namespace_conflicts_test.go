@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceTransactionalSchemaNamespaceConflicts(t *testing.T) {
@@ -45,7 +44,7 @@ func TestReferenceTransactionalSchemaNamespaceConflicts(t *testing.T) {
 						defer a.ExecContext(p.Ctx, "ROLLBACK")
 						fixture.LockExec(t, p.Ctx, a, tc.first, 0)
 						fixture.LockExec(t, p.Ctx, a, "INSERT INTO tx_ns_unrelated VALUES(1)", 1)
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						done := make(chan error, 1)
 						joined := false
 						defer func() {

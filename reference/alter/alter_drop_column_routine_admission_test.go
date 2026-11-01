@@ -6,7 +6,6 @@ import (
 	"errors"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -112,7 +111,7 @@ func TestReferenceAlterDropColumnRoutineAdmission(t *testing.T) {
 
 func dcrRoutineWait(t *testing.T, p *fixture.Pair, waiter, holder int, object int64, finished <-chan struct{}) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		select {
