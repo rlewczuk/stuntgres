@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -47,7 +46,7 @@ func TestReferenceFDWParallelConversion(t *testing.T) {
 
 func fdwParallelConversionFailure(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fdwParallelReader, query string, prepared bool, want fixture.Diagnostic) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	r.partitions = 2
 	before := r.parallelCounts()

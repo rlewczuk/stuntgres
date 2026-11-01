@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -150,7 +149,7 @@ func foreignProgressTerminalFailure(t *testing.T, phase string) {
 		// The public Raw panic contract preserves this exact physical connection.
 		// A bounded real command proves COPY reservation/admission were released;
 		// the original PID and empty source effects prove reuse, not retirement.
-		reuse, reuseCancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		reuse, reuseCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer reuseCancel()
 		var actualPID, rows int64
 		if err := worker.QueryRowContext(reuse, "SELECT pg_backend_pid(),count(*) FROM fdw_data WHERE id>3").Scan(&actualPID, &rows); err != nil || actualPID != int64(pid) || rows != 0 {

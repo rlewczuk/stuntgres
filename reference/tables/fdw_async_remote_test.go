@@ -114,7 +114,7 @@ func (c *fdwAsyncCase) release() {
 	}
 	c.released = true
 	if c.b.PG && c.holder != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		_, _ = c.holder.ExecContext(ctx, "SELECT pg_advisory_unlock(7182401)")
 	} else {

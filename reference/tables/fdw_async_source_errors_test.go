@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -61,7 +60,7 @@ func TestReferenceFDWAsyncSourceErrors(t *testing.T) {
 							<-done
 						}
 					}()
-					observe, stop := context.WithTimeout(c.p.Ctx, 5*time.Second)
+					observe, stop := context.WithTimeout(c.p.Ctx, fixture.Liveness)
 					witness := c.witness(observe, true)
 					stop()
 					if witness != nil {

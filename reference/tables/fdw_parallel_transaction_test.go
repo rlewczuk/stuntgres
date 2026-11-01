@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -303,7 +302,7 @@ func TestReferenceFDWParallelTransactions(t *testing.T) {
 		fdwParallelGate(t, p, c, r, true)
 		assert(2, 1)
 		primary := errors.New("transactional partition read failed")
-		ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		sibling := make(chan struct{})
 		var entered sync.Once

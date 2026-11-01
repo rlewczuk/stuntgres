@@ -71,7 +71,7 @@ func TestReferenceForeignActionsTransactionsTwoPhase(t *testing.T) {
 						return fixture.RowExecute(workerCtx, writer, "UPDATE c SET note='later' WHERE id=10", true)
 					})
 					if b.PG {
-						observeCtx, observeCancel := context.WithTimeout(p.Ctx, 3*time.Second)
+						observeCtx, observeCancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer observeCancel()
 						fixture.RowWait(t, observeCtx, waiterPID, 0)
 					} else {
@@ -217,7 +217,7 @@ func TestReferenceForeignActionsCancellationReplacement(t *testing.T) {
 				})
 				// Observe the actual initiating row grant through public NOWAIT.
 				// The holder prevents completion of the ensuing child mutation.
-				ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				for {
 					tx, e := b.DB.BeginTx(ctx, nil)
 					if e != nil {

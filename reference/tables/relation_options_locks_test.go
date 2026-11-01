@@ -199,7 +199,7 @@ func relationOptionsWaitingAlter(ctx context.Context, c *sql.Conn, query string,
 // active-provider observer; no elapsed-time inference and no completion escape.
 func relationOptionsNativeWait(t *testing.T, ctx context.Context, done chan fixture.RelationOutcome) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	stacks := make([]byte, 64<<10)
 	for {

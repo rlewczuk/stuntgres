@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -59,7 +58,7 @@ func TestReferenceFDWAsyncCancellation(t *testing.T) {
 							<-done
 						}
 					}()
-					observe, stop := context.WithTimeout(c.p.Ctx, 5*time.Second)
+					observe, stop := context.WithTimeout(c.p.Ctx, fixture.Liveness)
 					witness := c.witness(observe, true)
 					stop()
 					if witness != nil {
@@ -75,7 +74,7 @@ func TestReferenceFDWAsyncCancellation(t *testing.T) {
 					}
 					// Cancellation must stop and join the real request while the external gate
 					// remains held. Releasing it first would allow ordinary success to win.
-					joinCtx, stopJoin := context.WithTimeout(c.p.Ctx, 5*time.Second)
+					joinCtx, stopJoin := context.WithTimeout(c.p.Ctx, fixture.Liveness)
 					defer stopJoin()
 					var err error
 					select {

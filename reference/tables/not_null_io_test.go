@@ -37,7 +37,7 @@ func TestReferenceNotNullControlsExternalIOHasNoTargetLock(t *testing.T) {
 	}
 	writer := &referenceNotNullGatedWriter{started: make(chan struct{}), release: make(chan struct{})}
 	var release sync.Once
-	ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- stuntgres.Dump(ctx, p.Native, writer) }()
@@ -48,7 +48,7 @@ func TestReferenceNotNullControlsExternalIOHasNoTargetLock(t *testing.T) {
 		if !joined {
 			select {
 			case <-done:
-			case <-time.After(3 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("dump cleanup did not join")
 			}
 		}
@@ -77,7 +77,7 @@ func TestReferenceNotNullControlsExternalIOHasNoTargetLock(t *testing.T) {
 			release.Do(func() { close(writer.release) })
 			select {
 			case <-execDone:
-			case <-time.After(3 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("ALTER cleanup did not join")
 			}
 		}

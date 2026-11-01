@@ -6,7 +6,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -34,7 +33,7 @@ func fdwParallelBalanced(t *testing.T, r *fdwParallelReader) {
 // assertion-failure exit cancels and joins before touching provider configuration.
 func fdwParallelGate(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fdwParallelReader, cancelWork bool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	r.entered = make(chan int, 2)
 	release := make(chan struct{})
 	r.release = release

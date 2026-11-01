@@ -15,7 +15,7 @@ import (
 func foreignActionsWait(t *testing.T, p *fixture.Pair, b fixture.Backend, waiter, holder int) {
 	t.Helper()
 	if b.PG {
-		ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		fixture.RowWait(t, ctx, waiter, holder)
 	}

@@ -47,7 +47,7 @@ func TestReferenceForeignKeyConcurrent(t *testing.T) {
 						})
 						<-started
 						if b.PG {
-							ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+							ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 							for {
 								var blocked bool
 								err := fixture.Admin.QueryRowContext(ctx, "SELECT $2 = ANY(pg_blocking_pids($1))", waiterPID, holderPID).Scan(&blocked)

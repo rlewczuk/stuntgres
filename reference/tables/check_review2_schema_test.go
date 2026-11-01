@@ -18,7 +18,7 @@ func TestReferenceCheckReview2SchemaPrivateDropCancellation(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("commit=%t/prepared=%t", commit, prepared), func(t *testing.T) {
 				p := fixture.NewScenario(t)
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				a, err := p.Memory.Conn(ctx)
 				if err != nil {

@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -90,7 +89,7 @@ func fdwAsyncGated(t *testing.T, c *fdwAsyncCase, both bool, query func(context.
 			<-done
 		}
 	}()
-	observe, stop := context.WithTimeout(c.p.Ctx, 5*time.Second)
+	observe, stop := context.WithTimeout(c.p.Ctx, fixture.Liveness)
 	err := c.witness(observe, both)
 	stop()
 	c.release()

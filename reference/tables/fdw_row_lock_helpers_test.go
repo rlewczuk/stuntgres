@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -46,7 +45,7 @@ func fdwRowLockConfiguredScenario(t *testing.T, late bool, configure func(*fdwSQ
 
 func fdwRowLockRollback(t *testing.T, c *sql.Conn) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	if _, err := c.ExecContext(ctx, "ROLLBACK"); err != nil {
 		t.Errorf("rowlock rollback: %v", err)
@@ -127,7 +126,7 @@ func fdwRowLockClose(t *testing.T, o fixture.RelationOutcome) {
 // waiter==0 finds the remote FDW worker blocked behind a known source holder.
 func fdwRowLockRemoteWait(t *testing.T, parent context.Context, frontend, waiter, holder int) int {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, fixture.Liveness)
 	defer cancel()
 	for {
 		var pid int
