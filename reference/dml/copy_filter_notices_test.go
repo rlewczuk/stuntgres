@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -79,7 +78,7 @@ func TestReferenceCopyFilterNotices(t *testing.T) {
 			var callbackErr error
 			calls := 0
 			conn := fixture.CopyNoticeConnection(t, p, false, &records, func(fixture.Diagnostic) {
-				ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				var n int64
 				callbackErr = p.Native.QueryRowContext(ctx, "SELECT count(*) FROM copy_notice").Scan(&n)

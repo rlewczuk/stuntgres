@@ -115,7 +115,7 @@ func TestReferenceUpdateCurrentOfFailureAndCancellation(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					waitCtx := ctx
 					var stop context.CancelFunc

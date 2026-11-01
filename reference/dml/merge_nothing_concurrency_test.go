@@ -7,7 +7,6 @@ import (
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceMergeNothingConcurrency(t *testing.T) {
@@ -19,7 +18,7 @@ func TestReferenceMergeNothingConcurrency(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE source(id INT,v INT)", 0))
 				run(fixture.Exec("INSERT INTO t VALUES(1,10)", 1))
 				run(fixture.Exec("INSERT INTO source VALUES(1,7)", 1))
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				holder, worker := fixture.LockConnections(t, ctx, b.DB)
 				q := "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED THEN DO NOTHING RETURNING merge_action(),t.id,t.v"

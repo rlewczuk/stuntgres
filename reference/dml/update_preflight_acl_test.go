@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceUpdateCoreRecursivePreflightACL(t *testing.T) {
@@ -24,7 +23,7 @@ func TestReferenceUpdateCoreRecursivePreflightACL(t *testing.T) {
 				}
 				defer c.Close()
 				defer func() {
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					queries := []string{"RESET SESSION AUTHORIZATION"}
 					if backend.PG {
@@ -41,7 +40,7 @@ func TestReferenceUpdateCoreRecursivePreflightACL(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, backend.Recorder, fixture.Exec("DROP ROLE IF EXISTS "+reader, 0))
 				}
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := c.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 						t.Error(err)

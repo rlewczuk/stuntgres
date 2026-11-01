@@ -6,12 +6,11 @@ import (
 	"runtime"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func updateFromPGWait(t *testing.T, ctx context.Context, pid int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var waiting bool

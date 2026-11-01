@@ -6,7 +6,6 @@ import (
 	"errors"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceMergeReturningAtomicity(t *testing.T) {
@@ -171,7 +170,7 @@ func TestReferenceMergeReturningConcurrency(t *testing.T) {
 		run := func(s fixture.Step) { mergeReturningRun(t, p, b, s) }
 		run(fixture.Exec("CREATE TABLE t(id INT,v INT)", 0))
 		run(fixture.Exec("INSERT INTO t VALUES(1,10)", 1))
-		ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		holder, worker := fixture.LockConnections(t, ctx, b.DB)
 		q := "MERGE INTO t USING (VALUES(1,7)) s(id,delta) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=t.v+s.delta RETURNING merge_action(),s.delta,old.v,new.v"

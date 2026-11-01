@@ -17,7 +17,7 @@ import (
 func conflictUpdateWait(t *testing.T, p *fixture.Pair, b fixture.Backend, waiter, holder int) {
 	t.Helper()
 	if b.PG {
-		ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		fixture.RowWait(t, ctx, waiter, holder)
 	}
@@ -136,7 +136,7 @@ func TestReferenceInsertConflictUpdateVisibility(t *testing.T) {
 			joined := false
 			defer func() {
 				cancelWorker()
-				cleanupCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanupCtx, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				if _, err := a.ExecContext(cleanupCtx, "ROLLBACK"); err != nil {
 					t.Error("release source holder", err)
 				}
@@ -151,7 +151,7 @@ func TestReferenceInsertConflictUpdateVisibility(t *testing.T) {
 							outcome.Stmt.Close()
 						}
 						joined = true
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("invisible-source worker did not join")
 					}
 				}
@@ -159,7 +159,7 @@ func TestReferenceInsertConflictUpdateVisibility(t *testing.T) {
 				// for the replacement row. Release every count before the
 				// fixture's retained-connection teardown, including failures.
 				for _, connection := range []fixture.Executor{a, c} {
-					cleanupCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanupCtx, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					if _, err := connection.ExecContext(cleanupCtx, "SELECT pg_advisory_unlock_all()"); err != nil {
 						t.Error("release admission marker", err)
 					}
@@ -185,7 +185,7 @@ func TestReferenceInsertConflictUpdateVisibility(t *testing.T) {
 			}
 			q := "INSERT INTO t SELECT s.k,s.v FROM s LEFT JOIN t ON t.k=s.k WHERE t.k IS NULL ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v"
 			done = fixture.RowAsync(t, workerCtx, c, q, true, false)
-			markerCtx, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+			markerCtx, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer stop()
 			for {
 				var acquired bool
@@ -444,7 +444,7 @@ func TestReferenceInsertConflictUpdateLockOrdering(t *testing.T) {
 			da := fixture.RowAsync(t, p.Ctx, a, "INSERT INTO t VALUES(2,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v", false, false)
 			conflictUpdateWait(t, p, b, ap, cp)
 			dc := fixture.RowAsync(t, p.Ctx, c, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v", false, false)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			var ar, cr fixture.RelationOutcome
 			gotA, gotC := false, false

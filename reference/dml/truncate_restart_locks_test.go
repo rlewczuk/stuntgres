@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Observe real relation-manager projections on both backends, not elapsed time
@@ -15,7 +14,7 @@ import (
 // relation OID and conflicting modes, with an ungranted waiter.
 func truncateRestartWait(t *testing.T, p *fixture.Pair, b fixture.Backend, holder, waiter int, sequence, heldMode, waitingMode string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var observed bool

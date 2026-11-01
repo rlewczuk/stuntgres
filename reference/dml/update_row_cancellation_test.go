@@ -14,7 +14,7 @@ func TestReferenceUpdateRowCancellation(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			t.Run(map[bool]string{false: "target_wait", true: "source_wait"}[sourceWait]+map[bool]string{false: "/direct", true: "/held"}[prepared], func(t *testing.T) {
 				updateRowBackends(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-					ctx, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer stop()
 					holder, owner := fixture.LockConnections(t, ctx, b.DB)
 					peer, err := b.DB.Conn(ctx)
@@ -55,7 +55,7 @@ func TestReferenceUpdateRowCancellation(t *testing.T) {
 					exec(h, hold, 1)
 					exec(owner, "BEGIN", 0)
 					defer func() {
-						cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						owner.ExecContext(cleanup, "ROLLBACK")
 						if b.PG {

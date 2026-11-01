@@ -59,8 +59,8 @@ func copyBinaryJoin(t *testing.T, done <-chan copyTextOutcome) copyTextOutcome {
 	select {
 	case out := <-done:
 		return out
-	case <-time.After(5 * time.Second):
-		t.Error("binary worker did not join within5s after release")
+	case <-time.After(fixture.Liveness):
+		t.Error("binary worker did not join after release")
 		return <-done
 	}
 }
@@ -129,7 +129,7 @@ func TestReferenceCopyBinaryLifecycle(t *testing.T) {
 				case <-p.Ctx.Done():
 					t.Fatal("binary admission barrier deadline")
 				}
-				observation, stopObservation := context.WithTimeout(p.Ctx, 5*time.Second)
+				observation, stopObservation := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer stopObservation()
 				if timeout {
 					// Observe this command's actual server query_start deadline, not a sleep.

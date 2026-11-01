@@ -101,7 +101,7 @@ func TestReferenceInsertConflictConcurrentSameKey(t *testing.T) {
 		defer sc.Close()
 		start := make(chan struct{})
 		done := make(chan fixture.RelationOutcome, 2)
-		ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		for _, stmt := range []*sql.Stmt{sa, sc} {
 			go func(stmt *sql.Stmt) {
@@ -117,7 +117,7 @@ func TestReferenceInsertConflictConcurrentSameKey(t *testing.T) {
 				select {
 				case <-done:
 					remaining--
-				case <-time.After(5 * time.Second):
+				case <-time.After(fixture.Liveness):
 					t.Error("same-key worker not joined")
 					return
 				}
@@ -200,7 +200,7 @@ func TestReferenceInsertConflictCancellation(t *testing.T) {
 					if holderReleased {
 						return
 					}
-					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					if _, err := a.ExecContext(cleanup, "ROLLBACK"); err != nil {
 						t.Error(err)
@@ -225,7 +225,7 @@ func TestReferenceInsertConflictCancellation(t *testing.T) {
 					ctx, cancel = context.WithTimeout(p.Ctx, 100*time.Millisecond)
 				}
 				defer cancel()
-				waitContext, stopWait := context.WithTimeout(p.Ctx, 5*time.Second)
+				waitContext, stopWait := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer stopWait()
 				var ap, cp int
 				if b.PG {

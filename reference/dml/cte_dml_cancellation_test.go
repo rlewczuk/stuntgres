@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -55,7 +54,7 @@ func TestReferenceCTEDMLCancellation(t *testing.T) {
 					}
 					defer holder.Rollback()
 					fixture.LockExec(t, p.Ctx, holder, "UPDATE t SET v=99 WHERE id=1", 1)
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					done := fixture.RowAsync(t, ctx, x, q, false, queryRows)
 					fixture.LimitSequenceCapture(t, ctx, holder)

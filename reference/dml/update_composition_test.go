@@ -18,7 +18,7 @@ func TestReferenceUpdateCoreComposition(t *testing.T) {
 			}
 			defer c.Close()
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := c.ExecContext(ctx, "SET bytea_output=hex"); err != nil {
 					t.Error(err)
@@ -207,7 +207,7 @@ func TestReferenceUpdateCoreCompositionArithmeticAtomicity(t *testing.T) {
 						}
 						defer c.Close()
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							if _, err := c.ExecContext(ctx, "ROLLBACK"); err != nil {
 								t.Error(err)

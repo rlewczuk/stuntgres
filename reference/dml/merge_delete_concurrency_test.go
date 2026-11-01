@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceMergeDeleteConcurrentClasses(t *testing.T) {
@@ -13,7 +12,7 @@ func TestReferenceMergeDeleteConcurrentClasses(t *testing.T) {
 		for _, commit := range []bool{false, true} {
 			t.Run(lane+map[bool]string{false: "Rollback", true: "Commit"}[commit], func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					holder, worker := fixture.LockConnections(t, ctx, b.DB)
 					run := fixture.MergeRun(t, p, b, false)

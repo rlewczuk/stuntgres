@@ -18,7 +18,7 @@ import (
 // Both the ungranted lock and exact blocker are independently observed.
 func deleteReferenceWaitRow(t *testing.T, ctx context.Context, waiter, holder int) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var waiting bool

@@ -16,7 +16,7 @@ func TestReferenceUpdateCoreDeleteCancellation(t *testing.T) {
 				p := fixture.NewScenario(t)
 				for _, backend := range p.Backends() {
 					t.Run(backend.Name, func(t *testing.T) {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						db := backend.DB
 						holder, owner := fixture.LockConnections(t, ctx, db)
@@ -61,7 +61,7 @@ func TestReferenceUpdateCoreDeleteCancellation(t *testing.T) {
 						exec(h, hold, 1)
 						exec(owner, "BEGIN", 0)
 						defer func() {
-							cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+							cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer stop()
 							owner.ExecContext(cleanup, "ROLLBACK")
 							if backend.PG {

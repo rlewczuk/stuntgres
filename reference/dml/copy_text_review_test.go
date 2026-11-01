@@ -155,7 +155,7 @@ func TestReferenceCopyTextInputStatementTimeout(t *testing.T) {
 		case <-streamContext.Done():
 			t.Fatal(streamContext.Err())
 		}
-		observation, stopObservation := context.WithTimeout(p.Ctx, 5*time.Second)
+		observation, stopObservation := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer stopObservation()
 		for {
 			var reading bool

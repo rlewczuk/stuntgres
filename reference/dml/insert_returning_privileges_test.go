@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceInsertReturningPrivileges(t *testing.T) {
@@ -187,7 +186,7 @@ func TestReferenceInsertReturningPrivilegesAfterWait(t *testing.T) {
 			return fixture.RelationOutcome{Rows: rows, Err: err}
 		})
 		if b.PG {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			fixture.RowWait(t, ctx, workerPID, holderPID)
 		}

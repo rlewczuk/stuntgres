@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -12,7 +11,7 @@ import (
 func currentOfPeerRollback(t *testing.T, conn *sql.Conn) {
 	t.Helper()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		// A canceled pq operation may have disposed of its physical connection.
 		if _, err := conn.ExecContext(ctx, "ROLLBACK"); err != nil && err != sql.ErrConnDone {
@@ -105,7 +104,7 @@ func currentOfPeerRecheck(t *testing.T, ordering, ownerRoute, peerRoute string) 
 		}
 		var outcome fixture.RelationOutcome
 		if ordering == "blocked" {
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			pp, cp := 0, 0
 			if b.PG {

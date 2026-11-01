@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // PostgreSQL 18.0 follows current row identity through own replacements and
@@ -128,7 +127,7 @@ func TestReferenceDeleteCurrentOfVersionsAndArbitration(t *testing.T) {
 			run(currentOfFetch("FETCH FORWARD 1 FROM c", 1))
 			fixture.LockExec(t, p.Ctx, peer, "UPDATE t SET v='other' WHERE id=2", 1)
 			fixture.DeleteReferenceRows(t, p, peer, b.Recorder, 1, 2, 3)
-			ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			var pp, cp int
 			if b.PG {

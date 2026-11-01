@@ -11,7 +11,6 @@ import (
 	"stuntgres/reference/fixture"
 	"sync"
 	"testing"
-	"time"
 )
 
 type copyTextOutcome struct {
@@ -280,7 +279,7 @@ func TestReferenceCopyTextCancellation(t *testing.T) {
 			t.Fatal("COPY cancellation admission barrier")
 		}
 		if b.PG {
-			observation, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+			observation, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer stop()
 			// Observe actual server COPY input admission, not only the client
 			// reader. Keep CopyDone blocked until server cancellation completes.
@@ -376,7 +375,7 @@ func TestReferenceCopyTextCancellation(t *testing.T) {
 			case <-p.Ctx.Done():
 				t.Fatal(p.Ctx.Err())
 			}
-			observation, stopObservation := context.WithTimeout(p.Ctx, 5*time.Second)
+			observation, stopObservation := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer stopObservation()
 			for {
 				var due bool

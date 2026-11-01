@@ -32,7 +32,7 @@ func TestReferenceInsertConflictUpdateCancellation(t *testing.T) {
 						released := false
 						defer func() {
 							if !released {
-								ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+								ctx, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 								defer stop()
 								if _, e := a.ExecContext(ctx, "ROLLBACK"); e != nil {
 									t.Error(e)

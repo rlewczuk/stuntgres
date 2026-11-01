@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceMergeUpdateReadCommitted(t *testing.T) {
@@ -14,7 +13,7 @@ func TestReferenceMergeUpdateReadCommitted(t *testing.T) {
 			t.Run(lane+map[bool]string{false: "Rollback", true: "Commit"}[commit], func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					holder, worker := fixture.LockConnections(t, ctx, b.DB)
 					run := fixture.MergeRun(t, p, b, false)
@@ -135,7 +134,7 @@ func TestReferenceMergeUpdateRepeatableRead(t *testing.T) {
 			t.Run(map[bool]string{false: "Update", true: "Delete"}[deleted]+map[bool]string{false: "Rollback", true: "Commit"}[commit], func(t *testing.T) {
 				mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					holder, worker := fixture.LockConnections(t, ctx, b.DB)
 					run := fixture.MergeRun(t, p, b, false)
@@ -225,7 +224,7 @@ func TestReferenceMergeUpdateRowLocks(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				holder, worker := fixture.LockConnections(t, ctx, b.DB)
 				run := fixture.MergeRun(t, p, b, false)
@@ -307,7 +306,7 @@ func TestReferenceMergeUpdateFollowChainRowModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeInsertScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool) {
 
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				holder, worker := fixture.LockConnections(t, ctx, b.DB)
 				writer, err := b.DB.Conn(ctx)
@@ -315,7 +314,7 @@ func TestReferenceMergeUpdateFollowChainRowModes(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer func() {
-					cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+					cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer stop()
 					writer.ExecContext(cleanup, "ROLLBACK")
 					writer.Close()

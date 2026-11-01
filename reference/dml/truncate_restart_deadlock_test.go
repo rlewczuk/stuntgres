@@ -124,7 +124,7 @@ func TestReferenceTruncateRestartOwnershipDeadlock(t *testing.T) {
 			for _, done := range finished {
 				select {
 				case <-done:
-				case <-time.After(5 * time.Second):
+				case <-time.After(fixture.Liveness):
 					t.Error("ownership cycle worker did not join")
 				}
 			}

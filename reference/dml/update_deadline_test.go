@@ -18,7 +18,7 @@ func TestReferenceUpdateCoreRowSQLDeadlines(t *testing.T) {
 				p := fixture.NewPair(t)
 				for i, db := range []*sql.DB{p.Memory, p.Postgres} {
 					t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						a, b := fixture.LockConnections(t, ctx, db)
 						fixture.LockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
@@ -47,7 +47,7 @@ func TestReferenceUpdateCoreRowSQLDeadlines(t *testing.T) {
 						fixture.LockExec(t, ctx, tx, "UPDATE t SET v=2", 1)
 						fixture.LockExec(t, ctx, b, "BEGIN", 0)
 						defer func() {
-							cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+							cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer stop()
 							for _, q := range []string{"ROLLBACK", "SET lock_timeout=0", "SET statement_timeout=0"} {
 								if _, err := b.ExecContext(cleanup, q); err != nil {
@@ -73,7 +73,7 @@ func TestReferenceUpdateCoreRowSQLDeadlines(t *testing.T) {
 							if !joined {
 								select {
 								case <-done:
-								case <-time.After(5 * time.Second):
+								case <-time.After(fixture.Liveness):
 									t.Error("row deadline worker not joined")
 								}
 							}

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceUpdateCoreColumnPrivileges(t *testing.T) {
@@ -54,7 +53,7 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 				t.Run(mode+map[bool]string{false: "/direct", true: "/prepared"}[prepared]+map[bool]string{false: "/implicit", true: "/explicit"}[explicit], func(t *testing.T) {
 					fixture.RoleReferenceCleanup(t, []string{"nn_acl_actor", "nn_acl_owner"})
 					p := fixture.NewScenario(t)
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					for _, backend := range p.Backends() {
 						conn, err := backend.DB.Conn(ctx)
@@ -63,7 +62,7 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 						defer conn.Close()
 						defer func() {
-							cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+							cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer stop()
 							for _, q := range []string{"ROLLBACK", "RESET SESSION AUTHORIZATION"} {
 								if _, err := conn.ExecContext(cleanup, q); err != nil {

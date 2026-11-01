@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Latest-predecessor expectations follow PostgreSQL 18.6 TidNext and the
@@ -128,7 +127,7 @@ func TestReferenceUpdateCurrentOfVersionsAndArbitration(t *testing.T) {
 				run(fixture.Exec("UPDATE t SET v='owner' WHERE CURRENT OF c", 1))
 				fixture.LockExec(t, p.Ctx, peer, "UPDATE t SET v='other' WHERE id=2", 1)
 				fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.Select("SELECT v FROM t WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{"one"}}))
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				pp, cp := 0, 0
 				if b.PG {

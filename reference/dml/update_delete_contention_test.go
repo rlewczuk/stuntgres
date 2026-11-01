@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceUpdateCoreDeleteRowContentionOracle(t *testing.T) {
@@ -18,7 +17,7 @@ func TestReferenceUpdateCoreDeleteRowContentionOracle(t *testing.T) {
 				name := lane + map[bool]string{false: "/rollback", true: "/commit"}[commit] + map[bool]string{false: "/direct", true: "/prepared"}[prepared]
 				t.Run(name, func(t *testing.T) {
 					p := fixture.NewPair(t)
-					ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					holder, worker := fixture.LockConnections(t, ctx, p.Postgres)
 					peer, err := p.Postgres.Conn(ctx)
@@ -55,7 +54,7 @@ func TestReferenceUpdateCoreDeleteRowContentionOracle(t *testing.T) {
 						exec(conn, "BEGIN", 0)
 						conn := conn
 						t.Cleanup(func() {
-							cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+							cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer stop()
 							if _, err := conn.ExecContext(cleanup, "ROLLBACK"); err != nil {
 								t.Error(err)
@@ -122,7 +121,7 @@ func TestReferenceUpdateCoreDeleteServerCancellation(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			t.Run(map[bool]string{false: "delete_wait", true: "update_wait"}[reverse]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				p := fixture.NewPair(t)
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				holder, owner := fixture.LockConnections(t, ctx, p.Postgres)
 				peer, err := p.Postgres.Conn(ctx)
@@ -158,7 +157,7 @@ func TestReferenceUpdateCoreDeleteServerCancellation(t *testing.T) {
 					exec(conn, "BEGIN", 0)
 					conn := conn
 					t.Cleanup(func() {
-						cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer stop()
 						if _, err := conn.ExecContext(cleanup, "ROLLBACK"); err != nil {
 							t.Error(err)

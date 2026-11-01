@@ -43,7 +43,7 @@ func copyCSVJoin(t *testing.T, done <-chan copyTextOutcome) copyTextOutcome {
 	select {
 	case out := <-done:
 		return out
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("CSV worker did not join after caller release")
 		return copyTextOutcome{}
 	}
@@ -105,7 +105,7 @@ func TestReferenceCopyCSVLifecycle(t *testing.T) {
 					t.Fatal(p.Ctx.Err())
 				}
 				if b.PG {
-					observation, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+					observation, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer stop()
 					for {
 						var ready bool

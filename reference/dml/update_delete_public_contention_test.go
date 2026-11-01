@@ -16,7 +16,7 @@ func TestReferenceUpdateCoreDeleteRowContention(t *testing.T) {
 					p := fixture.NewScenario(t)
 					for _, backend := range p.Backends() {
 						t.Run(backend.Name, func(t *testing.T) {
-							ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+							ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 							defer cancel()
 							db := backend.DB
 							holder, worker := fixture.LockConnections(t, ctx, db)
@@ -81,7 +81,7 @@ func TestReferenceUpdateCoreDeleteRowContention(t *testing.T) {
 								if !joined {
 									select {
 									case <-done:
-									case <-time.After(5 * time.Second):
+									case <-time.After(fixture.Liveness):
 										t.Error("mixed public DML worker not joined")
 									}
 								}

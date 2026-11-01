@@ -10,7 +10,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceInsertReturningControls(t *testing.T) {
@@ -147,7 +146,7 @@ func TestReferenceInsertReturningConcurrency(t *testing.T) {
 					return fixture.RelationOutcome{Rows: rows, Err: e}
 				})
 				if b.PG {
-					bounded, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+					bounded, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					defer cancel()
 					fixture.RowWait(t, bounded, workerPID, holderPID)
 				}
