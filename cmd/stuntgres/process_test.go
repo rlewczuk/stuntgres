@@ -128,7 +128,7 @@ type processTestChild struct {
 
 func startProcessHelper(t *testing.T, mode, path, helper string) *processTestChild {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testLiveness)
 	t.Cleanup(cancel)
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -162,7 +162,7 @@ func startProcessHelper(t *testing.T, mode, path, helper string) *processTestChi
 
 func (child *processTestChild) ready(t *testing.T) readiness {
 	t.Helper()
-	if err := child.pipe.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := child.pipe.SetReadDeadline(time.Now().Add(testLiveness)); err != nil {
 		t.Fatal(err)
 	}
 	var message readiness
