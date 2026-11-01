@@ -1,4 +1,4 @@
-package core
+package inquiry
 
 import (
 	"stuntgres/internal/engine/ids"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TransactionAge(h SessionInquiryHost, xid uint32) (int32, error) {
+func TransactionAge(h SessionHost, xid uint32) (int32, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
@@ -16,11 +16,11 @@ func TransactionAge(h SessionInquiryHost, xid uint32) (int32, error) {
 	return h.TransactionAgeLocked(xid)
 }
 
-func MultiTransactionAge(h SessionInquiryHost, xid uint32) (int32, error) {
+func MultiTransactionAge(h SessionHost, xid uint32) (int32, error) {
 	return h.LockManager().MultiAge(h.Ticket(), xid)
 }
 
-func CurrentTransactionID(h SessionInquiryHost, assign bool) (uint64, error) {
+func CurrentTransactionID(h SessionHost, assign bool) (uint64, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
@@ -34,7 +34,7 @@ func CurrentTransactionID(h SessionInquiryHost, assign bool) (uint64, error) {
 	return h.VisibilityLocked().FullXIDLocked(h.TransactionRef()), nil
 }
 
-func CurrentSnapshot(h SessionInquiryHost) (*sqltype.Snapshot, error) {
+func CurrentSnapshot(h SessionHost) (*sqltype.Snapshot, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	snapshot, err := h.CurrentSnapshotLocked()
@@ -47,7 +47,7 @@ func CurrentSnapshot(h SessionInquiryHost) (*sqltype.Snapshot, error) {
 	return snapshot, nil
 }
 
-func TransactionStatus(h SessionInquiryHost, full uint64) (string, bool, error) {
+func TransactionStatus(h SessionHost, full uint64) (string, bool, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	if h.TransactionRef().Epoch() != h.CatalogEpochLocked() {
@@ -56,7 +56,7 @@ func TransactionStatus(h SessionInquiryHost, full uint64) (string, bool, error) 
 	return h.VisibilityLocked().TransactionStatusLocked(full)
 }
 
-func TransactionMembers(h SessionInquiryHost, xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func TransactionMembers(h SessionHost, xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	members, err := h.LockManager().MultiXactMembers(h.CatalogDomain(), h.Ticket(), xid)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func commitTimestampDisabled() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 }
 
-func CommitTimestamp(h SessionInquiryHost, xid uint32) (time.Time, uint32, bool, error) {
+func CommitTimestamp(h SessionHost, xid uint32) (time.Time, uint32, bool, error) {
 	h.ReacquireEngine()
 	registry := h.VisibilityLocked()
 	if !registry.TracksCommitTimestamps() {
@@ -93,7 +93,7 @@ func CommitTimestamp(h SessionInquiryHost, xid uint32) (time.Time, uint32, bool,
 	return entry.Stamp, entry.Origin, entry.Present, nil
 }
 
-func LastCommittedTransaction(h SessionInquiryHost) (uint32, time.Time, uint32, bool, error) {
+func LastCommittedTransaction(h SessionHost) (uint32, time.Time, uint32, bool, error) {
 	h.ReacquireEngine()
 	registry := h.VisibilityLocked()
 	if !registry.TracksCommitTimestamps() {

@@ -1,4 +1,4 @@
-package core
+package inquiry
 
 import (
 	"context"
@@ -71,12 +71,12 @@ type CatalogHost interface {
 	ImportSystemCollationsLocked(namespace uint32) error
 }
 
-// SessionInquiryHost is the statement a session or transaction inquiry function
+// SessionHost is the statement a session or transaction inquiry function
 // runs in: identities, schema paths, TEMP namespaces, notification channels,
 // transaction ages, IDs, snapshots, status, multixact members and commit
 // timestamps. The lock rules are CatalogHost's; CurrentSnapshotLocked also
 // takes the session mutex, inside Engine.Mu.
-type SessionInquiryHost interface {
+type SessionHost interface {
 	ReacquireEngine()
 	ReleaseEngineLocked()
 

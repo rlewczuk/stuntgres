@@ -9,17 +9,6 @@ procedural runtime ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3,
 L15). It imports the layered subpackages and never the root or a family; the
 family statement executors (the `*cmds` packages) call its exported API.
 
-`database_files_runtime.go` uses the ordinary catalog inquiry owner/role-domain
-and replacement fences under `Engine.Mu`, then reads the transaction-private
-catalog. `pgcatalog.ClassKind` distinguishes storage-less descriptors from
-tables/indexes/sequences/materialized views/stored catalogs; allocated rows are
-irrelevant. Forward stored calls report explicit `0A000` because PostgreSQL
-filenodes and files do not exist here. Reverse absence returns typed REGCLASS
-NULL, not a fabricated OID mapping. No storage capture, filesystem probe, new
-mapping state or serialization is introduced. Common routine admission and
-REGCLASS input retain EXECUTE and schema-USAGE precedence. Unit witnesses:
-`make check RUN='^TestDatabaseFiles(BindingProtocol|RuntimeBoundary)$'`.
-
 Detached ordinary catalog publication owns only its staged heap replacements
 and removals. At final installation under `Engine.Mu`, it refreshes borrowed
 heaps from the current committed map without mutating captured maps or retained
@@ -86,20 +75,6 @@ For a supported single OUT/INOUT host procedure, the actual Program scalar resul
 is converted as that member and wrapped by the shared `proc.PlanTuple` result
 owner into CALL's exact nonnull record; a NULL member is not an absent record.
 
-
-Routine declaration inquiry composes the statement-owned catalog and presentation
-settings with the shared formal projection and metadata-safe default/body
-renderers. It never invokes the target or checks its EXECUTE privilege. Actual
-Procedure descriptors are authoritative; release identity aliases do not create
-catalog objects. Public CREATE OR REPLACE output is independent of native dump
-SQL, while both consume the same retained declaration and wrapper metadata.
-Language presentation uses the actual descriptor address from that same snapshot;
-native internal/C/SQL declarations resolve their fixed language identities.
-Renames and aliases never require a display-label match or target compilation.
-Body presentation carries the querying statement's captured temporary-owner
-authority, never the stored routine's principal. Qualified own-session TEMP
-sources use `pg_temp`; foreign or absent temporary authority retains physical
-namespace naming through the unchanged stored relation renderer.
 
 
 `StageForeignConstruction` strictly validates a complete CREATE candidate with
@@ -1273,39 +1248,13 @@ with their family ([root README](../README.md#hosts)).
 
 | Core type | Implements |
 | --- | --- |
-| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `contrib.Host` (`contrib_statement_host.go`), `stats.Host` (`statistics_hosts.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
-| `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them; `contribHost` and `textSearchHost` enter `core/contrib` and `core/tsearch` |
+| `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `exec.NestedSQL` (`nested_sql.go`), `tsearch.Host` (`tsearch_statement_host.go`), `contrib.Host` (`contrib_statement_host.go`), `stats.Host` (`statistics_hosts.go`), `inquiry.CatalogHost` and `inquiry.SessionHost` (`inquiry_statement_host.go`), `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `SequenceRuntime`, `LargeObjectRuntime`) that `*exec.Context` forwards |
+| `contribHost`, `textSearchHost`, `catalogInquiryHost`, `sessionInquiryHost`, `transactionInquiryHost` (`StatementScope` conversions; `host_capabilities.go`) | the `exec.Host` capability groups `exec.ContribRuntime`, `TextSearchRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime` and `TransactionInquiryRuntime`; `statementHost`'s accessors convert to them; `contribHost` and `textSearchHost` enter `core/contrib` and `core/tsearch`, the three inquiry groups `core/inquiry` |
 | `DDLHost` (`ddl_host.go`): the core base, embedded by every family host | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
 | `catalogRuntime` (`catalog_runtime_host.go`), which also holds the `catalogrt.Runtime` | `catalogrt.Host` |
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
-
-`catalogInquiryHost.SizeInquiry` uses the existing catalog-inquiry capability.
-It fences the retained catalog's owner and replacement epoch, captures typed
-allocation roots from the current matching private catalog and transaction
-overlays under the shared cluster mutex, and counts outside that lock.
-Database/tablespace admission captures current invoker authority, resolves
-existence before CONNECT/CREATE or inherited statistics privileges, and selects
-registered target runtimes rather than treating the attached store as the cluster.
-The body borrows `RoutineAuthorizationLocked`, never rule relation-write
-authority: effective/restricted invocation owners and legitimate RI precedence
-remain the routine admission owner's responsibility.
-It retains immutable vectors, not mutable heap headers or prepared numeric/ACL
-results. The allocation model belongs to
-[`storage`](../storage/README.md#logical-allocation-estimates).
-
-`catalogInquiryHost.FormatType` consumes the existing immutable visibility catalog
-and authorized relation/type-compatible path, including the session's TEMP
-namespace. `BaseType` needs only that catalog. Both are captured at the execution
-frontier with schema USAGE filtering and normal implicit/explicit pg_catalog
-precedence. The TEMP-filtered conversion/collation path keeps independent backing
-and is not used for type formatting. Expression snapshot demand and retained
-DEFAULT/generation/CHECK/view recipes select the capture; evaluation never rereads
-session settings. COPY WHERE forwards its local binder's demand after target and
-used-column authorization, before predicate preflight. Retained write demand adds
-to that capture without replacing or clearing it. REGTYPE results use ordinary
-retained row-output spelling, independently of formatter TEXT.
 
 `DDLHost` keeps only the `ddl.Host` methods, what core paths call
 (`LookupCollation`, `NamedType`, `OtherDatabaseDependencies`) and the methods
@@ -2108,17 +2057,23 @@ expression evaluator or an error-code heuristic.
 
 ### Catalog inquiry and session identity
 
-`catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` keep in core
-SQL-callable precedence, analyzer/coercion authority, statement snapshots, lock
-and authorization recapture, pending-TEMP staging, schema caches and lazy
-routine admission, as well as stored literal pairing, logical identity
-remapping, prepared invalidation and catalog-replacement fences.
+The catalog-object, session and transaction inquiry bodies are
+[`core/inquiry`](inquiry/README.md), entered through `catalogInquiryHost`,
+`sessionInquiryHost` and `transactionInquiryHost` (`inquiry_statement_host.go`).
+Core keeps SQL-callable precedence, analyzer/coercion authority, the
+statement's inquiry snapshot and its captures (`captureVisibilitySnapshotLocked`
+at the execution frontier), lock and authorization recapture, pending-TEMP
+staging, schema caches and lazy routine admission, the size captures over the
+cluster's target runtimes (`RelationAllocationLocked`,
+`AggregateAllocationsLocked`), as well as stored literal pairing, logical
+identity remapping, prepared invalidation and catalog-replacement fences.
+`make check RUN='^TestDatabaseFiles(BindingProtocol|RuntimeBoundary)$'` covers
+the file inquiries' binding and runtime boundary.
 
 ### Other runtimes
 
 - Ordinary blocking reads never nest `Engine.Mu` and manager mutexes.
-  Safe-snapshot capture and transaction-inquiry XID/timestamp sampling run under
-  `Engine.Mu`; members are packed from the manager's snapshot clone outside it.
+  Safe-snapshot capture runs under `Engine.Mu`.
 - `sequence_runtime.go` runs the catalog epoch fence (with TEMP epoch
   revalidation) before and after RowExclusive `acquireSequence`, then the ACL
   and read-only checks; call semantics belong to [`sequence`](../sequence/README.md).

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core/catalogrt"
+	"stuntgres/internal/engine/core/inquiry"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -32,8 +33,8 @@ import (
 // inquiry snapshot, its captures, lazy routine admission, authorization and
 // the session, notification and transaction state stay core's.
 var (
-	_ CatalogHost        = (*statementHost)(nil)
-	_ SessionInquiryHost = (*statementHost)(nil)
+	_ inquiry.CatalogHost = (*statementHost)(nil)
+	_ inquiry.SessionHost = (*statementHost)(nil)
 )
 
 // Read only the retained statement root. Comparing its immutable owner does not
@@ -435,135 +436,137 @@ func (h *statementHost) CurrentSnapshotLocked() (*sqltype.Snapshot, error) {
 // The exec capability groups enter core/inquiry with the statement host.
 
 func (h *catalogInquiryHost) FormatType(oid uint32, typmod int32, specified bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return FormatType(h.host(), oid, typmod, specified, result)
+	return inquiry.FormatType(h.host(), oid, typmod, specified, result)
 }
 
 func (h *catalogInquiryHost) BaseType(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return BaseType(h.host(), oid, result)
+	return inquiry.BaseType(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return CatalogUserName(h.host(), oid, result)
+	return inquiry.CatalogUserName(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) TablespaceLocation(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return TablespaceLocation(h.host(), oid, result)
+	return inquiry.TablespaceLocation(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) TablespaceDatabase(oid uint32, result *sqltype.Descriptor) (sqltype.Value, bool, error) {
-	return TablespaceDatabase(h.host(), oid, result)
+	return inquiry.TablespaceDatabase(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Value, fork string, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return SizeInquiry(h.host(), kind, arg, fork, result)
+	return inquiry.SizeInquiry(h.host(), kind, arg, fork, result)
 }
 
 func (h *catalogInquiryHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return DatabaseFilesInquiry(h.host(), kind, arg, second, result)
+	return inquiry.DatabaseFilesInquiry(h.host(), kind, arg, second, result)
 }
 
 func (h *catalogInquiryHost) PartitionTree(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
-	return PartitionTree(h.host(), oid, result)
+	return inquiry.PartitionTree(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) PartitionAncestors(oid uint32, result *sqltype.Descriptor) (expr.SourceCursor, error) {
-	return PartitionAncestors(h.host(), oid, result)
+	return inquiry.PartitionAncestors(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) PartitionRoot(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return PartitionRoot(h.host(), oid, result)
+	return inquiry.PartitionRoot(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) RelationIsPublishable(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return RelationIsPublishable(h.host(), oid, result)
+	return inquiry.RelationIsPublishable(h.host(), oid, result)
 }
 
 func (h *catalogInquiryHost) PublicationTables(names sqltype.Value, result *sqltype.Descriptor) (expr.SourceCursor, error) {
-	return PublicationTables(h.host(), names, result)
+	return inquiry.PublicationTables(h.host(), names, result)
 }
 
 func (h *catalogInquiryHost) CommentInquiry(c *exec.Context, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return CommentInquiry(h.host(), c, kind, values, provenance, result)
+	return inquiry.CommentInquiry(h.host(), c, kind, values, provenance, result)
 }
 
 func (h *catalogInquiryHost) DeparseInquiry(c *exec.Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return DeparseInquiry(h.host(), c, signature, values, result)
+	return inquiry.DeparseInquiry(h.host(), c, signature, values, result)
 }
 
 func (h *catalogInquiryHost) DescribeObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return DescribeObject(h.host(), c, values, result)
+	return inquiry.DescribeObject(h.host(), c, values, result)
 }
 
 func (h *catalogInquiryHost) IdentifyObject(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return IdentifyObject(h.host(), c, values, result)
+	return inquiry.IdentifyObject(h.host(), c, values, result)
 }
 
 func (h *catalogInquiryHost) IdentifyObjectAddress(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return IdentifyObjectAddress(h.host(), c, values, result)
+	return inquiry.IdentifyObjectAddress(h.host(), c, values, result)
 }
 
 func (h *catalogInquiryHost) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
-	return IndexProperty(h.host(), kind, oid, ordinalValue, property)
+	return inquiry.IndexProperty(h.host(), kind, oid, ordinalValue, property)
 }
 
 func (h *catalogInquiryHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
-	return LookupObjectAddress(h.host(), c, values)
+	return inquiry.LookupObjectAddress(h.host(), c, values)
 }
 
 func (h *catalogInquiryHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return VisibilityInquiry(h.host(), kind, value, result)
+	return inquiry.VisibilityInquiry(h.host(), kind, value, result)
 }
 
 func (h *sessionInquiryHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return CurrentSchemas(h.host(), implicit, result)
+	return inquiry.CurrentSchemas(h.host(), implicit, result)
 }
 
 func (h *sessionInquiryHost) IdentityValue(c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
-	return IdentityValue(h.host(), c, kind, result)
+	return inquiry.IdentityValue(h.host(), c, kind, result)
 }
 
-func (h *sessionInquiryHost) MyTempNamespace() (uint32, error) { return MyTempNamespace(h.host()) }
+func (h *sessionInquiryHost) MyTempNamespace() (uint32, error) {
+	return inquiry.MyTempNamespace(h.host())
+}
 
 func (h *sessionInquiryHost) OtherTempNamespace(oid uint32) (bool, error) {
-	return OtherTempNamespace(h.host(), oid)
+	return inquiry.OtherTempNamespace(h.host(), oid)
 }
 
 func (h *sessionInquiryHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return ListeningChannels(h.host(), result)
+	return inquiry.ListeningChannels(h.host(), result)
 }
 
 func (h *sessionInquiryHost) NotificationQueueUsage() (float64, error) {
-	return NotificationQueueUsage(h.host())
+	return inquiry.NotificationQueueUsage(h.host())
 }
 
 func (h *transactionInquiryHost) TransactionAge(xid uint32) (int32, error) {
-	return TransactionAge(h.host(), xid)
+	return inquiry.TransactionAge(h.host(), xid)
 }
 
 func (h *transactionInquiryHost) MultiTransactionAge(xid uint32) (int32, error) {
-	return MultiTransactionAge(h.host(), xid)
+	return inquiry.MultiTransactionAge(h.host(), xid)
 }
 
 func (h *transactionInquiryHost) CurrentTransactionID(assign bool) (uint64, error) {
-	return CurrentTransactionID(h.host(), assign)
+	return inquiry.CurrentTransactionID(h.host(), assign)
 }
 
 func (h *transactionInquiryHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
-	return CurrentSnapshot(h.host())
+	return inquiry.CurrentSnapshot(h.host())
 }
 
 func (h *transactionInquiryHost) TransactionStatus(full uint64) (string, bool, error) {
-	return TransactionStatus(h.host(), full)
+	return inquiry.TransactionStatus(h.host(), full)
 }
 
 func (h *transactionInquiryHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	return TransactionMembers(h.host(), xid, result)
+	return inquiry.TransactionMembers(h.host(), xid, result)
 }
 
 func (h *transactionInquiryHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
-	return CommitTimestamp(h.host(), xid)
+	return inquiry.CommitTimestamp(h.host(), xid)
 }
 
 func (h *transactionInquiryHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
-	return LastCommittedTransaction(h.host())
+	return inquiry.LastCommittedTransaction(h.host())
 }

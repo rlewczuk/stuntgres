@@ -1,4 +1,4 @@
-package core
+package inquiry
 
 import (
 	"stuntgres/internal/engine/exec"
@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func IdentityValue(h SessionInquiryHost, c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+func IdentityValue(h SessionHost, c *exec.Context, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
 	identity, err := h.ExpressionIdentity(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -35,7 +35,7 @@ func IdentityValue(h SessionInquiryHost, c *exec.Context, kind functions.Identit
 	return resultValue, nil
 }
 
-func CurrentSchemas(h SessionInquiryHost, implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+func CurrentSchemas(h SessionHost, implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	cache := h.SearchPathResults()
 	results := *cache
 	if results[0].Type() == nil || !h.InquiryCacheable() {
@@ -65,7 +65,7 @@ func CurrentSchemas(h SessionInquiryHost, implicit bool, result *sqltype.Descrip
 	return results[0], nil
 }
 
-func MyTempNamespace(h SessionInquiryHost) (uint32, error) {
+func MyTempNamespace(h SessionHost) (uint32, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	namespace, err := h.TemporaryNamespaceLocked()
@@ -75,7 +75,7 @@ func MyTempNamespace(h SessionInquiryHost) (uint32, error) {
 	return uint32(namespace.ObjectID), nil
 }
 
-func OtherTempNamespace(h SessionInquiryHost, oid uint32) (bool, error) {
+func OtherTempNamespace(h SessionHost, oid uint32) (bool, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	read, owner, err := h.NamespaceSessionLocked()
@@ -86,7 +86,7 @@ func OtherTempNamespace(h SessionInquiryHost, oid uint32) (bool, error) {
 	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != owner.SessionToken, nil
 }
 
-func ListeningChannels(h SessionInquiryHost, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+func ListeningChannels(h SessionHost, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	h.ReacquireEngine()
 	channels, err := h.ListeningChannelsLocked()
 	h.ReleaseEngineLocked()
@@ -105,7 +105,7 @@ func ListeningChannels(h SessionInquiryHost, result *sqltype.Descriptor) ([]sqlt
 	return values, nil
 }
 
-func NotificationQueueUsage(h SessionInquiryHost) (float64, error) {
+func NotificationQueueUsage(h SessionHost) (float64, error) {
 	h.ReacquireEngine()
 	defer h.ReleaseEngineLocked()
 	return h.NotificationQueueUsageLocked()
