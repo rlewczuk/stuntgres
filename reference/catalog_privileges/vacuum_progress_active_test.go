@@ -194,6 +194,38 @@ func vacuumProgressLaunch(t *testing.T, p *fixture.Pair, b fixture.Backend, work
 	return r
 }
 
+// vacuumProgressHeld waits until native VACUUM parks at its vacuum.inspect
+// pause inside storage.InspectVacuum. Native VACUUM has no cost pacing, so an
+// unheld finite run can finish before any observer is scheduled.
+func vacuumProgressHeld(t *testing.T, p *fixture.Pair, pause *stuntgres.ExecutionPause, r *vacuumProgressRunning) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
+	defer cancel()
+	admission := make(chan error, 1)
+	go func() { admission <- pause.Wait(ctx) }()
+	var err error
+	select {
+	case err = <-admission:
+	case <-r.finished:
+		cancel()
+		<-admission
+		t.Fatal("VACUUM completed without vacuum.inspect lifetime admission")
+	}
+	if err != nil {
+		t.Fatal("missing vacuum.inspect lifetime admission", err)
+	}
+}
+
+// vacuumProgressNativeHold returns the launch controls that hold native VACUUM
+// at its first inspection checkpoint. PostgreSQL keeps physical cost pacing.
+func vacuumProgressNativeHold(b fixture.Backend) (*stuntgres.ExecutionPause, []vacuumProgressLaunchControl) {
+	if b.PG {
+		return nil, nil
+	}
+	pause := stuntgres.NewExecutionPause("vacuum.inspect")
+	return pause, []vacuumProgressLaunchControl{{pause: pause}}
+}
+
 func vacuumProgressObserve(t *testing.T, p *fixture.Pair, stmt *sql.Stmt, id copyProgressIdentity, r *vacuumProgressRunning) vacuumProgressSnapshot {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
@@ -278,7 +310,11 @@ func TestReferenceVacuumProgressActive(t *testing.T) {
 				}
 				t.Cleanup(func() { stmt.Close() })
 				vacuumProgressEmpty(t, p, b, observer)
-				r := vacuumProgressLaunch(t, p, b, worker, "vacuum_active")
+				pause, controls := vacuumProgressNativeHold(b)
+				r := vacuumProgressLaunch(t, p, b, worker, "vacuum_active", controls...)
+				if pause != nil {
+					vacuumProgressHeld(t, p, pause, r)
+				}
 				first := vacuumProgressObserve(t, p, stmt, id, r)
 				vacuumProgressVisible(t, first, id, b.PG)
 				previous := first
@@ -286,6 +322,9 @@ func TestReferenceVacuumProgressActive(t *testing.T) {
 					vacuumProgressCancel(t, p, b, observer, id.pid, "vacuum_active", r.cancel, func() error { err := <-r.done; r.joined = true; return err })
 					vacuumCount(t, p.Ctx, observer, "vacuum_active", 0)
 				} else {
+					if pause != nil {
+						pause.Resume()
+					}
 					for {
 						select {
 						case <-r.finished:

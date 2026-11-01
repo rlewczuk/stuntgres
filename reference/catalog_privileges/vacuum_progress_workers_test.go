@@ -58,21 +58,7 @@ func TestReferenceVacuumProgressActiveWorkers(t *testing.T) {
 					if b.PG {
 						blockers[i].admitted(t, p, observer, identities[i], r)
 					} else {
-						ctx, cancel := context.WithTimeout(p.Ctx, 30*time.Second)
-						admission := make(chan error, 1)
-						go func() { admission <- controls[i].pause.Wait(ctx) }()
-						var err error
-						select {
-						case err = <-admission:
-							cancel()
-						case <-r.finished:
-							cancel()
-							<-admission
-							t.Fatal("VACUUM completed without vacuum.inspect lifetime admission")
-						}
-						if err != nil {
-							t.Fatal("missing vacuum.inspect lifetime admission", err)
-						}
+						vacuumProgressHeld(t, p, controls[i].pause, r)
 					}
 				}
 				retained := vacuumProgressOverlap(t, p, b, bag, identities, a, c)

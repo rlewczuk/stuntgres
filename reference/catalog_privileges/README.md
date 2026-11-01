@@ -256,8 +256,10 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   Both desired targets retain full live SQL/native admission witnesses.
   Stack admission is observational, not a worker-lifetime hold.
   PROCESS_TOAST false keeps base-target identity exact. Active and Privileges
-  retain PostgreSQL-only physical cost pacing; ActiveWorkers uses semantic
-  admission holds instead of physical pacing.
+  retain PostgreSQL-only physical cost pacing and hold native VACUUM at its
+  `vacuum.inspect` pause (`vacuumProgressNativeHold`/`vacuumProgressHeld`); Active
+  resumes it only for the monotonic success route. ActiveWorkers uses semantic
+  admission holds on both backends instead of physical pacing.
   ReadOnly checks complete direct/prepared55000 diagnostics and unchanged state.
   Run the selected family both natively and with `REFERENCE=1`; owner barriers
   supplement, never replace, these public active-work witnesses.

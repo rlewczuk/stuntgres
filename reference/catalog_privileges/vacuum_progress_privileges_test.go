@@ -44,7 +44,12 @@ func TestReferenceVacuumProgressPrivileges(t *testing.T) {
 			observers = append(observers, observer{role, c, vacuumHeld(t, p, c, vacuumProgressQuery)})
 		}
 		adminHeld := vacuumHeld(t, p, admin, vacuumProgressQuery)
-		r := vacuumProgressLaunch(t, p, b, worker, "vacuum_privileges")
+		// Hold native VACUUM for every live privilege snapshot; never resume it.
+		pause, controls := vacuumProgressNativeHold(b)
+		r := vacuumProgressLaunch(t, p, b, worker, "vacuum_privileges", controls...)
+		if pause != nil {
+			vacuumProgressHeld(t, p, pause, r)
+		}
 		first := vacuumProgressObserve(t, p, adminHeld.Statement, id, r)
 		vacuumProgressVisible(t, first, id, b.PG)
 		for _, o := range observers {
