@@ -1,7 +1,7 @@
 # reference/information_schema
 
 `information_schema` object views: `views` (including builtin view definitions,
-shared with `pg_views`), `view_table_usage`, `triggers`, `routines`, `parameters`,
+shared with `pg_views`), `view_table_usage`, `view_column_usage`, `triggers`, `routines`, `parameters`,
 `routine_sequence_usage`, `routine_routine_usage`, `check_constraint_routine_usage`, `check_constraints`, `routine_privileges`, `role_routine_grants`, `tables`,
 `columns`, `column_column_usage`, `column_domain_usage`, `column_options`, `foreign_data_wrapper_options`, `foreign_data_wrappers`, `foreign_server_options`, `foreign_servers`, `foreign_table_options`, `foreign_tables`,
 `character_sets`, `collations`, `schemata`, `information_schema_catalog_name`, `domains`, `user_defined_types`,
@@ -21,6 +21,20 @@ row expectations across direct, fresh-prepared and held consumers. The nullable
 `sql_identifier` domain has NAME driver metadata; raw/scan metadata distinguishes
 the native driver from pq. Ordinary readers see the same single row, while
 revoked source SELECT fails even under a false predicate and recovers on grant.
+
+View-column inquiry asserts all seven nullable identifier domains and raw NAME
+metadata, exact direct dependency bags and duplicate collapse by attribute.
+Whole-row/whole-table/routine-only references remain empty, while star expansion,
+predicate-only columns and supported `tableoid` remain distinct. Captured target
+ownership, including inherited versus SET-only roles, controls disclosure
+independently of defining-view permissions and schema visibility. Direct,
+fresh-prepared and held consumers cover stable attribute compaction, current
+names, replacement/drop, full diagnostics and native control atomicity with
+retained rows/types. The complete column inventory and all six builtin
+definition matrices include this provider without narrowing other candidates.
+Native catalog replacement preserves returned rows/types but retires previously
+held domain-result statement signatures with the existing `0A000` lifetime fence;
+fresh held statements continue the current-lifetime metadata assertions.
 
 ## Testing
 
@@ -108,6 +122,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Trigger metadata: `RUN='^TestReferenceInfoTriggers'`
 - Routine parameter inquiry: `RUN='^TestReferenceInfoParameters'`
 - Referential constraints: `RUN='^TestReferenceInfoReferentialConstraints'`
+- View-column dependencies: `RUN='^TestReferenceInfoViewColumnUsage'`
 
 Domain/base usage scenarios assert the complete six-column nullable
 `sql_identifier`/NAME shape, exact immediate-base bags for unused, nested,

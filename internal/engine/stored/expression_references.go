@@ -220,9 +220,36 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 				return r.Err
 			})
 		}
+	case plan.FieldExpr:
+		if row, ok := n.Base.(plan.RowExpr); ok && (row.WholeName != "" || row.WholeSource.Namespace != 0) {
+			// Selecting a field from a whole-row source is a genuine column
+			// reference. Its resolved child carries the actual source origin,
+			// including aliased or derived sources; the other synthesized
+			// members and the whole-row type are not written operands.
+			if n.Index < 0 || n.Index >= len(row.Fields) {
+				r.Err = fmt.Errorf("stuntgres: invalid whole-row dependency field")
+				return
+			}
+			r.Expression(row.Fields[n.Index])
+			return
+		}
 	case plan.RowExpr:
 		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
 			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+		}
+		if n.WholeName != "" || n.WholeSource.Namespace != 0 {
+			// A whole-row Var's Fields are an executable projection, not
+			// separately written column references. Keep its named row type
+			// and owning relation, without manufacturing per-column edges.
+			if typ := n.ResultUsage().Type; typ != nil {
+				address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
+				if descriptor, ok := catalog.DescriptorAt(r.Catalog, r.definition, address); ok {
+					if rowType, ok := descriptor.(*catalog.Type); ok && rowType.OwningRelation.ObjectID != 0 {
+						r.Add(rowType.OwningRelation)
+					}
+				}
+			}
+			return
 		}
 	case plan.CoercionExpr:
 		logical, err := n.LogicalInputCast()

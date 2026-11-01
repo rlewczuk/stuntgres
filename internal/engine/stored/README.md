@@ -931,6 +931,15 @@ host methods.
   regproc/regprocedure identities as well as type, operator and text-search
   aliases. NULLs, text spelling and unrepresented routine numbers create no
   routine edge; pinned references remain excluded.
+  Whole-row source expressions retain their named row-type and owning-relation
+  edges, not per-column edges from the binder's synthesized executable member
+  projection. Explicit ROW fields, expanded stars and scalar field selections
+  retain their actual written column dependencies. This semantic projection never
+  alters the complete immutable executable manifest or pinning policy.
+  A scalar field over a whole-row source follows only its already resolved member
+  expression and actual origin; alias labels and other synthetic members do not
+  become dependencies. A field over an explicit ROW still visits every written
+  constructor operand.
 
 - **Catalog relation pinning** (`catalog_pinning.go`): bootstrap catalog
   tables stay pinned, while catalog views such as `pg_views` record ordinary
@@ -1283,6 +1292,7 @@ current body/default semantics from valid equivalent COW: old hard captures
 reject, while healthy fresh current manifests remain usable.
 
 - Payload API, definition dependency projection and stored row marks: `RUN='^Test(ViewPartsRoundTrip|ViewDependencyPurpose|RulePartsRoundTrip|QuerySetStoredInheritedMarks)$'`
+- Whole-row versus explicit-column dependency projection: `RUN='^TestWholeRowSQLDependencySets$'`
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`

@@ -7,7 +7,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `constraint_column_usage`, `constraint_table_usage`, `column_column_usage`, `column_domain_usage`, `domain_udt_usage`, `information_schema_catalog_name`,
 `routine_sequence_usage`, `routine_routine_usage`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
-`character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
+`character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `view_column_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -1238,6 +1238,19 @@ catalog writes or bypass a provider's independent backing-source checks.
   `ExpressionReferences` walker over analyzed (not folded) expressions,
   deduplicated per generation; enabled relation-owner membership is the only
   visibility predicate, evaluated once per relation.
+- `view_column_usage`: seven nullable capture-owned `sql_identifier` fields,
+  using the stored view's validated direct SELECT-rule references. Whole-relation
+  dependencies contribute no columns; stable attribute numbers resolve current
+  names after rename or dense-slot compaction, including supported `tableoid`.
+  The shared collector deduplicates complete addresses and omits pinned objects;
+  ordinary views referencing eligible r/v/f/p targets contribute distinct
+  view/target/attribute rows, excluding self edges. Enabled ownership of the
+  referenced relation alone controls disclosure, not defining-view ownership,
+  SELECT grants, schema USAGE or search path. Capture never executes definitions
+  or traverses routine bodies or unrelated rewrite rules. Database, namespaces,
+  domain generations and origins belong to one immutable statement frontier;
+  errors and cancellation discard every row, including an already-built prefix.
+  Native source16254 links the existing row13491/array13490 identities.
 - `routine_sequence_usage`: direct stored SQL-body relation references to real
   sequences, validated before duplicate suppression; sequence-owner role
   inheritance is the only visibility predicate.
@@ -1525,6 +1538,7 @@ a hash root alone does not select that access method.
   `RUN='^TestCatalog(SourceProducerCoverage|GrantRegistration)$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|ConstraintTableUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (`core/enginetests/infoschema`): `RUN='^TestInfoColumnDomainUsage'`
+- View-column dependency producer units (`core/enginetests/infoschema`): `RUN='^TestInfoViewColumnUsage'`
 - Foreign-wrapper option producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrapperOptions'`
 - Foreign-wrapper producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignDataWrappers'`
 - Foreign-server producer units (`core/enginetests/infoschema`): `RUN='^TestInfoForeignServers'`
