@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -54,7 +53,7 @@ func transactionalCommentValue(t *testing.T, p *fixture.Pair, b fixture.Backend,
 
 func transactionalCommentCleanup(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	for _, q := range []string{"DROP SERVER IF EXISTS tx_comment_server CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS tx_comment_fdw"} {
 		if _, err := b.DB.ExecContext(ctx, q); err != nil {

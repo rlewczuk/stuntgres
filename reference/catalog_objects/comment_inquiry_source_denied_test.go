@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceCommentInquirySourceDeniedFunctionSchema(t *testing.T) {
@@ -17,7 +16,7 @@ func TestReferenceCommentInquirySourceDeniedFunctionSchema(t *testing.T) {
 			// The recorded companion keeps its separately pinned Conn phase.
 			db.SetMaxOpenConns(1)
 			t.Cleanup(func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := db.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 					t.Error(err)

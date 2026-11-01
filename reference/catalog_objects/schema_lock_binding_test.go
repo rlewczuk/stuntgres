@@ -38,7 +38,7 @@ func TestReferenceSchemaLockedBindingShadowCreation(t *testing.T) {
 			}
 			defer shadow.Close()
 			defer func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				if _, err := pair.Postgres.ExecContext(cleanup, "DROP SCHEMA IF EXISTS early, late CASCADE"); err != nil {
 					t.Error("schema cleanup", err)
