@@ -16,9 +16,10 @@ import (
 )
 
 type roleUdtGrantsFixture struct {
-	f     defaultUnitFixture
-	state *catalog.State
-	udt   *catalog.Type
+	f         defaultUnitFixture
+	state     *catalog.State
+	udt       *catalog.Type
+	sourceOID ids.OID
 }
 
 func newRoleUdtGrantsFixture(t *testing.T) roleUdtGrantsFixture {
@@ -33,21 +34,21 @@ func newRoleUdtGrantsFixture(t *testing.T) roleUdtGrantsFixture {
 	udt.ObjectNamespace, udt.Owner = f.schema, f.owner
 	udt.ACL, udt.ACLSyntheticDefault = authorization.ACLValue{Explicit: true}, false
 	state.SetDescriptor(udt.Address(), &udt)
-	return roleUdtGrantsFixture{f, state, &udt}
+	return roleUdtGrantsFixture{f: f, state: state, udt: &udt, sourceOID: pgcatalog.InfoRoleUdtGrantsOID}
 }
 func (f roleUdtGrantsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
 	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoleUdtGrantsOID})
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: f.sourceOID})
 	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Auth: auth, Database: "unit_database"})}
 }
 func roleUdtGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoRoleUdtGrantsOID)
+	produce, ok := pgcatalog.ProducerFor(in.Source.Address().ObjectID)
 	if !ok {
-		t.Fatal("missing role_udt_grants producer")
+		t.Fatal("missing UDT privilege producer")
 	}
 	captured, err := catalogrt.CaptureRows(in, produce)
 	if err != nil {
@@ -122,13 +123,21 @@ func (f roleUdtGrantsFixture) checkType(t *testing.T, state *catalog.State, acto
 	}
 }
 func TestInfoRoleUdtGrantsMetadata(t *testing.T) {
+	testUdtPrivilegesMetadata(t, pgcatalog.InfoRoleUdtGrantsOID, 13473, 13472)
+}
+
+func testUdtPrivilegesMetadata(t *testing.T, sourceOID ids.OID, rowID, arrayID sqltype.ID) {
 	f := newRoleUdtGrantsFixture(t)
+	f.sourceOID = sourceOID
 	in := f.input(t, f.state, f.f.reader)
-	if rows := roleUdtGrantsRows(t, in); len(rows) != 0 {
-		t.Fatal("reader should have nonnil empty rows", rows)
+	if rows := roleUdtGrantsRows(t, in); rows == nil || len(roleUdtGrantsBag(t, rows, "ug_unit")) != 0 {
+		t.Fatal("explicit-empty ACL should have nonnil empty projection", rows)
+	}
+	if sourceOID == pgcatalog.InfoRoleUdtGrantsOID && len(roleUdtGrantsRows(t, in)) != 0 {
+		t.Fatal("unrelated role view should be globally empty")
 	}
 	source := in.Source
-	if source.Address().ObjectID != 16221 || source.Namespace().ObjectID != 13229 || source.RowType != 13473 || !source.VirtualView || source.RelationKind != catalog.CatalogRelation {
+	if source.Address().ObjectID != sourceOID || source.Namespace().ObjectID != 13229 || source.RowType != rowID || !source.VirtualView || source.RelationKind != catalog.CatalogRelation {
 		t.Fatal("view identity", source)
 	}
 	names := [7]string{"grantor", "grantee", "udt_catalog", "udt_schema", "udt_name", "privilege_type", "is_grantable"}
@@ -141,7 +150,7 @@ func TestInfoRoleUdtGrantsMetadata(t *testing.T) {
 			domain, base = 13256, sqltype.VarChar
 		}
 		captured, ok := in.Catalog.LookupType(domain)
-		if !ok || column.Name != names[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 16221 || column.OriginAttribute != int16(i+1) || column.DeclaredDimensions != 0 || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.Usage.Type != captured || column.Usage.Type.BaseType().ID() != base {
+		if !ok || column.Name != names[i] || !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(sourceOID) || column.OriginAttribute != int16(i+1) || column.DeclaredDimensions != 0 || column.Usage.Typmod != -1 || column.Usage.Collation.ID != 950 || column.Usage.Type != captured || column.Usage.Type.BaseType().ID() != base {
 			t.Fatal("column contract", i, column)
 		}
 	}
@@ -149,13 +158,28 @@ func TestInfoRoleUdtGrantsMetadata(t *testing.T) {
 	if !acl.Explicit || len(acl.Entries) != 1 || !acl.Entries[0].Grantee.Public || acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", acl)
 	}
-	row, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13473})
-	if !ok || row.OwningRelation != source.Address() || row.Array != 13472 {
+	row, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(rowID)})
+	if !ok || row.OwningRelation != source.Address() || row.Array != arrayID {
 		t.Fatal("row backlink", row)
 	}
-	array, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13472})
+	array, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(arrayID)})
 	if !ok || array.OwningRelation != source.Address() || array.SQLType.Element() != row.SQLType {
 		t.Fatal("array backlink", array)
+	}
+	if sourceOID == pgcatalog.InfoUdtPrivilegesOID {
+		owner, err := in.Roles.Descriptor(row.Owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		admin := f.input(t, f.state, f.f.e.Roles().LookupRef("postgres"))
+		got := roleUdtGrantsBag(t, roleUdtGrantsRows(t, admin), source.Name())
+		want := map[[7]string]int{
+			{owner.Name, owner.Name, "unit_database", "information_schema", source.Name(), "TYPE USAGE", "YES"}: 1,
+			{owner.Name, "PUBLIC", "unit_database", "information_schema", source.Name(), "TYPE USAGE", "NO"}:    1,
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatal("source's own composite origins", got, want)
+		}
 	}
 }
 

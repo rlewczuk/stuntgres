@@ -20,12 +20,17 @@ import (
 )
 
 func TestInfoRoleUdtGrantsCapture(t *testing.T) {
+	testUdtPrivilegesCapture(t, pgcatalog.InfoRoleUdtGrantsOID)
+}
+
+func testUdtPrivilegesCapture(t *testing.T, sourceOID ids.OID) {
 	f := newRoleUdtGrantsFixture(t)
+	f.sourceOID = sourceOID
 	udt := *f.udt
 	udt.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 	f.state.SetDescriptor(udt.Address(), &udt)
 	in := f.input(t, f.state, f.f.reader)
-	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoRoleUdtGrantsOID)
+	produce, ok := pgcatalog.ProducerFor(sourceOID)
 	if !ok {
 		t.Fatal("missing producer")
 	}
@@ -64,6 +69,15 @@ func TestInfoRoleUdtGrantsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref = foreign.Catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
+		func(in *pgcatalog.Input) { in.Source = nil },
+		func(in *pgcatalog.Input) {
+			other := pgcatalog.InfoUdtPrivilegesOID
+			if sourceOID == other {
+				other = pgcatalog.InfoRoleUdtGrantsOID
+			}
+			in.Source = in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: other})
+			in.Ref = in.Catalog.Owner().Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
+		},
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
 		func(in *pgcatalog.Input) {
 			runtime := core.CatalogRuntimeFieldsOf(in.Runtime)
@@ -148,7 +162,12 @@ func TestInfoRoleUdtGrantsCapture(t *testing.T) {
 }
 
 func TestInfoRoleUdtGrantsCaptureFrontier(t *testing.T) {
+	testUdtPrivilegesCaptureFrontier(t, pgcatalog.InfoRoleUdtGrantsOID)
+}
+
+func testUdtPrivilegesCaptureFrontier(t *testing.T, sourceOID ids.OID) {
 	f := newRoleUdtGrantsFixture(t)
+	f.sourceOID = sourceOID
 	udt := *f.udt
 	udt.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 	f.state.SetDescriptor(udt.Address(), &udt)

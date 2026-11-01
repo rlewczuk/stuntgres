@@ -4,7 +4,7 @@ Role, database and privilege catalogs: `pg_authid`, `pg_auth_members`, `pg_roles
 `pg_db_role_setting`, `pg_database` and database creation, `pg_default_acl`, `pg_init_privs`, `pg_shdepend`,
 `pg_parameter_acl`, `pg_get_acl`, tablespaces, VACUUM and size functions, and the
 `information_schema` grant, role, user-mapping, key, constraint and SQL metadata
-views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`,
+views (`table_privileges`, `role_column_grants`, `role_table_grants`, `role_udt_grants`, `udt_privileges`,
 `role_usage_grants`, `usage_privileges`, `enabled_roles`, `data_type_privileges`, `user_mappings`, `user_mapping_options`,
 `key_column_usage`, `constraint_column_usage`, `constraint_table_usage`, `sql_features`, `sql_sizing`,
 `sql_implementation_info`, `sql_parts`). The other catalog families are listed
@@ -262,13 +262,16 @@ Eager retained rows and native controls are explicit native-only phases.
 
 ### UDT grants
 
-`info_role_udt_grants_helpers_test.go` owns exact type ACL origin bags,
-domain/adapter metadata and direct/fresh/held reads. The family distinguishes
-actual reciprocal composite rows from arrays and domains, preserves raw absent
-versus empty ACLs, and covers enabled identities, captured grantability, live
-ACL/membership publication, lifecycle frontiers and complete diagnostics.
+`info_role_udt_grants_helpers_test.go` and `info_udt_privileges_helpers_test.go`
+share exact seven-column type ACL origin bags, domain/adapter metadata and
+direct/fresh/held reads. The families distinguish actual reciprocal composite
+rows from noncomposites and reserved identities, preserve raw absent versus
+empty ACLs, and cover enabled identities, captured grantee grantability,
+live ACL/membership publication, lifecycle frontiers and complete diagnostics.
+The UDT-privilege family also contrasts unconditional PUBLIC visibility with
+the role-filtered view, including empty/NULL boundaries and native Reset.
 
-- UDT grants: `RUN='^TestReferenceInfoRoleUdtGrants'`
+- UDT grant families: `RUN='^TestReferenceInfo(RoleUdtGrants|UdtPrivileges)'`
 
 ### Usage grants
 

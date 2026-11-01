@@ -13,7 +13,12 @@ import (
 )
 
 func TestInfoRoleUdtGrantsPopulation(t *testing.T) {
+	testUdtPrivilegesPopulation(t, pgcatalog.InfoRoleUdtGrantsOID)
+}
+
+func testUdtPrivilegesPopulation(t *testing.T, sourceOID ids.OID) {
 	f := newRoleUdtGrantsFixture(t)
+	f.sourceOID = sourceOID
 	owner := roleUdtGrantsWant("default_owner", "default_owner", "TYPE USAGE", "YES")
 	public := roleUdtGrantsWant("default_owner", "PUBLIC", "TYPE USAGE", "NO")
 	// A represented catalog row has reciprocal relation authority despite its
@@ -33,7 +38,11 @@ func TestInfoRoleUdtGrantsPopulation(t *testing.T) {
 	lookup.ACLSyntheticDefault = true
 	state.SetDescriptor(lookup.Address(), &lookup)
 	f.checkType(t, state, f.f.owner, &lookup, owner, public)
-	f.checkType(t, state, f.f.reader, &lookup)
+	if sourceOID == pgcatalog.InfoUdtPrivilegesOID {
+		f.checkType(t, state, f.f.reader, &lookup, public)
+	} else {
+		f.checkType(t, state, f.f.reader, &lookup)
+	}
 	lookup.ACLSyntheticDefault = false
 	state.SetDescriptor(lookup.Address(), &lookup)
 	f.checkType(t, state, f.f.reader, &lookup, roleUdtGrantsWant("default_owner", "default_reader", "TYPE USAGE", "NO"))
@@ -65,9 +74,14 @@ func TestInfoRoleUdtGrantsPopulation(t *testing.T) {
 }
 
 func TestInfoRoleUdtGrantsReciprocalAuthority(t *testing.T) {
+	testUdtPrivilegesReciprocalAuthority(t, pgcatalog.InfoRoleUdtGrantsOID)
+}
+
+func testUdtPrivilegesReciprocalAuthority(t *testing.T, sourceOID ids.OID) {
 	for _, fault := range []string{"missing_relation", "wrong_row", "no_relation"} {
 		t.Run(fault, func(t *testing.T) {
 			f := newRoleUdtGrantsFixture(t)
+			f.sourceOID = sourceOID
 			broken := *f.udt
 			switch fault {
 			case "missing_relation":
@@ -80,7 +94,7 @@ func TestInfoRoleUdtGrantsReciprocalAuthority(t *testing.T) {
 				broken.OwningRelation = ids.ObjectAddress{}
 			}
 			f.state.SetDescriptor(broken.Address(), &broken)
-			produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoRoleUdtGrantsOID)
+			produce, ok := pgcatalog.ProducerFor(sourceOID)
 			if !ok {
 				t.Fatal("missing producer")
 			}

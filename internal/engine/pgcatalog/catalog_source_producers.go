@@ -164,6 +164,7 @@ var producers = [...]Registration{
 	{PreparedStatementsOID, capturePGPreparedStatements},
 	{InfoInformationSchemaCatalogNameOID, captureInfoInformationSchemaCatalogName},
 	{ConstraintTableUsageOID, captureConstraintTableUsage},
+	{InfoUdtPrivilegesOID, captureInfoUdtPrivileges},
 }
 
 // Registrations returns a copy of the registry in lookup (OID) order.

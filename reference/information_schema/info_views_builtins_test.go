@@ -51,6 +51,7 @@ var ivBuiltinNames = []struct{ schema, name string }{
 	{"information_schema", "role_routine_grants"},
 	{"information_schema", "routine_privileges"},
 	{"information_schema", "role_udt_grants"},
+	{"information_schema", "udt_privileges"},
 	{"information_schema", "role_usage_grants"},
 	{"information_schema", "domains"}, {"information_schema", "views"},
 	{"information_schema", "tables"}, {"information_schema", "routines"},
@@ -121,6 +122,24 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 				run(summary)
 				run(fixture.Prepared(summary))
 				ivHeld(t, p, b, c, summarySQL)(summary)
+				// Cover both public pg_get_viewdef overloads in every setting,
+				// including shadows, through direct, fresh and held executions.
+				var udtOID int64
+				if err := c.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_catalog.pg_class WHERE oid='information_schema.udt_privileges'::regclass").Scan(&udtOID); err != nil {
+					t.Fatal(err)
+				}
+				for _, route := range []struct {
+					query string
+					arg   any
+				}{
+					{"SELECT pg_get_viewdef($1::oid) AS definition", udtOID},
+					{"SELECT pg_get_viewdef($1::text) AS definition", "information_schema.udt_privileges"},
+				} {
+					s := fixture.Select(route.query, []string{"definition"}, []string{"TEXT"}, [][]any{{mode.definitions["information_schema.udt_privileges"]}}, route.arg)
+					run(s)
+					run(fixture.Prepared(s))
+					ivHeld(t, p, b, c, route.query)(s)
+				}
 			})
 		})
 	}
@@ -154,7 +173,7 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 				for i, q := range directQueries {
 					heldDirect[i](fixture.Select(q, []string{"definition"}, []string{"TEXT"}, [][]any{{checkDefinition}}, "information_schema.check_constraints"))
 				}
-				for _, candidate := range []struct{ schema, name string }{{"information_schema", "information_schema_catalog_name"}, {"information_schema", "foreign_tables"}, {"information_schema", "foreign_table_options"}, {"information_schema", "foreign_servers"}, {"information_schema", "transforms"}, {"information_schema", "schemata"}, {"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "check_constraint_routine_usage"}, {"information_schema", "column_domain_usage"}, {"information_schema", "domain_udt_usage"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "routine_privileges"}, {"information_schema", "role_udt_grants"}, {"information_schema", "role_usage_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}, {"information_schema", "routine_routine_usage"}, {"information_schema", "constraint_table_usage"}} {
+				for _, candidate := range []struct{ schema, name string }{{"information_schema", "information_schema_catalog_name"}, {"information_schema", "foreign_tables"}, {"information_schema", "foreign_table_options"}, {"information_schema", "foreign_servers"}, {"information_schema", "transforms"}, {"information_schema", "schemata"}, {"pg_catalog", "pg_group"}, {"pg_catalog", "pg_rules"}, {"information_schema", "enabled_roles"}, {"information_schema", "check_constraint_routine_usage"}, {"information_schema", "column_domain_usage"}, {"information_schema", "domain_udt_usage"}, {"information_schema", "role_table_grants"}, {"information_schema", "role_routine_grants"}, {"information_schema", "routine_privileges"}, {"information_schema", "role_udt_grants"}, {"information_schema", "udt_privileges"}, {"information_schema", "role_usage_grants"}, {"information_schema", "columns"}, {"information_schema", "domains"}, {"information_schema", "tables"}, {"information_schema", "routines"}, {"information_schema", "routine_routine_usage"}, {"information_schema", "constraint_table_usage"}} {
 					update, insert := "NO", "NO"
 					if candidate.name == "pg_group" {
 						update, insert = "YES", "YES"

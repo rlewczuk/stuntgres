@@ -9,7 +9,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `check_constraint_routine_usage`, `check_constraints`, `referential_constraints`,
 `character_sets`, `collations`, `schemata`, `column_options`, `transforms`, `enabled_roles`, `view_table_usage`, `triggers`, `domain_constraints`, `table_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
-`role_udt_grants`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
+`role_udt_grants`, `udt_privileges`, `role_usage_grants`, `usage_privileges`, `columns`, `domains`, `user_defined_types`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
 capability to rows. Orchestration (per-OID catalog choice,
 unlock timing, wrapping rows as query sources) stays in the engine; see the
@@ -647,7 +647,7 @@ type Producer func(Input) ([][]sqltype.Value, error)
   absent ACL and `{}` for an empty one.
 - Information-schema producers emit genuine source-owned domains, not bare
   primitive carriers. `table_privileges`, `role_column_grants`, `role_table_grants`,
-  `role_routine_grants`, `routine_privileges`, `role_udt_grants`, `role_usage_grants` and `usage_privileges` use `sql_identifier`,
+  `role_routine_grants`, `routine_privileges`, `role_udt_grants`, `udt_privileges`, `role_usage_grants` and `usage_privileges` use `sql_identifier`,
   `character_data` and `yes_or_no` from the captured type catalog.
   Numeric metadata likewise retains genuine `cardinal_number` domain values.
 - `triggers` projects real relation-owned definitions through a captured stored
@@ -721,13 +721,18 @@ type Producer func(Input) ([][]sqltype.Value, error)
   usable owner authority, never the observer's authority; PUBLIC is not grantable.
   One captured catalog/role frontier owns domains and lazy membership/ownership
   caches. Specific names retain the actual routine OID within NAME's UTF8 boundary.
-- `role_udt_grants` projects raw type USAGE origins as `TYPE USAGE` for actual
-  reciprocal composite row types, including lookup-only catalog rows. Arrays
-  and domains do not contribute. Synthetic default ACLs retain raw absence;
-  absent ACLs supply owner/PUBLIC origins and explicit-empty ACLs supply none.
-  Enabled grantor or named grantee determines visibility, without schema or
-  relation access filters. Grantability belongs to the named grantee, using
-  captured grant options and immediately usable ownership authority.
+- `udt_privileges` and `role_udt_grants` share a seven-column, nullable domain-typed
+  projector of raw type USAGE origins as `TYPE USAGE` for actual reciprocal
+  composite row types, including lookup-only catalog rows. Arrays, domains and
+  other noncomposites do not contribute; reserved identities alone are not objects.
+  Synthetic default ACLs retain raw absence; absent ACLs supply owner/PUBLIC
+  origins and explicit-empty ACLs supply none. Enabled grantor or named grantee
+  determines visibility without schema, relation-access or TEMP filters.
+  `udt_privileges` additionally exposes every PUBLIC origin; the role view
+  requires its grantor to be enabled. Named-grantee grant options or immediately
+  usable ownership determine grantability, never observer ownership; PUBLIC is
+  not grantable. Captured catalog/role authority owns domains and lazy membership
+  caches, and cancellation discards the entire result.
 - `usage_privileges` and `role_usage_grants` share an eight-column, nullable
   domain-typed projector over real domains, sequences, collations, foreign
   wrappers and foreign servers. Both preserve USAGE origins and multiplicities,
@@ -1556,8 +1561,8 @@ a hash root alone does not select that access method.
 - CHECK routine-usage public scenarios: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
 - CHECK-definition producer/authority units: `RUN='^TestInfoCheckConstraints'`
 - CHECK-definition public scenarios: `RUN='^TestReferenceInfoCheckConstraints'`
-- UDT grant producer/authority units: `RUN='^TestInfoRoleUdtGrants'`
-- UDT grant public scenarios: `RUN='^TestReferenceInfoRoleUdtGrants'`
+- UDT grant producer/authority units: `RUN='^TestInfo(RoleUdtGrants|UdtPrivileges)'`
+- UDT grant public scenarios: `RUN='^TestReferenceInfo(RoleUdtGrants|UdtPrivileges)'`
 - SQL-feature producer/authority units: `RUN='^TestInfoSQLFeatures'`
 - SQL-feature public scenarios: `RUN='^TestReferenceInfoSQLFeatures'`
 - Usage grant producer/authority units: `RUN='^TestInfoRoleUsageGrants'`

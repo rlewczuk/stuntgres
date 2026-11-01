@@ -25,9 +25,15 @@ type ugCase struct {
 
 func ugScenario(t *testing.T, body func(*ugCase)) {
 	t.Helper()
-	fixture.RoleReferenceCleanup(t, ugRoles)
-	fixture.SchemaReferenceCleanup(t, "ug_private")
-	fixture.SchemaReferenceCleanup(t, "ug_moved")
+	ugScenarioWith(t, ugRoles, []string{"ug_private", "ug_moved"}, body)
+}
+
+func ugScenarioWith(t *testing.T, roles, schemas []string, body func(*ugCase)) {
+	t.Helper()
+	fixture.RoleReferenceCleanup(t, roles)
+	for _, schema := range schemas {
+		fixture.SchemaReferenceCleanup(t, schema)
+	}
 	p := fixture.NewScenario(t)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {

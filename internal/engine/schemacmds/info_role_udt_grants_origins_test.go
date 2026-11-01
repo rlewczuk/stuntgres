@@ -5,11 +5,28 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 func TestInfoRoleUdtGrantsOrigins(t *testing.T) {
-	t.Run("defaults_empty_masks", func(t *testing.T) {
+	testUdtPrivilegesOrigins(t, pgcatalog.InfoRoleUdtGrantsOID)
+}
+
+func testUdtPrivilegesOrigins(t *testing.T, sourceOID ids.OID) {
+	newFixture := func(t *testing.T) roleUdtGrantsFixture {
 		f := newRoleUdtGrantsFixture(t)
+		f.sourceOID = sourceOID
+		return f
+	}
+	publicForUnrelated := func(public [7]string) [][7]string {
+		if sourceOID == pgcatalog.InfoUdtPrivilegesOID {
+			return [][7]string{public}
+		}
+		return nil
+	}
+	t.Run("defaults_empty_masks", func(t *testing.T) {
+		f := newFixture(t)
 		f.check(t, f.state, f.f.owner)
 		udt := *f.udt
 		udt.ACL = authorization.ACLValue{}
@@ -18,7 +35,7 @@ func TestInfoRoleUdtGrantsOrigins(t *testing.T) {
 		public := roleUdtGrantsWant("default_owner", "PUBLIC", "TYPE USAGE", "NO")
 		f.check(t, f.state, f.f.owner, owner, public)
 		f.check(t, f.state, f.f.member, owner, public)
-		f.check(t, f.state, f.f.reader)
+		f.check(t, f.state, f.f.reader, publicForUnrelated(public)...)
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"), owner, public)
 		for _, mask := range []authorization.Privileges{authorization.SelectPrivilege, authorization.UpdatePrivilege, authorization.ExecutePrivilege, authorization.UsagePrivilege, authorization.UsagePrivilege | authorization.SelectPrivilege} {
 			udt.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, mask, authorization.UsagePrivilege)}}
@@ -35,7 +52,7 @@ func TestInfoRoleUdtGrantsOrigins(t *testing.T) {
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"))
 	})
 	t.Run("separate_origins_grantee_ownership", func(t *testing.T) {
-		f := newRoleUdtGrantsFixture(t)
+		f := newFixture(t)
 		udt := *f.udt
 		first := defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)
 		second := first
@@ -66,12 +83,12 @@ func TestInfoRoleUdtGrantsOrigins(t *testing.T) {
 		f.check(t, f.state, f.f.reader, a, b)
 	})
 	t.Run("public_actual_superuser", func(t *testing.T) {
-		f := newRoleUdtGrantsFixture(t)
+		f := newFixture(t)
 		udt := *f.udt
 		udt.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: f.f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
 		f.state.SetDescriptor(udt.Address(), &udt)
 		public := roleUdtGrantsWant("default_owner", "PUBLIC", "TYPE USAGE", "NO")
-		f.check(t, f.state, f.f.reader)
+		f.check(t, f.state, f.f.reader, publicForUnrelated(public)...)
 		f.check(t, f.state, f.f.owner, public)
 		f.check(t, f.state, f.f.member, public)
 		roles := cloneRoleFixture(f.f.e.RoleStore.Published)
@@ -80,11 +97,11 @@ func TestInfoRoleUdtGrantsOrigins(t *testing.T) {
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
 		f.f.e.RoleStore.PublishLocked(roles)
-		f.check(t, f.state, f.f.member)
+		f.check(t, f.state, f.f.member, publicForUnrelated(public)...)
 		f.check(t, f.state, f.f.reader, public)
 	})
 	t.Run("recursive_multiple_paths", func(t *testing.T) {
-		f := newRoleUdtGrantsFixture(t)
+		f := newFixture(t)
 		udt := *f.udt
 		udt.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 		f.state.SetDescriptor(udt.Address(), &udt)

@@ -1208,6 +1208,15 @@ var Specs = [...]Spec{
 		{"privilege_type", 13246, true, 950, 0, -1},
 		{"is_grantable", 13256, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing role udt grant domain"},
+	{InfoUdtPrivilegesOID, 13229, "udt_privileges", []ColumnSpec{
+		{"grantor", 13248, true, 950, 0, -1},
+		{"grantee", 13248, true, 950, 0, -1},
+		{"udt_catalog", 13248, true, 950, 0, -1},
+		{"udt_schema", 13248, true, 950, 0, -1},
+		{"udt_name", 13248, true, 950, 0, -1},
+		{"privilege_type", 13246, true, 950, 0, -1},
+		{"is_grantable", 13256, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing udt privilege domain"},
 	{InfoRoleUsageGrantsOID, 13229, "role_usage_grants", []ColumnSpec{
 		{"grantor", 13248, true, 950, 0, -1},
 		{"grantee", 13248, true, 950, 0, -1},
