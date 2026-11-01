@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -44,7 +43,7 @@ func pgFileSettingsPrivileges(t *testing.T, p *fixture.Pair, b fixture.Backend) 
 	exec(admin, "CREATE TABLE pgfilesettings_sentinel(n integer)")
 	fixture.RunStep(t, p.Ctx, admin, b.Recorder, fixture.Exec("INSERT INTO pgfilesettings_sentinel VALUES(42)", 1))
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		for _, query := range []string{
 			"RESET SESSION AUTHORIZATION",

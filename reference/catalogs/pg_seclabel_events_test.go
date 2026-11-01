@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -20,7 +19,7 @@ func TestReferencePgSeclabelEvents(t *testing.T) {
 		// Event triggers are database-global and must be removed before the
 		// ordinary fixture schema reset, even if a witness fails partway.
 		t.Cleanup(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			c.ExecContext(ctx, "ROLLBACK")
 			for _, q := range []string{"DROP EVENT TRIGGER IF EXISTS sl_event_start", "DROP EVENT TRIGGER IF EXISTS sl_event_end"} {

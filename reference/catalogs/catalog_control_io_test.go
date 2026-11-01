@@ -59,7 +59,7 @@ func TestReferenceCatalogControlsReleaseLocksDuringIO(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		close(writer.Release)
 		dumpReleased = true
 		<-dumpDone
@@ -113,7 +113,7 @@ func TestReferenceCatalogControlsReleaseLocksDuringIO(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		close(reader.Release)
 		restoreReleased = true
 		<-restoreDone

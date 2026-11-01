@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -20,7 +19,7 @@ var originStateSignatures = []string{"text", "text", "text", "text,pg_lsn", "tex
 func originStateCleanup(t *testing.T, db *sql.DB, names ...string) {
 	t.Helper()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		for _, name := range names {
 			var id sql.NullInt64

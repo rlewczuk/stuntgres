@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -71,7 +70,7 @@ func TestReferencePGIdentFileMappingsControls(t *testing.T) {
 			}
 			if b.PG {
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					for _, q := range []string{
 						"REVOKE SELECT ON pg_catalog.pg_ident_file_mappings FROM pg_read_all_stats",
@@ -215,7 +214,7 @@ func TestReferencePGIdentFileMappingsSmoke(t *testing.T) {
 			actor, admin := fixture.LockConnections(t, p.Ctx, b.DB)
 			run := func(e fixture.Executor, q string) { fixture.RunStep(t, p.Ctx, e, b.Recorder, fixture.Exec(q, 0)) }
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := actor.ExecContext(ctx, "RESET ROLE"); err != nil {
 					t.Error(err)

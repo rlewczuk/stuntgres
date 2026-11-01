@@ -5,7 +5,6 @@ import (
 	"errors"
 	"runtime"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -97,7 +96,7 @@ func publicationNativeLockAdmission(t *testing.T, p *fixture.Pair, b fixture.Bac
 	if waiter <= 0 || holder <= 0 || waiter == holder || relation <= 0 {
 		t.Fatal("invalid native publication blocker identities", waiter, holder, relation)
 	}
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	requireRunning := func() {
 		select {

@@ -204,7 +204,7 @@ func subscriptionRestoreDuringRead(t *testing.T, p *fixture.Pair, dump []byte, m
 		if !joined {
 			select {
 			case <-done:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("gated subscription Restore did not join")
 			}
 		}
@@ -224,7 +224,7 @@ func subscriptionRestoreDuringRead(t *testing.T, p *fixture.Pair, dump []byte, m
 	case err := <-done:
 		joined = true
 		return err
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("Restore publication did not join")
 		return nil
 	}

@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -48,7 +47,7 @@ func TestReferencePGIdentFileMappingsPrivileges(t *testing.T) {
 			run(admin, "CREATE TABLE ident_sentinel(n integer)")
 			fixture.RunStep(t, p.Ctx, admin, b.Recorder, fixture.Exec("INSERT INTO ident_sentinel VALUES(42)", 1))
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := actor.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 					t.Error(err)
