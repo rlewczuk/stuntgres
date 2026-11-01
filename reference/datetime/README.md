@@ -38,8 +38,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   ([fixture README](../fixture/README.md#helpers)). `date_add` cancellation uses
   `fixture.BinaryConversionActiveCancel` with `stuntgres.WorkCalendarArithmetic`
   on a finite row-dependent INSERT SELECT.
-- **Stored sleep controls.** `TestReferenceDatetimeSleepStored` runs under a
-  2-second `statement_timeout`: its catalog probes resolve the fixture table first
+- **Stored sleep controls.** `TestReferenceDatetimeSleepStored` runs under the
+  family's 20-second `statement_timeout` guard (`datetimeSleepGuard`, never an
+  expected witness): its catalog probes resolve the fixture table first
   and bound every join input before joining. Each native Dump, Reset and Restore
   is observed separately under the 30-second scenario context; admission requires
   the worker and the sleep provider in the same live goroutine stack.

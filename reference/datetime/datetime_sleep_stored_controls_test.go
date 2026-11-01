@@ -104,7 +104,7 @@ func datetimeSleepStoredControls(t *testing.T, p *fixture.Pair, b fixture.Backen
 		if !out.SleepObserved || !errors.Is(out.Err, context.Canceled) || published {
 			t.Fatalf("calibration: admission=%t published=%t err=%v", out.SleepObserved, published, out.Err)
 		}
-		run(fixture.Exec("SET statement_timeout='2s'", 0))
+		run(fixture.Exec(datetimeSleepGuard, 0))
 		run(fixture.Select("SELECT 1 AS healthy", []string{"healthy"}, []string{"INT4"}, [][]any{{int64(1)}}))
 	})
 	if t.Failed() {

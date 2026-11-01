@@ -11,6 +11,11 @@ import (
 
 // Independently specified expectations verified against pinned PostgreSQL 18.0.
 // No expectation is inferred from the native implementation.
+// datetimeSleepGuard bounds a mistakenly evaluated long stored sleep. No
+// witness expects it to fire, so it leaves room for ordinary statements on a
+// loaded machine while staying far below the stored 600-second sleeps.
+const datetimeSleepGuard = "SET statement_timeout='20s'"
+
 func datetimeSleepScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn)) {
 	t.Helper()
 	p := fixture.NewScenario(t)
@@ -25,7 +30,7 @@ func datetimeSleepScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fi
 					t.Error(err)
 				}
 			})
-			for _, q := range []string{"SET TIME ZONE 'UTC'", "SET DateStyle TO 'ISO, MDY'", "SET IntervalStyle TO 'postgres'", "SET statement_timeout='2s'"} {
+			for _, q := range []string{"SET TIME ZONE 'UTC'", "SET DateStyle TO 'ISO, MDY'", "SET IntervalStyle TO 'postgres'", datetimeSleepGuard} {
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 			}
 			body(t, p, b, c)
