@@ -53,7 +53,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 	}
 	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{})}
 	rows, err := produce(input)
-	if err != nil || len(rows) != 551 {
+	if err != nil || len(rows) != 570 {
 		t.Fatal("old generation mapping rows", rows, err)
 	}
 	retained := make([][]sqltype.Value, len(rows))
@@ -84,7 +84,7 @@ func TestPGTSConfigMapOwnership(t *testing.T) {
 		t.Fatal("replacement changed retained mapping generation")
 	}
 	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
-	if got, err := produce(input); err != nil || got == nil || len(got) != 551 {
+	if got, err := produce(input); err != nil || got == nil || len(got) != 570 {
 		t.Fatal("fresh mapping producer", got, err)
 	}
 	input.Source = old

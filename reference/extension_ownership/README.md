@@ -73,6 +73,8 @@ same/independent control identities, old rows, byte-redump and failed-restore
 atomicity. Allocated initdb seeds are not pinned: attached DROP is restricted by
 the current receiver, detached DROP by genuine normal dependencies; an
 unreferenced detached configuration can drop inside a rolled-back transaction.
+The complete detached English dictionary diagnostic includes its English,
+Hindi and Russian configuration dependents on both backends.
 The ordinary dictionary class witness distinguishes fixed simple-template pin
 suppression from the genuine allocated Snowball-template normal edge.
 

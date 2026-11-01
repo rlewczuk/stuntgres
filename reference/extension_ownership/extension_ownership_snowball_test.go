@@ -228,14 +228,8 @@ func ownershipSnowballDetachedDrops(run func(fixture.Step)) {
 		run(fixture.Error("DROP "+s.target(true)+" RESTRICT", "2BP01"))
 	}
 	blocked := fixture.OwnershipError("DROP TEXT SEARCH DICTIONARY pg_catalog.eo_english_stem RESTRICT", "2BP01", "cannot drop text search dictionary eo_english_stem because other objects depend on it")
-	blocked.Diagnostic.Detail = "text search configuration eo_english depends on text search dictionary eo_english_stem\ntext search configuration hindi depends on text search dictionary eo_english_stem"
+	blocked.Diagnostic.Detail = "text search configuration eo_english depends on text search dictionary eo_english_stem\ntext search configuration hindi depends on text search dictionary eo_english_stem\ntext search configuration russian depends on text search dictionary eo_english_stem"
 	blocked.Diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
-	// Hindi's English ASCII edge is represented on both backends. Only the
-	// released Russian configuration remains PostgreSQL-only in this closure.
-	// Preserve both complete diagnostic inventories.
-	pg := *blocked.Diagnostic
-	pg.Detail += "\ntext search configuration russian depends on text search dictionary eo_english_stem"
-	blocked.PostgresDiagnostic = &pg
 	run(blocked)
 	// A detached, unreferenced configuration has no pin and can actually drop.
 	// Roll back ordinary DDL so all later identity/mapping/control checks remain.

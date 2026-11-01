@@ -376,12 +376,12 @@ No physical WAL position or flush guarantee is serialized.
   equivalent default resource behavior; genuine unaccent dictionaries require
   explicit Rules and cannot replay its removal. Each Snowball seed removes its
   own default options before replaying the exact current ordered list, so removed
-  StopWords cannot reappear on Restore; English, Danish, Dutch, Finnish, French, German, Hungarian, Italian, Nepali, Norwegian, Portuguese, Spanish, Swedish and Turkish own canonical stoplists,
+  StopWords cannot reappear on Restore; English, Danish, Dutch, Finnish, French, German, Hungarian, Italian, Nepali, Norwegian, Portuguese, Russian, Spanish, Swedish and Turkish own canonical stoplists,
   while Arabic/Armenian/Basque/Catalan/Estonian/Greek/Hindi/Indonesian/Irish/Lithuanian/Romanian/Serbian/Tamil/Yiddish have language-only defaults.
   Standalone dictionaries retain
   dependency-ordered declaration events after template installation.
   Ordinary Snowball dictionaries keep CREATE events even as extension members.
-  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Catalan/Danish/Dutch/Estonian/Finnish/French/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Serbian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionaries/configurations instead
+  Allocated Snowball helpers/template and English/Arabic/Armenian/Basque/Catalan/Danish/Dutch/Estonian/Finnish/French/German/Greek/Hindi/Hungarian/Indonesian/Irish/Italian/Lithuanian/Nepali/Norwegian/Portuguese/Romanian/Russian/Serbian/Spanish/Swedish/Tamil/Turkish/Yiddish dictionaries/configurations instead
   replay their canonical bootstrap identities with ordinary ALTER planners.
   Before either configuration or dictionary collision replay, missing intrinsic
   Snowball seeds retire from the fresh bootstrap using retained actual defaults.
@@ -922,6 +922,9 @@ authorization); the composition functions `Reset`, `Dump` and `Restore`
 
 Text-search parser graph, declaration and canceled/failed capture ownership
 uses the shared `RUN='^TestTSParser'` family.
+Snowball canonical seed options, identity collisions and mapping replay use
+`RUN='^TestSnowball'`; Hindi/Russian ASCII backup edges retain the allocated
+English dictionary independently of its current label.
 Publication definition preflight, replay and immutable capture units use
 `RUN='^TestPublicationDump'`.
 
@@ -933,8 +936,8 @@ Partial FDW capture fixtures still install complete builtin dictionary/template
 manifests and their genuine referenced helper declarations. Derive that helper
 closure from installed templates, not a simple-only list.
 Snowball replay fixtures finalize the catalog seed on the replay view's own
-owner before mutation, retaining all 28 providers' genuine immutable dictionary/
-configuration defaults and Hindi's cross-provider mapping edges for retirement
+owner before mutation, retaining all 29 providers' genuine immutable dictionary/
+configuration defaults and Hindi's/Russian's cross-provider mapping edges for retirement
 assertions.
 
 Provider replay proof covers key cycles, move-before-rename, owner-last ordering,

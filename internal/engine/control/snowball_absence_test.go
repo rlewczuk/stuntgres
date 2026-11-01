@@ -79,7 +79,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					}
 				}
 			}
-			languages := [...]string{"english", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish", "swedish", "tamil", "turkish", "serbian"}
+			languages := [...]string{"english", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "irish", "italian", "lithuanian", "norwegian", "portuguese", "yiddish", "indonesian", "nepali", "romanian", "spanish", "swedish", "tamil", "turkish", "serbian", "russian"}
 			for _, language := range languages {
 				wantDictionary, wantConfiguration := true, true
 				if language == "yiddish" {
@@ -98,7 +98,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 					defaultConfigurations[d.SeedName()] = true
 				}
 			}
-			if len(defaultDictionaries) != 28 || len(defaultConfigurations) != 28 {
+			if len(defaultDictionaries) != 29 || len(defaultConfigurations) != 29 {
 				t.Fatal("finite represented inventory", defaultDictionaries, defaultConfigurations)
 			}
 			for _, language := range languages {
@@ -143,6 +143,7 @@ func yiddishAbsentSeedReplay(t *testing.T) {
 		lines, err := script.snowballSeedRetirements(t.Context(), source.CatalogView.SnowballSeedDefaults())
 		want := "ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"english\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"word\", \"hword_part\", \"hword_asciipart\", \"asciihword\", \"hword\";\n" +
 			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"hindi\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"hword_asciipart\", \"asciihword\";\n" +
+			"ALTER TEXT SEARCH CONFIGURATION \"pg_catalog\".\"russian\" DROP MAPPING IF EXISTS FOR \"asciiword\", \"hword_asciipart\", \"asciihword\";\n" +
 			"DROP TEXT SEARCH DICTIONARY \"pg_catalog\".\"english_stem\";\n"
 		if err != nil || strings.Join(lines, "") != want {
 			t.Fatal("represented baseline edges", lines, err)

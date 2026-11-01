@@ -1004,7 +1004,7 @@ publication and lock-manager tickets stay in the engine.
   unrecognized versus stopword, ordered spelling, prefix and variant metadata;
   only the SQL boundary projects an array. `SimpleDictionary` owns immutable
   Accept/stopword state and whole-token database-C normalization.
-  `english.stop`, `danish.stop`, `dutch.stop`, `french.stop`, `finnish.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop`, `spanish.stop`, `swedish.stop` and `turkish.stop` are verbatim released PostgreSQL resources.
+  `english.stop`, `danish.stop`, `dutch.stop`, `french.stop`, `finnish.stop`, `german.stop`, `hungarian.stop`, `italian.stop`, `nepali.stop`, `norwegian.stop`, `portuguese.stop`, `russian.stop`, `spanish.stop`, `swedish.stop` and `turkish.stop` are verbatim released PostgreSQL resources.
   Their sorted immutable lists share backing by exact resource basename across
   simple and Snowball, never across distinct resources; failed/canceled loads
   publish no cache entry. Lists are not reread per evaluation.
@@ -1012,7 +1012,7 @@ publication and lock-manager tickets stay in the engine.
   the actual embed-relative lookup path. Kernels retain neither catalog identities
   nor expression collation.
   `SnowballDictionary` uses an immutable language-provider table and the complete
-  English, Arabic, Armenian, Basque, Catalan, Danish, historical Dutch Porter, Estonian, Finnish, French, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
+  English, Arabic, Armenian, Basque, Catalan, Danish, historical Dutch Porter, Estonian, Finnish, French, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Russian, Serbian, Spanish, Swedish, Tamil, Turkish, Yiddish and historical Porter kernels shipped by PostgreSQL REL_18_6 (Snowball
   revision d19326ac6c1b9a417fc872f7c2f845265a5e9ece), with invocation-local scratch.
   Stopwords precede stemming; C-locale ASCII lowering and the original-byte
   1000-byte guard belong to the wrapper. A nonempty token whose kernel result
@@ -1123,6 +1123,12 @@ publication and lock-manager tickets stay in the engine.
   Immutable source-sorted tables and retained prefix/replacement tails avoid
   per-token table construction and intermediate copies. Serbian has no stock
   stoplist, Unicode case folding, accent normalization or English ASCII backup.
+  Russian normalizes lowercase ё to е only after stopword lookup, then marks
+  fixed UTF8 RV/R2 and applies the released perfective/reflexive/adjectival,
+  verb/noun, и, derivational and tidy stages. Longest suffix selection precedes
+  conditional а/я tests bounded by original RV. C-locale normalization does not
+  fold Cyrillic uppercase or strip combining accents. Its stock resource has
+  151 entries; only the stock configuration delegates ASCII words to English.
   Armenian's four finite suffix tables preserve original pV/R2 byte boundaries,
   longest-match guards and the single ending→verb→adjective→noun pass; the kernel
   returns immutable input slices without normalization or shared mutable scratch.

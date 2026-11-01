@@ -323,6 +323,10 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err != nil {
 		return nil, err
 	}
+	russian, err := functions.DefaultRussianSnowballDictionary()
+	if err != nil {
+		return nil, err
+	}
 	serbian, err := functions.DefaultSerbianSnowballDictionary()
 	if err != nil {
 		return nil, err
@@ -363,7 +367,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err != nil {
 		return nil, err
 	}
-	if err := e.Catalog.InstallSnowballLocked(bootstrap, snowball, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, spanish, swedish, tamil, turkish, serbian, finnish, catalan, french); err != nil {
+	if err := e.Catalog.InstallSnowballLocked(bootstrap, snowball, arabic, armenian, basque, danish, dutch, estonian, german, greek, hindi, hungarian, irish, italian, lithuanian, norwegian, portuguese, yiddish, indonesian, nepali, romanian, spanish, swedish, tamil, turkish, serbian, finnish, catalan, french, russian); err != nil {
 		return nil, err
 	}
 	catalog.InstallBuiltinTablespaces(e.Catalog.State, bootstrap)

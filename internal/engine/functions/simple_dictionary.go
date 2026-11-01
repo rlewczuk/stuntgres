@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype/unicode16"
 )
 
-// PostgreSQL REL_18_6 src/backend/snowball/stopwords/{english,danish,dutch,french,finnish,german,hungarian,italian,norwegian,portuguese,nepali,spanish,swedish,turkish}.stop.
+// PostgreSQL REL_18_6 src/backend/snowball/stopwords/{english,danish,dutch,french,finnish,german,hungarian,italian,norwegian,portuguese,nepali,russian,spanish,swedish,turkish}.stop.
 // https://github.com/postgres/postgres/tree/REL_18_6/src/backend/snowball/stopwords
 // Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group.
 // Portions Copyright (c) 1994, Regents of the University of California.
@@ -25,7 +25,7 @@ import (
 // src/backend/tsearch/dicts/thesaurus_sample.ths, under the same license above.
 // stuntgres_thes_*.ths are project-owned deterministic dictionary resources.
 //
-//go:embed english.stop danish.stop dutch.stop french.stop finnish.stop german.stop hungarian.stop italian.stop norwegian.stop portuguese.stop nepali.stop spanish.stop swedish.stop turkish.stop unaccent.rules synonym_sample.syn *.ths
+//go:embed english.stop danish.stop dutch.stop french.stop finnish.stop german.stop hungarian.stop italian.stop norwegian.stop portuguese.stop nepali.stop russian.stop spanish.stop swedish.stop turkish.stop unaccent.rules synonym_sample.syn *.ths
 var dictionaryResources embed.FS
 
 // Each exact resource has immutable backing shared by simple and Snowball.
