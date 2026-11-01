@@ -157,3 +157,37 @@ func (p *IsnProvider) ValidateISNConversion(v catalog.Read, from, to *catalog.Ty
 	}
 	return nil
 }
+
+// IsnInputProcedure authenticates the exact scalar generation and its released
+// input slot, including detached cohorts whose original header was retired.
+func IsnInputProcedure(v catalog.Read, typ *sqltype.Descriptor) (*catalog.Procedure, error) {
+	if typ == nil {
+		return nil, InvalidProviderDescriptor()
+	}
+	t, ok := v.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	if !ok || t.SQLType != typ || !typ.IsISN() {
+		return nil, InvalidProviderDescriptor()
+	}
+	if err := ValidateTypeOrigin(v, t); err != nil {
+		return nil, err
+	}
+	if t.Origin == nil || t.Origin.Installation.Implementation != StockIsn {
+		return nil, InvalidProviderDescriptor()
+	}
+	installation, slot := t.Origin.Installation, t.Origin.Declaration+1
+	if slot <= 0 || slot >= IsnComparisonStart || slot >= len(installation.Members) {
+		return nil, InvalidProviderDescriptor()
+	}
+	p, ok := v.Procedure(installation.Members[slot])
+	if !ok {
+		return nil, InvalidProviderDescriptor()
+	}
+	codecType, input, err := IsnCodecType(v, p)
+	if err != nil {
+		return nil, err
+	}
+	if !input || codecType != t {
+		return nil, InvalidProviderDescriptor()
+	}
+	return p, nil
+}

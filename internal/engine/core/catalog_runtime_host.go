@@ -124,18 +124,17 @@ func (r *catalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.Setti
 	facts := make([]pgcatalog.SettingsFact, 0, len(r.registry.Order()))
 	s := r.settings
 	s.Mu.Lock()
-	for _, name := range r.registry.Order() {
-		d := r.registry.Definitions()[name]
+	err = s.VisitDefinitionsLocked(r.registry, func(d settings.Definition) error {
+		name := d.Name
 		if d.ReadRestricted && !readRestricted {
-			continue
+			return nil
 		}
 		value := s.TypedValue(name)
 		switch name {
 		case "is_superuser":
 			text, err := r.auth.settingValue(s, name)
 			if err != nil {
-				s.Mu.Unlock()
-				return nil, err
+				return err
 			}
 			value = settings.Value{Boolean: text == "on"}
 		case "transaction_isolation":
@@ -164,8 +163,12 @@ func (r *catalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.Setti
 			source = "session"
 		}
 		facts = append(facts, pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source, ResetCaptured: s.ProviderDefaults[name] || s.DefaultSources[name] != session.DefaultSourceDefault})
-	}
+		return nil
+	})
 	s.Mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

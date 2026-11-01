@@ -25,7 +25,7 @@ func selectCommonUsage(view catalog.Read, count int, operand func(int) Compariso
 		if o.descriptor() == nil {
 			return sqltype.Usage{}
 		}
-		return o.Node.ResultUsage()
+		return o.usage()
 	}, text, func(source *sqltype.Descriptor, targetID sqltype.ID) bool {
 		target, ok := view.LookupType(targetID)
 		return ok && catalog.CanCoerce(view, source.Usage(), target.Usage(), sqltype.Implicit) == nil

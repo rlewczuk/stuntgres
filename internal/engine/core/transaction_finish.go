@@ -294,7 +294,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 			if remoteErr != nil {
 				ownerExtensionOf(t).retireForeign()
 			}
-			restoreSavepoint(t, mark, mark.Settings.Clone())
+			restoreSavepoint(t, mark, t.Session.Settings.PrepareSavepointRestore(mark.Settings))
 			e.Locks.Restore(t.Ticket, mark.Locks)
 		}
 		t.State = session.TxAborted

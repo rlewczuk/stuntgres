@@ -28,7 +28,7 @@ func (v Value) RemapIsbn(target *Descriptor) (Value, error) {
 	return v, nil
 }
 
-func (d *Descriptor) isbnInput(text string) (Value, error) {
+func (d *Descriptor) isbnInput(text string, weak bool) (Value, error) {
 	var digits [14]byte
 	n, family, magic, valid, err := scanIsn(text, "ISBN", &digits)
 	if err != nil { return Value{}, err }
@@ -45,13 +45,19 @@ func (d *Descriptor) isbnInput(text string) (Value, error) {
 		for i, c := range digits[:9] { sum += int(c-'0') * (10-i) }
 		check := byte((11-sum%11)%11)+'0'; if check == ':' { check = 'X' }
 		actual := digits[9]; if actual == 'x' { actual = 'X' }
-		if !magic && actual != check { return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISBN number: \"%s\", should be %c", text, check)) }
+		if !magic && actual != check {
+			if !weak { return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISBN number: \"%s\", should be %c", text, check)) }
+			valid = false
+		}
 		copy(digits[3:12], digits[:9]); copy(digits[:3], "978")
 	}
 	sum := 0; var number int64
 	for i, c := range digits[:12] { weight := 1; if i%2 == 1 { weight = 3 }; sum += int(c-'0')*weight; number = number*10+int64(c-'0') }
 	check := byte((10-sum%10)%10)+'0'
-	if n == 13 && !magic && digits[12] != check { return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISBN number: \"%s\", should be %c", text, check)) }
+	if n == 13 && !magic && digits[12] != check {
+		if !weak { return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISBN number: \"%s\", should be %c", text, check)) }
+		valid = false
+	}
 	number = (number*10+int64(check-'0')) << 1; if !valid { number |= 1 }
 	return Value{typ: d, integer: number}, nil
 }

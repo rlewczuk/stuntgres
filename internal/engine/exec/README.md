@@ -395,6 +395,13 @@ typmods; naming is captured only on failure and is never retained in result tupl
   labels/ownership; original-source calls retain their revision fence and
   prepared reanalysis. `RoutineProgram` preserves this distinction through
   readmission and phase initialization without retaining granted rights.
+  Non-elided authenticated ISN C calls initialize the physical module during
+  execution admission before row demand, not during Prepare/description.
+  Operation-local input evaluators forward `PrepareIsnInput` unchanged through
+  domain/soft-input wrappers, authenticating the exact installed codec and
+  borrowing the current owner; initialization errors are not soft input data.
+  Runtime text casts overlay live `IsnWeak`, while closed evaluation retains
+  its detached input policy.
   `CheckProgram` owns ordinary CHECK cooked expressions plus command/actor/RI
   phases, each holding a stable `RoutineProgram` pointer. The live statement
   retains that same pointer through lazy truth and existing wait/publication

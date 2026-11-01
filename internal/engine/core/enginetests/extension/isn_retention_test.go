@@ -17,14 +17,28 @@ import (
 
 // These witnesses retain actual protocol definitions, accepted fold objects and
 // private portal graphs. SQL outcomes belong to the shared reference scenarios.
+type isnRetentionCase struct {
+	name, body string
+	slot, inputs int
+}
+
 func TestIsnExpressionRetention(t *testing.T) {
-	for _, tc := range []struct {
-		name, body   string
-		slot, inputs int
-	}{
+	isnExpressionRetention(t, []isnRetentionCase{
 		{"comparison", "COALESCE(('9781234567897'::ean13 = '123456789X'::isbn),false)", extension.IsnComparisonStart + 8*6, 2},
 		{"conversion", "COALESCE(isbn('9781234567897!'::ean13),'123456789X'::isbn)", extension.IsnConversionStart, 1},
-	} {
+	})
+}
+
+func TestIsnValidationRetention(t *testing.T) {
+	isnExpressionRetention(t, []isnRetentionCase{
+		{"validity", "COALESCE(is_valid('2222222222222!'::ean13),true)", extension.IsnValidityStart, 1},
+		{"repair", "COALESCE(make_valid('2222222222222!'::ean13),'2222222222222'::ean13)", extension.IsnRepairStart, 1},
+	})
+}
+
+func isnExpressionRetention(t *testing.T, cases []isnRetentionCase) {
+	t.Helper()
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
 			op, done := enginetest.RoleOperation(t, e, "postgres")

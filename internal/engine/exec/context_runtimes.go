@@ -177,6 +177,14 @@ func (c *Context) InvokeSetting(name string, inputs []sqltype.Value, result *sql
 	return host.InvokeSetting(name, inputs, result)
 }
 
+func (c *Context) InvokeIsnWeak(on, set bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, errors.New("stuntgres: ISN weak call lacks statement authority")
+	}
+	return host.InvokeIsnWeak(on, set, result)
+}
+
 var _ functions.BlockingRuntime = (*Context)(nil)
 
 func (c *Context) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {

@@ -29,6 +29,19 @@ func (b *Binder) bindIsnRoutine(d *catalog.Procedure, args []expr.Expr, pos pars
 	}
 	ref := b.Host.CatalogOwner().Domain.Ref(view.Epoch(), d.Address())
 	b.dependency(ref, d.Revision())
+	if operation, ok := extension.IsnValidationOperation(view, d); ok {
+		result, exists := view.LookupType(sqltype.ID(d.Result))
+		if !exists {
+			return nil, fmt.Errorf("stuntgres: missing ISN validation result")
+		}
+		properties := expr.Properties{Volatility: d.Volatility}
+		for _, arg := range args {
+			properties = expr.MergeProperties(properties, arg.Properties())
+		}
+		info := b.Info(result.Usage(), pos, properties)
+		info.RoutineReference = d
+		return functions.NewIsnValidation(info, operation, d.Name(), view.Get(d.Namespace()).Name(), ref, args)
+	}
 	if op, ok := extension.IsnComparisonOperation(view, d); ok {
 		if len(args) != 2 {
 			return nil, fmt.Errorf("stuntgres: invalid ISN comparison arity")

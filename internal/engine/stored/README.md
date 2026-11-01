@@ -290,6 +290,12 @@ captures are authenticated before destination remapping; current labels and
 membership cannot replace original procedure/operator authority.
 ISN typed literals own their qualified leaf annotation; exact same-Usage
 transparent coercions reuse it so replay does not accumulate redundant casts.
+`IsnValidation` capture additionally authenticates unary scalar validity/repair
+and zero/one-Boolean weak declarations. Stable/volatile admission is limited to
+the actual released weak slots and final metadata, not an arbitrary routine
+with matching names or types. Reference relocation, typed retagging and rendering
+preserve original provider authority while using the destination's current
+declaration and labels; no session setting value is transported.
 
 
 Installed hstore array, JSON and JSONB calls retain exact formal/result generations,

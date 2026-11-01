@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -16,7 +17,11 @@ const (
 	IsnFamilySlot      = 375
 	IsnClassStart      = 376
 	IsnCastStart       = 384
-	IsnMemberCount     = 404
+	IsnValidityStart   = 404
+	IsnRepairStart     = 412
+	IsnWeakGetterSlot  = 420
+	IsnWeakSetterSlot  = 421
+	IsnMemberCount     = 422
 )
 
 var isnPairs = [...][2]int{
@@ -52,8 +57,10 @@ func isnMemberClass(slot int) ids.OID {
 		return ids.OperatorFamilyClassID
 	case slot < IsnCastStart:
 		return ids.OperatorClassCatalogID
-	default:
+	case slot < IsnValidityStart:
 		return ids.CastClassID
+	default:
+		return ids.ProcedureClassID
 	}
 }
 
@@ -135,11 +142,25 @@ func isnRoutineDeclaration(v catalog.Read, members []ids.ObjectAddress, slot int
 			return
 		}
 		name, symbol, signature, result = "bt"+isnRecipes[role].name+"cmp", "btint8cmp", catalog.ProcedureSignature(fmt.Sprintf("%d,%d", a, a)), 23
+	} else if slot >= IsnValidityStart && slot < IsnWeakGetterSlot {
+		role := (slot - IsnValidityStart) % len(isnRecipes)
+		a, ok := typeID(role)
+		if !ok {
+			return
+		}
+		name, symbol, signature, result = "is_valid", "is_valid", IsnSignature(a), 16
+		if slot >= IsnRepairStart {
+			name, symbol, result = "make_valid", "make_valid", ids.OID(a)
+		}
+	} else if slot == IsnWeakGetterSlot {
+		name, symbol, signature, result = "isn_weak", "weak_input_status", "", 16
+	} else if slot == IsnWeakSetterSlot {
+		name, symbol, signature, result = "isn_weak", "accept_weak_input", "16", 16
 	} else {
 		return
 	}
 	display = catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: symbol}
-	if slot < IsnComparisonStart || slot >= IsnConversionStart && slot < IsnSupportStart {
+	if slot < IsnComparisonStart || slot >= IsnConversionStart && slot < IsnSupportStart || slot >= IsnValidityStart {
 		display = catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: symbol, Binary: "$libdir/isn", HasBinary: true}
 	}
 	err = nil
@@ -182,6 +203,14 @@ func validateIsnRoutineTypes(v catalog.Read, p *catalog.Procedure) error {
 		count = 2
 	case slot >= IsnSupportStart && slot < IsnFamilySlot:
 		roles[0] = slot - IsnSupportStart
+	case slot >= IsnValidityStart && slot < IsnWeakGetterSlot:
+		roles[0] = (slot - IsnValidityStart) % len(isnRecipes)
+	case slot == IsnWeakGetterSlot || slot == IsnWeakSetterSlot:
+		t, ok := v.LookupType(sqltype.Bool)
+		if !ok || t == nil || t.ID() != sqltype.Bool {
+			return InvalidProviderDescriptor()
+		}
+		count = 0
 	default:
 		return InvalidProviderDescriptor()
 	}
@@ -195,4 +224,34 @@ func validateIsnRoutineTypes(v catalog.Read, p *catalog.Procedure) error {
 		}
 	}
 	return nil
+}
+
+// IsnRoutineProperties is the final released declaration metadata, including
+// the 1.3 weak getter/setter overrides. Callers first authenticate the slot.
+func IsnRoutineProperties(slot int) (expr.Volatility, byte) {
+	if slot == IsnWeakGetterSlot {
+		return expr.Stable, 's'
+	}
+	if slot == IsnWeakSetterSlot {
+		return expr.Volatile, 'u'
+	}
+	return expr.Immutable, 's'
+}
+
+func IsnValidationOperation(v catalog.Read, p *catalog.Procedure) (sqltype.ISNOperation, bool) {
+	if p == nil || p.Implementation != StockIsn || ValidateProcedureOrigin(v, p, StockIsn) != nil {
+		return 0, false
+	}
+	switch slot := p.Origin.Declaration; {
+	case slot >= IsnValidityStart && slot < IsnRepairStart:
+		return sqltype.ISNIsValid, true
+	case slot >= IsnRepairStart && slot < IsnWeakGetterSlot:
+		return sqltype.ISNMakeValid, true
+	case slot == IsnWeakGetterSlot:
+		return sqltype.ISNWeakGet, true
+	case slot == IsnWeakSetterSlot:
+		return sqltype.ISNWeakSet, true
+	default:
+		return 0, false
+	}
 }

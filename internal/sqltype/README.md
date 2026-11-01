@@ -616,6 +616,17 @@ authenticated `IsnIndexSupport`, including class/family/member/routine revisions
 even for empty or NULL-only input. Equal OIDs never authorize family interchange;
 imports require exact source/destination descriptor authorization.
 
+`InputEnvironment.IsnWeak` is a detached input policy. Weak checksum mismatch
+corrects digits and marks the inline datum; malformed or wrong-family input is
+still rejected. An operation-local `ISNInputLifecycle`, when carried by the
+existing domain-input evaluator, authenticates and initializes the installed
+codec before returning the live Boolean policy. Isolated codecs and closed
+evaluation use the detached policy without retaining an operation callback.
+`IsValidISN` and `MakeValidISN` check exact usage/generation, packed bounds and
+role interval before reading/clearing the flag. Construction and import own the
+checksum invariant; these allocation-free operations never rescan digits or
+mutate the source value.
+
 ## Type families
 
 One immutable plan per family is bound at analysis (`Bind<Family>`, validating

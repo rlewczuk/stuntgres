@@ -134,6 +134,15 @@ func InputDomainChecks(evaluation sqltype.DomainCheckEvaluator, view catalog.Rea
 	return inputDomainChecks{evaluation: evaluation, view: view}
 }
 
+func (c inputDomainChecks) PrepareIsnInput(ctx context.Context, target *sqltype.Descriptor) (bool, error) {
+	lifecycle, ok := c.evaluation.(sqltype.ISNInputLifecycle)
+	if !ok {
+		return false, fmt.Errorf("stuntgres: missing ISN input lifecycle")
+	}
+	// Initialization/admission errors remain hard errors, not soft input data.
+	return lifecycle.PrepareIsnInput(ctx, target)
+}
+
 func (c inputDomainChecks) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
 	err := c.evaluation.CheckDomain(ctx, target, value)
 	if err == nil {

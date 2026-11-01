@@ -167,7 +167,8 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 			want := append([]string(nil), tc.sources...)
 			if tc.name == "isn" {
 				// The closed release inventory has 28 operand pairs for each
-				// predicate, seven checked casts and eight same-type comparators.
+				// predicate, seven checked casts, eight same-type comparators,
+				// eight validity/repair pairs and two weak-mode entry points.
 				for range 28 {
 					want = append(want, "int8eq", "int8ne", "int8lt", "int8le", "int8gt", "int8ge")
 				}
@@ -175,8 +176,9 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 					"ismn_cast_from_ean13", "ismn_cast_from_ean13",
 					"issn_cast_from_ean13", "issn_cast_from_ean13", "upc_cast_from_ean13")
 				for range 8 {
-					want = append(want, "btint8cmp")
+					want = append(want, "btint8cmp", "is_valid", "make_valid")
 				}
+				want = append(want, "weak_input_status", "accept_weak_input")
 			}
 			sort.Strings(got)
 			sort.Strings(want)

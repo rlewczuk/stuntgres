@@ -20,6 +20,8 @@ type isnCapture struct {
 	result              sqltype.ID
 	op                  string
 	cast                bool
+	validation          bool
+	operation           sqltype.ISNOperation
 }
 
 func isnCaptureOf(node expr.Expr) (isnCapture, bool) {
@@ -36,6 +38,12 @@ func isnCaptureOf(node expr.Expr) (isnCapture, bool) {
 			return c, false
 		}
 		c.ref, c.left, c.right = n.RoutineRef, n.Args[0].ResultUsage().Type, n.Args[1].ResultUsage().Type
+	case functions.IsnValidation:
+		c.ref, c.result, c.validation, c.operation = n.RoutineRef, n.Usage.Type.ID(), true, n.Operation
+		if n.Count == 1 {
+			c.left = n.Args[0].ResultUsage().Type
+		}
+		c.target = n.Usage.Type
 	case functions.CastRoutine:
 		if n.Count != 1 || !n.Usage.Type.IsISN() || !n.Args[0].ResultUsage().Type.IsISN() {
 			return c, false
@@ -47,9 +55,15 @@ func isnCaptureOf(node expr.Expr) (isnCapture, bool) {
 	default:
 		return c, false
 	}
-	return c, c.left.IsISN() || c.right.IsISN() || c.cast && c.target.IsISN()
+	return c, c.validation || c.left.IsISN() || c.right.IsISN() || c.cast && c.target.IsISN()
 }
 func isnCaptureSignature(c isnCapture) catalog.ProcedureSignature {
+	if c.validation {
+		if c.left == nil {
+			return ""
+		}
+		return extension.IsnSignature(c.left.ID())
+	}
 	if c.left == nil || !c.cast && c.right == nil {
 		return ""
 	}
@@ -70,12 +84,21 @@ func validateIsnCaptureProcedure(view catalog.Read, p *catalog.Procedure, c isnC
 			continue
 		}
 		current, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
-		if !ok || current.SQLType != typ || !catalog.SameInstallation(current, p.Origin.Installation) {
+		if !ok || current.SQLType != typ || typ.IsISN() && !catalog.SameInstallation(current, p.Origin.Installation) {
 			return fmt.Errorf("stuntgres: foreign ISN captured type generation")
 		}
-		if err := extension.ValidateTypeOrigin(view, current); err != nil {
-			return err
+		if typ.IsISN() {
+			if err := extension.ValidateTypeOrigin(view, current); err != nil {
+				return err
+			}
 		}
+	}
+	if c.validation {
+		op, ok := extension.IsnValidationOperation(view, p)
+		if !ok || op != c.operation {
+			return fmt.Errorf("stuntgres: invalid ISN validation declaration")
+		}
+		return nil
 	}
 	if c.cast {
 		if p.Origin.Declaration < extension.IsnConversionStart || p.Origin.Declaration >= extension.IsnSupportStart {
@@ -90,7 +113,7 @@ func validateIsnCaptureProcedure(view catalog.Read, p *catalog.Procedure, c isnC
 	return nil
 }
 func remapIsnRoutine(view catalog.Read, reader catalog.DefinitionReader, captured, original *catalog.Procedure, c isnCapture, typ func(*sqltype.Descriptor) *sqltype.Descriptor) error {
-	if captured == nil || original == nil || captured.Revision() == 0 || captured.Revision() != original.Revision() || captured.Implementation != extension.StockIsn || captured.Signature != isnCaptureSignature(c) || captured.Result != ids.OID(c.result) || !captured.Strict || captured.Volatility != expr.Immutable {
+	if captured == nil || original == nil || captured.Revision() == 0 || captured.Revision() != original.Revision() || captured.Implementation != extension.StockIsn || captured.Signature != isnCaptureSignature(c) || captured.Result != ids.OID(c.result) || !captured.Strict {
 		return fmt.Errorf("stuntgres: invalid original ISN declaration")
 	}
 	if !c.cast && (view.Owner() == nil || c.ref.Domain() != view.Owner().Domain || c.ref.Epoch != view.Epoch() || c.ref.Address != original.Address()) {
@@ -99,16 +122,26 @@ func remapIsnRoutine(view catalog.Read, reader catalog.DefinitionReader, capture
 	if !captured.Origin.Valid(captured.Address()) || captured.Origin.Installation.Implementation != extension.StockIsn {
 		return fmt.Errorf("stuntgres: foreign ISN original origin")
 	}
-	sameGeneration := c.left == typ(c.left) && (!c.cast && c.right == typ(c.right) || c.cast && c.target == typ(c.target))
-	c.left = typ(c.left)
-	if c.cast {
-		c.target = typ(c.target)
+	volatility, parallel := extension.IsnRoutineProperties(captured.Origin.Declaration)
+	if captured.Volatility != volatility || captured.Installed.Parallel != parallel {
+		return fmt.Errorf("stuntgres: invalid ISN captured declaration metadata")
+	}
+	mapped := func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		if d == nil {
+			return nil
+		}
+		return typ(d)
+	}
+	sameGeneration := c.left == mapped(c.left) && c.right == mapped(c.right) && c.target == mapped(c.target)
+	c.left = mapped(c.left)
+	if c.cast || c.validation {
+		c.target = mapped(c.target)
 		if c.target == nil {
 			return fmt.Errorf("stuntgres: missing mapped ISN result")
 		}
 		c.result = c.target.ID()
 	} else {
-		c.right = typ(c.right)
+		c.right = mapped(c.right)
 	}
 	d, _ := catalog.DescriptorAt(view, reader, original.Address())
 	current, ok := d.(*catalog.Procedure)

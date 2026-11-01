@@ -23,8 +23,8 @@ func isbnInvalidOwnerDump(t *testing.T, script, kind string) string {
 		t.Fatal("actual owner record is not isn", name, err)
 	}
 	var members []map[string]json.RawMessage
-	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 412 {
-		t.Fatal("actual isn inventory requires 404 released declarations and eight generated members", members, err)
+	if err := json.Unmarshal(record["members"], &members); err != nil || len(members) != 430 {
+		t.Fatal("actual isn inventory requires 422 released declarations and eight generated members", members, err)
 	}
 	bySlot := make(map[int]map[string]json.RawMessage)
 	ordinary := 0
@@ -45,7 +45,7 @@ func isbnInvalidOwnerDump(t *testing.T, script, kind string) string {
 	if ordinary != 8 {
 		t.Fatal("generated isn companion count", ordinary)
 	}
-	for slot := range 404 {
+	for slot := range 422 {
 		if bySlot[slot] == nil {
 			t.Fatal("missing released declaration", slot)
 		}

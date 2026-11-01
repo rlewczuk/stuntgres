@@ -33,7 +33,7 @@ func (h DDLHost) ValidateRoutineSetting(actor ddl.Authority, clause *parser.Set)
 	}
 	// PostgreSQL's declaration array admission does not give unknown custom
 	// placeholders the generic user-settable privilege of ordinary SET.
-	if _, registered := h.E.Settings.Definitions()[d.Name]; !registered {
+	if _, registered := h.E.Settings.Definitions()[d.Name]; !registered && !(d.Name == "isn.weak" && store.IsnLoaded()) {
 		ok, err := allowed(d.Name)
 		if err != nil {
 			return "", "", false, err

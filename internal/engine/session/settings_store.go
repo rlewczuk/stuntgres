@@ -22,6 +22,9 @@ type SettingsStore struct {
 	// typed contains only overrides; captured defaults never require reparsing.
 	Typed, DefaultTyped map[string]settings.Value
 	Placeholders        map[string]bool
+	isnLoaded           atomic.Bool
+	isnOwner            *SettingsStore
+	isnPromoted         bool
 	Ended               bool
 	ProviderDefaults    map[string]bool          // Captured present responses, even when equal to boot.
 	DefaultSources      map[string]DefaultSource // Captured non-registry reset provenance.
@@ -58,6 +61,9 @@ func (s *Session) Setting(name string) (string, bool) {
 	}
 	_, hasDefault := store.Defaults[name]
 	_, hasValue := store.Values[name]
+	if name == "isn.weak" && store.IsnLoaded() {
+		return store.Value(name), true
+	}
 	if !hasDefault && !hasValue && !store.Placeholders[name] {
 		return "", false
 	}
@@ -157,6 +163,14 @@ func (s *SettingsStore) Restore(name string, v settingOverride) {
 	beforeRole := ""
 	if name == "session_replication_role" {
 		beforeRole = s.TypedValue(name).Text
+	}
+	if name == "isn.weak" && s.IsnLoaded() && v.Present {
+		parsed, err := IsnDefinition().Parse(v.Text)
+		if err != nil {
+			v = settingOverride{}
+		} else {
+			v.Typed, v.Text = parsed, IsnDefinition().Format(parsed)
+		}
 	}
 	if v.Present {
 		s.Values[name] = v.Text
@@ -359,6 +373,8 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
 	s.NestLevel = 0
+	s.isnLoaded.Store(false)
+	s.isnPromoted = false
 	atomic.StoreInt64(&s.temporaryBuffers, 0)
 	s.clientEncoding.mu.Lock()
 	s.clientEncoding.cache = nil
@@ -386,14 +402,32 @@ func (s *SettingsStore) Value(name string) string {
 		}
 		return "off"
 	}
+	if name == "isn.weak" && s.IsnLoaded() && !s.isnPromoted {
+		if text, ok := s.Values[name]; ok {
+			value, err := IsnDefinition().Parse(text)
+			if err == nil {
+				return IsnDefinition().Format(value)
+			}
+		}
+		return "off"
+	}
 	if v, ok := s.Values[name]; ok {
 		return v
+	}
+	if name == "isn.weak" && s.IsnLoaded() {
+		return "off"
 	}
 	return s.Defaults[name]
 }
 func (s *SettingsStore) TypedValue(name string) settings.Value {
+	if name == "isn.weak" && s.IsnLoaded() && !s.isnPromoted {
+		return settings.Value{Boolean: s.Value(name) == "on"}
+	}
 	if v, ok := s.Typed[name]; ok {
 		return v
+	}
+	if name == "isn.weak" && s.IsnLoaded() {
+		return settings.Value{}
 	}
 	return s.DefaultTyped[name]
 }

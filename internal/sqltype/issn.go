@@ -51,7 +51,7 @@ func issnCheck(digits []byte) byte {
 	return byte(check) + '0'
 }
 
-func (d *Descriptor) issnInput(text string) (Value, error) {
+func (d *Descriptor) issnInput(text string, weak bool) (Value, error) {
 	var digits [14]byte
 	n, family, magic, valid, err := scanIsn(text, "ISSN", &digits)
 	if err != nil { return Value{}, err }
@@ -70,7 +70,10 @@ func (d *Descriptor) issnInput(text string) (Value, error) {
 		actual := digits[7]
 		if actual == 'x' { actual = 'X' }
 		if !magic && actual != check {
-			return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISSN number: \"%s\", should be %c", text, check))
+			if !weak {
+				return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISSN number: \"%s\", should be %c", text, check))
+			}
+			valid = false
 		}
 		copy(digits[3:10], digits[:7])
 		copy(digits[:3], "977")
@@ -86,7 +89,10 @@ func (d *Descriptor) issnInput(text string) (Value, error) {
 	}
 	check := byte((10-sum%10)%10) + '0'
 	if n == 13 && !magic && digits[12] != check {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISSN number: \"%s\", should be %c", text, check))
+		if !weak {
+			return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISSN number: \"%s\", should be %c", text, check))
+		}
+		valid = false
 	}
 	number = (number*10 + int64(check-'0')) << 1
 	if !valid { number |= 1 }

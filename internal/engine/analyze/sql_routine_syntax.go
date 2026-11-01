@@ -88,9 +88,9 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 		return sqltype.Usage{}, sqltype.CoercionPlan{}, false
 	}
 	if recordCastPassthrough(operand.descriptor(), target.Type) {
-		return operand.Node.ResultUsage(), sqltype.CoercionPlan{}, true
+		return operand.usage(), sqltype.CoercionPlan{}, true
 	}
-	source := operand.Node.ResultUsage()
+	source := operand.usage()
 	if source.Type.BaseType() == target.Type.BaseType() {
 		// Typename identity does not select a same-type sizing function.
 		plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
@@ -110,7 +110,7 @@ func (b *Binder) sqlFunctionCastTarget(raw parser.TypeName, operand ComparisonOp
 		// a generic sqltype plan is neither their authority nor their recipe.
 		return target, sqltype.CoercionPlan{}, eligible
 	}
-	plan, err := sqltype.PlanCoercion(operand.Node.ResultUsage(), target, sqltype.Explicit)
+	plan, err := sqltype.PlanCoercion(operand.usage(), target, sqltype.Explicit)
 	return target, plan, err == nil && plan.FunctionCastShortcut()
 }
 

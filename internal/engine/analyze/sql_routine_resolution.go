@@ -105,7 +105,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	hstoreFamily := extension.HstoreComparisonName(name) || name == "hstore" || name == "fetchval" || name == "slice_array" || name == "exist" || name == "defined" || name == "exists_all" || name == "exists_any" || name == "hs_contains" || name == "hs_contained" || name == "akeys" || name == "avals" || name == "skeys" || name == "svals" || name == "each" || name == "hstore_to_array" || name == "hstore_to_matrix" || name == "hstore_to_json" || name == "hstore_to_json_loose" || name == "hstore_to_jsonb" || name == "hstore_to_jsonb_loose"
-	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime" || name == "lo_manage"
+	// Canonical module names only admit catalog discovery. A selected sealed
+	// declaration, never this hint or an unrelated cast, grants capability.
+	providerOverride := b.hasProviderProcedureOverride(name) || name == "insert_username" || name == "moddatetime" || name == "lo_manage" || name == "is_valid" || name == "make_valid" || name == "isn_weak"
 	if name == "check_primary_key" || name == "check_foreign_key" {
 		providerOverride = true
 	}
@@ -131,7 +133,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		// and preserve non-namespace failures unchanged.
 		if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42501" || diagnostic.Code == "3F000") {
 			for _, argument := range raw.Args {
-				if _, argumentErr := b.comparisonOperand(argument); argumentErr != nil {
+				if _, argumentErr := b.callableOperand(argument); argumentErr != nil {
 					return selection, true, argumentErr
 				}
 			}
@@ -260,7 +262,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if typeInquiryCandidate {
 			operands[i], err = b.comparisonTypeInquiryOperand(arg)
 		} else {
-			operands[i], err = b.comparisonOperand(arg)
+			operands[i], err = b.callableOperand(arg)
 		}
 		if raw.ProcedureCall {
 			callArguments[i].dependencies, b.Dependencies = b.Dependencies, previousDependencies
@@ -290,7 +292,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	for i, o := range operands {
 		familyArgs[i] = functions.Argument{Expression: o.Node, Raw: o.raw}
 		if o.descriptor() != nil {
-			familyArgs[i].Usage = o.Node.ResultUsage()
+			familyArgs[i].Usage = o.usage()
 		}
 	}
 	viable := candidates[:0]
@@ -443,6 +445,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		}
 	}
 	for i, o := range operands {
+		if o.lookupUsage.Type != nil {
+			return selection, true, expr.ErrorAt("0A000", "unsupported array element type", o.raw.SourcePosition())
+		}
 		if i == 0 && len(operands) == 1 && selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Identity.ID == 1619 && selection.Procedure.Builtin.Providers&functions.CatalogRoutineProvider != 0 && o.typeInquiryUnknown.CastType != nil {
 			witness := o.typeInquiryUnknown
 			selection.typeInquiryUnknown = &witness
@@ -503,7 +508,7 @@ func SelectSQLCallables(view catalog.Read, candidates []SQLCallable, operands []
 				target = candidate.Targets[i]
 			}
 			if o.descriptor() != nil && target.Type != nil && target.Type.Concrete() {
-				if err := catalog.CanCoerce(view, o.Node.ResultUsage(), target, sqltype.Implicit); err != nil {
+				if err := catalog.CanCoerce(view, o.usage(), target, sqltype.Implicit); err != nil {
 					valid = false
 					break
 				}
@@ -672,7 +677,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		operand, target := selected.typeNameOperand, selected.typeNameTarget
 		arg := functions.Argument{Expression: operand.Node, Raw: operand.raw}
 		if operand.descriptor() != nil {
-			arg.Usage = operand.Node.ResultUsage()
+			arg.Usage = operand.usage()
 		}
 		return b.CoerceArgument(arg, functions.CoercionRequest{Intent: functions.TypeNameCastArgument, Target: target, Plan: selected.typeNamePlan, Planned: true, TypeNameCallPosition: raw.Pos})
 	}

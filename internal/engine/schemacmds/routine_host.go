@@ -100,14 +100,14 @@ func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectN
 }
 
 // Seed validation first captures the destination's diagnostics and authority.
-// Domain seed input borrows the captured binder-literal unlock/readmit boundary.
-// The DDL caller owns Engine.Mu, so direct scope CHECK evaluation would deadlock.
+// Domain and ISN seed input borrow the binder-literal unlock/readmit boundary.
+// The DDL caller owns Engine.Mu, so direct live initialization would deadlock.
 func (h RoutineHost) ValidateAggregateInitial(a ddl.Authority, usage sqltype.Usage, text string, input sqltype.InputEnvironment) error {
 	auth := core.DDLAuthorityOf(a)
 	if err := h.E.CaptureTypeDiagnosticInput(auth, h.Op, &input, usage.Type); err != nil {
 		return err
 	}
-	if !usage.Type.IsDomain() {
+	if !usage.Type.IsDomain() && !sqltype.ContainsISNInput(usage.Type) {
 		_, err := usage.Type.InputWithEnvironment(h.Context(), text, usage.Typmod, input)
 		return err
 	}

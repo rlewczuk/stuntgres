@@ -121,7 +121,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if position >= 0 {
 			mark = t.Savepoints[position]
 			if control.Kind == parser.RollbackSavepoint {
-				settings = mark.Settings.Clone()
+				settings = t.Session.Settings.PrepareSavepointRestore(mark.Settings)
 			}
 		}
 	}

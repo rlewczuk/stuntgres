@@ -8,6 +8,7 @@ import "stuntgres/internal/sqltype"
 func (s *SettingsStore) Presentation() (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
+	input.IsnWeak = s.IsnLoaded() && s.Value("isn.weak") == "on"
 	if s.Value("xmloption") == "document" {
 		input.XMLMode = sqltype.XMLDocument
 	}

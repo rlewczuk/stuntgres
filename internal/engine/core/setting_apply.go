@@ -20,7 +20,7 @@ func (e *Engine) applySetting(ctx context.Context, op *session.Operation, owner 
 	// Registered before lock defers: recapture runs after publication unlocks.
 	defer func() {
 		if err == nil {
-			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
+			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (d.Name == "isn.weak" || scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
 				scope.presentationSlot = nil
 				err = scope.refreshRestrictedPresentation()
 			}
@@ -183,7 +183,7 @@ func (e *Engine) executeSetting(ctx context.Context, op *session.Operation, stmt
 	var all, write bool
 	defer func() {
 		if err == nil && all && write {
-			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
+			if scope := ActiveScopeOfLease(op.Lease); scope != nil && (owner.IsnLoaded() || scope.activeSQLRoutineDepth != 0 || op.Restricted != nil) {
 				scope.presentationSlot = nil
 				err = scope.refreshRestrictedPresentation()
 			}

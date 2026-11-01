@@ -960,20 +960,29 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.IsCitext() {
 		return Value{typ: d, text: text}, nil
 	}
+	if d.IsISN() {
+		if lifecycle, ok := env.DomainChecks.(ISNInputLifecycle); ok {
+			var err error
+			env.IsnWeak, err = lifecycle.PrepareIsnInput(ctx, d)
+			if err != nil {
+				return Value{}, err
+			}
+		}
+	}
 	if d.IsEan13() {
-		return d.ean13Input(text)
+		return d.ean13Input(text, env.IsnWeak)
 	}
 	if d.IsIsbn() || d.IsIsbn13() {
-		return d.isbnInput(text)
+		return d.isbnInput(text, env.IsnWeak)
 	}
 	if d.IsIsmn() || d.IsIsmn13() {
-		return d.ismnInput(text)
+		return d.ismnInput(text, env.IsnWeak)
 	}
 	if d.IsIssn() || d.IsIssn13() {
-		return d.issnInput(text)
+		return d.issnInput(text, env.IsnWeak)
 	}
 	if d.IsUpc() {
-		return d.upcInput(text)
+		return d.upcInput(text, env.IsnWeak)
 	}
 	if d.IsRange() {
 		return d.rangeInput(ctx, text, env)

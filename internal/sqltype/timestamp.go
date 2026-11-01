@@ -38,6 +38,7 @@ type InputEnvironment struct {
 	ACLItem                                   ACLItemResolver
 	FTS                                       FTSInputNotices
 	XMLMode                                   XMLMode
+	IsnWeak                                   bool
 	XMLInput                                  XMLInputDiagnostics
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	ByteTransport                             bool

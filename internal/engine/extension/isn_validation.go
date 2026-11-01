@@ -2,7 +2,6 @@ package extension
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +9,7 @@ import (
 func validateIsnDeclarations(v catalog.Read, ext *catalog.Extension) error {
 	for slot := IsnComparisonStart; slot < IsnMemberCount; slot++ {
 		d := v.Get(ext.Members[slot])
-		if d == nil || d.Namespace() != ext.TargetNamespace && slot < IsnCastStart {
+		if d == nil || d.Namespace() != ext.TargetNamespace && isnMemberClass(slot) != ids.CastClassID {
 			return InvalidProviderDescriptor()
 		}
 		if err := ValidateProviderHeader(v, d, isnMemberClass(slot)); err != nil {
@@ -19,7 +18,8 @@ func validateIsnDeclarations(v catalog.Read, ext *catalog.Extension) error {
 		switch d := d.(type) {
 		case *catalog.Procedure:
 			name, _, signature, result, display, err := isnRoutineDeclaration(v, ext.Members, slot)
-			if err != nil || d.Name() != name || d.Signature != signature || d.Result != result || d.Display != display || d.Implementation != StockIsn || d.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) || !d.Strict || d.Volatility != expr.Immutable || d.RoutineKind != catalog.FunctionRoutine || d.Language != (ids.ObjectAddress{}) || d.SQL != nil || d.Builtin != nil || d.Foreign != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.SecurityDefiner || d.Extension != ext.Address() {
+			volatility, parallel := IsnRoutineProperties(slot)
+			if err != nil || d.Name() != name || d.Signature != signature || d.Result != result || d.Display != display || d.Implementation != StockIsn || d.Installed != (catalog.InstalledRoutineDeclaration{Parallel: parallel}) || !d.Strict || d.Volatility != volatility || d.RoutineKind != catalog.FunctionRoutine || d.Language != (ids.ObjectAddress{}) || d.SQL != nil || d.Builtin != nil || d.Foreign != nil || d.SQLBody != nil || d.SQLDefaults != nil || d.Aggregate != nil || d.SecurityDefiner || d.Extension != ext.Address() {
 				return InvalidProviderDescriptor()
 			}
 		case *catalog.Operator:

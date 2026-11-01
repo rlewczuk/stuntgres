@@ -10,8 +10,24 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// callableOperand admits definition-only ARRAY shape for overload lookup.
+// Only a selected consumer asks for execution capability; no array node or
+// datum is fabricated for a lookup-only companion.
+func (b *Binder) callableOperand(raw parser.Expr) (ComparisonOperand, error) {
+	if array, ok := raw.(parser.ArrayExpr); ok {
+		var usage sqltype.Usage
+		node, err := b.bindArray(array, sqltype.Usage{}, &usage)
+		return ComparisonOperand{Node: node, raw: raw, lookupUsage: usage}, err
+	}
+	return b.comparisonOperand(raw)
+}
+
 // target is supplied only by explicit array casts, never ordinary assignment.
 func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
+	return b.bindArray(raw, target, nil)
+}
+
+func (b *Binder) bindArray(raw parser.ArrayExpr, target sqltype.Usage, lookupUsage *sqltype.Usage) (expr.Expr, error) {
 	operands := make([]ComparisonOperand, len(raw.Elements))
 	var selected sqltype.Usage
 	explicit := target.Type != nil && target.Type.BaseType().IsArray() && !target.Type.BaseType().IsCatalogVector()
@@ -30,7 +46,13 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 			}
 			operands[i] = ComparisonOperand{Node: node, raw: child}
 		} else {
-			o, err := b.comparisonOperand(child)
+			var o ComparisonOperand
+			var err error
+			if lookupUsage != nil {
+				o, err = b.callableOperand(child)
+			} else {
+				o, err = b.comparisonOperand(child)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -66,7 +88,7 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 				}
 				ok = true
 			}
-			if !ok || !array.Concrete() {
+			if !ok || !array.Concrete() && lookupUsage == nil {
 				return nil, expr.ErrorAt("0A000", "unsupported array element type", raw.Pos)
 			}
 			target = selected
@@ -77,9 +99,13 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 	if multidimensional {
 		childUsage = target
 	}
+	deferred := lookupUsage != nil && !target.Type.Concrete()
 	elements := make([]expr.Expr, len(operands))
 	properties := expr.Properties{}
 	for i, o := range operands {
+		if o.lookupUsage.Type != nil && deferred && o.usage() == childUsage {
+			continue // A nested lookup-only constructor was already checked.
+		}
 		var node expr.Expr
 		var err error
 		if explicit {
@@ -124,6 +150,10 @@ func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Exp
 		}
 		elements[i] = node
 		properties = expr.MergeProperties(properties, node.Properties())
+	}
+	if deferred {
+		*lookupUsage = target
+		return nil, nil
 	}
 	info, err := b.CollatedInfo(b.Info(target, raw.Pos, properties), elements...)
 	if err != nil {

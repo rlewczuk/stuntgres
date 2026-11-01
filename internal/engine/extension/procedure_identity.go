@@ -204,7 +204,9 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		if err != nil || p.Display != display {
 			return invalid()
 		}
-		if slot >= IsnComparisonStart && p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 's'}) {
+		var parallel byte
+		volatility, parallel = IsnRoutineProperties(slot)
+		if slot >= IsnComparisonStart && p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: parallel}) {
 			return invalid()
 		}
 		if err := validateIsnRoutineTypes(v, p); err != nil {

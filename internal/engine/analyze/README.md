@@ -190,6 +190,11 @@ admission. All eight ISN roles route same-type ORDER BY through the current
 installed default B-tree class and captured class/family/member/routine support,
 including empty and NULL-only inputs. Datum capability alone does not authorize
 a missing operator, cast or ordering provider.
+ISN validity, repair and weak-input routine spellings are catalog-discovery hints
+only, independent of unrelated installed casts. The selected genuine declaration
+owns its sealed slot, current nominal signature, dependency and ACL authority;
+detached primitive-signature weak routines remain discoverable after header
+retirement.
 
 Standalone CALL uses the common callable selector with the full formal-position
 projection for every candidate kind, including function OUT declarations.
@@ -588,6 +593,11 @@ library, and never the root engine or `session`. The engine, the root driver
   call gets checked hidden defaults and a validated input assembly. Actuals use
   Implicit conversion; `BindRoutineDefault` uses Assignment through the same
   catalog-aware seam. Stored capture sees written occurrences only.
+  ARRAY constructors with definition-only companions retain checked usage and
+  original syntax during callable lookup, not a synthetic executable array.
+  Written children and common element types are analyzed normally before
+  signature errors. Only a winning consumer reaches array execution admission;
+  a missing overload reports its real array signature without enabling a codec.
 - **Catalog-aware coercion** (`cast.go`): `catalog.SelectCoercion` selects
   declared pairs before fallback and builds only the winning expression.
   `catalog.CanCoerce` is the effect-free feasibility predicate shared with

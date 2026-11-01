@@ -119,6 +119,10 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 				expected = append(expected, []any{role})
 			}
 		}
+		for range 8 {
+			expected = append(expected, []any{"is_valid"}, []any{"make_valid"})
+		}
+		expected = append(expected, []any{"isn_weak"}, []any{"isn_weak"})
 		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, expected)
 		s.Bag = true
 		run(s)

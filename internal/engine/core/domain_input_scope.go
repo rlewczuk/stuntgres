@@ -59,6 +59,14 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	return value, nil
 }
 
+func (s *StatementScope) PrepareIsnInput(ctx context.Context, target *sqltype.Descriptor) (bool, error) {
+	view := s.Domains.InputCatalog
+	if view.State() == nil {
+		view = s.ResolutionCatalog()
+	}
+	return exec.PrepareIsnInput(ctx, HostOf(s), view, target)
+}
+
 // domainScope is the statement's domain group: the lazily built domain check
 // evaluation context, the prepared check programs and the input catalog.
 // Every statement execution sets the input catalog, so it is a value group

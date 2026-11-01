@@ -190,6 +190,29 @@ func currentRoutineRendering(view catalog.Read, node expr.Expr, spec expr.Render
 		spec.Quote = expr.QuoteIdentifier
 		return spec, nil
 	}
+	if call, installed := node.(functions.IsnValidation); installed {
+		captured, err := exec.ExpressionRoutineDescriptor(call)
+		if err != nil {
+			return spec, err
+		}
+		current, err := exec.ValidateStoredRoutineDescriptor(view, captured)
+		if err != nil {
+			return spec, err
+		}
+		capture, ok := isnCaptureOf(call)
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ISN validation rendering")
+		}
+		if err := validateIsnCaptureProcedure(view, current, capture); err != nil {
+			return spec, err
+		}
+		namespace, ok := view.Namespace(current.Namespace())
+		if !ok {
+			return spec, fmt.Errorf("stuntgres: missing ISN validation namespace")
+		}
+		spec.Name, spec.Namespace, spec.Quote = current.Name(), namespace.Name(), expr.QuoteIdentifier
+		return spec, nil
+	}
 	captured, err := exec.ExpressionRoutineDescriptor(node)
 	if err != nil || captured == nil {
 		return spec, err

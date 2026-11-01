@@ -17,25 +17,29 @@ type ComparisonOperand struct {
 	raw                 parser.Expr
 	typeInquiryUnknown  functions.TypeInquiryUnknownArgument
 	typeInquiryStringIO *sqltype.Descriptor
+	// lookupUsage describes a checked ARRAY constructor whose companion is
+	// definition-only. It participates in callable lookup, never execution.
+	lookupUsage sqltype.Usage
 }
 
 func (o ComparisonOperand) descriptor() *sqltype.Descriptor {
 	if o.typeInquiryStringIO != nil || o.typeInquiryUnknown.CastType != nil {
 		return nil // Logical UNKNOWN participates in applicability, not TEXT.
 	}
-	if o.Node == nil {
-		return nil
+	return o.usage().Type
+}
+
+func (o ComparisonOperand) usage() sqltype.Usage {
+	if o.Node != nil {
+		return o.Node.ResultUsage()
 	}
-	return o.Node.ResultUsage().Type
+	return o.lookupUsage
 }
 
 // operandArgument hands an analyzed comparison operand to functions bind
 // code; CoerceArgument rebuilds the operand from Expression and Raw.
 func operandArgument(o ComparisonOperand) functions.Argument {
-	argument := functions.Argument{Expression: o.Node, Raw: o.raw}
-	if o.Node != nil {
-		argument.Usage = o.Node.ResultUsage()
-	}
+	argument := functions.Argument{Expression: o.Node, Raw: o.raw, Usage: o.usage()}
 	return argument
 }
 
@@ -378,7 +382,7 @@ func (b *Binder) comparisonTypeInquiryOperand(raw parser.Expr) (ComparisonOperan
 		}
 		return operand, err
 	}
-	return b.comparisonOperand(raw)
+	return b.callableOperand(raw)
 }
 
 func (b *Binder) comparisonOperandPolicy(raw parser.Expr, policy ExpressionPolicy) (ComparisonOperand, error) {
@@ -432,6 +436,9 @@ func (b *Binder) CoerceParameter(p plan.ParameterExpr, u sqltype.Usage) (expr.Ex
 }
 
 func (b *Binder) finalizeOperand(o ComparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
+	if o.lookupUsage.Type != nil {
+		return nil, expr.ErrorAt("0A000", "unsupported array element type", o.raw.SourcePosition())
+	}
 	if o.Node != nil && (o.typeInquiryStringIO != nil || o.typeInquiryUnknown.CastType != nil) {
 		return o.Node, nil
 	}

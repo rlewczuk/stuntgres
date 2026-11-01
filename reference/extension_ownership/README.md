@@ -7,11 +7,17 @@ extension, and the native Dump/Reset/Restore controls of these states. The
 extension registry, installation and removal themselves are in
 [reference/extensions](../extensions/README.md).
 
-The bounded `isn_conversion_*_test.go` corpus owns installed ISN comparison,
-conversion and same-type ordering declarations, independent packed-value
-expectations, full diagnostics, statement atomicity and retained provider
-identity through SQL lifecycle and native controls. It uses public fixture APIs;
-short presentation strings are not comparison keys.
+The bounded `isn_conversion_*_test.go` and `isn_validation_*_test.go` corpora own
+installed ISN comparison, conversion, ordering and validity declarations,
+independent packed-value expectations, full diagnostics, weak-mode physical
+session/journal boundaries and retained provider identity through SQL lifecycle
+and native controls. They use public fixture APIs; short presentation strings
+are not comparison keys.
+Typed-nil bytes retain the established transport distinction: direct typed ISN
+parameters are NULL on both backends, while native TEXT imports typed-nil bytes
+as empty text and pq sends NULL. Runtime TEXT-to-ISN casts therefore report the
+independent empty-input diagnostic natively and propagate NULL on PostgreSQL.
+Ordinary nil stays NULL; non-nil empty input is never treated as NULL.
 Native replacement preserves the catalog-lifetime fence for held installed-type
 parameters: they fail with the exact cached-parameter diagnostic, while a fresh
 prepare binds restored identities. A held comparison with builtin TEXT inputs,
@@ -275,8 +281,8 @@ make check RUN='^TestReferenceExtensionOwnership(Membership|Controls)$$/^connect
 make check REFERENCE=1 RUN='^TestReferenceExtensionOwnership(Membership|Controls)$$/^connectby_survivors$$'
 make check RUN='^TestReferencePageinspectBrin(Installation|Pages|Revmap|Items|Datums|Metadata|Diagnostics|Permissions|OutputEnvironment|Controls)$'
 make check REFERENCE=1 RUN='^TestReferencePageinspectBrin(Installation|Pages|Revmap|Items|Datums|Metadata|Diagnostics|Permissions|OutputEnvironment|Controls)$'
-make check RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering)$'
-make check REFERENCE=1 RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering)$'
+make check RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering|Validation.*)$'
+make check REFERENCE=1 RUN='^TestReferenceIsn(Conversion.*|Conversions|Comparisons|Ordering|Validation.*)$'
 ```
 
 The prerequisite fixture lives in `reference/extension_types`; it reuses the

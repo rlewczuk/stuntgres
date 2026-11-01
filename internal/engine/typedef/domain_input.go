@@ -20,6 +20,14 @@ func CaptureDomainInputProviders(view catalog.Read, typ *sqltype.Descriptor) map
 		if descriptor, exists := view.Descriptor(address); exists {
 			providers[address] = descriptor
 			if domain, ok := descriptor.(*catalog.Type); ok {
+				if domain.SQLType.IsISN() && domain.Origin != nil && domain.Origin.Valid(domain.Address()) {
+					installation, slot := domain.Origin.Installation, domain.Origin.Declaration+1
+					if slot < len(installation.Members) {
+						if procedure, exists := view.Descriptor(installation.Members[slot]); exists {
+							providers[procedure.Address()] = procedure
+						}
+					}
+				}
 				for _, check := range domain.DomainChecks {
 					for _, dependency := range check.Dependencies {
 						address := dependency.Ref.Address

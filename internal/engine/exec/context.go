@@ -149,9 +149,9 @@ func (c *Context) FunctionInput() sqltype.InputEnvironment {
 	}
 	if host := c.LiveHost(); host != nil {
 		current, _ := host.Environments()
-		// Retained stages keep their other captured presentation. Runtime XML
-		// character conversion alone follows the current FETCH/Execute admission.
-		input.XMLMode = current.XMLMode
+		// Runtime XML/ISN character input follows the live execution owner;
+		// unrelated presentation remains captured by the admitted stage.
+		input.XMLMode, input.IsnWeak = current.XMLMode, current.IsnWeak
 	}
 	return input
 }

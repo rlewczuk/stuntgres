@@ -1449,6 +1449,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		}
 		n.Info = info
 		rebound = n
+	case functions.IsnValidation:
+		mapped := children(n.Children())
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			rebound, err = functions.NewIsnValidation(info, n.Operation, n.Name, n.Namespace, n.RoutineRef, mapped)
+		}
 	case functions.CastRoutine:
 		mapped := children(n.Children())
 		if err != nil {

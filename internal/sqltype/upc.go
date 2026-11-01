@@ -56,7 +56,7 @@ func isnNumberFamily(digits []byte) string {
 	return "EAN13"
 }
 
-func (d *Descriptor) upcInput(text string) (Value, error) {
+func (d *Descriptor) upcInput(text string, weak bool) (Value, error) {
 	var digits [14]byte
 	n, family, magic, valid, err := scanIsn(text, "UPC", &digits)
 	if err != nil {
@@ -86,7 +86,10 @@ func (d *Descriptor) upcInput(text string) (Value, error) {
 	}
 	check := byte((10-sum%10)%10) + '0'
 	if !magic && digits[n-1] != check {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for UPC number: \"%s\", should be %c", text, check))
+		if !weak {
+			return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for UPC number: \"%s\", should be %c", text, check))
+		}
+		valid = false
 	}
 	number = (number*10 + int64(check-'0')) << 1
 	if !valid {

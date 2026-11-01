@@ -16,6 +16,9 @@ import (
 // a placeholder string definition.
 func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string, create bool) (settings.Definition, error) {
 	key := settings.FoldName(name)
+	if key == "isn.weak" && s.IsnLoaded() {
+		return IsnDefinition(), nil
+	}
 	if d, ok := registry.Definitions()[key]; ok {
 		return d, nil
 	}
@@ -33,6 +36,9 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 // SettingFlagsLocked reads only existing recognition under the store mutex.
 // Registry and identity metadata take precedence over custom placeholders.
 func (s *SettingsStore) SettingFlagsLocked(registry settings.Registry, name string) (settings.Flags, bool) {
+	if settings.FoldName(name) == "isn.weak" && s.IsnLoaded() {
+		return 0, true
+	}
 	if flags, ok := registry.LookupFlags(name); ok {
 		return flags, true
 	}

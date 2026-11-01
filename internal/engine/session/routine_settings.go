@@ -42,6 +42,10 @@ func (s *SettingsStore) EndSettingsSaveLocked(level int, commit bool) {
 					previous.kind, previous.candidate = settingSessionLocal, a.original
 					if !previous.candidate.Present {
 						previous.candidate = settingOverride{Present: true, Text: s.Defaults[name], Typed: s.DefaultTyped[name]}
+						if name == "isn.weak" && s.IsnLoaded() {
+							previous.candidate.Text = "off"
+							previous.candidate.Typed.Boolean = false
+						}
 					}
 				}
 			case settingSessionLocal:

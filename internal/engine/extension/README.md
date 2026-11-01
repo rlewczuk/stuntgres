@@ -531,9 +531,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   distinguished by their own scalar signature. The immutable recipe appends 168
   INTERNAL comparison routines and their 168 operators over exactly 28 ordered
   role pairs, seven checked conversion routines, eight INTERNAL comparators, one
-  B-tree family, eight default same-type classes and twenty real casts (404
-  declarations total). Class-owned strategy/support rows are not extension
-  declarations. Codecs reject these noncodec roles. Signature authority uses
+  B-tree family, eight default same-type classes and twenty real casts. The
+  unchanged 404-declaration prefix is followed by eight `is_valid`, eight
+  `make_valid` and two `isn_weak` declarations (422 total). Validity/repair are
+  immutable, strict C routines; the zero-input weak getter is stable/parallel
+  safe and the Boolean setter volatile/parallel unsafe. Both are strict.
+  Class-owned strategy/support rows are not extension declarations. Codecs reject
+  these noncodec roles. Signature authority uses
   sealed scalar slots and one installation cohort, independently of current
   membership or original-header lifetime. Owner metadata serializes every formal
   and result symbolically; import remaps both sides of checked conversions.

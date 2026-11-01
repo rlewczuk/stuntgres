@@ -230,7 +230,7 @@ func (s *StatementScope) EndPLException(c *plExceptionCheckpoint, rollback bool,
 	t.Mu.Lock()
 	t.Stats.Take(&s.Stage.Stats)
 	if rollback {
-		restoreSavepoint(t, mark, mark.Settings.Clone())
+		restoreSavepoint(t, mark, t.Session.Settings.PrepareSavepointRestore(mark.Settings))
 		retireStatsObjects(s.Engine(), t.Session, s.TxRef.Epoch(), false, s.Catalog, c.catalog, t.Catalog)
 		s.Stage.Rows, s.Stage.Deletes, s.Stage.Replacing = c.rows, c.deletes, c.replacing
 		s.Stage.Stats = nil

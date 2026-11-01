@@ -2052,6 +2052,12 @@ returns typed TEXT NULL for a NULL name or optional Boolean. The optional true
 flag returns NULL only for unknown names; it does not bypass restricted-read
 authority.
 
+Installed ISN weak calls borrow `InitializeIsn`/`InvokeIsnWeak`, never a builtin
+name alias. Authenticated execution initializes physical module recognition
+before row demand, after strict-NULL elision; Prepare alone does not initialize
+it. Getter reads the effective settings image; setter uses ordinary `SettingSet`
+and refreshes live ISN input presentation without resetting pooled sessions.
+
 ## System catalog producer contract
 
 Producers, the OID registry and descriptor specs live in
@@ -2402,10 +2408,11 @@ the file inquiries' binding and runtime boundary.
   keeps the incumbent reached SQL routine statement context.
 - Aggregate seeds first capture demanded type diagnostics/ACL authority in
   `schemacmds.RoutineHost.ValidateAggregateInitial`. Ordinary seeds retain
-  `InputWithEnvironment`; domain seeds enter `BindingHost.DecodeDomainLiteral`
-  and the existing `DecodeLockedDomainInput` bridge. CHECK evaluation runs
-  outside `Engine.Mu` against captured input/providers; context, caller authority,
-  catalog epoch and provider identity are readmitted before publication.
+  `InputWithEnvironment`; domain and ISN-containing seeds enter
+  `BindingHost.DecodeDomainLiteral` and the existing `DecodeLockedDomainInput`
+  bridge. CHECK evaluation and authenticated ISN initialization run outside
+  `Engine.Mu` against captured input/providers; context, caller authority,
+  catalog epoch and type/codec provider identity are readmitted before publication.
 
 ## Server protocol and timeouts
 

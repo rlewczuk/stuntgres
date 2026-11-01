@@ -45,7 +45,7 @@ func (v Value) RemapIsmn(target *Descriptor) (Value, error) {
 	return v, nil
 }
 
-func (d *Descriptor) ismnInput(text string) (Value, error) {
+func (d *Descriptor) ismnInput(text string, weak bool) (Value, error) {
 	var digits [14]byte
 	n, family, magic, valid, err := scanIsn(text, "ISMN", &digits)
 	if err != nil { return Value{}, err }
@@ -73,7 +73,10 @@ func (d *Descriptor) ismnInput(text string) (Value, error) {
 	}
 	check := byte((10-sum%10)%10) + '0'
 	if !magic && digits[12] != check {
-		return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISMN number: \"%s\", should be %c", text, check))
+		if !weak {
+			return Value{}, failure("22P02", fmt.Sprintf("invalid check digit for ISMN number: \"%s\", should be %c", text, check))
+		}
+		valid = false
 	}
 	number = (number*10 + int64(check-'0')) << 1
 	if !valid { number |= 1 }

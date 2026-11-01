@@ -66,7 +66,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 		}
 	}
 	s.Touch(d.Name, action)
-	if _, registered := registry.Definitions()[d.Name]; !registered {
+	if _, registered := registry.Definitions()[d.Name]; !registered && !(d.Name == "isn.weak" && s.IsnLoaded()) {
 		s.Placeholders[d.Name] = true
 	}
 	if value == nil {
@@ -125,15 +125,19 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 // grants captured effective-user authority. Caller holds Settings.Mu.
 func (s *SettingsStore) ShowAllRowsLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor, readRestricted bool) ([][]sqltype.Value, error) {
 	rows := make([][]sqltype.Value, 0, len(registry.Order()))
-	for _, key := range registry.Order() {
+	err := s.VisitDefinitionsLocked(registry, func(d settings.Definition) error {
+		key := d.Name
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
-		d := registry.Definitions()[key]
 		if d.ReadRestricted && !readRestricted {
-			continue
+			return nil
 		}
 		rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, s.Value(key)), sqltype.String(typ, d.Description)})
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

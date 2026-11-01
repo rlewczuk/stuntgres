@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -181,6 +182,15 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 	}
 	if err := AdmitRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
+	}
+	if c.ClosedEvaluation == nil && captured.Implementation == extension.StockIsn && captured.Display.Language == catalog.CRoutineLanguage {
+		host := c.LiveHost()
+		if host == nil {
+			return fmt.Errorf("stuntgres: ISN module lacks execution authority")
+		}
+		if err := host.InitializeIsn(); err != nil {
+			return err
+		}
 	}
 	if inquiryRoutine(captured) {
 		return validateInquiryBodyLifetime(c, node, captured)

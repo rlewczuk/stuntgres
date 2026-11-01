@@ -453,6 +453,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Items[i] = child(n.Items[i])
 		}
 		next = n
+	case functions.IsnValidation:
+		for i := range n.Count {
+			n.Args[i] = child(n.Args[i])
+		}
+		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {
+			n.RoutineRef = ref(n.RoutineRef)
+		}
+		next = n
 	case plan.ComparisonExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		if ref != nil && n.RoutineRef != (ids.ObjectRef{}) {

@@ -39,7 +39,7 @@ func isnInstallation(t *testing.T) (*core.Engine, *catalog.Extension) {
 func TestIsnProviderDeclarations(t *testing.T) {
 	e, ext := isnInstallation(t)
 	v := e.CatalogRead()
-	if len(ext.Installation.Members) != 404 || len(ext.Members) != 412 {
+	if len(ext.Installation.Members) != 422 || len(ext.Members) != 430 {
 		t.Fatal("closed recipe", len(ext.Installation.Members), len(ext.Members))
 	}
 	counts := map[ids.OID]int{}
@@ -62,7 +62,7 @@ func TestIsnProviderDeclarations(t *testing.T) {
 			}
 		}
 	}
-	for class, want := range map[ids.OID]int{ids.TypeClassID: 8, ids.ProcedureClassID: 199, ids.OperatorClassID: 168, ids.OperatorFamilyClassID: 1, ids.OperatorClassCatalogID: 8, ids.CastClassID: 20} {
+	for class, want := range map[ids.OID]int{ids.TypeClassID: 8, ids.ProcedureClassID: 217, ids.OperatorClassID: 168, ids.OperatorFamilyClassID: 1, ids.OperatorClassCatalogID: 8, ids.CastClassID: 20} {
 		if counts[class] != want {
 			t.Fatal(class, counts[class], want)
 		}

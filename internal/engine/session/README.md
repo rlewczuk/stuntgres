@@ -222,6 +222,16 @@ without target lookup and report the CLUSTER utility tag with zero affected rows
   too. Typed reset values and their `DefaultSource` remain frozen across
   transactions, detached invocation images, exception marks, pool reuse and
   logical replacement; EndSession releases them.
+  ISN module recognition is a separate physical atomic lifetime, initialized only
+  by authenticated codec/call execution. Its typed `isn.weak` definition overlays
+  the immutable registry for lookup and presentation. Placeholder promotion
+  canonicalizes the effective image and existing journal tails, preserving
+  assignment rollback while recognition survives rollback, catalog replacement
+  and module-header retirement. Detached invocation images share recognition,
+  never mutable values. Pool return does not reset committed session settings.
+  `PrepareSavepointRestore` canonicalizes an independent rollback candidate
+  before final preflight, including masked action tails; retained marks are
+  unchanged and final installation remains allocation- and callback-free.
   Command admission captures `plan.PlannerMethods` under the effective store's
   mutex. Disabled bits make detached zero values preserve enabled algorithms;
   the value retains no settings owner. Core separately captures effective

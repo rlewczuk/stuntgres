@@ -3,14 +3,13 @@ package extension
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 func (p *IsnProvider) stageDeclarations(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	types := stage.CurrentRead()
-	for slot := IsnComparisonStart; slot < IsnFamilySlot; slot++ {
+	for slot := IsnComparisonStart; slot < IsnMemberCount; slot++ {
 		if isnMemberClass(slot) != ids.ProcedureClassID {
 			continue
 		}
@@ -22,7 +21,8 @@ func (p *IsnProvider) stageDeclarations(stage Stage, ext *catalog.Extension, own
 		if err != nil {
 			return err
 		}
-		if err := stage.Create(&catalog.Procedure{ObjectAddress: ext.Members[slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Display: display, Installed: catalog.InstalledRoutineDeclaration{Parallel: 's'}, Implementation: p}); err != nil {
+		volatility, parallel := IsnRoutineProperties(slot)
+		if err := stage.Create(&catalog.Procedure{ObjectAddress: ext.Members[slot], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: volatility, Strict: true, Display: display, Installed: catalog.InstalledRoutineDeclaration{Parallel: parallel}, Implementation: p}); err != nil {
 			return err
 		}
 	}

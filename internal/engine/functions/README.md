@@ -22,6 +22,15 @@ and session; capture, rebuild and rendering retain only typed operands and
 ordinary routine provenance, never descriptor tables, cursors, opening bytes or
 ACL decisions. Preparation/description do not invoke this runtime.
 
+`IsnValidation` retains the authenticated installed routine, exact formal/result
+identities and zero/one typed child. Validity/repair use immutable strict folding
+and inline datum operations; weak getter/setter remain unfolded. Strict NULL
+does not borrow settings authority. Reached weak calls use `IsnRuntime` on the
+current execution owner, with ordinary session SET journal semantics. Rebuild,
+capture, substitution and rendering retain no session, mutable setting image or
+cached weak value.
+
+
 
 `database_files.go` owns the three fixed PostgreSQL location signatures.
 `DatabaseFilesInquiry` retains typed REGCLASS/OID operands and released routine

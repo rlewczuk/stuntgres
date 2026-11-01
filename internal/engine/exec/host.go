@@ -74,6 +74,9 @@ type Host interface {
 	RelationPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, relation functions.AccessRelation, column functions.AccessColumn, privilege string) (bool, bool, error)
 	// functions.SettingRuntime
 	InvokeSetting(string, []sqltype.Value, *sqltype.Descriptor) (sqltype.Value, error)
+	// Authenticated installed ISN invocation/input lifecycle.
+	InitializeIsn() error
+	InvokeIsnWeak(bool, bool, *sqltype.Descriptor) (sqltype.Value, error)
 	// functions.AdvisoryRuntime and functions.BlockingRuntime
 	Advisory(c *Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)
