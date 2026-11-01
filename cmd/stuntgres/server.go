@@ -34,6 +34,15 @@ type server struct {
 	backends map[uint32]*client
 	failure  error // mu; first visible runtime/logging failure
 	workers  sync.WaitGroup
+	// Shutdown order: stop closes stopping, cancels every client context, then
+	// closes canceled. Context cancellation reaches all descendants before
+	// s.cancel returns, so once canceled is closed no current command can still
+	// be granted a lock. Session teardown during shutdown waits for canceled:
+	// otherwise one session's rollback could release a lock that a still-live
+	// waiter of another session acquires and commits.
+	stopOnce sync.Once
+	stopping chan struct{}
+	canceled chan struct{}
 	// referenceTimeout bounds each reference login and response wait.
 	referenceTimeout time.Duration
 }
@@ -71,7 +80,8 @@ type client struct {
 
 func newServer(ctx context.Context, users accounts, databases map[string]*database, logs *serverLogs) (*server, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	s := &server{users: users, databases: databases, logs: logs, ctx: ctx, cancel: cancel, nextID: 1, clients: make(map[*client]struct{}), backends: make(map[uint32]*client)}
+	s := &server{users: users, databases: databases, logs: logs, ctx: ctx, cancel: cancel, nextID: 1, clients: make(map[*client]struct{}), backends: make(map[uint32]*client),
+		stopping: make(chan struct{}), canceled: make(chan struct{})}
 	s.dummy = account{salt: make([]byte, 16), key: make([]byte, 32)}
 	if _, err := rand.Read(s.dummy.salt); err != nil {
 		cancel()
@@ -199,6 +209,7 @@ func (c *client) watchSessionEnd() <-chan error {
 			// A held COPY codec may already have the user-cancel cause.
 			// Publish physical retirement through the independent session
 			// authority now, before waiting for its operation lease to drain.
+			c.server.awaitCancellation()
 			c.session.RequestEnd(session.InvalidConnection)
 			return
 		}
@@ -234,6 +245,7 @@ func (c *client) interruptTerminalWrite() {
 	})
 }
 func (c *client) finish(reason session.EndReason) {
+	c.server.awaitCancellation()
 	if c.session != nil {
 		// Preserve the chosen clean/fatal/init reason before canceling the
 		// physical context observed by the existing end-request watcher.
@@ -267,7 +279,11 @@ func (c *client) finish(reason session.EndReason) {
 	c.server.workers.Done()
 }
 func (s *server) stop() {
-	s.cancel()
+	s.stopOnce.Do(func() {
+		close(s.stopping)
+		s.cancel()
+		close(s.canceled)
+	})
 	if s.listener != nil {
 		_ = s.listener.Close()
 	}
@@ -279,6 +295,17 @@ func (s *server) stop() {
 	s.mu.Unlock()
 	for _, socket := range sockets {
 		_ = socket.Close()
+	}
+}
+
+// awaitCancellation holds a session end requested by shutdown until every
+// client's current command is canceled. Client-only retirement (peer EOF,
+// protocol failure) is never delayed.
+func (s *server) awaitCancellation() {
+	select {
+	case <-s.stopping:
+		<-s.canceled
+	default:
 	}
 }
 func (s *server) shutdown() {

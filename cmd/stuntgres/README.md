@@ -44,7 +44,9 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   re-executes as a Linux daemon and waits for readiness. `-p` selects the PID file
   (default `./stuntgres.pid`). `dump` (or SIGUSR1) requests an asynchronous dump;
   `stop` waits for connections to close, open transactions to roll back and a
-  final dump. PID, daemon and signal controls are Linux-specific; foreground
+  final dump. Shutdown cancels every connection's current command before any
+  session ends, so a lock waiter cannot acquire a lock released by another
+  session's rollback and commit. PID, daemon and signal controls are Linux-specific; foreground
   serving is portable.
 - **Dumps.** Each database is written atomically as a 0600
   `<database>--<UTC YYYYMMDDhhmmss>.sql` native SQL dump; earlier files are kept.

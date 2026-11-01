@@ -43,23 +43,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 				if b.PG {
 					serverObserveCancelWait(t, observe, observer, int(victim.pid), owner.pid, "server_cancel")
 				} else {
-					// Native wire cancellation keys are not logical pg_locks PIDs.
-					// This fixture has exactly one waiter on this private table.
-					for {
-						var waiting bool
-						err := observer.QueryRowContext(observe, `SELECT EXISTS (
-							SELECT 1 FROM pg_locks WHERE locktype='relation'
-							AND relation='server_cancel'::regclass::oid
-							AND mode='RowExclusiveLock' AND NOT granted
-						)`).Scan(&waiting)
-						if err != nil {
-							t.Fatal("native cancellation relation-wait barrier:", err)
-						}
-						if waiting {
-							break
-						}
-						runtime.Gosched()
-					}
+					serverObserveNativeCancelWait(t, observe, observer)
 				}
 				type reply struct {
 					frames []serverFrame
@@ -288,6 +272,11 @@ func TestReferenceServerCancellation(t *testing.T) {
 			serverWantCode(t, owner.query(t, "BEGIN; LOCK TABLE server_cancel IN ACCESS EXCLUSIVE MODE; INSERT INTO server_cancel VALUES (88)"), "")
 			blocked := serverAuthenticated(t, f.DSNFor(b))
 			blocked.send(t, serverPacket('Q', []byte("INSERT INTO server_cancel VALUES (99)\x00")))
+			// Shutdown must cancel an admitted lock waiter, not merely an unread
+			// command: the owner's rollback releases the lock it waits for.
+			observe, stopObservation := context.WithTimeout(f.Ctx, fixture.Liveness)
+			defer stopObservation()
+			serverObserveNativeCancelWait(t, observe, f.RawPool(t, b))
 			f.Stop(t)
 			f.Restart(t, true)
 			db := f.NativeDB(t, fixture.ServerDatabase)
@@ -381,6 +370,28 @@ func serverObserveCancelWait(t *testing.T, ctx context.Context, observer *sql.DB
 		) AND $2 = ANY(pg_blocking_pids($1))`, waiter, holder, table).Scan(&waiting)
 		if err != nil {
 			t.Fatal("cancellation relation-wait barrier", err)
+		}
+		if waiting {
+			return
+		}
+		runtime.Gosched()
+	}
+}
+
+// serverObserveNativeCancelWait waits until a native INSERT queues behind the
+// server_cancel holder. Native wire cancellation keys are not logical pg_locks
+// PIDs; each caller has exactly one waiter on this private table.
+func serverObserveNativeCancelWait(t *testing.T, ctx context.Context, observer *sql.DB) {
+	t.Helper()
+	for {
+		var waiting bool
+		err := observer.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM pg_locks WHERE locktype='relation'
+			AND relation='server_cancel'::regclass::oid
+			AND mode='RowExclusiveLock' AND NOT granted
+		)`).Scan(&waiting)
+		if err != nil {
+			t.Fatal("native cancellation relation-wait barrier:", err)
 		}
 		if waiting {
 			return
