@@ -211,7 +211,7 @@ func (f timeoutReferenceFixture) completionSetupExpiry(ctx context.Context, err 
 		if strings.Contains(f.logBaseline, exact) || strings.Contains(f.logBaseline, atTarget) {
 			f.t.Fatal("completion INSERT fatal predates arming")
 		}
-		logCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		logCtx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 		defer cancel()
 		found := false
 		for !found {

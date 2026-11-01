@@ -7,7 +7,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceDriverBatchRoleRetirementPeers(t *testing.T) {
@@ -63,7 +62,7 @@ func TestReferenceDriverBatchRoleRetirementPeers(t *testing.T) {
 					var peer fixture.RelationOutcome
 					before := ""
 					if b.PG {
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						fixture.RowWait(t, ctx, peerPID, ownerPID)
 					} else {

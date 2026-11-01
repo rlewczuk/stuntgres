@@ -140,7 +140,7 @@ func TestReferenceMaterializedRefreshConcurrentRetainedSourceMaterialized(t *tes
 					cancel()
 					holder.Rollback()
 					if !joined {
-						cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer stop()
 						select {
 						case <-done:
@@ -175,7 +175,7 @@ func TestReferenceMaterializedRefreshConcurrentRetainedSourceMaterialized(t *tes
 				run(fixture.Exec("UPDATE retained_source_base SET s='new' WHERE i=1", 1))
 				run(fixture.Exec("DELETE FROM retained_source_base WHERE i=2", 1))
 				run(fixture.Exec("INSERT INTO retained_source_base VALUES(3,'three')", 1))
-				publish, stop := context.WithTimeout(ctx, 3*time.Second)
+				publish, stop := context.WithTimeout(ctx, fixture.Liveness)
 				fixture.RunStep(t, publish, observer, b.Recorder, fixture.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY retained_source_inner", 0))
 				stop()
 				run(fixture.Select("SELECT i,s FROM retained_source_inner ORDER BY i", []string{"i", "s"}, []string{"INT4", "TEXT"}, concurrentBatchNew()))

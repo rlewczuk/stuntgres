@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/reference/fixture"
 )
 
 func timeoutOracleFrame(stream byte, payload string) []byte {
@@ -100,7 +102,7 @@ func TestReferenceTimeoutOracleCaptureDataAndErrors(t *testing.T) {
 }
 
 func TestReferenceTimeoutOracleCaptureCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	reader, writer := io.Pipe()
 	defer reader.Close()
@@ -123,7 +125,7 @@ func TestReferenceTimeoutOracleCaptureCancellation(t *testing.T) {
 		if captured.data != "" || !errors.Is(captured.err, context.Canceled) {
 			t.Fatalf("capture=%q/%v", captured.data, captured.err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("canceled raw log read did not return")
 	}
 	if _, err := writer.Write([]byte("x")); !errors.Is(err, io.ErrClosedPipe) {

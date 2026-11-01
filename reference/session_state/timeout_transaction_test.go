@@ -316,7 +316,7 @@ func (f *timeoutReferenceFixture) prepareSavepointRestore(mark func(string)) any
 	// Registered before arming; even an assertion on a live attempt must not
 	// return an armed transaction to the pool.
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(f.p.Ctx, time.Second)
+		ctx, cancel := context.WithTimeout(f.p.Ctx, fixture.Liveness)
 		defer cancel()
 		_, _ = f.owner.ExecContext(ctx, "ROLLBACK")
 		_ = f.owner.Raw(func(any) error { return driver.ErrBadConn })

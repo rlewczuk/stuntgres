@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -35,7 +34,7 @@ func TestReferencePhysicalSettingsVisibility(t *testing.T) {
 		// Parameter ACLs are cluster-wide dependencies, not public-schema
 		// objects. Revoke them even if a later assertion terminates the case.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, def := range physicalSettings {
 				if _, err := s.conn.ExecContext(ctx, "REVOKE SET ON PARAMETER "+def.name+" FROM physical_parameter"); err != nil {

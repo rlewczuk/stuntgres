@@ -4,14 +4,13 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
 
 func (s *physicalCase) walRevoke(query string) {
 	s.t.Helper()
-	ctx,cancel := context.WithTimeout(context.Background(),5*time.Second)
+	ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness)
 	defer cancel()
 	if _,err := s.conn.ExecContext(ctx,query); err != nil { s.t.Error(err) }
 }
@@ -30,7 +29,7 @@ func TestReferenceWALSettingsAuthority(t *testing.T) {
 				s.run(fixture.Exec("GRANT wal_auth_setter TO wal_auth_inherited",0))
 				s.run(fixture.Exec("GRANT ALTER SYSTEM ON PARAMETER "+name+" TO wal_auth_alter",0))
 				defer func() {
-					ctx,cancel := context.WithTimeout(context.Background(),5*time.Second); defer cancel()
+					ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness); defer cancel()
 					for _, query := range []string{"REVOKE ALL PRIVILEGES ON PARAMETER "+name+" FROM wal_auth_setter,wal_auth_plain,wal_auth_alter"} {
 						if _,err := s.conn.ExecContext(ctx,query); err != nil { t.Error(err) }
 					}

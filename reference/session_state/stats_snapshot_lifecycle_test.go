@@ -86,7 +86,7 @@ func statsAwait(t *testing.T, p *fixture.Pair, b fixture.Backend, table, column 
 	}
 	defer probe.Close()
 	fixture.RunStep(t, p.Ctx, probe, b.Recorder, fixture.Exec("SET stats_fetch_consistency=none", 0))
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	tick := time.NewTicker(5 * time.Millisecond)
 	defer tick.Stop()

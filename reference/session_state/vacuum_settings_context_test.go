@@ -4,7 +4,6 @@ import (
  "context"
  "strconv"
  "testing"
- "time"
  "stuntgres/reference/fixture"
 )
 
@@ -23,7 +22,7 @@ func TestReferenceVacuumSettingsContext(t *testing.T) {
      if phase==2 {
       s.run(fixture.Exec("GRANT SET ON PARAMETER "+d.name+" TO vacuum_context_login",0))
       // Cleanup survives a fatal assertion and uses a context independent of the scenario.
-      defer func() { ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second); defer cancel(); if _,err:=s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER "+d.name+" FROM vacuum_context_login"); err!=nil { t.Error(err) } }()
+      defer func() { ctx,cancel:=context.WithTimeout(context.Background(),fixture.Liveness); defer cancel(); if _,err:=s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER "+d.name+" FROM vacuum_context_login"); err!=nil { t.Error(err) } }()
      }
      for _,prepared:=range []bool{false,true} {
       for _,command:=range []string{"SET "+d.name+"="+physicalLiteral(d.raw),"SET SESSION "+d.name+"="+physicalLiteral(d.raw),"SET "+d.name+"="+physicalLiteral(changed),"SET SESSION "+d.name+"="+physicalLiteral(changed),"SET SESSION "+d.name+"='bogus'","SET "+d.name+"='bogus'","SET "+d.name+"=DEFAULT","SET SESSION "+d.name+"=DEFAULT","RESET "+d.name} {

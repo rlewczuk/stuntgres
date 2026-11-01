@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -16,7 +15,7 @@ func tempTablespacesSameValueAssignment(t *testing.T) {
 		if err := s.conn.QueryRowContext(s.p.Ctx, "SELECT current_database()").Scan(&database); err != nil { s.t.Fatal(err) }
 		s.run(fixture.Exec("GRANT TEMP ON DATABASE "+`"`+database+`"`+" TO tt_same_login", 0))
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, q := range []string{"REVOKE CREATE ON TABLESPACE pg_global FROM tt_same_login", "REVOKE TEMP ON DATABASE "+`"`+database+`"`+" FROM tt_same_login"} {
 				if _, err := s.conn.ExecContext(ctx, q); err != nil { s.t.Error(err) }
@@ -25,7 +24,7 @@ func tempTablespacesSameValueAssignment(t *testing.T) {
 		ordinary := s.login("tt_same_login")
 		defer ordinary.conn.Close()
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := ordinary.conn.ExecContext(ctx, "ROLLBACK"); err != nil { s.t.Error(err) }
 			for _, name := range []string{"tt_same_before", "tt_same_0", "tt_same_1"} {

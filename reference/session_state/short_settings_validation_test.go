@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -91,7 +90,7 @@ func TestReferenceShortSettingsContext(t *testing.T) {
 		s.shortCreateSentinel()
 		s.run(fixture.Exec("CREATE ROLE short_context_login LOGIN PASSWORD 'role-core-fixture'", 0))
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, d := range shortSettings {
 				if shortMutable(d) { continue }

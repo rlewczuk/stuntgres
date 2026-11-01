@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -21,7 +20,7 @@ func TestReferencePresetSettingsAuthority(t *testing.T) {
 				s.run(fixture.Exec("CREATE ROLE "+role+attr,0))
 				if role == "preset_reader" { s.run(fixture.Exec("GRANT pg_read_all_settings TO "+role,0)) }
 				if role == "preset_grantee" {
-					defer func() { ctx,cancel := context.WithTimeout(context.Background(),5*time.Second); defer cancel(); for _, d := range presetDefinitions { if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER "+d.name+" FROM "+role); err != nil { t.Error(err) } } }()
+					defer func() { ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness); defer cancel(); for _, d := range presetDefinitions { if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER "+d.name+" FROM "+role); err != nil { t.Error(err) } } }()
 					for _, d := range presetDefinitions { s.run(fixture.Exec("GRANT SET ON PARAMETER "+d.name+" TO "+role,0)) }
 				}
 				user := s.login(role)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -65,7 +64,7 @@ func TestReferenceLockSettingsContexts(t *testing.T) {
 			physicalCases(t, []string{"lock_context_login"}, func(s *physicalCase) {
 				s.run(fixture.Exec("CREATE ROLE lock_context_login LOGIN PASSWORD 'role-core-fixture'", 0))
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := s.conn.ExecContext(ctx, "REVOKE SET ON PARAMETER "+d.name+" FROM lock_context_login"); err != nil {
 						s.t.Error("parameter privilege cleanup", d.name, err)

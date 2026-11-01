@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -74,7 +73,7 @@ func TestReferenceReplicationSettingsAuthority(t *testing.T) {
 			"GRANT SET ON PARAMETER output_plugin_libraries TO replication_setter",
 			"GRANT replication_setter TO replication_setinherited",
 		} { s.run(fixture.Exec(q,0)) }
-		defer func(){ ctx,cancel := context.WithTimeout(context.Background(),5*time.Second); defer cancel(); if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER output_plugin_libraries FROM replication_setter"); err != nil { s.t.Error(err) } }()
+		defer func(){ ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness); defer cancel(); if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER output_plugin_libraries FROM replication_setter"); err != nil { s.t.Error(err) } }()
 		for _, tc := range []struct{ role string; read,set bool }{
 			{"replication_plain",false,false},{"replication_reader",true,false},{"replication_inherited",true,false},{"replication_monitor",true,false},{"replication_noinherit",false,false},{"replication_setter",false,true},{"replication_setinherited",false,true},{"replication_super",true,true},
 		} {

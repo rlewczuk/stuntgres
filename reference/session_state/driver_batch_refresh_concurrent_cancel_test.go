@@ -91,7 +91,7 @@ func TestReferenceMaterializedRefreshConcurrentRetainedCancellation(t *testing.T
 			cancel()
 			holder.Rollback()
 			if !joined {
-				cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				select {
 				case <-done:
@@ -117,7 +117,7 @@ func TestReferenceMaterializedRefreshConcurrentRetainedCancellation(t *testing.T
 		} else {
 			cancel()
 		}
-		join, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		join, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer stop()
 		select {
 		case outcome := <-done:

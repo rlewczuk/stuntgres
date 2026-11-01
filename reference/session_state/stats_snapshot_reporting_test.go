@@ -34,7 +34,7 @@ func statsReportingWant(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 }
 func statsReportingAwait(t *testing.T, p *fixture.Pair, observer *sql.Conn, table string, want statsReportingVector) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	tick := time.NewTicker(5 * time.Millisecond)
 	defer tick.Stop()
@@ -62,7 +62,7 @@ func statsReportingConn(t *testing.T, p *fixture.Pair, b fixture.Backend) (*sql.
 	owned := true
 	t.Cleanup(func() {
 		if owned {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := c.ExecContext(ctx, "ROLLBACK"); err != nil {
 				t.Errorf("reporting rollback cleanup: %v", err)

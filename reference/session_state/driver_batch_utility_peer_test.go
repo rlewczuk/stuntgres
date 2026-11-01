@@ -20,7 +20,7 @@ func batchUtilityBlockedPeer(t *testing.T, p *fixture.Pair, b fixture.Backend, a
 		return
 	}
 	pid := fixture.LockPID(t, p.Ctx, peer)
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	type outcome struct {
 		rows *sql.Rows
@@ -36,7 +36,7 @@ func batchUtilityBlockedPeer(t *testing.T, p *fixture.Pair, b fixture.Backend, a
 				if o.rows != nil {
 					o.rows.Close()
 				}
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("utility peer did not join")
 			}
 		}

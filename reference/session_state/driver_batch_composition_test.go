@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func batchUtilityComposition(t *testing.T) {
 	batchScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, a, peer *sql.Conn) {
 		t.Cleanup(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			_, _ = a.ExecContext(ctx, "ROLLBACK")
 			if _, err := peer.ExecContext(ctx, "DROP SCHEMA IF EXISTS bs CASCADE"); err != nil {

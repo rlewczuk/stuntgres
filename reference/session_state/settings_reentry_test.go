@@ -9,13 +9,12 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Select("SELECT set_config('application_name','healthy',false)", []string{"set_config"}, []string{"TEXT"}, [][]any{{"healthy"}}))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	for _, prepared := range []bool{false, true} {
 		d := stuntgres.NewDriver()

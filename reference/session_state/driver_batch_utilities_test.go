@@ -7,7 +7,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 type batchUtilityCase struct {
@@ -89,7 +88,7 @@ func TestReferenceDriverBatchUtilityAtomicity(t *testing.T) {
 					tc.change = replace(tc.change)
 					tc.probe = replace(tc.probe)
 					t.Cleanup(func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						_, _ = a.ExecContext(ctx, "ROLLBACK")
 						for _, name := range []string{schema, renamed} {

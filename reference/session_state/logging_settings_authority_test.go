@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -27,7 +26,7 @@ func TestReferenceLoggingSettingsAuthority(t *testing.T) {
 			s.developerExec(query, false)
 		}
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, tc := range loggingSettings {
 				for _, role := range []string{"logging_plain", "logging_bridge", "PUBLIC"} {

@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -13,7 +12,7 @@ func TestReferenceShortSettingsAuthority(t *testing.T) {
 		s.run(fixture.Exec("CREATE ROLE short_acl_login LOGIN PASSWORD 'role-core-fixture'", 0))
 		s.run(fixture.Exec("CREATE ROLE short_acl_member", 0))
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			// Restore administrative authority even if an assertion stopped
 			// execution while the owner had switched to the login role.

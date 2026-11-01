@@ -47,7 +47,7 @@ func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
 			if !joined {
 				select {
 				case <-done:
-				case <-time.After(5 * time.Second):
+				case <-time.After(fixture.Liveness):
 					t.Error("refresh cancellation worker failed to join")
 				}
 			}
@@ -66,7 +66,7 @@ func TestReferenceDriverBatchRefreshCancellation(t *testing.T) {
 			} else if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("native retained refresh cancellation: %v", err)
 			}
-		case <-time.After(5 * time.Second):
+		case <-time.After(fixture.Liveness):
 			t.Fatal("refresh cancellation did not finish")
 		}
 		if err := holder.Rollback(); err != nil {

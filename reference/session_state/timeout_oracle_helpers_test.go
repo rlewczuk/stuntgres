@@ -25,7 +25,7 @@ func (f *timeoutReferenceFixture) captureOwner() {
 	if !f.b.PG {
 		return
 	}
-	ctx, cancel := context.WithTimeout(f.p.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(f.p.Ctx, fixture.Liveness)
 	defer cancel()
 	var backendStart time.Time
 	// PostgreSQL documents this %c derivation. Capture before any timer is armed;
@@ -143,7 +143,7 @@ func (f timeoutReferenceFixture) serverFatal(code string, position ...string) {
 	if strings.Contains(f.logBaseline, exact) {
 		f.t.Fatal("fatal already existed before owner was armed", exact)
 	}
-	ctx, cancel := context.WithTimeout(f.p.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(f.p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		logs := f.oracleLogs(ctx)

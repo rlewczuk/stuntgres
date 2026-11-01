@@ -10,7 +10,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Reuse the existing retained-message fixtures/result-set assertions. Discovery
@@ -156,7 +155,7 @@ func TestReferenceMaterializedRefreshConcurrentRetained(t *testing.T) {
 			}
 			schemaTransferred := false
 			defer func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				if _, err := f.A.ExecContext(cleanup, "RESET ROLE"); err != nil {
 					t.Error("retained role cleanup", err)

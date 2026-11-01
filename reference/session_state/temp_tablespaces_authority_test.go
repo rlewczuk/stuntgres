@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -15,7 +14,7 @@ func tempTablespacesAuthority(t *testing.T) {
 		s.run(fixture.Exec("GRANT USAGE,CREATE ON SCHEMA public TO tt_setting_login", 0))
 		// Restore shared-object ACLs even if an assertion terminates this callback.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, q := range []string{"REVOKE CREATE ON TABLESPACE pg_global FROM tt_setting_login", "REVOKE CREATE ON TABLESPACE pg_default FROM tt_setting_login", "REVOKE USAGE,CREATE ON SCHEMA public FROM tt_setting_login"} {
 				if _, err := s.conn.ExecContext(ctx, q); err != nil { s.t.Error(err) }
@@ -25,7 +24,7 @@ func tempTablespacesAuthority(t *testing.T) {
 		if err := s.conn.QueryRowContext(s.p.Ctx, "SELECT current_database()").Scan(&database); err != nil { s.t.Fatal(err) }
 		s.run(fixture.Exec("GRANT TEMP ON DATABASE "+`"`+database+`"`+" TO tt_setting_login", 0))
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := s.conn.ExecContext(ctx, "REVOKE TEMP ON DATABASE "+`"`+database+`"`+" FROM tt_setting_login"); err != nil { s.t.Error(err) }
 		}()
@@ -34,7 +33,7 @@ func tempTablespacesAuthority(t *testing.T) {
 		// A returned sql.Conn leaves its physical session in the pool. Drop
 		// role-owned temporary objects before shared-role cleanup visits them.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			names := []string{"tt_sentinel", "tt_granted", "tt_filtered", "tt_after_denied"}
 			for i := range 3 { names = append(names, fmt.Sprintf("tt_default_%d", i)) }

@@ -5,7 +5,6 @@ import (
  "database/sql"
  "strings"
  "testing"
- "time"
 
  "stuntgres/reference/fixture"
 )
@@ -42,7 +41,7 @@ func TestReferenceConnectionSettingsVisibility(t *testing.T) {
    "GRANT connection_super TO connection_supermember",
   } { s.run(fixture.Exec(query,0)) }
   defer func() {
-   ctx,cancel := context.WithTimeout(context.Background(),5*time.Second); defer cancel()
+   ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness); defer cancel()
    for _, tc := range connectionSettings {
     if tc.context == "user" { continue }
     if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER "+tc.name+" FROM connection_parameter"); err != nil { s.t.Error("parameter privilege cleanup",tc.name,err) }

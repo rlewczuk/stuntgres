@@ -184,7 +184,7 @@ func TestReferenceDriverBatchCancellationLifecycle(t *testing.T) {
 					cancel()
 					select {
 					case <-done:
-					case <-time.After(5 * time.Second):
+					case <-time.After(fixture.Liveness):
 						t.Error("cancellation worker did not join")
 					}
 				})

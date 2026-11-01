@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -29,7 +28,7 @@ func TestReferenceReplicationSettingsSmoke(t *testing.T) {
 		plain.run(physicalError("SELECT current_setting('output_plugin_libraries',true)",physicalDenied("output_plugin_libraries"),true,true))
 		plain.run(physicalError("SET output_plugin_libraries='plain_probe'",replicationSetDenied(),false,false))
 		s.run(fixture.Exec("GRANT SET ON PARAMETER output_plugin_libraries TO replication_smoke_plain",0))
-		defer func(){ ctx,cancel := context.WithTimeout(context.Background(),5*time.Second); defer cancel(); if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER output_plugin_libraries FROM replication_smoke_plain"); err != nil { s.t.Error(err) } }()
+		defer func(){ ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness); defer cancel(); if _,err := s.conn.ExecContext(ctx,"REVOKE SET ON PARAMETER output_plugin_libraries FROM replication_smoke_plain"); err != nil { s.t.Error(err) } }()
 		plain.run(fixture.Exec("SET output_plugin_libraries='granted_probe'",0))
 		plain.run(physicalError("SELECT set_config('output_plugin_libraries','rejected_probe',false)",physicalDenied("output_plugin_libraries"),true,true))
 		s.run(fixture.Exec("GRANT pg_read_all_settings TO replication_smoke_plain",0))

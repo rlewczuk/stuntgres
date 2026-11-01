@@ -40,7 +40,7 @@ func batchValues(t *testing.T, p *fixture.Pair, b fixture.Backend, x fixture.Exe
 // statement timer.
 func batchCancelDeadline(b fixture.Backend) time.Duration {
 	if b.PG {
-		return 2 * time.Second
+		return fixture.Liveness
 	}
 	return 100 * time.Millisecond
 }
