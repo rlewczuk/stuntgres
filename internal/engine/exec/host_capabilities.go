@@ -27,6 +27,7 @@ type ContribRuntime interface {
 	GenericFileTmpdir(uint32) error
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
+	ValidatePgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) error
 	ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error
 	ValidateConnectby(n plan.InstalledConnectbyExpr) error
 	Connectby(request functions.ConnectbyRequest) ([]sqltype.Value, error)

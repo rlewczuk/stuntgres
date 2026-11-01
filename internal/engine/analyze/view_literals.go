@@ -756,8 +756,12 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return children(r.Args, n.Args[:])
 		}
 		if n, ok := bound.(plan.InstalledPgvisibilityExpr); ok {
-			if err := extension.ValidatePgvisibilityIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
-			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil { return err }
+			if err := extension.ValidatePgvisibilityIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledPgstattupleExpr); ok {
@@ -789,6 +793,15 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 		}
 		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {
 			if err := extension.ValidatePgrowlocksIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
+			return children(r.Args, []expr.Expr{n.Arg})
+		}
+		if n, ok := bound.(plan.InstalledPgpArmorHeadersExpr); ok {
+			if err := extension.ValidatePgpArmorHeadersIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
 				return err
 			}
 			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {

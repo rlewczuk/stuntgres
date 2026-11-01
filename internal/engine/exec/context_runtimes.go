@@ -863,6 +863,20 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 	return n.Pgrowlocks.OpenSource(c)
 }
 
+func (c *Context) OpenPgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	host := c.LiveHost()
+	if host == nil {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: pgp_armor_headers lacks statement scope")
+	}
+	if err := host.Contrib().ValidatePgpArmorHeaders(n); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	return n.PgpArmorHeaders.OpenSource(c)
+}
+
 func (c *Context) OpenTablefuncNormal(n plan.InstalledTablefuncNormalExpr) (expr.SourceCursor, error) {
 	if err := EvaluationContext(c); err != nil {
 		return expr.SourceCursor{}, err

@@ -15,8 +15,9 @@ func ValidateInstalledCrypto(n plan.InstalledCryptoExpr, v catalog.Read) error {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")
 		}
 	}
-	proc, symbol, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
-	if err != nil || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto || symbol != n.Plan.Name() || proc.Signature != analyze.CryptoExpressionSignature(n) {
+	proc, _, err := currentInstalledProcedure(v, n.Ref, n.Procedure)
+	name, nameErr := extension.ProcedureInstallationName(v, proc)
+	if err != nil || nameErr != nil || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto || name != n.Plan.Name() || proc.Signature != analyze.CryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}
 	if err := extension.StockPgcrypto.ValidateProcedure(v, proc); err != nil {

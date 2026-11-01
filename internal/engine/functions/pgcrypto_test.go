@@ -11,9 +11,13 @@ import (
 	"testing"
 )
 
+type pgcryptoUnitTypes map[sqltype.ID]*sqltype.Descriptor
+
+func (t pgcryptoUnitTypes) Type(id sqltype.ID) *sqltype.Descriptor { return t[id] }
+
 func TestPgcryptoOverloadResolution(t *testing.T) {
 	types := formatUnitTypes()
-	text, binary := types[sqltype.Text].Usage(), types[sqltype.Bytea].Usage()
+	typeContext := pgcryptoUnitTypes(types)
 	for _, test := range []struct {
 		name       string
 		ids        []sqltype.ID
@@ -41,9 +45,9 @@ func TestPgcryptoOverloadResolution(t *testing.T) {
 				args[i].Usage = types[id].Usage()
 			}
 		}
-		input, resolution := PgcryptoInput(test.name, args, text, binary, types[sqltype.Int4].Usage())
-		if resolution != test.resolution || resolution == Resolved && input.Type.ID() != test.input {
-			t.Fatal(test, input, resolution)
+		recipe, resolution := ResolvePgcrypto(test.name, args, typeContext)
+		if resolution != test.resolution || resolution == Resolved && recipe.Inputs[0] != test.input {
+			t.Fatal(test, recipe, resolution)
 		}
 	}
 }

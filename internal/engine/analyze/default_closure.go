@@ -16,37 +16,10 @@ import (
 // CryptoExpressionSignature returns the catalog signature of a pgcrypto call,
 // or "" when its arguments match no installed signature.
 func CryptoExpressionSignature(n plan.InstalledCryptoExpr) catalog.ProcedureSignature {
-	if n.Plan.Name() == "gen_random_bytes" {
-		if len(n.Args) == 1 && n.Args[0].ResultUsage().Type.ID() == sqltype.Int4 {
-			return "23"
-		}
+	if n.Validate() != nil {
 		return ""
 	}
-	if n.Plan.Name() == "gen_salt" {
-		if len(n.Args) == 1 {
-			return "25"
-		}
-		if len(n.Args) == 2 {
-			return "25,23"
-		}
-		return ""
-	}
-	if len(n.Args) == 4 && (n.Plan.Name() == "encrypt_iv" || n.Plan.Name() == "decrypt_iv") {
-		return "17,17,17,25"
-	}
-	if len(n.Args) == 2 {
-		if n.Args[0].ResultUsage().Type.ID() == sqltype.Bytea {
-			return "17,25"
-		}
-		return "25,25"
-	}
-	if len(n.Args) == 3 {
-		if n.Args[0].ResultUsage().Type.ID() == sqltype.Bytea {
-			return "17,17,25"
-		}
-		return "25,25,25"
-	}
-	return ""
+	return catalog.ProcedureSignature(n.Plan.Signature().SQL)
 }
 
 // Crypto calls retain their own declaration and argument-closure rules. Nested
@@ -386,12 +359,18 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 	case plan.InstalledSSLInfoExpr:
 		return !p.StageDependent && ValidInstalledSSLInfoShape(n)
 	case plan.InstalledPgvisibilityExpr:
-		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure { return false }
+		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
+			return false
+		}
 		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)
-		if err != nil || extension.ValidatePgvisibilityIdentity(view, current, n.Ref) != nil { return false }
+		if err != nil || extension.ValidatePgvisibilityIdentity(view, current, n.Ref) != nil {
+			return false
+		}
 		call := n.Pgvisibility
 		call.RoutineReference = current
-		if extension.ValidatePgvisibilityCall(view, current, call) != nil { return false }
+		if extension.ValidatePgvisibilityCall(view, current, call) != nil {
+			return false
+		}
 	case plan.InstalledPgstattupleExpr:
 		if n.Procedure == nil || n.CallRoutineReference() != n.Procedure {
 			return false

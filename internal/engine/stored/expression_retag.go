@@ -759,6 +759,16 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledPgrowlocks(n, view)
 		rebound = n
+	case plan.InstalledPgpArmorHeadersExpr:
+		n.Arg = child(n.Arg)
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped pgp_armor_headers function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledPgpArmorHeaders(n, view)
+		rebound = n
 	case plan.InstalledTablefuncCrosstabExpr:
 		n.Args = append([]expr.Expr(nil), n.Args...)
 		for i, arg := range n.Args {

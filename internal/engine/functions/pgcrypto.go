@@ -7,82 +7,37 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// PgcryptoInput chooses between documented signatures using SQL usages.
-// Unknown digest/HMAC data/key prefer TEXT; raw encryption always uses BYTEA.
-
-func PgcryptoInput(name string, args []Argument, text, bytea, integer sqltype.Usage) (sqltype.Usage, Resolution) {
-	count := 2
-	rawCipher := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
-	switch name {
-	case "digest", "crypt":
-	case "hmac", "encrypt", "decrypt":
-		count = 3
-	case "encrypt_iv", "decrypt_iv":
-		count = 4
-	case "gen_salt":
-		if len(args) != 1 && len(args) != 2 {
-			return sqltype.Usage{}, Missing
-		}
-		count = len(args)
-	case "gen_random_bytes":
-		if len(args) != 1 {
-			return sqltype.Usage{}, Missing
-		}
-		if args[0].Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(args[0].Usage, integer, sqltype.Implicit); err != nil {
-				return sqltype.Usage{}, Missing
+// ResolvePgcrypto selects the shared formal recipe. Unknown digest/HMAC inputs
+// prefer TEXT; an explicitly binary data/key selects the BYTEA overload.
+func ResolvePgcrypto(name string, args []Argument, types interface {
+	Type(sqltype.ID) *sqltype.Descriptor
+}) (sqltype.PgcryptoSignature, Resolution) {
+	binary := false
+	if name == "digest" || name == "hmac" {
+		for i := range max(0, len(args)-1) {
+			if args[i].Usage.Type != nil && args[i].Usage.Type.BaseType().ID() == sqltype.Bytea {
+				binary = true
 			}
 		}
-		return integer, Resolved
-	case "gen_random_uuid", "fips_mode":
-		if len(args) == 0 {
-			return text, Resolved
-		}
-		return sqltype.Usage{}, Missing
-	default:
-		return sqltype.Usage{}, Missing
 	}
-	if len(args) != count {
-		return sqltype.Usage{}, Missing
-	}
-	input := text
-	if rawCipher {
-		input = bytea
-	}
-	for _, arg := range args[:count-1] {
-		if (name == "digest" || name == "hmac") && arg.Usage.Type != nil && arg.Usage.Type.BaseType().ID() == sqltype.Bytea {
-			input = bytea
-		}
+	s, ok := sqltype.SelectPgcryptoSignature(name, len(args), binary)
+	if !ok {
+		return s, Missing
 	}
 	for i, arg := range args {
-		if arg.Usage.Type == nil {
-			continue
-		}
-		target := input
-		if i == count-1 {
-			target = text
-		}
-		if name == "gen_salt" && i == 1 {
-			target = integer
-		}
-		if _, err := sqltype.PlanCoercion(arg.Usage, target, sqltype.Implicit); err != nil {
-			return sqltype.Usage{}, Missing
+		if arg.Usage.Type != nil {
+			if _, err := sqltype.PlanCoercion(arg.Usage, types.Type(s.Inputs[i]).Usage(), sqltype.Implicit); err != nil {
+				return s, Missing
+			}
 		}
 	}
-	return input, Resolved
+	return s, Resolved
 }
 
-func CoercePgcryptoArguments(b ArgumentCoercer, name string, args []Argument, input, text, integer sqltype.Usage) ([]expr.Expr, error) {
+func CoercePgcrypto(b ArgumentCoercer, args []Argument, formals []sqltype.Usage) ([]expr.Expr, error) {
 	children := make([]expr.Expr, len(args))
 	for i, arg := range args {
-		target := input
-		if i == len(args)-1 && name != "gen_random_bytes" {
-			target = text
-		}
-		if name == "gen_salt" && i == 1 {
-			target = integer
-		}
-		child, err := b.CoerceArgument(arg, CoercionRequest{Intent: DirectFormalArgument, Target: target})
+		child, err := b.CoerceArgument(arg, CoercionRequest{Intent: DirectFormalArgument, Target: formals[i]})
 		if err != nil {
 			return nil, err
 		}

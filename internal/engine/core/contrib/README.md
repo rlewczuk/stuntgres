@@ -25,6 +25,11 @@ core (ENGINE-SPLIT §3, L14.5); the SQL-independent models are in `index`,
   `GenericFileTmpdir` are the bodies of `exec.ContribRuntime`; the
   `Validate…` functions check an installed declaration against current
   authority before argument evaluation.
+  `ValidatePgpArmorHeaders` admits the retained pgcrypto source against current
+  owner, epoch, sealed declaration, OUT generation and EXECUTE authority before
+  evaluating its child, including NULL input. Pure header parsing and private
+  cursor advancement stay in `sqltype`/`functions`; no catalog snapshot or
+  evaluation context is retained by that cursor.
 - `PgstattupleTargetCheckable` is the descriptor-only kind, TEMP, validity and
   access-method dispatch of the pgstattuple inquiries.
 

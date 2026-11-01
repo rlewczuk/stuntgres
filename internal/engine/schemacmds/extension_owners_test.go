@@ -101,6 +101,10 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 		{Kind: "procedure", Name: "gen_random_bytes", Signature: "integer", Owner: "postgres"},
 		{Kind: "procedure", Name: "gen_random_uuid", Signature: "", Owner: "postgres"},
 		{Kind: "procedure", Name: "fips_mode", Signature: "", Owner: "postgres"},
+		{Kind: "procedure", Name: "armor", Signature: "pg_catalog.bytea", Owner: "postgres"},
+		{Kind: "procedure", Name: "armor", Signature: "pg_catalog.bytea, pg_catalog.text[], pg_catalog.text[]", Owner: "postgres"},
+		{Kind: "procedure", Name: "dearmor", Signature: "pg_catalog.text", Owner: "postgres"},
+		{Kind: "procedure", Name: "pgp_armor_headers", Signature: "pg_catalog.text", Owner: "postgres"},
 	}}
 	for slot := range expected.Members {
 		expected.Members[slot].Declaration = new(slot)

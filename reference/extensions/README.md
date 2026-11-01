@@ -288,7 +288,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   the complete native bootstrap inventory of 18 dictionaries (simple and 17
   Snowball providers, including Swedish), then 19 with unaccent installed.
 - Template definitions, callback execution, authority, dependencies, lifecycle and native controls: `RUN='^TestReferenceTSTemplate'`
-- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`
+- pgcrypto: `RUN='^TestReferencePgcryptoAES'`, `RUN='^TestReferencePgcryptoBF'`, `RUN='^TestReferencePgcryptoPassword'`, `RUN='^TestReferencePgcryptoRandom'`, `RUN='^TestReferencePgcryptoArmor'`
 - uuid-ossp: `RUN='^TestReferenceUUIDOssp'`, `RUN='^TestReferenceObjectGrantUUIDOsspAuthority$'`
 - sslinfo connection inquiries: `RUN='^TestReferenceSSLInfo'`
 - Stock username trigger helper: `RUN='^TestReferenceInsertUsername'`

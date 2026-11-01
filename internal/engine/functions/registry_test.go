@@ -151,7 +151,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 	// Installed pgcrypto, fuzzystrmatch and unaccent calls sat before the
 	// shared gates and matched every folded spelling; the installed lookup
 	// owns exact resolution.
-	for _, name := range []string{"digest", "HMAC", "crypt", "Gen_Salt", "encrypt", "decrypt", "encrypt_iv", "DECRYPT_IV", "gen_random_bytes", "gen_random_uuid", "fips_mode",
+	for _, name := range []string{"digest", "HMAC", "crypt", "Gen_Salt", "encrypt", "decrypt", "encrypt_iv", "DECRYPT_IV", "gen_random_bytes", "gen_random_uuid", "fips_mode", "armor", "DEARMOR", "pgp_armor_headers",
 		"levenshtein", "Levenshtein_Less_Equal", "metaphone", "DMETAPHONE", "dmetaphone_alt", "soundex", "\u017foundex", "Difference",
 		"unaccent", "UNACCENT", "daitch_mokotoff", "daitch_mo\u212aotoff"} {
 		definition, ok := Lookup(name)
@@ -199,7 +199,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 		"LIKE_ESCAPE", "REGEXP_MATCH", "regexp", "similar_to_escape", "similar_escape",
 		"LEFT", "Trim", "String_To_Table",
 		"SUBSTRING", "Substr", "Encode", "sha1", "get_bits", "convert_to_text", "pg_size_bytes",
-		"digests", "gen_random_bytea", "pgp_sym_encrypt", "armor", "levenshtein_x", "metaphones", "soundex_code", "unaccent_init", "unaccent_lexize", "daitch",
+		"digests", "gen_random_bytea", "pgp_sym_encrypt", "levenshtein_x", "metaphones", "soundex_code", "unaccent_init", "unaccent_lexize", "daitch",
 		"aclitemin", "aclitemout", "aclcontains", "aclinsert", "acl", "pg_get_acl_x", "pg_get_acls", "pg_has_roles", "row_security"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)

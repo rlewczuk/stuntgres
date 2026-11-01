@@ -92,6 +92,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   releases or declaration slots are not equivalent.
   `ProcedureInstallationName` applies the same origin checks to the released SQL
   name used by replay; executable C symbols are not SQL call names.
+  Pgcrypto preserves its fourteen incumbent slots and appends exactly four armor
+  declarations. Both armor overloads have C symbol `pg_armor`, dearmor has
+  `pg_dearmor`, and binding/replay use their independently authenticated SQL names.
+  `pgp_armor_headers` owns the sole pgcrypto OUT capability: one unnamed TEXT
+  input, `key`/`value` TEXT outputs, RECORD result, STRICT/IMMUTABLE/PARALLEL SAFE,
+  set cardinality and rows1000. Only that sealed slot may carry its exact immutable
+  `RoutineOutputs` object; matching names, record shape or transplanted output
+  metadata never confer implementation authority. Native owner metadata/replay
+  remaps the existing sealed installation and symbolic formals, not source OIDs.
   Script sealing and generated-membership admission revise already staged
   creations through the extension host's identity-preserving candidate update;
   they do not replace nonexistent base predecessors. The original CREATE
@@ -772,6 +781,9 @@ DDL and catalogs),
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 Visibility provider and expression ownership use `RUN='^TestPgvisibility'`.
+Pgcrypto formal/kernel, authenticated OUT/source, retained definition and remap
+ownership units use `RUN='^TestPgcryptoArmor'`; incumbent provider units use
+`RUN='^TestPgcrypto'`.
 
 Integer dictionary kernel, provider, publication and index-owner units share
 `RUN='^TestDictInt'`; the public family is owned by `reference/extensions`.

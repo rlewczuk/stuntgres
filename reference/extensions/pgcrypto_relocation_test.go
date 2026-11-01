@@ -78,11 +78,15 @@ func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixt
 	}
 	pgcryptoRandomUUIDShape(t, raw, pg)
 	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT pgcrypto_part.fips_mode() AS value", []string{"value"}, []string{"BOOL"}, [][]any{{pgcryptoRandomFIPSExpected(pg)}}))
+	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1)", pgcryptoArmorTest, []byte("test")))
+	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorText("SELECT pgcrypto_part.armor($1,$2,$3)", pgcryptoArmorZooka, []byte("zooka"), "{foo}", "{bar}"))
+	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorBytes("SELECT pgcrypto_part.dearmor($1)", []byte("test"), pgcryptoArmorTest))
+	pgcryptoArmorBoth(t, p, c, r, pgcryptoArmorHeaders("SELECT * FROM pgcrypto_part.pgp_armor_headers($1)", [][]any{{"foo", "bar"}}, pgcryptoArmorZooka))
 }
 
 func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string]int64 {
 	t.Helper()
-	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode')")
+	rows, err := c.QueryContext(p.Ctx, "SELECT p.oid::regprocedure::text,p.oid FROM pg_proc p JOIN pg_extension e ON e.extnamespace=p.pronamespace WHERE e.extname='pgcrypto' AND proname IN ('digest','hmac','crypt','gen_salt','encrypt','decrypt','encrypt_iv','decrypt_iv','gen_random_bytes','gen_random_uuid','fips_mode','armor','dearmor','pgp_armor_headers')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +106,7 @@ func pgcryptoProcedureIDs(t *testing.T, p *fixture.Pair, c *sql.Conn) map[string
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 14 {
+	if len(ids) != 18 {
 		t.Fatal("procedure inventory", ids)
 	}
 	return ids
@@ -197,7 +201,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		}
 	}
 	// Every sequence consumes a real catalog OID. Stop at the observed upper
-	// bound, and require actual collisions for all fourteen procedures below.
+	// bound, and require actual collisions for all eighteen procedures below.
 	collisions := make(map[int64]string)
 	sequenceNamespaces := make(map[int64]int64)
 	for i := range 128 {

@@ -147,6 +147,7 @@ var definitions = [...]Definition{
 	{Names: []string{"now", "transaction_timestamp", "statement_timestamp", "clock_timestamp", "timeofday"}, Bind: bindTransactionTime},
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
+	{Names: []string{"pgp_armor_headers"}, Bind: bindPgpArmorHeaders},
 	{Names: []string{"pgstatindex", "pgstathashindex"}, Bind: bindPgstattupleStats, NamedCall: namedPgstattupleStats},
 	{Names: []string{"pgstattuple", "pgstattuple_approx", "pg_relpages"}, Bind: bindPgstattuple, NamedCall: namedPgstattuple},
 	{Names: []string{"pg_visibility_map", "pg_visibility", "pg_visibility_map_summary"}, Bind: bindPgvisibility, NamedCall: namedPgvisibility},

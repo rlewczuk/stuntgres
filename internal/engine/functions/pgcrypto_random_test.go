@@ -75,9 +75,9 @@ func TestPgcryptoRandomResolution(t *testing.T) {
 				args[i].Usage = types[id].Usage()
 			}
 		}
-		input, got := PgcryptoInput(v.name, args, types[sqltype.Text].Usage(), types[sqltype.Bytea].Usage(), types[sqltype.Int4].Usage())
-		if got != v.want || got == Resolved && input.Type == nil || got == Resolved && v.name == "gen_random_bytes" && input.Type.ID() != sqltype.Int4 {
-			t.Fatal(v, input, got)
+		recipe, got := ResolvePgcrypto(v.name, args, pgcryptoUnitTypes(types))
+		if got != v.want || got == Resolved && recipe.Result == 0 || got == Resolved && v.name == "gen_random_bytes" && recipe.Inputs[0] != sqltype.Int4 {
+			t.Fatal(v, recipe, got)
 		}
 	}
 }

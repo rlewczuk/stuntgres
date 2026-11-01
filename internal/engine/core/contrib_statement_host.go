@@ -251,6 +251,10 @@ func (h *contribHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
 	return contrib.ValidatePgrowlocks[AuthorizationView](h.host(), n)
 }
 
+func (h *contribHost) ValidatePgpArmorHeaders(n plan.InstalledPgpArmorHeadersExpr) error {
+	return contrib.ValidatePgpArmorHeaders[AuthorizationView](h.host(), n)
+}
+
 func (h *contribHost) ValidateTablefuncNormal(n plan.InstalledTablefuncNormalExpr) error {
 	return contrib.ValidateTablefuncNormal[AuthorizationView](h.host(), n)
 }

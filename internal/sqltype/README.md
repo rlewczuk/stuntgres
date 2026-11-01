@@ -637,6 +637,14 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
 
 - Checked arithmetic order in geometry, earth and crypto kernels is a contract,
   not an optimization opportunity; long kernel loops check cancellation.
+- `PgcryptoSignature` selects exact fixed-size input/result IDs; `BindPgcrypto`
+  checks every formal and `PgcryptoPlan` reuses that recipe for typed strict
+  evaluation. Armor validates TEXT[] rank/count and physical key/value pairs
+  without copying array payloads. Its owned encoder buffer includes 76-column
+  Base64 and CRC24. Dearmor preserves the released marker/padding permissiveness
+  while requiring CRC agreement. `PgcryptoArmorHeaderRegion` separately validates
+  all header lines and returns borrowed immutable bounds, including footer-
+  terminated headers without a blank separator; it never validates body/CRC.
 - Arithmetic binds POINT/BOX/PATH/CIRCLE with POINT through the ordinary
   overload resolver. Coordinate complex arithmetic checks each FLOAT8 intermediate;
   circle scaling shares the released checked norm with geometry distances.

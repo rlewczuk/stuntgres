@@ -172,6 +172,17 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   installed procedure and its object reference; `ExtensionPathsExpr` is the
   `pg_extension_update_paths` set source. The engine validates their identity
   against the extension providers.
+  `InstalledPgpArmorHeadersExpr` retains declaration-owned two-TEXT OUT shape,
+  argument and original procedure/reference through rebuild, substitution,
+  grouping, capture, remap, retag and qualified replay. It opens only through
+  current owner/epoch/declaration/EXECUTE admission; cursor payloads contain no
+  catalog authority or evaluation context. The scalar armor/dearmor overloads
+  retain the checked formal recipe in `InstalledCryptoExpr`. Ordinary installed
+  crypto preflight preserves that carrier, its source occurrence and immutable
+  operands in each binding's private graph; an accepted empty fold group is not
+  a retained codec result. Existing conditional-demand planning may instead
+  publish an immutable scalar datum through the shared fold owner. Neither
+  representation caches execution authority.
   `InstalledTablefuncCrosstabExpr` carries its procedure/reference through
   reconstruction and source opening. Generic completion supplies an anonymous
   record usage; fixed wrappers retain their genuine named composite generation.

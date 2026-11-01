@@ -29,11 +29,17 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), nil)
 	case plan.InstalledPgvisibilityExpr:
-		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) { return "", fmt.Errorf("stuntgres: invalid stored pg_visibility reference") }
-		if err := ValidateInstalledPgvisibility(n, view); err != nil { return "", err }
+		if !ReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || !r.sameRoutineDescriptor(view, n.Ref.Address, n.Procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored pg_visibility reference")
+		}
+		if err := ValidateInstalledPgvisibility(n, view); err != nil {
+			return "", err
+		}
 		procedure, _ := view.Procedure(n.Ref.Address)
 		namespace, ok := view.Namespace(procedure.Namespace())
-		if !ok { return "", fmt.Errorf("stuntgres: missing pg_visibility namespace") }
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing pg_visibility namespace")
+		}
 		r.record(n.Ref)
 		return pgvisibilityCallSQL(n, procedure, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), catalog.QuoteIdentifier, func(arg expr.Expr) (string, error) { return r.SQL(ctx, view, arg) })
 	case plan.InstalledPgstattupleExpr:
@@ -416,6 +422,17 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		namespace, ok := view.Namespace(procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing stored pgrowlocks namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), []expr.Expr{n.Arg})
+	case plan.InstalledPgpArmorHeadersExpr:
+		if err := ValidateInstalledPgpArmorHeaders(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Procedure.Address())
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored pgp_armor_headers namespace")
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), []expr.Expr{n.Arg})

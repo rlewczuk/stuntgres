@@ -40,7 +40,7 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		return nil, nil
 	}
 	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
-		symbol, failure := extension.ProcedureSymbol(auth.ReadCatalog(), selected)
+		symbol, failure := extension.ProcedureInstallationName(auth.ReadCatalog(), selected)
 		if failure != nil {
 			return nil, failure
 		}
@@ -231,7 +231,7 @@ func (r installedExtensionRoutine) PgstattupleDeclaration() (functions.HeapStati
 		formal = outputs.Name(0)
 		members = make([]sqltype.CompositeMember, outputs.Len())
 		for i := range outputs.Len() {
-			members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+			members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(outputs.Inputs() + i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
 		}
 	}
 	return kind, input, formal, members
@@ -242,7 +242,7 @@ func (r installedExtensionRoutine) PgvisibilityDeclaration() (functions.Pgvisibi
 	outputs := r.procedure.OutputDeclaration()
 	members := make([]sqltype.CompositeMember, outputs.Len())
 	for i := range outputs.Len() {
-		members[i] = sqltype.CompositeMember{Attribute: int32(i+1), Name: outputs.Name(outputs.Inputs()+i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: outputs.Name(outputs.Inputs() + i), Usage: r.binder.Type(sqltype.ID(outputs.Type(i))).Usage()}
 	}
 	return member.Kind, members
 }
@@ -317,14 +317,24 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgstattupleExpr{Pgstattuple: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgvisibility:
-		if err := extension.ValidatePgvisibilityIdentity(r.catalog, p, ref); err != nil { return nil, err }
+		if err := extension.ValidatePgvisibilityIdentity(r.catalog, p, ref); err != nil {
+			return nil, err
+		}
 		if c.Kind.Set() {
-			if b.Params.ExecuteParameters { return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos) }
-			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 { return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions") }
-			if err := b.AdmitSetReturning(c.Pos); err != nil { return nil, err }
+			if b.Params.ExecuteParameters {
+				return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+			}
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+				return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+			}
+			if err := b.AdmitSetReturning(c.Pos); err != nil {
+				return nil, err
+			}
 		}
 		c.RoutineReference = p
-		if err := extension.ValidatePgvisibilityCall(r.catalog, p, c); err != nil { return nil, err }
+		if err := extension.ValidatePgvisibilityCall(r.catalog, p, c); err != nil {
+			return nil, err
+		}
 		b.dependency(ref, p.Revision())
 		return plan.InstalledPgvisibilityExpr{Pgvisibility: c, Procedure: p, Ref: ref}, nil
 	case functions.Pageinspect:
@@ -451,6 +461,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return plan.InstalledAmcheckExpr{Amcheck: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgrowlocks:
 		return r.attachPgrowlocks(c, ref)
+	case functions.PgpArmorHeaders:
+		return r.attachPgpArmorHeaders(c, ref)
 	case functions.TablefuncNormal:
 		return r.attachTablefuncNormal(c, ref)
 	case functions.Connectby:

@@ -32,6 +32,10 @@ var PgcryptoMembers = [...]PgcryptoMember{
 	{"gen_random_bytes", "23", 17, expr.Volatile, true},
 	{"gen_random_uuid", "", 2950, expr.Volatile, false},
 	{"fips_mode", "", 16, expr.Volatile, true},
+	{"armor", "17", 25, expr.Immutable, true},
+	{"armor", "17,1009,1009", 25, expr.Immutable, true},
+	{"dearmor", "25", 17, expr.Immutable, true},
+	{"pgp_armor_headers", "25", 2249, expr.Immutable, true},
 }
 
 // PgcryptoLookup returns the manifest member with the exact name and signature.

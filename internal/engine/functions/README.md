@@ -1355,8 +1355,21 @@ publication and lock-manager tickets stay in the engine.
   Unchanged replacements borrow the original bytes but construct the bound TEXT
   result descriptor; the input's installed CITEXT identity never becomes a
   TEXT-typed literal's datum identity.
-- **pgcrypto**: `sqltype` owns the plans and kernels. Plans retain no password,
-  salt, entropy, key or IV.
+- **pgcrypto**: `sqltype.PgcryptoSignature` is the fixed-size formal recipe shared
+  by overload selection, coercion, typed evaluation and stored validation.
+  `PgcryptoPlan` retains no password, salt, entropy, key, IV, payload or headers.
+  Armor uses BYTEA and, for its three-input overload, two ordinary TEXT[] formals;
+  no final-argument-as-algorithm convention applies to those calls.
+  Installed calls use the shared FILTER/count/label envelope and diagnose scalar
+  decorations only after selecting and validating the installed declaration.
+  `PgpArmorHeaders` is a separate immutable STRICT record source, never a scalar
+  fold. It validates the whole header region before exposing an invocation-private
+  inline cursor over immutable input and bounds. Opening evaluates its child once;
+  NULL yields an empty set with the same two-TEXT shape. Close, error, cancellation
+  and exhaustion release input. Header extraction intentionally ignores body/CRC
+  validity; dearmor authenticates the checksum. Installed wrappers retain current
+  declaration/EXECUTE admission even for a NULL set input; shared scalar strict-NULL
+  simplification remains distinct from reaching a routine.
 - **TEXT pattern comparisons** (`text_pattern.go`): `TextPatternComparison`
   owns strict lt/le/ge/gt scalar providers and their symbolic operator entry.
   Rebuild, stored validation and replay retain genuine TEXT-to-BOOL routine

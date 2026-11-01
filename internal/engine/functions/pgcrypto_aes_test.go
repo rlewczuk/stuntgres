@@ -12,20 +12,20 @@ import (
 
 func TestPgcryptoAESCarrier(t *testing.T) {
 	types := formatUnitTypes()
-	text, binary, integer := types[sqltype.Text].Usage(), types[sqltype.Bytea].Usage(), types[sqltype.Int4].Usage()
+	text, binary := types[sqltype.Text].Usage(), types[sqltype.Bytea].Usage()
 	for _, name := range []string{"encrypt", "decrypt", "encrypt_iv", "decrypt_iv"} {
 		count := 3
 		if name == "encrypt_iv" || name == "decrypt_iv" {
 			count = 4
 		}
 		args := make([]Argument, count)
-		input, resolution := PgcryptoInput(name, args, text, binary, integer)
-		if resolution != Resolved || input.Type.ID() != sqltype.Bytea {
-			t.Fatal(name, input, resolution)
+		recipe, resolution := ResolvePgcrypto(name, args, pgcryptoUnitTypes(types))
+		if resolution != Resolved || recipe.Inputs[0] != sqltype.Bytea {
+			t.Fatal(name, recipe, resolution)
 		}
 		for i := range count - 1 {
 			args[i].Usage = text
-			if _, resolution := PgcryptoInput(name, args, text, binary, integer); resolution != Missing {
+			if _, resolution := ResolvePgcrypto(name, args, pgcryptoUnitTypes(types)); resolution != Missing {
 				t.Fatal("TEXT raw overload admitted", name, i)
 			}
 			args[i].Usage = binary

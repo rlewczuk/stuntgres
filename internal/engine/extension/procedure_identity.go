@@ -31,7 +31,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -71,6 +71,12 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		}
 		m := functions.PgcryptoMembers[slot]
 		name, signature, result, volatility, strict = m.Name, catalog.ProcedureSignature(m.Signature), m.Result, m.Volatility, m.Strict
+		if ext.Version != "1.4" || p.Host != nil || p.HostHandler != nil || p.HostConversion != nil || p.Installed != pgcryptoDeclaration(slot) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: pgcryptoSources[slot], Binary: "$libdir/pgcrypto", HasBinary: true}) {
+			return invalid()
+		}
+		if slot >= 14 {
+			sqlName, name = name, pgcryptoSources[slot]
+		}
 	case StockSSLInfo:
 		count = len(functions.SSLInfoMembers)
 		if slot >= count {

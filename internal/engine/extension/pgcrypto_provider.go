@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
 )
 
 type PgcryptoProvider struct{ control catalog.ExtensionControl }
@@ -38,4 +39,19 @@ func (p *PgcryptoProvider) validateRecipe(v catalog.Read, ext *catalog.Extension
 
 func (p *PgcryptoProvider) ValidateProcedure(v catalog.Read, proc *catalog.Procedure) error {
 	return ValidateProcedureOrigin(v, proc, p)
+}
+
+func ValidatePgpArmorHeadersIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef) error {
+	actual, ok := v.Procedure(ref.Address)
+	if v.Owner() == nil || !ok || proc == nil || actual != proc || ref.Domain() != v.Owner().Domain || ref.Epoch != v.Epoch() || PgcryptoProviderOf(proc) != StockPgcrypto {
+		return fmt.Errorf("stuntgres: invalid stored pgp_armor_headers identity")
+	}
+	symbol, err := ProcedureSymbol(v, proc)
+	if err != nil {
+		return err
+	}
+	if symbol != "pgp_armor_headers" {
+		return fmt.Errorf("stuntgres: invalid pgp_armor_headers declaration")
+	}
+	return StockPgcrypto.ValidateProcedure(v, proc)
 }

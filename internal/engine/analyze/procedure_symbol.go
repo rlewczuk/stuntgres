@@ -6,8 +6,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// callableProviderSymbol is execution identity, never a second public name.
-// Discovery has already selected the descriptor through the live name index.
+// callableProviderSymbol selects the immutable provider binding recipe, never a
+// public alias. C entry points may have a distinct declaration-owned SQL recipe.
 func callableProviderSymbol(view catalog.Read, p *catalog.Procedure) (string, error) {
 	if p == nil {
 		return "", nil
@@ -16,6 +16,9 @@ func callableProviderSymbol(view catalog.Read, p *catalog.Procedure) (string, er
 		return p.Builtin.Identity.Name, nil
 	}
 	if p.Implementation != nil {
+		if extension.PgcryptoProviderOf(p) == extension.StockPgcrypto {
+			return extension.ProcedureInstallationName(view, p)
+		}
 		return extension.ProcedureSymbol(view, p)
 	}
 	if p.Foreign != nil {

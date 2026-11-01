@@ -9,14 +9,15 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var pgcryptoNames = [...]string{"digest", "hmac", "crypt", "gen_salt", "encrypt", "decrypt", "encrypt_iv", "decrypt_iv", "gen_random_bytes", "gen_random_uuid", "fips_mode"}
+var pgcryptoNames = [...]string{"digest", "hmac", "crypt", "gen_salt", "encrypt", "decrypt", "encrypt_iv", "decrypt_iv", "gen_random_bytes", "gen_random_uuid", "fips_mode", "armor", "dearmor"}
 
-// bindPgcrypto binds installed pgcrypto calls. They sat before the shared
-// gates and own labels; every decoration fails resolution. gen_random_uuid
-// binds as the core builtin when pg_catalog precedes the installed wrapper.
+// bindPgcrypto binds installed pgcrypto calls through the ordinary call envelope.
+// Decorations are diagnosed only after selecting an installed scalar signature.
+// gen_random_uuid binds as the core builtin when pg_catalog precedes its wrapper.
 func bindPgcrypto(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	var operands []Argument
-	if len(raw.Args) <= 100 {
+	var single [4]Argument
+	operands := single[:min(len(raw.Args), 4)]
+	if len(raw.Args) > 4 && len(raw.Args) <= 100 {
 		operands = make([]Argument, len(raw.Args))
 	}
 	for i, arg := range raw.Args {
@@ -24,26 +25,23 @@ func bindPgcrypto(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if operands != nil {
+		if i < len(operands) {
 			operands[i] = o
 		}
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	if err := CallLabelError(raw); err != nil {
+	if err := ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
 	names := installedArgumentNames(b, raw, operands)
 	canonical := strings.ToLower(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
-	text, bytea, integer := b.Type(sqltype.Text).Usage(), b.Type(sqltype.Bytea).Usage(), b.Type(sqltype.Int4).Usage()
-	input, resolution := PgcryptoInput(canonical, operands, text, bytea, integer)
-	signature := pgcryptoSignature(canonical, len(operands), input.Type != nil && input.Type.ID() == sqltype.Bytea)
+	text, bytea := b.Type(sqltype.Text).Usage(), b.Type(sqltype.Bytea).Usage()
+	recipe, resolution := ResolvePgcrypto(canonical, operands, b)
+	signature := recipe.SQL
 	routine, err := b.InstalledRoutine(raw.Name, PgcryptoExtension, signature)
 	if err != nil {
 		return nil, err
 	}
-	if resolution != Resolved || raw.Variadic || len(raw.ArgNames) != 0 || raw.Distinct || raw.All || raw.Star || raw.Window != nil || raw.Filter != nil || len(raw.Order) != 0 {
+	if resolution != Resolved || raw.Variadic || len(raw.ArgNames) != 0 || raw.All || raw.Star {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if _, ok := routine.(CatalogBuiltin); ok {
@@ -53,7 +51,17 @@ func bindPgcrypto(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if routine == nil || !ok {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
-	args, err := CoercePgcryptoArguments(b, canonical, operands, input, text, integer)
+	if err := routine.Validate(); err != nil {
+		return nil, err
+	}
+	if err := CallDecorationError(raw); err != nil {
+		return nil, err
+	}
+	var formals [4]sqltype.Usage
+	for i := range recipe.Count {
+		formals[i] = b.Type(recipe.Inputs[i]).Usage()
+	}
+	args, err := CoercePgcrypto(b, operands, formals[:recipe.Count])
 	if err != nil {
 		return nil, err
 	}
@@ -79,32 +87,4 @@ func bindPgcrypto(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	return routine.Attach(call)
-}
-
-// pgcryptoSignature is the installed signature an admitted call selects.
-func pgcryptoSignature(name string, count int, bytea bool) string {
-	switch name {
-	case "hmac":
-		if bytea {
-			return "17,17,25"
-		}
-		return "25,25,25"
-	case "gen_salt":
-		if count == 2 {
-			return "25,23"
-		}
-		return "25"
-	case "encrypt", "decrypt":
-		return "17,17,25"
-	case "encrypt_iv", "decrypt_iv":
-		return "17,17,17,25"
-	case "gen_random_bytes":
-		return "23"
-	case "gen_random_uuid", "fips_mode":
-		return ""
-	}
-	if bytea {
-		return "17,25"
-	}
-	return "25,25"
 }

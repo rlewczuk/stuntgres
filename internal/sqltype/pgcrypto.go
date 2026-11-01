@@ -23,65 +23,79 @@ type PgcryptoPlan struct {
 	arguments [4]ID
 }
 
-func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error) {
-	count, resultID := 2, Bytea
+// PgcryptoSignature is the checked, allocation-free formal recipe shared by
+// binding, evaluation and retained-expression validation.
+type PgcryptoSignature struct {
+	Inputs [4]ID
+	Count  int
+	Result ID
+	SQL    string
+}
+
+func SelectPgcryptoSignature(name string, count int, binary bool) (PgcryptoSignature, bool) {
+	s := PgcryptoSignature{Result: Bytea}
 	switch name {
 	case "digest":
-	case "hmac":
-		count = 3
-	case "encrypt", "decrypt":
-		count = 3
-	case "encrypt_iv", "decrypt_iv":
-		count = 4
-	case "crypt":
-		resultID = Text
-	case "gen_salt":
-		count, resultID = len(args), Text
-		if count != 1 && count != 2 {
-			return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
+		s.Inputs, s.Count, s.SQL = [4]ID{Text, Text}, 2, "25,25"
+		if binary {
+			s.Inputs[0], s.SQL = Bytea, "17,25"
 		}
+	case "hmac":
+		s.Inputs, s.Count, s.SQL = [4]ID{Text, Text, Text}, 3, "25,25,25"
+		if binary {
+			s.Inputs[0], s.Inputs[1], s.SQL = Bytea, Bytea, "17,17,25"
+		}
+	case "crypt":
+		s.Inputs, s.Count, s.Result, s.SQL = [4]ID{Text, Text}, 2, Text, "25,25"
+	case "gen_salt":
+		s.Inputs, s.Count, s.Result, s.SQL = [4]ID{Text}, 1, Text, "25"
+		if count == 2 {
+			s.Inputs[1], s.Count, s.SQL = Int4, 2, "25,23"
+		}
+	case "encrypt", "decrypt":
+		s.Inputs, s.Count, s.SQL = [4]ID{Bytea, Bytea, Text}, 3, "17,17,25"
+	case "encrypt_iv", "decrypt_iv":
+		s.Inputs, s.Count, s.SQL = [4]ID{Bytea, Bytea, Bytea, Text}, 4, "17,17,17,25"
 	case "gen_random_bytes":
-		count = 1
+		s.Inputs, s.Count, s.SQL = [4]ID{Int4}, 1, "23"
 	case "gen_random_uuid":
-		count, resultID = 0, UUID
+		s.Result = UUID
 	case "fips_mode":
-		count, resultID = 0, Bool
+		s.Result = Bool
+	case "armor":
+		s.Inputs, s.Count, s.Result, s.SQL = [4]ID{Bytea}, 1, Text, "17"
+		if count == 3 {
+			s.Inputs, s.Count, s.SQL = [4]ID{Bytea, 1009, 1009}, 3, "17,1009,1009"
+		}
+	case "dearmor":
+		s.Inputs, s.Count, s.SQL = [4]ID{Text}, 1, "25"
 	default:
-		return PgcryptoPlan{}, fmt.Errorf("invalid crypto function")
+		return PgcryptoSignature{}, false
 	}
-	if len(args) != count || result.Type == nil || result.Type.ID() != resultID {
+	return s, count == s.Count
+}
+
+func BindPgcrypto(name string, result Usage, args ...Usage) (PgcryptoPlan, error) {
+	binary := len(args) > 0 && args[0].Type != nil && args[0].Type.ID() == Bytea
+	s, ok := SelectPgcryptoSignature(name, len(args), binary)
+	if !ok || result.Type == nil || result.Type.ID() != s.Result {
 		return PgcryptoPlan{}, fmt.Errorf("invalid crypto signature")
 	}
-	var input ID
-	if count != 0 {
-		if args[0].Type == nil {
-			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
-		}
-		input = args[0].Type.ID()
-		rawCipher := name == "encrypt" || name == "decrypt" || name == "encrypt_iv" || name == "decrypt_iv"
-		if name == "gen_random_bytes" {
-			if input != Int4 {
-				return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
-			}
-		} else if rawCipher && input != Bytea || !rawCipher && input != Text && (input != Bytea || name != "digest" && name != "hmac") {
-			return PgcryptoPlan{}, fmt.Errorf("invalid crypto input")
-		}
-	}
-	plan := PgcryptoPlan{name: name, result: result, input: input, count: count}
+	p := PgcryptoPlan{name: name, result: result, count: s.Count, arguments: s.Inputs}
 	for i, arg := range args {
-		want := input
-		if i == count-1 && name != "gen_random_bytes" {
-			want = Text
-		}
-		if name == "gen_salt" && i == 1 {
-			want = Int4
-		}
-		if arg.Type == nil || arg.Type.ID() != want {
+		if arg.Type == nil || arg.Type.ID() != s.Inputs[i] {
 			return PgcryptoPlan{}, fmt.Errorf("invalid crypto argument")
 		}
-		plan.arguments[i] = want
 	}
-	return plan, nil
+	if s.Count != 0 {
+		p.input = s.Inputs[0]
+	}
+	return p, nil
+}
+
+func (p PgcryptoPlan) Signature() PgcryptoSignature {
+	s, _ := SelectPgcryptoSignature(p.name, p.count, p.input == Bytea)
+	return s
 }
 
 func (p PgcryptoPlan) Name() string { return p.name }
@@ -140,6 +154,20 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, notice func(sqlstate.Error),
 	}
 	if null {
 		return Null(p.result.Type), nil
+	}
+	if p.name == "armor" {
+		return p.evaluateArmor(ctx, values)
+	}
+	if p.name == "dearmor" {
+		text, err := values[0].Text()
+		if err != nil {
+			return Value{}, err
+		}
+		data, err := PgcryptoDearmor(ctx, text)
+		if err != nil {
+			return Value{}, err
+		}
+		return Binary(p.result.Type, data)
 	}
 	count := p.count
 	if p.name == "crypt" {

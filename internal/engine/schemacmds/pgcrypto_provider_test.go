@@ -46,7 +46,7 @@ func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 func TestPgcryptoProviderIdentity(t *testing.T) {
 	e, ext := pgcryptoUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.4" || len(ext.Members) != 14 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.4" || len(ext.Members) != 18 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	seen := map[ids.ObjectAddress]bool{}
@@ -63,6 +63,8 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		{"encrypt", "17,17,25", 17, expr.Immutable, true}, {"decrypt", "17,17,25", 17, expr.Immutable, true},
 		{"encrypt_iv", "17,17,17,25", 17, expr.Immutable, true}, {"decrypt_iv", "17,17,17,25", 17, expr.Immutable, true},
 		{"gen_random_bytes", "23", 17, expr.Volatile, true}, {"gen_random_uuid", "", 2950, expr.Volatile, false}, {"fips_mode", "", 16, expr.Volatile, true},
+		{"armor", "17", 25, expr.Immutable, true}, {"armor", "17,1009,1009", 25, expr.Immutable, true},
+		{"dearmor", "25", 17, expr.Immutable, true}, {"pgp_armor_headers", "25", 2249, expr.Immutable, true},
 	}
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
@@ -88,7 +90,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			}
 		}
 	}
-	if count != 14 {
+	if count != 18 {
 		t.Fatal(count)
 	}
 	for _, mutate := range []func(*catalog.Procedure){
@@ -121,7 +123,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal("invalid pgcrypto member manifest accepted", bad)
 		}
 	}
-	for _, address := range ext.Members[11:] {
+	for _, address := range ext.Members[11:14] {
 		original := view.MustProcedure(address)
 		for _, mutate := range []func(*catalog.Procedure){
 			func(p *catalog.Procedure) { p.Strict = !p.Strict },
