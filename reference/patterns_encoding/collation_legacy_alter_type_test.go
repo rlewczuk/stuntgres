@@ -9,7 +9,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceCollationLegacyAlterType(t *testing.T) {
@@ -227,7 +226,7 @@ func TestReferenceCollationLegacyAlterTypeControls(t *testing.T) {
 		}
 		collationLegacyRows(t, backend.PG, numeric, []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}})
 		if !backend.PG {
-			cancelCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			cancelCtx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 			defer cancel()
 			canceled, stop := context.WithCancel(cancelCtx)
 			defer stop()

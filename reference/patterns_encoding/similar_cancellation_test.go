@@ -6,7 +6,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSimilarActualCancellation(t *testing.T) {
@@ -53,7 +52,7 @@ func TestReferenceSimilarActualCancellation(t *testing.T) {
 					released := false
 					t.Cleanup(func() {
 						if !released {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							_, _ = blocker.ExecContext(ctx, "ROLLBACK")
 						}

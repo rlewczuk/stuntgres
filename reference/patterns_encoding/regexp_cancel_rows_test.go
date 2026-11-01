@@ -53,7 +53,7 @@ func regexpCancelPostgresRows(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 		if !joined {
 			select {
 			case <-result:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("stream cancellation worker failed to join")
 			}
 		}
@@ -119,7 +119,7 @@ func regexpCancelPostgresRows(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 			case out := <-result:
 				joined = true
 				return out
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Fatal("cancellation worker failed to join after deadline")
 				return regexpCanceledStream{err: ctx.Err()}
 			}

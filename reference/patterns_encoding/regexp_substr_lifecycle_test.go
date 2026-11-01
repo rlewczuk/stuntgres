@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRegexpSubstrHeldParameters(t *testing.T) {
@@ -209,7 +208,7 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 			released := false
 			t.Cleanup(func() {
 				if !released {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					_, _ = blocker.ExecContext(ctx, `ROLLBACK`)
 				}
@@ -219,14 +218,14 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 			fixture.RelationLockActiveCancel(t, p, b, conn, q, func(ctx context.Context) fixture.RelationOutcome {
 				if !b.PG {
 					var cancel context.CancelFunc
-					ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+					ctx, cancel = context.WithTimeout(ctx, fixture.Liveness)
 					defer cancel()
 				}
 				result, err := exec(ctx)
 				return fixture.RelationOutcome{Result: result, Err: err}
 			})
 			func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				fixture.RunStep(t, ctx, blocker, b.Recorder, fixture.Exec(`ROLLBACK`, 0))
 			}()
@@ -240,7 +239,7 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 				rolledBack := false
 				defer func() {
 					if !rolledBack {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 					}
@@ -255,7 +254,7 @@ func TestReferenceRegexpSubstrCancellation(t *testing.T) {
 				} else {
 					fixture.RunStep(t, p.Ctx, conn, b.Recorder, s)
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				fixture.RunStep(t, ctx, conn, b.Recorder, fixture.Exec(`ROLLBACK`, 0))
 				rolledBack = true

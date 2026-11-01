@@ -14,7 +14,7 @@ import (
 
 func likeReferenceCancelEntered(t *testing.T, provider string, operation func(context.Context) error) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 	defer cancel()
 	result := make(chan error, 1)
 	go func() { result <- operation(ctx) }()
@@ -25,7 +25,7 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 			select {
 			case <-result:
 				joined = true
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("canceled worker did not complete during cleanup", provider)
 			}
 		}
@@ -97,7 +97,7 @@ func likeReferenceCancelEntered(t *testing.T, provider string, operation func(co
 	select {
 	case err = <-result:
 		joined = true
-	case <-time.After(5 * time.Second):
+	case <-time.After(fixture.Liveness):
 		t.Fatal("canceled worker did not complete", provider)
 	}
 	if !observed || !errors.Is(err, context.Canceled) {
