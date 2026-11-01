@@ -84,7 +84,8 @@ actual valid endpoints and stability on a held physical connection.
   `ErrBadConn` makes `database/sql` close the `Conn`, which blocks while Rows
   still owns the release callback.
 - **Adaptive timing.** Timing-sensitive witnesses use adaptive budgets (200 ms
-  doubling up to 6400 ms within the 30 s scenario) or fixed budgets with at most
+  doubling up to 6400 ms; idle resets 250 ms up to 8 s; all within the scenario
+  budget) or fixed budgets with at most
   three attempts in a six-second setup allowance. Only a validated setup expiry
   (exact 25P04, nil outputs, dead owner, intact peer data, observed after the
   earliest configured expiry) permits another attempt, on a fresh physical owner.

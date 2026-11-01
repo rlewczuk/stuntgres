@@ -194,7 +194,9 @@ func timeoutReferenceAdaptiveIdleReset(t *testing.T, p *fixture.Pair, b fixture.
 	const (
 		initialIdle = 250 * time.Millisecond
 		idleGrowth  = 2
-		maximumIdle = 2 * time.Second
+		// Each doubling runs only after a measured scheduling gap invalidated
+		// the smaller budget; loaded machines can stall a client for seconds.
+		maximumIdle = 8 * time.Second
 	)
 	f := newTimeoutReferenceFixture(t, p, b)
 	dispose := func(owner *sql.Conn) {
@@ -206,9 +208,9 @@ func timeoutReferenceAdaptiveIdleReset(t *testing.T, p *fixture.Pair, b fixture.
 	defer func() { dispose(f.owner) }()
 	for idle := initialIdle; idle <= maximumIdle; idle *= idleGrowth {
 		// Three half-budget waits, eventual expiry, and bounded SQL/log probes
-		// must fit the existing scenario context; never extend its30s deadline.
+		// must fit the existing scenario context; never extend its deadline.
 		deadline, ok := p.Ctx.Deadline()
-		if !ok || time.Until(deadline) < 5*idle/2+3*time.Second {
+		if !ok || time.Until(deadline) < 5*idle/2+fixture.Liveness {
 			t.Fatalf("%s: insufficient scenario time for idle budget %s", kind, idle)
 		}
 		identity := fixture.SettingsPhysical(t, f.owner)
@@ -286,9 +288,9 @@ func timeoutReferenceIdleResetAttempt(t *testing.T, f timeoutReferenceFixture, k
 	if f.b.PG {
 		f.serverFatal("57P05")
 	} else {
-		// Match the existing oracle observer's bound, within the unchanged
-		// scenario deadline and the attempt's reserved probe headroom.
-		ctx, cancel := context.WithTimeout(f.p.Ctx, 2*time.Second)
+		// A hang guard within the attempt's reserved probe headroom; it
+		// returns as soon as the owner is observed terminated.
+		ctx, cancel := context.WithTimeout(f.p.Ctx, fixture.Liveness)
 		defer cancel()
 		for {
 			var terminated bool

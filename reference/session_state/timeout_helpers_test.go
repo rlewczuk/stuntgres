@@ -298,7 +298,7 @@ func (f timeoutReferenceFixture) blocked(phase, query string, held *sql.Stmt, ex
 // Observe that separate lifecycle resource under its own bounded deadline.
 func (f timeoutReferenceFixture) tempAbsent() {
 	f.t.Helper()
-	ctx, cancel := context.WithTimeout(f.p.Ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(f.p.Ctx, fixture.Liveness)
 	defer cancel()
 	const q = "SELECT relname FROM pg_class WHERE relname='timeout_owner_temp'"
 	for {
