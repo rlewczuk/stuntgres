@@ -121,6 +121,10 @@ call live here.
   identity and returning transition-time historical work. Already-enforced
   invalid facts remain invalid on an ENFORCED no-op; VALIDATE rejects unenforced
   facts. CHECK enforcement changes use ordinary atomic DROP/ADD replacement.
+  User trigger constraints participate in relation-local constraint identity/name
+  lookup. Rename replaces only conname, never tgname or clone lineage. Direct DROP
+  rejects their INTERNAL ownership with the owning trigger diagnostic; the command
+  layer's ordinary ALTER pending-event guard still takes precedence.
   `AlterConstraintTimingCandidate` changes only persistent FK timing defaults,
   retaining constraint/trigger OIDs, trigger modes, enforcement and validity.
   No-ops retain the predecessor; changed candidates detach only the FK slice.
@@ -519,6 +523,8 @@ inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in
 [reference/partitions](../../../reference/partitions/README.md#testing) and ALTER
 TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 `REFERENCE=1` for the oracle.
+SQL-free trigger-owned constraint name/rename/drop units use
+`RUN='^TestTriggerDeferredConstraint'`.
 
 ```sh
 make check RUN='^Test(TableHost|AlterHost|RelationValidatorsOrder|GeneratedRemapCheckCapture|TableTargetAdmission|AdmitTargetAsksEachEntry)'

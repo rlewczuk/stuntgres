@@ -488,6 +488,11 @@ trigger unwind, ROW consumers may expose it; unrelated and statement-only sets
 remain pending. Checkpoints detach maps/event references and exposure progress,
 with copy-on-append vectors over immutable payloads. Finish and nested command
 retirement discard all capture state.
+Constraint ROW events may share an ordinary consumer's exposure segment but
+cannot own transition aliases. RI exposure and final query draining use the same
+constraint timing decision: immediate events invoke with live identity, while
+deferred events retain only accepted scalar payloads in the transaction vector,
+never the query's transition segment or invocation namespace.
 
 Transition aliases occupy a balanced one-trigger-invocation namespace, shared
 by its static/dynamic commands, shadowed by nested triggers and cleared for
@@ -1179,12 +1184,13 @@ an error before exposing rows.
 
 Constraint timing has one transaction-owned `index.ConstraintModes`: persistent
 defaults are resolved separately from ALL and OID-keyed overrides, with one
-immutable event vector for index conflicts and FK trigger checks. Index events
-retain exact admitted row/version identities only after a potential conflict;
-FK events retain eligible accepted row images, original references, timing and
-actor even when currently valid. Their payloads contain no suspended command,
-bound job or execution frame. Savepoints retain modes/events and the incumbent
-dirty index projection together; append detaches the saved vector once.
+immutable event vector for index conflicts, FK checks and user constraint triggers.
+Index events retain exact admitted row/version identities after a potential
+conflict. FK and user payloads retain accepted images and immutable provenance;
+user payloads retain only an optional RI principal, never an authorization view,
+scope or execution frame. Savepoints retain modes/events and the incumbent dirty
+projection together. Append and consumption detach membership, so rollback also
+restores eligibility of an older event consumed after the mark.
 Batch INSERT, row-at-a-time insertion and replacements all stage the physical
 identity reserved by that same projection. Definitions requiring a reservation
 must supply it; allocating a second identity would orphan the pending event and
@@ -1192,22 +1198,52 @@ make later deletion or replacement unable to retire its exact incarnation.
 Command completion checks due indexes, executes immediate RI actions, checks
 action-generated indexes, then enlists/checks due FK work before AFTER bodies.
 Nested completion consumes only its accepted command's events.
-SET checks selected pending work before installing candidate modes. Top-level
-and nested utility dispatch share the same executor; description is effect-free.
+SET validates every name before installing candidate modes, then drains against
+the live state. Callback appends and nested SET overrides are never overwritten.
+Top-level and nested dispatch share this executor; description is effect-free.
 Actual routine activation retains timing even in an implicit CALL/DO transaction,
 without an outside-block warning. Ordinary nested return preserves modes/events.
-SQL/Go COMMIT, CHAIN, PL completion and PREPARE consume the same obligations
-before publication or transfer; failure clears the old incarnation and grants.
+SQL/Go COMMIT, CHAIN, PL completion and PREPARE settle user bodies and their
+generated ordinary/index/FK effects to a fixed point, unlocked. Actual staged
+rows, deletions and catalog/authority join the existing private segment before
+one combined publication. PREPARE retains completed effects, not executable
+events. Transferred segments cannot merge or publish twice; a terminal failure
+clears the old incarnation and grants without exposing earlier body effects.
+A borrowed native terminal scope attaches the real operation lease through
+settlement and publication, without starting another statement or timeout.
+Its admitted writable stage, current snapshot and before-callback catalog
+authority are the same owners reached by nested SQL/DDL; completion restores
+the original lease before releasing the borrowed scope.
+Finished ordinary scopes may retain their immutable catalog journal for held
+observers, but never transient publication authority. A journal already shared
+with the transaction owner is not new segment work; staged suffixes and events
+still transfer normally.
 Procedural COMMIT/ROLLBACK, including CHAIN, drops the old scope index slot after
 releasing its scratch, so reattachment uses fresh definition defaults rather
 than copying old overrides or events into the new transaction incarnation.
-`HasPendingConstraintEvents` reads the effective scope-or-owner vector without
-allocation, locks, liveness probes or consumption. Every queued index/FK event
-protects only its transition relation (`Parent`), even after row repair or
-supersession, until ordinary completion consumes it. Uncontested index admission
-and FK-ineligible transitions do not manufacture events. Common ALTER and recursive
-default admission use this read-only query before candidate work; rename/schema
-dispatch stays separate.
+`HasPendingConstraintEvents` reads the effective common vector, unfinished
+qualified constraint ROW frames and every active constraint-invocation ancestor
+without allocation, locks, liveness probes or consumption.
+An exposed ROW frame membership marked consumed is no longer pending; any
+transferred vector event or still-active invocation remains independently guarded.
+The call-owned LIFO relation stack reuses capacity, clears each popped entry, and
+is independent of
+transaction/savepoint/PL frame snapshots: rollback cannot hide or resurrect a
+still-live invocation. Every event protects only its
+physical transition relation (`Parent`), even after trigger drop or row repair,
+until completion consumes it. Common ALTER/default/CLUSTER/TRUNCATE admission and
+actual catalog retirement closures use this protocol before installation.
+Every executing constraint ancestor also owns an active relation descriptor.
+`ConstraintPendingPreflight` reports that active use before pending-only events,
+using the same diagnostic as retained cursor sources without scanning portals.
+Callers retain their own cursor-use policy: `RelationPendingPreflight` adds the
+incumbent retained-cursor guard for TRUNCATE/CLUSTER, while metadata ALTER admits
+native eager-cursor snapshots. DROP closure CLOSE ownership exempts only cursor
+sources, never executing trigger descriptors.
+Separately dispatched trigger/constraint rename and trigger drop remain allowed.
+DISCARD ALL's retirement stage records its ownership of CLOSE at the successful
+frontier. Only cursor pins receive that exemption; pending constraint events
+remain fenced, and staging neither closes cursors nor consumes their events.
 Stable FK crosschecks use supporting-root pointers captured with the original
 owner snapshot. A retained parent match after a current miss is the
 isolation-specific serialization error, not permission to publish a dangling
@@ -1458,8 +1494,10 @@ owns selected-relation uniqueness. AFTER remains all-post-effects.
 Query trigger state belongs to `StatementScope`, keyed by monotonic effect-command
 identity rather than swapped DML scratch. Writable CTEs share their query frame;
 routine SQL completes its own frame synchronously. Accepted ROW WHEN predicates
-run unlocked on final images; queued bodies run at command completion after
-immediate obligations and before publication, with rows preceding statements.
+run unlocked once on final images. Query drain preserves alphabetical mixed
+ordinary/constraint order: immediate bodies fire there, eligible deferred user
+events transfer to the common vector before the frame ends. Rows precede
+statements; no deferred body executes at ROW admission.
 Statement registration is bookkeeping only and independent of row count. Mode
 eligibility, then WHEN, qualifies each producer's candidates at its successful
 exhaustion, after row production but before immediate RI work and row-body
@@ -1482,8 +1520,10 @@ all queue captures on success, failure and cancellation. No callback holds engin
 or owner mutexes, and trigger-body SQL uses the existing private stage.
 Each AFTER invocation retains the current immutable function descriptor validated
 under the engine mutex, then executes it unlocked against the current routine
-catalog. Queued trigger definitions, physical relation metadata and detached tuple
-images remain tied to event admission, independently of executable replacement.
+catalog. Ordinary queued definitions keep their admitted name. Deferred user
+invocation resolves the live trigger OID/name first and skips missing identities,
+while physical relation metadata, images, targets and accepted WHEN stay tied to
+admission. Neither disable nor replication-role changes requalify accepted work.
 Catalog utilities reached inside an active routine stage into the enclosing
 statement's private journal, including implicit commands whose journal was empty
 on entry. Only successful outer completion publishes those definitions together
@@ -2659,6 +2699,9 @@ Trigger payload/frame/runtime/remap/stage units share
 
 AFTER query-owner, detached-image, definition-kind and cancellation invariants
 share `RUN='^TestTriggerAfter'`; test-only accessors expose private frame progress.
+Deferred event ownership, terminal atomicity, reentrant drain and cancellation
+units share `RUN='^TestTriggerDeferred'`; private assertions distinguish immutable
+payload backing, restored consumed eligibility and publication ownership.
 
 Event-trigger journal, frame, projection, drop and rewrite units share
 `RUN='^TestEventTrigger'`; public direct/prepared behavior belongs in the

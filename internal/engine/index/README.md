@@ -394,10 +394,15 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
   including indexes declared by constraints, without broadening CREATE syntax.
 - **Savepoint constraint mark.** `ExclusionMark` implements the incumbent
   `session.ExclusionMarkSlot`, retaining `ConstraintModes` and the shared dirty
-  projection. Its singular event vector carries concrete index and FK payloads;
-  defaults, ALL and per-OID modes are independent of persistent descriptors.
-  `ExclusionMarkSlotOf` keeps exactly zero state nil. `Scope.AppendConstraintEvent`
-  detaches an inherited event vector before adding the command's owned suffix.
+  projection. Its singular vector discriminates concrete index, FK and user
+  trigger payloads; defaults, ALL and per-OID modes are independent of persistent
+  descriptors. User payloads contain immutable accepted images/catalog provenance
+  and an optional principal, never callable authority or runtime frames.
+  `ExclusionMarkSlotOf` keeps exactly zero state nil. Append detaches inherited
+  backing; `Scope.ClaimConstraintEvent` detaches and removes membership before a
+  callback, preserving the original vector for consumed-event rollback.
+  SET name selection shares one first-matching-schema loop for table and trigger
+  constraints, using actual independent conname/OID, not tgname or clone ancestry.
 - **Statement and stage slots.** `Scope` and `Stage` are the slot records; the
   accessors on `StatementScope` and `CatalogStage` stay in the engine.
 

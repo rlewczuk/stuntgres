@@ -173,6 +173,7 @@ func (s *StatementScope) resetPLSegment() {
 	// Ordinary EndStatement retains timing for its current transaction. A
 	// procedural boundary instead discards the entire old incarnation's slot.
 	s.indexesSlot = nil
+	s.afterTriggers = nil
 	s.Inheritance.endStatement()
 	s.foreignActionsSlot, s.ForeignKeysSlot, s.DropsSlot, s.truncateSlot = nil, nil, nil, nil
 	s.foreignTablesSlot = nil

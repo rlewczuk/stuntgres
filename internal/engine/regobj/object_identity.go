@@ -543,6 +543,13 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 				return x.Name, 0
 			}
 		}
+		if d.Triggers != nil {
+			for i := range d.Triggers.Len() {
+				if d.Triggers.ConstraintOID(i) == a.ObjectID {
+					return d.Triggers.ConstraintName(i), 0
+				}
+			}
+		}
 	case 2604:
 		for sub, x := range d.ColumnMeta.Defaults {
 			if x.OID == a.ObjectID {
@@ -739,6 +746,13 @@ func OwnedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 		for _, x := range d.Constraints.ForeignKeys {
 			if x.Name == name {
 				return x.OID
+			}
+		}
+		if d.Triggers != nil {
+			for i := range d.Triggers.Len() {
+				if d.Triggers.ConstraintOID(i) != 0 && d.Triggers.ConstraintName(i) == name {
+					return d.Triggers.ConstraintOID(i)
+				}
 			}
 		}
 	case 2604:

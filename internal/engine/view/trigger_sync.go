@@ -100,7 +100,9 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 		if parent != nil {
 			baseParent, _ := c.Base.Relation(parent.Address())
 			var baseSources []stored.Trigger
-			if baseParent != nil { baseSources = stored.TriggersOf(baseParent) }
+			if baseParent != nil {
+				baseSources = stored.TriggersOf(baseParent)
+			}
 			var basePositions map[ids.OID]int
 		sourceLoop:
 			for sourceIndex, source := range stored.TriggersOf(parent) {
@@ -117,7 +119,7 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 					prior = occupant
 				}
 				replaceLocal := replacementSources[source.OID()]
-				var oid ids.OID
+				var oid, constraintOID ids.OID
 				if prior >= 0 {
 					p := list[prior].Parts()
 					sameParent := p.Parent == (ids.ObjectAddress{ClassID: 2620, ObjectID: source.OID()})
@@ -128,6 +130,7 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 						next = slices.DeleteFunc(next, func(t stored.Trigger) bool { return t.OID() == p.OID })
 					}
 					oid = p.OID
+					constraintOID = p.Constraint.OID
 					if sameParent && p.ParentRevision == parent.Revision() {
 						if replaceLocal {
 							replacementSources[oid] = true
@@ -142,13 +145,27 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 						if at >= len(baseSources) || baseSources[at].OID() != source.OID() {
 							if basePositions == nil {
 								basePositions = make(map[ids.OID]int, len(baseSources))
-								for i, prior := range baseSources { basePositions[prior.OID()] = i }
+								for i, prior := range baseSources {
+									basePositions[prior.OID()] = i
+								}
 							}
 							var found bool
 							at, found = basePositions[source.OID()]
-							if !found { at = -1 }
+							if !found {
+								at = -1
+							}
 						}
-						if at >= 0 && source.SameExecutable(baseSources[at]) {
+						comparable := source
+						if at >= 0 && source.Parts().Constraint.OID != 0 && baseSources[at].Parts().Constraint.OID != 0 {
+							// A source conname is not inherited by an existing
+							// clone; its rename cannot invalidate the clone recipe.
+							var err error
+							comparable, err = source.WithConstraintName(baseSources[at].Parts().Constraint.Name)
+							if err != nil {
+								return err
+							}
+						}
+						if at >= 0 && comparable.SameExecutable(baseSources[at]) {
 							next = append(next, list[prior].WithParentRevision(parent.Revision()))
 							changed = true
 							continue sourceLoop
@@ -161,16 +178,27 @@ func SynchronizeTriggersLocked(c *catalog.Candidate, stageRead func() catalog.Re
 						return err
 					}
 				}
+				if source.Parts().Constraint.OID != 0 && constraintOID == 0 {
+					if catalog.RelationConstraintNameExists(child, source.Name()) {
+						return triggerConstraintNameCollision(child, source.Name())
+					}
+					var err error
+					constraintOID, err = alloc.AllocateOID()
+					if err != nil {
+						return err
+					}
+				}
 				if replaceLocal {
 					replacementSources[oid] = true
 				}
-				cloned, err := stored.CloneTrigger(read, source, parent, child, oid, procedure)
+				cloned, err := stored.CloneTrigger(read, source, parent, child, oid, constraintOID, procedure)
 				if err != nil {
 					return err
 				}
 				if prior >= 0 && list[prior].Parts().Parent == parentAddress {
 					p := cloned.Parts()
 					p.AutoExtensions = list[prior].Parts().AutoExtensions
+					p.Constraint = list[prior].Parts().Constraint
 					if !replaceLocal {
 						p.Mode = list[prior].Mode()
 					}

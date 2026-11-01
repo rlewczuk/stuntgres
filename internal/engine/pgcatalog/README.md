@@ -276,9 +276,13 @@ type Producer func(Input) ([][]sqltype.Value, error)
 - `pg_trigger` (2620) projects one row per actual immutable relation-owned
   definition, including row/statement timing, event bits, real function and clone
   identities, ordered UPDATE attributes and zero-terminated argument bytes.
-  The represented ordinary definitions are enabled `O`, noninternal and
-  nonconstraint; transition names retain NAME values and absence/WHEN typed NULLs.
-  Persistent FK-owned RI triggers retain actual identities, INTERNAL constraint links,
+  Ordinary definitions have no constraint metadata; transition names retain NAME
+  values and absent transitions/WHEN remain typed NULLs. User constraint definitions
+  link their real distinct class2606 identity and immutable timing defaults.
+  Optional FROM sets tgconstrrelid, never constraint confrelid; their contype`t`
+  rows retain separate connames, local/noinherit flags and no constraint parent/
+  index/key. Constraint definitions cannot name transition tables. Persistent
+  FK-owned RI triggers retain actual identities, INTERNAL constraint links,
   opposite relation/index, action-selected functions and AFTER ROW events.
   Check slots and NO ACTION slots project the FK's persistent timing defaults;
   other action slots remain nondeferrable. Empty args/vector and absent

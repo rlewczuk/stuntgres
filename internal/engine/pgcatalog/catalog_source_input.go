@@ -157,6 +157,7 @@ type TriggerCatalogFact struct {
 	Name                            string
 	OldTable, NewTable              string
 	Mode                            catalog.TriggerMode
+	Constraint                      catalog.TriggerConstraint
 	Type                            int16
 	Attributes                      []int32
 	Arguments                       []string

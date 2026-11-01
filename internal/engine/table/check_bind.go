@@ -53,6 +53,13 @@ func BindChecks(h Host, auth ddl.Authority, d *catalog.Relation, raw []*parser.C
 	for _, c := range d.Constraints.ForeignKeys {
 		installed[c.Name] = true
 	}
+	if d.Triggers != nil {
+		for i := range d.Triggers.Len() {
+			if d.Triggers.ConstraintOID(i) != 0 {
+				installed[d.Triggers.ConstraintName(i)] = true
+			}
+		}
+	}
 	current := make(map[string]bool, len(raw))
 	for offset, c := range raw {
 		if offset > int(^uint(0)>>1)-start {

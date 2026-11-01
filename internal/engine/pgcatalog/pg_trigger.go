@@ -49,7 +49,7 @@ func capturePGTrigger(in Input) ([][]sqltype.Value, error) {
 			for _, cell := range [...]struct {
 				index int
 				oid   ids.OID
-			}{{0, f.OID}, {1, f.Relation}, {2, f.Parent}, {4, f.Function}, {8, 0}, {9, 0}, {10, 0}} {
+			}{{0, f.OID}, {1, f.Relation}, {2, f.Parent}, {4, f.Function}, {8, f.Constraint.From.Address.ObjectID}, {9, 0}, {10, f.Constraint.OID}} {
 				var err error
 				row[cell.index], err = sqltype.OIDValue(source.Columns[cell.index].Usage.Type, uint32(cell.oid))
 				if err != nil {
@@ -63,9 +63,9 @@ func capturePGTrigger(in Input) ([][]sqltype.Value, error) {
 				return err
 			}
 			row[6] = sqltype.String(source.Columns[6].Usage.Type, f.Mode.String())
-			for _, i := range [...]int{7, 11, 12} {
-				row[i] = sqltype.Boolean(source.Columns[i].Usage.Type, false)
-			}
+			row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, false)
+			row[11] = sqltype.Boolean(source.Columns[11].Usage.Type, f.Constraint.Deferrable)
+			row[12] = sqltype.Boolean(source.Columns[12].Usage.Type, f.Constraint.InitiallyDeferred)
 			row[13], err = sqltype.Integer(source.Columns[13].Usage.Type, int64(len(f.Arguments)))
 			if err != nil {
 				return err

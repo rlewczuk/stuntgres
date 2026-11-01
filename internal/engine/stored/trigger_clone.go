@@ -11,12 +11,23 @@ import (
 
 // CloneTrigger installs a partition-owned definition, retaining the exact parent
 // definition identity rather than searching parent names at firing time.
-func CloneTrigger(read catalog.Read, t Trigger, parent, child *catalog.Relation, oid ids.OID, procedure catalog.ProcedureRemapper) (Trigger, error) {
+func CloneTrigger(read catalog.Read, t Trigger, parent, child *catalog.Relation, oid, constraintOID ids.OID, procedure catalog.ProcedureRemapper) (Trigger, error) {
 	p := t.Parts()
 	if p.OldTable != "" || p.NewTable != "" {
 		return Trigger{}, fmt.Errorf("stuntgres: cannot clone trigger transition relations")
 	}
+	if oid == 0 || oid == p.OID {
+		return Trigger{}, fmt.Errorf("stuntgres: invalid clone trigger identity")
+	}
 	p.OID = oid
+	if p.Constraint.OID != 0 {
+		if constraintOID == 0 || constraintOID == p.Constraint.OID || constraintOID == t.OID() {
+			return Trigger{}, fmt.Errorf("stuntgres: invalid clone constraint identity")
+		}
+		p.Constraint.OID, p.Constraint.Name = constraintOID, p.Name
+	} else if constraintOID != 0 {
+		return Trigger{}, fmt.Errorf("stuntgres: constraint identity on ordinary clone")
+	}
 	p.Parent = ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}
 	p.ParentRevision = parent.Revision()
 	// Automatic extension edges belong to the addressed clone, never its parent.

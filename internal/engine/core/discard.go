@@ -155,6 +155,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	changes := s.PendingCatalog().Clone()
 	stage := e.BeginCatalogStage(base)
 	stage.AuthorizeLocked(auth, session)
+	stage.closesCursors = closeCursors
 	for address := range owned {
 		stage.DomainBases = append(stage.DomainBases, base.MustNamespace(address))
 	}
@@ -235,11 +236,11 @@ func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address i
 			if leaf.Ref.Domain() != catalog.Owner().Domain || leaf.Ref.Epoch != catalog.Epoch() || leaf.Ref.Address != address {
 				continue
 			}
-			relation, ok := catalog.Relation(address)
+			_, ok := catalog.Relation(address)
 			if !ok || leaf.Relation == nil {
 				continue
 			}
-			return SQLError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.Name()))
+			return relationActiveQueryError(catalog, address, command)
 		}
 	}
 	return nil

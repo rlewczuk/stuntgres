@@ -19,7 +19,7 @@ func TriggerDepends(t Trigger, target ids.ObjectAddress) bool {
 func KeepTriggers(list []Trigger, targets []ids.ObjectAddress) []Trigger {
 	var kept []Trigger
 	for _, t := range list {
-		remove := slices.Contains(targets, ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}) || slices.Contains(targets, t.parts.Parent)
+		remove := slices.Contains(targets, ids.ObjectAddress{ClassID: 2620, ObjectID: t.OID()}) || slices.Contains(targets, t.parts.Parent) || t.parts.Constraint.From.Address.ObjectID != 0 && slices.Contains(targets, t.parts.Constraint.From.Address)
 		for _, target := range targets {
 			if TriggerDepends(t, target) || slices.Contains(t.parts.AutoExtensions, target) {
 				remove = true

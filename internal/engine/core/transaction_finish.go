@@ -41,6 +41,13 @@ func (s *StatementScope) Finish(err error) error {
 		}
 		s.foreignConstructions = nil
 		s.afterTriggers = nil
+		s.activeConstraintTriggers = nil
+		s.indexesSlot = nil
+		s.ForeignActionAuth = nil
+		s.CatalogAuthority = nil
+		s.Stage.Rows, s.Stage.Deletes, s.Stage.Stats = nil, nil, nil
+		s.OwnWrites, s.OwnDeletes = nil, nil
+		s.notificationActions, s.notificationEvents = nil, nil
 		s.currentSnapshot = nil
 		s.snapshotFrontier = 0
 		s.exportCapture = nil
@@ -127,6 +134,9 @@ func (s *StatementScope) Finish(err error) error {
 	if err == nil && s.worked {
 		t.Mu.Unlock()
 		err = s.completeCommandEffects(t.State == session.TxImplicit && !t.RetainsTransaction(), false)
+		if err == nil && t.State == session.TxImplicit && !t.RetainsTransaction() {
+			err = s.checkConstraintEvents(true, nil)
+		}
 		t.Mu.Lock()
 	}
 	if s.foreignTablesOrZero().owner != nil {
@@ -377,6 +387,12 @@ func (s *StatementScope) mergeSegmentLocked(catalog *session.Journal) error {
 				ownerExtensionOf(t).constraintModes = s.IndexesOrZero().ConstraintModes
 			}
 			e.reconcileSerializableWritesLocked(t)
+			// The owner now owns this exact frontier. Terminal callers can
+			// stage another suffix without transferring or publishing it twice.
+			s.Stage.Rows, s.Stage.Deletes = nil, nil
+			s.Stage.Replacing, s.ProjectedRoots = false, false
+			s.OwnWrites, s.OwnDeletes = t.Writes, t.Deletes
+			s.notificationActions, s.notificationEvents = nil, nil
 		}
 		session.Mu.Unlock()
 		e.Mu.Unlock()

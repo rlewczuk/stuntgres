@@ -207,6 +207,16 @@ Row-trigger definitions are post-data SQL groups, after their functions/tables
 and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
 definition OIDs, parent provenance and WHEN captures remap with the destination.
+User constraint triggers reserve/remint both inline identities, retain independent
+constraint names and declaration defaults, and remap optional FROM provenance.
+Dump includes no pending event, savepoint, firing progress or SET override.
+Portable constraint replay stages collision-free family names, restores each
+root/clone conname and then recursive tgname before ordinary triggers and final
+metadata; no native-only metadata update is needed for independent names.
+Restore admits only unconditional qualified non-TEMP constraint renames and
+qualified named trigger renames for these phases. Both remain ordinary admitted
+statements: host execution performs authority/dependency checks and private
+staged catalog validation before atomic replacement, not a metadata bypass.
 Installed insert_username identity replay retains owner, SECURITY DEFINER and
 immutable routine configuration before post-data triggers are recreated. Literal
 target arguments and actual renamed/relocated provider addresses survive replay;
@@ -927,6 +937,8 @@ Snowball canonical seed options, identity collisions and mapping replay use
 English dictionary independently of its current label.
 Publication definition preflight, replay and immutable capture units use
 `RUN='^TestPublicationDump'`.
+SQL-free user-constraint identity collision/remint and bounded Restore admission
+units use `RUN='^TestTriggerDeferred'`.
 
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public

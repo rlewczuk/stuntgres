@@ -40,6 +40,28 @@ func (x *Scope) AppendConstraintEvent(event ConstraintEvent) {
 	x.ConstraintModes.Events = append(x.ConstraintModes.Events, event)
 }
 
+// ClaimConstraintEvent removes membership before any executable callback.
+// Never edit a predecessor's backing: a savepoint may restore consumed events.
+func (x *Scope) ClaimConstraintEvent(at int) ConstraintEvent {
+	old := x.ConstraintModes.Events
+	event := old[at]
+	switch {
+	case len(old) == 1:
+		x.ConstraintModes.Events = nil
+	case at == 0:
+		x.ConstraintModes.Events = old[1:len(old):len(old)]
+	case at == len(old)-1:
+		x.ConstraintModes.Events = old[:at:at]
+	default:
+		next := make([]ConstraintEvent, len(old)-1)
+		copy(next, old[:at])
+		copy(next[at:], old[at+1:])
+		x.ConstraintModes.Events = next
+	}
+	x.eventsOwned = true
+	return event
+}
+
 // RetainExistingOutput keeps a probe's output of row on idx. The mixed lane
 // may need ordinary prior-own keys again after catalog drift; freeze actual
 // probe data by immutable row/version, not CHECK truth or values.

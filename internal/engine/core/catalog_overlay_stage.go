@@ -22,6 +22,10 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
+	if err := scope.CheckPendingRelationDrops(stage); err != nil {
+		e.Mu.Unlock()
+		return err
+	}
 	prior := scope.Catalog
 	if prior == nil {
 		prior = scope.Owner.Catalog
@@ -84,6 +88,9 @@ func (e *Engine) StageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if err == nil && stage.AuthSession != nil && (stage.AuthSession != scope.Op.Session || scope.Op.Session.Authorization.Revision != stage.AuthRevision || e.OperationRolesLocked(scope.Op).Revision != stage.RoleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
+	}
+	if err == nil {
+		err = scope.CheckPendingRelationDrops(stage)
 	}
 	if err == nil {
 		err = e.AssignTransactionXIDLocked(scope.TxRef)

@@ -103,11 +103,12 @@ type StatementScope struct {
 	lease                       session.StatementLease // identity for session-layer state; never copied on purpose
 	Output                      sqltype.OutputEnvironment
 	initialParameters           []sqltype.Usage
-	activeSQLRoutineDepth       int             // Root invocation owner; never saved/reset as lexical scratch.
-	activeTriggerDepth          int             // Actual user/RI invocations, independent of routine safety depth.
-	plAtomic                    bool            // Captured command context, then defer-scoped active invocation barriers.
-	plLoops                     *plQueryRows    // Borrowed active adapters; not a named portal registry.
-	plExecutingPortal           *protocolPortal // Current CALL/DO portal survives its own internal boundaries.
+	activeSQLRoutineDepth       int                 // Root invocation owner; never saved/reset as lexical scratch.
+	activeTriggerDepth          int                 // Actual user/RI invocations, independent of routine safety depth.
+	activeConstraintTriggers    []ids.ObjectAddress // Call-owned LIFO ancestry; never checkpointed as transaction state.
+	plAtomic                    bool                // Captured command context, then defer-scoped active invocation barriers.
+	plLoops                     *plQueryRows        // Borrowed active adapters; not a named portal registry.
+	plExecutingPortal           *protocolPortal     // Current CALL/DO portal survives its own internal boundaries.
 	routineLive                 *routineLive
 	expressionLive              *plExpressionLive
 	effectCommand, effectSerial uint64 // admission-private command event ownership; never rewound

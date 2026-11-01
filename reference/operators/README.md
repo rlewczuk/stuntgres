@@ -284,6 +284,8 @@ Add `REFERENCE=1` for the oracle.
 - Builtin trigger functions: `RUN='^TestReferenceTriggerBuiltins'`
 - Installed autoinc trigger helper: `RUN='^TestReferenceAutoinc'`
 - AFTER query completion and replay: `RUN='^TestReferenceTriggerAfter'`
+- Deferred constraint-trigger timing, transaction boundaries, catalogs and replay:
+  `RUN='^TestReferenceTriggerDeferred'`
 - View INSTEAD OF triggers: `RUN='^TestReferenceTriggerInstead'`
 - Trigger lifecycle: `RUN='^TestReferenceTriggerDDL'`
 - Transactional trigger integration and protocol: `RUN='^TestReferenceTransactionalTrigger'`

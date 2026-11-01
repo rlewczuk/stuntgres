@@ -121,6 +121,9 @@ func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Ope
 	if err := scope.StageOwnedSequences(stage, targets, s.Mode, changes); err != nil {
 		return core.Result{}, err
 	}
+	if err := scope.CheckPendingRelationDrops(stage); err != nil {
+		return core.Result{}, err
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return core.Result{}, err

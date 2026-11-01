@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -43,6 +44,13 @@ func RenameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 			return nil, err
 		}
 	}
+	for _, t := range stored.TriggersOf(parent) {
+		if t.Parts().Constraint.OID != 0 {
+			if err := collision(t.Parts().Constraint.Name); err != nil {
+				return nil, err
+			}
+		}
+	}
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
@@ -61,6 +69,20 @@ func RenameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 		for i := range next.Constraints.ForeignKeys {
 			if next.Constraints.ForeignKeys[i].Name == old {
 				next.Constraints.ForeignKeys[i].Name = destination
+				return &next, nil
+			}
+		}
+	} else if kind == 't' {
+		list := slices.Clone(stored.TriggersOf(parent))
+		for i, t := range list {
+			p := t.Parts()
+			if p.Constraint.OID != 0 && p.Constraint.Name == old {
+				var err error
+				list[i], err = t.WithConstraintName(destination)
+				if err != nil {
+					return nil, err
+				}
+				next.Triggers = stored.TriggersPayload(list)
 				return &next, nil
 			}
 		}
@@ -121,6 +143,13 @@ func RenameConstraintKind(parent *catalog.Relation, name string) (byte, ids.Obje
 		if c.Name == name {
 			kind = 'f'
 			constraint.ObjectID = c.OID
+			break
+		}
+	}
+	for _, t := range stored.TriggersOf(parent) {
+		c := t.Parts().Constraint
+		if c.OID != 0 && c.Name == name {
+			kind, constraint.ObjectID = 't', c.OID
 			break
 		}
 	}

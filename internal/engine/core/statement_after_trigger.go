@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
@@ -61,6 +62,9 @@ type afterTriggerEvent struct {
 func (s *StatementScope) afterFrame() *afterTriggerFrame {
 	if s.afterTriggers == nil {
 		s.afterTriggers = &afterTriggerState{frames: make(map[uint64]*afterTriggerFrame)}
+	}
+	if s.afterTriggers.frames == nil {
+		s.afterTriggers.frames = make(map[uint64]*afterTriggerFrame)
 	}
 	f := s.afterTriggers.frames[s.effectCommand]
 	if f == nil {
@@ -413,6 +417,29 @@ func (s *StatementScope) fireTrigger(event afterTriggerEvent) error {
 	return err
 }
 
+// RI transition exposure and final query draining share the same timing decision.
+// A constraint event can share an ordinary trigger's segment without owning its
+// aliases; only the scalar accepted payload may outlive the query.
+func (s *StatementScope) fireAfterTrigger(event afterTriggerEvent) error {
+	if c := event.definition.Parts().Constraint; c.OID != 0 {
+		modes := s.constraintModes()
+		if modes.Deferred(c.OID, c.Deferrable, c.InitiallyDeferred) {
+			payload := &index.UserTriggerEvent{
+				Definition: event.definition, Relation: event.relation, Read: event.read,
+				Event: event.event, Old: event.old, Next: event.next, Targets: event.targets,
+			}
+			if event.actor != nil {
+				payload.Actor = event.actor.State.CurrentUser
+			}
+			scope := s.beginConstraintEvents()
+			scope.AppendConstraintEvent(index.ConstraintEvent{Parent: event.definition.Parts().Relation, Constraint: c.OID, UserTrigger: payload})
+			return nil
+		}
+		return s.fireConstraintTrigger(event)
+	}
+	return s.fireTrigger(event)
+}
+
 func (s *StatementScope) drainAfter() error {
 	if s.afterTriggers == nil {
 		return nil
@@ -431,14 +458,11 @@ func (s *StatementScope) drainAfter() error {
 		} else {
 			event = f.statements[f.statement]
 			f.statement++
-			if event.skip {
-				continue
-			}
 		}
 		if event.skip {
 			continue
 		}
-		if err := s.fireTrigger(event); err != nil {
+		if err := s.fireAfterTrigger(event); err != nil {
 			return err
 		}
 	}

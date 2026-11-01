@@ -401,7 +401,7 @@ func (r Runtime) VisitTriggerDefinitions(ctx context.Context, view catalog.Read,
 
 func (r Runtime) VisitTriggerCatalog(ctx context.Context, view catalog.Read, relation *catalog.Relation, typ *sqltype.Descriptor, visit func(pgcatalog.TriggerCatalogFact) error) error {
 	return stored.VisitTriggerCatalog(ctx, view, relation, typ, func(f stored.TriggerCatalogDefinition) error {
-		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, OldTable: f.OldTable, NewTable: f.NewTable, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
+		return visit(pgcatalog.TriggerCatalogFact{OID: f.OID, Relation: f.Relation, Function: f.Function, Parent: f.Parent, Name: f.Name, Constraint: f.Constraint, OldTable: f.OldTable, NewTable: f.NewTable, Mode: f.Mode, Type: f.Type, Attributes: f.Attributes, Arguments: f.Arguments, Qual: f.Qual})
 	})
 }
 func (r Runtime) IndexKey(parent *catalog.Relation, key catalog.IndexKey) (int32, expr.Expr, error) {

@@ -82,12 +82,17 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 				err = e.checkTransactionConstraints(s)
 			}
 			if err == nil {
-				err = e.publishRowsPrepared(s.Op, ref, t.Writes, t.Deletes, t.Catalog, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
+				// Settlement may have replaced complete maps and the journal.
+				entry.Writes, entry.Deletes, entry.Catalog, entry.Stats = t.Writes, t.Deletes, t.Catalog, t.Stats
+				entry.Roots, entry.Frontier = t.Roots, t.Frontier
+				err = e.publishRowsPrepared(s.Op, ref, t.Writes, t.Deletes, t.Catalog, s.CatalogAuthority, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
 			}
 			t.Mu.Lock()
 		}
 	}
 	if err != nil {
+		s.AbortStatsPopulation()
+		t.Stats.Take(&s.Stage.Stats)
 		ticket := t.Ticket
 		t.Ticket = nil
 		e.endSerializable(ref, false)

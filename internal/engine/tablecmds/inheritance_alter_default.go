@@ -1,7 +1,6 @@
 package tablecmds
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
@@ -22,9 +21,9 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 	// Fence every actual target before cooking any default or creating a stage.
 	// A valid root cannot hide a descendant's retained trigger obligation.
 	for _, old := range targets {
-		if scope.HasPendingConstraintEvents(old.Address()) {
+		if err := scope.ConstraintPendingPreflight(auth.Catalog, old.Address(), "ALTER TABLE"); err != nil {
 			e.Mu.Unlock()
-			return core.Result{}, core.SQLError("55006", fmt.Sprintf(`cannot ALTER TABLE "%s" because it has pending trigger events`, old.Name()))
+			return core.Result{}, err
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)

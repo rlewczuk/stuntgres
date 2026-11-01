@@ -79,7 +79,8 @@ func AdmitExtension[R any](_ R, _ *session.Operation, stmt parser.Statement) (Ad
 }
 
 // AdmitRelationIdentity admits the qualified parent operations used to replay
-// associated-array names. Protected rowtypes are never altered independently.
+// associated-array and trigger-constraint names. Protected rowtypes are never
+// altered independently; admitted statements still execute ordinary staged DDL.
 func AdmitRelationIdentity[R any](_ R, _ *session.Operation, stmt parser.Statement) (Admission, error) {
 	switch s := stmt.(type) {
 	case *parser.AlterTableRenameTable:
@@ -88,6 +89,10 @@ func AdmitRelationIdentity[R any](_ R, _ *session.Operation, stmt parser.Stateme
 		}
 	case *parser.AlterTableSetSchema:
 		if !s.IfExists && !s.Only && len(s.Name.Parts) == 2 && !stagesTemporary("", s.Name) {
+			return Admitted, nil
+		}
+	case *parser.AlterTableRenameConstraint:
+		if !s.IfExists && !s.Only && len(s.Name.Parts) == 2 && !stagesTemporary("", s.Name) && s.Constraint.Text != "" && s.NewName.Text != "" {
 			return Admitted, nil
 		}
 	default:

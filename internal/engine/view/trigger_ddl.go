@@ -34,6 +34,9 @@ func PlanTrigger(h Host, auth ddl.Authority, stmt parser.Statement, locked ids.O
 // planCreateTrigger checks relation-kind and timing restrictions before binding
 // forbidden WHEN/OF forms, then resolves the function before name collisions.
 func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, locked ids.ObjectRef, input sqltype.InputEnvironment) (RelationChange, error) {
+	if s.Constraint && s.Replace {
+		return RelationChange{}, expr.ErrorAt("0A000", "CREATE OR REPLACE CONSTRAINT TRIGGER is not supported", s.Pos)
+	}
 	ref, err := h.ResolveRelation(auth, s.Table)
 	if err != nil {
 		return RelationChange{}, err
@@ -50,6 +53,18 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 		return RelationChange{}, err
 	}
 	p := stored.TriggerParts{Name: s.Name.Text, Mode: catalog.TriggerOrigin, Relation: ref, Arguments: s.Arguments}
+	if s.Constraint {
+		p.Constraint = catalog.TriggerConstraint{Name: s.Name.Text, Deferrable: s.Deferrable, InitiallyDeferred: s.InitiallyDeferred}
+		if len(s.From.Parts) != 0 {
+			p.Constraint.From, err = h.ResolveRelation(auth, s.From)
+			if err != nil {
+				return RelationChange{}, err
+			}
+			if err := catalogAccess.Check(auth, access.Requirement{Object: p.Constraint.From, Privileges: authorization.TriggerPrivilege}); err != nil {
+				return RelationChange{}, err
+			}
+		}
+	}
 	p.Timing, p.Level = stored.TriggerAfter, stored.TriggerStatement
 	if s.Timing == "before" {
 		p.Timing = stored.TriggerBefore
@@ -78,6 +93,9 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	if index >= 0 && !s.Replace {
 		return RelationChange{}, sqlError("42710", fmt.Sprintf("trigger %q for relation %q already exists", p.Name, old.Name()))
 	}
+	if index >= 0 && s.Replace && list[index].Parts().Constraint.OID != 0 {
+		return RelationChange{}, sqlError("42710", fmt.Sprintf("trigger %q for relation %q is a constraint trigger", p.Name, old.Name()))
+	}
 	p.References = []ids.ObjectAddress{address}
 	for _, attribute := range p.UpdateColumns {
 		column := ref.Address
@@ -94,6 +112,15 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 	} else if p.OID, err = h.AllocateOID(); err != nil {
 		return RelationChange{}, err
 	}
+	if s.Constraint {
+		p.Constraint.OID, err = h.AllocateOID()
+		if err != nil {
+			return RelationChange{}, err
+		}
+		if catalog.RelationConstraintNameExists(old, p.Constraint.Name) {
+			return RelationChange{}, triggerConstraintNameCollision(old, p.Constraint.Name)
+		}
+	}
 	definition, err := stored.NewTrigger(p)
 	if err != nil {
 		return RelationChange{}, err
@@ -105,13 +132,25 @@ func planCreateTrigger(h Host, auth ddl.Authority, s *parser.CreateTrigger, lock
 		list = append(list, definition)
 	}
 	slices.SortFunc(list, func(a, b stored.Trigger) int { return strings.Compare(a.Name(), b.Name()) })
-	change, err := triggerListChange(h, ref, old, list, nil)
+	var sources []catalog.Descriptor
+	if p.Constraint.From != (ids.ObjectRef{}) {
+		sources = []catalog.Descriptor{catalogAccess.Catalog.Get(p.Constraint.From.Address)}
+	}
+	change, err := triggerListChange(h, ref, old, list, sources)
 	if err == nil && s.Replace {
 		change.Replacement = TriggerReplacement{Relation: change.Next.Address(), OID: definition.OID()}
 	}
 	change.CommandAddress = ids.ObjectAddress{ClassID: 2620, ObjectID: definition.OID()}
 	change.CommandTag = "CREATE TRIGGER"
 	return change, err
+}
+
+func triggerConstraintNameCollision(relation *catalog.Relation, name string) error {
+	const index = "pg_constraint_conrelid_contypid_conname_index"
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
+		Message: `duplicate key value violates unique constraint "` + index + `"`,
+		Detail:  fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", relation.Address().ObjectID, name),
+		Schema:  "pg_catalog", Table: "pg_constraint", Constraint: index}
 }
 
 // triggerKind preserves CREATE TRIGGER diagnostic precedence without binding
@@ -138,6 +177,9 @@ func triggerKind(old *catalog.Relation, s *parser.CreateTrigger) error {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf("%q is a partitioned table", old.Name()), Detail: "ROW triggers with transition tables are not supported on partitioned tables."}
 		}
 	case catalog.ForeignRelation:
+		if s.Constraint {
+			kind, detail = "foreign table", "Foreign tables cannot have constraint triggers."
+		}
 		if s.Timing == "instead" {
 			kind, detail = "foreign table", "Foreign tables cannot have INSTEAD OF triggers."
 		}

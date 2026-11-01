@@ -72,7 +72,7 @@ func (s *StatementScope) stageTruncate() error {
 		if err = dml.CheckTruncate(auth.View, auth, ref, d, selected.Privilege, false, auth.RestrictedRelations()); err != nil {
 			break
 		}
-		if err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {
+		if err = s.RelationPendingPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {
 			break
 		}
 		stage.QuerySources = append(stage.QuerySources, d)
@@ -209,7 +209,7 @@ func (s *StatementScope) beforeTruncate() error {
 			if err = dml.CheckTruncate(auth.View, auth, selected.Ref, d, selected.Privilege, false, auth.RestrictedRelations()); err != nil {
 				break
 			}
-			if err = s.relationCursorPreflight(auth.Catalog, selected.Ref.Address, "TRUNCATE"); err != nil {
+			if err = s.RelationPendingPreflight(auth.Catalog, selected.Ref.Address, "TRUNCATE"); err != nil {
 				break
 			}
 		}

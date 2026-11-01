@@ -260,6 +260,13 @@ neither owns catalog authority.
   what `analyze`, `pgcatalog` and object-identity code read. Visitors stop at the
   first error; checked accessors (`stored.ViewOf`, `stored.RulesOf`,
   `stored.TriggersOf`, `stored.PolicyOf`, ...) recover the concrete types.
+  A user constraint trigger exposes immutable `TriggerConstraint` facts: its
+  distinct inline class2606 OID, independent conname, declaration timing and
+  optional FROM reference. Zero metadata means ordinary, not a partial constraint.
+  Definition inventories and name lookups use indexed payload identities/names;
+  the constraint AUTO-depends on its relation and is INTERNAL-owned by its trigger.
+  FROM is a trigger AUTO edge; clone lineage uses trigger P/S edges, not
+  constraint ancestry.
 - **State and Read** (`read.go`, `state_access.go`). `State` is one catalog
   snapshot (epoch, namespace generation, descriptor and name maps, the derived
   relation and helper-owner maps, operator/procedure name indexes, derived class-default buckets,

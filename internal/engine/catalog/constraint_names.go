@@ -48,6 +48,13 @@ func ConstraintNames(read Read, namespace ids.ObjectAddress, candidate *Relation
 			for _, constraint := range relation.Constraints.ForeignKeys {
 				names[constraint.Name] = true
 			}
+			if relation.Triggers != nil {
+				for i := range relation.Triggers.Len() {
+					if relation.Triggers.ConstraintOID(i) != 0 {
+						names[relation.Triggers.ConstraintName(i)] = true
+					}
+				}
+			}
 		}
 	}
 	return names
@@ -79,6 +86,13 @@ func RelationConstraintNameExists(d *Relation, name string) bool {
 	for _, c := range d.Constraints.ForeignKeys {
 		if c.Name == name {
 			return true
+		}
+	}
+	if d.Triggers != nil {
+		for i := range d.Triggers.Len() {
+			if d.Triggers.ConstraintOID(i) != 0 && d.Triggers.ConstraintName(i) == name {
+				return true
+			}
 		}
 	}
 	return false

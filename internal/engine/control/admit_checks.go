@@ -88,10 +88,12 @@ func CheckAlterView(s *parser.AlterView) error {
 	return nil
 }
 
-// CheckAlterTrigger admits only emitted, qualified positive extension metadata.
+// CheckAlterTrigger admits qualified positive extension metadata and named
+// renames used by constraint-family replay. Ordinary execution owns validation.
 func CheckAlterTrigger(s *parser.AlterTrigger) error {
-	if s.Action != "depends" || len(s.Table.Parts) != 2 || stagesTemporary("", s.Table) {
-		return sqlError("0A000", "restore accepts only qualified trigger extension dependency ALTER")
+	rename := s.Action == "rename" && s.Name.Text != "" && s.Target.Text != ""
+	if (!rename && s.Action != "depends") || len(s.Table.Parts) != 2 || stagesTemporary("", s.Table) {
+		return sqlError("0A000", "restore accepts only qualified trigger rename or extension dependency ALTER")
 	}
 	return nil
 }

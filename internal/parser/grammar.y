@@ -516,14 +516,15 @@ package parser
 %type <eventFilters> event_filters event_filter_clauses
 %type <eventFilter> event_filter
 %type <names> event_tag_list
-%type <trigger> trigger_head
+%type <trigger> trigger_head constraint_trigger_head constraint_trigger_from constraint_trigger_attributes
 %type <triggerEvent> trigger_event
 %type <triggerEvents> trigger_events
 %type <triggerTransition> trigger_transition
 %type <triggerTransitions> trigger_referencing trigger_transitions
-%type <tok> trigger_transition_side trigger_constraint_timing
+%type <tok> trigger_transition_side
 %type <desc> trigger_transition_kind
 %type <tok> trigger_timing trigger_function trigger_each trigger_statement
+%type <tok> trigger_after
 %type <desc> trigger_row
 %type <expr> trigger_when
 %type <names> trigger_arguments trigger_argument_list
@@ -1204,22 +1205,21 @@ trigger_head: CREATE TRIGGER name trigger_timing trigger_events ON relation_name
 } ;
 create_trigger: trigger_head trigger_referencing trigger_row trigger_when EXECUTE trigger_function relation_name '(' trigger_arguments ')' {
  $1.Transitions=$2;$1.Row=$3;$1.When=$4;$1.Function=$7;$1.Arguments=$9;$$=$1
-} | CREATE CONSTRAINT TRIGGER name trigger_constraint_timing trigger_events ON relation_name trigger_constraint_options REFERENCING {
- /* Negative-only boundary: constraint execution is not admitted by this rule. */
- sqllex.(*lexer).syntax($10);return 1
-} | CREATE OR replace_word CONSTRAINT TRIGGER name trigger_constraint_timing trigger_events ON relation_name trigger_constraint_options REFERENCING {
- sqllex.(*lexer).syntax($12);return 1
+} | constraint_trigger_attributes FOR trigger_each ROW trigger_when EXECUTE trigger_function relation_name '(' trigger_arguments ')' {
+ $1.Row=true;$1.When=$5;$1.Function=$8;$1.Arguments=$10;$$=$1
 } ;
-trigger_constraint_timing: name {
- if $1.keyword==nil || $1.text!="after" {sqllex.(*lexer).syntax($1);return 1};$$=$1
+constraint_trigger_head: CREATE CONSTRAINT TRIGGER name trigger_after trigger_events ON relation_name {
+ $$=&CreateTrigger{Name:Identifier{Text:$4.text,Pos:$4.pos},Constraint:true,Timing:"after",Events:$6,Table:$8,Pos:$1.pos}
+} | CREATE OR replace_word CONSTRAINT TRIGGER name trigger_after trigger_events ON relation_name {
+ $$=&CreateTrigger{Name:Identifier{Text:$6.text,Pos:$6.pos},Constraint:true,Replace:true,Timing:"after",Events:$8,Table:$10,Pos:$1.pos}
 } ;
-trigger_constraint_options: /* empty */
- | trigger_constraint_options FROM relation_name
- | trigger_constraint_options DEFERRABLE
- | trigger_constraint_options NOT_DEFERRABLE_LA DEFERRABLE
- | trigger_constraint_options INITIALLY name {
- if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($3);return 1}
-} ;
+trigger_after: name {if $1.keyword==nil || $1.text!="after" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+constraint_trigger_from: constraint_trigger_head {$$=$1}
+ | constraint_trigger_head FROM relation_name {$1.From=$3;$1.FromPos=$2.pos;$$=$1} ;
+constraint_trigger_attributes: constraint_trigger_from {$$=$1}
+ | constraint_trigger_attributes DEFERRABLE {if !triggerProperty(sqllex.(*lexer),$1,$2,true,true){return 1};$$=$1}
+ | constraint_trigger_attributes NOT_DEFERRABLE_LA DEFERRABLE {if !triggerProperty(sqllex.(*lexer),$1,$2,true,false){return 1};$$=$1}
+ | constraint_trigger_attributes INITIALLY name {if $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate"){sqllex.(*lexer).syntax($3);return 1};if !triggerProperty(sqllex.(*lexer),$1,$2,false,$3.text=="deferred"){return 1};$$=$1} ;
 trigger_referencing: /* empty */ {$$=nil}
  | REFERENCING trigger_transitions {$$=$2} ;
 trigger_transitions: trigger_transition {$$=[]TriggerTransition{$1}}
@@ -1249,7 +1249,7 @@ trigger_row: /* empty */ {$$=false}
  | FOR trigger_each ROW {$$=true}
  | FOR trigger_statement {$$=false}
  | FOR trigger_each trigger_statement {$$=false} ;
-trigger_each: KW_U {if $1.text!="each" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
+trigger_each: KW_U {if $1.keyword==nil || $1.text!="each" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 trigger_statement: KW_U {if $1.text!="statement" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 trigger_when: /* empty */ {$$=nil} | WHEN '(' target_or ')' {$$=$3} ;
 trigger_function: FUNCTION | PROCEDURE ;

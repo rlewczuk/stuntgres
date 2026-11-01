@@ -323,18 +323,32 @@ BEFORE/AFTER STATEMENT I/U/D/TRUNCATE, and view-only INSTEAD OF ROW I/U/D.
 Views otherwise admit BEFORE/AFTER STATEMENT I/U/D. INSTEAD OF definitions cannot retain
 WHEN, UPDATE OF or partition provenance; statement definitions cannot be clones.
 Transition aliases are immutable `OldTable`/`NewTable` strings (empty means absent),
-checked for AFTER single-event I/U/D mapping, distinct names and no column list.
+checked for ordinary AFTER single-event I/U/D mapping, distinct names and no column list.
 Relation validation excludes views/foreign tables and ROW hierarchy endpoints;
 cloning and retained-clone replay cannot introduce transition declarations.
 Equality, envelope replacement and destination remapping retain aliases without
 retaining relation rows or invocation state. Display and native post-data replay
 share quoted canonical OLD-then-NEW REFERENCING spelling.
 Routine capability is shared with DDL and runtime: genuine zero-input PL DML
-programs or the three checked builtin DML declarations. Provider/provenance checks
-remain mandatory. Builtin string arguments stay literal owned strings, without
+declarations, the three checked builtin DML declarations, or installed native
+provider capabilities. Provider/provenance checks remain mandatory. Builtin string
+arguments stay literal owned strings, without
 hidden column/configuration dependencies or rename rewriting. Dump preserves
 their order and writes triggers after data so replay does not recompute vectors.
 Rename retains every identity and recipe while reordering the table-local chain.
+Constraint triggers retain checked AFTER ROW I/U/D declarations with a distinct
+`catalog.TriggerConstraint` identity and independent conname. Timing is immutable;
+transaction modes/events are not definition state. Optional FROM retains current
+catalog provenance and an AUTO dependency, not FK enforcement. Trigger rename
+changes only tgname; constraint rename changes only conname. Constraint clones
+receive distinct trigger/constraint OIDs, have no constraint ancestry, and inherit
+the current parent's tgname as their initial conname; resynchronization preserves
+each existing clone's independently renamed conname.
+Portable replay constructs constraint families under deterministic globally fresh
+trigger/constraint names, restores each root/clone conname, then recursively
+renames root triggers before ordinary definitions and final-name metadata. This
+preserves name swaps and table-constraint/tgname collisions without catalog
+bypasses, clone CREATE duplication or transient-state serialization.
 `WithMode` replaces only the definition envelope, retaining the WHEN binding,
 presentation, arguments and dependency backing. User and RI triggers share checked
 catalog O/D/R/A modes. Nondefault modes and clone-local states form a final
@@ -388,6 +402,8 @@ This presentation is distinct from portable, qualified declaration serialization
 neither path changes executable recipes or their shared immutable backing.
 `VisitTriggerCatalog` instead projects actual definition identities, event bits,
 ordered attributes and literal arguments without presentation privilege filters.
+User constraint facts carry real linked constraint identity and declaration
+defaults through this bridge; public deparse includes their FROM/timing clauses.
 Its `TriggerCarrier` retains the actual element of the immutable `TriggerList`,
 not a detached same-name/OID copy, together with WHEN, presentation and binding.
 `TriggerTree` checks captured owner, type generation and payload membership.
@@ -1201,7 +1217,8 @@ information-schema visitor, while retaining that visitor's separate disclosure
 policy. Display emits canonical INSERT/DELETE/UPDATE/TRUNCATE order, stable
 UPDATE OF attributes and current identities, but no mode/ownership/clone replay
 annotations or final semicolon. FK display consumes shared validated logical RI
-facts; FROM visibility is independent of the event target in both formats.
+facts. User and FK constraint FROM names use their own captured-path visibility
+in both formats, independently of the event target's default qualification.
 `RuleDefinitionSQL` carries pretty through frozen conditions/actions; pg_rules
 explicitly requests default format. `SelectRuleDefinitionSQL` preserves the owned
 SELECT body's leading space and adds the rule's one terminal semicolon.
@@ -1322,6 +1339,8 @@ Trigger definition invariants, alias identity and remap ownership use
 Symbolic query-leaf remap/retag ownership and persistent capture rejection use
 `RUN='^TestNamedRelationStored'`.
 
+SQL-free constraint definition identity, owned backing, clone and destination-remap
+units use `RUN='^TestTriggerDeferredDefinition$'`.
 
 XML frozen target/operand occurrence authority, selected conversion association
 and hidden conversion generations use

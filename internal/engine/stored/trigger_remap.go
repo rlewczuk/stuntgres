@@ -25,6 +25,14 @@ func remapTriggers(read catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 	for i, t := range list {
 		p := t.Parts()
 		p.Relation, p.Procedure = ref(p.Relation), ref(p.Procedure)
+		if p.Constraint.OID != 0 {
+			if address, ok := mapping[ids.ObjectAddress{ClassID: 2606, ObjectID: p.Constraint.OID}]; ok {
+				p.Constraint.OID = address.ObjectID
+			}
+			if p.Constraint.From != (ids.ObjectRef{}) {
+				p.Constraint.From = ref(p.Constraint.From)
+			}
+		}
 		if p.Parent.ObjectID != 0 {
 			p.Parent = ref(ids.ObjectRef{Address: p.Parent}).Address
 		}

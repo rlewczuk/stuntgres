@@ -47,6 +47,13 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 		}
 		if table, ok := descriptor.(*catalog.Relation); ok {
 			count += len(table.Constraints.NotNull) + len(table.Constraints.Check) + len(table.Constraints.Unique) + len(table.Constraints.ForeignKeys) + len(table.Constraints.Exclusion)
+			if table.Triggers != nil {
+				for i := range table.Triggers.Len() {
+					if table.Triggers.ConstraintOID(i) != 0 {
+						count++
+					}
+				}
+			}
 		}
 		if domain, ok := descriptor.(*catalog.Type); ok {
 			count += len(domain.DomainChecks)
@@ -108,6 +115,22 @@ func capturePGConstraint(in Input) ([][]sqltype.Value, error) {
 			at++
 			builder.initialize(row, table.Namespace().ObjectID, table.Address().ObjectID, id, name, kind)
 			return row, builder.err
+		}
+		if err := table.VisitTriggers(func(t catalog.TriggerFact) error {
+			c := t.Constraint
+			if c.OID == 0 {
+				return nil
+			}
+			row, err := next(c.OID, c.Name, "t")
+			if err != nil {
+				return err
+			}
+			builder.boolean(row, 4, c.Deferrable)
+			builder.boolean(row, 5, c.InitiallyDeferred)
+			builder.boolean(row, 18, true)
+			return builder.err
+		}); err != nil {
+			return nil, err
 		}
 		for _, c := range table.Constraints.NotNull {
 			row, err := next(c.OID, c.Name, "n")

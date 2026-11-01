@@ -171,7 +171,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 		}
 		return exec.ValidateStoredRoutineDescriptor(cloneRead, original)
 	})
-	cloned, err := stored.CloneTrigger(cloneRead, mappedDefinition, mapped, &child, 9500020, cloneProcedure)
+	cloned, err := stored.CloneTrigger(cloneRead, mappedDefinition, mapped, &child, 9500020, 0, cloneProcedure)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	}
 	broken := child
 	broken.Index = map[string]int{"id": 1}
-	if _, err := stored.CloneTrigger(cloneRead, mappedDefinition, mapped, &broken, 9500021, cloneProcedure); err == nil {
+	if _, err := stored.CloneTrigger(cloneRead, mappedDefinition, mapped, &broken, 9500021, 0, cloneProcedure); err == nil {
 		t.Fatal("clone accepted missing referenced member")
 	}
 }

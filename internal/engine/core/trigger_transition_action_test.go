@@ -148,3 +148,66 @@ func TestTriggerTransitionRIExposureBoundary(t *testing.T) {
 	host.actor(host.caller)
 	host.depth(0)
 }
+
+// RI exposure consumes ROW frame memberships without advancing the shared query
+// cursor. Only the transferred vector or live invocation still protects them.
+func TestTriggerTransitionConstraintPendingOwnership(t *testing.T) {
+	e := engine.New()
+	session := enginetest.StartSession(t, e, nil)
+	for _, query := range []string{
+		"CREATE TABLE p(id integer PRIMARY KEY)",
+		"CREATE TABLE c(id integer,pid integer REFERENCES p ON DELETE CASCADE)",
+		"CREATE TABLE tt_exposed_images(id integer)",
+		"CREATE FUNCTION tt_constraint_body() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NULL; END$$",
+		"CREATE FUNCTION tt_exposure_body() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN INSERT INTO tt_exposed_images SELECT id FROM x; RETURN NULL; END$$",
+		"CREATE CONSTRAINT TRIGGER a AFTER DELETE ON c DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION tt_constraint_body()",
+		"CREATE TRIGGER m AFTER DELETE ON c REFERENCING OLD TABLE x FOR EACH ROW EXECUTE FUNCTION tt_exposure_body()",
+		"INSERT INTO p VALUES(1)",
+		"INSERT INTO c VALUES(11,1)",
+	} {
+		enginetest.SessionSQL(t, session, query)
+	}
+	child := enginetest.CatalogRef(t, e, e.CatalogRead(), "c")
+	images := enginetest.CatalogRef(t, e, e.CatalogRead(), "tt_exposed_images")
+	scope := foreignActionUnitScope(t, e, session, "DELETE FROM p")
+	if err := dml.SettleForeignActions(scope.ActivateRuntime(scope.Op.Context()), scope.WriteHost()); err != nil {
+		t.Fatal(err)
+	}
+	command, _ := core.ScopeEffectTestIDs(scope)
+	frame := core.ScopeAfterTestFrames(scope)[command]
+	modes := core.ScopeIndexesSlot(scope).ConstraintModes
+	if frame.Rows != 2 || frame.RowCursor != 0 || len(frame.Segments) != 1 || !frame.Segments[0].Frozen || len(scope.Stage.Rows[images.Address]) != 1 || len(modes.Events) != 1 || modes.Events[0].UserTrigger == nil || !scope.HasPendingConstraintEvents(child.Address) {
+		t.Fatal("exposure did not transfer exactly one pending membership", frame, modes)
+	}
+	payload := modes.Events[0].UserTrigger
+	mark, err := scope.BeginPLException()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use the production COW claim without the subsequent command-completion
+	// drain: the exposed query cursor must remain suspended at its opening row.
+	claimed := core.ScopeIndexesSlot(scope).ClaimConstraintEvent(0)
+	if claimed.UserTrigger != payload || len(core.ScopeIndexesSlot(scope).ConstraintModes.Events) != 0 || scope.HasPendingConstraintEvents(child.Address) {
+		t.Fatal("claimed exposed frame membership remained pending")
+	}
+	if err := scope.EndPLException(mark, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	restored := core.ScopeIndexesSlot(scope).ConstraintModes
+	if len(restored.Events) != 1 || restored.Events[0].UserTrigger != payload || !scope.HasPendingConstraintEvents(child.Address) {
+		t.Fatal("checkpoint failed to restore the transferred pending event")
+	}
+	if err := core.ScopeDrainAfterTest(scope); err != nil {
+		t.Fatal(err)
+	}
+	frame = core.ScopeAfterTestFrames(scope)[command]
+	if frame.RowCursor != 2 || len(scope.Stage.Rows[images.Address]) != 1 || len(core.ScopeIndexesSlot(scope).ConstraintModes.Events) != 1 {
+		t.Fatal("final query drain replayed an exposed membership", frame)
+	}
+	if err := core.ScopeCheckConstraintEvents(scope, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if scope.HasPendingConstraintEvents(child.Address) || len(core.ScopeActiveConstraintTriggersTest(scope)) != 0 {
+		t.Fatal("final consumption retained pending or active authority")
+	}
+}

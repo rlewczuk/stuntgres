@@ -143,6 +143,13 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
+		if parent.Triggers != nil {
+			for i := range parent.Triggers.Len() {
+				if parent.Triggers.ConstraintOID(i) != 0 && parent.Triggers.ConstraintName(i) == name {
+					return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
+				}
+			}
+		}
 		if used[name] {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}

@@ -112,7 +112,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = dml.CheckTruncate(auth.View, auth, ref, d, privilege, only, auth.RestrictedRelations())
 			}
 			if err == nil {
-				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")
+				err = s.RelationPendingPreflight(auth.Catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
 				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.Op.Session.SessionToken {

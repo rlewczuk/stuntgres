@@ -31,6 +31,8 @@ type droppedIdentityTriggers []catalog.TriggerFact
 func (r droppedIdentityTriggers) Validate(catalog.Read, *catalog.Relation) error { return nil }
 func (r droppedIdentityTriggers) Len() int                                       { return len(r) }
 func (r droppedIdentityTriggers) OID(i int) ids.OID                              { return r[i].OID }
+func (r droppedIdentityTriggers) ConstraintOID(i int) ids.OID                    { return r[i].Constraint.OID }
+func (r droppedIdentityTriggers) ConstraintName(i int) string                    { return r[i].Constraint.Name }
 func (r droppedIdentityTriggers) Visit(visit func(catalog.TriggerFact) error) error {
 	for _, fact := range r {
 		if err := visit(fact); err != nil {

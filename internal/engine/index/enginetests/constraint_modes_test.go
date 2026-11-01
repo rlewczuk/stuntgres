@@ -48,3 +48,24 @@ func TestConstraintEventSliceOwnership(t *testing.T) {
 		t.Fatal("savepoint lost original payload ownership")
 	}
 }
+
+func TestConstraintEventConsumedMarkOwnership(t *testing.T) {
+	payload := &index.UserTriggerEvent{Targets: []int32{2}}
+	original := []index.ConstraintEvent{{Constraint: 1}, {Constraint: 2, UserTrigger: payload}, {Constraint: 3}}
+	scope := index.Scope{ConstraintModes: index.ConstraintModes{Events: original}}
+	mark := index.ExclusionMarkSlotOf(scope.ConstraintModes, nil)
+	event := scope.ClaimConstraintEvent(1)
+	if event.UserTrigger != payload || len(scope.ConstraintModes.Events) != 2 || original[1].UserTrigger != payload || original[2].Constraint != 3 {
+		t.Fatal("claim mutated a retained savepoint's membership or payload")
+	}
+	scope.AppendConstraintEvent(index.ConstraintEvent{Constraint: 4})
+	scope.ConstraintModes = index.ExclusionMarkOrZero(mark).Modes
+	// A restored vector may be marked owned by a previous suffix. Claims
+	// must remain safe even then, including prefix/suffix slice-only removal.
+	scope.ClaimConstraintEvent(0)
+	scope.ClaimConstraintEvent(1)
+	scope.AppendConstraintEvent(index.ConstraintEvent{Constraint: 5})
+	if len(scope.ConstraintModes.Events) != 2 || scope.ConstraintModes.Events[0].UserTrigger != payload || len(original) != 3 || original[0].Constraint != 1 || original[2].Constraint != 3 {
+		t.Fatal("rollback/claim/reappend overwrote original event backing")
+	}
+}

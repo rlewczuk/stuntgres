@@ -57,6 +57,13 @@ func StageUniqueDefinitions(h Host, auth ddl.Authority, d *catalog.Relation, dec
 	for _, c := range d.Constraints.ForeignKeys {
 		local[c.Name] = true
 	}
+	if d.Triggers != nil {
+		for i := range d.Triggers.Len() {
+			if d.Triggers.ConstraintOID(i) != 0 {
+				local[d.Triggers.ConstraintName(i)] = true
+			}
+		}
+	}
 	view := h.StageRead()
 	used := catalog.ConstraintNames(view, d.Namespace(), nil)
 	for name := range local {

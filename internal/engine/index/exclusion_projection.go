@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,14 +27,15 @@ type ExclusionProjection struct {
 	Ended   map[ids.ObjectAddress]map[ids.RowID]ids.VersionID
 }
 
-// ConstraintEvent is one index conflict obligation or one FK trigger event.
-// FK payloads own immutable accepted row images and original catalog references.
+// ConstraintEvent is one index, FK, or user constraint-trigger obligation.
+// Payloads are immutable; only the owning COW vector records consumption.
 type ConstraintEvent struct {
 	Parent, Index ids.ObjectRef
 	Constraint    ids.OID
 	Row           ids.RowID
 	Version       ids.VersionID
 	ForeignKey    *ForeignKeyEvent
+	UserTrigger   *UserTriggerEvent
 }
 
 type ForeignKeyEvent struct {
@@ -42,6 +44,18 @@ type ForeignKeyEvent struct {
 	Owner                authorization.PrincipalRef
 	ParentEvent          bool
 	Definition           catalog.ForeignKeyConstraint
+}
+
+// UserTriggerEvent owns accepted images and immutable admission provenance.
+// It deliberately retains no statement, context, executable graph or authority.
+type UserTriggerEvent struct {
+	Definition stored.Trigger
+	Relation   *catalog.Relation
+	Read       catalog.Read
+	Event      stored.TriggerEvent
+	Old, Next  []sqltype.Value
+	Targets    []int32
+	Actor      authorization.PrincipalRef
 }
 
 type ConstraintModes struct {

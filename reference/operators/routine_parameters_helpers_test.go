@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/lib/pq"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -101,12 +104,18 @@ func parametersError(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, query
 
 // SQL checks run identically on both engines. Only native owns controls. Each
 // unchanged emitted stream is also executed on PG, not compared as source text.
-func parametersReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, schema string, check func(*sql.Conn, fixture.Backend)) {
+// Additional replay namespaces join the same quoted DROP SCHEMA CASCADE closure.
+func parametersReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, schema string, check func(*sql.Conn, fixture.Backend), extraSchemas ...string) {
 	t.Helper()
 	check(c, b)
 	if b.PG {
 		return
 	}
+	schemas := []string{pq.QuoteIdentifier(schema)}
+	for _, name := range extraSchemas {
+		schemas = append(schemas, pq.QuoteIdentifier(name))
+	}
+	dropSchemas := "DROP SCHEMA IF EXISTS " + strings.Join(schemas, ",") + " CASCADE"
 	for range 2 {
 		dump := parametersNativeReplayRound(t, p, b, c, check)
 		if p.Postgres != nil {
@@ -117,11 +126,11 @@ func parametersReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.C
 				}
 				defer pg.Close()
 				defer func() {
-					if _, err := pg.ExecContext(p.Ctx, "SET check_function_bodies=true; DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
+					if _, err := pg.ExecContext(p.Ctx, "SET check_function_bodies=true; "+dropSchemas); err != nil {
 						t.Error(err)
 					}
 				}()
-				if _, err := pg.ExecContext(p.Ctx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
+				if _, err := pg.ExecContext(p.Ctx, dropSchemas); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := pg.ExecContext(p.Ctx, string(dump)); err != nil {

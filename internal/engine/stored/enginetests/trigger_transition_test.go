@@ -49,6 +49,10 @@ func TestTriggerTransitionDefinition(t *testing.T) {
 		"new delete":  func(p *stored.TriggerParts) { p.Events = stored.TriggerDelete; p.OldTable = "" },
 		"column list": func(p *stored.TriggerParts) { p.UpdateColumns = []int32{relation.Attributes[0]} },
 		"same alias":  func(p *stored.TriggerParts) { p.NewTable = p.OldTable },
+		"constraint": func(p *stored.TriggerParts) {
+			p.Level = stored.TriggerRow
+			p.Constraint = catalog.TriggerConstraint{OID: p.OID + 1, Name: p.Name}
+		},
 		"clone": func(p *stored.TriggerParts) {
 			p.Level = stored.TriggerRow
 			p.Parent = ids.ObjectAddress{ClassID: 2620, ObjectID: 1}
@@ -108,7 +112,7 @@ func TestTriggerTransitionDefinition(t *testing.T) {
 			t.Fatal("ROW transition accepted on hierarchy", hierarchy)
 		}
 	}
-	if _, err := stored.CloneTrigger(read, row, relation, relation, row.OID()+1, nil); err == nil {
+	if _, err := stored.CloneTrigger(read, row, relation, relation, row.OID()+1, 0, nil); err == nil {
 		t.Fatal("cloned ROW transition onto partition")
 	}
 	for _, changeOld := range []bool{false, true} {

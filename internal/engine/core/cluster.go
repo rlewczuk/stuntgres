@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"time"
 
 	"stuntgres/internal/engine/catalog"
@@ -9,16 +8,10 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// ClusterInUse checks genuine retained portals and deferred transition events.
+// ClusterInUse checks active descriptors, retained portals and pending events.
 // The caller owns session admission; it may hold Engine.Mu.
 func (s *StatementScope) ClusterInUse(view catalog.Read, relation *catalog.Relation) error {
-	if err := s.relationCursorPreflight(view, relation.Address(), "CLUSTER"); err != nil {
-		return err
-	}
-	if s.HasPendingConstraintEvents(relation.Address()) {
-		return SQLError("55006", fmt.Sprintf(`cannot CLUSTER "%s" because it has pending trigger events`, relation.Name()))
-	}
-	return nil
+	return s.RelationPendingPreflight(view, relation.Address(), "CLUSTER")
 }
 
 // CompleteClusterTarget publishes one bare-CLUSTER target with the ordinary

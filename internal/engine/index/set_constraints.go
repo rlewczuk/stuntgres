@@ -8,11 +8,8 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// SelectConstraintName resolves one SET CONSTRAINTS name, label, along the
-// namespaces of path, stopping at the first namespace with a table
-// constraint of that name. It adds eligible UNIQUE, PK, EX and FK identities
-// to selected. Naming a nondeferrable constraint with deferred is
-// 42809; a name found nowhere is 42704.
+// SelectConstraintName resolves all actual constraint declarations in the first
+// matching namespace. Trigger names and trigger ancestry never imply selection.
 func SelectConstraintName(view catalog.Read, path analyze.NamespaceSelection, label string, deferred bool, selected map[ids.OID]bool) error {
 	for i := range path.Count() {
 		namespace := path.At(i)
@@ -58,6 +55,22 @@ func SelectConstraintName(view catalog.Read, path analyze.NamespaceSelection, la
 				if c.Deferrable {
 					selected[c.OID] = true
 				}
+			}
+			if err := parent.VisitTriggers(func(fact catalog.TriggerFact) error {
+				c := fact.Constraint
+				if c.OID == 0 || c.Name != label {
+					return nil
+				}
+				matched = true
+				if deferred && !c.Deferrable {
+					return sqlError("42809", fmt.Sprintf(`constraint "%s" is not deferrable`, label))
+				}
+				if c.Deferrable {
+					selected[c.OID] = true
+				}
+				return nil
+			}); err != nil {
+				return err
 			}
 			for _, c := range parent.Constraints.Check {
 				if c.Name == label {

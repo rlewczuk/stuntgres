@@ -122,6 +122,9 @@ type CatalogStage struct {
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
+	// DISCARD ALL's staged closure owns CLOSE at its successful frontier.
+	// This exempts only cursor pins, never unfinished constraint events.
+	closesCursors bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
 	initialTables     map[ids.ObjectAddress]*storage.Relation
@@ -549,7 +552,10 @@ func (s *StatementScope) acquireCatalogStageAdmissions(stage *CatalogStage) erro
 	if err := s.acquireCatalogNames(stage); err != nil {
 		return err
 	}
-	return s.AcquireRoutineDefinitionProviders(stage)
+	if err := s.AcquireRoutineDefinitionProviders(stage); err != nil {
+		return err
+	}
+	return s.CheckPendingRelationDrops(stage)
 }
 
 func (s *StatementScope) releaseCatalogReservation() {
@@ -617,6 +623,12 @@ func (e *Engine) PublishPreparedCatalog(op *session.Operation, scope *StatementS
 		if s.Lifecycle != catalogValidated {
 			e.Mu.Unlock()
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
+		}
+		if scope != nil {
+			if err := scope.CheckPendingRelationDrops(s); err != nil {
+				e.Mu.Unlock()
+				return ChangeSet{}, err
+			}
 		}
 		current := e.Catalog.State
 		if err := s.DefaultPreflight(current); err != nil {

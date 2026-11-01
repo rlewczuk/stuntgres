@@ -229,8 +229,11 @@ ordinary assignments to an unreserved `security` variable.
   admits the supported timing and target kind.
   REFERENCING retains ordered OLD/NEW, TABLE/ROW, decoded aliases and declaration/
   alias positions, with optional AS. Timing, event mapping, duplicate names and
-  ROW naming are DDL decisions. Negative-only CONSTRAINT syntax rejects
-  REFERENCING at its token; it never produces executable constraint definitions.
+  ROW naming are DDL decisions. Constraint declarations use the same AST with a
+  dedicated literal AFTER/FOR EACH ROW grammar, positioned optional FROM, and
+  declared timing properties; REFERENCING is rejected at its token. Identical
+  properties are redundant; conflicting properties fail at their actual token,
+  and INITIALLY DEFERRED implies DEFERRABLE unless contradicted.
   Embedded PL SQL retains full INSERT VALUES expression trees and original
   statement boundaries; it does not replay cells through the ordinary SQL
   input-only scalar frontier. Ordinary SQL parsing and prewalk remain unchanged.

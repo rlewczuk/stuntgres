@@ -185,6 +185,8 @@ import it.
   persistent foreign-key triggers share the canonical owned-relation renderer;
   `catalog.ForeignKeyTriggerFacts` supplies RI names and actual trigger relations,
   including action triggers on the referenced table.
+  Trigger-owned constraints use their distinct inline class2606 identity and
+  independent conname in address lookup and dropped-object descriptions.
   Cast identity uses actual catalog descriptor endpoints, with fixed builtin
   metadata only as a fallback; qualified endpoint identities and path-sensitive
   descriptions share the canonical type renderer. Casts remain ownerless, with

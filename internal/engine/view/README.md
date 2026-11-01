@@ -42,14 +42,20 @@ imports `view`.
   REPLACE replaces. Creation checks table TRIGGER and function EXECUTE grants;
   lifecycle ownership requires table authority, which a rename checks before
   the trigger's existence. `FreezeDefinition` freezes view queries.
-  Trigger capability uses the extension layer's shared read-aware admission;
-  a genuine installed native helper does not require a PL program.
+  Trigger capability uses catalog's shared structural predicate followed by
+  ordinary provider/provenance validation; native helpers need no PL program.
   View INSTEAD OF definitions are checked ROW INSERT/UPDATE/DELETE only, without
   WHEN or column lists; view BEFORE/AFTER STATEMENT I/U/D definitions stay local.
   Ordered REFERENCING validation follows ordinary kind/level restrictions and
   precedes OF-column and routine lookup. Semantic errors have no invented
   position; ROW naming retains its hint. Only valid immutable aliases reach the
   atomic relation replacement; failed CREATE OR REPLACE leaves its predecessor.
+  Constraint creation shares this admission/binding path, allocating distinct
+  inline constraint identity with declaration timing and optional FROM TRIGGER
+  authority. FROM is an automatic drop endpoint; normal function/WHEN dependencies
+  remain independent. Constraint replacement is rejected at the CREATE source
+  position rather than normalized into an ordinary trigger; constraint declarations
+  cannot include REFERENCING.
 - **Trigger partition synchronization** (`trigger_sync.go`):
   `SynchronizeTriggersLocked` keeps row-level partition trigger clones in step
   with their parents at every catalog publication (CREATE, ATTACH, DETACH and
@@ -62,6 +68,9 @@ imports `view`.
   parent links; replacing it with row level resynchronizes that lineage.
   New clones inherit the parent mode; structural synchronization retains existing
   clone-local modes except actual CREATE OR REPLACE, which resets its lineage to O.
+  Constraint clones allocate their own class2606 identity as well as trigger OID.
+  New clone connames use the current parent tgname; existing clone connames remain
+  independent of parent trigger or constraint rename.
   Mode-only revision changes advance clone provenance without reconstructing
   WHEN/function backing. Original parent recipes use matching positions or one
   invocation-local identity lookup when positions shifted, not repeated scans.

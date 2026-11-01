@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -47,6 +48,16 @@ func selectNotNullConstraint(relation *catalog.Relation, action parser.AlterTabl
 func NotNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion NotNullRecursion) (*catalog.Relation, error) {
 	slot, idx := selectNotNullConstraint(old, a)
 	if a.Action == parser.DropConstraint {
+		for _, t := range stored.TriggersOf(old) {
+			c := t.Parts().Constraint
+			if c.OID != 0 && c.Name == a.Constraint.Text {
+				table := stored.DependencyRelationName(view, old, nil)
+				constraint, trigger := catalog.DependencyIdentifier(c.Name), catalog.DependencyIdentifier(t.Name())
+				return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01",
+					Message: fmt.Sprintf("cannot drop constraint %s on table %s because trigger %s on table %s requires it", constraint, table, trigger, table),
+					Hint:    fmt.Sprintf("You can drop trigger %s on table %s instead.", trigger, table)}
+			}
+		}
 		for _, c := range old.Constraints.Check {
 			if c.Name == a.Constraint.Text {
 				next := *old

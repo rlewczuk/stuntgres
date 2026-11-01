@@ -61,8 +61,8 @@ func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	if s.Materialized && old.RelationKind != catalog.MaterializedViewRelation {
 		return fail(core.SQLError("42809", fmt.Sprintf(`"%s" is not a materialized view`, old.Name())))
 	}
-	if scope.HasPendingConstraintEvents(old.Address()) {
-		return fail(core.SQLError("55006", fmt.Sprintf(`cannot ALTER TABLE "%s" because it has pending trigger events`, old.Name())))
+	if err := scope.ConstraintPendingPreflight(auth.Catalog, old.Address(), "ALTER TABLE"); err != nil {
+		return fail(err)
 	}
 	if s.Only && scope.Inheritance.Alter == nil && !catalog.HierarchyRelation(old) {
 		s = table.OnlySetNotNull(auth.Catalog, old, s)

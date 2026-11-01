@@ -1,6 +1,8 @@
 package core_test
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/util"
 )
 
@@ -76,5 +79,43 @@ func TestConstraintPendingEventZeroAllocation(t *testing.T) {
 	allocations, bytes = util.AllocationsPerCall(100, func() { found = scope.HasPendingConstraintEvents(address) })
 	if found || allocations != 0 || bytes != 0 || owner.Extension != nil {
 		t.Fatal("settled scope query allocated state", found, allocations, bytes)
+	}
+}
+
+func TestConstraintPendingDiscardCloseOwnership(t *testing.T) {
+	e := engine.New()
+	actor := enginetest.StartSession(t, e, nil)
+	for _, sql := range []string{
+		"CREATE TEMP TABLE pending_discard_guard(v integer)",
+		"CREATE FUNCTION pending_discard_body() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$",
+		"CREATE CONSTRAINT TRIGGER c AFTER INSERT ON pending_discard_guard DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION pending_discard_body()",
+		"BEGIN",
+		"INSERT INTO pending_discard_guard VALUES(7)",
+		"DECLARE c CURSOR FOR SELECT v FROM pending_discard_guard",
+	} {
+		enginetest.SessionSQL(t, actor, sql)
+	}
+	modes := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(actor.Transactions))
+	if len(modes.Events) != 1 || modes.Events[0].UserTrigger == nil {
+		t.Fatal("missing real accepted user event")
+	}
+	payload := modes.Events[0].UserTrigger
+	cursor := core.PayloadOf(actor).Cursors.Entries["c"]
+	if cursor == nil || cursor.Root == nil {
+		t.Fatal("missing retained cursor pin")
+	}
+	before := e.Catalog.State
+	op, scope := discardUnitScope(t, actor, context.Background(), parser.DiscardTemp)
+	defer op.Done()
+	defer scope.Finish(errors.New("discard private candidate"))
+	// ALL owns a later CLOSE, but not a constraint-event drain. Its staged
+	// retirement must pass the cursor exemption and still reject this event.
+	err := core.ScopeStageDiscardTemporary(scope, true)
+	if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "pending_discard_guard" because it has pending trigger events` {
+		t.Fatal("CLOSE ownership suppressed pending safety or retained cursor fence", err)
+	}
+	after := core.OwnerExtensionConstraintModes(core.OwnerExtensionOrZero(actor.Transactions))
+	if scope.Catalog != nil || scope.ProjectedRoots || e.Catalog.State != before || cursor.Root == nil || len(after.Events) != 1 || after.Events[0].UserTrigger != payload || &after.Events[0] != &modes.Events[0] {
+		t.Fatal("failed CLOSE-composed retirement consumed or installed effects")
 	}
 }

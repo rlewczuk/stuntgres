@@ -16,6 +16,7 @@ type TriggerCatalogDefinition struct {
 	Name                            string
 	OldTable, NewTable              string
 	Mode                            catalog.TriggerMode
+	Constraint                      catalog.TriggerConstraint
 	Type                            int16
 	Attributes                      []int32
 	Arguments                       []string
@@ -68,7 +69,7 @@ func VisitTriggerCatalog(ctx context.Context, read catalog.Read, owner *catalog.
 		if err != nil {
 			return err
 		}
-		if err := visit(TriggerCatalogDefinition{OID: p.OID, Relation: p.Relation.Address.ObjectID, Function: p.Procedure.Address.ObjectID, Parent: p.Parent.ObjectID, Name: p.Name, OldTable: p.OldTable, NewTable: p.NewTable, Mode: list[i].Mode(), Type: flags, Attributes: p.UpdateColumns, Arguments: p.Arguments, Qual: qual}); err != nil {
+		if err := visit(TriggerCatalogDefinition{OID: p.OID, Relation: p.Relation.Address.ObjectID, Function: p.Procedure.Address.ObjectID, Parent: p.Parent.ObjectID, Name: p.Name, Constraint: p.Constraint, OldTable: p.OldTable, NewTable: p.NewTable, Mode: list[i].Mode(), Type: flags, Attributes: p.UpdateColumns, Arguments: p.Arguments, Qual: qual}); err != nil {
 			return err
 		}
 	}

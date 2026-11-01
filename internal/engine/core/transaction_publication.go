@@ -22,7 +22,11 @@ func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[
 	if owner.State != session.TxActive && owner.State != session.TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
-	return e.publishRows(op, ref, writes, deletes, owner.Catalog, nil, scope)
+	var authority *session.CatalogAuthority
+	if scope != nil {
+		authority = scope.CatalogAuthority
+	}
+	return e.publishRows(op, ref, writes, deletes, owner.Catalog, authority, scope)
 }
 
 func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, scope *StatementScope) error {

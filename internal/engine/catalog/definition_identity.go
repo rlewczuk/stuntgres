@@ -56,6 +56,11 @@ func VisitDefinitionOIDs(descriptor Descriptor, visit func(ids.OID) error) error
 			if err := visit(d.Triggers.OID(i)); err != nil {
 				return err
 			}
+			if oid := d.Triggers.ConstraintOID(i); oid != 0 {
+				if err := visit(oid); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for _, p := range d.Security.Policies {

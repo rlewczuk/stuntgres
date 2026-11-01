@@ -100,12 +100,20 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	var old, candidate *lock.Ticket
 	var next ids.TxRef
 	installedNext := false
+	var terminalScope *StatementScope
+	var restoreTerminalOperation func()
 	defer func() {
 		if !installedNext {
 			e.endSerializable(next, false)
 		}
 		finishNotificationBoundary(t)
 		t.Mu.Unlock()
+		if restoreTerminalOperation != nil {
+			restoreTerminalOperation()
+		}
+		if terminalScope != nil {
+			terminalScope.releaseTerminalScope()
+		}
 		e.EndLockOwner(candidate)
 		e.EndLockOwner(old)
 	}()
@@ -170,10 +178,16 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	committed := false
 	if commit && t.State != session.TxAborted {
 		if len(ownerExtensionOrZero(t).constraintModes.Events) != 0 || PayloadOf(op.Session).Cursors.hasCurrentHold(ref) {
-			if scope == nil {
+			if scope == nil || scope.Finished {
 				scope = newStatementScope(op, t, op.StatementStart())
+				terminalScope = scope
 			}
+		}
+		if scope != nil && !scope.Finished {
 			scope.attachTransactionLocked()
+			restoreTerminalOperation = scope.borrowTerminalOperation()
+		} else if scope != nil {
+			scope = nil
 		}
 		t.Mu.Unlock()
 		if chainFence {
@@ -207,11 +221,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 			}
 		}
 		if err == nil {
-			var publicationScope *StatementScope
-			if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
-				publicationScope = scope
-			}
-			err = e.publishWrites(op, ref, t.Writes, t.Deletes, publicationScope)
+			err = e.publishWrites(op, ref, t.Writes, t.Deletes, scope)
 			committed = err == nil
 		}
 		if scope != nil && len(scope.foreignTablesOrZero().statements) != 0 {
@@ -269,6 +279,10 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if err == nil {
 			err = cleanupErr
 		}
+	}
+	if err != nil && scope != nil {
+		scope.AbortStatsPopulation()
+		t.Stats.Take(&scope.Stage.Stats)
 	}
 	old = t.Ticket
 	t.Ticket = nil

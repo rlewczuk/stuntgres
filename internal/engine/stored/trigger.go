@@ -59,6 +59,7 @@ type TriggerParts struct {
 	Procedure      ids.ObjectRef
 	Parent         ids.ObjectAddress // Parent trigger identity for a partition clone.
 	ParentRevision ids.DefinitionRevision
+	Constraint     catalog.TriggerConstraint
 	Events         TriggerEvent
 	Timing         TriggerTiming
 	Level          TriggerLevel
@@ -89,9 +90,17 @@ func validateTriggerParts(p TriggerParts) error {
 		return fmt.Errorf("stuntgres: invalid INSTEAD OF trigger definition")
 	}
 	if p.OldTable != "" || p.NewTable != "" {
-		if p.Timing != TriggerAfter || p.Events != TriggerInsert && p.Events != TriggerUpdate && p.Events != TriggerDelete || len(p.UpdateColumns) != 0 || p.OldTable != "" && p.Events == TriggerInsert || p.NewTable != "" && p.Events == TriggerDelete || p.OldTable == p.NewTable || p.Level == TriggerRow && p.Parent.ObjectID != 0 {
+		if p.Constraint.OID != 0 || p.Timing != TriggerAfter || p.Events != TriggerInsert && p.Events != TriggerUpdate && p.Events != TriggerDelete || len(p.UpdateColumns) != 0 || p.OldTable != "" && p.Events == TriggerInsert || p.NewTable != "" && p.Events == TriggerDelete || p.OldTable == p.NewTable || p.Level == TriggerRow && p.Parent.ObjectID != 0 {
 			return fmt.Errorf("stuntgres: invalid trigger transition relations")
 		}
+	}
+	c := p.Constraint
+	if c.OID == 0 {
+		if c != (catalog.TriggerConstraint{}) {
+			return fmt.Errorf("stuntgres: partial trigger constraint definition")
+		}
+	} else if c.OID == p.OID || c.Name == "" || p.Timing != TriggerAfter || p.Level != TriggerRow || p.Events&TriggerTruncate != 0 || c.InitiallyDeferred && !c.Deferrable || c.From != (ids.ObjectRef{}) && (c.From.Address.ClassID != ids.RelationClassID || c.From.Address.ObjectID == 0 || c.From.Address.SubID != 0) {
+		return fmt.Errorf("stuntgres: invalid trigger constraint definition")
 	}
 	if p.When != nil && (p.When.ResultUsage().Type == nil || p.When.ResultUsage().Type.ID() != sqltype.Bool) {
 		return fmt.Errorf("stuntgres: nonboolean trigger condition")
@@ -133,6 +142,15 @@ func (t Trigger) WithMode(mode catalog.TriggerMode) (Trigger, error) {
 	return t, nil
 }
 
+// WithConstraintName replaces only the independent constraint label.
+func (t Trigger) WithConstraintName(name string) (Trigger, error) {
+	if t.parts.Constraint.OID == 0 || name == "" {
+		return Trigger{}, fmt.Errorf("stuntgres: invalid trigger constraint rename")
+	}
+	t.parts.Constraint.Name = name
+	return t, nil
+}
+
 // WithParentRevision advances clone provenance without rebuilding its recipe.
 func (t Trigger) WithParentRevision(revision ids.DefinitionRevision) Trigger {
 	t.parts.ParentRevision = revision
@@ -141,7 +159,7 @@ func (t Trigger) WithParentRevision(revision ids.DefinitionRevision) Trigger {
 
 func (t Trigger) SameExecutable(other Trigger) bool {
 	a, b := t.parts, other.parts
-	return a.OID == b.OID && a.Name == b.Name && a.Relation == b.Relation && a.Procedure == b.Procedure && a.Parent == b.Parent && a.Events == b.Events && a.Timing == b.Timing && a.Level == b.Level && a.OldTable == b.OldTable && a.NewTable == b.NewTable && a.Binding == b.Binding && a.Presentation == b.Presentation && slices.Equal(a.UpdateColumns, b.UpdateColumns) && slices.Equal(a.Arguments, b.Arguments) && slices.Equal(a.References, b.References) && slices.Equal(a.AutoExtensions, b.AutoExtensions)
+	return a.OID == b.OID && a.Name == b.Name && a.Constraint == b.Constraint && a.Relation == b.Relation && a.Procedure == b.Procedure && a.Parent == b.Parent && a.Events == b.Events && a.Timing == b.Timing && a.Level == b.Level && a.OldTable == b.OldTable && a.NewTable == b.NewTable && a.Binding == b.Binding && a.Presentation == b.Presentation && slices.Equal(a.UpdateColumns, b.UpdateColumns) && slices.Equal(a.Arguments, b.Arguments) && slices.Equal(a.References, b.References) && slices.Equal(a.AutoExtensions, b.AutoExtensions)
 }
 func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 	if t.parts.Events&event == 0 {
@@ -160,13 +178,15 @@ func (t Trigger) Fires(event TriggerEvent, targets []int32) bool {
 
 type TriggerList []Trigger
 
-func (t TriggerList) Len() int          { return len(t) }
-func (t TriggerList) OID(i int) ids.OID { return t[i].parts.OID }
+func (t TriggerList) Len() int                    { return len(t) }
+func (t TriggerList) OID(i int) ids.OID           { return t[i].parts.OID }
+func (t TriggerList) ConstraintOID(i int) ids.OID { return t[i].parts.Constraint.OID }
+func (t TriggerList) ConstraintName(i int) string { return t[i].parts.Constraint.Name }
 
 func (t TriggerList) Visit(visit func(catalog.TriggerFact) error) error {
 	for _, definition := range t {
 		p := definition.parts
-		if err := visit(catalog.TriggerFact{OID: p.OID, Name: p.Name, Procedure: p.Procedure.Address, Parent: p.Parent, References: p.References, AutoExtensions: p.AutoExtensions}); err != nil {
+		if err := visit(catalog.TriggerFact{OID: p.OID, Name: p.Name, Constraint: p.Constraint, Procedure: p.Procedure.Address, Parent: p.Parent, References: p.References, AutoExtensions: p.AutoExtensions}); err != nil {
 			return err
 		}
 	}
@@ -177,6 +197,7 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 		return fmt.Errorf("stuntgres: trigger payload on invalid relation kind")
 	}
 	previous := ""
+	var constraintNames map[string]bool
 	for i, definition := range t {
 		p := definition.parts
 		if err := validateTriggerParts(p); err != nil {
@@ -185,6 +206,25 @@ func (t TriggerList) Validate(read catalog.Read, owner *catalog.Relation) error 
 		if p.OldTable != "" || p.NewTable != "" {
 			if owner.RelationKind != catalog.TableRelation && owner.RelationKind != catalog.PartitionedRelation || p.Level == TriggerRow && (owner.RelationKind == catalog.PartitionedRelation || owner.Membership != nil || owner.Inheritance != nil && len(owner.Inheritance.Parents) != 0) {
 				return fmt.Errorf("stuntgres: trigger transition relations on invalid relation kind")
+			}
+		}
+		if p.Constraint.OID != 0 {
+			if owner.RelationKind != catalog.TableRelation && owner.RelationKind != catalog.PartitionedRelation {
+				return fmt.Errorf("stuntgres: constraint trigger on invalid relation kind")
+			}
+			if constraintNames == nil {
+				constraintNames = make(map[string]bool)
+			}
+			base := *owner
+			base.Triggers = nil
+			if constraintNames[p.Constraint.Name] || catalog.RelationConstraintNameExists(&base, p.Constraint.Name) {
+				return fmt.Errorf("stuntgres: duplicate trigger constraint name")
+			}
+			constraintNames[p.Constraint.Name] = true
+			if from := p.Constraint.From; from != (ids.ObjectRef{}) {
+				if _, ok := read.Relation(from.Address); !ok || !ReferenceEpochValid(read, owner, from) {
+					return fmt.Errorf("stuntgres: invalid constraint trigger FROM provenance")
+				}
 			}
 		}
 		if owner.RelationKind == catalog.ViewRelation {

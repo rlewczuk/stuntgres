@@ -37,7 +37,7 @@ func RelationPayloadAddresses(d *Relation) []ids.ObjectAddress {
 		}
 	}
 	_ = d.VisitRules(func(x RuleFact) error { add(2618, x.OID); return nil })
-	_ = d.VisitTriggers(func(x TriggerFact) error { add(2620, x.OID); return nil })
+	_ = d.VisitTriggers(func(x TriggerFact) error { add(2620, x.OID); add(2606, x.Constraint.OID); return nil })
 	for _, x := range d.Security.Policies {
 		add(3256, x.OID)
 	}

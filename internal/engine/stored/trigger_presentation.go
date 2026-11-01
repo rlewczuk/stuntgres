@@ -160,7 +160,11 @@ func TriggerDefinitionSQL(ctx context.Context, relation *catalog.Relation, defin
 		return "", err
 	}
 	var sql strings.Builder
-	sql.WriteString("CREATE TRIGGER " + renderer.Identifier(p.Name) + " " + fact.Timing + " ")
+	sql.WriteString("CREATE ")
+	if p.Constraint.OID != 0 {
+		sql.WriteString("CONSTRAINT ")
+	}
+	sql.WriteString("TRIGGER " + renderer.Identifier(p.Name) + " " + fact.Timing + " ")
 	first := true
 	for _, event := range [...]struct {
 		bit  TriggerEvent
@@ -189,6 +193,20 @@ func TriggerDefinitionSQL(ctx context.Context, relation *catalog.Relation, defin
 		}
 	}
 	sql.WriteString(" ON " + target)
+	if c := p.Constraint; c.OID != 0 {
+		if c.From != (ids.ObjectRef{}) {
+			from, ok := renderer.View.Relation(c.From.Address)
+			if !ok {
+				return "", ids.ErrCatalogReplaced
+			}
+			name, err := renderer.RelationName(from, false)
+			if err != nil {
+				return "", err
+			}
+			sql.WriteString(" FROM " + name)
+		}
+		sql.WriteString(triggerConstraintTimingSQL(c))
+	}
 	writeTriggerTransitions(&sql, p, renderer.Identifier)
 	sql.WriteString(" FOR EACH " + fact.Orientation)
 	if fact.HasCondition {

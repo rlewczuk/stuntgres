@@ -35,7 +35,7 @@ func (s *StatementScope) exposeAfterTransitions(key afterStatementKey) error {
 			continue
 		}
 		f.rows[i].skip = true
-		if err := s.fireTrigger(event); err != nil {
+		if err := s.fireAfterTrigger(event); err != nil {
 			return err
 		}
 	}

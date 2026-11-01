@@ -80,7 +80,12 @@ func TestParseTriggerTransitionConstraintDiagnostic(t *testing.T) {
 		}
 	}
 	q := "CREATE CONSTRAINT TRIGGER c AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION f()"
-	if statements, err := Parse(q); err == nil || len(statements) != 0 {
-		t.Fatal("negative-only grammar admitted executable constraint", statements, err)
+	statements, err := Parse(q)
+	if err != nil || len(statements) != 1 {
+		t.Fatal("constraint declaration rejected without REFERENCING", statements, err)
+	}
+	s := statements[0].(*CreateTrigger)
+	if !s.Constraint || !s.Row || len(s.Transitions) != 0 {
+		t.Fatal("constraint declaration lost metadata", s)
 	}
 }

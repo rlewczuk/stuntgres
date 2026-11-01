@@ -21,6 +21,12 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 	var groups []dump.Group
 	var dependencies []dump.Group
 	var modes []dump.Group
+	var constraintNames []dump.Group
+	var constraintDefinitions, triggerNames []dump.Group
+	replayNames, err := triggerReplayNames(ctx, read)
+	if err != nil {
+		return nil, err
+	}
 	for _, descriptor := range read.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || !relation.HasTriggers() {
@@ -42,6 +48,17 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				return nil, err
 			}
 			p := t.Parts()
+			createName := p.Name
+			if p.Constraint.OID != 0 {
+				createName = replayNames[p.OID]
+				if createName == "" {
+					return nil, fmt.Errorf("stuntgres: missing constraint trigger replay name")
+				}
+				constraintNames = append(constraintNames, dump.Group{Owner: owner.Name, Table: table, SQL: "ALTER TABLE " + table + " RENAME CONSTRAINT " + catalog.QuoteIdentifier(createName) + " TO " + catalog.QuoteIdentifier(p.Constraint.Name) + ";\n"})
+				if p.Parent.ObjectID == 0 {
+					triggerNames = append(triggerNames, dump.Group{Owner: owner.Name, Table: table, SQL: "ALTER TRIGGER " + catalog.QuoteIdentifier(createName) + " ON " + table + " RENAME TO " + catalog.QuoteIdentifier(p.Name) + ";\n"})
+				}
+			}
 			// CREATE supplies origin mode. Clones still need an explicit reset
 			// because their recreated parent can supply a different inherited mode.
 			if t.Mode() != catalog.TriggerOrigin || p.Parent.ObjectID != 0 {
@@ -98,7 +115,11 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 			if p.Level == TriggerStatement {
 				level = "STATEMENT"
 			}
-			sql.WriteString("CREATE TRIGGER " + catalog.QuoteIdentifier(p.Name) + " " + timing + " ")
+			sql.WriteString("CREATE ")
+			if p.Constraint.OID != 0 {
+				sql.WriteString("CONSTRAINT ")
+			}
+			sql.WriteString("TRIGGER " + catalog.QuoteIdentifier(createName) + " " + timing + " ")
 			var events []string
 			if p.Events&TriggerInsert != 0 {
 				events = append(events, "INSERT")
@@ -124,6 +145,16 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				events = append(events, "TRUNCATE")
 			}
 			sql.WriteString(strings.Join(events, " OR ") + " ON " + table)
+			if c := p.Constraint; c.OID != 0 {
+				if c.From != (ids.ObjectRef{}) {
+					from, err := ruleRelationSQL(read, c.From)
+					if err != nil {
+						return nil, err
+					}
+					sql.WriteString(" FROM " + from)
+				}
+				sql.WriteString(triggerConstraintTimingSQL(c))
+			}
 			writeTriggerTransitions(&sql, p, catalog.QuoteIdentifier)
 			sql.WriteString(" FOR EACH " + level)
 			if p.When != nil {
@@ -168,7 +199,11 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 				}
 				text = comment + text
 			}
-			groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: text})
+			if p.Constraint.OID != 0 {
+				constraintDefinitions = append(constraintDefinitions, dump.Group{Owner: owner.Name, Table: table, SQL: text})
+			} else {
+				groups = append(groups, dump.Group{Owner: owner.Name, Table: table, SQL: text})
+			}
 		}
 	}
 	slices.SortFunc(groups, func(a, b dump.Group) int {
@@ -185,6 +220,20 @@ func TriggerDumpGroups(ctx context.Context, read catalog.Read, roles authorizati
 		}
 		return strings.Compare(a.SQL, b.SQL)
 	})
+	// Construct constraint families before restoring their independent names.
+	// Ordinary definitions and all final-name metadata follow this choreography.
+	order := func(a, b dump.Group) int {
+		if a.Table != b.Table {
+			return strings.Compare(a.Table, b.Table)
+		}
+		return strings.Compare(a.SQL, b.SQL)
+	}
+	slices.SortFunc(constraintDefinitions, order)
+	slices.SortFunc(constraintNames, order)
+	slices.SortFunc(triggerNames, order)
+	prefix := append(constraintDefinitions, constraintNames...)
+	prefix = append(prefix, triggerNames...)
+	groups = append(prefix, groups...)
 	groups = append(groups, dependencies...)
 	slices.SortFunc(modes, func(a, b dump.Group) int {
 		if a.Table != b.Table {

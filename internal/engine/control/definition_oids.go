@@ -60,6 +60,9 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 			}
 			for _, t := range stored.TriggersOf(d) {
 				claimed[t.OID()] = true
+				if oid := t.Parts().Constraint.OID; oid != 0 {
+					claimed[oid] = true
+				}
 			}
 			for _, p := range d.Security.Policies {
 				claimed[p.OID] = true
@@ -194,7 +197,17 @@ func RemapDefinitionOIDs(view catalog.Read, allocate func() (ids.OID, error)) er
 					return err
 				}
 				triggerMapping[p.OID] = id
-				if id != p.OID {
+				constraintChanged := false
+				if p.Constraint.OID != 0 {
+					nextID, err := remint(p.Constraint.OID)
+					if err != nil {
+						return err
+					}
+					recordConstraint(p.Constraint.OID, nextID)
+					constraintChanged = nextID != p.Constraint.OID
+					p.Constraint.OID = nextID
+				}
+				if id != p.OID || constraintChanged {
 					p.OID = id
 					triggers[i], err = stored.NewTrigger(p)
 					if err != nil {

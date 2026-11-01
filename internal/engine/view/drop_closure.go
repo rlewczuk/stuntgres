@@ -525,7 +525,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				for _, trigger := range stored.TriggersOf(d) {
 					p := trigger.Parts()
-					automatic := p.Relation.Address == target || p.Parent == target || slices.Contains(p.AutoExtensions, target)
+					automatic := p.Relation.Address == target || p.Parent == target || p.Constraint.From.Address == target || slices.Contains(p.AutoExtensions, target)
 					if automatic || stored.TriggerDepends(trigger, target) {
 						if name == "" {
 							name = stored.DependencyRelationName(base, d, path)

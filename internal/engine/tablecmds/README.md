@@ -106,15 +106,24 @@ A later phase cannot upgrade an already fixed pair with current roots.
   VALIDATE resolves after deferred ADD FOREIGN KEY, carries only selected
   identities into unlocked effective-row scans, and publishes through the same
   fenced Finish. Eligible valid roots return without a stage or heap work.
-  Common ALTER admission checks core's effective pending index/FK events after
-  relation identity/owner authorization, before preparation, special paths and
-  no-op elision. Separate SET/DROP DEFAULT checks the root and every actual
+  Common ALTER admission checks executing constraint-invocation ancestry before
+  effective pending index/FK/user events, after relation identity/owner authorization and before
+  preparation, special paths and no-op elision. Separate SET/DROP DEFAULT checks
+  the root and every actual
   recursive target before cooking or staging any default. Neither path flushes,
   filters repaired rows nor consumes events. A parent-side FK event protects the
   parent, not the child; separately dispatched rename/schema actions do not use
   this ALTER guard. FK timing changes share the atomic candidate/publication
   pipeline; persistent defaults, OID-keyed SET overrides and trigger modes remain
   independent.
+  This constraint guard does not add cursor restrictions to metadata-only ALTER;
+  native eager cursors retain their captured immutable input under flag changes.
+  Constraint-trigger rename changes only independent conname. The ordinary ALTER
+  pending-event guard precedes DROP CONSTRAINT, which cannot directly drop its
+  trigger-owned INTERNAL constraint. DROP TABLE checks the actual staged
+  retirement closure, including descendants and dependency cascades, after waits
+  and again at transfer/publication. Dropping a trigger does not discard an old
+  event or bypass its physical relation's pending fence.
   NN inheritability uses that same stage, with exact source-parent events.
   NO INHERIT retains/localizes direct-child facts without child SET authority;
   INHERIT checks actually visited child owners and uses ordinary inherited SET.
