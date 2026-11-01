@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -22,7 +21,7 @@ var ownershipSynonymSeeds = []ownershipSnowballSeed{
 func ownershipSynonymCleanup(t *testing.T, c *sql.Conn) func() {
 	t.Helper()
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		for _, q := range []string{"ROLLBACK", "RESET ROLE", "RESET SESSION AUTHORIZATION"} {
 			if _, err := c.ExecContext(ctx, q); err != nil {

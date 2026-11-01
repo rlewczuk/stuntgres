@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -61,7 +60,7 @@ func (s ownershipSnowballSeed) target(moved bool) string {
 func ownershipSnowballCleanup(t *testing.T, c *sql.Conn) func() {
 	t.Helper()
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		exec := func(q string) {
 			if _, err := c.ExecContext(ctx, q); err != nil {

@@ -4,7 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
+
+	"stuntgres/reference/fixture"
 )
 
 // Register before the first committed stock mutation. Unlike fixture public
@@ -12,7 +13,7 @@ import (
 func ownershipStockCleanup(t *testing.T, c *sql.Conn) func() {
 	t.Helper()
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		for _, q := range []string{"ROLLBACK", "RESET ROLE", "RESET SESSION AUTHORIZATION"} {
 			c.ExecContext(ctx, q)

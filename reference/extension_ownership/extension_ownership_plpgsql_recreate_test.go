@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -20,7 +19,7 @@ func TestReferenceExtensionOwnershipPLpgSQLRecreate(t *testing.T) {
 		// Stock objects are cluster-global on the oracle. Restore the released
 		// installation even if a failure occurs between DROP and CREATE.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, q := range []string{
 				`DROP PROCEDURE IF EXISTS public.eo_pl_recreated(integer)`,

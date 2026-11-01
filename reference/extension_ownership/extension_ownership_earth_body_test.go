@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -32,7 +31,7 @@ func ownershipEarthBodyCoordinates(t *testing.T) {
 					history = "pg_catalog"
 					if providerHistory && b.PG {
 						defer func() {
-							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 							defer cancel()
 							for _, q := range []string{"DROP EXTENSION IF EXISTS earthdistance CASCADE", "DROP EXTENSION IF EXISTS cube CASCADE", "DROP TYPE IF EXISTS pg_catalog.eo_old_cube CASCADE", "DROP TYPE IF EXISTS pg_catalog.cube CASCADE"} {
 								if _, err := c.ExecContext(ctx, q); err != nil {

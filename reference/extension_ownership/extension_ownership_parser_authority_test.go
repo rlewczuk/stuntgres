@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -113,7 +112,7 @@ func ownershipParserSeedMembership(t *testing.T) {
 		// This runs before the scenario's extension/schema teardown on every
 		// failure. Never retire an extension while its member is the pinned seed.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, q := range []string{`ROLLBACK`, `RESET ROLE`, `RESET SESSION AUTHORIZATION`} {
 				if _, err := c.ExecContext(ctx, q); err != nil {
