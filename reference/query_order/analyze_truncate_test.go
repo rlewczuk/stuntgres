@@ -16,7 +16,7 @@ import (
 // autocommit snapshot, matching the existing maintenance-counter convention.
 func analyzeSuccessfulCount(t *testing.T, p *fixture.Pair, c *sql.Conn, table string, want int64) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var got int64

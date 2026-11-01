@@ -35,7 +35,7 @@ func TestReferenceAnalyzeDistributions(t *testing.T) {
 		}
 		// Follow the existing cumulative-statistics convention: independently
 		// read fresh autocommit snapshots until PostgreSQL flushes its counter.
-		deadline, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+		deadline, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancel()
 		for {
 			var count int64

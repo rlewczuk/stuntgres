@@ -31,7 +31,7 @@ func referenceTiesCanceledCursor(t *testing.T, rows *sql.Rows, postgres bool) {
 		// database/sql closes lib/pq cursors asynchronously on context expiry.
 		// Observe that cancellation boundary without consuming any buffered row;
 		// otherwise Next can win the race and mask the cancellation assertion.
-		deadline := time.NewTimer(5 * time.Second)
+		deadline := time.NewTimer(fixture.Liveness)
 		defer deadline.Stop()
 		for rows.Err() == nil {
 			select {

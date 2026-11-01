@@ -110,7 +110,7 @@ func TestReferenceQueryLimitSkippedAndReturnedLocks(t *testing.T) {
 				}
 				defer holder.Rollback()
 				fixture.RowValues(t, fixture.RowQuery(p.Ctx, holder, "SELECT v FROM t ORDER BY id OFFSET 1 LIMIT 1 FOR UPDATE", false), 20)
-				ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				done := fixture.RowAsync(t, ctx, b, "UPDATE t SET v=99 WHERE id="+id, false, false)
 				fixture.RowWait(t, ctx, bp, ap)
@@ -154,7 +154,7 @@ func TestReferenceQueryLimitSurvivingRefill(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer reader.Rollback()
-						ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						done := fixture.RowAsync(t, ctx, reader, "SELECT v FROM "+source+" WHERE v>0 ORDER BY id OFFSET 1 LIMIT 1 FOR UPDATE", prepared, true)
 						fixture.RowWait(t, ctx, bp, ap)
