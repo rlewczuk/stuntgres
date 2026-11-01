@@ -72,6 +72,11 @@ func serverEndpoint(t *testing.T, dsn string) (string, string, string, string) {
 	password, _ := u.User.Password()
 	return u.Host, u.User.Username(), password, strings.TrimPrefix(u.Path, "/")
 }
+// serverWireBudget bounds one raw connection's scenario I/O. It is a hang
+// guard sized for parallel suites on a loaded machine; reads return as soon
+// as the server replies.
+const serverWireBudget = 60 * time.Second
+
 func serverDial(t *testing.T, dsn string) *serverWire {
 	t.Helper()
 	addr, _, _, _ := serverEndpoint(t, dsn)
@@ -81,7 +86,7 @@ func serverDial(t *testing.T, dsn string) *serverWire {
 	}
 	w := &serverWire{Conn: c, statuses: map[string]string{}}
 	t.Cleanup(func() { c.Close() })
-	if e = c.SetDeadline(time.Now().Add(20 * time.Second)); e != nil {
+	if e = c.SetDeadline(time.Now().Add(serverWireBudget)); e != nil {
 		t.Fatal(e)
 	}
 	return w

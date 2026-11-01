@@ -28,7 +28,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 			serverWantCode(t, owner.query(t, "CREATE TABLE server_cancel(v integer); INSERT INTO server_cancel VALUES (1)"), "")
 			t.Run("cancel_registered_command", func(t *testing.T) {
 				// This owner spans subtests; bound this scenario, not its total age.
-				if err := owner.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+				if err := owner.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 					t.Fatal(err)
 				}
 				serverWantCode(t, owner.query(t, "TRUNCATE server_cancel; INSERT INTO server_cancel VALUES (1)"), "")
@@ -133,7 +133,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 				serverWantCode(t, peer.query(t, "BEGIN; LOCK TABLE server_cancel IN ACCESS EXCLUSIVE MODE; ROLLBACK"), "")
 			})
 			t.Run("disconnect_releases_transaction", func(t *testing.T) {
-				if err := owner.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+				if err := owner.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 					t.Fatal(err)
 				}
 				serverWantCode(t, owner.query(t, "TRUNCATE server_cancel; INSERT INTO server_cancel VALUES (1)"), "")
@@ -146,7 +146,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 				serverScalar(t, peer, "SELECT v FROM server_cancel", "1")
 			})
 			t.Run("pq_context_cancel", func(t *testing.T) {
-				if err := owner.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+				if err := owner.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 					t.Fatal(err)
 				}
 				serverWantCode(t, owner.query(t, "CREATE TABLE server_cancel_pq(v integer); INSERT INTO server_cancel_pq VALUES (1)"), "")
@@ -258,7 +258,7 @@ func TestReferenceServerCancellation(t *testing.T) {
 				serverScalar(t, owner, "SELECT 42", "42")
 			})
 			t.Run("disconnect_blocked_execution", func(t *testing.T) {
-				if err := owner.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+				if err := owner.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 					t.Fatal(err)
 				}
 				serverWantCode(t, owner.query(t, "TRUNCATE server_cancel; INSERT INTO server_cancel VALUES (1)"), "")

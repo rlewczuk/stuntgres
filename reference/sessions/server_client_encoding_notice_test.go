@@ -29,7 +29,7 @@ func TestReferenceClientEncodingNoticeBackpressure(t *testing.T) {
 			for _, extended := range []bool{false, true} {
 				t.Run(fmt.Sprintf("extended_%t", extended), func(t *testing.T) {
 					// This admin spans subtests; bound this scenario, not its total age.
-					if err := admin.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+					if err := admin.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 						t.Fatal(err)
 					}
 					clientEncodingCommand(t, admin, "TRUNCATE ce_notice_public", "TRUNCATE TABLE")

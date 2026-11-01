@@ -49,7 +49,7 @@ func TestReferenceServerOutputCancellation(t *testing.T) {
 
 			const payloadBytes = 8 << 10
 			payload := strings.Repeat("x", payloadBytes)
-			if err := victim.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+			if err := victim.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 				t.Fatal(err)
 			}
 			victim.send(t, serverPacket('Q', []byte("SELECT '"+payload+"'::text FROM server_output_rows\x00")))

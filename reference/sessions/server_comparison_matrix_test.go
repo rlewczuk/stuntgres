@@ -61,7 +61,7 @@ func TestReferenceServerComparisonWireMatrix(t *testing.T) {
 						}
 						t.Run(right.label(), func(t *testing.T) {
 							// The session spans every right source; renew its I/O deadline per pair.
-							if err := w.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+							if err := w.SetDeadline(time.Now().Add(serverWireBudget)); err != nil {
 								t.Fatal(err)
 							}
 							var denied, allowed []string
