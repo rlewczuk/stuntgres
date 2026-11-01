@@ -397,8 +397,9 @@ Membership ADD/DROP requires superuser authority after extension ownership;
 actual extension relocation also retains the lower ownerless parser gate.
 The pinned default parser may acquire or detach membership, but actual DROP
 remains prohibited by its database-system pin, including while it is a member.
-Snowball's intrinsic helpers, template, English/Arabic/Armenian dictionaries and
-configurations retain their bootstrap identities independently of current extension membership.
+Snowball's intrinsic helpers, template, and all twenty-six released Snowball
+dictionary/configuration seeds, including Finnish, retain their bootstrap identities
+independently of current extension membership.
 Their current memberships may differ or be absent without changing callback
 capability. Native replay reuses those seeds through ordinary ALTER operations,
 preserving current names, placement, owners, ACLs, dictionary options and mappings;

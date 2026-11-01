@@ -348,6 +348,10 @@ Serbian lexization. Controls replay actual native-emitted SQL in PostgreSQL and
 cover relocation, stock seed cycles and nested reference carriers. Private
 independent exhaustive stage witnesses, resource and prepared ownership,
 rejected publication and seed replay use `RUN='^TestSnowballSerbian'`.
+Finnish release morphology, fixed-region/stage boundaries, 235 literal stopword
+inputs, resource isolation, typed prepared ownership and native dictionary/seed
+replay: `RUN='^TestReferenceFinnishSnowball'`. Replay consumes actual native SQL;
+private stage/resource/authority/publication proofs share `RUN='^TestSnowballFinnish'`.
 Stock synonym data, options, conversion, authority and native lifecycle:
 `RUN='^TestReferenceSynonym'`.
 Default unaccent caller resolution after dictionary/routine DDL:

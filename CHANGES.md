@@ -162,6 +162,9 @@
   PostgreSQL target defaults and warning/clamp behavior above 10000.
   System-namespace movement retains ordinary destination permissions and
   temporary/TOAST fences; native replay preserves moved definitions.
+- Add release-matched Finnish Snowball stemming, the verbatim 235-line stoplist,
+  genuine `finnish_stem`/`finnish` identities and nineteen token mappings, preserving
+  typed prepared ownership, atomic publication and edited-stock logical replay.
 
 - Add release-matched historical Dutch Porter Snowball stemming and its verbatim
   101-word stoplist, genuine `dutch_stem`/`dutch` bootstrap identities and nineteen

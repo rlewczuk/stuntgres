@@ -1549,7 +1549,7 @@ with row effects; standalone utilities retain their ordinary publication boundar
   admission/planning at Execute.
 
 Dictionary DDL staging belongs to `schemacmds` and publishes through the normal catalog journal.
-Core supplies the shared compiled Snowball language runtimes to the catalog's
+Core supplies the shared compiled Snowball language runtimes, including Finnish, to the catalog's
 private seed installer. Allocated helper/template/dictionary/configuration
 identities use the same admission, capture and immutable fold owners as simple.
 `Engine.TextSearchFiles` is immutable Driver startup authority, not catalog state.
@@ -2213,6 +2213,11 @@ in test-only `core/enginetests/<area>` packages (`functions`, `types`,
 `writes`, `locking`, `sessions`, `tables`, `indexes`, `views`, `schema`,
 `roles`, `stored`, `dump`, `routines`); `make check RUN=…` selects across
 packages, so the selectors below cover them too.
+
+Snowball provider authority, prepared ownership and publication units in
+`enginetests/functions` use the shared `enginetest` prepared-fold and catalog-stage
+helpers; retain accepted generations, backing and operand provenance separately
+from public SQL outcomes in `reference/`.
 
 Installed statistics provider, expression and capture ownership units use
 `RUN='^TestPgstat(index|hashindex)'`.

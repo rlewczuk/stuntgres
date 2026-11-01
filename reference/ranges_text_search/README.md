@@ -230,6 +230,10 @@ COPY test in reference/dml.
   THE RATS कमल yields `'rat':2 'कमल':3`, unlike direct Hindi RATS→rats.
   Same/reset/fresh controls preserve recursive REGCONFIG values and temporary
   collisions; PostgreSQL replay consumes actual native-emitted SQL.
+- Finnish Snowball mappings, typed vector/debug results, first-recognizer chains,
+  copied configurations and owned seed replay: `RUN='^TestReferenceFTSFinnishSnowball'`.
+  All six word aliases use Finnish; thirteen use simple. Stopwords retain positions
+  and terminate chains; replay consumes actual native-emitted SQL.
 - Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
   helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
   assertions. Diagnostics keep complete records and literal, bound-input and
