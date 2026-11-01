@@ -130,6 +130,11 @@ func NewFixture(t *testing.T, withPostgres, nativeRaw bool) *Pair {
 	return newFixture(t, withPostgres, nativeRaw, nil)
 }
 
+// ScenarioBudget bounds one scenario's context. It is a hang and runaway guard
+// sized for an oversubscribed machine (parallel suites), not a performance
+// target; scenarios never refresh or extend it.
+const ScenarioBudget = 180 * time.Second
+
 func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stuntgres.Driver) error) *Pair {
 	t.Helper()
 	if withPostgres {
@@ -140,7 +145,7 @@ func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stun
 			t.Fatal("reference container identity changed")
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ScenarioBudget)
 	t.Cleanup(cancel)
 	reset := func() {
 		if !withPostgres {

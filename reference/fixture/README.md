@@ -36,7 +36,8 @@ The digest, not the tag, selects the image; the verified linux/amd64 child is
 
 - Each package process owns one serialized container and one admin pool, torn down
   before exit; packages never share a container. Bounds: startup 3 min,
-  scenario 60 s, reset 15 s, termination 45 s.
+  scenario and server fixture `ScenarioBudget` (180 s, a hang guard sized for
+  parallel suites on a loaded machine), reset 15 s, termination 45 s.
 - Every pair owns a dedicated native `Driver`; its wrapped and control pools share
   the fixture DSN, so reopening a pool keeps the engine.
   `RecordedNativePool(t, connector)` applies that same recording adapter to a

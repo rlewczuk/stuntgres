@@ -112,7 +112,7 @@ func ServerDualReference() ServerOption {
 
 func NewServerFixture(t *testing.T, options ...ServerOption) *ServerFixture {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ScenarioBudget)
 	dir := t.TempDir()
 	f := &ServerFixture{Ctx: ctx, t: t, Userfile: filepath.Join(dir, "users"), Dumpdir: filepath.Join(dir, "dumps"), Logdir: filepath.Join(dir, "logs"), PIDFile: filepath.Join(dir, "server.pid"), changed: make(chan struct{})}
 	for _, option := range options {
