@@ -108,7 +108,7 @@ func typedAttachmentSourceAdmission(t *testing.T, p *fixture.Pair, b fixture.Bac
 	}
 	wantTimeout := typedTableError("55P03", "canceling statement due to lock timeout")
 	queued := func(table string, done chan outcome) {
-		probeCtx, stop := context.WithTimeout(ctx, 2*time.Second)
+		probeCtx, stop := context.WithTimeout(ctx, fixture.Liveness)
 		defer stop()
 		query := "SELECT id FROM " + table + " LIMIT 0"
 		want := wantTimeout

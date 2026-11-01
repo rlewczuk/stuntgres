@@ -52,7 +52,7 @@ func TestReferenceTableLikeAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer holder.ExecContext(context.Background(), "ROLLBACK")
-		ctx, stop := context.WithTimeout(p.Ctx, 5*time.Second)
+		ctx, stop := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer stop()
 		done := make(chan error, 1)
 		go func() { _, err := waiter.ExecContext(ctx, "CREATE TABLE clone(LIKE src)"); done <- err }()
@@ -60,7 +60,7 @@ func TestReferenceTableLikeAdmission(t *testing.T) {
 			stop()
 			select {
 			case <-done:
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Error("LIKE worker did not join")
 			}
 		}()

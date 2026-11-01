@@ -70,7 +70,7 @@ func TestReferenceTypedTableAtomicityCreateSourceAdmission(t *testing.T) {
 		// A fresh AccessShare reader times out only after ALTER's target AX
 		// request is queued behind holder. This public fairness probe avoids
 		// guessing scheduler timing or relying on an unsupported lock catalog.
-		probeCtx, cancelProbe := context.WithTimeout(p.Ctx, 3*time.Second)
+		probeCtx, cancelProbe := context.WithTimeout(p.Ctx, fixture.Liveness)
 		defer cancelProbe()
 		wantTimeout := typedTableError("55P03", "canceling statement due to lock timeout")
 		wantProbe := wantTimeout
