@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -30,7 +29,7 @@ func TestReferenceFTSParserPrivileges(t *testing.T) {
 				held := fixture.HeldStatement{Executor:conn,Statement:stmt,SQL:query}
 				// Cleanup restores global ACL even after a failed discovery assertion.
 				defer func() {
-					ctx,cancel := context.WithTimeout(context.Background(),5*time.Second)
+					ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness)
 					defer cancel()
 					for _, sql := range []string{"RESET ROLE","GRANT EXECUTE ON FUNCTION pg_catalog."+tc.signature+" TO PUBLIC","REVOKE EXECUTE ON FUNCTION pg_catalog."+tc.signature+" FROM fts_parser_reader"} {
 						if _,err := conn.ExecContext(ctx,sql); err != nil { t.Error(err) }
@@ -68,7 +67,7 @@ func TestReferenceFTSParserPrivileges(t *testing.T) {
 				run(fixture.Exec("CREATE SCHEMA fts_parser_private",0))
 				run(fixture.Exec("REVOKE ALL ON SCHEMA fts_parser_private FROM PUBLIC",0))
 				defer func() {
-					ctx,cancel := context.WithTimeout(context.Background(),5*time.Second)
+					ctx,cancel := context.WithTimeout(context.Background(),fixture.Liveness)
 					defer cancel()
 					if _,err := conn.ExecContext(ctx,"RESET ROLE"); err != nil { t.Error(err) }
 				}()

@@ -8,7 +8,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceRangeTypeCapturedMemberOrdering(t *testing.T) {
@@ -154,7 +153,7 @@ func TestReferenceRangeTypeCapturedMemberOrdering(t *testing.T) {
 								clear := "DROP SCHEMA IF EXISTS ctor_order CASCADE;DROP SCHEMA IF EXISTS ctor_order_padding CASCADE;DROP SCHEMA public CASCADE;CREATE SCHEMA public;"
 								// Cleanup is installed before replay can change session authorization.
 								defer func() {
-									cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+									cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 									defer cancel()
 									if _, err := oracle.ExecContext(cleanup, "SET SESSION AUTHORIZATION DEFAULT;RESET ROLE;"+clear); err != nil {
 										t.Error("captured definition oracle cleanup", err)

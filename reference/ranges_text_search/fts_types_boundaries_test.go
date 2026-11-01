@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -17,7 +16,7 @@ func TestReferenceFTSTypesBoundaries(t *testing.T) {
 		// ErrorResponses. Keep large-input probes on separate connections and
 		// observe server soft-input fields for that PG-only transport boundary.
 		scalar := func(query string, args ...any) (any, error) {
-			ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			conn, err := b.DB.Conn(ctx)
 			if err != nil {
@@ -59,7 +58,7 @@ func TestReferenceFTSTypesBoundaries(t *testing.T) {
 				probe(label, "tsquery", input, "", boundError("54000", message))
 				return
 			}
-			ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			conn, err := b.DB.Conn(ctx)
 			if err != nil {

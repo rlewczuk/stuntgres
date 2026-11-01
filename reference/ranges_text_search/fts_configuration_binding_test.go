@@ -10,7 +10,6 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func configurationVectorMetadata(t *testing.T, rows *sql.Rows, pg bool) {
@@ -90,7 +89,7 @@ func TestReferenceFTSConfigurationBinding(t *testing.T) {
 		run(fixture.Exec("CREATE ROLE config_binding_actor", 0))
 		run(fixture.Exec("GRANT USAGE ON SCHEMA public TO config_binding_actor", 0))
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			for _, sql := range []string{"RESET ROLE", "GRANT EXECUTE ON FUNCTION pg_catalog.to_tsvector(regconfig,text) TO PUBLIC"} {
 				if _, err := c.ExecContext(cleanup, sql); err != nil {
@@ -138,7 +137,7 @@ func TestReferenceFTSConfigurationMetadata(t *testing.T) {
 		run(fixture.Exec("CREATE ROLE config_metadata_reader", 0))
 		run(fixture.Exec("SET ROLE config_metadata_reader", 0))
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := c.ExecContext(cleanup, "RESET ROLE"); err != nil {
 				t.Error(err)

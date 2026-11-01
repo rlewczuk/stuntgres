@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -136,7 +135,7 @@ func ftsConfigurationPreparedNamespace(t *testing.T, move bool) {
 		}
 		defer reader.Close()
 		defer func() {
-			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := reader.ExecContext(cleanup, "RESET ROLE"); err != nil {
 				t.Errorf("reader role cleanup: %v", err)

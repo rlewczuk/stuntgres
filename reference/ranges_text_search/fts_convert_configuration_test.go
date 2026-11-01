@@ -6,7 +6,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func ftsConvertSetting(t *testing.T, p *fixture.Pair, c *sql.Conn) func() {
@@ -47,7 +46,7 @@ func ftsConvertRestore(t *testing.T, p *fixture.Pair, c *sql.Conn) func() {
 		t.Fatal(err)
 	}
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := c.ExecContext(ctx, "SET default_text_search_config='"+strings.ReplaceAll(prior, "'", "''")+"'"); err != nil {
 			t.Error(err)

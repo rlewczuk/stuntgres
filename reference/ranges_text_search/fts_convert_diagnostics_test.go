@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceFTSConvertDiagnostics(t *testing.T) {
@@ -88,7 +87,7 @@ func TestReferenceFTSConvertDiagnostics(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("CREATE ROLE convert_actor", 0))
 			defer func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer cancel()
 				if _, err := c.ExecContext(ctx, "RESET ROLE"); err != nil {
 					t.Error(err)

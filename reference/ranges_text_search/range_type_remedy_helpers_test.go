@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -74,7 +73,7 @@ func rangeTypeRemedyReplay(t *testing.T, p *fixture.Pair, b fixture.Backend, c *
 		// authorization changed; cleanup uses the privileged pinned connection
 		// and a separate bounded context even after the scenario deadline.
 		defer func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 			defer cancel()
 			if _, err := oracle.ExecContext(ctx, "SET SESSION AUTHORIZATION DEFAULT;RESET ROLE;"+clear); err != nil {
 				t.Error("remedy replay cleanup", err)

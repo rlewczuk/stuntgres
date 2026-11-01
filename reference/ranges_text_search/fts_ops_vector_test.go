@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -52,7 +51,7 @@ func TestReferenceFTSOpsVectorConcat(t *testing.T) {
 		for _, size := range []int{1048575, 1048576} {
 			t.Run(fmt.Sprintf("storage_%d", size), func(t *testing.T) {
 				tail := strings.Repeat("z", size-1047550)
-				ctx, cancel := context.WithTimeout(p.Ctx, 3*time.Second)
+				ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 				defer cancel()
 				conn, err := b.DB.Conn(ctx)
 				if err != nil {

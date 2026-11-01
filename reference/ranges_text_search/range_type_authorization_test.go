@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -17,7 +16,7 @@ func TestReferenceRangeTypeAuthorization(t *testing.T) {
 			fixture.SchemaReferenceCleanup(t, "range_type_denied")
 			rangeTypeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, conn *sql.Conn, run func(fixture.Step)) {
 				defer func() {
-					cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 					defer cancel()
 					if _, err := conn.ExecContext(cleanup, `RESET ROLE`); err != nil {
 						t.Error(err)
@@ -44,7 +43,7 @@ func TestReferenceRangeTypeAuthorization(t *testing.T) {
 				case "diff":
 					run(fixture.Exec(`REVOKE EXECUTE ON FUNCTION pg_catalog.float8mi(double precision,double precision) FROM PUBLIC`, 0))
 					defer func() {
-						cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 						defer cancel()
 						if _, err := conn.ExecContext(cleanup, `RESET ROLE; REVOKE EXECUTE ON FUNCTION pg_catalog.float8mi(double precision,double precision) FROM range_type_creator; GRANT EXECUTE ON FUNCTION pg_catalog.float8mi(double precision,double precision) TO PUBLIC`); err != nil {
 							t.Error(err)
@@ -76,7 +75,7 @@ func rangeTypeConstructorAuthorization(t *testing.T, p *fixture.Pair, b fixture.
 	t.Helper()
 	run(fixture.Exec(`CREATE TYPE guarded_span AS RANGE(SUBTYPE=int4,MULTIRANGE_TYPE_NAME=guarded_spans)`, 0))
 	defer func() {
-		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cleanup, cancel := context.WithTimeout(context.Background(), fixture.Liveness)
 		defer cancel()
 		if _, err := conn.ExecContext(cleanup, `RESET ROLE; REVOKE EXECUTE ON FUNCTION guarded_span(integer,integer),guarded_spans() FROM range_type_creator; GRANT EXECUTE ON FUNCTION guarded_span(integer,integer),guarded_spans() TO PUBLIC`); err != nil {
 			t.Error(err)
