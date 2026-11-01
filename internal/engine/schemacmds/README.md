@@ -234,6 +234,10 @@ the session IDs `enginetest` mints, so a test may use both. The extension
 provider units stage through the shared extension host
 (`schemacmds.ExtensionHost`, `StageExtensionLocked`); the type, domain and
 enum units stage through `StageSchemaLocked`.
+SSLInfo provider, expression-protocol and stored-identity units use
+`RUN='^TestSSLInfo'` and the same staged installation helpers; they inspect
+sealed authority, scalar source cardinality and destination remapping without
+internal public-SQL scenarios.
 
 Trigger lifecycle identity, clone, source-fence, dependency and remap units
 construct metadata with the same trigger fixture. Lo provider units stage

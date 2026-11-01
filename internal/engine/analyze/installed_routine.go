@@ -118,6 +118,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.PgvisibilityProviderOf(proc) == extension.StockPgvisibility
 	case functions.PageinspectExtension:
 		installed = extension.PageinspectProviderOf(proc) == extension.StockPageinspect
+	case functions.SSLInfoExtension:
+		installed = extension.SSLInfoProviderOf(proc) == extension.StockSSLInfo
 	case functions.UUIDOsspExtension:
 		installed = extension.UUIDOsspProviderOf(proc) == extension.StockUUIDOssp
 	case functions.PgcryptoExtension:
@@ -168,6 +170,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockPgvisibility.ValidateProcedure(r.catalog, p)
 	case extension.PageinspectProviderOf(p) != nil:
 		return extension.StockPageinspect.ValidateProcedure(r.catalog, p)
+	case extension.SSLInfoProviderOf(p) != nil:
+		return extension.StockSSLInfo.ValidateProcedure(r.catalog, p)
 	case extension.UUIDOsspProviderOf(p) != nil:
 		return extension.StockUUIDOssp.ValidateProcedure(r.catalog, p)
 	case extension.PgcryptoProviderOf(p) != nil:
@@ -379,6 +383,13 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return plan.InstalledEarthPointExpr{EarthPoint: c, Procedure: p, Ref: ref}, nil
+	case functions.SSLInfo:
+		if extension.SSLInfoProviderOf(p) != extension.StockSSLInfo {
+			break
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledSSLInfoExpr{SSLInfo: c, Procedure: p, Ref: ref}, nil
 	case functions.UUIDGeneration:
 		if extension.UUIDOsspProviderOf(p) != extension.StockUUIDOssp {
 			break

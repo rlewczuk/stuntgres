@@ -55,7 +55,7 @@ func closedPageinspectArgument(node expr.Expr) bool {
 	if p.RowDependent || p.ParameterDependent || p.StageDependent {
 		return false
 	}
-	return p.Volatility <= expr.Stable || ClosedSequenceDefault(node) || ClosedUUIDDefault(node) || ClosedTransactionTimeDefault(node) || ClosedPgcryptoDefault(node) || ClosedSQLRoutineDefault(node)
+	return p.Volatility <= expr.Stable || ClosedSequenceDefault(node) || ClosedUUIDDefault(node) || ClosedTransactionTimeDefault(node) || ClosedPgcryptoDefault(node) || ClosedSQLRoutineDefault(node) || ClosedSSLInfoDefault(node)
 }
 
 // PageinspectStoredStage proves the origin of every stage-dependent contribution

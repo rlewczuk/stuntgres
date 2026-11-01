@@ -2301,6 +2301,11 @@ Prepared metadata identity, immutable buffers and token lifetime units use
 `RUN='^TestPGPreparedStatements'`; public SQL and wire scenarios use
 `RUN='^TestReferencePGPreparedStatements'`.
 
+SSLInfo definition/accepted-graph ownership uses `RUN='^TestSSLInfoExpressionProtocol$'`.
+It retains actual protocol definitions, installed dependencies and volatile
+wrappers through repeated bindings and rejected publication, without internal
+public-SQL outcome tests.
+
 
 Text-search parser descriptor, staging, native capability and dependency owner
 units share `RUN='^TestTSParser'`.

@@ -13,6 +13,7 @@ type Extension uint8
 
 const (
 	UUIDOsspExtension Extension = iota + 1
+	SSLInfoExtension
 	PgcryptoExtension
 	FuzzystrmatchExtension
 	UnaccentExtension

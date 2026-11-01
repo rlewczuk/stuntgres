@@ -971,6 +971,16 @@ func (r Deparser) SQL(ctx context.Context, node expr.Expr, parent DeparseParent)
 			return "", fmt.Errorf("stuntgres: missing autoinc namespace")
 		}
 		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), nil, true)
+	case plan.InstalledSSLInfoExpr:
+		if err := ValidateInstalledSSLInfo(n, r.View); err != nil {
+			return "", err
+		}
+		procedure, _ := r.View.Procedure(n.Ref.Address)
+		namespace, ok := r.View.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing sslinfo function namespace")
+		}
+		return function(r.Identifier(namespace.Name())+"."+r.Identifier(procedure.Name()), nil, true)
 	case plan.InstalledUUIDOsspExpr:
 		if err := ValidateInstalledUUIDOssp(n, r.View); err != nil {
 			return "", err

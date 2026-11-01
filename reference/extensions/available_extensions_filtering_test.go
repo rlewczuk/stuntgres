@@ -113,6 +113,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"pgstattuple", "1.5", false, true, false, true, nil, nil, "show tuple-level statistics"})
 				wantAvailable = append(wantAvailable, []any{"pg_visibility", "1.2", nil, "examine the visibility map (VM) and page-level visibility info"})
 				wantVersions = append(wantVersions, []any{"pg_visibility", "1.2", false, true, false, true, nil, nil, "examine the visibility map (VM) and page-level visibility info"})
+				wantAvailable = append(wantAvailable, []any{"sslinfo", "1.2", nil, "information about SSL certificates"})
+				wantVersions = append(wantVersions, []any{"sslinfo", "1.2", false, true, false, true, nil, nil, "information about SSL certificates"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

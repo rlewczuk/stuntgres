@@ -142,6 +142,10 @@ func (p *UUIDOsspProvider) ValidateExtension(v catalog.Read, e *catalog.Extensio
 	return ValidateCurrentInstallation(v, e, p)
 }
 
+func (p *SSLInfoProvider) ValidateExtension(v catalog.Read, e *catalog.Extension) error {
+	return ValidateCurrentInstallation(v, e, p)
+}
+
 func ValidateProcedureOrigin(v catalog.Read, p *catalog.Procedure, implementation catalog.ExtensionImplementation) error {
 	if p == nil || p.Implementation != implementation {
 		return InvalidProviderDescriptor()

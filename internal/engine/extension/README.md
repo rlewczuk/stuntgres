@@ -4,7 +4,7 @@ The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, citext, cube,
 earthdistance, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
 moddatetime, pageinspect, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
-unaccent, uuid-ossp and seeded plpgsql),
+sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
 ownership/membership/relocation and Restore owner-import decisions.
@@ -23,7 +23,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
 - **Providers** (`*_provider.go`): one provider type per extension, each with
   `Control`, `Versions`, `ValidateExtension` (`catalog.ExtensionImplementation`)
   and, for providers with callable members, `ValidateProcedure`. The stock instances are
-  `StockCitext` … `StockUUIDOssp`. The script contexts (`CitextTypeContext`,
+  `StockCitext` … `StockUUIDOssp`, and `StockSSLInfo`. The script contexts (`CitextTypeContext`,
   `CubeTypeContext`, `IntarrayInputContext`, `UnaccentTemplateContext`, …),
   signatures (`CubeSignature`, `CubeBinarySignature`, `QueryIntSignature`) and
   member tables (`FuzzystrmatchMembers`, `IntaggMembers`) are what staging needs.
@@ -122,6 +122,13 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   and the `namespace`, `name` input labels of v3/v5. These labels belong to the
   sealed declaration, survive remapping and current membership changes, and
   resolve named calls through the ordinary formal-argument binder.
+  SSLInfo 1.2 seals exactly seven zero-input scalar inquiries: ssl_is_used,
+  ssl_version, ssl_cipher, ssl_client_cert_present, ssl_client_serial,
+  ssl_client_dn and ssl_issuer_dn. Its untrusted superuser-only relocatable
+  installation retains strict, volatile, parallel-restricted C declarations.
+  Embedded connections have no TLS transport: the two BOOL inquiries return
+  false and the five other results are typed SQL NULL. No certificate state,
+  TLS handshake, adjacent sslinfo functions or shared-library loader is implied.
   Stock tcn owns one volatile, non-strict trigger declaration and exposes native
   DML-trigger capability only for its immutable installed slot. Capability does
   not replace procedure-origin validation; rename, relocation and replay retain

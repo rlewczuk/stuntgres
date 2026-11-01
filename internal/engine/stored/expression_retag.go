@@ -600,6 +600,15 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 			return nil, false, err
 		}
 		rebound = n
+	case plan.InstalledSSLInfoExpr:
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok || extension.SSLInfoProviderOf(proc) != extension.StockSSLInfo {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped sslinfo function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledSSLInfo(n, view)
+		rebound = n
 	case plan.InstalledUUIDOsspExpr:
 		n.Args = children(n.Args)
 		if err != nil {

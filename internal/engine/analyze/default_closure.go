@@ -49,9 +49,9 @@ func CryptoExpressionSignature(n plan.InstalledCryptoExpr) catalog.ProcedureSign
 	return ""
 }
 
-// Only genuine installed crypto calls introduce volatility here. Like the
-// existing UUID/time default owners, recurse through supported scalar wrappers
-// without admitting unrelated volatile producers or frame-dependent recipes.
+// Crypto calls retain their own declaration and argument-closure rules. Nested
+// sslinfo inquiries delegate only the authenticated leaf, never an arbitrary
+// rejected subtree or unrelated volatile producer.
 func ClosedPgcryptoDefault(node expr.Expr) bool {
 	if node == nil {
 		return true
@@ -61,6 +61,8 @@ func ClosedPgcryptoDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
+	case plan.InstalledSSLInfoExpr:
+		return ClosedSSLInfoDefault(n)
 	case plan.InstalledCryptoExpr:
 		if n.Procedure == nil || extension.PgcryptoProviderOf(n.Procedure) != extension.StockPgcrypto || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Validate() != nil {
 			return false
@@ -344,7 +346,7 @@ func SQLRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 		plan.ConditionalExpr, plan.CaseExpr, plan.ScalarArrayComparisonExpr:
 	case expr.ClosureTransparent:
 	default:
-		return ClosedSequenceDefault(node) || ClosedUUIDDefault(node) || ClosedTransactionTimeDefault(node) || ClosedPgcryptoDefault(node), false
+		return ClosedSequenceDefault(node) || ClosedUUIDDefault(node) || ClosedTransactionTimeDefault(node) || ClosedPgcryptoDefault(node) || ClosedSSLInfoDefault(node), false
 	}
 	valid = true
 	plan.ExpressionChildren(node, func(child expr.Expr) {
@@ -381,6 +383,8 @@ func closedPgstattupleExpression(node expr.Expr, view catalog.Read, rowOwner boo
 		return false
 	}
 	switch n := node.(type) {
+	case plan.InstalledSSLInfoExpr:
+		return !p.StageDependent && ValidInstalledSSLInfoShape(n)
 	case plan.InstalledPgvisibilityExpr:
 		if n.Kind.Set() || n.Procedure == nil || n.CallRoutineReference() != n.Procedure { return false }
 		current, err := exec.ValidateStoredRoutineDescriptor(view, n.Procedure)

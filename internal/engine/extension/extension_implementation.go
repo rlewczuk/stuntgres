@@ -70,6 +70,11 @@ func UUIDOsspProviderOf(d *catalog.Procedure) *UUIDOsspProvider {
 	return p
 }
 
+func SSLInfoProviderOf(d *catalog.Procedure) *SSLInfoProvider {
+	p, _ := d.Implementation.(*SSLInfoProvider)
+	return p
+}
+
 func UnaccentTemplateProviderOf(d *catalog.TSTemplate) *UnaccentProvider {
 	p, _ := d.Implementation.(*UnaccentProvider)
 	return p

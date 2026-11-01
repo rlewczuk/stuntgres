@@ -217,6 +217,19 @@ non-strict, evaluate their optional child once and validate exact format names
 before returning collector absence. Ordinary live routine EXECUTE admission owns
 authorization, including NULL operands and inherited `pg_monitor` grants.
 
+`SSLInfo` is a zero-child installed selector with BOOL, TEXT or NUMERIC result
+usage. It retains neither transport state nor certificates: embedded non-TLS
+sessions yield two false booleans and five typed NULLs. All seven inquiries stay
+VOLATILE, `FoldNever` and `PreflightKeep`, including scalar-once FROM sources
+that emit one row even for NULL. The installed plan wrapper preserves procedure
+identity through capture, grouping, reconstruction and native replay. Only the
+authenticated closed installed call is admitted in defaults; fixed branch values
+never grant literal, immutable or name-based execution authority.
+Nested mixed defaults retain the consuming family's argument restrictions.
+Crypto's closure delegates only an installed sslinfo leaf to its authenticated
+owner, including beneath CASE; it never retries a rejected whole subtree through
+another family or admits unrelated volatile producers.
+
 `SessionActivity` is a zero-child typed recipe with ordinary routine provenance.
 Query text is volatile; physical identity and cluster event clocks are stable.
 All four remain unfolded in planning and preflight. `SessionActivityRuntime`

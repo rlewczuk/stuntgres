@@ -163,7 +163,7 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
 - **Installed extension nodes** (`expression_installed.go`,
   `expression_cube.go`, `expression_cube_spatial.go`, `expression_earth_coordinate.go`, `expression_earth_point.go`, `expression_extension_paths.go`):
   `InstalledTextExpr` (unaccent, `daitch_mokotoff`), `InstalledCryptoExpr`,
-  `InstalledUUIDOsspExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
+  `InstalledUUIDOsspExpr`, `InstalledSSLInfoExpr`, `InstalledMetaphoneExpr`, `InstalledLevenshteinExpr`,
   `InstalledCubeExpr`, `InstalledCubeSpatialExpr`, `InstalledEarthExpr`, `InstalledEarthPointExpr`, `InstalledPgrowlocksExpr`, `InstalledPageinspectExpr`, `InstalledPgstattupleStatsExpr`, `InstalledPgstattupleExpr`, `InstalledTablefuncNormalExpr`, `InstalledConnectbyExpr`, `InstalledVerifyHeapamExpr` and
   `InstalledSoundexExpr` wrap a `functions` kernel with the captured
   installed procedure and its object reference; `ExtensionPathsExpr` is the
@@ -177,6 +177,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   operation, lexical formal slots and result shape through rebuilding and source
   occurrence matching. Its runtime distinguishes scalar-once NULL records from
   empty STRICT sets; neither analyzed nodes nor cursors retain live authority.
+  `InstalledSSLInfoExpr` keeps exact procedure/reference authority around the
+  zero-child inquiry recipe, even though embedded connections always take its
+  non-TLS branch. Rebuild, retag, substitution and grouping preserve the wrapper;
+  volatile false/NULL outcomes are never rewritten into immutable constants.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`, `Unknown`
   and `TruthOf`.
 - **Structural NULL** (`structural_null.go`): `StructuralNull` recognizes a

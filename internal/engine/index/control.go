@@ -292,7 +292,7 @@ func OptionsSQL(options []catalog.RelationOption) string {
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
 func PGIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
-	case plan.InstalledUUIDOsspExpr:
+	case plan.InstalledUUIDOsspExpr, plan.InstalledSSLInfoExpr:
 		return true
 	case plan.UnnestExpr:
 		return false

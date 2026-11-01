@@ -108,6 +108,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			"pgcrypto":        {"pgcrypto", "1.4", nil, "cryptographic functions"},
 			"plpgsql":         {"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"},
 			"uuid-ossp":       {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
+			"sslinfo":         {"sslinfo", "1.2", nil, "information about SSL certificates"},
 		}
 		if oid == 12085 {
 			expected["autoinc"] = []any{"autoinc", "1.0", false, true, false, true, nil, nil, "functions for autoincrementing fields"}
@@ -136,6 +137,7 @@ func availableUnitExpected(t *testing.T, e *core.Engine, catalog catalog.Read, v
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
 			expected["plpgsql"] = []any{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}
 			expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
+			expected["sslinfo"] = []any{"sslinfo", "1.2", false, true, false, true, nil, nil, "information about SSL certificates"}
 			versions := make(map[string][]any, len(expected)+1)
 			for name, row := range expected {
 				versions[name+"\x00"+row[1].(string)] = row

@@ -65,6 +65,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 		}
 		m := functions.PgcryptoMembers[slot]
 		name, signature, result, volatility, strict = m.Name, catalog.ProcedureSignature(m.Signature), m.Result, m.Volatility, m.Strict
+	case StockSSLInfo:
+		count = len(functions.SSLInfoMembers)
+		if slot >= count {
+			return invalid()
+		}
+		m := functions.SSLInfoMembers[slot]
+		name, result, volatility = m.Name, ids.OID(m.Result), expr.Volatile
+		if ext.Version != "1.2" || p.Installed != (catalog.InstalledRoutineDeclaration{Parallel: 'r'}) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/sslinfo", HasBinary: true}) {
+			return invalid()
+		}
 	case StockUUIDOssp:
 		count = len(functions.UUIDOsspMembers)
 		if slot >= count {

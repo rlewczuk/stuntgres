@@ -613,6 +613,9 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		stage(&info)
 		e.Info = info
 		bound = e
+	case plan.InstalledSSLInfoExpr:
+		stage(&e.Info)
+		bound = e
 	case plan.InstalledUUIDOsspExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {

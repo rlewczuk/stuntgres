@@ -302,6 +302,8 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case InstalledLevenshteinExpr:
 		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
+	case InstalledSSLInfoExpr:
+		fmt.Fprintf(out, "InstalledSSLInfo %d %s", n.Ref.Address.ObjectID, n.Name)
 	case InstalledUUIDOsspExpr:
 		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.Ref.Address.ObjectID)
 		err = args(n.Args)
