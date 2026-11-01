@@ -26,9 +26,9 @@ type xpathNode struct {
 	name, local, uri, value          string
 }
 type xpathTree struct {
-	root    *xpathNode
-	ordered []*xpathNode
-	ids     map[string]*xpathNode
+	root     *xpathNode
+	ordered  []*xpathNode
+	ids      map[string]*xpathNode
 	document *document
 }
 type xpathFrame struct {
@@ -338,13 +338,15 @@ func (f *xpathFrame) matches(n *xpathNode, s xpathStep) bool {
 			f.runtimeError("Undefined namespace prefix")
 			return false
 		}
-		return n.uri == uri && (local == "*" || n.local == local)
+		return uri != "" && n.uri == uri && (local == "*" || n.local == local)
 	}
 	return n.local == s.name && n.uri == ""
 }
 
 func (f *xpathFrame) namespaceURI(prefix string) (string, bool) {
-	if prefix == "xml" { return xmlNamespaceURI, true }
+	if prefix == "xml" {
+		return xmlNamespaceURI, true
+	}
 	uri, ok := f.bindings[prefix]
 	return uri, ok
 }

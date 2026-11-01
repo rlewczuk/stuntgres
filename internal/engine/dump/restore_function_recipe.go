@@ -49,7 +49,7 @@ func RestoreFunctionRecipe(r parser.FunctionExpr) bool {
 		return len(r.Args) == 2 && len(r.ArgNames) == 0 && !r.Variadic
 	case "left", "right", "xmlexists":
 		return len(r.Args) == 2 && !r.Variadic
-	case "substring", "substr":
+	case "substring", "substr", "xpath", "xpath_exists":
 		return (len(r.Args) == 2 || len(r.Args) == 3) && !r.Variadic
 	default:
 		return false

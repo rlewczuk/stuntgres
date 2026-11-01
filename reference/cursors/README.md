@@ -97,6 +97,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Array comparison operators: `RUN='^TestReferenceArrayOrder'`
 - `array_sample`, `array_shuffle`, `unnest`: `RUN='^TestReferenceArrayRelational'`
 - `array_agg`: `RUN='^TestReferenceArrayAgg'`
+- XPath array-producing write atomicity and runtime prepared-diagnostic reuse: `RUN='^TestReferenceXMLXPath'`.
 - JSON/JSONB record conversion, recordsets and validation: `RUN='^TestReferenceJSONB?Record'`
 
 Array helpers stay in `array_*_helpers_test.go` and `array_search_fixture_test.go`;

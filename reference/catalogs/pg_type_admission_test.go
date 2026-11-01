@@ -40,7 +40,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=1790", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(1790), "refcursor", int64(2201), "U", int64(0), int64(2201), "_refcursor", int64(1790)}}))
 		// OIDVECTOR is concrete; its real canonical companion is metadata only.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typelem,t.typarray,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=30", []string{"oid", "typname", "typelem", "typarray", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "OID", "OID", "NAME", "OID"}, [][]any{{int64(30), "oidvector", int64(26), int64(1013), int64(1013), "_oidvector", int64(30)}}))
-		// XML is concrete; its released companion is catalog metadata only.
+		// XML and XML[] share their released scalar/element association.
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT t.oid,t.typname,t.typarray,t.typcategory,t.typcollation,a.oid AS array_oid,a.typname AS array_name,a.typelem FROM pg_type t JOIN pg_type a ON a.oid=t.typarray WHERE t.oid=142", []string{"oid", "typname", "typarray", "typcategory", "typcollation", "array_oid", "array_name", "typelem"}, []string{"OID", "NAME", "OID", "CHAR", "OID", "OID", "NAME", "OID"}, [][]any{{int64(142), "xml", int64(143), "U", int64(0), int64(143), "_xml", int64(142)}}))
 		// Catalog-owned pg_statistic row/array values have a restricted output
 		// codec; this grants neither a pg_statistic reader nor external input.
@@ -87,7 +87,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// REFCURSOR is now a concrete scalar. Its canonical companion is
 		// advertised catalog metadata, not executable array admission.
 		expected[1790], expected[2201] = true, true
-		// XML scalar admission exposes the canonical companion, not an array codec.
+		// XML and its executable array retain their canonical catalog association.
 		expected[142], expected[143] = true, true
 		expected[22], expected[30], expected[1006], expected[1013] = true, true, true, true
 		expected[10028], expected[10029] = true, true

@@ -16,7 +16,9 @@ JSONPath evaluation is in [datetime_formatting](../datetime_formatting/README.md
 `XMLTABLE` relational-source scenarios also belong here: namespace selection,
 typed XPath results, missing/default/nullability demand, initialization ordering,
 implicit lateral composition, live authority, atomicity, cancellation, stored
-definitions/native replay, and complete direct/prepared diagnostics. Scalar XML predicates remain in
+definitions/native replay, and complete direct/prepared diagnostics.
+`xpath` and `xpath_exists` share those XPath, namespace, XML-array and stored/native
+lifecycle scenarios. Scalar XML predicates remain in
 [strings](../strings/README.md#testing).
 
 ## Testing
@@ -35,6 +37,11 @@ oracle, without a second fixture implementation or cross-package helper imports.
 catalog casts, stored catalog fields and null-extended lateral outputs.
 `resultsCountBoth` checks COUNT's known-nonnullable native result. These profiles
 do not change pq expectations or omit any metadata accessor.
+
+XPath scenarios use `RUN='^TestReferenceXMLXPath'` in native and real-reference
+modes. Node-set witnesses compare bags or singleton selections, not portable
+traversal order. Retained folds pair setting-sensitive public lifetimes with
+actual private owner, generation and immutable-backing assertions.
 
 Attribute scenarios use `attributesSettingBoth` for direct setting-call TEXT
 results, with explicit known-nullable native metadata and unchanged pq unknown
@@ -127,13 +134,13 @@ defaults versus identity arguments, modes/results, builtin/aggregate distinction
 public diagnostics, captured presentation and native-control replay. Select each
 changed definition in both native and pinned real PostgreSQL modes; the
 `FeatureSmoke` definition exercises returned DDL and native replay end to end.
-`StandardBodies` checks all sixty represented builtin/installed SQL-standard
+`StandardBodies` checks all sixty-two represented builtin/installed SQL-standard
 definitions against independent pinned PostgreSQL strings under both identifier
 policies, then exercises installed rename, path masking and native fresh-driver
 remapping. Inquiries never execute the body, including unavailable native math.
 `InternalMetadata` checks all four inquiries for the twenty-six parser, vector
 I/O, DDL-receiver and RI declarations formerly exposed only by pg_proc row
-supplements. The complete released inventory contains 2156 rows, all backed
+supplements. The complete released inventory contains 2181 rows, all backed
 by actual descriptors; metadata ownership does not grant execution. Large-object
 descriptor OIDs952–955 retain strict VOLATILE/parallel-unsafe scalar signatures,
 unnamed inputs and the released internal implementation symbols. XML aggregate
@@ -143,9 +150,12 @@ Builtin routine deparsing presents its XML arguments/result and rejects its
 function definition as an aggregate. The XML
 predicate records independently pin OIDs 2614/3051/3052/3053, strict scalar BOOL
 results with TEXT/XML input signatures, internal symbols and parallel-safe metadata.
-Only the unsuffixed validator is STABLE; the remaining three are IMMUTABLE. The encoding
-conversion and keyword routines retain independent release facts for OIDs
-1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.
+Only the unsuffixed validator is STABLE; the remaining three are IMMUTABLE.
+The four XPath records retain OIDs 2931/2932/3049/3050, strict IMMUTABLE,
+parallel-safe XML[]/BOOL signatures and their released internal/SQL language
+distinction. Two-argument SQL wrappers retain cost 1 and real declaration bodies.
+The encoding conversion and keyword routines retain independent release facts for
+OIDs 1264/1597/1686, including the keyword OUT shape, cost 10 and row estimate 500.
 `TemporarySources` checks masked own-session TEMP qualification against exact
 pinned definitions, with direct, fresh-prepared and held calls under both
 identifier policies on the same borrowed physical connection.

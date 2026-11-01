@@ -48,6 +48,7 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"xmltext", "xmlcomment"}, ExactSpelling: true, SharedGates: true, Bind: bindXMLTextCall},
 	{Names: []string{"xml_is_well_formed", "xml_is_well_formed_document", "xml_is_well_formed_content", "xmlexists"}, ExactSpelling: true, SharedGates: true, Bind: bindXMLPredicateCall},
+	{Names: []string{"xpath", "xpath_exists"}, ExactSpelling: true, SharedGates: true, Bind: bindXMLXPathCall},
 	{Names: []string{"suppress_redundant_updates_trigger", "tsvector_update_trigger", "tsvector_update_trigger_column"}, ExactSpelling: true, SharedGates: true, Bind: bindTriggerBuiltin},
 	{Names: []string{"triggered_change_notification"}, ExactSpelling: true, Bind: bindTcn},
 	{Names: []string{"autoinc"}, ExactSpelling: true, SharedGates: true, Bind: bindAutoinc},

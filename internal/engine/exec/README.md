@@ -597,6 +597,17 @@ OVERLAPS route. Preflight reaches the engine only through `Preparation` and runs
 outside engine and publication locks. Conditional planning keeps every analyzed
 dependency and authorization even when it removes a branch; held parameters are
 reconsidered on every execution, never stored as planning facts.
+XPath's narrow preflight route keeps the analyzed call's dependency properties
+and `PreserveParameterDemand` authoritative for independence and generic demand.
+The two-arg wrapper diagnostic route additionally requires immutable computation
+and no execution barrier in the mapped call. STABLE/VOLATILE and barrier-bearing
+calls remain runtime/inline; existing strict-NULL proof still precedes the
+ineligible runtime return and may discard runtime-only siblings without execution.
+A route-only change is an execution-private graph replacement even when no child
+conversion changes. Constants remain eligible under generic mode; parameterized
+generic and row-dependent calls remain symbolic. Custom parameter results live as
+private graph literals, not persistent accepted entries. No execution route
+mutates stored analysis or accepted constant recipes.
 Network and `pg_lsn` arithmetic explicitly opt into immutable available-frame
 planning through `OperatorExecutionConstant`. This may expose an immutable child
 error before its volatile parent's runtime EXECUTE admission. Missing parameters,

@@ -107,9 +107,10 @@ func Serialize(ctx context.Context, value Result, opts SerializeOptions) (string
 }
 
 type serializer struct {
-	p           parser
-	b           strings.Builder
-	utf8, xhtml bool
+	p                   parser
+	b                   strings.Builder
+	utf8, xhtml         bool
+	namespaceAmpNumeric bool
 }
 
 func (w *serializer) poll() bool {
@@ -248,7 +249,26 @@ func (w *serializer) element(n *node, depth int, format bool, parent *node) {
 		if !w.poll() {
 			return
 		}
-		w.attribute(a.name, a.value)
+		if w.namespaceAmpNumeric {
+			w.put(" ")
+			w.put(a.name)
+			w.put("=\"")
+			start := 0
+			for i := range len(a.value) {
+				if i%4096 == 0 && !w.poll() {
+					return
+				}
+				if a.value[i] == '&' {
+					w.escape(a.value[start:i], true)
+					w.put("&#38;")
+					start = i + 1
+				}
+			}
+			w.escape(a.value[start:], true)
+			w.put("\"")
+		} else {
+			w.attribute(a.name, a.value)
+		}
 	}
 	if w.xhtml && n.local == "html" && n.prefix == "" && n.uri == "" && len(n.namespaces) == 0 {
 		w.attribute("xmlns", xhtmlURI)

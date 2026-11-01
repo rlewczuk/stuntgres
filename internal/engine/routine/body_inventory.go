@@ -110,6 +110,8 @@ var builtinRoutineDeclarationBodies = func() map[ids.OID]sqltype.StructuralTree 
 		6183: debugDeclarationRecipe(true),
 		6184: debugDeclarationRecipe(false),
 		2325: callText("pg_relation_size", "2205,25", "main"),
+		2932: ret(f("xpath", "25,142,1009"), t("("), a(0), t(", "), a(1), t(", "), proc.DeclarationString("{}"), t("::"), typ(1009, "text[]"), t(")")),
+		3050: ret(f("xpath_exists", "25,142,1009"), t("("), a(0), t(", "), a(1), t(", "), proc.DeclarationString("{}"), t("::"), typ(1009, "text[]"), t(")")),
 		5023: plus(3220, 1700), 879: callText("lpad", "25,23,25", " "), 880: callText("rpad", "25,23,25", " "),
 		1215: description(2609, "pg_description", true, false), 1216: description(2609, "pg_description", false, true),
 		1296: plus(1082, 1083), 1298: plus(1082, 1266),

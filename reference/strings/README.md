@@ -7,7 +7,9 @@ trim, `normalize` and concatenation, case mapping, length and position, padding,
 `substring`), splitting, `parse_ident`, integer-base formatting and TEXT `md5`,
 `ascii`/`chr`/`unistr`/`to_ascii`, `string_agg`, XML scalar input, parsing,
 serialization, construction, validation/document/XPath existence predicates,
-session/prepared lifetimes, wire/COPY and controls. Pattern matching, `format`
+session/prepared lifetimes, wire/COPY and controls. XPath array and existence
+functions share their query-lifecycle coverage with
+[query_outer](../query_outer/README.md#testing). Pattern matching, `format`
 and the variadic `concat`/`quote_*` functions are in
 [reference/patterns_encoding](../patterns_encoding/README.md#testing); BYTEA and
 binary hashing are in [temporal_types](../temporal_types/README.md#testing).

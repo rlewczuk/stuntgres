@@ -49,6 +49,8 @@ func TestRoutineDeclarationBuiltinInventory(t *testing.T) {
 		2074: "RETURN \"substring\"($1, similar_to_escape($2, $3))\n",
 		2325: "RETURN pg_relation_size($1, 'main'::text)\n",
 		2546: "RETURN ($2 + $1)\n", 2547: "RETURN ($2 + $1)\n", 2548: "RETURN ($2 + $1)\n", 2549: "RETURN ($2 + $1)\n", 2550: "RETURN ($2 + $1)\n", 2631: "RETURN ($2 + $1)\n",
+		2932: "RETURN xpath($1, $2, '{}'::text[])\n",
+		3050: "RETURN xpath_exists($1, $2, '{}'::text[])\n",
 		3935: "RETURN pg_sleep(((EXTRACT(epoch FROM (clock_timestamp() + $1)) - EXTRACT(epoch FROM clock_timestamp())))::double precision)\n",
 		3936: "RETURN pg_sleep(((EXTRACT(epoch FROM $1) - EXTRACT(epoch FROM clock_timestamp())))::double precision)\n",
 		5023: "RETURN ($2 + $1)\n",

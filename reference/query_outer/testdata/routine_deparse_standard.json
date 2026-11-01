@@ -155,6 +155,16 @@
     "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"pg_relation_size\"(\"regclass\")\n RETURNS bigint\n LANGUAGE \"sql\"\n PARALLEL SAFE STRICT COST 1\nRETURN \"pg_relation_size\"($1, 'main'::\"text\")\n"
   },
   {
+    "identity": "xpath(text,xml)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.xpath(text, xml)\n RETURNS xml[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN xpath($1, $2, '{}'::text[])\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"xpath\"(\"text\", \"xml\")\n RETURNS \"xml\"[]\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"xpath\"($1, $2, '{}'::\"text\"[])\n"
+  },
+  {
+    "identity": "xpath_exists(text,xml)",
+    "normal": "CREATE OR REPLACE FUNCTION pg_catalog.xpath_exists(text, xml)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN xpath_exists($1, $2, '{}'::text[])\n",
+    "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"xpath_exists\"(\"text\", \"xml\")\n RETURNS boolean\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN \"xpath_exists\"($1, $2, '{}'::\"text\"[])\n"
+  },
+  {
     "identity": "interval_pl_date(interval,date)",
     "normal": "CREATE OR REPLACE FUNCTION pg_catalog.interval_pl_date(interval, date)\n RETURNS timestamp without time zone\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n",
     "quoted": "CREATE OR REPLACE FUNCTION \"pg_catalog\".\"interval_pl_date\"(interval, \"date\")\n RETURNS timestamp without time zone\n LANGUAGE \"sql\"\n IMMUTABLE PARALLEL SAFE STRICT COST 1\nRETURN ($2 + $1)\n"

@@ -46,6 +46,33 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 	}
 	next := mapped.(expr.Composite)
 	switch kind {
+	case expr.PreflightXPath:
+		call := next.(functions.XMLXPath)
+		// Planning dependence belongs to the analyzed call, before child
+		// conversions materialize this execution's imported values.
+		p := node.Properties()
+		independent := !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion
+		generic := c.PreserveParameterDemand && p.ParameterDependent
+		eligible := independent && !generic && call.Properties().Volatility == expr.Immutable && !planningExecutionBarrier(call)
+		routed := call.WithWrapperRoute(eligible)
+		// A route-only replacement must survive callers' copy-on-change maps.
+		changed = changed || routed.Wrapper != call.Wrapper
+		call = routed
+		if !independent || generic {
+			return call, changed, nil
+		}
+		pruned, folded, err := preflightStrictParameterNull(c, call, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		if folded {
+			return pruned, true, nil
+		}
+		if !eligible {
+			return call, changed, nil
+		}
+		value, err := FoldPlanningExpression(c, call)
+		return preflightValue(c, expr.InfoOf(call), value, err)
 	case expr.PreflightChildren:
 		return next, changed, nil
 	case expr.PreflightNullBare:

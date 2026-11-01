@@ -34,6 +34,18 @@ no tree, context or scratch in `Result` or compiled expressions. `XPathError`
 distinguishes empty, compilation and evaluation failures; `XPathContextError`
 retains the strict XML parser diagnostic separately from XML input failures.
 
+`XPath` uses that same complete evaluator for scalar `xpath`/`xpath_exists`
+invocations. Namespace pairs register only after strict document projection;
+duplicate aliases replace earlier bindings and `xml` remains predefined.
+Qualified names never match an empty namespace URI. Cardinality-only evaluation
+does not serialize nodes. Result envelopes own XML-content spellings or a raw
+numeric scalar; SQL float presentation belongs to the caller. Text/attribute
+escaping and namespace cast spelling are distinct from subtree saving.
+Root-node conversion prepends `<?xml version="1.0" encoding="UTF-8"?>` and LF,
+then uses the subtree saver’s document-child separators and trailing LF, whether
+or not the input had a declaration. This is XPath-only; XMLTABLE, character
+serialization and typed-output declaration policies remain independent.
+
 `Table` owns one relational invocation's tree, namespace bindings, compiled row
 and column paths, and current row. Column filters compile before the first row
 evaluation. `Column` distinguishes a missing node-set from an empty scalar and
@@ -568,5 +580,5 @@ attributes and cancellation during valid and already-failed string decoding.
 make check RUN='^TestXML(Core|Produce)'
 make check RUN='^TestXMLDTD'
 make check RUN='^TestXMLSerialize'
-make check RUN='^Test(XMLPredicate|XPath)'
+make check RUN='^Test(XMLPredicate|XMLXPath|XPath)'
 ```

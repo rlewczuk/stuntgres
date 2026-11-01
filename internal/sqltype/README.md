@@ -103,6 +103,10 @@ admission and removes it before nested binding.
   `XMLIsDocument`, `XMLIsWellFormed` and `XMLExists` bridge BOOL providers without
   retaining trees. XPath stage errors map to 10608; strict context-parse errors
   map to 2200M with operation-specific primary text and original XML Detail.
+  `XMLXPath` checks namespace-array shape before provider work, converts numeric
+  scalars through current FLOAT8 output, and accepts each generated element as
+  CONTENT independently of session XML input mode. It publishes one owned
+  checked XML[] only after complete conversion and cancellation checks.
   `XMLTableInvocation` bridges invocation-local XPath rows to genuine target text
   input. Exact XML enables node-sequence serialization; XML domains retain
   scalar cardinality and domain input. Missing nodes return typed NULL without
@@ -850,6 +854,7 @@ on a composed engine live in `enginetests/`.
 XML datum ownership, mapping and codec units use `RUN='^TestXML(SQL|ProduceSQL)'`.
 XMLTABLE target-input adapter units use `RUN='^TestXMLTableTypeInput$'`.
 Row-mapper datum sharing and failure ownership use `RUN='^TestXMLMapRowsOwnership$'`.
+XPath result/array ownership units use `RUN='^TestXMLXPath'`.
 ISO interval lexical/ERANGE units use `RUN='^TestIntervalISO'`.
 Cooperative provider admission, class precision and failure ownership use
 `RUN='^Test(ScalarWorkAdmission|PgcryptoSHAAdmission|JSONWorkAdmission)'`;

@@ -399,6 +399,9 @@ package or the engine.
   current parser's single-target SELECT representation. Recipes are parsed once
   at declaration setup and attached as readonly `DeclarationBody`, not fake
   checked `SQLBody` programs; missing or extra release body facts fail setup.
+  XPath's two-argument SQL wrappers retain their released immutable/strict
+  identities, cost-one declaration bodies and genuine three-argument body edges;
+  their native expression provider owns evaluation and wrapper inlining.
   The two debug overloads retain actual multi-column SELECT declaration bodies,
   including a readonly array-subquery carrier with the complete inner SELECT.
   `fts_debug_body.go` supplies analyzed canonical display slots while retaining

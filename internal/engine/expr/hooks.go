@@ -192,6 +192,8 @@ const (
 	// PreflightNullBare replaces the call with a NULL that keeps only its
 	// usage and position when a preflighted child is a literal NULL.
 	PreflightNullBare
+	// PreflightXPath derives SQL-wrapper inlining from current-frame demand.
+	PreflightXPath
 )
 
 // Preflighting selects a node's Preflight; nodes without it use

@@ -187,8 +187,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// Twelve comparison estimator declarations add their genuine strict/STABLE/
 	// parallel-safe INTERNAL metadata, without any scalar execution provider.
 	// Exported snapshots add the released zero-argument TEXT declaration OID3809.
-	if len(facts) != 2177 {
-		t.Fatalf("released represented overloads: got %d, want 2177", len(facts))
+	// Four XPath declarations add the two internal implementations and two
+	// released SQL wrapper bodies.
+	if len(facts) != 2181 {
+		t.Fatalf("released represented overloads: got %d, want 2181", len(facts))
 	}
 	return facts
 }

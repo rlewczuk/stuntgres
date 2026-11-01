@@ -123,6 +123,18 @@ Constructor rendering derives every named operand's explicit AS label and
 element/PI NAME from the accepted encoded name via the release presentation
 inverse, without changing original syntax facts or immutable provider names.
 
+`XMLXPath` binds the two/three-argument `xpath` and `xpath_exists` identities
+through ordinary implicit formals and selected-call EXECUTE admission. Checked
+recipes retain written operands and descriptor generations, never a DOM,
+namespace map or setting. Immutable constant results use accepted folds; current
+parameter computations remain execution-private graph literals, without
+publishing parameter entries into the definition's fold owner. Preflight derives
+the two-arg SQL-wrapper diagnostic route from original analyzed demand plus
+immutable, execution-barrier-free computation eligibility of the mapped call.
+STABLE/VOLATILE and barrier-bearing runtime calls use the inline route. A route-only
+replacement survives unchanged children; inline and three-argument calls have no
+wrapper Context. Rebuild/capture/render/retag use the ordinary stored-expression
+protocol and preserve written arity.
 
 `ArrayTransform` evaluates its child operands before parent transformation.
 `array_to_string` consumes one `WorkArrayTransform` runtime admission grant per
@@ -1391,6 +1403,7 @@ XML expression protocol, immutable conversion authority and call-local diagnosti
 use `RUN='^TestXML(Expression|PredicateExpression|PredicateDemand|ProduceExpression|ProduceEvaluation)'`.
 Row-mapping routine provenance, named replay and strict authority demand use
 `RUN='^TestXMLMapRowsProvider$'`.
+XPath frozen-provider and accepted-fold ownership use `RUN='^TestXMLXPath'`.
 
 Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtocol)$'`;
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.
