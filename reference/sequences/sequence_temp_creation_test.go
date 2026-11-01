@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Actual namespace identities come from the real relation/catalog relationship;
@@ -128,7 +127,7 @@ func TestReferenceSequenceTempCreationActualNamespace(t *testing.T) {
 						t.Fatal(err)
 					}
 					if backend.PG {
-						ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						for {
 							var live bool

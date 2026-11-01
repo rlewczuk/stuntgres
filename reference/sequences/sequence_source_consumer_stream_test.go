@@ -10,7 +10,6 @@ import (
 	"stuntgres/reference/fixture"
 	"sync"
 	"testing"
-	"time"
 )
 
 // Preserve the original smoke's connected public consumer and control stream.
@@ -170,7 +169,7 @@ func TestReferenceSequenceSourceConsumerStream(t *testing.T) {
 				func() {
 					exec(a, "BEGIN")
 					exec(a, "ALTER SEQUENCE restart RESTART 100")
-					requestCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					requestCtx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 					type outcome struct {
 						value int64
 						err   error

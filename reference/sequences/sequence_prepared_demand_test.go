@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSequencePreparedDemand(t *testing.T) {
@@ -94,7 +93,7 @@ func TestReferenceSequencePreparedDemand(t *testing.T) {
 					sequencePreparedRecorded(t, backend, fixture.Step{Query: query, Columns: []string{label}, Types: []string{"INT8"}, Rows: expected})
 					// Keep the statement's explicit transaction alive: a sequence RX
 					// would make this independent peer ALTER fail its bounded context.
-					ctx, cancel := context.WithTimeout(p.Ctx, time.Second)
+					ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 					_, err = a.ExecContext(ctx, "ALTER SEQUENCE s CACHE 1")
 					cancel()
 					if err != nil {

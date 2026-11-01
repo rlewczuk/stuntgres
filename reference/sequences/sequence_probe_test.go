@@ -34,7 +34,7 @@ func TestReferenceSequenceProbeTransactionalRestart(t *testing.T) {
 	// Each operation must queue behind SRX, not merely nextval cache misses.
 	for _, q := range []string{"SELECT nextval('s')", "SELECT currval('s')", "SELECT lastval()", "SELECT setval('s',50)"} {
 		func() {
-			waitCtx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+			waitCtx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 			defer cancel()
 			fixture.SequenceProbeExec(t, p.Ctx, a, "BEGIN")
 			fixture.SequenceProbeExec(t, p.Ctx, a, "ALTER SEQUENCE s RESTART WITH 100")
@@ -64,7 +64,7 @@ func TestReferenceSequenceProbeTransactionalRestart(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-			case <-time.After(5 * time.Second):
+			case <-time.After(fixture.Liveness):
 				t.Fatal("restart waiter did not complete")
 			}
 		}()

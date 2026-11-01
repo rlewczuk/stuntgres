@@ -6,12 +6,11 @@ import (
 	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSequenceRestoreRejectsRecreatedCapturedOwner(t *testing.T) {
 	p := fixture.NewScenario(t)
-	ctx, cancel := context.WithTimeout(p.Ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 	defer cancel()
 	db := p.Native
 	a := fixture.SequenceCoreConn(t, ctx, p.Memory)

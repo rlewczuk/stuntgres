@@ -70,7 +70,7 @@ func TestReferenceSmokeSequenceProducerBoundarySmoke(t *testing.T) {
 				step.Prepared = prepared
 				run(step)
 				// The source-table AS lock remains with A; the peer touches only s.
-				peer, stop := context.WithTimeout(ctx, 2*time.Second)
+				peer, stop := context.WithTimeout(ctx, fixture.Liveness)
 				defer stop()
 				fixture.RunStep(t, peer, b, backend.Recorder, fixture.Exec("ALTER SEQUENCE s RESTART WITH 80", 0))
 				stop()

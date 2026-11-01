@@ -48,7 +48,7 @@ func TestReferenceSequenceDeleteUndemandedTransaction(t *testing.T) {
 				for _, q := range []string{"DELETE FROM empty_t WHERE nextval('s')>0", "DELETE FROM t WHERE false AND nextval(NULL::regclass)>0"} {
 					exec("BEGIN", 0)
 					run(fixture.Step{Query: q, Prepared: prepared})
-					peer, stop := context.WithTimeout(ctx, 2*time.Second)
+					peer, stop := context.WithTimeout(ctx, fixture.Liveness)
 					r, err := b.ExecContext(peer, "ALTER SEQUENCE "+aSchema+".s RESTART 80")
 					stop()
 					if err != nil {

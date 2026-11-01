@@ -26,7 +26,7 @@ func TestReferenceSequenceProducerUndemandedTransaction(t *testing.T) {
 			c, b := conn(), conn()
 			aSchema := fmt.Sprintf("producer_boundary_a_%d", time.Now().UnixNano())
 			t.Cleanup(func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				_, _ = c.ExecContext(cleanup, "ROLLBACK")
 				_, _ = c.ExecContext(cleanup, "SET search_path TO public")
@@ -50,7 +50,7 @@ func TestReferenceSequenceProducerUndemandedTransaction(t *testing.T) {
 				exec("BEGIN")
 				run(fixture.Step{Query: "INSERT INTO dst SELECT nextval('s') FROM src WHERE id=99", Prepared: prepared})
 				// Source-table AS is deliberately retained; B does not touch src/dst.
-				peer, stop := context.WithTimeout(ctx, 2*time.Second)
+				peer, stop := context.WithTimeout(ctx, fixture.Liveness)
 				result, err := b.ExecContext(peer, "ALTER SEQUENCE "+aSchema+".s RESTART WITH 80")
 				stop()
 				if err != nil {

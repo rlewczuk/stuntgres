@@ -4,7 +4,6 @@ import (
 	"context"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Read actual TEMP namespace identities through pg_class/pg_namespace, retaining
@@ -104,7 +103,7 @@ func TestReferenceSequenceTempMoveNamespaceAuthority(t *testing.T) {
 					// Close releases the client before backend teardown necessarily finishes.
 					// Observe the actual server exit, as in the existing TEMP lifecycle fixture.
 					if backend.PG {
-						ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+						ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 						defer cancel()
 						for {
 							var live bool

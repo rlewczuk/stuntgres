@@ -65,7 +65,7 @@ func TestReferenceAlterGeneratedExpressionLocking(t *testing.T) {
 							tx.Rollback()
 							select {
 							case <-finished:
-							case <-time.After(5 * time.Second):
+							case <-time.After(fixture.Liveness):
 								t.Error("canceled ALTER worker did not join")
 							}
 						}()
@@ -83,7 +83,7 @@ func TestReferenceAlterGeneratedExpressionLocking(t *testing.T) {
 							} else if !errors.Is(err, context.Canceled) {
 								t.Fatal(err)
 							}
-						case <-time.After(5 * time.Second):
+						case <-time.After(fixture.Liveness):
 							t.Fatal("cancel did not release waiter")
 						}
 					}

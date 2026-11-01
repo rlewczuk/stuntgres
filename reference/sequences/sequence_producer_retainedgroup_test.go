@@ -20,7 +20,7 @@ func TestReferenceSequenceProducerRetainedGroup(t *testing.T) {
 			aSchema := fmt.Sprintf("producer_boundary_a_%d", time.Now().UnixNano())
 			bSchema := aSchema + "_b"
 			t.Cleanup(func() {
-				cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
+				cleanup, stop := context.WithTimeout(context.Background(), fixture.Liveness)
 				defer stop()
 				_, _ = c.ExecContext(cleanup, "ROLLBACK")
 				_, _ = c.ExecContext(cleanup, "SET search_path TO public")

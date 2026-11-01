@@ -6,7 +6,6 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 func TestReferenceSequencePreparedPeerTemporaryNamespace(t *testing.T) {
@@ -195,7 +194,7 @@ func TestReferenceSequencePreparedTemporaryNoninvalidation(t *testing.T) {
 						if backend.Name == "postgres" {
 							// SQL round trips provide bounded observation of real backend
 							// termination; no borrower-return assumption or arbitrary sleep.
-							ctx, cancel := context.WithTimeout(p.Ctx, 2*time.Second)
+							ctx, cancel := context.WithTimeout(p.Ctx, fixture.Liveness)
 							defer cancel()
 							for {
 								var live bool

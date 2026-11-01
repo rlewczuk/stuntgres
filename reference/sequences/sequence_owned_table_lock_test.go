@@ -6,14 +6,13 @@ import (
 	"runtime"
 	"stuntgres/reference/fixture"
 	"testing"
-	"time"
 )
 
 // Inspect the exact relation and actual blocking PID, not query text, a mock
 // queue, or the duration for which a goroutine appears not to finish.
 func ownedTableReferenceQueue(t *testing.T, ctx context.Context, waiter, holder int, oid int64, mode string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, fixture.Liveness)
 	defer cancel()
 	for {
 		var waiting bool
