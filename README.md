@@ -141,6 +141,16 @@ visibility independently of server USAGE. Native fixture controls preserve the
 logical foreign definitions and associations; metadata reads do not contact
 remote servers or invoke foreign handlers.
 
+The raw `pg_catalog.pg_foreign_table` catalog is PUBLIC-readable independently
+of those information-schema visibility rules and of foreign-table privileges or
+server USAGE. Its three columns expose the actual relation OID, server OID and
+ordered table-only `name=value` options; absent options are SQL NULL. Direct and
+held prepared reads refresh committed metadata. Native Dump/Reset/Restore
+preserves logical definitions and destination identity links while already
+opened native rows retain their metadata and values. Catalog SELECT permissions
+still apply, including column grants and predicates selecting no rows; none of
+these metadata operations execute a foreign scan or contact a remote server.
+
 Offline `CREATE SUBSCRIPTION ... WITH (connect=false)` registers its main
 replication origin in the cluster-shared `pg_catalog.pg_replication_origin`.
 Registration follows the subscription's transactional lifetime; it does not

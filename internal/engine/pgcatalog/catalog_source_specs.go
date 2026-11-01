@@ -919,11 +919,7 @@ var Specs = [...]Spec{
 		{"umserver", sqltype.Oid, false, 0, 0, -1},
 		{"umoptions", 1009, true, 950, 0, -1},
 	}, false, false, false, true, "stuntgres: missing SQL/MED catalog type %d"},
-	{ids.ForeignTableClassID, ids.PGCatalogNamespaceOID, "pg_foreign_table", []ColumnSpec{
-		{"ftrelid", sqltype.Oid, false, 0, 0, -1},
-		{"ftserver", sqltype.Oid, false, 0, 0, -1},
-		{"ftoptions", 1009, true, 950, 0, -1},
-	}, false, false, false, false, "stuntgres: missing SQL/MED catalog type %d"},
+	{ids.ForeignTableClassID, ids.PGCatalogNamespaceOID, "pg_foreign_table", pgForeignTableColumns, false, CatalogHasIndexes(ids.ForeignTableClassID), false, false, "stuntgres: missing SQL/MED catalog type %d"},
 	{UserMappingsOID, ids.PGCatalogNamespaceOID, "pg_user_mappings", []ColumnSpec{
 		{"umid", sqltype.Oid, false, 0, 0, -1},
 		{"srvid", sqltype.Oid, false, 0, 0, -1},

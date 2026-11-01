@@ -52,7 +52,7 @@ var producers = [...]Registration{
 	{2964, capturePGDBRoleSetting},
 	{2995, capturePGLargeObjectMetadata},
 	{3079, captureExtensionCatalog},
-	{3118, captureForeignCatalog},
+	{ids.ForeignTableClassID, capturePGForeignTable},
 	{ids.PolicyClassID, capturePGPolicy},
 	{PartitionedTableOID, capturePGPartitionedTable},
 	{StatisticExtOID, capturePGStatisticExt},

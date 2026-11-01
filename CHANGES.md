@@ -1,5 +1,16 @@
 # Changes
 
+- Complete raw `pg_catalog.pg_foreign_table` capture with a dedicated,
+  authority-checked producer, declared rank-one text options, nullable bootstrap
+  attribute facts and source-owned logical index presence. Only defined foreign
+  relations contribute actual relation/server links; table-only options preserve
+  order and SQL NULL. Capture validates immutable catalog/type/role/server
+  authority and cancellation without invoking foreign providers. CREATE/IMPORT
+  validator reads retain the existing private construction phases: relation shape
+  precedes its foreign-table metadata row. Dedicated direct/prepared reference
+  coverage includes lifecycle, catalog permissions, full diagnostics and retained
+  native logical control results.
+
 - Add `information_schema.domain_udt_usage` with six nullable identifier-domain
   columns, canonical builtin display and normal direct/prepared query metadata.
   Actual unused and builtin domains report their immediate base, not column or

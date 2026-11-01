@@ -3,7 +3,7 @@
 Schema-object catalogs: `pg_namespace`, schemas and `search_path`, visibility
 inquiry functions, `pg_operator` (with the geometric and `lseg` operator
 catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_opfamily`, `pg_amop`, `pg_amproc`, `pg_collation`,
-`pg_language`, `pg_transform`, `pg_foreign_server`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
+`pg_language`, `pg_transform`, `pg_foreign_server`, `pg_foreign_table`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
 (`pg_description`, `pg_shdescription`, comment inquiry functions and
 transactional comments). The other catalog families are listed in
 [reference/catalogs](../catalogs/README.md).
@@ -187,6 +187,26 @@ its own diagnostic boundary. Native controls retain actual opened results across
 logical replacement; registered provider callbacks are tripwires, not simulated
 remote connections.
 
+Foreign-table catalog scenarios independently assert the exact three-column
+OID/OID/_TEXT source, rank-one options, logical index presence, actual relation
+and server joins, and zero-column foreign definitions. Ordered decoded table
+options are distinct from column/wrapper/server/mapping options; no options means
+SQL NULL. Namespace identity, ALTER/transaction/drop publication, full English
+diagnostics and execution-time catalog SELECT admission are checked through
+direct, newly prepared and held statements. Raw catalog visibility is independent
+of underlying table privileges and server USAGE. Native-only control phases
+retain actual opened rows across ALTER/Reset/Restore, verify destination identity
+remapping and atomic failed/canceled replacement, and use registered-provider
+tripwires to forbid size/path/plan/scan calls. These are logical controls, not
+PostgreSQL physical storage or remote execution.
+The remapping fixture creates and drops source-only ordinary tables before
+defining the foreign objects, so their allocation history is absent from the
+logical dump. This distinguishes source and restored identities without golden
+OID values; ordinary destination spacers would be discarded by isolated Restore.
+During CREATE/IMPORT validation the private relation shape is visible before its
+foreign-table metadata exists. Capture checks that shell's relation authority
+before excluding it, and applies full server checks once the definition exists.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Namespaces, schemas, `search_path`: `RUN='^TestReferencePGNamespace'`, `RUN='^TestReferenceSchema'`
@@ -239,3 +259,19 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   `make check REFERENCE=1 RUN='^TestReferencePGForeignServerSmoke$'`.
   Private capture proof: `make check RUN='^TestPGForeignServer(Producer|Authority|Cancellation|Ownership)$'`
   (add `RACE=1` for selected race evidence).
+- Foreign-table catalog: `RUN='^TestReferencePGForeignTable(Shape|IdentityOptions|Lifecycle|Diagnostics|Permissions|Controls|FeatureSmoke)$'`.
+  Selected proof pairs:
+  `make check RUN='^TestReferencePGForeignTable(Shape|IdentityOptions)$'`,
+  `make check RUN='^TestReferencePGForeignTable(Lifecycle|Diagnostics)$'`, and
+  `make check RUN='^TestReferencePGForeignTable(Permissions|Controls)$'`;
+  run every command again with `REFERENCE=1` against the unchanged pinned fixture.
+  Feature smoke: `make check RUN='^TestReferencePGForeignTableFeatureSmoke$'`
+  and `make check RUN='^TestReferencePGForeignTableFeatureSmoke$' REFERENCE=1`.
+  Private capture proof:
+  `make check RUN='^TestPGForeignTable(Producer|Authority|Definitions|CancellationAndRetention)$'`;
+  selected cancellation/retention race proof adds `RACE=1`.
+  Existing staged-validator visibility regression:
+  `make check RUN='^TestReferenceFDWSQLValidatorImportOwnVisibility$'` and
+  `make check RUN='^TestReferenceFDWSQLValidatorImportOwnVisibility$' REFERENCE=1`;
+  its direct/prepared CREATE and IMPORT routes assert relation shape before the
+  table validator and foreign metadata before configured-column validation.
