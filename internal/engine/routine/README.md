@@ -18,6 +18,13 @@ formal and nullable TEXT result, strict STABLE and parallel-safe under the
 ordinary catalog inquiry provider. Its internal display source matches its SQL
 name; no named formal or pretty overload is declared.
 
+The executable `gin_clean_pending_list` declaration is routine 3789, one
+unnamed REGCLASS formal (2205), scalar INT8 result (20), STRICT VOLATILE and
+parallel-unsafe. Internal language/source `gin_clean_pending_list`, cost 1 and
+ordinary catalog provider membership belong to this declaration; default
+PUBLIC EXECUTE uses the shared live routine-admission machinery, independently
+of the target index's owner-only cleanup requirement.
+
 The executable nullable registry lookups are routines 4195 (`to_regcollation`,
 result 4191), 4093 (`to_regrole`, result 4096), 3494 (`to_regproc`, result 24),
 3479 (`to_regprocedure`, result 2202), 3492 (`to_regoper`, result 2203),

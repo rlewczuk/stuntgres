@@ -69,6 +69,9 @@ type CatalogHost interface {
 	// ImportSystemCollationsLocked runs pg_import_system_collations' checks
 	// for the namespace OID and reports that the import is unsupported.
 	ImportSystemCollationsLocked(namespace uint32) error
+	// CheckGINPendingListTargetLocked checks the live target's kind, TEMP
+	// session and index ownership before the physical cleanup boundary.
+	CheckGINPendingListTargetLocked(uint32) error
 }
 
 // SessionHost is the statement a session or transaction inquiry function

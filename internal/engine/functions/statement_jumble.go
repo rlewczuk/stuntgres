@@ -235,6 +235,9 @@ func (Circle) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.Cir
 func (ColumnCompression) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.ColumnCompression")
 }
+func (GinCleanPendingList) JumbleFields(s expr.StatementFields) {
+	s.JumbleText("functions.GinCleanPendingList")
+}
 func (CommentInquiry) JumbleFields(s expr.StatementFields) { s.JumbleText("functions.CommentInquiry") }
 func (commitTimestampExpression) JumbleFields(s expr.StatementFields) {
 	s.JumbleText("functions.commitTimestampExpression")

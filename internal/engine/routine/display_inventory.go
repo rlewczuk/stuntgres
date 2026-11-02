@@ -97,6 +97,7 @@ var builtinRoutineDisplay = map[ids.OID]builtinDisplayFacts{
 	6315: {Language: catalog.InternalRoutineLanguage, Source: "pg_basetype"},
 	1619: {Language: catalog.InternalRoutineLanguage, Source: "pg_typeof"},
 	2121: {Language: catalog.InternalRoutineLanguage, Source: "pg_column_compression"},
+	3789: {Language: catalog.InternalRoutineLanguage, Source: "gin_clean_pending_list", Cost: 1},
 	2625: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir_1arg"},
 	3297: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_dir"},
 	3353: {Language: catalog.InternalRoutineLanguage, Source: "pg_ls_logdir", Cost: 10},

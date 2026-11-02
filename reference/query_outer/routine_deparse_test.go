@@ -118,6 +118,7 @@ func TestReferenceRoutineDeparseBuiltins(t *testing.T) {
 	fixture.DeparseRelationsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		routineDeparseFour(t, p, b, c, "abs(integer)", [4]any{routineDeparseAbs, "integer", "integer", "integer"})
 		routineDeparseFour(t, p, b, c, "macaddr8_cmp(macaddr8,macaddr8)", [4]any{"CREATE OR REPLACE FUNCTION pg_catalog.macaddr8_cmp(macaddr8, macaddr8)\n RETURNS integer\n LANGUAGE internal\n IMMUTABLE PARALLEL SAFE STRICT LEAKPROOF\nAS $function$macaddr8_cmp$function$\n", "macaddr8, macaddr8", "macaddr8, macaddr8", "integer"})
+		routineDeparseFour(t, p, b, c, "gin_clean_pending_list(regclass)", [4]any{"CREATE OR REPLACE FUNCTION pg_catalog.gin_clean_pending_list(regclass)\n RETURNS bigint\n LANGUAGE internal\n STRICT\nAS $function$gin_clean_pending_list$function$\n", "regclass", "regclass", "bigint"})
 		for _, tc := range []struct {
 			id                 int
 			name, args, result string

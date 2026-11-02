@@ -459,6 +459,10 @@ func (h *catalogInquiryHost) SizeInquiry(kind functions.SizeKind, arg sqltype.Va
 	return inquiry.SizeInquiry(h.host(), kind, arg, fork, result)
 }
 
+func (h *catalogInquiryHost) GinCleanPendingList(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	return inquiry.GinCleanPendingList(h.host(), oid, result)
+}
+
 func (h *catalogInquiryHost) DatabaseFilesInquiry(kind functions.DatabaseFilesKind, arg, second sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return inquiry.DatabaseFilesInquiry(h.host(), kind, arg, second, result)
 }

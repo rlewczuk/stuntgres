@@ -67,6 +67,8 @@ import (
 // metadata, cost 1 and an internal source matching the SQL name.
 // Relation/namespace/type/typmod lookups OIDs3495/4086/3493/6317 retain the
 // same one-TEXT contract, returning their exact alias types or INT4 typmod.
+// GIN pending-list cleanup OID3789 retains its strict VOLATILE/parallel-unsafe
+// one-regclass INT8 declaration, cost 1 and released internal symbol.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -209,8 +211,9 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// both are leakproof and strict IMMUTABLE/parallel-safe INT4 comparators;
 	// their released internal source is bitcmp, with cost 1 and unnamed inputs.
 	// The selected network GIN family adds genuine macaddr8_cmp OID4119.
-	if len(facts) != 2208 {
-		t.Fatalf("released represented overloads: got %d, want 2208", len(facts))
+	// Pending-list cleanup adds the genuine regclass->bigint declaration3789.
+	if len(facts) != 2209 {
+		t.Fatalf("released represented overloads: got %d, want 2209", len(facts))
 	}
 	return facts
 }

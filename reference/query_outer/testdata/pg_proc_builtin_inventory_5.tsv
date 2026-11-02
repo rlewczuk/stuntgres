@@ -106,3 +106,4 @@
 1596	bitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1560 1560	\N	\N	\N	false	\N	bitcmp	\N	false	\N
 1672	varbitcmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	1562 1562	\N	\N	\N	false	\N	bitcmp	\N	false	\N
 4119	macaddr8_cmp	11	12	1	0	0	0	f	false	true	true	false	i	s	2	0	23	774 774	\N	\N	\N	false	\N	macaddr8_cmp	\N	false	\N
+3789	gin_clean_pending_list	11	12	1	0	0	0	f	false	false	true	false	v	u	1	0	20	2205	\N	\N	\N	false	\N	gin_clean_pending_list	\N	false	\N

@@ -413,9 +413,19 @@ view/foreign-table flags. Current identity-bound view expansion/write lowering
 and common FDW handler admission consume the operation-effective flags; captured
 defaults, overrides and transaction/savepoint restoration use the shared store.
 
+`gin_pending_list_limit` uses the ordinary USERSET integer/kB parser (64 through
+2147483647 kB, default 4096 kB displayed as `4MB`), captured session defaults and
+shared SET/RESET/LOCAL/set_config transaction/savepoint journal. In PostgreSQL it
+sets the fastupdate insertion cleanup threshold when no per-index reloption
+overrides it; assignment alone does not request cleanup or change logical rows.
+Embedded GIN maintains genuine logical postings but has no physical pending
+pages. A demanded, owner-authorized `gin_clean_pending_list(regclass)` reports
+`0A000`: `gin_clean_pending_list physical GIN pending-list cleanup is unsupported
+in embedded mode`, rather than a successful zero-page simulation.
+
 The following are **setting-only simulations**, not operational switches:
 `dynamic_library_path`, `extension_control_path`,
-`gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
+`gin_fuzzy_search_limit`, `local_preload_libraries`,
 `session_preload_libraries`.
 `default_table_access_method` instead selects a genuine installed table-method
 identity at execution for ordinary and query-derived creation and stored-relation
@@ -460,8 +470,9 @@ configuration of the explicit two-argument conversion.
 Missing configurations, including names qualified by a nonexistent schema, use
 the setting's invalid-value diagnostic (22023); namespace permission failures
 retain their authority diagnostic instead of being hidden as invalid values.
-No compressors, GIN truncation/pending lists, physical placement or relation
-restrictions are implied.
+These controls do not imply physical compression, GIN truncation/pending pages
+or filesystem placement; implemented relation restrictions retain their actual
+view/foreign-table admission behavior.
 `session_replication_role` instead controls real user
 and per-event foreign-key trigger execution through their stored O/D/R/A modes;
 effective changes use the shared prepared-plan discard generation.

@@ -413,6 +413,19 @@ is unsupported in embedded mode. Prepare and undemanded expressions do not
 inspect physical storage. Stored views use ordinary reconstruction, capture,
 rendering and native-control replay, with no retained GUC or measured metadata.
 
+`GinCleanPendingList` binds `gin_clean_pending_list(regclass)` through ordinary
+catalog routine 3789: canonical INT8 result, STRICT, VOLATILE, parallel-unsafe,
+cost 1. Its immutable one-child recipe participates in ordinary capture,
+rendering, jumbling, reconstruction and stored/native-control replay. Strict
+constant-NULL simplification precedes FoldNever: an erased call returns typed
+INT8 NULL without an invocation, including after EXECUTE is revoked. Surviving
+demanded non-NULL calls use live ordinary EXECUTE admission, evaluate the target
+once and borrow the current catalog runtime for index-kind, GIN implementation,
+TEMP-session and index-owner checks. Only an eligible target reaches the named
+`0A000` physical GIN pending-list cleanup boundary; no page count is fabricated.
+Prepare and undemanded expressions do not clean storage. The owning public
+family is `RUN='^TestReferenceGINPendingListLimit'`.
+
 `GenericFileList` binds eleven `pg_ls_*` signatures as volatile, strict typed
 sources, retaining only a closed kind, immutable operands and result shape.
 Ordinary EXECUTE admission precedes runtime NULL handling; all written operands

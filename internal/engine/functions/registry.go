@@ -92,6 +92,7 @@ var definitions = [...]Definition{
 	{Names: []string{"col_description", "obj_description", "shobj_description"}, ExactSpelling: true, SharedGates: true, Bind: bindCommentInquiry},
 	{Names: []string{"format_type", "pg_basetype", "pg_typeof"}, ExactSpelling: true, Bind: bindTypeInquiry, ProbeCall: probeTypeInquiry},
 	{Names: []string{"pg_column_compression"}, ExactSpelling: true, Bind: bindColumnCompression},
+	{Names: []string{"gin_clean_pending_list"}, ExactSpelling: true, Bind: bindGinCleanPendingList},
 	{Names: []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_ts_config_is_visible", "pg_ts_dict_is_visible", "pg_ts_parser_is_visible", "pg_ts_template_is_visible", "pg_statistics_obj_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations", "pg_function_is_visible", "pg_operator_is_visible", "pg_opclass_is_visible", "pg_opfamily_is_visible"}, ExactSpelling: true, SharedGates: true, Bind: bindVisibilityInquiry},
 	{Names: []string{"pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property"}, ExactSpelling: true, SharedGates: true, Bind: bindIndexProperty},
 	{Names: []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"}, Claims: parser.ObjectAddressFunctionName, Bind: bindObjectAddress, NamedCall: namedObjectAddress},

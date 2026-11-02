@@ -2,7 +2,7 @@
 
 The inquiry runtimes: the bodies of `exec.CatalogInquiryRuntime`
 (`format_type`, `pg_basetype`, `pg_get_userbyid`, the tablespace inquiries,
-the size and file functions, `pg_partition_*`, the publication inquiries, the
+the size and file functions, `gin_clean_pending_list`, `pg_partition_*`, the publication inquiries, the
 comment functions, the `pg_get_*def` deparse functions, object address,
 identity and description, the index property functions and the `pg_*_is_visible`
 functions), `exec.SessionInquiryRuntime` (session identities,
@@ -45,7 +45,7 @@ and [`engine/stored`](../../stored/README.md), and the visibility registry is
 
 ## Host
 
-- `CatalogHost` (18 methods) and `SessionHost` (21) are the statement an
+- `CatalogHost` and `SessionHost` are the statement an
   inquiry runs in; core implements both on `statementHost` (the shared leaf
   method set, `inquiry_statement_host.go`). Shared with the other leaves:
   `Operation`, the Engine.Mu pair, `InquiryCatalog`, the catalog epoch and
@@ -90,6 +90,18 @@ RI precedence remain the routine admission owner's responsibility. It retains
 immutable vectors, not mutable heap headers or prepared numeric/ACL results.
 The allocation model belongs to
 [`storage`](../../storage/README.md#logical-allocation-estimates).
+
+`GinCleanPendingList` uses that same retained catalog owner/replacement-epoch
+fence under `Engine.Mu`, then asks core's focused target method to resolve the
+current transaction/private catalog. Relation/index kind and the actual access
+method implementation precede other-session TEMP rejection and inherited
+index-owner/superuser authorization. The host recaptures
+`RoutineAuthorizationLocked` over that same catalog, not relation-write
+authority; ordinary expression admission separately owns live EXECUTE checks.
+An eligible demanded target returns the unpositioned `0A000`
+`gin_clean_pending_list physical GIN pending-list cleanup is unsupported in
+embedded mode`. No roots, postings, reloptions, pages or counters are changed.
+Strict NULL and undemanded expressions never enter this physical boundary.
 
 `FormatType` consumes the immutable visibility catalog and authorized
 relation/type-compatible path, including the session's TEMP namespace.

@@ -114,9 +114,14 @@ builds a binder.
   keys, retaining construction history. Empty roots retain actual column bindings.
   `fastupdate` and `gin_pending_list_limit` retain typed and lexical physical
   configuration intent (absent defaults on/4096KB), without pending lists/pages.
-  Metadata-only SET/RESET never rebuilds logical postings; inquiry and separate
-  ALTER replay preserve explicit defaults, spelling and order. JSONB token
-  providers are honestly unavailable, not reported as nonexistent PG classes.
+  PostgreSQL insertion uses the session threshold unless the index reloption
+  overrides it; SET/RESET/LOCAL here never rebuilds logical postings. Inquiry
+  and separate ALTER replay preserve explicit defaults, spelling and order.
+  `gin_clean_pending_list(regclass)` checks current index kind, GIN implementation,
+  TEMP session and ownership before explicitly rejecting physical pending-list
+  cleanup with named `0A000`; it never returns a fake zero-page count. Typed NULL
+  or undemanded success is not successful cleanup. JSONB token providers are
+  honestly unavailable, not reported as nonexistent PG classes.
   `pgstattuple.go` estimates tuple/page metrics from current logical roots and
   already-produced private outputs. Published logical removal stops contributing
   at once; pgstattuple dead index count is zero because roots have no killed-item
