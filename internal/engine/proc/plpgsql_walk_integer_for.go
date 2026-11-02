@@ -15,6 +15,7 @@ func (r *PLRun) executePLIntegerFor(in PLInstruction) (value sqltype.Value, flow
 	at := PLOrigin{Position: in.Syntax.Pos, Action: PLIntegerForAction}
 	usage := r.Frame.Usage(loop.Counter)
 	operand := func(q *parser.Select, span parser.PLExpression, nullMessage string) (int64, error) {
+		at.Start, at.End = span.Start, span.End
 		v, _, err := r.Host.Evaluate(r.Frame, q, at)
 		expressionError := err != nil
 		if err == nil {

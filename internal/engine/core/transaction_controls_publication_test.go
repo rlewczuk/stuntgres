@@ -117,6 +117,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer scope.Finish(errors.New("test cleanup"))
 			query := enginetest.Statement(t, "COMMIT AND CHAIN")
 			switch boundary {
 			case "cancel_before", "cancel_after":
@@ -125,14 +126,44 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					barrier.late = cancel
 				}
 				op.Ctx = barrier
-				// Classification checks exact authority before prospective birth;
-				// arm the shared barrier at the final publisher, not reservation.
-				barrier.checks.Store(-1)
+				// Gate checks Active and endPreflight. With default utility
+				// tracking, normalization of this operation's empty OriginalSQL
+				// checks the lexer EOF once; CHAIN then checks its reservation.
+				// The fifth Err is publishRowsPrepared's final operation fence
+				// under Engine.Mu and Session.Mu, after both row candidates exist.
+				barrier.checks.Store(-2)
+				release := func() {
+					select {
+					case <-barrier.release:
+					default:
+						close(barrier.release)
+					}
+				}
 				done := make(chan error, 1)
-				go func() { _, err := scope.Execute(query, 0, nil); done <- err }()
-				<-barrier.entered
-				observed := make(chan [2]int, 1)
+				executed := make(chan struct{})
+				var observerDone chan struct{}
 				go func() {
+					defer close(executed)
+					_, err := scope.Execute(query, 0, nil)
+					done <- err
+				}()
+				defer func() {
+					cancel()
+					release()
+					<-executed
+					if observerDone != nil {
+						<-observerDone
+					}
+				}()
+				select {
+				case <-barrier.entered:
+				case err := <-done:
+					t.Fatal("control completed before final publication barrier", err)
+				}
+				observed := make(chan [2]int, 1)
+				observerDone = make(chan struct{})
+				go func() {
+					defer close(observerDone)
 					e.Mu.Lock()
 					n := [2]int{len(stores[0].Versions), len(stores[1].Versions)}
 					e.Mu.Unlock()
@@ -141,13 +172,16 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_before" {
 					cancel()
 				}
-				close(barrier.release)
+				release()
 				err = <-done
+				<-executed
 				want := [2]int{3, 1}
 				if boundary == "cancel_after" {
 					want = [2]int{4, 2}
 				}
-				if n := <-observed; n != want {
+				n := <-observed
+				<-observerDone
+				if n != want {
 					t.Fatal("partial mixed publication", n, want)
 				}
 			case "terminal_before":

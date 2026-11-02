@@ -22,7 +22,10 @@ type ParameterInfo struct {
 type Binding struct {
 	// PLCallOutputs belongs only to a reached lexical CALL's private binding.
 	// It is not part of the executable input expression graph.
-	PLCallOutputs      []PLCallOutput
+	PLCallOutputs []PLCallOutput
+	// Only owned scalar fingerprint/source spans survive pure-OUT compaction.
+	// These are not executable, foldable or descriptor-bearing children.
+	callOutputJumble   *statementCallJumble
 	Relation           *catalog.Relation
 	Storage            *storage.Relation
 	Ref                ids.ObjectRef
@@ -35,7 +38,7 @@ type Binding struct {
 	CTESelectBodies    bool
 	QuerySources       []exec.Leaf
 	VisibilitySnapshot bool
-	ExportRoots bool
+	ExportRoots        bool
 	SubqueryDemand     bool
 	CommandQuery       bool
 	CurrentOf          string // UPDATE and DELETE WHERE CURRENT OF.

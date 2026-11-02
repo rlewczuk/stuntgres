@@ -16,7 +16,7 @@ func AdmitInstallationCompanions(stage Stage, ext *catalog.Extension) error {
 		seen[a] = true
 	}
 	var companions []catalog.Descriptor
-	for _, a := range ext.Installation.Members {
+	for _, a := range ext.Members {
 		d := view.Get(a)
 		switch d.(type) {
 		case *catalog.Type, *catalog.Relation:

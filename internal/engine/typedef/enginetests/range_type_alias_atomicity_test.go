@@ -59,7 +59,7 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		target.Mu.Lock()
-		mapping, err := control.TemporaryCollisionMapping(context.Background(), next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+		mapping, err := control.ReplacementCollisionMapping(context.Background(), next, retained, nil, constraints, target.Catalog.AllocateOIDAtLeastLocked)
 		target.Mu.Unlock()
 		if upper == numeric {
 			var diagnostic interface{ SQLState() string }

@@ -50,7 +50,7 @@ func TestRangeTypeTemporaryEndpointComponents(t *testing.T) {
 			d := rangeIdentityNamespace(id)
 			temporary[d.Address()] = d
 		}
-		mapping, err := TemporaryCollisionMapping(context.Background(), next, temporary, []catalog.AliasOrderConstraint{rangeIdentityEdge(30000, 30010), rangeIdentityEdge(30010, 30020)}, rangeIdentityAllocator(30010))
+		mapping, err := ReplacementCollisionMapping(context.Background(), next, temporary, nil, []catalog.AliasOrderConstraint{rangeIdentityEdge(30000, 30010), rangeIdentityEdge(30010, 30020)}, rangeIdentityAllocator(30010))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +77,7 @@ func TestRangeTypeTemporaryUnrelatedCollision(t *testing.T) {
 	edge := rangeIdentityEdge(30010, 30011)
 	edge.Upper.Object = ids.ObjectAddress{}
 	temp := rangeIdentityNamespace(30000)
-	mapping, err := TemporaryCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, []catalog.AliasOrderConstraint{edge}, rangeIdentityAllocator(30020))
+	mapping, err := ReplacementCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, nil, []catalog.AliasOrderConstraint{edge}, rangeIdentityAllocator(30020))
 	if err != nil || len(mapping) != 1 || mapping[rangeIdentityAddress(30010)] != (ids.ObjectAddress{}) {
 		t.Fatal("unrelated collision activated numeric component", mapping, err)
 	}
@@ -98,7 +98,7 @@ func TestRangeTypeTemporaryPredecessorBacktracking(t *testing.T) {
 	}
 	edge := rangeIdentityEdge(30100, 30101)
 	edge.Upper.Object = ids.ObjectAddress{}
-	mapping, err := TemporaryCollisionMapping(context.Background(), next, temporary, []catalog.AliasOrderConstraint{rangeIdentityEdge(30000, 30100), edge}, rangeIdentityAllocator(29990))
+	mapping, err := ReplacementCollisionMapping(context.Background(), next, temporary, nil, []catalog.AliasOrderConstraint{rangeIdentityEdge(30000, 30100), edge}, rangeIdentityAllocator(29990))
 	if err != nil || mapping[rangeIdentityAddress(30000)].ObjectID != 29991 || mapping[rangeIdentityAddress(30100)].ObjectID != 29992 {
 		t.Fatal("retain-first must backtrack to an earlier predecessor", mapping, err)
 	}
@@ -109,7 +109,7 @@ func TestRangeTypeTemporaryUncollidedFastPath(t *testing.T) {
 	d := rangeIdentityNamespace(30000)
 	next.SetDescriptor(d.Address(), d)
 	temp := rangeIdentityNamespace(30001)
-	mapping, err := TemporaryCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, nil, func(ids.OID) (ids.OID, error) { t.Fatal("no collision allocated an identity"); return 0, nil })
+	mapping, err := ReplacementCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, nil, nil, func(ids.OID) (ids.OID, error) { t.Fatal("no collision allocated an identity"); return 0, nil })
 	if err != nil || mapping != nil {
 		t.Fatal("uncollided generation fast path", mapping, err)
 	}
@@ -122,7 +122,7 @@ func TestRangeTypeTemporarySelectiveWithoutOrder(t *testing.T) {
 		next.SetDescriptor(d.Address(), d)
 	}
 	temp := rangeIdentityNamespace(30000)
-	mapping, err := TemporaryCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, nil, rangeIdentityAllocator(30010))
+	mapping, err := ReplacementCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}, nil, nil, rangeIdentityAllocator(30010))
 	if err != nil || len(mapping) != 1 || mapping[rangeIdentityAddress(30000)].ObjectID != 30011 || mapping[rangeIdentityAddress(30010)] != (ids.ObjectAddress{}) {
 		t.Fatal("non-range import lost selective predecessor inversion", mapping, err)
 	}
@@ -142,15 +142,61 @@ func TestRangeTypeTemporaryIntervalCapacityAndCancellation(t *testing.T) {
 		e.Upper.Object = ids.ObjectAddress{}
 		edges = append(edges, e)
 	}
-	_, err := TemporaryCollisionMapping(context.Background(), next, temporary, edges, rangeIdentityAllocator(30001))
+	_, err := ReplacementCollisionMapping(context.Background(), next, temporary, nil, edges, rangeIdentityAllocator(30001))
 	var state interface{ SQLState() string }
 	if !errors.As(err, &state) || state.SQLState() != "22000" {
 		t.Fatal("two groups cannot share the only legal slot", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = TemporaryCollisionMapping(ctx, next, temporary, edges, rangeIdentityAllocator(30001))
+	_, err = ReplacementCollisionMapping(ctx, next, temporary, nil, edges, rangeIdentityAllocator(30001))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("planning cancellation", err)
+	}
+}
+
+func TestPgStatStatementsInstallationCollisionAssignments(t *testing.T) {
+	for _, constrained := range []bool{false, true} {
+		t.Run(map[bool]string{false: "selective", true: "alias_component"}[constrained], func(t *testing.T) {
+			next := catalog.NewState(1)
+			for _, id := range []ids.OID{30000, 30010, 30020, 30100} {
+				d := rangeIdentityNamespace(id)
+				next.SetDescriptor(d.Address(), d)
+			}
+			fixed := map[ids.ObjectAddress]ids.ObjectAddress{
+				rangeIdentityAddress(30000): rangeIdentityAddress(30010),
+				rangeIdentityAddress(30020): rangeIdentityAddress(30020),
+			}
+			var constraints []catalog.AliasOrderConstraint
+			if constrained {
+				constraints = []catalog.AliasOrderConstraint{rangeIdentityEdge(30000, 30010), rangeIdentityEdge(30010, 30020)}
+			}
+			mapping, err := ReplacementCollisionMapping(context.Background(), next, nil, fixed, constraints, rangeIdentityAllocator(30010))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mapping[rangeIdentityAddress(30000)] != rangeIdentityAddress(30010) || mapping[rangeIdentityAddress(30010)].ObjectID <= 30010 || mapping[rangeIdentityAddress(30020)] != (ids.ObjectAddress{}) || mapping[rangeIdentityAddress(30100)] != (ids.ObjectAddress{}) {
+				t.Fatal("fixed provider assignment moved itself or lost selective ordinary displacement", mapping)
+			}
+			if constrained && mapping[rangeIdentityAddress(30010)].ObjectID >= 30020 {
+				t.Fatal("ordinary collision broke the true fixed-endpoint ordering", mapping)
+			}
+			if next.Get(rangeIdentityAddress(30000)) == nil || next.Get(rangeIdentityAddress(30010)) == nil {
+				t.Fatal("identity planning mutated source descriptors")
+			}
+		})
+	}
+	next := catalog.NewState(1)
+	a, b := rangeIdentityNamespace(30000), rangeIdentityNamespace(30010)
+	next.SetDescriptor(a.Address(), a)
+	next.SetDescriptor(b.Address(), b)
+	noAllocation := func(ids.OID) (ids.OID, error) { t.Fatal("rejected fixed identity allocated"); return 0, nil }
+	if mapping, err := ReplacementCollisionMapping(context.Background(), next, map[ids.ObjectAddress]catalog.Descriptor{b.Address(): b}, map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): b.Address()}, nil, noAllocation); err == nil || mapping != nil {
+		t.Fatal("installed identity overwrote a retained TEMP object", mapping, err)
+	}
+	fixed := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): b.Address(), b.Address(): a.Address()}
+	edge := rangeIdentityEdge(30000, 30010)
+	if mapping, err := ReplacementCollisionMapping(context.Background(), next, nil, fixed, []catalog.AliasOrderConstraint{edge}, noAllocation); err == nil || mapping != nil {
+		t.Fatal("incompatible fixed alias endpoints were silently reordered", mapping, err)
 	}
 }

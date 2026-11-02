@@ -56,6 +56,7 @@ type Binder struct {
 	plAssignmentDatum *PLAssignment
 	plDatums          []plCallDatum
 	plCallOutputs     []PLCallOutput
+	callOutputJumble  *statementCallJumble
 	plAssignmentQuery *parser.Select
 	normalizingSyntax map[StoredExpressionSyntaxKey]bool
 	wrappingSyntax    map[StoredExpressionSyntaxKey]bool

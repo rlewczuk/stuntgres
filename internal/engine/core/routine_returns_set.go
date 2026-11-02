@@ -12,6 +12,7 @@ func procedureReturnsSet(d *catalog.Procedure) bool {
 		extension.HstoreProviderOf(d) == extension.StockHstore && d.Installed.ReturnsSet ||
 		extension.DblinkProviderOf(d) == extension.StockDblink && d.Installed.ReturnsSet ||
 		extension.PgrowlocksProviderOf(d) == extension.StockPgrowlocks ||
+		extension.PgStatStatementsProviderOf(d) == extension.StockPgStatStatements && d.Installed.ReturnsSet ||
 		extension.TablefuncProviderOf(d) == extension.StockTablefunc && d.Installed.ReturnsSet ||
 		extension.AmcheckProviderOf(d) == extension.StockAmcheck && d.Installed.ReturnsSet ||
 		extension.IntaggProviderOf(d) == extension.StockIntagg && d.RoutineKind == catalog.FunctionRoutine &&

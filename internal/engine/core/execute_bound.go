@@ -320,6 +320,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
+	if prepared == nil {
+		scope.statementStatsPlanBuilt()
+	}
 	// Preserve effect-free planning errors before catalog mutation admission,
 	// using refreshed role authority before table/source access or row effects.
 	if analyze.GuardedCatalogRelation(b.Relation) {
@@ -372,6 +375,9 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			e.Mu.Unlock()
 			return Result{}, err
 		}
+	}
+	if prepared == nil && scope.protocolOrZero().bind == nil {
+		scope.statementStatsPlanAccepted()
 	}
 	scope.FoldCaptures = foldCaptures
 	b = view.PhysicalBinding(b)

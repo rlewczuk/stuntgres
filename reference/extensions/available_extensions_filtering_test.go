@@ -63,6 +63,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tablefunc' AND version='1.0'", true, [][]any{{"tablefunc", "1.0", false, true, true, true, nil, nil, "functions that manipulate whole tables, including crosstab"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='tcn'", false, [][]any{{"tcn", "1.0", nil, "Triggered change notifications"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='tcn' AND version='1.0'", true, [][]any{{"tcn", "1.0", false, true, true, true, nil, nil, "Triggered change notifications"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='pg_stat_statements'", false, [][]any{{"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='pg_stat_statements' AND version='1.12'", true, [][]any{{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='plpgsql'", false, [][]any{{"plpgsql", "1.0", "1.0", "PL/pgSQL procedural language"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='plpgsql' AND version='1.0'", true, [][]any{{"plpgsql", "1.0", true, true, true, false, "pg_catalog", nil, "PL/pgSQL procedural language"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='moddatetime'", false, [][]any{{"moddatetime", "1.0", nil, "functions for tracking last modification time"}}, pg))
@@ -131,6 +133,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"dblink", "1.2", false, true, false, true, nil, nil, "connect to other PostgreSQL databases from within a database"})
 				wantAvailable = append(wantAvailable, []any{"pg_freespacemap", "1.3", nil, "examine the free space map (FSM)"})
 				wantVersions = append(wantVersions, []any{"pg_freespacemap", "1.3", false, true, false, true, nil, nil, "examine the free space map (FSM)"})
+				wantAvailable = append(wantAvailable, []any{"pg_stat_statements", "1.12", nil, "track planning and execution statistics of all SQL statements executed"})
+				wantVersions = append(wantVersions, []any{"pg_stat_statements", "1.12", false, true, false, true, nil, nil, "track planning and execution statistics of all SQL statements executed"})
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"file_fdw"} {

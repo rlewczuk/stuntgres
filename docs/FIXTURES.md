@@ -153,6 +153,10 @@ ignores the native comment rather than importing its historical catalog state.
   replay too; invocation frames and callback results are not persistent authority.
   Accepted intrinsic-provider parallel/cost/rows patches use the existing
   provider identity replay, preserving real input signatures and owner ordering.
+  Compatible live native installation headers and matching sealed procedure
+  roots retain their destination identities. Fresh destinations resolve the
+  symbolic declarations independently; ordinary SQL objects acquire no general
+  OID-stability guarantee.
   Generated constructor metadata follows its actual type declaration; seeded
   handlers and installed providers retain their existing installation prerequisites.
   Fresh native destinations require matching genuine foreign registrations;

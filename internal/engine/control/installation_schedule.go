@@ -265,6 +265,21 @@ func (p *installationSchedule) install(index int) error {
 			// replay administrator; final owner metadata restores member owners.
 			p.script.installationStatements = append(p.script.installationStatements, "ALTER EXTENSION "+catalog.QuoteIdentifier(item.recipe.Provider)+" UPDATE TO '"+strings.ReplaceAll(item.recipe.Version, "'", "''")+"';\n")
 		}
+		if consumers, ok := item.recipe.Implementation.(extension.ConsumerInstaller); ok {
+			declarations, err := consumers.ConsumerViews(item.recipe.Version)
+			if err != nil {
+				return err
+			}
+			// These are only the just-created script products. Actual source
+			// views retain their ordinary declaration events and final state.
+			for i := len(declarations) - 1; i >= 0; i-- {
+				name := declarations[i].Name.Parts[len(declarations[i].Name.Parts)-1].Text
+				qualified := catalog.QuoteIdentifier(item.schema) + "." + catalog.QuoteIdentifier(name)
+				p.script.installationStatements = append(p.script.installationStatements,
+					"ALTER EXTENSION "+catalog.QuoteIdentifier(item.recipe.Provider)+" DROP VIEW "+qualified+";\n",
+					"DROP VIEW "+qualified+";\n")
+			}
+		}
 	}
 	p.currentSchema[index] = item.schema
 	p.installed[index] = true

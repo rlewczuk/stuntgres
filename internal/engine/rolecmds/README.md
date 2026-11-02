@@ -56,6 +56,9 @@ Dispatch (`core.Statements.Execute`); each is entered with nothing held:
   after publication and revision preflights. Explicit authorization clears the
   active role; RESET/DEFAULT restores its captured startup ref/text pair without
   rechecking membership. `AcquireRoleRetirementLocks` runs before DROP ROLE.
+  The same decided state supplies core's original/prospective statistics
+  admission before mutation; normalization does not resolve the target again.
+  Failed decisions admit only the original principal and publish no success.
 - `ExecuteObjectGrant`, `ExecuteDatabaseGrant` and
   `ExecuteDefaultPrivileges` (GRANT and REVOKE on objects and databases,
   ALTER DEFAULT PRIVILEGES) plan under `Engine.Mu`. Object grants admit

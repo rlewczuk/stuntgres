@@ -46,3 +46,24 @@ func TestRegexpFromSyntax(t *testing.T) {
 		t.Fatal(node)
 	}
 }
+
+func TestRegexpFromRowsProvenance(t *testing.T) {
+	for _, tc := range []struct {
+		source                     string
+		rowsFrom, lateral, ordinal bool
+		calls, definitions         int
+	}{
+		{source: "regexp_split_to_table('a,b',',')", calls: 1},
+		{source: "ROWS FROM(regexp_split_to_table('a,b',','))", rowsFrom: true, calls: 1},
+		{source: "LATERAL ROWS FROM(regexp_split_to_table('a,b',',')) WITH ORDINALITY", rowsFrom: true, lateral: true, ordinal: true, calls: 1},
+		{source: "ROWS FROM(regexp_split_to_table('a,b',','),regexp_matches('a','a'))", rowsFrom: true, calls: 2},
+		{source: "ROWS FROM(regexp_split_to_table('a,b',',') AS (v text))", rowsFrom: true, calls: 1, definitions: 1},
+	} {
+		t.Run(tc.source, func(t *testing.T) {
+			node, ok := orderParse(t, "SELECT * FROM "+tc.source).From.(*FunctionFrom)
+			if !ok || node.RowsFrom != tc.rowsFrom || node.Lateral != tc.lateral || node.Ordinality != tc.ordinal || len(node.Calls) != tc.calls || len(node.Calls[0].ColumnDefinitions) != tc.definitions {
+				t.Fatalf("regexp lowering lost raw RangeFunction fields: %#v", node)
+			}
+		})
+	}
+}

@@ -36,6 +36,9 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	}
 	rows := &protocolCopyQueryRows{scope: s, producer: capture.producer, schema: capture.producer.schema}
 	capture.producer = nil
+	// The capture is not a registered portal. Keep its genuine executor frame
+	// with COPY's lexical child until actual output and producer close complete.
+	s.statementStats, capture.statementStats = capture.statementStats, nil
 	rows.output = exec.NewFinalRows(rows.schema, 0)
 	rows.output.Output = s.Output
 	err = func() error {
@@ -47,7 +50,9 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 		_ = rows.Close()
 		return nil, err
 	}
-	return rows, nil
+	result := Result{Rows: rows}
+	s.statementStatsReturned(&result, nil)
+	return result.Rows, nil
 }
 
 type protocolCopyQueryRows struct {

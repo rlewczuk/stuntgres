@@ -230,12 +230,18 @@ func (i *statementInstaller) install(name string, implementation catalog.Extensi
 	if err := SealInstallation(i.stage, ext, ext.Members); err != nil {
 		return err
 	}
+	if err := i.stage.Replace(ext); err != nil {
+		return err
+	}
 	if validator, ok := implementation.(interface {
 		validateRecipe(catalog.Read, *catalog.Extension) error
 	}); ok {
 		if err := validator.validateRecipe(i.stage.CurrentRead(), ext); err != nil {
 			return err
 		}
+	}
+	if err := StageConsumers(i.host.Context(), i.stage, implementation, ext, memberOwner); err != nil {
+		return err
 	}
 	return AdmitInstallationCompanions(i.stage, ext)
 }

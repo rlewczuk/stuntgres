@@ -10,7 +10,7 @@ const PLForeachAction = "at FOREACH over array"
 
 func (r *PLRun) foreach(in PLInstruction) (value sqltype.Value, flow PLFlow, err error) {
 	loop, raw := in.Foreach, in.Syntax.Foreach
-	at := PLOrigin{Position: in.Syntax.Pos, Action: PLForeachAction}
+	at := PLOrigin{Position: in.Syntax.Pos, Action: PLForeachAction, Start: raw.Source.Start, End: raw.Source.End}
 	source, _, err := r.Host.Evaluate(r.Frame, loop.Query, at)
 	if err != nil {
 		return value, flow, PLRuntimeError(err, r.Definition, r.Host.Identity, raw.Source.Start, raw.Source.End, in.Syntax.Pos, PLForeachAction, true)

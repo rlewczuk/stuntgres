@@ -41,55 +41,67 @@ func (s *StatementScope) leaveSQLRoutine() {
 // and restore the suspended caller's manifest, never append to an earlier one.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	txRef               ids.TxRef
-	currentSnapshot *sqltype.Snapshot
-	snapshotFrontier ids.CommitSeq
-	exportCapture *exportedSnapshot
-	exportRootDemand bool
-	snapshotTarget visibility.Root
-	snapshotTargets map[ids.ObjectAddress]visibility.Root
-	snapshotTargetAdmission bool
-	command             ruleCommandScratch
-	mutations           []StatementMutation
-	activeMutation      int
-	cteInvocation       *exec.CTEInvocation
-	activeViews         []ids.ObjectAddress
-	inheritance         inheritanceScope
-	materialized        *view.MaterializedRefreshScope
-	truncate            *dml.TruncateScope
-	largeObjectRead     catalog.Read
-	largeObjectOpening catalog.Read
-	authority           *exec.Authority
-	routineAuth         AuthorizationView
-	routineDependencies []catalog.ExpressionDependency
-	expected            *Description
-	prepared            preparedRebind
-	admissionWaited     bool
-	sqlRoutine          sqlRoutineDemand
-	inquiry             inquirySnapshot
-	initialParameters   []sqltype.Usage
-	protocol            *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
-	input               sqltype.InputEnvironment
-	output              sqltype.OutputEnvironment
-	methods             plan.PlannerMethods
-	view, partitionView *visibility.View
-	rlsDataRefs         []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
-	ownWrites           map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes          map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation    *exec.Context
-	domainInputCatalog  catalog.Read
-	foreignOwner        *exec.ForeignScanOwner
-	foreignCursor       *sqlCursor
-	presentation        *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
-	identity            exec.IdentitySnapshot
-	completed           bool // Nested utility outcome, not root row publication.
-	sessionCompleted    bool
+	txRef                     ids.TxRef
+	statementStats            *statementStatsFrame
+	statementStatsDepth       int
+	statementStatsUtilityBody bool
+	statementStatsSource      string
+	statementStatsOffset      int
+	statementStatsSpans       []statementStatsSpan
+	statementStatsCompletions []*statementStatsFrame
+	currentSnapshot           *sqltype.Snapshot
+	snapshotFrontier          ids.CommitSeq
+	exportCapture             *exportedSnapshot
+	exportRootDemand          bool
+	snapshotTarget            visibility.Root
+	snapshotTargets           map[ids.ObjectAddress]visibility.Root
+	snapshotTargetAdmission   bool
+	command                   ruleCommandScratch
+	mutations                 []StatementMutation
+	activeMutation            int
+	cteInvocation             *exec.CTEInvocation
+	activeViews               []ids.ObjectAddress
+	inheritance               inheritanceScope
+	materialized              *view.MaterializedRefreshScope
+	truncate                  *dml.TruncateScope
+	largeObjectRead           catalog.Read
+	largeObjectOpening        catalog.Read
+	authority                 *exec.Authority
+	routineAuth               AuthorizationView
+	routineDependencies       []catalog.ExpressionDependency
+	expected                  *Description
+	prepared                  preparedRebind
+	admissionWaited           bool
+	sqlRoutine                sqlRoutineDemand
+	inquiry                   inquirySnapshot
+	initialParameters         []sqltype.Usage
+	protocol                  *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
+	input                     sqltype.InputEnvironment
+	output                    sqltype.OutputEnvironment
+	methods                   plan.PlannerMethods
+	view, partitionView       *visibility.View
+	rlsDataRefs               []ids.ObjectRef // Same lexical snapshot owner as view; not a global source cache.
+	ownWrites                 map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes                map[ids.ObjectAddress]*visibility.PrivateDeletes
+	domainEvaluation          *exec.Context
+	domainInputCatalog        catalog.Read
+	foreignOwner              *exec.ForeignScanOwner
+	foreignCursor             *sqlCursor
+	presentation              *presentationCaches // Swapped as a unit: a nested body starts with empty caches.
+	identity                  exec.IdentitySnapshot
+	completed                 bool // Nested utility outcome, not root row publication.
+	sessionCompleted          bool
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
-		txRef:   s.TxRef,
-		currentSnapshot: s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
+		txRef:          s.TxRef,
+		statementStats: s.statementStats, statementStatsDepth: s.statementStatsDepth, statementStatsSource: s.statementStatsSource,
+		statementStatsUtilityBody: s.statementStatsUtilityBody,
+		statementStatsOffset:      s.statementStatsOffset,
+		statementStatsSpans:       s.statementStatsSpans,
+		statementStatsCompletions: s.statementStatsCompletions,
+		currentSnapshot:           s.currentSnapshot, snapshotFrontier: s.snapshotFrontier,
 		exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
 		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
@@ -106,14 +118,19 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		view:     s.View, partitionView: s.PartitionsOrZero().ValidationView, ownWrites: s.OwnWrites, ownDeletes: s.OwnDeletes,
 		domainEvaluation: s.Domains.evaluation, domainInputCatalog: s.Domains.InputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.Identity,
-		largeObjectRead: s.largeObjectRead,
+		largeObjectRead:    s.largeObjectRead,
 		largeObjectOpening: s.largeObjectOpening,
-		rlsDataRefs:     s.rlsDataRefs,
-		completed:       s.Completed, sessionCompleted: s.sessionCompleted,
+		rlsDataRefs:        s.rlsDataRefs,
+		completed:          s.Completed, sessionCompleted: s.sessionCompleted,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.installRuleScratch(c.command)
+	s.statementStats, s.statementStatsDepth, s.statementStatsSource = c.statementStats, c.statementStatsDepth, c.statementStatsSource
+	s.statementStatsUtilityBody = c.statementStatsUtilityBody
+	s.statementStatsOffset = c.statementStatsOffset
+	s.statementStatsSpans = c.statementStatsSpans
+	s.statementStatsCompletions = c.statementStatsCompletions
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
 	s.exportCapture, s.exportRootDemand = c.exportCapture, c.exportRootDemand
 	s.snapshotTarget, s.snapshotTargets, s.snapshotTargetAdmission = c.snapshotTarget, c.snapshotTargets, c.snapshotTargetAdmission
@@ -187,6 +204,7 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 		child.snapshotTarget, child.snapshotTargets, child.snapshotTargetAdmission = saved.snapshotTarget, saved.snapshotTargets, saved.snapshotTargetAdmission
 	}
 	s.installSQLRoutineScratch(child)
+	s.statementStatsDepth = saved.statementStatsDepth + 1
 	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
@@ -216,6 +234,10 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 				saved.exportCapture = s.exportCapture
 			}
 		}
+		s.captureStatementStatsTerminal(s.statementStats)
+		childStatistics := s.statementStats
+		childCompletions := s.statementStatsCompletions
+		s.statementStats = nil
 		s.installSQLRoutineScratch(saved)
 		if policy.active && !exec.InParallelOperation(s.executionContext()) {
 			// A reached SET may escape this lexical command. Restoring query
@@ -226,6 +248,10 @@ func (s *StatementScope) ActivateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 			if primary == nil {
 				primary = cleanup
 			}
+		}
+		childStatistics.finish(primary == nil)
+		for _, completed := range childCompletions {
+			completed.finish(primary == nil)
 		}
 		return primary
 	}
@@ -281,7 +307,11 @@ func (s *StatementScope) rebaseRoutineScratch(c sqlRoutineScratch) sqlRoutineScr
 	demand := c.sqlRoutine
 	demand.policy.base, demand.policy.writes, demand.policy.deletes = nil, nil, nil
 	return sqlRoutineScratch{txRef: s.TxRef, input: input, output: output,
-		currentSnapshot: s.currentSnapshot, snapshotFrontier: s.snapshotFrontier, exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
+		statementStats: c.statementStats, statementStatsDepth: c.statementStatsDepth, statementStatsSource: c.statementStatsSource, statementStatsOffset: c.statementStatsOffset,
+		statementStatsUtilityBody: c.statementStatsUtilityBody,
+		statementStatsCompletions: c.statementStatsCompletions,
+		statementStatsSpans:       c.statementStatsSpans,
+		currentSnapshot:           s.currentSnapshot, snapshotFrontier: s.snapshotFrontier, exportCapture: s.exportCapture, exportRootDemand: s.exportRootDemand,
 		snapshotTarget: s.snapshotTarget, snapshotTargets: s.snapshotTargets, snapshotTargetAdmission: s.snapshotTargetAdmission,
 		initialParameters: c.initialParameters, sqlRoutine: demand, expected: c.expected,
 		protocol: c.protocol, ownWrites: s.Owner.Writes, ownDeletes: s.Owner.Deletes}

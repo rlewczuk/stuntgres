@@ -39,10 +39,18 @@ func (f Flags) Array(result *sqltype.Descriptor) (sqltype.Value, error) {
 }
 
 // builtinFlags is the explicit REL_18_6 guc_tables.c classification. The
-// plpgsql.check_asserts extension definition is in plpgsql/src/pl_handler.c.
+// plpgsql.check_asserts definition is in plpgsql/src/pl_handler.c; the five
+// pg_stat_statements definitions are in contrib/pg_stat_statements.
 // Unknown source-owned additions must be classified, never silently defaulted.
 func builtinFlags(name string) Flags {
 	switch name {
+	case "pg_stat_statements.max",
+		"pg_stat_statements.track",
+		"pg_stat_statements.track_utility",
+		"pg_stat_statements.track_planning",
+		"pg_stat_statements.save":
+		// REL_18_6 _PG_init passes flags=0 for each module definition.
+		return 0
 	case "allow_alter_system",
 		"archive_cleanup_command",
 		"archive_command",

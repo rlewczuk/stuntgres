@@ -128,7 +128,7 @@ func (r *PLRun) Block(block *PLBlock) (value sqltype.Value, flow PLFlow, err err
 		if initializer.Expression != nil {
 			origin = initializer.Start
 			f.Scopes[len(f.Scopes)-1] = initializer.Scope
-			value, _, err = r.Host.Evaluate(f, initializer.Query, PLOrigin{Position: initializer.Start, Action: plInitializerAction})
+			value, _, err = r.Host.Evaluate(f, initializer.Query, PLOrigin{Position: initializer.Start, Action: plInitializerAction, Start: initializer.Start, End: initializer.End})
 			f.Scopes[len(f.Scopes)-1] = block
 		} else {
 			value = sqltype.Null(variable.Usage.Type.BaseType())
@@ -239,7 +239,7 @@ func (r *PLRun) returnValue(instruction PLInstruction) (sqltype.Value, error) {
 	if statement.Expression == nil {
 		return sqltype.Value{}, nil
 	}
-	at := PLOrigin{Position: statement.Pos, Action: "at RETURN"}
+	at := PLOrigin{Position: statement.Pos, Action: "at RETURN", Start: statement.ExpressionStart, End: statement.ExpressionEnd}
 	value, _, err := r.Host.Evaluate(r.Frame, instruction.Query, at)
 	expressionError := err != nil
 	if err == nil {
@@ -268,7 +268,7 @@ func (r *PLRun) returnValue(instruction PLInstruction) (sqltype.Value, error) {
 
 func (r *PLRun) assign(instruction PLInstruction) error {
 	f, d, statement := r.Frame, r.Definition, instruction.Syntax
-	at := PLOrigin{Position: statement.Pos, Action: "at assignment"}
+	at := PLOrigin{Position: statement.Pos, Action: "at assignment", Start: statement.ExpressionStart, End: statement.ExpressionEnd}
 	if len(instruction.Target.Steps) != 0 {
 		if err := r.Host.AssignTarget(f, instruction.Target, statement.Target, instruction.Query, at); err != nil {
 			return PLAssignmentError(err, d, r.Host.Identity, statement)

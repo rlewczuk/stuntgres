@@ -44,7 +44,9 @@ match.
   a lock-domain continuation: entered with `Engine.Mu` held and the view
   admitted, it releases it on every return. Rows are produced as the view
   owner, with the caller's catalog authority withheld, and the replacement is
-  staged against the admitted storage.
+  staged against the admitted storage. Successful completion reports the actual
+  population query count through `Result.UtilityRows`, before concurrent
+  reconciliation; API affected rows and the uncounted REFRESH tag remain zero.
 - Restore hooks: `ImportMaterializedSnapshots` installs dumped materialized
   view rows into the private Restore engine in one publication; it admits
   only the trusted bootstrap import authority.

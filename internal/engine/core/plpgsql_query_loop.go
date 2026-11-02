@@ -67,6 +67,8 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 		}
 	}()
 	raw, query := in.Syntax.QueryLoop, in.QueryLoop.Query
+	s.statementStatsSource = parser.PLExpressionSource(f.Program.Source, raw.Start, raw.End)
+	s.statementStatsOffset = raw.Start.Offset
 	q.opening = query
 	defer func() { q.opening = nil }()
 	planningError := func(cause error) error {

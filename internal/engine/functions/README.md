@@ -8,6 +8,25 @@ registry entry. The analyzer that drives binding is in
 the authority behind evaluation capabilities in the root
 [engine core](../core/README.md#function-runtimes).
 
+`PgStatStatements` binds only genuine stock installed declarations. The Boolean
+showtext SRF has the released 52-column RECORD shape; the info scalar has two
+OUT fields. STRICT NULL returns no SRF rows without borrowing runtime authority.
+The typed execution bridge reaches the current statement's shared collector and
+fresh visibility decisions, never a cached snapshot or adapter-owned counters.
+Every concrete function expression, including private callable carriers, owns
+its static `JumbleFields` discriminator. Selected fields follow that tag;
+ordinary routine identities and lexical operands remain visitor-owned.
+Special grammar nodes expose only their released selected scalar jumble fields,
+including SQL-call format. SQL/JSON retains resolved RETURNING type/typmod and
+format/encoding, operation-specific defaults and omitted versus explicit wrapper
+clauses. Existing output-conversion usage supplies RETURNING without retaining a
+second descriptor. The constructor's returning projection emits its single
+discriminator for both ordinary and enclosing RETURNING-conversion paths.
+XML streams released implicit constant types without creating runtime children;
+ignored names/options stay out of identity. TableFunc omits
+PG18-ignored namespaces/defaults/column metadata instead of hashing recipes.
+
+
 `LargeObjectCall` is the shared volatile, strict scalar recipe for byte-object
 and descriptor functions. Descriptor IDs/modes use signed INT4 formals, while
 only object identities use OID; `loread` returns BYTEA and descriptor open/close/
@@ -670,6 +689,12 @@ analysis and every diagnostic.
 - `Claims`: a custom admission predicate replacing `Names` matching; registry
   tests check every name in `Names` satisfies it.
 - `ProbeCall`, `ResultCall`, `NamedCall`: pure overload-competition hooks.
+- `Installed`: the provider family for binders using `Binder.InstalledRoutine`.
+  After current sealed declaration validation, `ProcedureBindingName` uses this
+  registry's released SQL recipe; engine-owned specialized and polymorphic
+  families retain their executable symbol. The selected installed gateway checks
+  this family and the actual provider independently. Neither registry names nor
+  executable C symbols add public aliases or authorize installed bodies.
 
 Bind code lives in `<family>_bind.go` or beside the family's node. Calls reached
 by syntax or by the operator binder (SQL value functions, OVERLAPS, SIMILAR,
@@ -1608,7 +1633,7 @@ Autoinc installed scalar provenance and reconstruction units use
   renaming.
 
 ```sh
-make check RUN='^Test(LookupClaimsRegisteredNames|DefinitionsAreWellFormed|AggregateDefinitionsAreWellFormed|Lookup(Aggregate|WindowFunction)ClaimsRegisteredNames)$'  # registries
+make check RUN='^Test(LookupClaimsRegisteredNames|InstalledRegistryBindingFamilies|DefinitionsAreWellFormed|AggregateDefinitionsAreWellFormed|Lookup(Aggregate|WindowFunction)ClaimsRegisteredNames)$'  # registries
 make check RUN='^Test(AggregateProviderRemap|(Sum|Avg|Count|Extrema|AnyValue|MoneySum|IntervalSum|IntervalAvg|StringAggregate|BooleanAggregate|RangeAggregate)Provider|(Bitwise|Statistical|Array)Aggregate)'  # aggregate providers
 make check RUN='^Test(Composite(Arity|Counted|Leaf|Named|Providerless|Retained|Slice|String|Timezone)|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|GroupIdentity|GroupLeaf|SubstituteKeepsTheProvider|FunctionSyntax|ClosureTransparency|Render|CaptureOperands|ResultNullability)'  # node protocol and hooks
 make check RUN='^Test(CatalogInquiry|TransactionInquiry|AdvisoryNode|BlockingInquiry|SequenceCall|DeparsePartition|DeparseStatistics)'  # runtime-capability nodes

@@ -23,7 +23,9 @@ func (s *SettingsStore) EffectiveDefinitionLocked(registry settings.Registry, na
 	}
 	if key == settings.PgcryptoBuiltinCrypto {
 		m := s.pgcryptoAuthority()
-		if m.loaded.Load() { return m.definition, true }
+		if m.loaded.Load() {
+			return m.definition, true
+		}
 	}
 	if d, ok := registry.Definitions()[key]; ok {
 		return d, true
@@ -85,6 +87,9 @@ func (s *SettingsStore) LookupDefinition(registry settings.Registry, name string
 	}
 	if create && s.pgcryptoAuthority().loaded.Load() && strings.HasPrefix(key, "pgcrypto.") {
 		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pgcrypto" is a reserved prefix.`}
+	}
+	if create && strings.HasPrefix(key, "pg_stat_statements.") {
+		return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: `"pg_stat_statements" is a reserved prefix.`}
 	}
 	if !s.Placeholders[key] {
 		if !create || !strings.Contains(name, ".") {

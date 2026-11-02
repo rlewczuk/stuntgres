@@ -233,7 +233,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (result plan.Node, err error) 
 		copy.QuerySchema = schema
 		next = &copy
 	case *plan.JoinNode:
-		next = &plan.JoinNode{QuerySchema: schema, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, CorrelationIdentityPrefix: n.CorrelationIdentityPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
+		next = &plan.JoinNode{QuerySchema: schema, RangeName: n.RangeName, ColumnAliases: n.ColumnAliases, Kind: n.Kind, Comma: n.Comma, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, CorrelationIdentityPrefix: n.CorrelationIdentityPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
 	case *plan.SingletonNode:
 		next = &plan.SingletonNode{QuerySchema: schema}
 	case *plan.WorktableScanNode:

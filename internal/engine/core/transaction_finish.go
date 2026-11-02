@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"time"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -14,13 +15,17 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (s *StatementScope) Finish(err error) error {
+func (s *StatementScope) Finish(err error) (result error) {
 	if s == nil || s.self != s {
 		return errors.New("stuntgres: foreign or missing statement scope")
 	}
 	defer s.endIndexProgress(s.indexProgress)
 	if s.Finished {
 		return s.result
+	}
+	defer func() { s.finishStatementStats(result == nil) }()
+	if f := s.statementStats; f != nil {
+		f.finishStart = time.Now()
 	}
 	// COPY includes queued AFTER work and terminal foreign modification hooks.
 	// Finish alone owns its exact-entry cleanup; the defer covers early exits
@@ -72,6 +77,7 @@ func (s *StatementScope) Finish(err error) error {
 			s.authority.Host = nil
 		}
 	}()
+	defer func() { s.captureStatementStatsTerminal(s.statementStats) }()
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring
 	// a positive setting below is not an explicit assignment and cannot rearm it.
 	if err != nil {
@@ -176,7 +182,8 @@ func (s *StatementScope) Finish(err error) error {
 	if t.State == session.TxImplicit && err != nil && ownerHasForeign(t) {
 		t.Mu.Unlock()
 		s.foreignUnlocked()
-		_ = disposeSQLCursors(s.Op.Context(), PayloadOf(t.Session).Cursors.endTransaction(t.Ref))
+		discardStatementStatsPortals(t)
+		_ = disposeSQLCursors(s.Op.Context(), PayloadOf(t.Session).Cursors.endTransaction(t.Ref), s)
 		t.Mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().statements) != 0 {
@@ -204,6 +211,8 @@ func (s *StatementScope) Finish(err error) error {
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *lock.Ticket
 	if t.State == session.TxImplicit && (!t.RetainsTransaction() || err != nil) {
+		s.captureStatementStatsTerminal(s.statementStats)
+		captureOwnerStatementStats(t, s)
 		t.Session.Settings.FinishTransaction(err == nil)
 		e.endSerializable(t.Ref, err == nil)
 		endedTicket = t.Ticket
@@ -276,6 +285,9 @@ func (s *StatementScope) Finish(err error) error {
 // disposal. Admission and t.Mu are held; foreign savepoint work temporarily drops
 // t.Mu exactly as ordinary Finish does. The failed block retains its incarnation.
 func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session.TransactionOwner, err error) *lock.Ticket {
+	if len(t.Savepoints) == 0 || errors.Is(err, ids.ErrCatalogReplaced) {
+		discardStatementStatsPortals(t)
+	}
 	defer func() {
 		e.Mu.Lock()
 		e.reconcileReplicationOriginsLocked(t)

@@ -13,6 +13,9 @@ import (
 type PLOrigin struct {
 	Position parser.Position
 	Action   string
+	// Start/End bound the original expression passed to Evaluate/AssignTarget.
+	// They do not change the statement action or diagnostic keyword position.
+	Start, End parser.Position
 }
 
 // PLCheckpoint is the host's opaque exception boundary. Only the host that

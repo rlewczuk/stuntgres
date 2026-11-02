@@ -217,6 +217,14 @@ Reused prerequisite descriptors and their members retain actual private/base
 observations and committed originals; concurrent replacement cannot silently
 change the provider used by a newly installed dependent.
 
+`extensionHost.ScriptView` binds a provider's ordinary consumer through the same
+unpublished `CatalogStage`, after genuine function sealing. Its typed
+`scriptViewHost` reuses `TableHost`/`DDLHost` and the narrow `view.CreateHost`;
+it does not import sibling `viewcmds`, execute SQL recursively, or publish an
+intermediate catalog. Creation uses the selected member owner, staged current
+authority and target-only script path with ordinary implicit pg_catalog lookup.
+Both view collisions and late validation remain atomic installation failures.
+
 Successful membership ADD/DROP and real schema movement annotate one outer
 `ALTER EXTENSION` address on the gated command stage; recursive members and
 internal namespace movers do not emit separate command receipts. Publication

@@ -4,6 +4,32 @@ The SQL lexer, goyacc grammar and AST. It imports only the standard library and
 `sqlstate`; binding, name resolution and execution policy (including the
 single-statement limit of driver calls) belong to callers.
 
+Statement-statistics normalization reuses the existing scanner and captured
+string options only for complete token ends and original top-level batch spans,
+returning the normalized representative and cleaned raw span from one scan.
+Constant and utility offsets are copied into owned scratch, sorted once and
+matched by a forward scanner sweep without mutating caller slices. This bounds
+selected-offset lookup independently of the separate list-span processing.
+This includes parenthesized rule actions and SQL-standard atomic bodies. Squashed
+lists replace their full delimiter interior, including unary signs, grouped
+operands, comments and trailing casts. Normalization neither computes query
+identity nor formats SQL. SET retains grammar-selected `JumbleArgs` and the
+actual first value location; ignored utility identifiers retain replacement
+locations independently. Transaction GID positions and original BEGIN/START and
+ROLE/USER/GROUP kinds are syntax provenance, independent of runtime operations
+and role defaults. Raw utility type names reuse standalone alias normalization
+without binding descriptors. Regenerate grammar changes with `make generate`.
+Function-source lowering retains explicit ROWS FROM provenance even for a single
+regexp member. Both function-source carriers keep the written calls and their
+per-member column definitions; raw utility identity consumes that syntax without
+changing analyzed execution or canonical stored-query presentation.
+
+COMMENT retains a distinct ordinary VIEW target alongside the other shipped
+comment kinds. Its qualified name and string/NULL metadata use the shared
+comment grammar; target resolution, kind and ownership checks remain runtime
+decisions rather than parser authority.
+
+
 `SecurityLabel` retains complete SECURITY LABEL target syntax, including shared
 objects (ROLE, DATABASE, TABLESPACE, SUBSCRIPTION), positioned target/command,
 optional decoded identifier or string provider, and string versus NULL label.
@@ -551,6 +577,10 @@ Concrete structural serialization (ordered nodes, fields/literals, omitted sourc
 positions and cancellation) uses `make check RUN='^TestParserStructuralOutput$'`.
 `AppendStructuralSyntax` is shared by routine and rewrite definition owners; it
 does not bind, evaluate or render SQL.
+Statement source replacement, token extents, captured string options, batch
+boundaries and utility syntax provenance use
+`make check RUN='^TestPgStatStatements(Normalization|TransactionSyntax|RoleSyntax)$'`.
+
 
 CHECKPOINT complete syntax, identifiers and positions use `RUN='^TestCheckpointSyntax$'`.
 

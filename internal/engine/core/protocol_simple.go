@@ -28,7 +28,7 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 		s.protocol().simpleStreaming = false
 		s.protocol().bind = nil
 		if p := s.protocolOrZero().simplePortal; p != nil {
-			if closeErr := s.protocolTerminalIO(func() error { return p.close(s.Op.Context()) }); err == nil {
+			if closeErr := s.protocolTerminalIO(func() error { return s.closeStatementStatsPortal(p) }); err == nil {
 				err = closeErr
 			}
 			s.protocol().simplePortal = nil

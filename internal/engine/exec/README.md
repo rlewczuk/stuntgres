@@ -15,6 +15,14 @@ their local context is installed for evaluation and cleared on every exit.
 Full-text vector conversion forwards the effective evaluator context explicitly,
 never recovers an older operation context from the host.
 
+The pg_stat_statements bridge authenticates the installed typed carrier and
+borrows the live statement runtime for owned record rows. It owns no parallel
+accumulator or cached privileges. Planning metrics describe every real accepted
+native preflight construction; retained fold backing is not a complete generic
+plan, and no cost-based generic/custom chooser or definition graph cache is
+introduced. Continuations of an already accepted portal do not rebuild a plan.
+
+
 EXPLAIN ANALYZE attaches an invocation-local `Observation` through the actual
 runtime context. Prepared graph/node identities, not labels or source capacity,
 join frozen presentation to actual output. Each opened stage owns private
@@ -335,6 +343,10 @@ typmods; naming is captured only on failure and is never retained in result tupl
   motion and HOLD materialization) hold nothing, and the capability runs with
   nothing held. A forward-only producer closes its stage, then reports
   `Exhausted` once, at its end.
+  An optional borrowed `Processed` counter observes each successful live
+  producer tuple, including skipped ABSOLUTE/RELATIVE and MOVE work. Promoted
+  store reads do not report executor work; no callback or per-row allocation is
+  introduced by observation.
 - **Evaluation context** (`context*.go`, `node_runtime.go`, `aggregate.go`).
   `Context`, with its `EvalFrame`, `EvalStatement` and `EvalAdmission` groups,
   implements `expr.Context`, `plan.Runtime`, the `functions` runtimes,

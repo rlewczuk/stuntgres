@@ -11,10 +11,11 @@ func (*TableReference) fromItem() {}
 
 // FunctionFrom is the selected regexp table-function source. Calls in a ROWS
 // FROM group run in lockstep; distinct FROM items retain ordinary join behavior.
+// RowsFrom preserves raw grammar provenance independently of analyzed execution.
 type FunctionFrom struct {
-	Calls               []FunctionExpr
-	Ordinality, Lateral bool
-	Pos                 Position
+	Calls                         []FunctionExpr
+	Ordinality, Lateral, RowsFrom bool
+	Pos                           Position
 }
 
 func (*FunctionFrom) fromItem() {}

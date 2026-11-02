@@ -15,17 +15,25 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _,name:=range []string{"xmltext","xmlcomment"}{
-		definition,ok:=Lookup(name)
-		if !ok||definition.Bind==nil||!definition.ExactSpelling||!definition.SharedGates{t.Fatalf("XML ordinary routine %q not registered",name)}
+	for _, name := range []string{"xmltext", "xmlcomment"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
+			t.Fatalf("XML ordinary routine %q not registered", name)
+		}
 	}
-	for _,name:=range []string{"XMLTEXT","XmlComment","xmlconcat","xmlelement","xmlforest","xmlpi","xmlroot"}{
-		if definition,ok:=Lookup(name);ok{t.Fatalf("XML special/spelling %q claimed as ordinary routine: %v",name,definition.Names)}
+	for _, name := range []string{"XMLTEXT", "XmlComment", "xmlconcat", "xmlelement", "xmlforest", "xmlpi", "xmlroot"} {
+		if definition, ok := Lookup(name); ok {
+			t.Fatalf("XML special/spelling %q claimed as ordinary routine: %v", name, definition.Names)
+		}
 	}
-	for _,name:=range xmlMappingNames{
-		definition,ok:=Lookup(name)
-		if !ok||definition.Bind==nil||definition.NamedCall==nil||!definition.ExactSpelling||!definition.SharedGates||!definition.OwnsLabels{t.Fatalf("XML mapping routine %q not registered",name)}
-		if _,ok:=Lookup(strings.ToUpper(name));ok{t.Fatalf("quoted uppercase XML mapping %q was claimed",name)}
+	for _, name := range xmlMappingNames {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.NamedCall == nil || !definition.ExactSpelling || !definition.SharedGates || !definition.OwnsLabels {
+			t.Fatalf("XML mapping routine %q not registered", name)
+		}
+		if _, ok := Lookup(strings.ToUpper(name)); ok {
+			t.Fatalf("quoted uppercase XML mapping %q was claimed", name)
+		}
 	}
 	// Families that sat in the engine's final name switch keep its exact
 	// spelling and its shared label/ResolutionOnly gates.
@@ -232,6 +240,50 @@ func TestDefinitionsAreWellFormed(t *testing.T) {
 				t.Fatalf("name %q is not lowercase or not claimed by its predicate", name)
 			}
 			seen[key] = true
+		}
+	}
+}
+
+func TestInstalledRegistryBindingFamilies(t *testing.T) {
+	for _, family := range []struct {
+		provider Extension
+		names    string
+	}{
+		{UUIDOsspExtension, "uuid_generate_v4 uuid_nil uuid_ns_dns uuid_ns_url uuid_ns_oid uuid_ns_x500 uuid_generate_v1 uuid_generate_v1mc uuid_generate_v3 uuid_generate_v5"},
+		{SSLInfoExtension, "ssl_is_used ssl_version ssl_cipher ssl_client_cert_present ssl_client_serial ssl_client_dn ssl_issuer_dn"},
+		{PgcryptoExtension, "digest hmac crypt gen_salt encrypt decrypt encrypt_iv decrypt_iv gen_random_bytes gen_random_uuid fips_mode armor dearmor pgp_armor_headers"},
+		{FuzzystrmatchExtension, "levenshtein levenshtein_less_equal metaphone dmetaphone dmetaphone_alt soundex difference daitch_mokotoff"},
+		{UnaccentExtension, "unaccent"},
+		{IntaggExtension, "int_array_aggregate int_array_enum"},
+		{PgrowlocksExtension, "pgrowlocks"},
+		{TablefuncExtension, "normal_rand connectby crosstab crosstab2 crosstab3 crosstab4"},
+		{AmcheckExtension, "bt_index_check bt_index_parent_check verify_heapam"},
+		{CubeExtension, "cube cube_dim cube_is_point cube_ll_coord cube_ur_coord cube_coord cube_coord_llur cube_subset cube_union cube_inter cube_enlarge cube_overlap cube_contains cube_contained cube_distance distance_taxicab distance_chebyshev"},
+		{EarthdistanceExtension, "earth sec_to_gc gc_to_sec ll_to_earth latitude longitude geo_distance"},
+		{PageinspectExtension, "brin_page_type brin_metapage_info brin_revmap_data brin_page_items bt_page_items fsm_page_contents gin_metapage_info gin_page_opaque_info gin_leafpage_items page_header page_checksum hash_page_type hash_page_stats hash_page_items hash_metapage_info heap_page_items heap_tuple_infomask_flags tuple_data_split heap_page_item_attrs"},
+		{TcnExtension, "triggered_change_notification"},
+		{AutoincExtension, "autoinc"},
+		{PgstattupleExtension, "pgstatindex pgstathashindex pgstattuple pgstattuple_approx pg_relpages"},
+		{PgvisibilityExtension, "pg_visibility_map pg_visibility pg_visibility_map_summary"},
+		{DblinkExtension, "dblink_get_pkey dblink_build_sql_delete dblink_build_sql_insert dblink_build_sql_update"},
+		{PgFreespaceExtension, "pg_freespace"},
+		{PgStatStatementsExtension, "pg_stat_statements pg_stat_statements_info"},
+	} {
+		for name := range strings.FieldsSeq(family.names) {
+			definition, ok := Lookup(name)
+			if !ok || definition.Installed != family.provider {
+				t.Fatalf("installed binding recipe %q: family %d, want %d", name, definition.Installed, family.provider)
+			}
+		}
+	}
+	for _, name := range []string{"lower", "format", "json_populate_record", "pg_typeof"} {
+		if definition, ok := Lookup(name); !ok || definition.Installed != 0 {
+			t.Fatalf("ordinary family %q gained installed gateway dispatch", name)
+		}
+	}
+	for _, name := range []string{"hstore", "populate_record", "hstore_from_record", "hstore_populate_record", "pg_stat_statements_1_12", "pg_armor", "pg_dearmor"} {
+		if _, ok := Lookup(name); ok {
+			t.Fatalf("internal or specialized symbol %q exposed as a registry SQL alias", name)
 		}
 	}
 }

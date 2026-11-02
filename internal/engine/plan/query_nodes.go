@@ -69,6 +69,9 @@ type JoinNode struct {
 	RangeName                 string
 	ColumnAliases             []string // Immutable final accepted namespace labels.
 	Kind                      parser.JoinKind
+	// Comma preserves the analyzed FROM-list versus explicit JoinExpr layout
+	// for selected statement identity; it is not join execution policy.
+	Comma                     bool
 	Left, Right               Node
 	Predicate                 expr.Expr
 	LeftWidth, RightWidth     int

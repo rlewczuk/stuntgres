@@ -55,6 +55,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "relation identity replay", Admit: control.AdmitRelationIdentity[*restoreRun]},
 	{Name: "ALTER MATERIALIZED VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterView)},
 	{Name: "CREATE VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckCreateView)},
+	{Name: "DROP VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckDropView)},
 	{Name: "CREATE MATERIALIZED VIEW", Admit: control.AdmitStatement[*restoreRun](control.CheckCreateQueryTable)},
 	{Name: "CREATE INDEX", Admit: control.AdmitKind[*restoreRun, *parser.CreateIndex]},
 	{Name: "ALTER INDEX", Admit: control.AdmitStatement[*restoreRun](control.CheckAlterIndex)},

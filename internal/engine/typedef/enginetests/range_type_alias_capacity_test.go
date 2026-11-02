@@ -68,7 +68,7 @@ func TestRangeTypeAliasMaximumRetainedEndpointCapacity(t *testing.T) {
 				target.Mu.Unlock()
 				t.Fatal(err)
 			}
-			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			mapping, err := control.ReplacementCollisionMapping(ctx, next, retained, nil, constraints, target.Catalog.AllocateOIDAtLeastLocked)
 			target.Mu.Unlock()
 			if err != nil {
 				t.Fatal("feasible endpoint plus ordinary collision must not exhaust speculative alternatives", err)
@@ -153,7 +153,7 @@ func TestRangeTypeAliasCompleteCapacityLimits(t *testing.T) {
 				target.Mu.Unlock()
 				t.Fatal(err)
 			}
-			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			mapping, err := control.ReplacementCollisionMapping(ctx, next, retained, nil, constraints, target.Catalog.AllocateOIDAtLeastLocked)
 			target.Mu.Unlock()
 			var diagnostic interface{ SQLState() string }
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22000" || mapping != nil {
@@ -171,7 +171,7 @@ func TestRangeTypeAliasCompleteCapacityLimits(t *testing.T) {
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
 			target.Mu.Lock()
-			_, err = control.TemporaryCollisionMapping(canceled, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			_, err = control.ReplacementCollisionMapping(canceled, next, retained, nil, constraints, target.Catalog.AllocateOIDAtLeastLocked)
 			target.Mu.Unlock()
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("capacity search lost cancellation", err)
@@ -202,7 +202,7 @@ func TestRangeTypeAliasSparseCapacity(t *testing.T) {
 		target.Mu.Unlock()
 		t.Fatal(err)
 	}
-	mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+	mapping, err := control.ReplacementCollisionMapping(ctx, next, retained, nil, constraints, target.Catalog.AllocateOIDAtLeastLocked)
 	fresh, nextErr := target.Catalog.AllocateOIDLocked()
 	target.Mu.Unlock()
 	if err != nil || mapping[upper.Address()].ObjectID != 4000000001 || nextErr != nil || fresh != 4000000002 {

@@ -744,7 +744,7 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 	}
 	path.Node = *ordinal
 	(*ordinal)++
-	if _, captured := v.routineRefs[path]; captured && !pgrowlocksRecipe(raw) && !tablefuncCrosstabRecipe(raw) {
+	if _, captured := v.routineRefs[path]; captured && !pgrowlocksRecipe(raw) && !pgStatStatementsRecipe(raw) && !tablefuncCrosstabRecipe(raw) {
 		switch call := raw.(type) {
 		case parser.FunctionExpr:
 			if !call.StoredSQLRoutine && !call.StoredProviderRoutine {
@@ -1737,6 +1737,14 @@ func (v *QueryRenderer) ExpressionSQLAt(ctx context.Context, catalogView catalog
 		}
 		if name == "pgrowlocks" {
 			qualified, err := v.pgrowlocksRecipeName(catalogView, path)
+			if err != nil {
+				return "", err
+			}
+			text, err := args(e.Args)
+			return qualified + "(" + text + ")", err
+		}
+		if pgStatStatementsRecipe(e) {
+			qualified, err := v.pgStatStatementsRecipeName(catalogView, path)
 			if err != nil {
 				return "", err
 			}

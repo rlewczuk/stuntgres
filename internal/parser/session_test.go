@@ -13,9 +13,9 @@ func TestSessionGrammar(t *testing.T) {
 		want  Statement
 	}{
 		{"SET application_name TO DEFAULT", &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Default: true, Pos: Position{Character: 1}}},
-		{"SET application_name TO 'DEFAULT'", &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"DEFAULT"}, Pos: Position{Character: 1}}},
+		{"SET application_name TO 'DEFAULT'", &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"DEFAULT"}, Pos: Position{Character: 1}, ValuePosition: Position{Offset: 24, Character: 25}}},
 		{"SHOW application_name", &Show{Name: Identifier{Text: "application_name", Pos: Position{Offset: 5, Character: 6}}, Pos: Position{Character: 1}}},
-		{`SET application_name TO E'a\nb'`, &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"a\nb"}, Pos: Position{Character: 1}}},
+		{`SET application_name TO E'a\nb'`, &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"a\nb"}, Pos: Position{Character: 1}, ValuePosition: Position{Offset: 24, Character: 25}}},
 	} {
 		stmts, err := Parse(tc.query)
 		if err != nil || len(stmts) != 1 || !reflect.DeepEqual(stmts[0], tc.want) {

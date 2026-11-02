@@ -106,6 +106,15 @@ func CheckCreateView(s *parser.CreateView) error {
 	return nil
 }
 
+// CheckDropView admits the qualified RESTRICT retirement of freshly installed
+// ordinary consumers. Normal view DDL still checks ownership and dependencies.
+func CheckDropView(s *parser.DropView) error {
+	if s.Materialized || s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || stagesTemporary("", s.Names[0]) {
+		return sqlError("0A000", "restore accepts only unconditional qualified RESTRICT DROP VIEW")
+	}
+	return nil
+}
+
 // CheckCreateQueryTable admits only an unpopulated materialized view.
 func CheckCreateQueryTable(s *parser.CreateQueryTable) error {
 	if s.Form != parser.CreateMaterializedView || !s.NoData {

@@ -221,5 +221,5 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 		return Result{}, err
 	}
 	scope.CompleteStatsPopulation()
-	return Result{Count: int64(count)}, nil
+	return Result{Count: int64(count), UtilityRows: int64(count)}, nil
 }

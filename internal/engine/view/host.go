@@ -49,6 +49,17 @@ type Host interface {
 	BindTriggerWhen(auth ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error)
 }
 
+// CreateHost is the constructor's actual staging authority. Installing ordinary
+// SQL consumers does not require unrelated rule, policy or trigger binders.
+type CreateHost interface {
+	ddl.Host
+	AccessView(ddl.Authority) access.View
+	TemporaryOwner(ddl.Authority) ids.SessionToken
+	StageRowType(*catalog.Relation) error
+	DisplaceAssociatedArray(ids.ObjectAddress, string) (bool, error)
+	ReownDisplacedTypes() error
+}
+
 // StageHost is what CREATE VIEW staging needs: the decisions host and the
 // shared DDL host over the statement's stage, row-type staging, array
 // displacement and the reownership of displaced types.

@@ -295,17 +295,29 @@ func (v *View) walkLiteralRoots(visit func(parser.Expr, analyze.ViewLiteralPath,
 			switch raw := item.(type) {
 			case *parser.XMLTable:
 				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
-				if !ok || len(function.Calls)!=1 { return fmt.Errorf("stuntgres: invalid stored XMLTABLE frame") }
-				table,ok:=function.Calls[0].(functions.XMLTable)
-				if !ok { return fmt.Errorf("stuntgres: invalid stored XMLTABLE provider") }
-				if err:=validateXMLTableLayout(raw,table);err!=nil {return err}
-				written,accepted:=raw.Expressions(),table.Raw.Expressions()
-				if len(written)!=len(accepted) {return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operands")}
+				if !ok || len(function.Calls) != 1 {
+					return fmt.Errorf("stuntgres: invalid stored XMLTABLE frame")
+				}
+				table, ok := function.Calls[0].(functions.XMLTable)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored XMLTABLE provider")
+				}
+				if err := validateXMLTableLayout(raw, table); err != nil {
+					return err
+				}
+				written, accepted := raw.Expressions(), table.Raw.Expressions()
+				if len(written) != len(accepted) {
+					return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operands")
+				}
 				for i, child := range written {
-					if !reflect.DeepEqual(child,accepted[i]) {return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operand %d",i)}
+					if !reflect.DeepEqual(child, accepted[i]) {
+						return fmt.Errorf("stuntgres: mismatched frozen XMLTABLE written operand %d", i)
+					}
 					path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: function.ViewOrdinal, Target: i}
 					ordinal := 0
-					if err := visit(child, path, &ordinal); err != nil { return err }
+					if err := visit(child, path, &ordinal); err != nil {
+						return err
+					}
 				}
 			case *parser.JSONTable:
 				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
@@ -460,6 +472,11 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 			return err
 		}
 		(*routineCount)++
+	} else if pgStatStatementsRecipe(raw) {
+		if _, err := v.pgStatStatementsRecipeProcedure(catalog, path); err != nil {
+			return err
+		}
+		(*routineCount)++
 	} else if _, exists := v.routineRefs[path]; exists {
 		return fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 	}
@@ -474,29 +491,42 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		}
 		return nil
 	}
-	xmlChildren:=func(raw []parser.Expr,captured xmlCapture)error{
-		if len(raw)!=len(captured.Sources){return fmt.Errorf("stuntgres: mismatched frozen XML operand count")}
-		for i,operand:=range raw{
-			childPath:=path
-			childPath.Argument=0
-			childPath.Node=*ordinal
-			if !v.xmlSourceOccurrenceAt(childPath,operand,captured.Sources[i]){
+	xmlChildren := func(raw []parser.Expr, captured xmlCapture) error {
+		if len(raw) != len(captured.Sources) {
+			return fmt.Errorf("stuntgres: mismatched frozen XML operand count")
+		}
+		for i, operand := range raw {
+			childPath := path
+			childPath.Argument = 0
+			childPath.Node = *ordinal
+			if !v.xmlSourceOccurrenceAt(childPath, operand, captured.Sources[i]) {
 				return fmt.Errorf("stuntgres: mismatched frozen XML source occurrence")
 			}
-			if err:=child(operand);err!=nil{return err}
+			if err := child(operand); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 	switch r := raw.(type) {
 	case parser.XMLConstructExpr:
-		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
-		return xmlChildren(r.Children(),captured)
+		captured, err := v.capturedXML(path, r)
+		if err != nil {
+			return err
+		}
+		return xmlChildren(r.Children(), captured)
 	case parser.XMLDocumentPredicateExpr:
-		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
-		return xmlChildren([]parser.Expr{r.Child},captured)
+		captured, err := v.capturedXML(path, r)
+		if err != nil {
+			return err
+		}
+		return xmlChildren([]parser.Expr{r.Child}, captured)
 	case parser.XMLParseExpr:
-		captured,err:=v.capturedXML(path,r);if err!=nil{return err}
-		return xmlChildren([]parser.Expr{r.Child},captured)
+		captured, err := v.capturedXML(path, r)
+		if err != nil {
+			return err
+		}
+		return xmlChildren([]parser.Expr{r.Child}, captured)
 	case parser.XMLSerializeExpr:
 		occurrence, err := v.capturedXML(path, r)
 		if err != nil {
@@ -505,7 +535,7 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 		if captured, ok := v.castUsages[path]; !ok || captured != occurrence.Usage {
 			return fmt.Errorf("stuntgres: mismatched frozen XMLSERIALIZE target")
 		}
-		return xmlChildren([]parser.Expr{r.Child},occurrence)
+		return xmlChildren([]parser.Expr{r.Child}, occurrence)
 	case parser.GroupingExpr:
 		return args(r.Args)
 	case parser.InListExpr:

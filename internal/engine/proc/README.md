@@ -428,6 +428,10 @@ nothing held. `Evaluate`, `Convert`, `AssignTarget` and `AssignValue` execute SQ
 or selected conversion and finalize notices emitted during that call with the
 `PLOrigin` statement action. `TargetUsage` resolves reached partial destinations
 without evaluating bounds. A zero origin adds no notice context.
+`PLOrigin.Start/End` additionally carry the original bounded operand interval for
+`Evaluate` and `AssignTarget`; walkers pass the existing parser-owned spans for
+initializers, scalar statements, branches and loop operands. These bounds do not
+replace the statement keyword position or alter diagnostic/notice context.
 `Identity` and catalog-visible `TypeName` are called only on error paths. `BeginException`
 and `EndException` bracket a block with handlers around an opaque `PLCheckpoint`;
 initializers run before it, and a `PLExceptionCleanupError` or a non-SQL error

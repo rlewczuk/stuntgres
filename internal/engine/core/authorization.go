@@ -83,6 +83,8 @@ type AuthorizationView struct {
 	settings   *session.SettingsStore
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	PathPrefix ids.ObjectAddress
+	// Stock script lookup replaces the caller path for this staged command only.
+	scriptNamespace ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
 	// Validated private Restore declaration and row-literal lookup only; it
@@ -190,7 +192,12 @@ func (e *Engine) StatementAuthorizationLocked(op *session.Operation, stmt parser
 	}
 	if replay.CommentAuthority {
 		comment, ok := stmt.(*parser.Comment)
-		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentForeignTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema && comment.Kind != parser.CommentExtension) {
+		if !ok {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
+		}
+		switch comment.Kind {
+		case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn, parser.CommentSchema, parser.CommentSequence, parser.CommentExtension:
+		default:
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}
 		if err := e.trustRestoreBootstrap(&auth, "comment"); err != nil {

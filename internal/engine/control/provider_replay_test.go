@@ -102,6 +102,39 @@ func TestProviderReplayUnchangedAndOwnerOnly(t *testing.T) {
 	}
 }
 
+func TestProviderReplaySymbolicOverloadOrdering(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		signatures [2]catalog.ProcedureSignature
+	}{
+		{"source", [2]catalog.ProcedureSignature{"30000", "30001"}},
+		{"remapped", [2]catalog.ProcedureSignature{"90001", "30000"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			providers := []providerReplay{
+				{original: providerKey{"source", "overloaded", tc.signatures[0]}, current: providerKey{"target", "overloaded", tc.signatures[0]}, arguments: `"source"."alpha"`},
+				{original: providerKey{"source", "overloaded", tc.signatures[1]}, current: providerKey{"target", "overloaded", tc.signatures[1]}, arguments: `"source"."beta"`},
+			}
+			want := []string{
+				"ALTER FUNCTION \"source\".\"overloaded\"(\"source\".\"alpha\") SET SCHEMA \"target\";\n",
+				"ALTER FUNCTION \"source\".\"overloaded\"(\"source\".\"beta\") SET SCHEMA \"target\";\n",
+			}
+			for range 2 {
+				got, err := planProviderReplay(providers)
+				if err != nil || !slices.Equal(got, want) {
+					t.Fatalf("symbolic overload replay=%q, %v; want %q", got, err, want)
+				}
+				for _, provider := range providers {
+					if provider.original.schema != "source" || provider.current.schema != "target" {
+						t.Fatal("planning mutated captured provider identities")
+					}
+				}
+				slices.Reverse(providers)
+			}
+		})
+	}
+}
+
 func TestProviderReplayEmissionPrerequisites(t *testing.T) {
 	var out bytes.Buffer
 	ctx := context.Background()

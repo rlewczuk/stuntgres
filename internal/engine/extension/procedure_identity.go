@@ -9,19 +9,34 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+type procedureNameKind uint8
+
+const (
+	procedureSymbol procedureNameKind = iota
+	procedureInstallationName
+	procedureBindingName
+)
+
 // ProcedureSymbol resolves immutable released declaration authority. Public
 // names, namespaces and current extension membership never select a symbol.
 func ProcedureSymbol(v catalog.Read, p *catalog.Procedure) (string, error) {
-	return procedureIdentityName(v, p, false)
+	return procedureIdentityName(v, p, procedureSymbol)
 }
 
 // ProcedureInstallationName returns the immutable released SQL name rather than
 // a C symbol or mutable public label.
 func ProcedureInstallationName(v catalog.Read, p *catalog.Procedure) (string, error) {
-	return procedureIdentityName(v, p, true)
+	return procedureIdentityName(v, p, procedureInstallationName)
 }
 
-func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationName bool) (string, error) {
+// ProcedureBindingName returns the authenticated internal binding recipe.
+// Registry-installed gateways bind their released SQL declaration; specialized
+// engine-owned families dispatch on their executable symbol instead.
+func ProcedureBindingName(v catalog.Read, p *catalog.Procedure) (string, error) {
+	return procedureIdentityName(v, p, procedureBindingName)
+}
+
+func procedureIdentityName(v catalog.Read, p *catalog.Procedure, selection procedureNameKind) (string, error) {
 	invalid := func() (string, error) { return "", fmt.Errorf("stuntgres: invalid installed procedure identity") }
 	if p == nil || v.Owner() == nil || v.Get(p.Address()) != p || p.Address().ClassID != ids.ProcedureClassID || p.Address().ObjectID == 0 || p.Address().SubID != 0 || p.Revision() == 0 || p.Owner.ID() == 0 || p.Owner != v.Owner().Principals.Principal(p.Owner.ID()) || p.SQL != nil || p.Builtin != nil || p.Foreign != nil || p.Conversion.Name() != "" || v.NameAddress(catalog.DescriptorNameKey(p)) != p.Address() {
 		return invalid()
@@ -34,7 +49,7 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	}
 	// These providers own fixed OUT declarations. Their exact slot-owned
 	// capabilities are checked below; output shape alone never grants authority.
-	if p.Installed.Outputs != nil && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockHstore {
+	if p.Installed.Outputs != nil && p.Implementation != StockPgStatStatements && p.Implementation != StockPgcrypto && p.Implementation != StockPgrowlocks && p.Implementation != StockAmcheck && p.Implementation != StockPageinspect && p.Implementation != StockPgstattuple && p.Implementation != StockPgvisibility && p.Implementation != StockPgFreespace && p.Implementation != StockHstore {
 		return invalid()
 	}
 	if _, ok := v.Namespace(p.Namespace()); !ok {
@@ -61,6 +76,19 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	kind, volatility, strict := catalog.FunctionRoutine, expr.Immutable, true
 	count := 0
 	switch p.Implementation {
+	case StockPgStatStatements:
+		count = 2
+		if ext.Version != "1.12" || slot >= count {
+			return invalid()
+		}
+		name, signature, result, volatility = "pg_stat_statements_1_12", "16", 2249, expr.Volatile
+		sqlName = "pg_stat_statements"
+		if slot == 1 {
+			name, sqlName, signature = "pg_stat_statements_info", "pg_stat_statements_info", ""
+		}
+		if p.Installed != pgStatStatementsDeclaration(slot) || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name, Binary: "$libdir/pg_stat_statements", HasBinary: true}) {
+			return invalid()
+		}
 	case StockDblink:
 		count = dblinkMemberCount
 		declaration := catalog.InstalledRoutineDeclaration{Parallel: 'r'}
@@ -618,8 +646,16 @@ func procedureIdentityName(v catalog.Read, p *catalog.Procedure, installationNam
 	if len(ext.Members) != count || p.Signature != signature || p.Result != result || p.RoutineKind != kind || p.Volatility != volatility || p.Strict != strict || kind != catalog.AggregateRoutine && p.Aggregate != nil || p.Implementation != StockUnaccent && p.Dictionary != (ids.ObjectAddress{}) {
 		return invalid()
 	}
-	if installationName && sqlName != "" {
+	if sqlName == "" {
+		sqlName = name
+	}
+	if selection == procedureInstallationName {
 		return sqlName, nil
+	}
+	if selection == procedureBindingName {
+		if definition, ok := functions.Lookup(sqlName); ok && definition.Installed != 0 {
+			return sqlName, nil
+		}
 	}
 	return name, nil
 }

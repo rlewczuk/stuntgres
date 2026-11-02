@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -31,25 +32,27 @@ const (
 
 type protocolPortal struct {
 	PreparedBinding
-	resource          PreparedResource
-	context           session.ProtocolContext
-	columns           []catalog.Column
-	formats           []int16
-	values            []sqltype.Value
-	producer          *sqlCursor
-	rows              exec.RowResult
-	started           bool
-	running           bool
-	rowPosition       exec.CursorPosition // Sole position for eager non-producer tuple results.
-	state             protocolPortalState
-	tag               string
-	completionBase    string // Actual executed command, independent of outer syntax/resources.
-	completionCounted bool
-	completionInsert  bool
-	row               []sqltype.Value
-	fields            []session.ProtocolField
-	scratch           []byte
-	outputRows        *exec.FinalRows
+	resource            PreparedResource
+	context             session.ProtocolContext
+	columns             []catalog.Column
+	formats             []int16
+	values              []sqltype.Value
+	producer            *sqlCursor
+	rows                exec.RowResult
+	started             bool
+	running             bool
+	rowPosition         exec.CursorPosition // Sole position for eager non-producer tuple results.
+	state               protocolPortalState
+	tag                 string
+	completionBase      string // Actual executed command, independent of outer syntax/resources.
+	completionCounted   bool
+	completionInsert    bool
+	row                 []sqltype.Value
+	fields              []session.ProtocolField
+	scratch             []byte
+	outputRows          *exec.FinalRows
+	statementStats      *statementStatsFrame
+	deferStatementStats bool
 }
 type ProtocolExecution struct {
 	CommandTag string
@@ -78,6 +81,11 @@ func (p *protocolPortal) Close(ctx context.Context) error { return p.releaseExec
 
 // Executor release does not remove the portal's name, descriptor or birth.
 func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
+	var statsStart time.Time
+	if p.statementStats != nil {
+		statsStart = time.Now()
+	}
+	initialized := p.producer != nil || p.rows != nil
 	var err error
 	if p.producer != nil {
 		err = p.producer.dispose(ctx)
@@ -92,6 +100,15 @@ func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
 	p.values = nil
 	p.Folds = nil
 	p.row, p.fields, p.scratch, p.outputRows = nil, nil, nil, nil
+	if f := p.statementStats; f != nil {
+		f.elapsed += time.Since(statsStart)
+		f.executed = p.started || initialized
+		f.failed = f.failed || err != nil || p.state == protocolPortalFailed || ctx.Err() != nil
+		if !p.deferStatementStats {
+			f.finish(!f.failed)
+		}
+		p.statementStats = nil
+	}
 	return err
 }
 
@@ -132,7 +149,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		if name != "" {
 			return out, SQLError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
 		}
-		if err = s.protocolSimpleIO(func() error { return old.close(s.Op.Context()) }); err != nil {
+		if err = s.protocolSimpleIO(func() error { return s.closeStatementStatsPortal(old) }); err != nil {
 			return out, err
 		}
 	}
@@ -159,6 +176,9 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		}
 		out = p.context
 		if err != nil {
+			if frame := p.statementStats; frame != nil {
+				frame.failed = true
+			}
 			_ = s.protocolTerminalIO(func() error { return p.close(s.Op.Context()) })
 			r.RemoveBinding(name)
 		}
@@ -277,13 +297,13 @@ func (s *StatementScope) CloseProtocolPortal(name string) error {
 	if p := protocolPortalOf(r.Binding(name)); p != nil {
 		return s.protocolSimpleIO(func() error {
 			r.RemoveBinding(name)
-			return p.close(s.Op.Context())
+			return s.closeStatementStatsPortal(p)
 		})
 	}
 	if c := PayloadOf(s.Op.Session).Cursors.Entries[name]; c != nil {
 		return s.protocolSimpleIO(func() error {
 			delete(PayloadOf(s.Op.Session).Cursors.Entries, name)
-			return c.dispose(s.Op.Context())
+			return s.closeStatementStatsCursor(c)
 		})
 	}
 	return nil
@@ -297,6 +317,9 @@ func retireProtocolPortalsAfter(t *session.TransactionOwner, frontier uint64) {
 	}
 	for _, p := range PayloadOf(t.Session).PreparedSQL.Bindings() {
 		if p.Transaction == t.Ref && p.Birth > frontier {
+			if portal := protocolPortalOf(p); portal != nil && portal.statementStats != nil {
+				portal.statementStats.failed = true
+			}
 			p.Retired = true
 			p.defaults.Retire()
 			p.defaultCandidate.Retire()
@@ -315,6 +338,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 		source.Close()
 		return Result{}, err
 	}
+	s.statementStatsPlanAccepted()
 	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), PreparedResource: PreparedResource{Root: project, Closer: bind}, schema: project.Schema(), Source: source, authority: s.authority,
 		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles, routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
 		databaseName: s.Inquiry.databaseName,
@@ -336,6 +360,11 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	s.takeRowSecurityPrograms(c)
 	bind.Resource = &c.PreparedResource
 	bind.producer = c
+	bind.statementStats, s.statementStats = s.statementStats, nil
+	if f := bind.statementStats; f != nil {
+		f.execStart, f.elapsed, f.rows = time.Time{}, 0, 0
+		f.executed, f.pullRows = false, true
+	}
 	bind.completionBase, bind.completionCounted = "SELECT", true
 	s.authority.Host = nil
 	s.RoutineAuth = AuthorizationView{}
@@ -401,6 +430,17 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	} else if terminal {
 		out.CommandTag, out.Count = result.CommandTag, result.Count
 		return out, nil
+	}
+	if p.statementStats != nil {
+		start := time.Now()
+		defer func() {
+			if f := p.statementStats; f != nil {
+				f.elapsed += time.Since(start)
+				if err != nil {
+					f.failed = true
+				}
+			}
+		}()
 	}
 	var values []sqltype.Value
 	var catalog catalog.Read
@@ -522,6 +562,18 @@ func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader
 	if err != nil {
 		return false, Result{}, err
 	}
+	if s.statementStats != nil && !s.statementStats.utility {
+		// Unlike a plain SELECT's retained producer, these commands construct
+		// their executable program at Execute. Its actual new planning phase
+		// and completed rows replace the uninitialized planning-Bind frame.
+		p.statementStats.finish(false)
+		p.statementStats, s.statementStats = s.statementStats, nil
+		if rows, ok := result.Rows.(*statementStatsRows); ok {
+			// The portal owns producer timing/counting from this handoff onward;
+			// do not observe each demand through both result and portal wrappers.
+			result.Rows = rows.RowResult
+		}
+	}
 	p.rows, p.tag = result.Rows, result.CommandTag
 	if p.rows == nil {
 		p.state = protocolPortalDone
@@ -531,9 +583,18 @@ func (s *StatementScope) startProtocolPortal(p *protocolPortal, source io.Reader
 	return false, Result{}, nil
 }
 
-func (p *protocolPortal) next(ctx context.Context, values []sqltype.Value) (bool, error) {
+func (p *protocolPortal) next(ctx context.Context, values []sqltype.Value) (present bool, err error) {
+	defer func() {
+		if f := p.statementStats; f != nil {
+			if err != nil {
+				f.failed = true
+			} else if present && f.pullRows {
+				f.rows++
+			}
+		}
+	}()
 	if p.producer == nil {
-		present, err := p.rows.Next(ctx, values)
+		present, err = p.rows.Next(ctx, values)
 		if present && err == nil {
 			p.rowPosition.OrdinalPosition++
 			p.rowPosition.Place, p.rowPosition.AtEnd = exec.CursorOn, false

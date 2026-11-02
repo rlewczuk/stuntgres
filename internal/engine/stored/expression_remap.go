@@ -681,6 +681,14 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 			n.Ref = ref(n.Ref)
 		}
 		next = n
+	case plan.InstalledPgStatStatementsExpr:
+		if n.ShowText != nil {
+			n.ShowText = child(n.ShowText)
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
+		next = n
 	case plan.InstalledPgpArmorHeadersExpr:
 		n.Arg = child(n.Arg)
 		if ref != nil {

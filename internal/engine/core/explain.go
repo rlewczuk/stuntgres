@@ -113,6 +113,7 @@ func (e *Engine) executeExplain(scope *StatementScope, statement *parser.Explain
 		e.Mu.Unlock()
 		return Result{}, err
 	}
+	scope.beginStatementStatsLocked(statement, &bound.Binding, uint32(auth.State.CurrentUser.ID()))
 	if optionErr != nil {
 		e.Mu.Unlock()
 		return Result{}, optionErr

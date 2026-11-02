@@ -12,7 +12,7 @@ import (
 // planAliasIdentities runs under the catalog lock. It consumes only the ordinary
 // allocator's monotonic outputs, never invokes a comparator, and leaves source
 // descriptors and retained TEMP identities untouched.
-func planAliasIdentities(ctx context.Context, next *catalog.State, retained, reserved map[ids.OID]bool, constraints []catalog.AliasOrderConstraint, allocate func(ids.OID) (ids.OID, error)) (map[ids.ObjectAddress]ids.ObjectAddress, error) {
+func planAliasIdentities(ctx context.Context, next *catalog.State, retained, reserved map[ids.OID]bool, fixed map[ids.ObjectAddress]ids.ObjectAddress, constraints []catalog.AliasOrderConstraint, allocate func(ids.OID) (ids.OID, error)) (map[ids.ObjectAddress]ids.ObjectAddress, error) {
 	if len(constraints) == 0 {
 		return nil, nil
 	}
@@ -22,6 +22,10 @@ func planAliasIdentities(ctx context.Context, next *catalog.State, retained, res
 			return nil, err
 		}
 		for _, point := range [2]catalog.AliasOrderEndpoint{edge.Lower, edge.Upper} {
+			if target, anchored := fixed[point.Object]; anchored && target.ObjectID != point.OID {
+				affected = true
+				break
+			}
 			if point.Object != (ids.ObjectAddress{}) && retained[point.OID] {
 				if d := next.Get(point.Object); d != nil && movableImportedIdentity(next, d) {
 					affected = true
@@ -92,11 +96,20 @@ func planAliasIdentities(ctx context.Context, next *catalog.State, retained, res
 		g.old = n.point.OID
 		g.hi = ^ids.OID(0)
 		d := next.Get(n.point.Object)
-		if n.point.Object == (ids.ObjectAddress{}) || d == nil || !movableImportedIdentity(next, d) {
-			g.fixed = true
-		} else {
+		value := n.point.OID
+		target, anchored := fixed[n.point.Object]
+		if anchored {
+			value = target.ObjectID
+		}
+		if anchored || n.point.Object == (ids.ObjectAddress{}) || d == nil || !movableImportedIdentity(next, d) {
+			if g.fixed && g.value != value {
+				return nil, aliasIdentityNoFit(g.value, value)
+			}
+			g.fixed, g.value = true, value
+		}
+		if d != nil && movableImportedIdentity(next, d) {
 			g.addresses = append(g.addresses, n.point.Object)
-			g.affected = g.affected || retained[n.point.OID]
+			g.affected = g.affected || retained[n.point.OID] || anchored && value != n.point.OID
 		}
 	}
 	for i := range edges {
@@ -121,15 +134,25 @@ func planAliasIdentities(ctx context.Context, next *catalog.State, retained, res
 		}
 		g := &groups[i]
 		if g.fixed || !g.affected {
-			g.lo = g.old
-			g.hi = g.old
-			g.value = g.old
+			value := g.old
+			if g.fixed {
+				value = g.value
+			}
+			g.lo = value
+			g.hi = value
+			g.value = value
 			g.assigned = true
 		} else {
 			variables = append(variables, i)
 		}
 		if g.affected {
 			boundaries = append(boundaries, g.old)
+		}
+	}
+	for _, edge := range edges {
+		a, b := &groups[edge[0]], &groups[edge[1]]
+		if edge[0] != edge[1] && a.assigned && b.assigned && a.value >= b.value {
+			return nil, aliasIdentityNoFit(a.value, b.value)
 		}
 	}
 	if len(variables) == 0 {
@@ -172,6 +195,9 @@ func planAliasIdentities(ctx context.Context, next *catalog.State, retained, res
 		}
 	}
 	if err := visitTemporaryCollisions(ctx, next, retained, func(address ids.ObjectAddress) error {
+		if _, anchored := fixed[address]; anchored {
+			return nil
+		}
 		if represented[address] {
 			return nil
 		}

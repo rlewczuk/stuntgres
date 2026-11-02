@@ -15,6 +15,50 @@ Cancellation, deadline, cause, unrelated values and the inert request policy are
 unchanged; only a later known-unlocked runtime owner may activate that policy.
 Pure unlocked execution preflight is not blanket-disabled by package location.
 
+Statement statistics stream `JumbleStatement` before folding, through the current
+typed binding/query owners. Root and query cases emit static discriminators;
+each admitted expression's `StatementJumbler` emits its concrete tag before
+selected fields. Unknown families fail classification, never reflection or a
+fallback identity. The PG18 projection deliberately ignores relation
+OIDs/schema, plain Var types and target output aliases, while retaining effective
+unqualified range names, positional/outer/returning Vars and selected constant,
+parameter, callable, operator and special-expression fields. Source replacement
+locations are separate from the hash. Squashed lists renumber external
+parameters in source order; without a squash, constants start after the highest
+explicit parameter. `JumbleUtility` classifies every raw root and nested syntax
+record through static typed selected-field access, never reflection/hash-all or
+silent empty identities. Ordered function/role/column options use their retained
+declaration order; LIKE alone uses its released bitmask. Grammar-selected
+`JumbleArgs` is not inferred from a GUC's spelling. `JumbleUtilityBound` consumes
+genuine accepted CTAS/DECLARE/EXPLAIN/CALL analysis without rebinding. CALL keeps
+only the scalar fingerprint/source spans of erased pure-OUT actuals, never
+executable/fold children or graphs. Constructor RETURNING uses the existing
+resolved output-conversion usage, not an extra native cast or retained
+descriptor. Plan-owned operands use the shared lexical child walker, including
+comparison operands and serializer result conversions. XML constructor identity
+omits exact-identity source-assignment carriers while retaining real conversions
+and the typed implicit constants. Owner units, including the executable utility
+inventory, selective SQL/JSON defaults, normalized spans and accepted child
+bindings, use `make check RUN='^TestPgStatStatementsFingerprint'`.
+
+Row comparison identity retains the bound comparison kind while ignoring pair
+operator, operator-family and input-collation identities. Lexical traversal
+retains the pair operands, not their comparison wrappers.
+
+Known deferred-rejection parser leaves are classified without diagnostic/source
+hashing so real analyzer errors retain authority and publish no successful entry.
+SQL-call format and implicit XML constant types are fingerprint selections, not
+new runtime expressions or evaluation. Nullable raw server strings retain
+presence separately from empty text; explicit version presence belongs to ALTER.
+Raw generic and regexp function-table children keep their written calls and
+ordered per-member column definitions, LATERAL, WITH ORDINALITY and ROWS FROM
+selection; they never invoke the analyzed FROM-only UNNEST rewrite. Explicit
+ROWS FROM remains selected even with one regexp member and equal view values.
+Optional typed-nil expression and source children have explicit empty
+projections. The closed raw source inventory is independent of statically typed
+statement-child coverage.
+
+
 Installed heap-statistics DEFAULT recipes retain their intrinsic VOLATILE and
 stage-sensitive properties. Their bounded closure authenticates the installed
 declaration and every caller argument; supported scalar wrappers do not admit
@@ -35,6 +79,13 @@ retain unknown field nullability even when returning the same nominal type.
 Installed dblink primary-key sources own that declaration contract, including
 empty and strict-NULL results, and capture the nominal generation alongside the
 original callable and expression occurrence in prepared analysis.
+
+Callable probing and provider dispatch use the authenticated
+`extension.ProcedureBindingName`. Explicit installed registry gateways bind the
+released SQL recipe independently of C symbols and mutable public names;
+engine-owned specialized families retain executable-symbol dispatch, including
+hstore's polymorphic constructor and record replacement. Selected gateway
+attachment still checks the exact registered family and genuine current provider.
 
 
 Freespace shares installed selection and bounded scalar-statistics admission.
@@ -491,6 +542,10 @@ library, and never the root engine or `session`. The engine, the root driver
   FILTER errors, preserving cast/type source positions. Only SQL namespace
   errors are deferred; cancellation and internal failures retain their identity.
   Successful lookup and builtin fallback do not gain a second argument pass.
+  Installed SQL-provider gateways use the authenticated released declaration's
+  SQL name, not its C entry symbol or current public label. The already selected
+  resident procedure and sealed origin retain callable authority across rename,
+  relocation and native replay; executable-symbol validation stays independent.
   Ordinary callable operands are transformed before FILTER, and FILTER before
   namespace/signature errors. The selected routine's actual kind rejects scalar
   decorations before implicit selected-formal conversion; explicitly written

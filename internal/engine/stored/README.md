@@ -11,12 +11,19 @@ spelling. In particular, extension descriptions retain the raw extension name
 change the explicit quoted extension names in membership or ownership errors,
 or identifier quoting for other object classes.
 
+Installed pg_stat_statements expressions retain their exact sealed function
+declarations and fixed OUT shapes through capture, dependency visitation,
+retagging, remapping and both deparsers. Ordinary scripted views have no
+installed relation origin: their current SQL, identities and membership use
+the existing ordinary view codecs and native owner/membership remapping.
+
+
 The expression deparser is also the presentation owner for nonexecuting logical
 plans. Callers supply bound column/stage/subquery presentation through its
 existing callbacks; no callback evaluates an expression. Query remapping retains
-immutable range/column aliases for source, derived, function and aliased VALUES
-occurrences, sharing their alias slices while replacing executable identities,
-schemas and expressions. One `ViewQueryRemapper` owns one logical operation,
+immutable range/column aliases and source-only FROM-list/join provenance, sharing
+alias slices while replacing executable identities, schemas and expressions.
+One `ViewQueryRemapper` owns one logical operation,
 including all query, CTE and mutation roots reached by that operation. Its accepted
 roots retain canonical graph identity across those traversals; distinct self-join
 occurrences remain distinct. Keep the source graph and mapping policy fixed.

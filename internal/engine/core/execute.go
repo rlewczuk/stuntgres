@@ -18,10 +18,26 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
+func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, failure error) {
 	op := scope.Op
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
+	}
+	if err := scope.beginUtilityStatementStats(stmt); err != nil {
+		return Result{}, err
+	}
+	defer func() { scope.statementStatsReturned(&result, failure) }()
+	if statementStatsUtilityStatement(stmt) {
+		previous := scope.statementStatsUtilityBody
+		scope.statementStatsUtilityBody = true
+		defer func() {
+			// A directly contained executor terminates inside this utility;
+			// a retained cursor has transferred its frame and ends elsewhere.
+			if frame := scope.statementStats; frame != nil && !frame.utility {
+				scope.captureStatementStatsTerminal(frame)
+			}
+			scope.statementStatsUtilityBody = previous
+		}()
 	}
 	if _, ok := stmt.(*parser.AlterSystem); ok {
 		return scope.executeAlterSystem()
@@ -234,6 +250,11 @@ func (e *Engine) executeDataStatement(scope *StatementScope, stmt parser.Stateme
 			return Result{}, &proc.PLExpressionBindingError{Err: err}
 		}
 		return Result{}, err
+	}
+	if scope.explainWrapper(stmt) {
+		scope.beginStatementStatsLocked(scope.explain.wrapper, &b, uint32(auth.State.CurrentUser.ID()))
+	} else {
+		scope.beginStatementStatsLocked(stmt, &b, uint32(auth.State.CurrentUser.ID()))
 	}
 	if scope.sqlRoutine.terminal {
 		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result, auth, scope.sqlRoutine.definition)

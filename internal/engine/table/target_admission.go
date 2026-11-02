@@ -41,7 +41,7 @@ func AdmitTarget(entries []TargetEntry, stmt parser.Statement, execute bool) (Ta
 }
 
 // TargetAdmission is the TargetEntry of the table statements: CREATE TABLE
-// ... PARTITION OF, the ALTER TABLE family, COMMENT ON TABLE or COLUMN, and
+// ... PARTITION OF, the ALTER TABLE family, COMMENT ON TABLE, VIEW or COLUMN, and
 // the relation targets of CREATE INDEX and ALTER ... OWNER TO, whose packages
 // sit below table.
 func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) {
@@ -78,7 +78,7 @@ func TargetAdmission(stmt parser.Statement, execute bool) (Target, bool, error) 
 		}
 		return Target{Name: v.Name, Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: v.IfExists}, true, nil
 	case *parser.Comment:
-		if v.Kind != parser.CommentTable && v.Kind != parser.CommentForeignTable && v.Kind != parser.CommentColumn {
+		if v.Kind != parser.CommentTable && v.Kind != parser.CommentView && v.Kind != parser.CommentForeignTable && v.Kind != parser.CommentColumn {
 			return Target{}, false, nil
 		}
 		name := v.Name

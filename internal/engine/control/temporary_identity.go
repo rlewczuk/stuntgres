@@ -2,23 +2,35 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 )
 
-// TemporaryCollisionMapping preserves live TEMP identities. Only genuinely
-// affected alias endpoint components require structural slot planning; all
-// other imports retain ordinary selective collision mapping.
+// ReplacementCollisionMapping preserves live TEMP identities and authenticated
+// installed destinations. Only affected alias components require structural
+// planning; other collisions retain the ordinary selective reminting path.
 // The caller holds Engine.mu; allocation never evaluates subtype providers.
-func TemporaryCollisionMapping(ctx context.Context, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, constraints []catalog.AliasOrderConstraint, allocate func(ids.OID) (ids.OID, error)) (map[ids.ObjectAddress]ids.ObjectAddress, error) {
-	if len(temporary) == 0 {
+func ReplacementCollisionMapping(ctx context.Context, next *catalog.State, temporary map[ids.ObjectAddress]catalog.Descriptor, fixed map[ids.ObjectAddress]ids.ObjectAddress, constraints []catalog.AliasOrderConstraint, allocate func(ids.OID) (ids.OID, error)) (map[ids.ObjectAddress]ids.ObjectAddress, error) {
+	if len(temporary) == 0 && len(fixed) == 0 {
 		return nil, ctx.Err()
 	}
 	retained := make(map[ids.OID]bool)
 	for address, d := range temporary {
 		retained[address.ObjectID] = true
 		catalog.ReserveDefinitionOIDs(retained, d)
+	}
+	owners := make(map[ids.OID]ids.ObjectAddress, len(fixed))
+	for source, target := range fixed {
+		if source.ClassID != target.ClassID || source.SubID != 0 || target.SubID != 0 || target.ObjectID == 0 || next.Get(source) == nil || temporary[target] != nil {
+			return nil, fmt.Errorf("stuntgres: incompatible retained installation identity")
+		}
+		if owner, exists := owners[target.ObjectID]; exists && owner != source {
+			return nil, fmt.Errorf("stuntgres: colliding retained installation identities")
+		}
+		owners[target.ObjectID] = source
+		retained[target.ObjectID] = true
 	}
 	reserved := make(map[ids.OID]bool, next.DescriptorCount()+len(retained))
 	for id := range retained {
@@ -28,16 +40,28 @@ func TemporaryCollisionMapping(ctx context.Context, next *catalog.State, tempora
 		reserved[address.ObjectID] = true
 		catalog.ReserveDefinitionOIDs(reserved, d)
 	}
-	mapping, err := planAliasIdentities(ctx, next, retained, reserved, constraints, allocate)
+	mapping, err := planAliasIdentities(ctx, next, retained, reserved, fixed, constraints, allocate)
 	if err != nil {
 		return nil, err
 	}
-	if mapping != nil {
+	planned := mapping != nil
+	for source, target := range fixed {
+		if source != target {
+			if mapping == nil {
+				mapping = make(map[ids.ObjectAddress]ids.ObjectAddress)
+			}
+			mapping[source] = target
+		}
+	}
+	if planned {
 		// A constrained plan already assigns every ordinary collision from its
 		// owned slot pool; never consume another identity after that solution.
 		return mapping, ctx.Err()
 	}
 	remint := func(address ids.ObjectAddress) error {
+		if _, anchored := fixed[address]; anchored {
+			return nil
+		}
 		if !retained[address.ObjectID] || mapping[address] != (ids.ObjectAddress{}) {
 			return nil
 		}

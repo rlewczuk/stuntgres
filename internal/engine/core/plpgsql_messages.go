@@ -14,7 +14,7 @@ import (
 // Message operands use the same reached-only SQL execution and output environment
 // as all other PL expressions. Filtering happens only after this work completes.
 func (s *StatementScope) plMessageOperand(d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, query *parser.Select, raw parser.PLExpression, origin parser.Position, action string) (sqltype.Value, error) {
-	value, _, _, err := s.evaluatePLExpression(f, query, read, nil, s.plNoticeOrigin(f, origin, action))
+	value, _, _, err := s.evaluatePLExpression(f, query, read, nil, raw, s.plNoticeOrigin(f, origin, action))
 	if err != nil {
 		return value, s.plRuntimeError(err, read, d, raw.Start, raw.End, origin, action, true)
 	}

@@ -32,14 +32,34 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 		t.Fatal("changed established member frontier")
 	}
 	for _, tc := range []struct {
-		slot              int
-		signature, symbol string
-		result            ids.OID
-	}{{51, "2249", "hstore_from_record", h}, {52, fmt.Sprintf("2283,%d", h), "hstore_populate_record", 2283}} {
+		slot                       int
+		signature, symbol, sqlName string
+		result                     ids.OID
+	}{{51, "2249", "hstore_from_record", "hstore", h}, {52, fmt.Sprintf("2283,%d", h), "hstore_populate_record", "populate_record", 2283}} {
 		p := view.MustProcedure(ext.Members[tc.slot])
 		symbol, err := extension.ProcedureSymbol(view, p)
 		if err != nil || symbol != tc.symbol || string(p.Signature) != tc.signature || p.Result != tc.result || p.Strict || p.Volatility != expr.Immutable || p.RoutineKind != catalog.FunctionRoutine {
 			t.Fatal("declared record provider", p, err)
+		}
+		if binding, err := extension.ProcedureBindingName(view, p); err != nil || binding != tc.symbol {
+			t.Fatal("specialized record binding lost executable symbol", binding, err)
+		}
+		if name, err := extension.ProcedureInstallationName(view, p); err != nil || name != tc.sqlName {
+			t.Fatal("record SQL declaration changed to executable symbol", name, err)
+		}
+		state := catalog.CloneState(view.State())
+		renamed := *p
+		renamed.ObjectName = "relabeled_" + tc.sqlName
+		renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+		state.UnbindName(catalog.DescriptorNameKey(p))
+		state.SetDescriptor(renamed.Address(), &renamed)
+		state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+		current := e.Catalog.Read(state)
+		if binding, err := extension.ProcedureBindingName(current, &renamed); err != nil || binding != tc.symbol {
+			t.Fatal("relabel changed specialized binding recipe", binding, err)
+		}
+		if _, err := extension.ProcedureBindingName(current, p); err == nil {
+			t.Fatal("binding recipe accepted stale descriptor")
 		}
 		for _, mutate := range []func(*catalog.Procedure){func(p *catalog.Procedure) { p.Signature = "25" }, func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Strict = true }, func(p *catalog.Procedure) { p.Display.Source = "hstore_from_text" }} {
 			state := catalog.CloneState(view.State())
@@ -48,6 +68,9 @@ func TestHstoreRecordProviderAuthority(t *testing.T) {
 			state.SetDescriptor(bad.Address(), &bad)
 			if err := extension.StockHstore.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 				t.Fatal("forged record declaration accepted")
+			}
+			if _, err := extension.ProcedureBindingName(e.Catalog.Read(state), &bad); err == nil {
+				t.Fatal("forged record declaration selected a binding recipe")
 			}
 		}
 	}

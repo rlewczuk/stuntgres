@@ -31,7 +31,7 @@ func (r *PLRun) executePLLoop(in PLInstruction) (sqltype.Value, PLFlow, error) {
 		}
 		if in.While != nil {
 			raw := in.Syntax
-			at := PLOrigin{Position: raw.Pos, Action: "at WHILE"}
+			at := PLOrigin{Position: raw.Pos, Action: "at WHILE", Start: raw.While.Condition.Start, End: raw.While.Condition.End}
 			value, _, err := r.Host.Evaluate(f, in.While.Condition, at)
 			expressionError := err != nil
 			if err == nil {
@@ -78,7 +78,7 @@ func (r *PLRun) transfer(in PLInstruction) (sqltype.Value, PLFlow, error) {
 		action, kind = "at CONTINUE", PLContinue
 	}
 	if in.Query != nil {
-		at := PLOrigin{Position: raw.Pos, Action: action}
+		at := PLOrigin{Position: raw.Pos, Action: action, Start: raw.ExpressionStart, End: raw.ExpressionEnd}
 		value, _, err := r.Host.Evaluate(r.Frame, in.Query, at)
 		expressionError := err != nil
 		if err == nil {
@@ -117,6 +117,7 @@ func (r *PLRun) conditional(instruction PLInstruction) (sqltype.Value, PLFlow, e
 		if err := r.Host.Context().Err(); err != nil {
 			return sqltype.Value{}, PLFlow{}, err
 		}
+		at.Start, at.End = raw.Search.Start, raw.Search.End
 		value, usage, err := r.Host.Evaluate(f, checked.Search, at)
 		if err != nil {
 			return sqltype.Value{}, PLFlow{}, PLRuntimeError(err, r.Definition, r.Host.Identity, raw.Search.Start, raw.Search.End, instruction.Syntax.Pos, action, true)
@@ -132,6 +133,8 @@ func (r *PLRun) conditional(instruction PLInstruction) (sqltype.Value, PLFlow, e
 		if err := r.Host.Context().Err(); err != nil {
 			return sqltype.Value{}, PLFlow{}, err
 		}
+		arm := raw.Arms[i]
+		at.Start, at.End = arm.Conditions[0].Start, arm.Conditions[len(arm.Conditions)-1].End
 		value, _, err := r.Host.Evaluate(f, branch.Query, at)
 		expressionError := err != nil
 		if err == nil {

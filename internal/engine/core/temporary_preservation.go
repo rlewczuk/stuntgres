@@ -58,14 +58,18 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := control.RetainTemporaryViewProvidersLocked(current, next, temporary); err != nil {
 		return err
 	}
+	fixed, err := control.CompatibleInstallationIdentities(current, e.Catalog.Read(next))
+	if err != nil {
+		return err
+	}
 	var constraints []catalog.AliasOrderConstraint
-	if len(temporary) != 0 {
+	if len(temporary) != 0 || len(fixed) != 0 {
 		constraints, err = stored.RangeIdentityConstraints(ctx, next, relations)
 		if err != nil {
 			return err
 		}
 	}
-	mapping, err := control.TemporaryCollisionMapping(ctx, next, temporary, constraints, func(floor ids.OID) (ids.OID, error) { return e.Catalog.AllocateOIDFromLocked(&oids.Next, floor) })
+	mapping, err := control.ReplacementCollisionMapping(ctx, next, temporary, fixed, constraints, func(floor ids.OID) (ids.OID, error) { return e.Catalog.AllocateOIDFromLocked(&oids.Next, floor) })
 	if err != nil {
 		return err
 	}

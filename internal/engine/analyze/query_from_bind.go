@@ -627,7 +627,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			}
 			prefix = 0
 		}
-		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, CorrelationIdentityPrefix: inheritedIdentity, Captures: captures}
+		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Comma: n.Comma, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, CorrelationIdentityPrefix: inheritedIdentity, Captures: captures}
 		old := b.Query.Namespace
 		b.Query.Namespace = &ns
 		defer func() { b.Query.Namespace = old }()

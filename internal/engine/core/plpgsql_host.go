@@ -73,7 +73,7 @@ func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
 func (h *plHost) Evaluate(f *proc.PLFrame, q *parser.Select, at proc.PLOrigin) (sqltype.Value, sqltype.Usage, error) {
 	previous := h.setOrigin(at)
 	defer func() { h.live.origin = previous }()
-	value, usage, _, err := h.s.evaluatePLExpression(f, q, h.read, nil, h.s.plNoticeOrigin(f, at.Position, at.Action))
+	value, usage, _, err := h.s.evaluatePLExpression(f, q, h.read, nil, parser.PLExpression{Start: at.Start, End: at.End}, h.s.plNoticeOrigin(f, at.Position, at.Action))
 	return value, usage, err
 }
 
@@ -91,7 +91,7 @@ func (h *plHost) Convert(v sqltype.Value, target sqltype.Usage, at proc.PLOrigin
 func (h *plHost) AssignTarget(f *proc.PLFrame, t proc.PLTarget, raw parser.Expr, q *parser.Select, at proc.PLOrigin) error {
 	previous := h.setOrigin(at)
 	defer func() { h.live.origin = previous }()
-	_, err := h.s.assignPLTarget(f, t, raw, q, h.read, h.s.plNoticeOrigin(f, at.Position, at.Action))
+	_, err := h.s.assignPLTarget(f, t, raw, q, h.read, parser.PLExpression{Start: at.Start, End: at.End}, h.s.plNoticeOrigin(f, at.Position, at.Action))
 	return err
 }
 

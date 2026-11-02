@@ -3,7 +3,7 @@
 The installed-extension layer that does not need the engine: provider records
 and control data for bundled extensions (amcheck, autoinc, bloom, citext, cube,
 earthdistance, dblink, dict_int, fuzzystrmatch, hstore, insert_username, intagg, intarray, isn, lo, ltree,
-moddatetime, pageinspect, pg_trgm, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
+moddatetime, pageinspect, pg_trgm, pg_stat_statements, pgstattuple, pgcrypto, pgrowlocks, refint, seg, tablefunc, tcn,
 sslinfo, unaccent, uuid-ossp and seeded plpgsql),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and CREATE/UPDATE/DROP plus the lower
@@ -104,6 +104,19 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   descriptors or references even when independent installations allocated equal IDs.
   `ProcedureInstallationName` applies the same origin checks to the released SQL
   name used by replay; executable C symbols are not SQL call names.
+  `ProcedureBindingName` uses that same validation once to select the internal
+  binding recipe: explicit `functions.Definition.Installed` gateways use the
+  released SQL declaration, while engine-owned specialized/polymorphic families
+  keep `ProcedureSymbol`. Probe, named-call and selected-gateway matching share
+  this selection. Registry classification never substitutes for current origin,
+  provider-family or execution privilege checks and exposes no C-symbol aliases.
+  Stock pg_stat_statements 1.12 seals exactly two C-function recipe roots. Its
+  optional `ConsumerViews` manifest creates the two ordinary SQL views only
+  after sealing, through `StageConsumers` in the same unpublished candidate.
+  Ordinary views acquire real membership, rowtype/array closure, PUBLIC SELECT
+  and historical initial privileges, never fabricated installed relation origins.
+  The manifest also identifies only fresh script products for native replay
+  cleanup; current source view state remains the ordinary view codec's concern.
   Pgcrypto preserves its fourteen incumbent slots and appends exactly four armor
   declarations. Both armor overloads have C symbol `pg_armor`, dearmor has
   `pg_dearmor`, and binding/replay use their independently authenticated SQL names.

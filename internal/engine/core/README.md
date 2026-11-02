@@ -1302,6 +1302,109 @@ owner and session locks and replacement reservations.
 PL lexical expressions use the existing closed-immutable folding policy before
 that handoff; PL-local, parameter, row, domain and volatile demand barriers remain.
 
+## Statement statistics
+
+`DatabaseCluster.StatementStatistics` owns one bounded logical accumulator across
+databases and physical sessions; independent Drivers never share it. The built-in
+module is available at cluster startup, without loading PostgreSQL C libraries.
+Database-local installation creates genuine stock 1.12 functions and ordinary
+views, not a new collector or another set of session settings.
+
+Canonical command admission captures database, nesting, normalization and
+instrumentation policy before the collector leaf. The scanner returns both the
+normalized representative and the same cleaned original source span in one pass.
+Successful storage preserves an existing first representative; an absent entry
+uses the cleaned original source. Planning and execution are separate phases. Actual
+preflight timing starts after analysis/import; completed construction is sampled
+only after exact-attempt/cancellation/fold publication fences. Native has no
+cost-based generic/custom prepared-plan chooser: repeated actual builds are
+counted, even under stored `force_generic_plan`; an accepted portal continuation
+does not invent another build.
+Planning-only CTE/DML Bind retains the accepted measurement without an executor
+completion. Its later Execute counts its genuine fresh native construction;
+plain SELECT instead retains the already initialized producer across messages.
+
+Execution uses actual command completion or producer work/disposal, not
+transport tags or reads of materialized output. A portal retains its measurement
+through suspension and exhaustion until normal disposal. Closing an initialized
+but unused SELECT records one successful zero-row execution without demanding
+its body; closing a planning-only portal records no execution. Partial normal
+close does not drain. Finish rejects failed, canceled and late-failing frames, while a
+completed nested command remains independent of a later parent failure. Utility
+wrappers use `Result.UtilityRows` for actual processed rows, independently of
+`Count` and displayed command tags: REFRESH retains zero affected rows while
+reporting its population query's count, including unchanged concurrent refresh.
+Native and wire COPY share admission and completion in `copyProtocol`; the same
+frame's report-once fence and final Finish acceptance prevent duplicate or failed
+calls. COPY(query)'s independently analyzed executor has its own nested frame,
+using the whole COPY source span. Its existing eager or streaming producer is
+observed through actual output and close without changing protocol scratch;
+`track=all` can therefore retain both real wrapper and child completions with
+distinct identities. `top` and utility suppression still admit only their
+configured frames. SQL PREPARE/EXECUTE charge the body rather than wrapper telemetry.
+Nested PL commands borrow exact parser-owned expression/query intervals, with
+the existing INTO redaction and PERFORM-to-SELECT coordinate shift. They never
+borrow the outer invocation text or the entire PL program as representative SQL.
+Scalar source spans annotate the existing actual SQL execution path; collecting
+them adds no evaluation, executor frame or synthetic completion.
+Lexical locals and record fields use their actual local/composite expression
+bindings, not fabricated external parameters. Constant placeholder numbering
+therefore follows the external parameters genuinely present in that binding.
+Named cursor-argument projections reuse the existing declaration-ordered source
+builder and exact original-operand byte mappings, including formal AS labels;
+normalization never confuses character offsets with UTF8 byte intervals.
+Pending normal portal completions follow lexical scratch across routine
+transaction rotation until the actual enclosing Finish accepts them.
+SQL/PL cursors transfer the same accepted frame into their existing producer.
+Live motion counts actual produced tuples, including skipped motion, rather
+than FETCH tags. Normal close or HOLD producer retirement ends that frame;
+reading a promoted store cannot execute or charge it again. Failed motion,
+abort and savepoint disposal reject the unfinished frame, while a child already
+normally closed remains successful if later parent work fails.
+Transformed utility children and CALL arguments obtain their jumble only from
+the existing real binding, never a raw-query substitute. Enabled utility collection
+owns one wrapper completion; directly contained analyzed utility children do not
+duplicate it. Independently analyzed COPY queries retain their genuine nested
+executor. With utility collection off, optimizer children are admitted in their
+utility's nested context; retained executor completion uses its actual later
+terminal context, not the admission's top-level bit.
+
+Ordinary and nested executor terminals capture effective tracking policy before
+their lexical settings environment is restored. Function-local SET restores the
+caller; a session SET can escape function configuration. Utilities instead retain
+their early hook-enable decision and capture the successful hook-time principal.
+Named role/session-authorization and DISCARD ALL owners supply their one genuine
+decided target to `AdmitUtilityStatementStatsLocked` before mutation: early hook
+timing is not collector admission. Normalization and original/prospective keys
+are admitted together there, without repeating authorization decisions.
+Transaction-control utility provenance is captured at command-control acceptance,
+before command-end role/GUC restoration, not from the later response-time user.
+Scope-owned utility-body state distinguishes SQL utility execution from frontend
+portal Close and command-end transaction cleanup. Lexical activations save that
+state and begin a fresh child context, without counting the parent twice.
+Executor terminal policy and successful `TopLevel` use the same current context:
+SQL CLOSE remains nested even with utility tracking off; command-end COMMIT/HOLD
+disposal can split a nested planning entry from a top-level execution entry.
+
+Each live runtime frame owns one scalar collector admission and releases it on
+every terminal, including rejection, unused/planning-only disposal and owner
+cleanup. Transfers move that frame rather than minting another admission.
+Eviction removes history, not eligibility for a later successful phase; matching
+explicit clear/replacement still fences live admitted/prospective keys even when
+their entries are absent. Unanticipated terminal keys register atomically with
+their successful record; earlier clears of only that unregistered key are not
+retroactive, and another prospective key's reset/extrema flags do not transfer.
+The original admitted-key destructive fence always remains effective.
+
+Projection recaptures current role authority before the collector snapshot;
+own/superuser/inherited `pg_read_all_stats` readers see text and IDs, while foreign
+ordinary readers receive redaction and NULL IDs. SQL reset overloads are owned
+separately; the real shared filtered/minmax clear seam already exists. Accepted
+native replacement clears only the replaced database's history, retaining peer
+history and owned snapshots. CREATE DATABASE's unpublished template-copy runtime
+has no cluster or registered database identity and clears no shared history.
+No runtime frames, history or handles are dumped.
+
 ## Cluster and logical database ownership
 
 Each exact Driver DSN owns one `DatabaseCluster`: a pointer-stable metadata mutex,
@@ -1587,6 +1690,9 @@ with row effects; standalone utilities retain their ordinary publication boundar
   dependencies, while `FoldsValid` separately checks executable fold lifetime
   without dropping operand dependencies from analysis. `Engine.Mu` and physical
   session admission serialize mutation; there is no additional cache authority.
+- Statement-statistics planning counts describe actual accepted native builds,
+  not PostgreSQL generic/custom cache frequencies. Neither measurements nor
+  settings introduce a definition-owned live graph or a second plan cache.
 - While the cell is valid, admission preserves per-occurrence target, nested,
   view and unused-CTE identities. Only dependency, effective-path, namespace or
   DISCARD invalidation reanalyzes the original source; creating a shadow in an
@@ -2048,8 +2154,8 @@ rebuilding keys or replaying earlier own-write expressions. Produced key backing
 construction debt and any prior routine-source receipt survive the transport.
 Rollback/savepoints discard the new wrappers without changing committed roots.
 
-- `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, COLUMN,
-  FOREIGN TABLE, SCHEMA, ROLE and SEQUENCE) in SQL BEGIN and Go BeginTx.
+- `session.ExplicitUtility` admits the shipped COMMENT kinds (TABLE, VIEW, COLUMN,
+  FOREIGN TABLE, SCHEMA, ROLE, SEQUENCE and EXTENSION) in SQL BEGIN and Go BeginTx.
   Describe remains effect-free; Execute preserves read-only and aborted-state
   precedence and refreshes authorization for held statements.
 
@@ -2060,6 +2166,12 @@ commit. Rollback and savepoints restore the same roots. Relation COMMENT keeps
 its SUE ticket contribution until transaction end or rollback to an earlier
 savepoint; RELEASE retains it. Waits validate the captured object identity,
 never a same-name replacement.
+
+Trusted Restore admits only local TABLE, VIEW, FOREIGN TABLE, COLUMN, SCHEMA,
+SEQUENCE and EXTENSION comment forms for statement-local bootstrap authority.
+It retains the replayed principal for namespace checks and never changes session
+identity. Shared ROLE comments retain their separate owner path. Admission does
+not replace the class-owned target-kind checks, ownership rules or lock lifecycle.
 
 Internal resolution pairs the owner's private catalog and role authority.
 Catalog inquiry rows capture their statement's metadata values; retained results
@@ -2217,6 +2329,13 @@ Producers, the OID registry and descriptor specs live in
   even without live descriptors, so retained peer TEMP objects cannot collide
   with a detached installation's provenance. Canonical snapshots never grant
   current owner/ACL or descriptor authority and contain no physical handles.
+- Before the existing replacement identity remap, validated compatible active
+  native extension/procedure recipes select their live destination addresses.
+  Provider/release/slot authority, not replay allocation order, authenticates
+  those fixed assignments. The shared alias/collision planner displaces ordinary
+  import occupants without changing live TEMP identities; the one graph remap
+  updates source declarations, references and membership together. Ordinary views
+  remain source-owned definitions, not installed callable roots.
 - Ordinary stages, private transaction commit and wholesale replacement all
   validate reciprocal extension membership through the common catalog accessor;
   provider-specific validation cannot silently omit an eligible object class.
@@ -2571,6 +2690,10 @@ routine depth, trigger depth, effective-user/configuration and command policy.
 Genuine pgcrypto activation, dormant/closed evaluation boundaries and retained
 fold ownership components use `RUN='^TestPgcryptoPolicy'`.
 
+Trusted local comment replay admission and bootstrap/namespace authority use
+`RUN='^TestTrustedRestoreComment'`; public comment and native-control outcomes
+remain in the owning reference scenarios.
+
 Engine tests whose code is mostly in a lower package or a `*cmds` family live
 in test-only `core/enginetests/<area>` packages (`functions`, `types`,
 `extension`, `textsearch`, `pgcatalog`, `infoschema`, `binder`, `executor`,
@@ -2598,6 +2721,24 @@ Low-level relation-admission owner tests must pass the statement through `Gate`
 before acquiring its relation: `StartStatement` alone does not attach the
 transaction incarnation or lock ticket. Wait witnesses inspect the real grant
 and queued owner, and fail immediately if the worker completes before admission.
+
+Transaction-control publication units use
+`make check RUN='^TestTransactionControlsPublicationBoundary$'`, adding `RACE=1`
+for the same real-owner barriers. Cooperative `Context.Err` arming must account
+for enabled utility normalization before CHAIN reservation and stop at the final
+row-publication operation fence, not at reservation. Retain the mixed spare/growth
+roots, snapshots and complete owner/error assertions. Every admitted scope defers
+`Finish` before operation release; barrier cleanup cancels, releases and joins
+workers before either owner is disposed, including assertion failures.
+
+SMALLINT staged-cancellation units use
+`make check RUN='^TestSmallintStagedCancellation$'`, adding `RACE=1` for the same
+owner boundaries. Capture the real binding and typed rows before arming only
+`ValidateInsertRow` demand: physical entry and the no-generation check poll twice
+per valid row, before batch-stage transfer. Integrated `scope.Execute` retains
+collection and normalization; assert all three typed unpublished stage rows,
+then arm only Finish's operation-validation and final publication gates.
+Parser, setup and unwind checks are not row-constraint phases.
 
 Retained heap version, logical index publication, capture and expression ownership
 units use `RUN='^TestPgstattupleHeap'`; public outcomes remain in

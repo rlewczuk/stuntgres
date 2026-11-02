@@ -203,7 +203,10 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if scope != nil && ownerHasForeign(t) {
 			scope.foreignUnlocked()
 		}
-		if cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref)); err == nil {
+		if err != nil {
+			discardStatementStatsPortals(t)
+		}
+		if cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref), scope); err == nil {
 			err = cleanupErr
 		}
 		hasForeign := ownerHasForeign(t)
@@ -265,7 +268,8 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 			chainFence = false
 		}
 		t.Mu.Unlock()
-		cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref))
+		discardStatementStatsPortals(t)
+		cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref), scope)
 		if chain {
 			e.ReplacementMu.RLock()
 			chainFence = true
@@ -286,6 +290,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	}
 	old = t.Ticket
 	t.Ticket = nil
+	captureOwnerStatementStats(t, scope)
 	t.Session.Settings.FinishTransaction(committed)
 	e.endSerializable(t.Ref, committed)
 	clearTransaction(t, committed)
@@ -327,6 +332,9 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			return Result{}, err
 		}
 	}
+	// PostgreSQL's utility hook returns before command-end role/GUC cleanup.
+	// Retain that genuine acceptance-phase actor while native performs teardown.
+	s.captureStatementStatsTerminal(s.statementStats)
 	e := s.Engine()
 	if !s.Op.CommandAdmission {
 		s.Op.SnapshotNoticeThreshold()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -47,11 +48,13 @@ type sqlCursor struct {
 	authority                                   *exec.Authority
 	currentSnapshot                             *sqltype.Snapshot
 	snapshotFrontier                            ids.CommitSeq
-	exportCapture *exportedSnapshot
+	exportCapture                               *exportedSnapshot
 	foreignOwner                                *exec.ForeignScanOwner
 	rlsPrograms                                 []*rowSecurityProgram // Admitted clause state and nested source pins.
 	scroll                                      bool
 	cleanupError                                error
+	statementStats                              *statementStatsFrame
+	deferStatementStats                         bool
 	leaves                                      []exec.Leaf
 	locks                                       *exec.LockContext
 	catalog                                     catalog.Read
@@ -72,6 +75,11 @@ type sqlCursor struct {
 // Producer teardown is distinct from disposing an exported result. Typed values
 // and schema own their codecs; no declaration catalog or execution survives.
 func (c *sqlCursor) releaseProducer(ctx context.Context) error {
+	frame := c.statementStats
+	var statsStart time.Time
+	if frame != nil {
+		statsStart = time.Now()
+	}
 	c.CurrentSource, c.CurrentIndex = nil, 0
 	var failure error
 	if c.stage != nil {
@@ -118,6 +126,15 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	}
 	if c.cleanupError == nil {
 		c.cleanupError = failure
+	}
+	if frame != nil {
+		frame.elapsed += time.Since(statsStart)
+		frame.executed = true
+		frame.failed = frame.failed || failure != nil || c.Place == exec.CursorFailed || ctx.Err() != nil
+		if !c.deferStatementStats {
+			frame.finish(!frame.failed)
+		}
+		c.statementStats = nil
 	}
 	return c.cleanupError
 }
@@ -166,11 +183,22 @@ func (r *cursorRegistry) clear() []*sqlCursor {
 	return r.detach(func(*sqlCursor) bool { return true })
 }
 func (r *cursorRegistry) rollback(mark uint64) []*sqlCursor {
-	return r.detach(func(c *sqlCursor) bool { return c.ordinal > mark })
+	return r.detach(func(c *sqlCursor) bool {
+		if c.ordinal <= mark {
+			return false
+		}
+		if c.statementStats != nil {
+			c.statementStats.failed = true
+		}
+		return true
+	})
 }
-func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
+func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor, scope *StatementScope) error {
 	var failure error
 	for _, cursor := range cursors {
+		if scope != nil {
+			scope.captureStatementStatsTerminal(cursor.statementStats)
+		}
 		alreadyFailed := cursor.Place == exec.CursorFailed
 		if err := cursor.dispose(ctx); failure == nil && !alreadyFailed {
 			failure = err
@@ -182,7 +210,7 @@ func (r *cursorRegistry) EndSession(token ids.SessionToken, _ session.EndReason)
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign cursor attachment")
 	}
-	return disposeSQLCursors(context.Background(), r.clear())
+	return disposeSQLCursors(context.Background(), r.clear(), nil)
 }
 func missingSQLCursor(name string) error {
 	return SQLError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
@@ -282,6 +310,13 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	s.takeRowSecurityPrograms(c)
 	r.Entries[name] = c
 	r.ordinal = c.ordinal
+	if s.statementStats != nil && !s.statementStats.utility {
+		c.statementStats, s.statementStats = s.statementStats, nil
+		if !c.statementStats.execStart.IsZero() {
+			c.statementStats.elapsed += time.Since(c.statementStats.execStart)
+		}
+		c.statementStats.execStart = time.Time{}
+	}
 	keep = true
 	return c, name, nil
 }
@@ -313,6 +348,9 @@ func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
 	in := exec.CursorInput{Stage: c.stage, Store: c.values, Count: c.count, Offset: c.storeOffset, Width: len(c.schema), Scroll: c.scroll}
 	if !c.promoted {
 		in.Producer = sqlCursorProducer{cursor: c, scope: s, ctx: s.ActivateRuntime(s.executionContext())}
+		if c.statementStats != nil {
+			in.Processed = &c.statementStats.rows
+		}
 	}
 	return in
 }
@@ -426,6 +464,15 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	if c.promoted {
 		return s.fetchHeldCursor(c, fetch)
 	}
+	frame := c.statementStats
+	var statsStart time.Time
+	if frame != nil {
+		statsStart = time.Now()
+		defer func() {
+			frame.elapsed += time.Since(statsStart)
+			frame.failed = frame.failed || err != nil
+		}()
+	}
 	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
@@ -465,6 +512,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	}
 	result.Count = moved
 	if rows != nil {
+		result.UtilityRows = moved
 		result.Rows = rows
 	}
 	return result, nil
@@ -504,7 +552,7 @@ func (s *StatementScope) closeCursor(close *parser.CloseCursor) (Result, error) 
 	}
 	var cleanupErr error
 	if close.All {
-		cleanupErr = disposeSQLCursors(s.Op.Context(), r.clear())
+		cleanupErr = s.closeStatementStatsCursors(r.clear())
 		for name := range PayloadOf(s.Op.Session).PreparedSQL.Bindings() {
 			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
 				cleanupErr = err
@@ -513,7 +561,7 @@ func (s *StatementScope) closeCursor(close *parser.CloseCursor) (Result, error) 
 	} else {
 		delete(r.Entries, close.Name.Text)
 		if c != nil {
-			cleanupErr = c.dispose(s.Op.Context())
+			cleanupErr = s.closeStatementStatsCursor(c)
 		} else {
 			cleanupErr = s.CloseProtocolPortal(close.Name.Text)
 		}

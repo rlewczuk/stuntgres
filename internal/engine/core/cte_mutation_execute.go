@@ -39,6 +39,7 @@ type PreparedCTEProgram struct {
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
 func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+	scope.statementStatsPlanStart()
 	bind := scope.protocolOrZero().bind
 	planningBind := bind != nil && !session.ProtocolPlainSelect(statement)
 	if len(b.CTEs) == 0 && !planningBind {
@@ -48,6 +49,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	if _, err := e.PrepareCTECommandsLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared); err != nil {
 		return Result{}, err
 	}
+	scope.statementStatsPlanBuilt()
 	e.Mu.Lock()
 	if err := e.publishFoldAttemptLocked(scope, prepared.auth, evaluation.FoldCaptures); err != nil {
 		e.Mu.Unlock()
@@ -58,8 +60,12 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 			e.Mu.Unlock()
 			return Result{}, err
 		}
+		scope.transferStatementStatsPlanningBind(bind)
 		e.Mu.Unlock()
 		return Result{}, nil
+	}
+	if bind == nil {
+		scope.statementStatsPlanAccepted()
 	}
 	return e.ExecutePreparedCTECommandsLocked(scope, statement, &prepared, parameters, creationStage, creationDescriptor)
 }

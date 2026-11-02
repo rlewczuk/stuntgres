@@ -62,7 +62,7 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 			return nil, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Name.Parts[0].Text))
 		}
 		ref = domain.Ref(view.Catalog.Epoch(), a)
-	case parser.CommentTable, parser.CommentForeignTable, parser.CommentColumn:
+	case parser.CommentTable, parser.CommentView, parser.CommentForeignTable, parser.CommentColumn:
 		ref = locked
 		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
@@ -72,7 +72,11 @@ func PlanObjectComment(view access.View, env access.Environment, domain *ids.Dom
 		if s.Kind == parser.CommentColumn {
 			operation = "comment column"
 		}
-		if s.Kind == parser.CommentForeignTable {
+		if s.Kind == parser.CommentView {
+			if relation.RelationKind != catalog.ViewRelation {
+				return nil, sqlError("42809", fmt.Sprintf(`"%s" is not a view`, relation.Name()))
+			}
+		} else if s.Kind == parser.CommentForeignTable {
 			if relation.RelationKind != catalog.ForeignRelation {
 				return nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, relation.Name()))
 			}

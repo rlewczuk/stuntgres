@@ -55,6 +55,9 @@ type CursorInput struct {
 	Offset   int64
 	Width    int
 	Scroll   bool
+	// Processed observes actual live executor tuples, including skipped motion.
+	// Promoted store reads have no executor and never update this measurement.
+	Processed *int64
 }
 
 func forwardCursorError() error {
@@ -163,6 +166,9 @@ func (p *CursorPosition) run(in *CursorInput, backward bool, count int64, all bo
 			break
 		}
 		moved++
+		if !promoted && in.Processed != nil {
+			*in.Processed++
+		}
 		if rows != nil {
 			rows.Count++
 		}

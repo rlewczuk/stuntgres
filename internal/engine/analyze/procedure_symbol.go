@@ -6,9 +6,10 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// callableProviderSymbol selects the immutable provider binding recipe, never a
-// public alias. C entry points may have a distinct declaration-owned SQL recipe.
-func callableProviderSymbol(view catalog.Read, p *catalog.Procedure) (string, error) {
+// callableProviderBindingName selects the immutable internal binding recipe,
+// never a public alias. Installed registry gateways and specialized engine
+// families independently select their SQL recipe or executable symbol.
+func callableProviderBindingName(view catalog.Read, p *catalog.Procedure) (string, error) {
 	if p == nil {
 		return "", nil
 	} // The existing selected typename-cast shortcut.
@@ -16,10 +17,7 @@ func callableProviderSymbol(view catalog.Read, p *catalog.Procedure) (string, er
 		return p.Builtin.Identity.Name, nil
 	}
 	if p.Implementation != nil {
-		if extension.PgcryptoProviderOf(p) == extension.StockPgcrypto {
-			return extension.ProcedureInstallationName(view, p)
-		}
-		return extension.ProcedureSymbol(view, p)
+		return extension.ProcedureBindingName(view, p)
 	}
 	if p.Foreign != nil {
 		return p.Foreign.Name.Name, nil
@@ -30,11 +28,11 @@ func callableProviderSymbol(view catalog.Read, p *catalog.Procedure) (string, er
 	return p.Name(), nil
 }
 
-func providerFunctionSyntax(raw parser.FunctionExpr, symbol string) parser.FunctionExpr {
+func providerFunctionSyntax(raw parser.FunctionExpr, binding string) parser.FunctionExpr {
 	last := len(raw.Name.Parts) - 1
-	if last >= 0 && raw.Name.Parts[last].Text != symbol {
+	if last >= 0 && raw.Name.Parts[last].Text != binding {
 		parts := append([]parser.Identifier(nil), raw.Name.Parts...)
-		parts[last].Text = symbol
+		parts[last].Text = binding
 		raw.Name.Parts = parts
 	}
 	return raw

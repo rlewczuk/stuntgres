@@ -29,39 +29,46 @@ import (
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	StatementMutation
-	explain                 *explainExecution
-	explainAdmission        *explainAdmission
-	aggregateGateOnce       sync.Once
-	aggregateGate           chan struct{}
-	invocationContext       context.Context // Scoped under aggregateGate; inherited by nested commands.
-	copyInputRaw            context.Context // Only actual session-owned standard effective children.
-	copyInputActive         context.Context // Invocation-private projection, retired at Finish.
-	currentSnapshot         *sqltype.Snapshot
-	snapshotFrontier        ids.CommitSeq
-	exportRootDemand bool
-	exportCapture *exportedSnapshot
-	snapshotTarget          visibility.Root
-	snapshotTargets         map[ids.ObjectAddress]visibility.Root
-	snapshotTargetAdmission bool // Actual snapshotPhase command, not CTE bookkeeping.
-	mutations               []StatementMutation
-	ActiveMutation          int
-	cteInvocation           *exec.CTEInvocation
-	self                    *StatementScope
-	statsFunction           *statsFunctionFrame
-	statsPopulation         statistics.Ledger
-	Owner                   *session.TransactionOwner
-	Op                      *session.Operation
-	ruleAction              RuleActionScope
-	RowSecurity             bool                      // Immutable effective setting for this admitted statement.
-	PlannerMethods          plan.PlannerMethods       // Immutable effective statement admission.
-	rlsActive               []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
-	rlsPrograms             []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
-	rlsAdmissionDepth       int                       // Whole target/source admission, including recursive policies.
-	rlsCommand              *preparedCommandExecution // Active original logical command, lexical scratch.
-	catalogKeep             *catalogrt.KeepQuery      // Set only while a SELECT captures its own leaves.
-	rlsImportWaits          uint64                    // Scope-monotonic actual policy-source waits, never row work.
-	rlsDataRefs             []ids.ObjectRef           // Complete prepared physical union before the first snapshot.
-	authority               *exec.Authority
+	explain                   *explainExecution
+	explainAdmission          *explainAdmission
+	aggregateGateOnce         sync.Once
+	aggregateGate             chan struct{}
+	invocationContext         context.Context // Scoped under aggregateGate; inherited by nested commands.
+	copyInputRaw              context.Context // Only actual session-owned standard effective children.
+	copyInputActive           context.Context // Invocation-private projection, retired at Finish.
+	currentSnapshot           *sqltype.Snapshot
+	snapshotFrontier          ids.CommitSeq
+	exportRootDemand          bool
+	exportCapture             *exportedSnapshot
+	snapshotTarget            visibility.Root
+	snapshotTargets           map[ids.ObjectAddress]visibility.Root
+	snapshotTargetAdmission   bool // Actual snapshotPhase command, not CTE bookkeeping.
+	mutations                 []StatementMutation
+	ActiveMutation            int
+	cteInvocation             *exec.CTEInvocation
+	self                      *StatementScope
+	statsFunction             *statsFunctionFrame
+	statementStats            *statementStatsFrame
+	statementStatsDepth       int
+	statementStatsUtilityBody bool // Current typed utility execution, excluding command-end transaction cleanup.
+	statementStatsSource      string
+	statementStatsOffset      int
+	statementStatsSpans       []statementStatsSpan
+	statementStatsCompletions []*statementStatsFrame
+	statsPopulation           statistics.Ledger
+	Owner                     *session.TransactionOwner
+	Op                        *session.Operation
+	ruleAction                RuleActionScope
+	RowSecurity               bool                      // Immutable effective setting for this admitted statement.
+	PlannerMethods            plan.PlannerMethods       // Immutable effective statement admission.
+	rlsActive                 []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
+	rlsPrograms               []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
+	rlsAdmissionDepth         int                       // Whole target/source admission, including recursive policies.
+	rlsCommand                *preparedCommandExecution // Active original logical command, lexical scratch.
+	catalogKeep               *catalogrt.KeepQuery      // Set only while a SELECT captures its own leaves.
+	rlsImportWaits            uint64                    // Scope-monotonic actual policy-source waits, never row work.
+	rlsDataRefs               []ids.ObjectRef           // Complete prepared physical union before the first snapshot.
+	authority                 *exec.Authority
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.

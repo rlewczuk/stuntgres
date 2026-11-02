@@ -23,6 +23,7 @@ type explainExecution struct {
 	executing time.Time
 	statement parser.Statement
 	expected  *Description
+	wrapper   *parser.Explain
 }
 
 // captureExplainCommandLocked borrows the real prepared execution graph, after
@@ -79,6 +80,7 @@ func (e *Engine) captureExplainCommandLocked(scope *StatementScope, statement pa
 func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.Explain, count int, importFrame FrameImporter, options explain.Options) (Result, error) {
 	owner := &explainExecution{options: options}
 	owner.statement, owner.expected = statement.Statement, scope.Expected
+	owner.wrapper = statement
 	if options.Summary {
 		owner.started = time.Now()
 	}
@@ -87,6 +89,9 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 	scope.explain, scope.invocationContext = owner, ctx
 	defer func() { scope.explain, scope.invocationContext = previous, invocation }()
 	result, err := e.executeDataStatement(scope, statement.Statement, count, importFrame)
+	if frame := scope.statementStats; frame != nil && !frame.utility {
+		scope.statementStatsReturned(&result, err)
+	}
 	if err != nil {
 		if result.Rows != nil {
 			_ = result.Rows.Close()
@@ -97,6 +102,11 @@ func (e *Engine) executeExplainAnalyze(scope *StatementScope, statement *parser.
 		if err := consumeExplainRows(ctx, result.Rows); err != nil {
 			return Result{}, err
 		}
+	}
+	if frame := scope.statementStats; frame != nil && !frame.utility {
+		scope.captureStatementStatsTerminal(frame)
+		frame.finish(true)
+		scope.statementStats = nil
 	}
 	var execution time.Duration
 	if options.Summary && !owner.executing.IsZero() {

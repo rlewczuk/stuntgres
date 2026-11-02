@@ -39,14 +39,19 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 	if selected := b.Clause.selectedProcedure; selected != nil && family == functions.TablefuncExtension && string(selected.Signature) != signature {
 		return nil, nil
 	}
-	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil && (string(selected.Signature) == signature || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
-		symbol, failure := extension.ProcedureInstallationName(auth.ReadCatalog(), selected)
+	if selected := b.Clause.selectedProcedure; selected != nil && selected.Implementation != nil {
+		if !(string(selected.Signature) == signature || pgstats && extension.PgstattupleProviderOf(selected) == extension.StockPgstattuple || spatial && extension.CubeProviderOf(selected) == extension.StockCube || earth && extension.EarthdistanceProviderOf(selected) == extension.StockEarthdistance) {
+			return nil, nil
+		}
+		binding, failure := extension.ProcedureBindingName(auth.ReadCatalog(), selected)
 		if failure != nil {
 			return nil, failure
 		}
-		if symbol == text {
-			proc = selected
+		definition, ok := functions.Lookup(binding)
+		if !ok || definition.Installed != family || binding != text {
+			return nil, nil
 		}
+		proc = selected
 	}
 	if earth && proc == nil {
 		for i := range path.Count() {
@@ -138,6 +143,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.AmcheckProviderOf(proc) == extension.StockAmcheck
 	case functions.PgrowlocksExtension:
 		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
+	case functions.PgStatStatementsExtension:
+		installed = extension.PgStatStatementsProviderOf(proc) == extension.StockPgStatStatements
 	case functions.TablefuncExtension:
 		installed = extension.TablefuncProviderOf(proc) == extension.StockTablefunc
 	case functions.CubeExtension:
@@ -192,6 +199,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockAmcheck.ValidateProcedure(r.catalog, p)
 	case extension.PgrowlocksProviderOf(p) != nil:
 		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
+	case extension.PgStatStatementsProviderOf(p) != nil:
+		return extension.StockPgStatStatements.ValidateProcedure(r.catalog, p)
 	case extension.TablefuncProviderOf(p) != nil:
 		return extension.StockTablefunc.ValidateProcedure(r.catalog, p)
 	case extension.CubeProviderOf(p) != nil:
@@ -533,6 +542,24 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return r.attachPgrowlocks(c, ref)
 	case functions.DblinkGetPkey:
 		return r.attachDblinkGetPkey(c, ref)
+	case functions.PgStatStatements:
+		if err := extension.StockPgStatStatements.ValidateProcedure(r.catalog, p); err != nil {
+			return nil, err
+		}
+		if !c.InfoOnly {
+			if b.Params.ExecuteParameters {
+				return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", c.Pos)
+			}
+			if b.Consumer.PolicyConsumer && b.Query.Frame == 0 {
+				return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
+			}
+			if err := b.AdmitSetReturning(c.Pos); err != nil {
+				return nil, err
+			}
+		}
+		c.RoutineReference = p
+		b.dependency(ref, p.Revision())
+		return plan.InstalledPgStatStatementsExpr{PgStatStatements: c, Procedure: p, Ref: ref}, nil
 	case functions.PgpArmorHeaders:
 		return r.attachPgpArmorHeaders(c, ref)
 	case functions.TablefuncNormal:

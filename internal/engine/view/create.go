@@ -129,7 +129,7 @@ func CheckCreate(catalogView catalog.Read, s *parser.CreateView, b analyze.Bindi
 // descriptor (copied from old when replacing), stages the row type, creates or
 // replaces the relation and reowns displaced types. A temporary view consumes
 // its own temporary sources.
-func StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView, old *catalog.Relation, ns ids.ObjectRef, b analyze.Binding, options CreateOptions, temporary bool) error {
+func StageCreate(h CreateHost, auth ddl.Authority, s *parser.CreateView, old *catalog.Relation, ns ids.ObjectRef, b analyze.Binding, options CreateOptions, temporary bool) error {
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	catalogAccess := h.AccessView(auth)
 	if old == nil {

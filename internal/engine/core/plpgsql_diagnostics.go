@@ -36,7 +36,7 @@ func (h *plHost) LeaveRoutine() {
 }
 func (h *plHost) setOrigin(at proc.PLOrigin) proc.PLOrigin {
 	previous := h.live.origin
-	h.live.origin = at
+	h.live.origin = proc.PLOrigin{Position: at.Position, Action: at.Action}
 	return previous
 }
 func (s *StatementScope) currentPLContext() string {

@@ -963,7 +963,7 @@ package parser
 %type <desc> direction
 %type <settingValues> setting_values
 %type <settingValue> setting_value
-%type <desc> role_kind
+%type <tok> role_kind
 %type <roleOptions> role_options
 %type <integer> role_limit
 %type <tok> alter_role_target
@@ -1166,7 +1166,7 @@ explain_option_value: explain_word { $$=ColumnExpr{Name:ObjectName{Parts:[]Ident
 load: LOAD STRING { $$=&Load{Filename:$2.text,Pos:$1.pos} } ;
 checkpoint: CHECKPOINT { $$=&Checkpoint{Pos:$1.pos} } ;
 create_database: CREATE DATABASE name database_options {
- $$=&CreateDatabaseStmt{Name:$3.text,Options:$4}
+ $$=&CreateDatabaseStmt{Name:$3.text,Options:$4,Pos:$1.pos}
 } ;
 alter_database_settings: ALTER DATABASE name role_setting_action {
  s:=$4.(*AlterRoleSettings);$$=&AlterDatabaseSettings{Database:Identifier{Text:$3.text,Pos:$3.pos},Set:s.Set,Reset:s.Reset,FromCurrent:s.FromCurrent,Pos:$1.pos}
@@ -1555,6 +1555,7 @@ identity_alter_options: SET GENERATED identity_mode { $$=&IdentityDefinition{Mod
  | identity_alter_options RESTART sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$3,Pos:$2.pos}) }
  | identity_alter_options RESTART WITH sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$4,Pos:$2.pos}) } ;
 comment: COMMENT ON TABLE relation_name IS comment_text { $$=&Comment{Kind:CommentTable,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
+ | COMMENT ON VIEW relation_name IS comment_text { $$=&Comment{Kind:CommentView,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON FOREIGN TABLE relation_name IS comment_text { $$=&Comment{Kind:CommentForeignTable,Name:$5,Text:$7.Text,Null:$7.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON COLUMN comment_column_name IS comment_text { $$=&Comment{Kind:CommentColumn,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON SCHEMA name IS comment_text { $$=&Comment{Kind:CommentSchema,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
@@ -1567,7 +1568,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | XML | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE | DATABASE ;
+comment_excluded_word: IDENT | KW_U | XML | KW_T | KW_R | UNIQUE | INDEX | TYPE | DATABASE ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 security_label: security_label_head security_label_opt_provider ON security_label_target IS comment_text {
  node:=$4;node.Pos=$1.pos;node.Provider=Identifier{Text:$2.text,Pos:$2.pos};node.ProviderSpecified=$2.pos.Character!=0;node.Text=$6.Text;node.Null=$6.Kind==NullValue;node.LabelPos=$6.Pos;$$=node
@@ -1624,10 +1625,10 @@ security_label_aggregate_args: '*' {$$=nil}
  | ORDER BY security_label_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments(nil,$3);if !ok{return 1}}
  | security_label_argument_list ORDER BY security_label_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,$4);if !ok{return 1}} ;
 transaction_control: transaction_common | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} } ;
-transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
- | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
+transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,StartKeyword:$1.text=="start",Pos:$1.pos} }
+ | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,StartKeyword:$1.text=="start",Pos:$1.pos,Modes:$2} }
  | SET TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Pos:$1.pos,Modes:$3} }
- | SET TRANSACTION KW_U STRING { if $3.text!="snapshot" { sqllex.(*lexer).syntax($3); return 1 }; value:=$4.text; $$=&TransactionCharacteristics{Pos:$1.pos,Snapshot:&value} }
+ | SET TRANSACTION KW_U STRING { if $3.text!="snapshot" { sqllex.(*lexer).syntax($3); return 1 }; value:=$4.text; $$=&TransactionCharacteristics{Pos:$1.pos,Snapshot:&value,SnapshotPos:$4.pos} }
  | SET SESSION characteristics_word AS TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Session:true,Pos:$1.pos,Modes:$6} }
  | rollback_start opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$2,Pos:$1.pos} }
  | ABORT opt_transaction opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$3,Pos:$1.pos} }
@@ -1636,9 +1637,9 @@ transaction_common: transaction_start { $$=&TransactionControl{Kind:KindStart,Po
  | RELEASE SAVEPOINT name { $$=&SavepointControl{Kind:ReleaseSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | rollback_start TO name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | rollback_start TO SAVEPOINT name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos} }
- | PREPARE TRANSACTION STRING { $$=&TransactionControl{Kind:KindPrepareTransaction,GID:$3.text,Pos:$1.pos} }
- | COMMIT PREPARED STRING { $$=&TransactionControl{Kind:KindCommitPrepared,GID:$3.text,Pos:$1.pos} }
- | ROLLBACK PREPARED STRING { $$=&TransactionControl{Kind:KindRollbackPrepared,GID:$3.text,Pos:$1.pos} } ;
+ | PREPARE TRANSACTION STRING { $$=&TransactionControl{Kind:KindPrepareTransaction,GID:$3.text,GIDPosition:$3.pos,Pos:$1.pos} }
+ | COMMIT PREPARED STRING { $$=&TransactionControl{Kind:KindCommitPrepared,GID:$3.text,GIDPosition:$3.pos,Pos:$1.pos} }
+ | ROLLBACK PREPARED STRING { $$=&TransactionControl{Kind:KindRollbackPrepared,GID:$3.text,GIDPosition:$3.pos,Pos:$1.pos} } ;
 transaction_start: BEGIN opt_transaction { $$=$1 } | START TRANSACTION { $$=$1 } ;
 commit_word: COMMIT | END ;
 /* Share the entire ROLLBACK [WORK|TRANSACTION] prefix before choosing an
@@ -1685,9 +1686,9 @@ lock_nowait: NOWAIT ;
 set_constraints: SET KW_U relation_names KW_U {if $2.text!="constraints" || ($4.text!="deferred" && $4.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};$$=&SetConstraints{Names:$3,Deferred:$4.text=="deferred",Pos:$1.pos}}
  | SET KW_U ALL KW_U {if $2.text!="constraints" || ($4.text!="deferred" && $4.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};$$=&SetConstraints{All:true,Deferred:$4.text=="deferred",Pos:$1.pos}} ;
 set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier(),$4,$1.pos) }
- | SET XML OPTION name { if $4.keyword==nil || ($4.text!="document" && $4.text!="content") {sqllex.(*lexer).syntax($4);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$2.pos},Values:[]string{$4.text},Pos:$1.pos} }
- | SET SESSION XML OPTION name { if $5.keyword==nil || ($5.text!="document" && $5.text!="content") {sqllex.(*lexer).syntax($5);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$3.pos},Values:[]string{$5.text},Pos:$1.pos} }
- | SET LOCAL XML OPTION name { if $5.keyword==nil || ($5.text!="document" && $5.text!="content") {sqllex.(*lexer).syntax($5);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$3.pos},Values:[]string{$5.text},Local:true,Pos:$1.pos} }
+ | SET XML OPTION name { if $4.keyword==nil || ($4.text!="document" && $4.text!="content") {sqllex.(*lexer).syntax($4);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$2.pos},Values:[]string{$4.text},JumbleArgs:true,Pos:$1.pos} }
+ | SET SESSION XML OPTION name { if $5.keyword==nil || ($5.text!="document" && $5.text!="content") {sqllex.(*lexer).syntax($5);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$3.pos},Values:[]string{$5.text},JumbleArgs:true,Pos:$1.pos} }
+ | SET LOCAL XML OPTION name { if $5.keyword==nil || ($5.text!="document" && $5.text!="content") {sqllex.(*lexer).syntax($5);return 1};$$=&Set{Name:Identifier{Text:"xmloption",Pos:$3.pos},Values:[]string{$5.text},JumbleArgs:true,Local:true,Pos:$1.pos} }
  | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
  | SET SESSION set_name setting_assignment setting_values { $$=parsedSet($3.identifier(),$5,$1.pos) }
  | SET SESSION set_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Pos:$1.pos} }
@@ -1698,18 +1699,18 @@ set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier
  | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
  | SET LOCAL local_setting_name setting_assignment setting_values { s:=parsedSet($3.identifier(),$5,$1.pos);s.Local=true;$$=s }
  | SET LOCAL local_setting_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Local:true,Pos:$1.pos} }
- | SET NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{$3.isString}},$1.pos) }
+ | SET NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{$3.isString},position:$3.position},$1.pos) }
  | SET NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$2.pos},Default:true,Pos:$1.pos} }
- | SET SESSION NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString}},$1.pos) }
+ | SET SESSION NAMES setting_value { $$=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos) }
  | SET SESSION NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Pos:$1.pos} }
- | SET LOCAL NAMES setting_value { s:=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString}},$1.pos);s.Local=true;$$=s }
+ | SET LOCAL NAMES setting_value { s:=parsedSet(Identifier{Text:"client_encoding",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{$4.isString},position:$4.position},$1.pos);s.Local=true;$$=s }
  | SET LOCAL NAMES DEFAULT { $$=&Set{Name:Identifier{Text:"client_encoding",Pos:$3.pos},Default:true,Local:true,Pos:$1.pos} }
- | SET SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{true}},$1.pos) }
- | SET SESSION SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos) }
- | SET TIME ZONE zone_setting { $$=$4; $4.Name=Identifier{Text:"timezone",Pos:$2.pos};$4.Pos=$1.pos }
- | SET SESSION TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos }
- | SET LOCAL TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos;$5.Local=true }
- | SET LOCAL SCHEMA STRING { s:=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos);s.Local=true;$$=s } ;
+ | SET SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{true},position:$3.pos},$1.pos) }
+ | SET SESSION SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true},position:$4.pos},$1.pos) }
+ | SET TIME ZONE zone_setting { $$=$4; $4.Name=Identifier{Text:"timezone",Pos:$2.pos};$4.Pos=$1.pos;$4.JumbleArgs=true }
+ | SET SESSION TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos;$5.JumbleArgs=true }
+ | SET LOCAL TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos;$5.Local=true;$5.JumbleArgs=true }
+ | SET LOCAL SCHEMA STRING { s:=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true},position:$4.pos},$1.pos);s.Local=true;$$=s } ;
 setting_assignment: TO | '=' ;
 alter_system: ALTER SYSTEM SET setting_name setting_assignment external_setting_values { $$=&AlterSystem{Action:"SET",Name:$4.identifier(),Pos:$1.pos} }
  | ALTER SYSTEM SET setting_name setting_assignment DEFAULT { $$=&AlterSystem{Action:"SET",Name:$4.identifier(),Default:true,Pos:$1.pos} }
@@ -1719,13 +1720,13 @@ alter_system: ALTER SYSTEM SET setting_name setting_assignment external_setting_
  * or allocation of a discarded list. Execution refuses before value validation. */
 external_setting_values: external_setting_value | external_setting_values ',' external_setting_value ;
 external_setting_value: STRING | name | TRUE | FALSE | ON | NUMBER | '+' NUMBER | '-' NUMBER ;
-setting_values: setting_value { $$=settingList{values:[]string{$1.text},stringValues:[]bool{$1.isString}} } | setting_values ',' setting_value { $$=$1;$$.values=append($$.values,$3.text);$$.stringValues=append($$.stringValues,$3.isString) } ;
-setting_value: STRING { $$=settingAtom{text:$1.text,isString:true} } | name { $$=settingAtom{text:$1.text,isString:true} }
- | TRUE { $$=settingAtom{text:"true",isString:true} } | FALSE { $$=settingAtom{text:"false",isString:true} }
- | ON { $$=settingAtom{text:$1.text,isString:true} }
- | NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$1,false); if !ok { return 1 } }
- | '+' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,false); if !ok { return 1 } }
- | '-' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,true); if !ok { return 1 } } ;
+setting_values: setting_value { $$=settingList{values:[]string{$1.text},stringValues:[]bool{$1.isString},position:$1.position} } | setting_values ',' setting_value { $$=$1;$$.values=append($$.values,$3.text);$$.stringValues=append($$.stringValues,$3.isString) } ;
+setting_value: STRING { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} } | name { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} }
+ | TRUE { $$=settingAtom{text:"true",isString:true,position:$1.pos} } | FALSE { $$=settingAtom{text:"false",isString:true,position:$1.pos} }
+ | ON { $$=settingAtom{text:$1.text,isString:true,position:$1.pos} }
+ | NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$1,false);$$.position=$1.pos; if !ok { return 1 } }
+ | '+' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,false);$$.position=$1.pos; if !ok { return 1 } }
+ | '-' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,true);$$.position=$1.pos; if !ok { return 1 } } ;
 zone_setting: STRING { $$=&Set{Values:[]string{$1.text}} }
  | NUMBER { $$=&Set{Values:[]string{$1.text}} }
  | '+' NUMBER { $$=&Set{Values:[]string{$2.text}} }
@@ -2389,7 +2390,7 @@ pl_query_loop_source: pl_query_loop_start pl_query_loop_statement {l:=sqllex.(*l
 pl_query_loop_statement: query_select {$$=$1} | insert {$$=$1} | update {$$=$1} | delete {$$=$1} | merge {$$=$1} | with_mutation {$$=$1} ;
 pl_static_statement: embedded_sql_statement {$$=$1} | query_select {$$=$1}
  | SET TRANSACTION transaction_modes {$$=&TransactionCharacteristics{Pos:$1.pos,Modes:$3}}
- | SET TRANSACTION KW_U STRING {if $3.text!="snapshot"{sqllex.(*lexer).syntax($3);return 1};value:=$4.text;$$=&TransactionCharacteristics{Pos:$1.pos,Snapshot:&value}} ;
+ | SET TRANSACTION KW_U STRING {if $3.text!="snapshot"{sqllex.(*lexer).syntax($3);return 1};value:=$4.text;$$=&TransactionCharacteristics{Pos:$1.pos,Snapshot:&value,SnapshotPos:$4.pos}} ;
 pl_query_loop_start: /* empty */ {sqllex.(*lexer).plBeginExpression(plLoopBoundary)} ;
 pl_integer_targets: pl_target {$$=&PLIntegerFor{Targets:[]Expr{$1}}}
  | pl_integer_targets ',' pl_target {$$=$1;$$.Targets=append($$.Targets,$3);$$.TargetCommas=append($$.TargetCommas,$2.pos)} ;
@@ -3611,7 +3612,7 @@ from_base: relation_name { $$=&TableReference{Name:$1} }
     for _,call:=range n.Calls {
        if !RegexpFunctionName(call.Name.Parts[len(call.Name.Parts)-1].Text) {selected=false;break}
     }
-    if selected {$$=&FunctionFrom{Calls:n.Calls,Ordinality:n.Ordinality,Lateral:n.Lateral,Pos:n.Pos}} else {$$=n}
+    if selected {$$=&FunctionFrom{Calls:n.Calls,Ordinality:n.Ordinality,Lateral:n.Lateral,RowsFrom:n.RowsFrom,Pos:n.Pos}} else {$$=n}
    }
  | select_with_parens %prec NAME_LIST { if $1.Query.Values!=nil && len($1.Query.Locking)==0 {$$=$1.Query.Values} else {$$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos}} }
  | '(' from_list ')' {
@@ -4323,7 +4324,7 @@ grant_role_spec: name { $$=GrantGrantee{Role:RoleSpec{Name:$1.text,Pos:$1.pos},P
 grant_grantees: grant_grantee { $$=[]GrantGrantee{$1} }
  | grant_grantees ',' grant_grantee { $$=append($1,$3) } ;
 grant_option: /* empty */ { $$=false } | WITH GRANT OPTION { $$=true } ;
-role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;
+role_kind: ROLE { $$=$1 } | USER { $$=$1 } | GROUP { $$=$1 } ;
 optional_with: /* empty */ | WITH ;
 role_options: /* empty */ { $$=&RoleOptions{} }
  | role_options role_option_word {
@@ -4359,7 +4360,7 @@ role_name: name {
  | SESSION_USER { sqllex.(*lexer).failAt("42939","SESSION_USER cannot be used as a role name here",$1.pos.Offset); return 1 }
  | CURRENT_ROLE { sqllex.(*lexer).failAt("42939","CURRENT_ROLE cannot be used as a role name here",$1.pos.Offset); return 1 } ;
 create_role: CREATE role_kind role_name optional_with role_options {
- $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},DefaultLogin:$2,Options:*$5}
+ $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Kind:$2.text,DefaultLogin:$2.text=="user",Options:*$5}
  } ;
 alter_role_target: name | CURRENT_ROLE | CURRENT_USER | SESSION_USER ;
 alter_role: ALTER role_alias alter_role_target optional_with role_options {
@@ -4387,19 +4388,19 @@ role_setting_action: SET setting_name setting_assignment setting_values {$$=&Alt
  | RESET ALL {$$=&AlterRoleSettings{Reset:&Reset{All:true,Pos:$1.pos}}} ;
 /* IF remains a name unless followed by EXISTS; that lookahead cannot continue
  * an ordinary comma-list. Defer exclusion so malformed suffixes stay 42601. */
-drop_role: DROP role_kind names { $$=&DropRole{Names:$3} }
+drop_role: DROP role_kind names { $$=&DropRole{Names:$3,Pos:$1.pos} }
  | DROP role_kind IF EXISTS names { sqllex.(*lexer).deferUnsupported($3,"DROP ROLE IF EXISTS is unsupported"); $$=nil } ;
-session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true} }
- | SET SESSION AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true} }
- | SET SESSION AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }
- | SET AUTHORIZATION name { $$=&SessionAuthorization{Name:$3.text} }
- | SET AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$3.text} }
- | SET AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }
- | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true,ResetCommand:true} } ;
+session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true,Pos:$1.pos,ValuePosition:$4.pos} }
+ | SET SESSION AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true,Pos:$1.pos,ValuePosition:$4.pos} }
+ | SET SESSION AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true,Pos:$1.pos} }
+ | SET AUTHORIZATION name { $$=&SessionAuthorization{Name:$3.text,Pos:$1.pos,ValuePosition:$3.pos} }
+ | SET AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$3.text,Pos:$1.pos,ValuePosition:$3.pos} }
+ | SET AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true,Pos:$1.pos} }
+ | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true,ResetCommand:true,Pos:$1.pos} } ;
 /* All role selection input parses before execution, including LOCAL. */
-role_selection: SET ROLE role_selection_assignment role_selection_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos} }
- | SET SESSION ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos} }
- | SET LOCAL ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Local:true,Pos:$3.pos} }
+role_selection: SET ROLE role_selection_assignment role_selection_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos,ValuePosition:$4.pos} }
+ | SET SESSION ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos,ValuePosition:$5.pos} }
+ | SET LOCAL ROLE role_selection_assignment role_selection_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Local:true,Pos:$3.pos,ValuePosition:$5.pos} }
  | RESET ROLE { $$=&RoleSelection{Reset:true,ResetCommand:true,Pos:$2.pos} } ;
 role_selection_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
 role_selection_target: name | STRING | DEFAULT ;
@@ -4409,17 +4410,17 @@ schema_table: create_table { $$=$1.(*CreateTable) }
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
  | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 }
  | schema_tables UNIQUE { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 } ;
-create_schema: CREATE SCHEMA name schema_tables { $$=&CreateSchema{Name:$3.text,Tables:$4} }
- | CREATE SCHEMA name AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Name:$3.text,Authorization:$5.text,AuthorizationIdentity:$5.keyword!=nil&&$5.keyword.category==Reserved,Tables:$6} }
- | CREATE SCHEMA AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Authorization:$4.text,AuthorizationIdentity:$4.keyword!=nil&&$4.keyword.category==Reserved,Tables:$5} }
- | CREATE SCHEMA IF NOT EXISTS name { $$=&CreateSchema{Name:$6.text,IfNotExists:true} }
- | CREATE SCHEMA IF NOT EXISTS name AUTHORIZATION schema_owner { $$=&CreateSchema{Name:$6.text,Authorization:$8.text,AuthorizationIdentity:$8.keyword!=nil&&$8.keyword.category==Reserved,IfNotExists:true} }
- | CREATE SCHEMA IF NOT EXISTS AUTHORIZATION schema_owner { $$=&CreateSchema{Authorization:$7.text,AuthorizationIdentity:$7.keyword!=nil&&$7.keyword.category==Reserved,IfNotExists:true} } ;
-alter_schema: ALTER SCHEMA name RENAME TO name { $$=&AlterSchema{Name:$3.text,NewName:$6.text} }
- | ALTER SCHEMA name OWNER TO schema_owner { $$=&AlterSchema{Name:$3.text,Owner:$6.text,OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved} } ;
+create_schema: CREATE SCHEMA name schema_tables { $$=&CreateSchema{Name:$3.text,Tables:$4,Pos:$1.pos} }
+ | CREATE SCHEMA name AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Name:$3.text,Authorization:$5.text,AuthorizationIdentity:$5.keyword!=nil&&$5.keyword.category==Reserved,Tables:$6,Pos:$1.pos} }
+ | CREATE SCHEMA AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Authorization:$4.text,AuthorizationIdentity:$4.keyword!=nil&&$4.keyword.category==Reserved,Tables:$5,Pos:$1.pos} }
+ | CREATE SCHEMA IF NOT EXISTS name { $$=&CreateSchema{Name:$6.text,IfNotExists:true,Pos:$1.pos} }
+ | CREATE SCHEMA IF NOT EXISTS name AUTHORIZATION schema_owner { $$=&CreateSchema{Name:$6.text,Authorization:$8.text,AuthorizationIdentity:$8.keyword!=nil&&$8.keyword.category==Reserved,IfNotExists:true,Pos:$1.pos} }
+ | CREATE SCHEMA IF NOT EXISTS AUTHORIZATION schema_owner { $$=&CreateSchema{Authorization:$7.text,AuthorizationIdentity:$7.keyword!=nil&&$7.keyword.category==Reserved,IfNotExists:true,Pos:$1.pos} } ;
+alter_schema: ALTER SCHEMA name RENAME TO name { $$=&AlterSchema{Name:$3.text,NewName:$6.text,Pos:$1.pos} }
+ | ALTER SCHEMA name OWNER TO schema_owner { $$=&AlterSchema{Name:$3.text,Owner:$6.text,OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos} } ;
 drop_behavior: /* empty */ { $$=false } | RESTRICT { $$=false } | CASCADE { $$=true } ;
-drop_schema: DROP SCHEMA names drop_behavior { $$=&DropSchema{Names:$3,Cascade:$4} }
- | DROP SCHEMA IF EXISTS names drop_behavior { $$=&DropSchema{Names:$5,IfExists:true,Cascade:$6} } ;
+drop_schema: DROP SCHEMA names drop_behavior { $$=&DropSchema{Names:$3,Cascade:$4,Pos:$1.pos} }
+ | DROP SCHEMA IF EXISTS names drop_behavior { $$=&DropSchema{Names:$5,IfExists:true,Cascade:$6,Pos:$1.pos} } ;
 create_extension: CREATE EXTENSION name extension_options { $$=&CreateExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$4,Pos:$1.pos} }
  | CREATE EXTENSION IF NOT EXISTS name extension_options { $$=&CreateExtension{Name:Identifier{Text:$6.text,Pos:$6.pos},IfNotExists:true,Options:$7,Pos:$1.pos} } ;
 drop_extension: DROP EXTENSION view_names drop_mode { $$=&DropExtension{Names:$3,Mode:$4,Pos:$1.pos} }

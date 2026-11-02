@@ -282,6 +282,19 @@ policy, shared roles and other targets. Parameter ACL authority is the shared ex
 it cluster-wide and Restore replaces it cluster-wide with valid destination
 identities. Session setting values are not shared or imported. Dump excludes
 cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
+
+The native built-in logical pg_stat_statements module is available at cluster
+startup; `CREATE EXTENSION ... VERSION '1.12'` installs its genuine functions and
+ordinary views in the selected database. Histories are bounded and shared across
+that Driver cluster's databases, independent of per-database SQL installation.
+Reset or successful Restore clears only the replaced database's runtime entries,
+not peer history or already owned results; failure leaves history intact.
+Dump serializes provider/view definitions and SQL state, never collected runtime
+history or live executors. Altered/moved/detached script views use the ordinary
+view/owner/membership codecs. Planning counts are actual accepted native builds,
+not PostgreSQL generic-plan cache invocation counts. This logical module does not
+load PostgreSQL C libraries, preload shared memory or persist shutdown files.
+
 Installed pgstattuple 1.5 provides the two pgstatindex text/regclass overloads.
 Their real function ACLs, fixed RECORD shapes and selected identities survive
 native controls; EXECUTE is checked even for NULL, independently of parent

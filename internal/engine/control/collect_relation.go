@@ -204,6 +204,9 @@ func collectViewDump(ctx context.Context, c *dumpCollection, a ids.ObjectAddress
 		}
 		c.Materialized = append(c.Materialized, table.DumpRelation{Owner: place.owner, Schema: ns.Name(), Name: r.Name(), Columns: r.Columns, Attributes: r.Attributes, Versions: stored.Versions, Ends: stored.Ends, Frontier: c.source.Frontier, Descriptor: r})
 	}
+	if r.RelationKind == catalog.ViewRelation && r.Comment != "" {
+		sql += "COMMENT ON VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " IS " + dump.CommentLiteral(r.Comment) + ";\n"
+	}
 	// Capture every source occurrence and expression dependency from the
 	// same immutable catalog used to render the definition. Attribute
 	// references depend on their parent relation, not its column OID.

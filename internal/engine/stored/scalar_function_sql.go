@@ -499,6 +499,17 @@ func (r ScalarRenderer) ScalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), []expr.Expr{n.Arg})
+	case plan.InstalledPgStatStatementsExpr:
+		if err := ValidateInstalledPgStatStatements(n, view); err != nil {
+			return "", err
+		}
+		procedure, _ := view.Procedure(n.Ref.Address)
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored statement statistics namespace")
+		}
+		r.record(n.Ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Children())
 	case plan.InstalledPgpArmorHeadersExpr:
 		if err := ValidateInstalledPgpArmorHeaders(n, view); err != nil {
 			return "", err

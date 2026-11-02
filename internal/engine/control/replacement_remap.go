@@ -36,6 +36,30 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 			return fmt.Errorf("stuntgres: missing coherent replacement remap")
 		}
 	}
+	// Fixed installed destinations can occupy another imported source address.
+	// Capture every moved priority before rekeying any of them, including cycles.
+	var priorities map[ids.ObjectAddress]ids.OID
+	for source, target := range mapping {
+		if source == target || next.Get(source) == nil {
+			continue
+		}
+		priority := next.DumpPriority(source)
+		if priority == 0 {
+			priority = source.ObjectID
+		}
+		if priorities == nil {
+			priorities = make(map[ids.ObjectAddress]ids.OID, len(mapping))
+		}
+		priorities[target] = priority
+	}
+	for source, target := range mapping {
+		if source != target && next.Get(source) != nil {
+			next.RemoveDumpPriority(source)
+		}
+	}
+	for target, priority := range priorities {
+		next.SetDumpPriority(target, priority)
+	}
 	originals := next.ResetMaps()
 	next.BeginBulkLoad(capacity)
 	err := func() error {
@@ -44,12 +68,6 @@ func RemapReplacementIdentities(current catalog.Read, next *catalog.State, tempo
 			target := a
 			if dest, ok := mapping[a]; ok {
 				target = dest
-				priority := a.ObjectID
-				if captured := next.DumpPriority(a); captured != 0 {
-					priority = captured
-					next.RemoveDumpPriority(a)
-				}
-				next.SetDumpPriority(target, priority)
 			}
 			remapped, err := remapReplacementDescriptor(current, mapping, a, target, d)
 			if err != nil {

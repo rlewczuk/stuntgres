@@ -30,6 +30,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, plIntoAction)
 	noticeStart := len(s.Op.Notices)
 	diagnostic := proc.PLDiagnosticQuery{Text: strings.TrimRight(raw.Text, " \t\r\n"), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
+	s.statementStatsSource, s.statementStatsOffset = diagnostic.Text, raw.Start.Offset
 	failure := func(cause error) error {
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, plIntoAction, diagnostic)
 	}

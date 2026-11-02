@@ -86,8 +86,10 @@ func TestInstalledProcedureForgery(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			v, ext := identityFixture("1.2")
 			p := *v.MustProcedure(ext.Members[0])
-			if _, err := ProcedureSymbol(v, v.MustProcedure(p.Address())); err != nil {
-				t.Fatal("invalid forgery baseline", err)
+			for _, identify := range []func(catalog.Read, *catalog.Procedure) (string, error){ProcedureSymbol, ProcedureInstallationName, ProcedureBindingName} {
+				if _, err := identify(v, v.MustProcedure(p.Address())); err != nil {
+					t.Fatal("invalid forgery baseline", err)
+				}
 			}
 			switch kind {
 			case "signature":
@@ -137,8 +139,10 @@ func TestInstalledProcedureForgery(t *testing.T) {
 			if kind == "missing_index" {
 				v.State().UnbindName(catalog.DescriptorNameKey(&p))
 			}
-			if _, err := ProcedureSymbol(v, &p); err == nil {
-				t.Fatal("forgery accepted")
+			for _, identify := range []func(catalog.Read, *catalog.Procedure) (string, error){ProcedureSymbol, ProcedureInstallationName, ProcedureBindingName} {
+				if _, err := identify(v, &p); err == nil {
+					t.Fatal("forgery accepted")
+				}
 			}
 		})
 	}

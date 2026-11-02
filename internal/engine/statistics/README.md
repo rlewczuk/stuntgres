@@ -80,6 +80,33 @@ invalidate even a mode round trip between accesses. Returned facts/maps are owne
 copies. Session activity has separate active/idle/disabled command state and does
 not change `current_query()` command authority.
 
+`Statements` is a separate cluster-owned bounded statement accumulator. Its leaf
+mutex protects owned entries and scalar active admissions, never a session,
+executor graph or catalog callback. `Begin` registers admitted and known
+prospective terminal keys together. `RecordPlan` and `RecordExecution` consume
+explicit successful key, cleaned raw source, timestamp, rows and measured time.
+An unanticipated terminal key registers atomically with its first record; earlier
+resulting-key-only clears are not retroactive. A destructive admitted-key clear
+always fences the original work. `Release` ends admission ownership on every
+successful or failed terminal; released tokens cannot publish.
+
+Eviction removes history, not active eligibility: later valid success merges into
+the current entry or allocates bounded new history using successful raw source
+and time. Existing representatives remain first. `Clear` matches active key slots
+even after eviction; minmax fences are key-specific and preserve cumulative
+moments. Owned snapshots survive all mutations. Actual all-entry removal resets
+global info, including filtered removal and the empty-store minmax edge.
+Planning and execution use Welford population moments. Sticky usage starts at
+the current median (initially10), decays by0.5 and resets to1 before first-success
+increment; completed usage decays by0.99. Deallocation takes the sorted
+pre-removal upper median and removes a least-used batch; `Info.Dealloc` counts
+batches, not victims. Runtime history and active admissions are not persistent
+SQL data.
+Zero-sample sticky admissions are not visible rows. Native planning samples
+represent real accepted construction events, including repeated prepared builds;
+fold hits do not fabricate generic-plan reuse. Exact accumulator arithmetic is
+independent of cross-engine clocks and physical planning invocation frequency.
+
 ## Testing
 
 Deterministic publication, reader, suppression, identity/reset and concurrent
@@ -88,6 +115,11 @@ Nesting, truncate, COW and pending-prefix accounting uses
 `make check RUN='^TestStatsSnapshotTransactionAccounting$'`, also with `RACE=1`.
 Public SQL scenarios live in `reference/session_state`, using
 `make check RUN='^TestReferenceStatsSnapshot'` in native and `REFERENCE=1` modes.
+Statement arithmetic, explicit admission release, filtered/minmax clear fencing,
+bounded sticky/median eviction and concurrent snapshots use
+`make check RUN='^TestPgStatStatements(Accumulator|Clear|Eviction)'`, also with
+`RACE=1`.
+
 
 Core outside-transaction gating, virtual-time one-shot retry and callback lifetime
 proof uses `make check RUN='^TestStatsSnapshotIdlePublicationAuthority$'`, also with

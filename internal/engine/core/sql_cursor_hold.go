@@ -173,6 +173,17 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
+	frame := c.statementStats
+	var statsStart time.Time
+	if frame != nil {
+		statsStart = time.Now()
+		defer func() {
+			if !statsStart.IsZero() {
+				frame.elapsed += time.Since(statsStart)
+			}
+			frame.failed = frame.failed || err != nil
+		}()
+	}
 	c.admit(s)
 	authority := c.authority
 	defer func() {
@@ -219,6 +230,9 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 				break
 			}
 			count++
+			if frame != nil {
+				frame.rows++
+			}
 		}
 	}
 	// Typed values/schema are already owned. Rendering maps belong to the
@@ -226,6 +240,11 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if err = s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
+	if frame != nil {
+		frame.elapsed += time.Since(statsStart)
+		statsStart = time.Time{}
+	}
+	s.captureStatementStatsTerminal(frame)
 	if err = c.releaseProducer(s.Op.Context()); err != nil {
 		return err
 	}
@@ -302,6 +321,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	}
 	result.Count = moved
 	if rows != nil {
+		result.UtilityRows = moved
 		result.Rows = rows
 	}
 	return result, nil

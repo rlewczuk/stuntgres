@@ -86,9 +86,12 @@ type EngineFactory func(definitions []settings.Definition, database string, trac
 type Result struct {
 	CommandTag string
 	Count      int64
-	Rows       exec.RowResult
-	RowSets    []exec.RowResult
-	Created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
+	// UtilityRows is the actual processed count at successful utility completion,
+	// independently of the API affected count and displayed command tag.
+	UtilityRows int64
+	Rows        exec.RowResult
+	RowSets     []exec.RowResult
+	Created     ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 
 // NewEngine seeds one engine's state: the catalog, storage and role stores,
@@ -97,7 +100,7 @@ type Result struct {
 // registers no statement dispatch or factory; the composition does.
 func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros}
+	cluster := &DatabaseCluster{StartedAt: time.Now().UnixMicro() - activityEpochUnixMicros, StatementStatistics: statistics.NewStatements(5000, time.Now())}
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
 	e.Analysis = BindingHost{Engine: e}
 	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
@@ -235,6 +238,9 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 		if err := e.registerExtension(registration.name, registration.implementation); err != nil {
 			return nil, err
 		}
+	}
+	if err := e.registerExtension("pg_stat_statements", extension.StockPgStatStatements); err != nil {
+		return nil, err
 	}
 	types := sqltype.Builtins()
 	// The seed sets thousands of entries, so it is one bulk load.

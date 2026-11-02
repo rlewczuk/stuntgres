@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/statistics"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -28,7 +29,10 @@ type DatabaseCluster struct {
 	DefaultTarget  *Engine
 	Targets        map[string]*Engine
 	NextOID        ids.OID
-	Seed           *Engine
+	// StatementStatistics survives database catalog replacement and session end.
+	// Its private mutex is a leaf beneath every runtime/authority lock.
+	StatementStatistics *statistics.Statements
+	Seed                *Engine
 	// AdmissionMu protects only reservation states/counts. Metadata admission
 	// takes Mu first; terminal cleanup takes AdmissionMu without Mu or sessionMu.
 	AdmissionMu sync.Mutex
@@ -44,7 +48,7 @@ type DatabaseCluster struct {
 	replicationOriginProgressGeneration map[ids.ObjectAddress]uint64
 	// Exported cuts share this cluster mutex with all runtime publication.
 	snapshotSerial uint64
-	snapshots map[string]*exportedSnapshot
+	snapshots      map[string]*exportedSnapshot
 	// Seed initialization never holds mu and never invokes host callbacks.
 	SeedOnce  sync.Once
 	SeedError error

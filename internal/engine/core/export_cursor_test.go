@@ -16,7 +16,7 @@ import (
 
 // DisposeSQLCursors calls disposeSQLCursors.
 func DisposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
-	return disposeSQLCursors(ctx, cursors)
+	return disposeSQLCursors(ctx, cursors, nil)
 }
 
 // SQLCursor names sqlCursor.

@@ -74,6 +74,9 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 			return core.Result{}, err
 		}
 	}
+	// Concurrent reconciliation may change the replacement row vector, but the
+	// command processed the population query's actual output before that diff.
+	processed := int64(len(rows))
 	var stats view.MaterializedCounts
 	_, _, statsPolicy := scope.Op.EffectiveSettings().StatsConfiguration()
 	var collect *view.MaterializedCounts
@@ -121,7 +124,10 @@ func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, calle
 	} else {
 		scope.AbortStatsPopulation()
 	}
-	return core.Result{}, err
+	if err != nil {
+		return core.Result{}, err
+	}
+	return core.Result{UtilityRows: processed}, nil
 }
 
 // Population's effective principal and expression identity are restored before

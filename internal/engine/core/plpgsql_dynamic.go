@@ -42,7 +42,7 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	failure := func(cause error) error {
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, action, diagnostic)
 	}
-	value, _, _, err := s.evaluatePLExpression(f, checked.Command, h.read, nil, plNoticeOrigin{})
+	value, _, _, err := s.evaluatePLExpression(f, checked.Command, h.read, nil, raw.Command, plNoticeOrigin{})
 	if err != nil {
 		diagnostic = proc.PLCursorExpressionDiagnostic(err, f.Program.Source, raw.Command.Start, raw.Command.End)
 		return failure(err)
@@ -57,7 +57,7 @@ func (h *plHost) Dynamic(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	parameters := make([]sqltype.Value, len(checked.Using))
 	inputs := make([]sqltype.Usage, len(checked.Using))
 	for i, query := range checked.Using {
-		value, usage, _, e := s.evaluatePLExpression(f, query, h.read, nil, plNoticeOrigin{})
+		value, usage, _, e := s.evaluatePLExpression(f, query, h.read, nil, raw.Using[i], plNoticeOrigin{})
 		if e != nil {
 			expression := raw.Using[i]
 			diagnostic = proc.PLCursorExpressionDiagnostic(e, f.Program.Source, expression.Start, expression.End)
@@ -147,6 +147,7 @@ func (h *plHost) dynamicCommand(run *proc.PLRun, statement parser.Statement, com
 	defer func() { s.plAtomic = previousAtomic }()
 	identity := s.sqlRoutine.plDiagnostic
 	restore := s.ActivateSQLRoutine(inputs, h.read)
+	s.statementStatsSource = command
 	s.sqlRoutine.scalar, s.sqlRoutine.rows, s.sqlRoutine.plPlanning = false, true, true
 	s.sqlRoutine.closedParameters = true
 	s.sqlRoutine.plDiagnostic = identity

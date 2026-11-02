@@ -506,6 +506,21 @@ No physical WAL position or flush guarantee is serialized.
   CREATE versus CREATE+UPDATE preserves surviving release/declaration origins.
   Source-absent declarations are retired, and absent origin extensions disappear
   without deleting detached survivors. Same-name cohorts replay serially.
+  Providers with ordinary `ConsumerViews` create those real views, then the
+  schedule immediately detaches/drops only those fresh canonical products in
+  their actual staging coordinates, in reverse manifest order. This precedes
+  function placement/retirement and uses neither CASCADE nor IF EXISTS.
+  Central Restore admission accepts only a single qualified ordinary DROP VIEW,
+  unconditional and RESTRICT, outside temporary namespaces. The normal view DDL
+  owner still enforces ownership and dependency cleanup; this grants neither
+  CASCADE nor broader DROP replay.
+  The ordinary view codec recreates source bodies, moved names,
+  detached/foreign membership, owners and ACLs exactly once; removed views stay
+  absent and unrelated canonical-name tables are not mistaken for script state.
+  Ordinary view comments follow their CREATE VIEW in the same owner-scoped
+  declaration through genuine COMMENT ON VIEW. Fresh ordinary creation has no
+  script comment to resurrect, so absent source text needs no synthetic repair.
+  Existing final membership/owners-v3 replay completes those ordinary roots.
   Every surviving reconstructed extension header emits an explicit COMMENT after
   its owner metadata, including IS NULL so reinstall cannot resurrect a removed
   default. The unchanged plpgsql seed shortcut omits only text equal to its
@@ -904,8 +919,9 @@ candidate, these owning operations retain the engine's error contracts:
 
 1. `PersistentReplacementCatalog`, `TemporarySet`,
    `RetainTemporaryBuiltinTypes`, `CheckTemporaryDependencies`,
-   `TemporaryCollisionMapping`, `RemapReplacementIdentities`
-   (`persistent_replacement.go`, `temporary_*.go`, `replacement_remap*.go`).
+   `CompatibleInstallationIdentities`, `ReplacementCollisionMapping`,
+   `RemapReplacementIdentities` (`persistent_replacement.go`,
+   `installation_identity.go`, `temporary_*.go`, `replacement_remap*.go`).
    A retained catalog-only NULL composite closes over its actual member types
    and companion array. Otherwise type reownership rebuilds the fixed description
    against the candidate's current member generations, preserving old captures.
@@ -914,6 +930,18 @@ candidate, these owning operations retain the engine's error contracts:
    selects current members and generations; retained TEMP roots keep their
    exact local authority. GIN option replay uses the existing qualified-target
    ALTER format, including malformed-option atomicity witnesses.
+   Compatible active native installation headers and procedure roots select
+   existing destination identities only after full header/provider validation
+   and matching sealed release/declaration roles. Current public names locate
+   the header but grant no callable authority. Detached historical cohorts,
+   ordinary added functions and mutable SQL-consumer views are not matched.
+   Bootstrap handlers retain their separate class-owned replacement policy.
+   These destinations are fixed assignments in the same collision plan: their
+   ordinary imported occupants move, retained TEMP objects cannot be overwritten,
+   and alias endpoint constraints include the fixed installed destinations.
+   Dump priorities follow their original descriptors through one simultaneous
+   rekey, including permutations and occupied imported destinations; previously
+   captured priorities and unaffected entries remain unchanged.
    Collision remapping stays selective outside actual affected alias endpoint
    components. All captured range/member order edges are structural facts;
    unrelated collisions, unused families and separate singleton values do not
@@ -923,8 +951,8 @@ candidate, these owning operations retain the engine's error contracts:
    Complete search precedes every further acquisition and stops immediately on
    success, leaving unnecessary later intervals and future capacity untouched.
    Only saturated/impossible intervals permit sparse floor jumps through the
-   existing allocator. Fixed numeric endpoints remain fixed; TEMP identities
-   are excluded destinations, not source anchors. Exhausted legal complete
+   existing allocator. Fixed numeric and authenticated installed endpoints remain
+   fixed; TEMP identities are excluded destinations, not source anchors. Exhausted legal complete
    choices alone justify no-fit. Provider certification remains unlocked.
    The candidate cursor spans all preservation OID consumers, including view
    rules, and publishes only with the final catalog installation. A no-fit,
@@ -967,6 +995,9 @@ Publication definition preflight, replay and immutable capture units use
 `RUN='^TestPublicationDump'`.
 SQL-free user-constraint identity collision/remint and bounded Restore admission
 units use `RUN='^TestTriggerDeferred'`.
+Installation scheduling and ordinary scripted-consumer retirement units use
+`RUN='^Test(InstallationReplay|PgStatStatementsInstallationReplay)'`; public
+replacement behavior remains in the shared reference scenarios.
 
 Package units drive the Restore driver and hooks with a fake `Host`; engine
 units cover the collect, emit, remap and TEMP preservation callers. Public
@@ -980,9 +1011,11 @@ owner before mutation, retaining all 29 providers' genuine immutable dictionary/
 configuration defaults and Hindi's/Russian's cross-provider mapping edges for retirement
 assertions.
 
-Provider replay proof covers key cycles, move-before-rename, owner-last ordering,
-invalid identities, internal pseudotype signatures, missing argument types and
-the explicit-ACL boundary:
+Provider replay orders overloads by resolved SQL argument identities, not
+destination-local numeric signatures; numeric signatures remain collision keys.
+Proof covers allocation-independent ordering, key cycles, move-before-rename,
+owner-last ordering, invalid identities, internal pseudotype signatures, missing
+argument types and the explicit-ACL boundary:
 `make check RUN='^TestProviderReplay'` and
 `make check RUN='^TestRestoreForeignProvider'`.
 Run `make check RUN='^TestReferenceRoutineAlter(ProviderPersistence|Persistence|ExplicitACLPersistenceBoundary)$'`
@@ -1009,6 +1042,7 @@ compare byte for byte. Never commit the program.
   in native and `REFERENCE=1` modes
 - FDW dump units: `RUN='^TestFDW(Dump|ReplacementRemap)'`
 - Engine remap and TEMP preservation: `RUN='^Test(RuleNamedConstraintRemap|ViewRuleOIDUniquenessAfterRestore|PartitionConstraintsDefinitionRemapping|.*RetainedTemporary.*|.*TemporaryCollision)$'`
+- Simultaneous replacement priority/state rekey: `RUN='^TestReplacementDumpPriority'`.
 - Round trips: `RUN='^TestReference(Control|DumpRoundTrip)'`
 - Cast replay windows: `RUN='^TestReferenceCastDefinition(ReplayPhases|ReplayConflicts|RawFloat4Persistence|ForeignDefaults)$'`
 - Ownerless cast membership, replay semantics and replacement remapping:

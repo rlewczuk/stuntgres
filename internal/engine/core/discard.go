@@ -33,7 +33,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	var reset authorization.RoleState
 	if raw.Category == parser.DiscardAll {
 		var err error
-		reset, err = s.discardAllPreflight()
+		reset, err = s.discardAllPreflight(raw)
 		if err != nil {
 			return Result{}, err
 		}
@@ -80,7 +80,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 			e.ReplacementMu.RUnlock()
 			s.ReplacementRead = false
 		}
-		if err := disposeSQLCursors(s.Op.Context(), PayloadOf(sess).Cursors.clear()); err != nil {
+		if err := disposeSQLCursors(s.Op.Context(), PayloadOf(sess).Cursors.clear(), s); err != nil {
 			return Result{}, err
 		}
 		PayloadOf(sess).PreparedSQL.ClearDefinitions()
@@ -105,7 +105,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	return Result{}, nil
 }
 
-func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
+func (s *StatementScope) discardAllPreflight(raw *parser.Discard) (reset authorization.RoleState, err error) {
 	sess, e := s.Op.Session, s.Engine()
 	ticket := sess.Advisory.Ticket
 	if !e.Locks.ValidSession(ticket, sess.SessionToken) {
@@ -113,6 +113,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
+	defer func() { s.AdmitUtilityStatementStatsLocked(raw, reset.CurrentUser) }()
 	sess.Settings.Mu.Lock()
 	defer sess.Settings.Mu.Unlock()
 	sess.Mu.Lock()
@@ -120,7 +121,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	if err := sess.Settings.AdmitLocked(DomainOf(e), s.Op); err != nil {
 		return authorization.RoleState{}, err
 	}
-	reset := session.DiscardRoleReset(sess.Authorization)
+	reset = session.DiscardRoleReset(sess.Authorization)
 	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
 	if err := session.ValidateRoleResetLocked(sess.Authorization, reset, roles); err != nil {
 		return authorization.RoleState{}, err

@@ -10,6 +10,18 @@ evaluates them. Node `Eval` methods never name engine state: they use
 volatile zero-child trigger kernel. Rebuild/substitution preserve that carrier;
 runtime validation never borrows an active trigger invocation for scalar SQL.
 
+`InstalledPgStatStatementsExpr` preserves the genuine Procedure/Ref and Boolean
+child around the volatile fixed-record kernel. Scalar info and set-returning
+statistics keep distinct admission/cardinality. Rebuild, substitution and stored
+remapping retain provider authority, not runtime history or visibility grants.
+
+Each concrete expression owns a static `JumbleFields` discriminator. Installed
+and lexical wrappers override promoted kernel projections without adding a
+second tag; selected plan fields and operands remain with the analyzed visitor.
+`RowComparisonExpr` also projects its bound comparison kind exactly once;
+pair operator, operator-family and input-collation identities remain ignored.
+
+
 ## Imports
 
 Layer L6 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
@@ -30,6 +42,9 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `storage`, `parser`,
   retain immutable accepted range names and final column aliases for presentation.
   Structural copies and stored remaps share that immutable label backing;
   labels never change schemas, expression slots, provenance or execution authority.
+  `JoinNode.Comma` retains written FROM-list versus explicit join structure for
+  statement fingerprinting. Rebuild/remap preserve it; it supplies no execution
+  policy or semantic-equality/EXPLAIN/deparse distinction.
   Invocation-local named relations retain only symbolic name, typed schema and
   normal presentation/presence labels. They never retain rows, frame identity,
   catalog references or authority; execution resolves their current backing.

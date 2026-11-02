@@ -24,6 +24,10 @@ func PathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 		StagedTemporary: auth.StagedTemporary,
 		Restricted:      auth.materializedPopulation || auth.restrictedPath,
 	}
+	if auth.scriptNamespace != (ids.ObjectAddress{}) {
+		in.Prefix, in.Restricted = auth.scriptNamespace, false
+		return in
+	}
 	if auth.restoreDefinitionLookup {
 		// The live authority capture verified the authenticated bootstrap and
 		// isolated import marker. Elevate only lookup's permission view; keep
@@ -44,6 +48,14 @@ func PathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 		in.Entries = auth.inputs.Settings.Definitions()["search_path"].BootValue().Path
 	}
 	return in
+}
+
+// WithScriptNamespace captures an extension script's one explicit namespace;
+// implicit pg_catalog remains supplied by the ordinary lookup owner. It never
+// mutates the session's search_path or admits its TEMP namespace as fallback.
+func (auth AuthorizationView) WithScriptNamespace(namespace ids.ObjectAddress) AuthorizationView {
+	auth.scriptNamespace = namespace
+	return auth
 }
 
 // ExplicitPath runs under the engine mutex and captures one immutable setting

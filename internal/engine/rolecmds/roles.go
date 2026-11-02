@@ -35,25 +35,22 @@ func ExecuteRole(e *core.Engine, op *session.Operation, stmt parser.Statement, c
 		return membershipLocked(e, op, v, s)
 	case *parser.RoleSelection:
 		target, err := role.SetRoleTarget(v.View, s)
+		if scope := core.ActiveScopeOfLease(op.Lease); scope != nil {
+			scope.AdmitUtilityStatementStatsLocked(s, target.CurrentUser)
+		}
 		if err != nil {
 			return core.Result{}, err
 		}
 		return core.Result{}, switchSessionRoleLocked(e, op, target, s.Local)
 	case *parser.SessionAuthorization:
 		target, err := role.SessionAuthorizationTarget(v.View, s)
+		if scope := core.ActiveScopeOfLease(op.Lease); scope != nil {
+			scope.AdmitUtilityStatementStatsLocked(s, target.CurrentUser)
+		}
 		if err != nil {
 			return core.Result{}, err
 		}
-		state := v.SessionRoleState
-		state.SessionUser, state.CurrentUser = target, target
-		state.ActiveRole, state.RoleText = false, ""
-		if s.Default && state.ResetRole != (authorization.PrincipalRef{}) {
-			if _, err := v.Roles.Descriptor(state.ResetRole); err != nil {
-				return core.Result{}, err
-			}
-			state.CurrentUser, state.ActiveRole, state.RoleText = state.ResetRole, true, state.ResetRoleText
-		}
-		return core.Result{}, switchSessionRoleLocked(e, op, state, false)
+		return core.Result{}, switchSessionRoleLocked(e, op, target, false)
 	case *parser.DropRole:
 		plan, err := role.PlanDropRoles(RoleHost{core.DDLHost{E: e, Op: op}}, v, s)
 		if err != nil {

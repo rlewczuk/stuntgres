@@ -41,6 +41,8 @@ func parameterGrantSetting(name string) bool {
 	switch name {
 	case settings.PgcryptoBuiltinCrypto:
 		return true
+	case "pg_stat_statements.track", "pg_stat_statements.track_utility", "pg_stat_statements.track_planning":
+		return true
 	case "track_activities", "track_counts", "track_functions", "track_io_timing", "track_wal_io_timing":
 		return true
 	case "commit_delay", "wal_compression", "wal_init_zero", "wal_recycle":

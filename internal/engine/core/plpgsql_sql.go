@@ -49,8 +49,10 @@ func (h *plHost) Command(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if checked.Kind == parser.PLPerformSQL {
 		text = "SELECT" + text[len("perform"):]
 	}
+	s.statementStatsSource, s.statementStatsOffset = text, raw.Start.Offset
 	diagnostic := proc.PLDiagnosticQuery{Text: text, Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
 	if checked.Kind == parser.PLPerformSQL {
+		s.statementStatsOffset++
 		diagnostic.Offset++
 	}
 	failure := func(cause error) error {

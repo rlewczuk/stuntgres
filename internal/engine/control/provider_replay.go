@@ -191,7 +191,9 @@ func planProviderReplay(providers []providerReplay) ([]string, error) {
 		if n := strings.Compare(a.original.name, b.original.name); n != 0 {
 			return n
 		}
-		return strings.Compare(string(a.original.signature), string(b.original.signature))
+		// Resolved SQL argument identities survive allocation/remapping; numeric
+		// signatures remain collision keys, never portable ordering authority.
+		return strings.Compare(a.arguments, b.arguments)
 	})
 	occupied := make(map[providerKey]int, len(providers))
 	reserved := make(map[providerKey]bool, len(providers)*2)

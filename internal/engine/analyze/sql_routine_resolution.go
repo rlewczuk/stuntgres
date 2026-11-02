@@ -1209,6 +1209,17 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 					}
 				}
 			}
+			// CallStmt selects its analyzed OUT expressions even though they
+			// must never become execution/fold children. Retain only their
+			// scalar projection before the private argument slice is compacted.
+			var outputFrames [16]uint32
+			outputs := StatementJumble{hash: 14695981039346656037, frames: outputFrames[:0]}
+			for i, arg := range args {
+				if remap[i] == 0 {
+					outputs.expression(arg)
+				}
+			}
+			b.callOutputJumble = &statementCallJumble{hash: outputs.hash, locations: outputs.Locations, lists: outputs.Lists, parameters: outputs.parameterLocations, highest: outputs.HighestParameter}
 			count := 0
 			var names []parser.Identifier
 			if len(argNames) != 0 {
@@ -1285,7 +1296,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	previousAggregate := b.Clause.selectedAggregate
 	previousProcedure := b.Clause.selectedProcedure
 	b.Clause.selectedProcedure = d
-	symbol, err := callableProviderSymbol(selected.auth.ReadCatalog(), d)
+	binding, err := callableProviderBindingName(selected.auth.ReadCatalog(), d)
 	if err != nil {
 		b.Clause.selectedProcedure = previousProcedure
 		return nil, err
@@ -1321,7 +1332,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	if aggregate, ok := original.(parser.AggregateExpr); ok {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		aggregate.Schema = &parser.Identifier{Text: namespace.Name()}
-		aggregate.Name = symbol
+		aggregate.Name = binding
 		if aggregate.Within {
 			count := len(aggregate.Args)
 			aggregate.Order = append([]parser.OrderKey(nil), aggregate.Order...)
@@ -1337,7 +1348,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 	if d.RoutineKind == catalog.AggregateRoutine || d.RoutineKind == catalog.WindowRoutine {
 		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		lowered := parser.AggregateExpr{
-			Name: symbol, Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
+			Name: binding, Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
 			Star: raw.Star, Distinct: raw.Distinct, Variadic: raw.Variadic, Order: raw.Order,
 			Filter: raw.Filter, Window: raw.Window, Within: raw.Within, WithinPos: raw.WithinPos,
 		}
@@ -1363,7 +1374,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		return node, err
 	}
 	namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
-	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: symbol}}}
+	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: binding}}}
 	raw.Args = args
 	return b.BindFunctionProvider(raw)
 }

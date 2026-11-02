@@ -21,6 +21,9 @@ import (
 type EndResult struct{ Committed bool }
 
 func clearTransaction(t *session.TransactionOwner, committed bool) {
+	if !committed {
+		discardStatementStatsPortals(t)
+	}
 	releaseReplicationOrigins(t)
 	settleStatsLedger(EngineOf(t.Session), t.Session, &t.Stats, false)
 	retireStatsObjects(EngineOf(t.Session), t.Session, t.Ref.Epoch(), committed, t.Catalog)
@@ -454,6 +457,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			return Result{}, missingSQLPrepared(execute.Name.Text)
 		}
 		stmt = entry.Body
+		s.statementStatsSource = entry.Source
 		s.Expected = &entry.Description
 		count = entry.Description.Parameters.Count
 		_, copyBody := stmt.(*parser.Copy)
@@ -481,6 +485,10 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if err := s.Gate(stmt); err != nil {
 		return Result{}, err
 	}
+	if err := s.beginUtilityStatementStats(stmt); err != nil {
+		return Result{}, err
+	}
+	defer func() { s.statementStatsReturned(&result, err) }()
 	if err := s.parallelExecutionEligibility(stmt); err != nil {
 		return Result{}, err
 	}
@@ -510,7 +518,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			}
 		}
 		copied, copyErr := s.copyProtocol(copy, stream.source, stream.destination, stream.hooks)
-		return Result{Count: copied}, copyErr
+		return Result{Count: copied, UtilityRows: copied}, copyErr
 	}
 	if control, ok := stmt.(*parser.SavepointControl); ok {
 		return s.executeSavepoint(control, count)
@@ -677,9 +685,9 @@ func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope 
 	wire := scope != nil && (scope.protocolOrZero().command || scope.protocolOrZero().simple)
 	var err error
 	if wire && len(cursors) != 0 {
-		err = scope.protocolTerminalIO(func() error { return disposeSQLCursors(ctx, cursors) })
+		err = scope.protocolTerminalIO(func() error { return disposeSQLCursors(ctx, cursors, scope) })
 	} else {
-		err = disposeSQLCursors(ctx, cursors)
+		err = disposeSQLCursors(ctx, cursors, scope)
 	}
 	if failure := fdw.Rollback(ctx, participants); err == nil {
 		err = failure

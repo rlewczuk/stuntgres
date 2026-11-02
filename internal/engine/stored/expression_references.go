@@ -203,6 +203,8 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 		if n.Usage.Type != nil {
 			r.Add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(n.Usage.Type.ID())})
 		}
+	case plan.InstalledPgStatStatementsExpr:
+		r.Add(n.Ref.Address)
 	case plan.InstalledPgpArmorHeadersExpr:
 		r.Add(n.Ref.Address)
 	case plan.InstalledTablefuncCrosstabExpr:

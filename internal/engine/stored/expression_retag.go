@@ -846,6 +846,18 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledDblinkGetPkey(n, view)
 		rebound = n
+	case plan.InstalledPgStatStatementsExpr:
+		if n.ShowText != nil {
+			n.ShowText = child(n.ShowText)
+		}
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok {
+			return nil, false, fmt.Errorf("stuntgres: missing remapped statement statistics function")
+		}
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledPgStatStatements(n, view)
+		rebound = n
 	case plan.InstalledPgpArmorHeadersExpr:
 		n.Arg = child(n.Arg)
 		proc, ok := originalProcedure(n.Procedure)

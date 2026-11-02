@@ -87,7 +87,7 @@ func TestStatementPhases(t *testing.T) {
 	if !SnapshotTargetAdmission(&parser.Copy{From: true}) || SnapshotTargetAdmission(&parser.Copy{}) || !SnapshotTargetAdmission(&parser.Merge{}) || SnapshotTargetAdmission(&parser.Select{}) {
 		t.Fatal("snapshot target admission")
 	}
-	if !ReplacementRead(&parser.Truncate{}) || !ReplacementRead(&parser.Comment{Kind: parser.CommentColumn}) || ReplacementRead(&parser.Comment{Kind: parser.CommentSequence}) || ReplacementRead(&parser.CreateTable{}) {
+	if !ReplacementRead(&parser.Truncate{}) || !ReplacementRead(&parser.Comment{Kind: parser.CommentColumn}) || !ReplacementRead(&parser.Comment{Kind: parser.CommentView}) || ReplacementRead(&parser.Comment{Kind: parser.CommentSequence}) || ReplacementRead(&parser.CreateTable{}) {
 		t.Fatal("replacement reads")
 	}
 	for stmt, want := range map[parser.Statement]DescribeClass{

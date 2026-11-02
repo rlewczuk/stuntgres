@@ -45,22 +45,31 @@ func SetRoleTarget(view access.View, s *parser.RoleSelection) (authorization.Rol
 	return state, nil
 }
 
-// SessionAuthorizationTarget returns the role SET SESSION AUTHORIZATION
-// switches to, after checking that the authenticated role may.
-func SessionAuthorizationTarget(view access.View, s *parser.SessionAuthorization) (authorization.PrincipalRef, error) {
+// SessionAuthorizationTarget returns the complete physical state for SET or
+// RESET SESSION AUTHORIZATION, after checking authenticated-user authority.
+func SessionAuthorizationTarget(view access.View, s *parser.SessionAuthorization) (authorization.RoleState, error) {
 	target := view.State.Authenticated
 	if !s.Default {
 		d, ok := view.Roles.Lookup(s.Name)
 		if !ok {
-			return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
+			return authorization.RoleState{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
 		}
 		target = d.Ref
 	}
 	authenticated, _ := view.Roles.Descriptor(view.State.Authenticated)
 	if !authenticated.Superuser && target != authenticated.Ref {
-		return authorization.PrincipalRef{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
+		return authorization.RoleState{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 	}
-	return target, nil
+	state := view.SessionRoleState
+	state.SessionUser, state.CurrentUser = target, target
+	state.ActiveRole, state.RoleText = false, ""
+	if s.Default && state.ResetRole != (authorization.PrincipalRef{}) {
+		if _, err := view.Roles.Descriptor(state.ResetRole); err != nil {
+			return authorization.RoleState{}, err
+		}
+		state.CurrentUser, state.ActiveRole, state.RoleText = state.ResetRole, true, state.ResetRoleText
+	}
+	return state, nil
 }
 
 // DropRolesPlan is a decided DROP ROLE: the role record with the roles

@@ -57,7 +57,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   new database descriptor (nil: unchanged) and the warnings, also before a
   returned error.
 - **Role DDL** (`roles.go`): `SetRoleTarget` and
-  `SessionAuthorizationTarget` pick and check the new role;
+  `SessionAuthorizationTarget` pick and check the complete physical role state;
   `PlanDropRoles` checks DROP ROLE (superuser gate, 42704, 55006,
   predefined roles, sorted 2BP01 dependency details) and returns the
   retired role record in a `DropRolesPlan`.
@@ -123,9 +123,11 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   names and released legacy aliases without validating or creating providers.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
-  `PlanObjectComment` resolves a schema, extension, table, foreign table or column
-  (relations through the engine's locked ref), checks kind, schema USAGE where
-  applicable and live ownership, and returns an immutable replacement revision.
+  `PlanObjectComment` resolves a schema, extension, table, ordinary view, foreign
+  table or column (relations through the engine's locked ref), checks kind,
+  schema USAGE where applicable and live ownership, and returns an immutable
+  replacement revision. A VIEW target requires the actual ordinary-view kind;
+  its comment changes no stored query, column layout or membership authority.
   Extension headers have no schema-USAGE requirement.
   These existing kinds work in autocommit and explicit transactions. Object
   metadata is database-local; role text is cluster-shared, with private changes

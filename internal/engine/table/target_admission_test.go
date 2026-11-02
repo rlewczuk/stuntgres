@@ -39,6 +39,7 @@ func TestTableTargetAdmission(t *testing.T) {
 		{"CREATE INDEX CONCURRENTLY ON t(a)", Target{Mode: lock.ShareUpdateExclusive, OwnerOnly: true}, []string{"t"}},
 		{"ALTER TABLE IF EXISTS t OWNER TO r", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true, IfExists: true}, []string{"t"}},
 		{"COMMENT ON TABLE t IS 'x'", Target{Mode: lock.ShareUpdateExclusive}, []string{"t"}},
+		{"COMMENT ON VIEW s.v IS 'x'", Target{Mode: lock.ShareUpdateExclusive}, []string{"s", "v"}},
 		{"COMMENT ON COLUMN s.t.a IS 'x'", Target{Mode: lock.ShareUpdateExclusive}, []string{"s", "t"}},
 		{"ALTER TABLE t DROP COLUMN a", Target{Mode: lock.AccessExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},
 		{"ALTER TABLE t ATTACH PARTITION c DEFAULT", Target{Mode: lock.ShareUpdateExclusive, OwnerOnly: true, Rename: true}, []string{"t"}},

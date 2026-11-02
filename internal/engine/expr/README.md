@@ -26,6 +26,13 @@ imports only `ids`, `parser`, `sqlstate`, `sqltype` and the standard library.
   unknown-NULL marker, captured REGCLASS reference, collation conflict data,
   routine references); its methods implement the metadata half of `Expr`.
   `InfoOf` copies it for a wrapper without `UnknownNull` or `RegclassRef`.
+- **`StatementJumbler` / `StatementJumbleChildren`**: pure streaming projections
+  of concrete static discriminators, selected fields, lexical children and
+  released implicit typed constants. Each admitted expression owns its one tag;
+  wrappers cannot inherit a different concrete family's discriminator.
+  `JumbleConst` supplies only a type ID, never a runtime
+  expression, datum, descriptor or replacement location. The sink cannot
+  evaluate or access runtime state; ordinary callable IDs stay with their owner.
 - **`UnknownInput`**: immutable raw literal and ordered resolved transparent-cast
   provenance for one concrete TEXT literal. Each chain step authenticates its
   exact child syntax and admitted target, without an executable UNKNOWN value.

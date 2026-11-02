@@ -62,6 +62,14 @@ func WithAlterSystemDisabled() StartupOption {
 	return func() { alterSystemDisabled = true }
 }
 
+var pgStatStatements bool
+
+// WithPgStatStatements preloads the genuine module on the package's oracle.
+// Native scenarios still use their ordinary built-in provider configuration.
+func WithPgStatStatements() StartupOption {
+	return func() { pgStatStatements = true }
+}
+
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
 func Main(m *testing.M, options ...StartupOption) (code int) {

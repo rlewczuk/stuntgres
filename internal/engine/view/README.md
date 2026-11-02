@@ -23,6 +23,12 @@ imports `view`.
 
 ## What it owns
 
+`StageCreate` requires the narrow `CreateHost` constructor capability, not the
+unrelated rule/policy/trigger binders of `StageHost`. Ordinary view commands and
+postseal extension consumers use the same `CreateTarget`/`CheckCreate`/
+`StageCreate` path, rowtype mechanics and frozen provider references.
+
+
 - **DDL decisions** (`host.go`, `create.go`, `alter_drop.go`, `rule_ddl.go`,
   `policy_ddl.go`, `trigger_ddl.go`, `trigger_lifecycle.go`, `definition.go`):
   `Host` (stage-less: allocation, the access view, relation resolution, the

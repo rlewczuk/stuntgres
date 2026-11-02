@@ -64,6 +64,7 @@ func (h *statementHost) ExecuteNestedSQL(statement parser.Statement, read catalo
 		s.View, s.rlsDataRefs = view, refs
 	}
 	defer func() { err = restore(err) }()
+	s.statementStatsSource = request.Text
 	s.sqlRoutine.scalar, s.sqlRoutine.nestedCursor, s.sqlRoutine.readOnlySPI = false, true, request.ReadOnly
 	diagnose := func(err error) error {
 		if request.Diagnose {

@@ -99,6 +99,14 @@ import this package directly.
   The six cumulative-collector settings (`stats_fetch_consistency` and the five
   tracking switches) are explicitly classified as zero-bit definitions: their
   flags inquiry returns a non-NULL empty array, independently of SET privilege.
+- **Startup statement module** (`pgstatstatements.go`): the stock logical
+  statement collector's five definitions join the immutable registry at startup,
+  before database-local extension installation. All five have explicitly
+  classified zero-bit release flags. Values, captured defaults, privileged/context
+  checks and transaction/invocation restoration use the ordinary session store.
+  This recognition neither loads a PostgreSQL C library
+  nor adds a second settings lifetime; the save descriptor concerns external
+  server shutdown files, not native SQL Dump history.
 - **Private pgcrypto recipe** (`pgcrypto.go`): `PgcryptoDefinition` creates one
   owned immutable enum/default recipe for a physical module attachment. It is
   absent from the frozen registry and ordinary startup-provider enumeration;
@@ -767,6 +775,21 @@ remain unchanged. Unit selectors are TestResourceSettingsDescriptors,
 TestResourceSettingsValidation, TestResourceSettingsStartupDefaults,
 TestResourceSettingsTempInitialization, TestResourceTemporaryAccessBoundaries and
 TestResourceTemporaryInitializedValidation.
+
+## Statement statistics module settings
+
+The native built-in logical pg_stat_statements module registers its five released
+definitions at cluster startup. SQL extension installation is database-local and
+does not create, reset or duplicate session configuration. `track` (none/top/all),
+`track_utility` and `track_planning` use ordinary privileged parameter SET
+authority; max is startup-only (boot5000, range100..1073741823), and save is
+sighup metadata for PostgreSQL's external restart-file mechanism. The reserved
+module prefix cannot be replaced by public registration or new placeholders.
+All current/default/local/savepoint/invocation values remain in SettingsStore.
+Native collection does not load shared_preload_libraries or write server files.
+`plan_cache_mode` retains its existing native effects: statement statistics count
+real accepted planning builds, not an unimplemented generic/custom chooser.
+Units use `make check RUN='^TestPgStatStatementsSettings'`.
 
 ## What stays in the engine
 

@@ -60,3 +60,37 @@ func TestRestoreLanguageDDLAdmission(t *testing.T) {
 		t.Fatal("language admission authorized runtime execution", answer, err)
 	}
 }
+
+func TestPgStatStatementsInstallationReplayViewAdmission(t *testing.T) {
+	hooks := []Hook[struct{}]{{Name: "DROP VIEW", Admit: AdmitStatement[struct{}](CheckDropView)}}
+	for _, tc := range []struct {
+		sql      string
+		admitted bool
+	}{
+		{`DROP VIEW "__stuntgres_install_0"."pg_stat_statements"`, true},
+		{`DROP VIEW "retained_雪"."ordinary_consumer" RESTRICT`, true},
+		{`DROP VIEW ordinary_consumer`, false},
+		{`DROP VIEW IF EXISTS public.ordinary_consumer`, false},
+		{`DROP VIEW public.ordinary_consumer CASCADE`, false},
+		{`DROP VIEW public.first,public.second`, false},
+		{`DROP VIEW pg_temp.ordinary_consumer`, false},
+		{`DROP VIEW pg_temp_42.ordinary_consumer`, false},
+		{`DROP MATERIALIZED VIEW public.ordinary_consumer`, false},
+		{`DROP TABLE public.ordinary_consumer`, false},
+	} {
+		t.Run(tc.sql, func(t *testing.T) {
+			statements, err := parser.Parse(tc.sql)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(statements, err)
+			}
+			answer, err := runAdmit(hooks, struct{}{}, nil, statements[0])
+			if tc.admitted {
+				if err != nil || answer != Admitted {
+					t.Fatal("qualified ordinary consumer retirement rejected", answer, err)
+				}
+			} else if err == nil || answer != NotHandled {
+				t.Fatal("consumer retirement widened restore admission", answer, err)
+			}
+		})
+	}
+}

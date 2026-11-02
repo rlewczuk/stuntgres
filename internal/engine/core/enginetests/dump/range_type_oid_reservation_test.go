@@ -52,7 +52,7 @@ func TestRangeTypeReplacementOIDFailureRecovery(t *testing.T) {
 		}
 		target.Mu.Lock()
 		reservation := target.Catalog.OIDReservationLocked()
-		mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, func(floor ids.OID) (ids.OID, error) {
+		mapping, err := control.ReplacementCollisionMapping(ctx, next, retained, nil, constraints, func(floor ids.OID) (ids.OID, error) {
 			return target.Catalog.AllocateOIDFromLocked(&reservation.Next, floor)
 		})
 		live := target.Catalog.NextOID()

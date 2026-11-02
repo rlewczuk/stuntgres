@@ -55,6 +55,10 @@ func referenceStart() error {
 	if alterSystemDisabled {
 		args = append(args, "-c", "allow_alter_system=off")
 	}
+	if pgStatStatements {
+		args = append(args, "-c", "shared_preload_libraries=pg_stat_statements",
+			"-c", "compute_query_id=on", "-c", "pg_stat_statements.max=5000")
+	}
 	options := []testcontainers.ContainerCustomizer{
 		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
 		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
@@ -145,6 +149,16 @@ func referenceInitialize(ctx context.Context) (err error) {
 	}
 	if (version != "18.6" && !strings.HasPrefix(version, "18.6 ")) || number != "180006" || encoding != "UTF8" || collate != "C" || ctype != "C" || messages != "C" || preparedCapacity != "100" || tracking != wantTracking {
 		return fmt.Errorf("configuration mismatch: version=%q number=%q encoding=%q collate=%q ctype=%q messages=%q max_prepared_transactions=%q track_commit_timestamp=%q (want PostgreSQL 18.6/180006 UTF8/C/C/C max_prepared_transactions=100 track_commit_timestamp=%q)", version, number, encoding, collate, ctype, messages, preparedCapacity, tracking, wantTracking)
+	}
+	if pgStatStatements {
+		var preload, queryID, statementCapacity string
+		if err = Admin.QueryRowContext(ctx, "SELECT current_setting('shared_preload_libraries'), current_setting('compute_query_id'), current_setting('pg_stat_statements.max')").Scan(&preload, &queryID, &statementCapacity); err != nil {
+			return fmt.Errorf("pg_stat_statements configuration: %w", err)
+		}
+		if preload != "pg_stat_statements" || queryID != "on" || statementCapacity != "5000" {
+			return fmt.Errorf("pg_stat_statements configuration mismatch: shared_preload_libraries=%q compute_query_id=%q pg_stat_statements.max=%q (want pg_stat_statements/on/5000)", preload, queryID, statementCapacity)
+		}
+		fmt.Fprintf(os.Stderr, "reference pg_stat_statements: shared_preload_libraries=%s compute_query_id=%s max=%s\n", preload, queryID, statementCapacity)
 	}
 	// Native dumps name their bootstrap owner postgres, independently of initdb.
 	if _, err = Admin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {

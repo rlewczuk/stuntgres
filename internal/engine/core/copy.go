@@ -35,6 +35,19 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.Gate(syntax); err != nil {
 		return
 	}
+	if err = s.beginUtilityStatementStats(syntax); err != nil {
+		return 0, err
+	}
+	// Both the direct native API and wire execution reach this same completion
+	// boundary. The frame's reported fence prevents the outer Execute hook from
+	// charging it again; Finish still owns terminal/publication acceptance.
+	defer func() {
+		result := Result{Count: count, UtilityRows: count}
+		s.statementStatsReturned(&result, err)
+	}()
+	previousUtility := s.statementStatsUtilityBody
+	s.statementStatsUtilityBody = true
+	defer func() { s.statementStatsUtilityBody = previousUtility }()
 	if err = s.beginProtocolSimplePortal(); err != nil {
 		return 0, err
 	}
@@ -55,19 +68,33 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		return
 	}
 	if syntax.Query != nil {
-		rows, queryErr := s.prepareCopyQueryRows(syntax.Query)
-		if queryErr != nil {
-			return 0, queryErr
+		// COPY analyzes and executes a genuine nested SELECT. Only statistics
+		// ownership changes here: protocol, source, snapshot and execution
+		// scratch retain their existing stream lifetime.
+		parent, depth, utilityBody := s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody
+		s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody = nil, depth+1, false
+		var rows exec.RowResult
+		completed := false
+		defer func() {
+			defer func() {
+				s.statementStats, s.statementStatsDepth, s.statementStatsUtilityBody = parent, depth, utilityBody
+			}()
+			if rows != nil {
+				closeErr := rows.Close()
+				if err == nil {
+					err = closeErr
+				}
+			}
+			s.captureStatementStatsTerminal(s.statementStats)
+			s.statementStats.finish(completed && err == nil)
+		}()
+		rows, err = s.prepareCopyQueryRows(syntax.Query)
+		if err != nil {
+			return 0, err
 		}
 		if rows == nil {
 			return 0, errors.New("stuntgres: COPY query has no row result")
 		}
-		defer func() {
-			closeErr := rows.Close()
-			if err == nil {
-				err = closeErr
-			}
-		}()
 		if err = options.BindForces(nil, nil, rows.Schema()); err != nil {
 			return 0, err
 		}
@@ -81,7 +108,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 		if err = s.startProtocolCopy(hooks, false, options, len(rows.Schema())); err != nil {
 			return 0, err
 		}
-		return s.copyOutput(rows, options, destination)
+		count, err = s.copyOutput(rows, options, destination)
+		completed = err == nil
+		return count, err
 	}
 	e := s.Engine()
 	s.Input.LockedDomainInput = s
@@ -96,7 +125,9 @@ func (s *StatementScope) copyProtocol(syntax *parser.Copy, source io.Reader, des
 	if bindErr != nil {
 		return 0, bindErr
 	}
-	if err = s.snapshotPhase(syntax); err != nil { return 0, err }
+	if err = s.snapshotPhase(syntax); err != nil {
+		return 0, err
+	}
 	// Table COPY opens the target, validates columns and checks privileges
 	// before BeginCopy processes options. Query COPY processes options first.
 	if syntax.From {

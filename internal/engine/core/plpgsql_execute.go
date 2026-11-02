@@ -86,7 +86,7 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 	return result, nil
 }
 
-func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
+func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, span parser.PLExpression, origin plNoticeOrigin) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
 	if live := s.routineLive; live != nil && origin.action != "" {
 		previous := live.origin
 		live.origin = proc.PLOrigin{Position: origin.position, Action: origin.action}
@@ -113,6 +113,8 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		defer func() { s.expressionLive = node.parent; *node = plExpressionLive{} }()
 	}
 	s.sqlRoutine.lexical = f
+	s.statementStatsSource = parser.PLExpressionSource(f.Program.Source, span.Start, span.End)
+	s.statementStatsOffset = span.Start.Offset
 	result, err := s.executePLExpressionQuery(f, statement, assignment)
 	if err != nil {
 		return value, usage, false, err

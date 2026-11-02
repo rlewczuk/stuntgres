@@ -332,6 +332,9 @@ func AppendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		} else {
 			err = args([]expr.Expr{n.Arg})
 		}
+	case InstalledPgStatStatementsExpr:
+		fmt.Fprintf(out, "InstalledPgStatStatements %d", n.Ref.Address.ObjectID)
+		err = args(n.Children())
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

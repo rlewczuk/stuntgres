@@ -99,6 +99,12 @@ engines inherit the same mode.
   oracle's existing startup arguments (`extensions`, `extension_ownership`). Startup verifies SHOW is
   off; packages without this option retain and verify on. This is physical-oracle
   configuration only, not a native setting-default change, reload or file write.
+- `WithPgStatStatements()` starts the same pinned oracle with the genuine
+  `shared_preload_libraries=pg_stat_statements`, `compute_query_id=on` and
+  `pg_stat_statements.max=5000`. Startup validates all three settings. Scenarios
+  install SQL objects explicitly; this option neither installs them nor changes
+  native configuration. Collection history is cluster-wide and is not cleared
+  by public-schema teardown.
 - `WithHostPython()` provisions actual PL/Python in that same pinned container,
   only in real-reference mode; it does not register a native language. Startup
   first requires installed `postgresql-18` exactly `18.6-1.pgdg12+2` on amd64.

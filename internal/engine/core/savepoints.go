@@ -86,6 +86,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			return Result{}, err
 		}
 	}
+	s.captureStatementStatsTerminal(s.statementStats)
 	t, e := s.Owner, s.Engine()
 	t.Mu.Lock()
 	defer t.Mu.Unlock()

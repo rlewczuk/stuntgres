@@ -26,6 +26,7 @@ func (*Explain) statement() {}
 type CreateDatabaseStmt struct {
 	Name    string
 	Options []DatabaseOption
+	Pos     Position
 }
 
 type DatabaseOption struct {
@@ -1910,6 +1911,7 @@ const (
 	CommentSequence
 	CommentForeignTable
 	CommentExtension
+	CommentView
 )
 
 type Comment struct {
@@ -1955,8 +1957,9 @@ type TransactionCharacteristics struct {
 	Session bool
 	Modes   []TransactionMode
 	// Snapshot is a literal-only alternative to Modes, including the empty literal.
-	Snapshot *string
-	Pos      Position
+	Snapshot    *string
+	SnapshotPos Position
+	Pos         Position
 }
 
 func (*TransactionCharacteristics) statement() {}
@@ -1967,6 +1970,10 @@ type TransactionControl struct {
 	Pos   Position
 	Modes []TransactionMode
 	GID   string
+	// Raw TransactionStmt distinguishes START from BEGIN and replaces the GID.
+	// Execution continues to use the shared KindStart transaction operation.
+	StartKeyword bool
+	GIDPosition  Position
 }
 
 func (*TransactionControl) statement() {}
@@ -2485,9 +2492,12 @@ type Set struct {
 	Local       bool
 	Default     bool
 	FromCurrent bool
-	Values      []string
-	Interval    *TimeZoneInterval
-	Pos         Position
+	// JumbleArgs is grammar-selected, not inferred from the effective GUC name.
+	JumbleArgs    bool
+	ValuePosition Position
+	Values        []string
+	Interval      *TimeZoneInterval
+	Pos           Position
 }
 
 func (*Set) statement() {}
@@ -2509,6 +2519,7 @@ func (*Show) statement() {}
 
 type CreateRole struct {
 	Name         Identifier
+	Kind         string // Original ROLE/USER/GROUP; independent of the runtime login default.
 	DefaultLogin bool
 	Options      RoleOptions
 }
@@ -2595,7 +2606,10 @@ func (*AlterRole) statement() {}
 
 func (*CreateRole) statement() {}
 
-type DropRole struct{ Names []string }
+type DropRole struct {
+	Names []string
+	Pos   Position
+}
 
 func (*DropRole) statement() {}
 
@@ -2604,7 +2618,8 @@ type SessionAuthorization struct {
 	Default        bool
 	OwnerDirective bool
 	// ResetCommand preserves RESET versus SET ... DEFAULT for completion tags.
-	ResetCommand bool
+	ResetCommand       bool
+	Pos, ValuePosition Position
 }
 
 func (*SessionAuthorization) statement() {}
@@ -2614,8 +2629,9 @@ type RoleSelection struct {
 	Reset bool
 	Local bool
 	// ResetCommand preserves RESET versus SET ROLE TO DEFAULT.
-	ResetCommand bool
-	Pos          Position
+	ResetCommand  bool
+	Pos           Position
+	ValuePosition Position
 }
 
 func (*RoleSelection) statement() {}
@@ -2733,6 +2749,7 @@ type CreateSchema struct {
 	AuthorizationIdentity bool
 	IfNotExists           bool
 	Tables                []*CreateTable
+	Pos                   Position
 }
 
 func (*CreateSchema) statement() {}
@@ -2742,6 +2759,7 @@ type AlterSchema struct {
 	NewName       string
 	Owner         string
 	OwnerIdentity bool
+	Pos           Position
 }
 
 func (*AlterSchema) statement() {}
@@ -2750,6 +2768,7 @@ type DropSchema struct {
 	Names    []string
 	IfExists bool
 	Cascade  bool
+	Pos      Position
 }
 
 func (*DropSchema) statement() {}
@@ -2757,10 +2776,12 @@ func (*DropSchema) statement() {}
 type settingList struct {
 	values       []string
 	stringValues []bool
+	position     Position
 }
 type settingAtom struct {
 	text     string
 	isString bool
+	position Position
 }
 
 func settingIdentifier(value string) string {
@@ -2800,5 +2821,5 @@ func parsedSet(name Identifier, list settingList, pos Position) *Set {
 			}
 		}
 	}
-	return &Set{Name: name, Values: values, Pos: pos}
+	return &Set{Name: name, Values: values, Pos: pos, ValuePosition: list.position}
 }

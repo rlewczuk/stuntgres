@@ -60,6 +60,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate Description) (Result, error) {
+	scope.statementStatsPlanStart()
 	program := view.RuleProgram{Count: -1, Returning: -1}
 	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
@@ -160,6 +161,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 	}
+	scope.statementStatsPlanBuilt()
 	e.Mu.Lock()
 	foldErr := e.publishFoldAttemptLocked(scope, auth, captures)
 	e.Mu.Unlock()
@@ -170,8 +172,15 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		if err := bind.AcceptFolds(captures); err != nil {
 			return Result{}, err
 		}
+		scope.transferStatementStatsPlanningBind(bind)
 		failed = false
 		return Result{}, nil
+	}
+	scope.statementStatsPlanAccepted()
+	if len(program.Commands) == 0 && scope.statementStats != nil {
+		// Rewrite suppression constructed a valid empty program, but no
+		// executor ran. Its empty Result is not an execution completion.
+		scope.statementStats.reported = true
 	}
 	for i, command := range program.Commands {
 		if err := scope.Op.Context().Err(); err != nil {

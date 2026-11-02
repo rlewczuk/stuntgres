@@ -67,11 +67,11 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 			candidate.NamedDeclaration = declared
 			return candidate, true
 		}
-		symbol, err := callableProviderSymbol(view, d)
+		binding, err := callableProviderBindingName(view, d)
 		if err != nil {
 			return candidate, false
 		}
-		family, ok := functions.Lookup(symbol)
+		family, ok := functions.Lookup(binding)
 		if !ok || family.NamedCall == nil {
 			return candidate, false
 		}
@@ -213,15 +213,15 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		return true
 	}
 	if candidate.NamedDeclaration != nil {
-		symbol, err := callableProviderSymbol(b.BindingCatalog(), candidate.Procedure)
+		binding, err := callableProviderBindingName(b.BindingCatalog(), candidate.Procedure)
 		if err != nil {
 			return false
 		}
-		family, ok := functions.Lookup(symbol)
+		family, ok := functions.Lookup(binding)
 		if !ok || family.NamedCall == nil {
 			return false
 		}
-		raw = providerFunctionSyntax(raw, symbol)
+		raw = providerFunctionSyntax(raw, binding)
 		var valid bool
 		candidate.Inputs, candidate.Targets, valid = family.NamedCall(b, raw, operands, candidate.NamedDeclaration)
 		return valid
@@ -244,7 +244,7 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		}
 	}
 	operands = probe
-	name, err := callableProviderSymbol(b.BindingCatalog(), candidate.Procedure)
+	name, err := callableProviderBindingName(b.BindingCatalog(), candidate.Procedure)
 	if err != nil {
 		return false
 	}

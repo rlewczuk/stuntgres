@@ -59,7 +59,7 @@ func ScopeAssignPLCursorTargets(x *StatementScope, run *proc.PLRun, f *proc.PLFr
 
 // ScopeEvaluatePLExpression calls x.evaluatePLExpression.
 func ScopeEvaluatePLExpression(x *StatementScope, f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (sqltype.Value, sqltype.Usage, bool, error) {
-	return x.evaluatePLExpression(f, statement, read, assignment, origin)
+	return x.evaluatePLExpression(f, statement, read, assignment, parser.PLExpression{}, origin)
 }
 
 // ScopeInvokePLRoutine calls x.invokePLRoutine.
@@ -114,7 +114,7 @@ func PLTriggerRelation(read catalog.Read, relation *catalog.Relation) (proc.PLTr
 
 // ScopeAssignPLTarget calls x.assignPLTarget.
 func ScopeAssignPLTarget(x *StatementScope, f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read, origin plNoticeOrigin) (sqltype.Value, error) {
-	return x.assignPLTarget(f, checked, raw, query, read, origin)
+	return x.assignPLTarget(f, checked, raw, query, read, parser.PLExpression{}, origin)
 }
 
 // ScopeConvertPLValue calls x.convertPLValue.
@@ -130,4 +130,8 @@ func ScopePLRoutineDiagnosticIdentity(x *StatementScope, read catalog.Read, d *c
 // ScopePLRuntimeError calls x.plRuntimeError.
 func ScopePLRuntimeError(x *StatementScope, err error, read catalog.Read, d *catalog.Procedure, start parser.Position, end parser.Position, origin parser.Position, action string, expression bool) error {
 	return x.plRuntimeError(err, read, d, start, end, origin, action, expression)
+}
+
+func ScopeRotatePLTransaction(x *StatementScope, commit, chain bool) error {
+	return x.rotatePLTransaction(commit, chain)
 }
