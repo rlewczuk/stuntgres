@@ -14,6 +14,10 @@ type RegLookupKind uint8
 const (
 	RegLookupCollation RegLookupKind = iota
 	RegLookupRole
+	RegLookupProc
+	RegLookupProcedure
+	RegLookupOper
+	RegLookupOperator
 )
 
 // RegLookup retains a typed TEXT operand and routine provenance, never a
@@ -24,11 +28,28 @@ type RegLookup struct {
 	Kind RegLookupKind
 }
 
-func (n RegLookup) name() string {
-	if n.Kind == RegLookupRole {
-		return "to_regrole"
+func (n RegLookup) signature() (string, sqltype.ID, uint32) {
+	switch n.Kind {
+	case RegLookupCollation:
+		return "to_regcollation", sqltype.Regcollation, 4195
+	case RegLookupRole:
+		return "to_regrole", sqltype.Regrole, 4093
+	case RegLookupProc:
+		return "to_regproc", sqltype.Regproc, 3494
+	case RegLookupProcedure:
+		return "to_regprocedure", sqltype.Regprocedure, 3479
+	case RegLookupOper:
+		return "to_regoper", sqltype.Regoper, 3492
+	case RegLookupOperator:
+		return "to_regoperator", sqltype.Regoperator, 3476
+	default:
+		return "", 0, 0
 	}
-	return "to_regcollation"
+}
+
+func (n RegLookup) name() string {
+	name, _, _ := n.signature()
+	return name
 }
 
 func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
@@ -68,12 +89,20 @@ func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if !visible || len(raw.Args) != 1 || len(raw.ArgNames) != 0 || raw.Variadic || raw.ResolutionOnly {
 		return nil, missing()
 	}
-	n := RegLookup{Kind: RegLookupCollation}
-	result := sqltype.Regcollation
+	var n RegLookup
 	switch name {
-	case "to_regrole":
-		n.Kind, result = RegLookupRole, sqltype.Regrole
 	case "to_regcollation":
+		n.Kind = RegLookupCollation
+	case "to_regrole":
+		n.Kind = RegLookupRole
+	case "to_regproc":
+		n.Kind = RegLookupProc
+	case "to_regprocedure":
+		n.Kind = RegLookupProcedure
+	case "to_regoper":
+		n.Kind = RegLookupOper
+	case "to_regoperator":
+		n.Kind = RegLookupOperator
 	default:
 		return nil, missing()
 	}
@@ -87,6 +116,7 @@ func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
+	_, result, _ := n.signature()
 	usage := b.Type(result).Usage()
 	if err := b.CaptureTypeInput(usage.Type); err != nil {
 		return nil, err
@@ -100,12 +130,9 @@ func bindRegLookup(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 }
 
 func (n RegLookup) Validate() error {
-	if n.Kind > RegLookupRole || n.Arg == nil || n.Arg.ResultUsage().Type == nil || n.Arg.ResultUsage().Type.ID() != sqltype.Text || n.Arg.ResultUsage() != n.Arg.ResultUsage().Type.Usage() {
+	name, result, oid := n.signature()
+	if name == "" || n.Arg == nil || n.Arg.ResultUsage().Type == nil || n.Arg.ResultUsage().Type.ID() != sqltype.Text || n.Arg.ResultUsage() != n.Arg.ResultUsage().Type.Usage() {
 		return fmt.Errorf("stuntgres: invalid registry lookup operand")
-	}
-	result, oid := sqltype.Regcollation, uint32(4195)
-	if n.Kind == RegLookupRole {
-		result, oid = sqltype.Regrole, 4093
 	}
 	if n.Usage.Type == nil || n.Usage.Type.ID() != result || n.Usage != n.Usage.Type.Usage() {
 		return fmt.Errorf("stuntgres: invalid registry lookup result")

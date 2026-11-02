@@ -33,7 +33,7 @@ func regLookupBind(t *testing.T, query string) (functions.RegLookup, *analyze.Bi
 
 type regLookupUnitChild struct {
 	expr.Info
-	value sqltype.Value
+	value   sqltype.Value
 	failure error
 }
 
@@ -43,8 +43,8 @@ func (n regLookupUnitChild) Eval(expr.Context) (sqltype.Value, error) {
 
 type regLookupUnitContext struct {
 	expr.Context
-	ctx context.Context
-	input sqltype.InputEnvironment
+	ctx        context.Context
+	input      sqltype.InputEnvironment
 	allowInput bool
 }
 
@@ -58,10 +58,10 @@ func (c regLookupUnitContext) FunctionInput() sqltype.InputEnvironment {
 
 func TestRegLookupCollRoleBinding(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		kind functions.RegLookupKind
+		name   string
+		kind   functions.RegLookupKind
 		result sqltype.ID
-		oid uint32
+		oid    uint32
 	}{
 		{"to_regcollation", functions.RegLookupCollation, sqltype.Regcollation, 4195},
 		{"to_regrole", functions.RegLookupRole, sqltype.Regrole, 4093},
@@ -77,9 +77,11 @@ func TestRegLookupCollRoleBinding(t *testing.T) {
 		}
 		n, b := regLookupBind(t, "SELECT "+tc.name+"('pg_monitor')")
 		for _, mutate := range []func(*functions.RegLookup){
-			func(n *functions.RegLookup) { n.Kind = functions.RegLookupKind(2) },
+			func(n *functions.RegLookup) { n.Kind = functions.RegLookupKind(255) },
 			func(n *functions.RegLookup) { n.Arg = nil },
-			func(n *functions.RegLookup) { n.Arg = regLookupUnitChild{Info: expr.Info{Usage: b.Type(sqltype.Bool).Usage()}} },
+			func(n *functions.RegLookup) {
+				n.Arg = regLookupUnitChild{Info: expr.Info{Usage: b.Type(sqltype.Bool).Usage()}}
+			},
 			func(n *functions.RegLookup) { n.Usage = b.Type(sqltype.Text).Usage() },
 			func(n *functions.RegLookup) { n.Usage.Typmod = 1 },
 			func(n *functions.RegLookup) { n.RoutineReference = nil },
@@ -106,7 +108,7 @@ func TestRegLookupCollRoleBinding(t *testing.T) {
 	}
 	for _, name := range []string{"To_Regrole", "To_Regcollation", "to_regnamespace"} {
 		if _, ok := functions.Lookup(name); ok {
-			t.Fatal("lookup widened beyond the two exact callable spellings", name)
+			t.Fatal("lookup admitted an unrelated or wrong-case spelling", name)
 		}
 	}
 }
@@ -114,7 +116,7 @@ func TestRegLookupCollRoleBinding(t *testing.T) {
 func TestRegLookupCollRoleEvaluation(t *testing.T) {
 	for _, tc := range []struct {
 		query, valid string
-		identity uint32
+		identity     uint32
 	}{
 		{`SELECT to_regcollation('pg_catalog."C"')`, `pg_catalog."C"`, 950},
 		{`SELECT to_regrole('pg_monitor')`, "pg_monitor", 3373},
@@ -177,7 +179,10 @@ func TestRegLookupCollRoleEvaluation(t *testing.T) {
 		// Numeric and dash input must use the complete codec without demanding a
 		// symbolic resolver. In particular, 010 is the OID codec's octal 8.
 		c.input = sqltype.InputEnvironment{}
-		for _, numeric := range []struct{ text string; id uint32 }{{"0", 0}, {"-", 0}, {"010", 8}, {"4294967295", 4294967295}} {
+		for _, numeric := range []struct {
+			text string
+			id   uint32
+		}{{"0", 0}, {"-", 0}, {"010", 8}, {"4294967295", 4294967295}} {
 			child.value = sqltype.String(text, numeric.text)
 			n.Arg = child
 			value, err := n.Eval(c)

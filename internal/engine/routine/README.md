@@ -19,10 +19,14 @@ ordinary catalog inquiry provider. Its internal display source matches its SQL
 name; no named formal or pretty overload is declared.
 
 The executable nullable registry lookups are routines 4195 (`to_regcollation`,
-result 4191) and 4093 (`to_regrole`, result 4096). Both have one unnamed TEXT
-formal, strict STABLE/parallel-safe scalar declarations and ordinary catalog
-provider membership. Display and seeded descriptors share these declarations;
-the identity ledger alone never grants execution.
+result 4191), 4093 (`to_regrole`, result 4096), 3494 (`to_regproc`, result 24),
+3479 (`to_regprocedure`, result 2202), 3492 (`to_regoper`, result 2203) and
+3476 (`to_regoperator`, result 2204). All six have one unnamed TEXT formal,
+strict STABLE/parallel-safe scalar declarations and ordinary catalog provider
+membership. Successful provider/formal association, display facts and seeded
+descriptors share these declarations; the fixed identity ledger alone never
+grants execution. The callable family uses the existing RegLookup expression
+owner and alias codecs, not a second catalog or execution family.
 
 The metadata-only `pg_config` declaration likewise carries zero provider flags:
 its two OUT TEXT fields, strict stable/restricted set declaration and released
@@ -674,8 +678,11 @@ Statistics I/O declaration/display and complete seed materialization use
 and strict calls belong to the statistics family in `reference/catalogs`.
 Settings/options declaration, display and complete seed materialization use
 `RUN='^TestSettingsOptionsRoutineDeclarations$'`.
-Nullable registry lookup declaration, display and complete seed materialization
-use `RUN='^TestRegLookupCollRoleDeclarations$'`.
+Nullable registry lookup declaration, display, successful association and complete
+seed materialization use `RUN='^TestRegLookupCallableDeclarations$'` and the
+preserved `RUN='^TestRegLookupCollRoleDeclarations$'`; public SQL/catalog
+assertions belong to `TestReferenceRegLookupCallableBinding` in
+`reference/type_resolution`.
 XML row-mapping declaration/display/input-name ownership uses
 `RUN='^TestXMLMapRowsRoutineDeclarations$'`.
 

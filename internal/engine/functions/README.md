@@ -77,10 +77,18 @@ members and emits one row even for a whole-NULL record, without declaring an
 SRF. Generic record transport, stored protocols and native replay require no
 adapter special case.
 
-`RegLookup` binds the two unnamed TEXT signatures `to_regcollation` and
-`to_regrole` through ordinary routine admission. Its one typed child and exact
-alias result use the existing descriptor's complete input codec, including dash
-and numeric identities, against the current statement input environment.
+`RegLookup` binds six unnamed TEXT signatures through ordinary routine admission:
+`to_regcollation(text) → regcollation`, `to_regrole(text) → regrole`,
+`to_regproc(text) → regproc`, `to_regprocedure(text) → regprocedure`,
+`to_regoper(text) → regoper` and `to_regoperator(text) → regoperator`.
+The four callable routine/result OID pairs are 3494/24, 3479/2202, 3492/2203
+and 3476/2204. Its one typed child and exact alias result use the existing
+descriptor's complete input codec against the current statement environment,
+including numeric/zero identities and the routine aliases' dash spelling.
+Name-only routine/operator ambiguity is NULL; throwing alias casts still error.
+Signature operands preserve exact nominal types, without coercion, expansion or
+target execution. Type grammar/modifier exceptions stay hard, including an
+operand101 exception before the shared argument-count limit.
 Only that direct destination conversion may recover `InputSoftError` as typed
 NULL; child, cancellation, setup and hard lookup errors propagate unchanged.
 Strict NULL does not borrow input authority. STABLE recipes never planning-fold
@@ -1499,8 +1507,10 @@ Type inquiry protocol units use `RUN='^TestTypeDescribe(Protocol|ComposedProtoco
 frozen chain ownership uses `RUN='^TestTypeDescribeComposedStoredOwnership$'`.
 Public SQL and metadata scenarios live in `reference/domain_types`.
 Nullable registry lookup binding, codec recovery and immutable protocol units use
-`RUN='^TestRegLookupCollRole(Binding|Evaluation|Protocol)$'`; public dual-mode
-scenarios live in `reference/type_resolution`.
+`RUN='^TestRegLookupCallable(Binding|Evaluation|Protocol)$'`; retain the existing
+`RUN='^TestRegLookupCollRole(Binding|Evaluation|Protocol)$'` preservation units.
+Shared parser precedence uses `RUN='^TestRegprocedureArgumentLimitPrecedence$'`.
+Public dual-mode scenarios live in `reference/type_resolution`.
 Compression inquiry declaration, immutable protocol and demand units use
 `RUN='^TestColumnCompressionProtocol$'`; public scenarios live in
 `reference/session_state`.

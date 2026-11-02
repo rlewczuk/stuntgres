@@ -33,7 +33,7 @@ func routineNamespaceVisible(view catalog.Read, namespace ids.ObjectAddress) boo
 func SelectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	for i := range path.Count() {
 		namespace := path.At(i)
-		if !routineNamespaceVisible(view, namespace) {
+		if path.Qualified == (ids.ObjectAddress{}) && !routineNamespaceVisible(view, namespace) {
 			continue
 		}
 		if p := analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: namespace}, name, signature); p != nil {
@@ -79,7 +79,7 @@ func SelectRoutine(view catalog.Read, path analyze.NamespaceSelection, name stri
 	}
 	for i := range path.Count() {
 		namespace := path.At(i)
-		if !routineNamespaceVisible(view, namespace) {
+		if path.Qualified == (ids.ObjectAddress{}) && !routineNamespaceVisible(view, namespace) {
 			continue
 		}
 		for _, d := range view.Descriptors() {

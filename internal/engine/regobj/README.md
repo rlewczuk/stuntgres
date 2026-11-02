@@ -70,6 +70,11 @@ import it.
   ACL inquiry functions), `CollectOperatorGroups`, `VisibleOperators`,
   `SelectRoutine`, `SelectExactRoutine`, `RoutineIdentityByOID`,
   `RoutineDescriptorOwner`.
+  Routine selection excludes TEMP namespaces only for unqualified `Path`
+  selection; explicit `Qualified` selection can resolve TEMP routines through
+  the existing namespace authority checks. `RoutineSpelling` and function
+  visibility still select over `Path` and do not make TEMP targets unqualified
+  or visible. Both name-only and exact-signature selectors share this boundary.
   `TextSearchInput` (`regts_input.go`) shares captured name parsing and namespace
   authority across configuration consumers. `ResolveRegconfig` preserves
   missing-schema input errors; `ResolveDefaultConfig` instead demands semantic
@@ -316,6 +321,13 @@ and use `RUN='^TestTypeDescribe(Formatter|BaseType)$'`; shared public scenarios
 live in `reference/domain_types`.
 Composed named-only sequence resolution units use
 `RUN='^TestAutoincTextSequenceNames$'` in `enginetests`.
+Qualified-versus-unqualified TEMP routine selection uses the real session/catalog
+unit `RUN='^TestRoutineQualifiedTemporarySelection$'` in
+`internal/engine/core/enginetests/types`. Keep
+`TestRoutinePathCandidateMasking`, `TestVisibilityExecutionTemporaryCapture`,
+the public `TestReferenceRegLookupCallableLifecycle` and
+`TestReferenceVisibilityExecutionPathAuthorization` selected for preservation;
+explicit qualification does not alter unqualified output or nonrelation visibility.
 
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|DroppedIdentity|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'

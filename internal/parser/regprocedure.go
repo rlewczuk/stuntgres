@@ -54,11 +54,11 @@ func ParseRegprocedureName(input string, argument func(string) error) (ObjectNam
 			if segment == "" {
 				return failure("22P02", "expected a type name")
 			}
-			if count == 100 {
-				return failure("54023", "too many arguments")
-			}
 			if err := argument(segment); err != nil {
 				return ObjectName{}, err
+			}
+			if count == 100 {
+				return failure("54023", "too many arguments")
 			}
 			count++
 			start = i + 1

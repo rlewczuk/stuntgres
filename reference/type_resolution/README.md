@@ -33,6 +33,41 @@ Select this family with
 `make check RUN='^TestReferenceRegLookupCollRole(Values|Binding|Diagnostics|Lifecycle|Stored|Smoke)$'`
 and repeat with `REFERENCE=1`.
 
+`TestReferenceRegLookupCallableValues`, `TestReferenceRegLookupCallableBinding`,
+`TestReferenceRegLookupCallableDiagnostics`,
+`TestReferenceRegLookupCallableParserPrecedence`,
+`TestReferenceRegLookupCallableLifecycle`, `TestReferenceRegLookupCallableStored`
+and `TestReferenceRegLookupCallableSmoke` cover the four callable TEXT signatures
+`to_regproc`, `to_regprocedure`, `to_regoper` and `to_regoperator`. Definitions
+live in `reglookup_callable_values_test.go`, `reglookup_callable_binding_test.go`,
+`reglookup_callable_diagnostics_test.go`, `reglookup_callable_lifecycle_test.go`
+and `reglookup_callable_stored_test.go`.
+
+Independent expectations include fixed builtin OIDs, exact alias descriptors and
+raw transport, numeric zero/max-OID versus NULL, signature overload identity and
+name-only ambiguity as NULL (with throwing-cast controls). Direct, fresh and held
+TEXT routes preserve complete hard diagnostics and recover for later valid input.
+The public operand101 regression requires hard type errors before the shared
+argument limit. Lifecycle witnesses distinguish same-signature path masking from
+overloads, TEMP operand types from targets, schema USAGE from target EXECUTE,
+and current identities after rename/move/drop/recreation. Native-only phases
+consume actual Dump bytes through Reset/Restore and a fresh engine, retain
+finished rows/metadata, preserve state after failed Restore, then replay exactly
+the emitted SQL on PostgreSQL. Stored TEXT calls remain runtime expressions;
+stateless builtins require no separate serialization.
+
+Run these selected groups, repeating each with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceRegLookupCallable(Values|Binding|Diagnostics|ParserPrecedence)$'
+make check RUN='^TestReferenceRegLookupCallable(Lifecycle|Stored)$'
+make check RUN='^TestReferenceRegLookupCallableSmoke$'
+```
+
+The last selector is the feature smoke: four fixed alias values/OIDs,
+ambiguous/missing/strict NULL, held hard-error recovery and real native stored
+round-trip/default/view checks with emitted PostgreSQL replay.
+
 ### Input validity diagnostics
 
 `TestReferenceInputValidityValues`, `NullRecords`, `Typmods`, `HardErrors`,

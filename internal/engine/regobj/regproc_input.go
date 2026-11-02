@@ -94,11 +94,11 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 	}
 	parts := name.Parts
 	if len(parts) > 3 {
-		return 0, sqlError("42601", "improper qualified name (too many dotted names): "+text)
+		return 0, sqlError("42601", "improper qualified name (too many dotted names): "+catalog.ObjectNameText(name))
 	}
 	if len(parts) == 3 {
 		if parts[0].Text != r.types.capture.Database {
-			return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, catalog.ObjectNameText(name)))
+			return 0, sqlError("0A000", "cross-database references are not implemented: "+catalog.ObjectNameText(name))
 		}
 		parts = parts[1:]
 	}

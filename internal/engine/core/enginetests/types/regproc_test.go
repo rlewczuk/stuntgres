@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -103,6 +104,82 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	// by adding overloads or changing lookup/execution authority.
 	if _, count := regobj.SelectRoutine(view, analyze.NamespaceSelection{Path: path}, "utf8_to_iso8859_1", nil); count != 1 {
 		t.Fatal("conversion identity dedup", count)
+	}
+}
+
+func TestRoutineQualifiedTemporarySelection(t *testing.T) {
+	e := engine.New()
+	s := enginetest.StartSession(t, e, nil)
+	for _, query := range []string{
+		"CREATE TEMP TABLE routine_temp_anchor(v integer)",
+		"CREATE FUNCTION pg_temp.routine_temp_selected(integer) RETURNS integer LANGUAGE SQL AS 'SELECT $1'",
+		"SET search_path TO pg_temp,public",
+	} {
+		enginetest.SessionSQL(t, s, query)
+	}
+	view := e.CatalogRead()
+	var routine *catalog.Procedure
+	for _, descriptor := range view.Descriptors() {
+		procedure, ok := descriptor.(*catalog.Procedure)
+		if !ok || procedure.Name() != "routine_temp_selected" {
+			continue
+		}
+		namespace, ok := view.Namespace(procedure.Namespace())
+		if !ok || namespace.Temporary == (ids.SessionToken{}) || routine != nil {
+			t.Fatal("expected one genuine TEMP routine descriptor", procedure)
+		}
+		routine = procedure
+	}
+	if routine == nil || routine.Signature != "23" {
+		t.Fatal("missing actual TEMP routine/formal", routine)
+	}
+	namespace := routine.Namespace()
+	path := []ids.ObjectAddress{
+		namespace,
+		{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID},
+		{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
+	}
+	want := catalog.RoutineIdentity{
+		ID: routine.Address().ObjectID, Namespace: namespace.ObjectID,
+		Name: "routine_temp_selected", Signature: "23",
+	}
+	for _, test := range []struct {
+		name      string
+		selection analyze.NamespaceSelection
+		count     int
+		identity  catalog.RoutineIdentity
+	}{
+		{"path", analyze.NamespaceSelection{Path: path}, 0, catalog.RoutineIdentity{}},
+		{"qualified", analyze.NamespaceSelection{Qualified: namespace}, 1, want},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			selected, count := regobj.SelectExactRoutine(view, test.selection, want.Name, want.Signature)
+			if count != test.count || selected != test.identity {
+				t.Fatal("exact selector lost Qualified/Path distinction", selected, count)
+			}
+			for _, signature := range []*catalog.ProcedureSignature{nil, &want.Signature} {
+				selected, count := regobj.SelectRoutine(view, test.selection, want.Name, signature)
+				if count != test.count || selected != test.identity {
+					t.Fatal("routine selector lost Qualified/Path distinction", signature, selected, count)
+				}
+			}
+		})
+	}
+	// Output and pg_function_is_visible still use unqualified visibility, even
+	// if a caller hands them a path containing the TEMP namespace.
+	namespaceDescriptor, _ := view.Namespace(namespace)
+	qualifiedName := namespaceDescriptor.Name() + ".routine_temp_selected"
+	if got := regobj.ProcSpelling(view, path, want.ID); got != qualifiedName {
+		t.Fatal("TEMP bare output became unqualified", got, qualifiedName)
+	}
+	if got := regobj.RoutineSpelling(view, path, want.ID, true, false); got != qualifiedName+"(integer)" {
+		t.Fatal("TEMP signature output became unqualified", got, qualifiedName)
+	}
+	boolean, _ := view.LookupType(sqltype.Bool)
+	value, err := regobj.VisibilityInquiry(view, path, path, functions.FunctionVisibility, uint32(want.ID), boolean)
+	visible, valueErr := value.Boolean()
+	if err != nil || valueErr != nil || visible {
+		t.Fatal("qualified TEMP resolution leaked into nonrelation visibility", value, err, valueErr)
 	}
 }
 

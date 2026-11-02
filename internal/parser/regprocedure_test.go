@@ -70,3 +70,48 @@ func TestRegprocedureArgumentErrorPrecedence(t *testing.T) {
 		}
 	}
 }
+
+func TestRegprocedureArgumentLimitPrecedence(t *testing.T) {
+	prefix := "now(" + strings.Repeat("integer,", 100)
+	sentinel := errors.New("operand101 type resolution failed")
+	count := 0
+	_, err := ParseRegprocedureName(prefix+"numeric(0))", func(argument string) error {
+		count++
+		if count == 101 {
+			if argument != "numeric(0)" {
+				t.Fatalf("operand101=%q", argument)
+			}
+			return sentinel
+		}
+		if argument != "integer" {
+			t.Fatalf("earlier operand=%q", argument)
+		}
+		return nil
+	})
+	if err != sentinel || count != 101 {
+		t.Fatal("operand101 callback error must precede the argument limit", count, err)
+	}
+	count = 0
+	_, err = ParseRegprocedureName(prefix+"integer)", func(argument string) error {
+		count++
+		if argument != "integer" {
+			t.Fatalf("operand=%q", argument)
+		}
+		return nil
+	})
+	var diagnostic *sqlstate.Error
+	if count != 101 || !errors.As(err, &diagnostic) || diagnostic.Code != "54023" || diagnostic.Message != "too many arguments" || diagnostic.Position != "" || diagnostic.Context != "" {
+		t.Fatal("valid operand101 must resolve before soft count failure", count, err)
+	}
+	if input, ok := err.(*sqlstate.InputError); !ok || !input.Recoverable() {
+		t.Fatal("argument limit lost producer-soft provenance", err)
+	}
+	count = 0
+	name, err := ParseRegprocedureName("now("+strings.Repeat("integer,", 99)+"integer)", func(string) error {
+		count++
+		return nil
+	})
+	if err != nil || count != 100 || name.Parts[0].Text != "now" {
+		t.Fatal("100-operand boundary changed", count, name, err)
+	}
+}

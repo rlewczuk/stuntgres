@@ -17,6 +17,14 @@
   and released 1.1 script location, preserving pre-existing routines and publishing
   neither the extension nor staged members after failure.
 
+- Add `to_regproc(text)`, `to_regprocedure(text)`, `to_regoper(text)` and
+  `to_regoperator(text)` as typed nullable callable-identity lookups. Missing
+  identities and ambiguous bare names return NULL; throwing alias casts retain
+  their errors. Exact signatures do not coerce operands or execute targets.
+  Hard input exceptions propagate, including operand101 type errors before the
+  argument-count limit. Held calls, stored defaults/views and native control
+  round trips retain runtime lookup rather than an early resolved target.
+
 - Add `pg_get_statisticsobjdef(oid)` through typed binding and nullable TEXT
   results, reconstructing authoritative extended-statistics definitions with
   current names, expression syntax, visibility and quoting. Existing native

@@ -84,3 +84,7 @@
 2932	xpath	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	143	25 142	\N	\N	\N	false	\N		\N	true	\N
 3049	xpath_exists	11	12	1	0	0	0	f	false	false	true	false	i	s	3	0	16	25 142 1009	\N	\N	\N	false	\N	xpath_exists	\N	false	\N
 3050	xpath_exists	11	14	1	0	0	0	f	false	false	true	false	i	s	2	0	16	25 142	\N	\N	\N	false	\N		\N	true	\N
+3476	to_regoperator	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2204	25	\N	\N	\N	false	\N	to_regoperator	\N	false	\N
+3479	to_regprocedure	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2202	25	\N	\N	\N	false	\N	to_regprocedure	\N	false	\N
+3492	to_regoper	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	2203	25	\N	\N	\N	false	\N	to_regoper	\N	false	\N
+3494	to_regproc	11	12	1	0	0	0	f	false	false	true	false	s	s	1	0	24	25	\N	\N	\N	false	\N	to_regproc	\N	false	\N

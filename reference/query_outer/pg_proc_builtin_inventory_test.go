@@ -62,6 +62,9 @@ import (
 // zero-argument TIMESTAMPTZ/VOID signatures and parallel-restricted metadata.
 // Exported transaction snapshots add strict VOLATILE/parallel-unsafe OID3809,
 // with no inputs and a scalar TEXT result; strictness is pg_proc.h's default.
+// Callable registry lookups OIDs3476/3479/3492/3494 retain one unnamed TEXT
+// input, the corresponding alias result, strict STABLE/parallel-safe scalar
+// metadata, cost 1 and an internal source matching the SQL name.
 // Sources:
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.dat
 // https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_proc.h
@@ -195,9 +198,10 @@ func pgProcInventoryFacts(t *testing.T) [][]any {
 	// The two truncate declarations add strict VOLATILE/parallel-unsafe
 	// INT4 results and their released signed descriptor/length formals.
 	// Nullable registry lookups add released one-TEXT scalar declarations
-	// OIDs4093/4195 with strict/STABLE/parallel-safe metadata and unnamed inputs.
-	if len(facts) != 2186 {
-		t.Fatalf("released represented overloads: got %d, want 2186", len(facts))
+	// OIDs4093/4195 and callable identities3476/3479/3492/3494, with
+	// strict/STABLE/parallel-safe metadata and unnamed inputs.
+	if len(facts) != 2190 {
+		t.Fatalf("released represented overloads: got %d, want 2190", len(facts))
 	}
 	return facts
 }

@@ -83,6 +83,17 @@ Type inquiries use the same direct, prepared and stored expression paths:
 nested domains without replacing nominal `pg_typeof` identity. Native fixture
 controls preserve the underlying type graph and stored expressions.
 
+Nullable callable identity lookups use `to_regproc(text) → regproc`,
+`to_regprocedure(text) → regprocedure`, `to_regoper(text) → regoper` and
+`to_regoperator(text) → regoperator`. Signature-qualified forms match exact
+operand types without coercion or executing the target. Missing identities and
+ambiguous name-only lookups return typed NULL; the corresponding casts still
+raise ambiguity errors. Producer-saved input failures become NULL, while hard
+type syntax/modifier, qualification and privilege errors propagate. Held calls,
+stored defaults and nested views resolve TEXT against current catalog/search-path
+authority. Native Dump/Restore preserves stored calls and alias data without a
+separate builtin serializer.
+
 `information_schema.domain_udt_usage` reports actual domains and their immediate
 base types through six nullable `sql_identifier` columns over NAME. Unused and
 builtin domains participate; nested domains retain their immediate parent, and
